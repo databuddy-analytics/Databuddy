@@ -1,8 +1,5 @@
 "use client";
 
-import { CaretDownIcon, CheckIcon, PlusIcon, UserIcon, UsersIcon } from "@phosphor-icons/react";
-import { useRouter } from "next/navigation";
-import * as React from "react";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +13,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { cn } from "@/lib/utils";
+import { CaretDownIcon, CheckIcon, PlusIcon, UserIcon, UsersIcon } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import * as React from "react";
 
 const getOrganizationInitials = (name: string) => {
   return name
@@ -105,10 +105,10 @@ export function OrganizationSelector() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex min-w-0 flex-col text-left">
-                    <span className="max-w-[140px] truncate font-medium text-sm">
+                    <span className="max-w-[100px] truncate font-medium text-sm" title={activeOrganization?.name || "Personal"}>
                       {activeOrganization?.name || "Personal"}
                     </span>
-                    <span className="max-w-[140px] truncate text-muted-foreground text-xs">
+                    <span className="max-w-[100px] truncate text-muted-foreground text-xs" title={activeOrganization?.slug || "Your workspace"}>
                       {activeOrganization?.slug || "Your workspace"}
                     </span>
                   </div>
