@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { DataTable } from "@/components/analytics/data-table";
-import { BrowserIcon, OSIcon } from "@/components/icon";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BrowserIcon } from "@/components/icon";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { PercentageBadge, type TechnologyTableEntry } from "../utils/technology-helpers";
@@ -97,7 +97,7 @@ interface ProcessedData {
 }
 
 const formatNumber = (value: number | null | undefined): string => {
-  if (value == null || isNaN(value)) return "0";
+  if (value == null || Number.isNaN(value)) return "0";
   return Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
 };
 
@@ -125,21 +125,6 @@ const normalizeData = (data: any[]): GeographicEntry[] =>
     country_code: item.country_code,
     country_name: item.country_name,
   })) || [];
-
-const createNameColumn = (header: string, renderIcon?: (name: string) => React.ReactNode) => ({
-  id: "name",
-  accessorKey: "name",
-  header,
-  cell: (info: CellContext<any, any>) => {
-    const name = info.getValue() as string;
-    return (
-      <div className="flex items-center gap-2">
-        {renderIcon?.(name)}
-        <span className="font-medium">{name}</span>
-      </div>
-    );
-  },
-});
 
 export function WebsiteAudienceTab({
   websiteId,
@@ -784,7 +769,7 @@ export function WebsiteAudienceTab({
           getSubRows={(row: any) => row.versions}
           isLoading={isLoading}
           minHeight={350}
-          renderSubRow={(subRow: any, parentRow: any, index: number) => {
+          renderSubRow={(subRow: any, parentRow: any) => {
             const percentage = Math.round(
               ((subRow.visitors || 0) / (parentRow.visitors || 1)) * 100
             );
