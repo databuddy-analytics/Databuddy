@@ -31,7 +31,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@uidotdev/usehooks": "^2.4.1",
     "@xyflow/react": "^12.7.0",
-    "autumn-js": "^0.0.101",
+    "autumn-js": "^0.0.111",
     "class-variance-authority": "^0.7.1",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
