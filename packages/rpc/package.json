@@ -9,7 +9,7 @@
         "@databuddy/db": "workspace:*",
         "@databuddy/redis": "workspace:*",
         "@orpc/client": "^1.6.6",
-        "@orpc/server": "^1.6.6",
+        "@orpc/server": "^1.7.4",
         "@trpc/react-query": "^11.4.3",
         "autumn-js": "^0.0.72",
         "superjson": "^2.2.2",
