@@ -19,7 +19,7 @@ export default function Hero() {
 	return (
 		<section className="relative overflow-hidden min-h-screen">
 			{/* Startup Fame Badge */}
-			<div className="relative z-20 flex justify-center pt-20 lg:pt-32">
+			<div className="relative z-20 flex justify-center py-16 lg:py-20">
 				<a href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc" target="_blank" rel="noopener noreferrer">
 					<img src="https://lightspeed.ac/?url=startupfa.me/badges/featured-badge-small-light.webp&w=3840&q=80&we&output=webp" alt="Featured on Startup Fame" width={220} height={60} className="rounded-md" />
 				</a>
