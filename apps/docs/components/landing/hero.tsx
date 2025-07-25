@@ -19,9 +19,9 @@ export default function Hero() {
 	return (
 		<section className="relative overflow-hidden min-h-screen">
 			{/* Startup Fame Badge */}
-			<div className="relative z-20 flex justify-center py-16 lg:py-20">
+			<div className="relative z-20 flex justify-center pt-8 pb-6 lg:pt-12 lg:pb-8">
 				<a href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc" target="_blank" rel="noopener noreferrer">
-					<img src="https://lightspeed.ac/?url=startupfa.me/badges/featured-badge-small-light.webp&w=3840&q=80&we&output=webp" alt="Featured on Startup Fame" width={220} height={60} className="rounded-md" />
+					<img src="https://lightspeed.ac/?url=startupfa.me/badges/featured-badge-small-light.webp&w=3840&q=80&we&output=webp" alt="Featured on Startup Fame" width={240} height={60} className="rounded-2xl" />
 				</a>
 			</div>
 			{/* Cool Grid Background */}
@@ -34,10 +34,10 @@ export default function Hero() {
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(var(--primary),0.08)_0%,transparent_60%)]" />
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(var(--primary),0.06)_0%,transparent_60%)]" />
 
-			<div className="relative z-10 container mx-auto px-4 py-12">
-				<div className="flex flex-col items-center justify-center space-y-12">
+			<div className="relative z-10 container mx-auto px-4 py-6">
+				<div className="flex flex-col items-center justify-center space-y-8">
 					{/* Text Content */}
-					<div className="text-center space-y-6 max-w-4xl mx-auto">
+					<div className="text-center space-y-4 max-w-4xl mx-auto">
 						{/* Badge */}
 						<div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 backdrop-blur-sm px-4 py-2">
 							<div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -47,7 +47,7 @@ export default function Hero() {
 						</div>
 
 						{/* Main headline */}
-						<div className="space-y-4">
+						<div className="space-y-3">
 							<h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight">
 								<span className="text-foreground">Privacy-first</span>
 								<br />
