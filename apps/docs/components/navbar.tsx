@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 export const Navbar = () => {
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const [stars, setStars] = useState(0);
+	const [displayedStars, setDisplayedStars] = useState(0);
 
 	const toggleMobileMenu = () => {
 		setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -33,7 +34,32 @@ export const Navbar = () => {
 				});
 				if (response.ok) {
 					const data = await response.json();
-					setStars(data.stargazers_count || 0);
+					const starCount = data.stargazers_count || 0;
+					setStars(starCount);
+
+					if (starCount > 0) {
+						const duration = 1800;
+						const startTime = Date.now();
+
+						const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+						const animate = () => {
+							const elapsed = Date.now() - startTime;
+							const progress = Math.min(elapsed / duration, 1);
+							const easedProgress = easeOutCubic(progress);
+
+							const currentValue = Math.floor(easedProgress * starCount);
+							setDisplayedStars(currentValue);
+
+							if (progress < 1) {
+								requestAnimationFrame(animate);
+							} else {
+								setDisplayedStars(starCount);
+							}
+						};
+
+						animate();
+					}
 				}
 			} catch (error) {
 				console.error('Failed to fetch GitHub stars:', error);
@@ -47,14 +73,14 @@ export const Navbar = () => {
 		<div className="flex flex-col">
 			{/* Desktop Navigation - Fixed and Centered */}
 			<header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
-				<nav className="flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border border-border/50 bg-background/95 backdrop-blur-lg p-3 px-6 shadow-sm">
+				<nav className="flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border border-border/50 bg-background/90 backdrop-blur-xl p-3 px-6 shadow-lg shadow-black/10 ring-1 ring-black/5">
 					<div className="flex items-center gap-6">
 						<Logo />
 						<NavigationMenu>
 							<NavigationMenuList className="gap-1">
 								{navMenu.filter(menu => !menu.external).map((menu) => (
 									<NavigationMenuItem key={menu.name}>
-										<Link 
+										<Link
 											href={menu.path}
 											className="inline-flex h-9 w-max items-center justify-center rounded-md bg-transparent px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 transition-colors"
 										>
@@ -93,7 +119,7 @@ export const Navbar = () => {
 							{stars > 0 && (
 								<div className="flex items-center gap-1 text-sm">
 									<Star className="relative top-[1px] size-4 fill-muted-foreground transition-all duration-300 group-hover:fill-yellow-400 group-hover:drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
-									<span className="font-medium">{stars}</span>
+									<span className="font-medium tabular-nums">{displayedStars}</span>
 								</div>
 							)}
 						</a>
