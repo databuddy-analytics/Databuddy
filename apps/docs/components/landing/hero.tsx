@@ -17,7 +17,7 @@ export default function Hero() {
 	};
 
 	return (
-		<section className="relative overflow-hidden min-h-screen">
+		<section className="relative overflow-hidden min-h-screen pt-16">
 			{/* Startup Fame Badge */}
 			<div className="relative z-20 flex justify-center pt-8 pb-6 lg:pt-12 lg:pb-8">
 				<a href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc" target="_blank" rel="noopener noreferrer">

@@ -113,7 +113,7 @@ export const Navbar = () => {
 	return (
 		<div className="flex flex-col">
 			{/* Desktop Navigation */}
-			<div className="hidden lg:block sticky top-0 bg-background/95 backdrop-blur-lg border-b border-border/50 z-30 shadow-sm">
+			<div className="hidden lg:block fixed top-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-b border-border/50 z-50 shadow-sm">
 				<nav>
 					<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 						<div className="relative flex items-center h-16">
@@ -185,7 +185,7 @@ export const Navbar = () => {
 			</div>
 
 			{/* Mobile Navigation */}
-			<div className="lg:hidden flex flex-col sticky top-0 bg-background/95 backdrop-blur-lg border-b border-border/50 z-30 shadow-sm">
+			<div className="lg:hidden flex flex-col fixed top-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-b border-border/50 z-50 shadow-sm">
 				<nav>
 					<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 						<div className="flex items-center justify-between h-16">
