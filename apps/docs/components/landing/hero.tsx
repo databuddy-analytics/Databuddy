@@ -19,9 +19,9 @@ export default function Hero() {
 	return (
 		<section className="relative overflow-hidden min-h-screen">
 			{/* Startup Fame Badge */}
-			<div className="relative z-20 flex justify-center pt-6">
+			<div className="relative z-20 flex justify-center pt-20 lg:pt-32">
 				<a href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc" target="_blank" rel="noopener noreferrer">
-					<img src="https://startupfa.me/badges/featured-badge.webp" alt="Featured on Startup Fame" width={171} height={54} />
+					<img src="https://lightspeed.ac/?url=startupfa.me/badges/featured-badge-small-light.webp&w=3840&q=80&we&output=webp" alt="Featured on Startup Fame" width={220} height={60} className="rounded-md" />
 				</a>
 			</div>
 			{/* Cool Grid Background */}
@@ -34,7 +34,7 @@ export default function Hero() {
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(var(--primary),0.08)_0%,transparent_60%)]" />
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(var(--primary),0.06)_0%,transparent_60%)]" />
 
-			<div className="relative z-10 container mx-auto px-4 py-16">
+			<div className="relative z-10 container mx-auto px-4 py-12">
 				<div className="flex flex-col items-center justify-center space-y-12">
 					{/* Text Content */}
 					<div className="text-center space-y-6 max-w-4xl mx-auto">
