@@ -15,20 +15,11 @@ export default function Hero() {
 	};
 
 	return (
-		<section className="relative min-h-screen overflow-hidden">
+		<section className="relative overflow-hidden min-h-screen pt-16">
 			{/* Startup Fame Badge */}
-			<div className="relative z-20 flex justify-center pt-6">
-				<a
-					href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc"
-					rel="noopener noreferrer"
-					target="_blank"
-				>
-					<img
-						alt="Featured on Startup Fame"
-						height={54}
-						src="https://startupfa.me/badges/featured-badge.webp"
-						width={171}
-					/>
+			<div className="relative z-20 flex justify-center pt-8 pb-6 lg:pt-12 lg:pb-8">
+				<a href="https://startupfa.me/s/databuddy?utm_source=www.databuddy.cc" target="_blank" rel="noopener noreferrer">
+					<img src="https://lightspeed.ac/?url=startupfa.me/badges/featured-badge-small-light.webp&w=3840&q=80&we&output=webp" alt="Featured on Startup Fame" width={240} height={60} className="rounded-2xl" />
 				</a>
 			</div>
 			{/* Cool Grid Background */}
@@ -41,10 +32,10 @@ export default function Hero() {
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(var(--primary),0.08)_0%,transparent_60%)]" />
 			<div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(var(--primary),0.06)_0%,transparent_60%)]" />
 
-			<div className="container relative z-10 mx-auto px-4 py-16">
-				<div className="flex flex-col items-center justify-center space-y-12">
+			<div className="relative z-10 mx-auto px-4 py-6">
+				<div className="flex flex-col items-center justify-center space-y-8">
 					{/* Text Content */}
-					<div className="mx-auto max-w-4xl space-y-6 text-center">
+					<div className="text-center space-y-4 max-w-4xl mx-auto">
 						{/* Badge */}
 						<div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-2 backdrop-blur-sm">
 							<div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
@@ -54,7 +45,7 @@ export default function Hero() {
 						</div>
 
 						{/* Main headline */}
-						<div className="space-y-4">
+						<div className="space-y-3">
 							<h1 className="font-bold text-4xl tracking-tight sm:text-5xl lg:text-6xl xl:text-7xl">
 								<span className="text-foreground">Privacy-first</span>
 								<br />
