@@ -31,8 +31,18 @@ const app = new Elysia()
 			createContext: () => createTRPCContext({ headers: request.headers }),
 		});
 	})
-	.onError(({ error, code }) => {
-		console.error(error);
+	.onError(({ error, code, request }) => {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		logger.error('Error in API', errorMessage, {
+			code,
+			request: {
+				url: request.url,
+				method: request.method,
+				headers: request.headers,
+				body: request.body,
+			},
+		});
 
 		if (error instanceof Error && error.message === 'Unauthorized') {
 			return new Response(
@@ -57,11 +67,11 @@ export default {
 };
 
 process.on('SIGINT', () => {
-	console.log('SIGINT signal received, shutting down...');
+	logger.info('Shutdown', 'SIGINT signal received, shutting down...');
 	process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-	console.log('SIGTERM signal received, shutting down...');
+	logger.info('Shutdown', 'SIGTERM signal received, shutting down...');
 	process.exit(0);
 });

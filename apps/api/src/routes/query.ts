@@ -1,6 +1,7 @@
 import { auth } from '@databuddy/auth';
 import { db, userPreferences, websites } from '@databuddy/db';
 import { cacheable } from '@databuddy/redis';
+import { logger } from '@databuddy/shared';
 import { eq } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
 import { createRateLimitMiddleware } from '../middleware/rate-limit';
@@ -142,7 +143,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 		}
 		return { user: session.user, session, website, timezone };
 	})
-	.get('/types', ({ user }) => ({
+	.get('/types', () => ({
 		success: true,
 		types: Object.keys(QueryBuilders),
 		configs: Object.fromEntries(
@@ -159,9 +160,8 @@ export const query = new Elysia({ prefix: '/v1/query' })
 
 	.post(
 		'/compile',
-		async ({ body, query, user }) => {
+		async ({ body, query: { website_id } }) => {
 			try {
-				const { website_id } = query;
 				const websiteDomain = website_id
 					? await getWebsiteDomain(website_id)
 					: null;
@@ -185,7 +185,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 
 	.post(
 		'/',
-		async ({ body, query, user, website, timezone }) => {
+		async ({ body, timezone }) => {
 			try {
 				if (Array.isArray(body)) {
 					const results = await Promise.all(
@@ -240,7 +240,11 @@ const getWebsiteDomain = cacheable(
 			});
 			return website?.domain || null;
 		} catch (error) {
-			console.error('Error fetching website domain:', error);
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+			logger.error('Error fetching website domain:', errorMessage, {
+				websiteId,
+			});
 			return null;
 		}
 	},
@@ -259,7 +263,9 @@ async function executeDynamicQuery(request: any, queryParams: any) {
 	const websiteDomain = website_id ? await getWebsiteDomain(website_id) : null;
 
 	const getTimeUnit = (granularity?: string): 'hour' | 'day' => {
-		if (['hourly', 'hour'].includes(granularity || '')) return 'hour';
+		if (['hourly', 'hour'].includes(granularity || '')) {
+			return 'hour';
+		}
 		return 'day';
 	};
 

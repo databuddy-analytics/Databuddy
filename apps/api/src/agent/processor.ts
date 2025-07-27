@@ -1,3 +1,5 @@
+import type { User } from '@databuddy/auth';
+import { logger, type Website } from '@databuddy/shared';
 import { handleChartResponse } from './handlers/chart-handler';
 import { handleMetricResponse } from './handlers/metric-handler';
 import { comprehensiveUnifiedPrompt } from './prompts/agent';
@@ -20,8 +22,8 @@ export interface AssistantRequest {
 }
 
 export interface AssistantContext {
-	user: any;
-	website: any;
+	user: User;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 }
 
@@ -32,7 +34,7 @@ export async function* processAssistantRequest(
 	const startTime = Date.now();
 
 	try {
-		console.info('✅ [Assistant Processor] Input validated', {
+		logger.info('✅ [Assistant Processor]', 'Input validated', {
 			message: request.message,
 			website_id: request.website_id,
 			website_hostname: request.website_hostname,
@@ -60,7 +62,7 @@ export async function* processAssistantRequest(
 		const aiResponse = await getAICompletion({ prompt: fullPrompt });
 		const aiTime = Date.now() - aiStart;
 
-		console.info('📝 [Assistant Processor] Raw AI response received', {
+		logger.info('📝 [Assistant Processor]', 'Raw AI response received', {
 			timeTaken: `${aiTime}ms`,
 			contentLength: aiResponse.content.length,
 		});
@@ -93,7 +95,7 @@ export async function* processAssistantRequest(
 			};
 			return;
 		}
-		console.info('✅ [Assistant Processor] AI response parsed', {
+		logger.info('✅ [Assistant Processor]', 'AI response parsed', {
 			responseType: aiJson.response_type,
 			hasSQL: !!aiJson.sql,
 			thinkingSteps: aiJson.thinking_steps?.length || 0,
@@ -149,7 +151,7 @@ export async function* processAssistantRequest(
 	} catch (error: unknown) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
-		console.error('💥 [Assistant Processor] Processing error', {
+		logger.error('💥 [Assistant Processor]', 'Processing error', {
 			error: errorMessage,
 		});
 

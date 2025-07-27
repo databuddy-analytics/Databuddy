@@ -1,10 +1,7 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
-export const SessionsBuilders: Record<
-	string,
-	SimpleQueryConfig<typeof Analytics.events>
-> = {
+export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
 		table: Analytics.events,
 		fields: [
@@ -117,8 +114,8 @@ export const SessionsBuilders: Record<
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			filters?: any[],
-			granularity?: any,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number
 		) => ({

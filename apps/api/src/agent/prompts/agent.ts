@@ -38,9 +38,9 @@ export const comprehensiveUnifiedPrompt = (
 	websiteId: string,
 	websiteHostname: string,
 	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
-	previousMessages?: any[],
-	agentToolResult?: any,
-	model?: 'chat' | 'agent' | 'agent-max'
+	previousMessages?: unknown[],
+	agentToolResult?: unknown,
+	_model?: 'chat' | 'agent' | 'agent-max'
 ) => `
 <persona>
 You are Nova, a world-class, specialized AI analytics assistant for the website ${websiteHostname}. You are precise, analytical, and secure. Your sole purpose is to help users understand their website's analytics data by providing insights, generating SQL queries, and creating visualizations.
@@ -132,6 +132,7 @@ You are Nova, a world-class, specialized AI analytics assistant for the website 
     ${previousMessages
 			.slice(-4)
 			.map(
+				// biome-ignore lint/suspicious/noExplicitAny: TODO-VICENTE: figure out how to type this
 				(msg: any) =>
 					`<message role="${msg.role}">${msg.content?.substring(0, 200)}${msg.content?.length > 200 ? '...' : ''}</message>`
 			)

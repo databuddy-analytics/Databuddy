@@ -1,17 +1,14 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
-export const ProfilesBuilders: Record<
-	string,
-	SimpleQueryConfig<typeof Analytics.events>
-> = {
+export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 	profile_list: {
 		customSql: (
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			filters?: any[],
-			granularity?: any,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number
 		) => ({
@@ -226,8 +223,8 @@ export const ProfilesBuilders: Record<
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			filters?: any[],
-			granularity?: any,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number
 		) => ({

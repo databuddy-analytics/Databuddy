@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@databuddy/rpc": "workspace:*",
+    "@databuddy/shared": "workspace:*",
+    "@databuddy/auth": "workspace:*",
     "@elysiajs/cors": "^1.3.3",
     "@elysiajs/trpc": "^1.1.0",
     "@elysiajs/websocket": "^0.2.8",

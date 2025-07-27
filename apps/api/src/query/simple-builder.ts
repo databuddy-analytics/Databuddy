@@ -9,11 +9,19 @@ import { FilterOperators } from './types';
 import { applyPlugins } from './utils';
 
 export class SimpleQueryBuilder {
+	private config: SimpleQueryConfig;
+	private request: QueryRequest;
+	private websiteDomain?: string | null;
+
 	constructor(
-		private config: SimpleQueryConfig,
-		private request: QueryRequest,
-		private websiteDomain?: string | null
-	) {}
+		config: SimpleQueryConfig,
+		request: QueryRequest,
+		websiteDomain?: string | null
+	) {
+		this.config = config;
+		this.request = request;
+		this.websiteDomain = websiteDomain;
+	}
 
 	private buildFilter(
 		filter: Filter,
@@ -138,7 +146,9 @@ export class SimpleQueryBuilder {
 		if (this.request.filters) {
 			for (let i = 0; i < this.request.filters.length; i++) {
 				const filter = this.request.filters[i];
-				if (!filter) continue;
+				if (!filter) {
+					continue;
+				}
 				const { clause, params: filterParams } = this.buildFilter(filter, i);
 				whereClause.push(clause);
 				Object.assign(params, filterParams);

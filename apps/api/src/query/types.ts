@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 export const FilterOperators = {
 	eq: '=',
 	ne: '!=',
@@ -40,7 +38,7 @@ export interface SimpleQueryConfig {
 	plugins?: {
 		parseReferrers?: boolean;
 		normalizeUrls?: boolean;
-		[key: string]: any;
+		[key: string]: unknown;
 	};
 	customSql?: (
 		websiteId: string,

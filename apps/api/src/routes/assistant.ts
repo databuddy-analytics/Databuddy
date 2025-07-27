@@ -63,6 +63,8 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 
 			if (!website) {
 				return createStreamingResponse(
+					// Note: This async function* is required because createStreamingResponse expects AsyncGenerator<StreamingUpdate>
+					// biome-ignore lint/suspicious/useAwait: Even though we don't need await here, the function must be async to match the expected type
 					(async function* () {
 						yield { type: 'error', content: 'Website not found' };
 					})()
