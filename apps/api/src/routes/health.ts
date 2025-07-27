@@ -1,7 +1,7 @@
 import { chQuery, db } from '@databuddy/db';
 import { redis } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
 import { Elysia } from 'elysia';
+import { logger } from '../lib/logger';
 
 const checkClickhouse = async () => {
 	try {
@@ -10,7 +10,7 @@ const checkClickhouse = async () => {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		logger.error('[ClickHouse]', 'Health check failed', {
+		logger.error('[ClickHouse]: Health check failed', {
 			error: errorMessage,
 		});
 		return false;
@@ -26,8 +26,8 @@ const checkDatabase = async () => {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		logger.error('[Database]', 'Health check failed', {
-			error: errorMessage,
+		logger.error('[Database]: Health check failed', {
+			errorMessage,
 		});
 		return false;
 	}
@@ -40,7 +40,7 @@ const checkRedis = async () => {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		logger.error('[Redis]', 'Health check failed', {
+		logger.error('[Redis]: Health check failed', {
 			error: errorMessage,
 		});
 		return false;

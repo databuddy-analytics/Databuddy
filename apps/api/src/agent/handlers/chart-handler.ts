@@ -1,6 +1,7 @@
 import type { User } from '@databuddy/auth';
-import { logger, type Website } from '@databuddy/shared';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
+import { logger } from '../../lib/logger';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
@@ -66,7 +67,7 @@ export async function* handleChartResponse(
 		const errorMessage =
 			queryError instanceof Error ? queryError.message : 'Unknown error';
 
-		logger.error('❌ [Chart Handler]', 'SQL execution error', {
+		logger.error('❌ [Chart Handler]: SQL execution error', {
 			error: errorMessage,
 			sql: parsedAiJson.sql,
 		});

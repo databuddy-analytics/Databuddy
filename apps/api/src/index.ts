@@ -1,8 +1,8 @@
 import { appRouter, createTRPCContext } from '@databuddy/rpc';
-import { logger } from '@databuddy/shared';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Elysia } from 'elysia';
+import { logger } from './lib/logger';
 import { assistant } from './routes/assistant';
 import { health } from './routes/health';
 import { query } from './routes/query';
@@ -34,7 +34,8 @@ const app = new Elysia()
 	.onError(({ error, code, request }) => {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		logger.error('Error in API', errorMessage, {
+		logger.error('Error in API', {
+			errorMessage,
 			code,
 			request: {
 				url: request.url,
@@ -67,11 +68,15 @@ export default {
 };
 
 process.on('SIGINT', () => {
-	logger.info('Shutdown', 'SIGINT signal received, shutting down...');
+	logger.info('Shutdown', {
+		message: 'SIGINT signal received, shutting down...',
+	});
 	process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-	logger.info('Shutdown', 'SIGTERM signal received, shutting down...');
+	logger.info('Shutdown', {
+		message: 'SIGTERM signal received, shutting down...',
+	});
 	process.exit(0);
 });

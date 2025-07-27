@@ -1,9 +1,9 @@
 import { auth } from '@databuddy/auth';
 import { db, userPreferences, websites } from '@databuddy/db';
 import { cacheable } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
 import { eq } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
+import { logger } from '../lib/logger';
 import { createRateLimitMiddleware } from '../middleware/rate-limit';
 import { compileQuery, executeQuery } from '../query';
 import { QueryBuilders } from '../query/builders';
@@ -242,7 +242,8 @@ const getWebsiteDomain = cacheable(
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : 'Unknown error';
-			logger.error('Error fetching website domain:', errorMessage, {
+			logger.error('Error fetching website domain:', {
+				errorMessage,
 				websiteId,
 			});
 			return null;

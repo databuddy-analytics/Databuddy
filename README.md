@@ -20,7 +20,6 @@
 [![GitHub Stars](https://img.shields.io/github/stars/databuddy-analytics/Databuddy?style=social)](https://github.com/databuddy-analytics/Databuddy/stargazers)
 [![Twitter](https://img.shields.io/twitter/follow/trydatabuddy?style=social)](https://twitter.com/trydatabuddy)
 
-
 </div>
 
 A comprehensive analytics and data management platform built with Next.js, TypeScript, and modern web technologies. Databuddy provides real-time analytics, user tracking, and data visualization capabilities for web applications.
@@ -38,7 +37,7 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 - 🎯 Goal tracking
 - 📈 Conversion analytics
 - 🔍 Custom event tracking
-- 📊 Funnel analysis 
+- 📊 Funnel analysis
 - 📈 Cohort analysis // Soon
 - 🔄 A/B testing // Soon
 - 📈 Export capabilities // Soon
@@ -70,17 +69,20 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/databuddy/databuddy.git
 cd databuddy
 ```
 
 2. Install dependencies (Bun only):
+
 ```bash
 bun install
 ```
 
 3. Set up environment variables:
+
 ```bash
 cp apps/dashboard/.env.example apps/dashboard/.env
 cp apps/landing/.env.example apps/landing/.env
@@ -89,6 +91,7 @@ cp apps/api/.env.example apps/api/.env
 ```
 
 4. Start development servers (Bun only):
+
 ```bash
 bun run dev
 ```
@@ -114,6 +117,7 @@ You can also `cd` into any package and run its scripts directly.
 ### Development Workflow
 
 1. Create a new branch:
+
 ```bash
 git checkout -b feature/your-feature
 ```
@@ -121,22 +125,26 @@ git checkout -b feature/your-feature
 2. Make your changes
 
 3. Run tests:
+
 ```bash
 bun run test
 ```
 
 4. Create a changeset:
+
 ```bash
 bun run changeset
 ```
 
 5. Commit your changes:
+
 ```bash
 git add .
 git commit -m "feat: your feature"
 ```
 
 6. Push your changes:
+
 ```bash
 git push origin feature/your-feature
 ```

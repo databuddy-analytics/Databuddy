@@ -1,7 +1,7 @@
 import { auth } from '@databuddy/auth';
 import { getRateLimitIdentifier, rateLimiters } from '@databuddy/rpc';
-import { logger } from '@databuddy/shared';
 import { Elysia } from 'elysia';
+import { logger } from '../lib/logger';
 
 export interface RateLimitOptions {
 	type: 'api' | 'auth' | 'expensive' | 'admin' | 'public';
@@ -27,7 +27,8 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 
-				logger.error('[Rate Limit] Auth error:', errorMessage, {
+				logger.error('[Rate Limit]: Auth error:', {
+					errorMessage,
 					userId,
 					requestUrl: request.url,
 				});

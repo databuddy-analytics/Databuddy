@@ -1,6 +1,7 @@
 import type { User } from '@databuddy/auth';
-import { logger, type Website } from '@databuddy/shared';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
+import { logger } from '../../lib/logger';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
@@ -35,7 +36,7 @@ export async function* handleMetricResponse(
 			);
 			yield* sendMetricResponse(parsedAiJson, metricValue, context);
 		} catch (queryError: unknown) {
-			logger.error('❌ [Metric Handler]', 'SQL execution error', {
+			logger.error('❌ [Metric Handler]: SQL execution error', {
 				error:
 					queryError instanceof Error ? queryError.message : 'Unknown error',
 				sql: parsedAiJson.sql,
