@@ -1,11 +1,11 @@
 import { appRouter, createTRPCContext } from '@databuddy/rpc';
+import { logger } from '@databuddy/shared';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Elysia } from 'elysia';
 import { assistant } from './routes/assistant';
 import { health } from './routes/health';
 import { query } from './routes/query';
-import { logger } from '@databuddy/shared';
 
 const app = new Elysia()
 	.use(
