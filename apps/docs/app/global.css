@@ -3,12 +3,14 @@
 @import "fumadocs-ui/css/preset.css";
 @import "tw-animate-css";
 
+/* biome-ignore lint: false positive */
 @custom-variant dark (&:is(.dark *));
 
 * {
   font-family: var(--font-geist);
 }
 
+/* biome-ignore lint: false positive */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -139,13 +141,16 @@
 
 @layer base {
   * {
+    /* biome-ignore lint: false positive */
     @apply border-border outline-ring/50;
   }
   body {
+    /* biome-ignore lint: false positive */
     @apply bg-background text-foreground;
   }
 }
 
 #nd-home-layout {
+  /* biome-ignore lint: false positive */
   padding-top: 0px !important;
 }
