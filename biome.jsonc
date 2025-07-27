@@ -740,6 +740,8 @@
   },
   "javascript": {
     "formatter": {
+      "indentStyle": "tab",
+      "indentWidth": 2,
       "arrowParentheses": "always",
       "bracketSameLine": false,
       "jsxQuoteStyle": "double",

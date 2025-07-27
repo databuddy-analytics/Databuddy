@@ -3,6 +3,6 @@ import { blogs } from '@/.source';
 
 // Blog source configuration
 export const blogSource = loader({
-  baseUrl: '/blog',
-  source: blogs.toFumadocsSource(),
+	baseUrl: '/blog',
+	source: blogs.toFumadocsSource(),
 });
