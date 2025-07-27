@@ -14,7 +14,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@mantine/dates": "^8.1.1",
     "@nivo/sankey": "^0.99.0",
-    "@orpc/client": "^1.6.6",
+    "@orpc/client": "^1.7.5",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-slot": "^1.2.3",
