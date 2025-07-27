@@ -1,5 +1,6 @@
 import { getCountryCode, getCountryName, referrers } from '@databuddy/shared';
 import { mapScreenResolutionToDeviceType } from './screen-resolution-to-device-type';
+import type { SimpleQueryConfig } from './types';
 
 export interface ParsedReferrer {
 	type: string;
@@ -81,10 +82,10 @@ function getReferrerByDomain(
 }
 
 export function applyPlugins(
-	data: Record<string, any>[],
-	config: any,
+	data: Record<string, unknown>[],
+	config: SimpleQueryConfig,
 	websiteDomain?: string | null
-): Record<string, any>[] {
+): Record<string, unknown>[] {
 	let result = data;
 
 	if (shouldApplyReferrerParsing(config)) {
@@ -117,7 +118,9 @@ export function deduplicateGeoRows(
 	let totalVisitors = 0;
 	for (const row of rows) {
 		const code = row.country_code || row.name;
-		if (!code) continue;
+		if (!code) {
+			continue;
+		}
 		if (map.has(code)) {
 			const existing = map.get(code);
 			if (existing) {
@@ -140,17 +143,19 @@ export function deduplicateGeoRows(
 	return Array.from(map.values());
 }
 
-function shouldApplyReferrerParsing(config: any): boolean {
+function shouldApplyReferrerParsing(config: SimpleQueryConfig): boolean {
 	return config.plugins?.parseReferrers || shouldAutoParseReferrers(config);
 }
 
 function applyReferrerParsing(
-	data: Record<string, any>[],
+	data: Record<string, string>[],
 	websiteDomain?: string | null
-): Record<string, any>[] {
+): Record<string, unknown>[] {
 	return data.map((row) => {
 		const referrerUrl = row.name || row.referrer;
-		if (!referrerUrl) return row;
+		if (!referrerUrl) {
+			return row;
+		}
 
 		const parsed = parseReferrer(referrerUrl, websiteDomain);
 
@@ -164,8 +169,8 @@ function applyReferrerParsing(
 }
 
 function applyUrlNormalization(
-	data: Record<string, any>[]
-): Record<string, any>[] {
+	data: Record<string, string>[]
+): Record<string, string>[] {
 	return data.map((row) => {
 		if (row.path) {
 			try {
@@ -184,11 +189,13 @@ function applyUrlNormalization(
 }
 
 function applyGeoNormalization(
-	data: Record<string, any>[]
-): Record<string, any>[] {
+	data: Record<string, string>[]
+): Record<string, string>[] {
 	return data.map((row) => {
 		// Only normalize if row has a 'name' field (country/region/etc)
-		if (!row.name) return row;
+		if (!row.name) {
+			return row;
+		}
 		const code = getCountryCode(row.name);
 		const name = getCountryName(code);
 		return {
@@ -199,7 +206,7 @@ function applyGeoNormalization(
 	});
 }
 
-function shouldAutoParseReferrers(config: any): boolean {
+function shouldAutoParseReferrers(config: SimpleQueryConfig): boolean {
 	const referrerConfigs = ['top_referrers', 'referrer', 'traffic_sources'];
 	return referrerConfigs.includes(config.type || config.name);
 }

@@ -22,7 +22,9 @@ export function validateSQL(sql: string): boolean {
 
 	// Check for dangerous keyword patterns
 	for (const keyword of FORBIDDEN_SQL_KEYWORDS) {
-		if (upperSQL.includes(keyword)) return false;
+		if (upperSQL.includes(keyword)) {
+			return false;
+		}
 	}
 
 	// Must start with SELECT or WITH (for CTEs)

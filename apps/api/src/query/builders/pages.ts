@@ -1,10 +1,7 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
-export const PagesBuilders: Record<
-	string,
-	SimpleQueryConfig<typeof Analytics.events>
-> = {
+export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
@@ -41,8 +38,8 @@ export const PagesBuilders: Record<
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			filters?: any[],
-			granularity?: any,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number
 		) => ({
@@ -101,8 +98,8 @@ export const PagesBuilders: Record<
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			filters?: any[],
-			granularity?: any,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number
 		) => ({

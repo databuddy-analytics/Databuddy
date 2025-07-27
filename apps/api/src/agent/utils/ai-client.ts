@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { logger } from '../../lib/logger';
 
 const OPENAI_CONFIG = {
 	apiKey: process.env.AI_API_KEY,
@@ -39,7 +40,7 @@ export async function getAICompletion(
 		const content = completion.choices[0]?.message?.content || '';
 		const aiTime = Date.now() - startTime;
 
-		console.info('🤖 [AI Client] Completion completed', {
+		logger.info('🤖 [AI Client]: Completion completed', {
 			timeTaken: `${aiTime}ms`,
 			contentLength: content.length,
 			usage: completion.usage,
@@ -50,8 +51,11 @@ export async function getAICompletion(
 			usage: completion.usage,
 		};
 	} catch (error) {
-		console.error('❌ [AI Client] Completion failed', {
-			error: error instanceof Error ? error.message : 'Unknown error',
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
+
+		logger.error('❌ [AI Client]: Completion failed', {
+			error: errorMessage,
 			timeTaken: Date.now() - startTime,
 		});
 		throw error;

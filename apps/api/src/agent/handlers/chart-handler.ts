@@ -1,12 +1,15 @@
+import type { User } from '@databuddy/auth';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
+import { logger } from '../../lib/logger';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
 export interface ChartHandlerContext {
-	user: any;
-	website: any;
+	user: User;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 	startTime: number;
 	aiTime: number;
@@ -61,8 +64,11 @@ export async function* handleChartResponse(
 			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 	} catch (queryError: unknown) {
-		console.error('❌ SQL execution error', {
-			error: queryError instanceof Error ? queryError.message : 'Unknown error',
+		const errorMessage =
+			queryError instanceof Error ? queryError.message : 'Unknown error';
+
+		logger.error('❌ [Chart Handler]: SQL execution error', {
+			error: errorMessage,
 			sql: parsedAiJson.sql,
 		});
 		yield {

@@ -2,10 +2,10 @@ import { appRouter, createTRPCContext } from '@databuddy/rpc';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Elysia } from 'elysia';
+import { logger } from './lib/logger';
 import { assistant } from './routes/assistant';
 import { health } from './routes/health';
 import { query } from './routes/query';
-import { logger } from '@databuddy/shared';
 
 const app = new Elysia()
 	.use(
@@ -31,8 +31,19 @@ const app = new Elysia()
 			createContext: () => createTRPCContext({ headers: request.headers }),
 		});
 	})
-	.onError(({ error, code }) => {
-		console.error(error);
+	.onError(({ error, code, request }) => {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		logger.error('Error in API', {
+			errorMessage,
+			code,
+			request: {
+				url: request.url,
+				method: request.method,
+				headers: request.headers,
+				body: request.body,
+			},
+		});
 
 		if (error instanceof Error && error.message === 'Unauthorized') {
 			return new Response(
@@ -57,11 +68,15 @@ export default {
 };
 
 process.on('SIGINT', () => {
-	console.log('SIGINT signal received, shutting down...');
+	logger.info('Shutdown', {
+		message: 'SIGINT signal received, shutting down...',
+	});
 	process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-	console.log('SIGTERM signal received, shutting down...');
+	logger.info('Shutdown', {
+		message: 'SIGTERM signal received, shutting down...',
+	});
 	process.exit(0);
 });

@@ -9,6 +9,10 @@ import { and, db, eq, member, websites } from '@databuddy/db';
 import { cacheable } from '@databuddy/redis';
 import { logger } from '../lib/logger';
 
+// Regex patterns moved to top level for performance
+const WWW_PREFIX_REGEX = /^www\./;
+const DOMAIN_LABEL_REGEX = /^[a-zA-Z0-9-]+$/;
+
 type Website = typeof websites.$inferSelect;
 
 type WebsiteWithOwner = Website & {
@@ -161,7 +165,7 @@ export function normalizeDomain(domain: string): string {
 
 	try {
 		const hostname = new URL(urlString).hostname;
-		const finalDomain = hostname.replace(/^www\./, '');
+		const finalDomain = hostname.replace(WWW_PREFIX_REGEX, '');
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw new Error(
@@ -213,7 +217,7 @@ export function isValidDomainFormat(domain: string): boolean {
 			return false;
 		}
 		if (
-			!/^[a-zA-Z0-9-]+$/.test(label) ||
+			!DOMAIN_LABEL_REGEX.test(label) ||
 			label.startsWith('-') ||
 			label.endsWith('-')
 		) {
