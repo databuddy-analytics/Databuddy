@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendDownIcon } from '@phosphor-icons/react';
+import { TargetIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import {
@@ -200,7 +200,7 @@ export default function GoalsPage() {
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
-							<TrendDownIcon
+							<TargetIcon
 								className="h-5 w-5 text-red-600"
 								size={16}
 								weight="duotone"
@@ -226,7 +226,7 @@ export default function GoalsPage() {
 				description="Track key conversions and measure success"
 				hasError={!!goalsError}
 				icon={
-					<TrendDownIcon
+					<TargetIcon
 						className="h-6 w-6 text-primary"
 						size={16}
 						weight="duotone"
