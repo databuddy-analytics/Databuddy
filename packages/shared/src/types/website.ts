@@ -46,3 +46,21 @@ export interface WebsitesApiResponse {
 	data?: Website[];
 	error?: string;
 }
+
+export interface CountryData {
+	country: string;
+	country_code?: string;
+	visitors: number;
+	pageviews: number;
+}
+
+export interface RegionData {
+	country: string;
+	visitors: number;
+	pageviews: number;
+}
+
+export interface LocationData {
+	countries: CountryData[];
+	regions: RegionData[];
+}

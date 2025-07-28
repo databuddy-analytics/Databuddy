@@ -11,25 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMapLocationData } from '@/hooks/use-dynamic-query';
 import { cn } from '@/lib/utils';
+import type { LocationData } from '@databuddy/shared';
 import { WebsitePageHeader } from '../_components/website-page-header';
-
-interface CountryData {
-	country: string;
-	country_code?: string;
-	visitors: number;
-	pageviews: number;
-}
-
-interface RegionData {
-	country: string;
-	visitors: number;
-	pageviews: number;
-}
-
-interface LocationData {
-	countries: CountryData[];
-	regions: RegionData[];
-}
 
 const MapComponent = dynamic(
 	() =>
