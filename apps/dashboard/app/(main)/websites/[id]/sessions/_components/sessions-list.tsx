@@ -1,6 +1,6 @@
 'use client';
 
-import { ClockIcon } from '@phosphor-icons/react';
+import { UserIcon } from '@phosphor-icons/react';
 import { Loader2Icon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 			<div className="space-y-6">
 				<WebsitePageHeader
 					description="User sessions with event timelines and custom event properties"
-					icon={<ClockIcon className="h-6 w-6 text-primary" />}
+					icon={<UserIcon className="h-6 w-6 text-primary" />}
 					title="Recent Sessions"
 					variant="minimal"
 					websiteId={websiteId}
@@ -153,7 +153,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 					description="User sessions with event timelines and custom event properties"
 					errorMessage={error?.message || 'Failed to load sessions'}
 					hasError={true}
-					icon={<ClockIcon className="h-6 w-6 text-primary" />}
+					icon={<UserIcon className="h-6 w-6 text-primary" />}
 					title="Recent Sessions"
 					variant="minimal"
 					websiteId={websiteId}
@@ -167,7 +167,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 			<div className="space-y-6">
 				<WebsitePageHeader
 					description="User sessions with event timelines and custom event properties"
-					icon={<ClockIcon className="h-6 w-6 text-primary" />}
+					icon={<UserIcon className="h-6 w-6 text-primary" />}
 					title="Recent Sessions"
 					variant="minimal"
 					websiteId={websiteId}
@@ -175,7 +175,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 				<Card>
 					<CardContent className="flex items-center justify-center">
 						<div className="flex flex-col items-center py-12 text-center text-muted-foreground">
-							<ClockIcon className="mb-4 h-12 w-12 opacity-50" />
+							<UserIcon className="mb-4 h-12 w-12 opacity-50" />
 							<p className="mb-2 font-medium text-lg">No sessions found</p>
 							<p className="text-sm">
 								Sessions will appear here once users visit your website
@@ -191,7 +191,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		<div className="space-y-6">
 			<WebsitePageHeader
 				description="User sessions with event timelines and custom event properties"
-				icon={<ClockIcon className="h-6 w-6 text-primary" />}
+				icon={<UserIcon className="h-6 w-6 text-primary" />}
 				subtitle={`${allSessions.length} loaded`}
 				title="Recent Sessions"
 				variant="minimal"
