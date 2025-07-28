@@ -1,5 +1,4 @@
 import { appRouter, createTRPCContext } from '@databuddy/rpc';
-import { logger } from '@databuddy/shared';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Elysia } from 'elysia';
