@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusIcon, TargetIcon } from '@phosphor-icons/react';
+import { PlusIcon, FunnelIcon } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ export function EmptyState({ onCreateFunnel }: EmptyStateProps) {
 			<CardContent className="flex flex-col items-center justify-center px-8 py-16">
 				<div className="group relative mb-8">
 					<div className="rounded-full border-2 border-primary/20 bg-primary/10 p-6 transition-transform duration-300 group-hover:scale-105">
-						<TargetIcon
+						<FunnelIcon
 							className="h-16 w-16 text-primary"
 							size={16}
 							weight="duotone"
