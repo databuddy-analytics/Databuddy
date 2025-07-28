@@ -99,56 +99,60 @@ const testimonials = [
 	},
 ];
 
+const CardContent = ({
+	testimonial,
+}: {
+	testimonial: (typeof testimonials)[0];
+}) => (
+	<div className="group flex h-[180px] w-[280px] shrink-0 flex-col justify-between rounded-xl border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[200px] sm:w-[350px] md:h-[220px] md:w-[420px]">
+		<p className="text-pretty px-4 pt-4 font-light text-foreground text-sm tracking-tight sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg">
+			&quot;{testimonial.description}&quot;
+		</p>
+		<div className="flex h-[60px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[65px] md:h-[70px]">
+			<div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 md:px-6">
+				<Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10">
+					<AvatarImage
+						src={testimonial.avatar.length > 2 ? testimonial.avatar : ''}
+					/>
+					<AvatarFallback className="bg-muted text-muted-foreground text-xs sm:text-sm">
+						{testimonial.avatar}
+					</AvatarFallback>
+				</Avatar>
+				<div className="flex flex-1 flex-col gap-0">
+					<h5 className="font-medium text-foreground text-sm sm:text-base">
+						{testimonial.name}
+					</h5>
+					<p className="mt-[-2px] truncate text-muted-foreground text-xs sm:text-sm">
+						{testimonial.profession}
+					</p>
+				</div>
+			</div>
+			{testimonial.social && (
+				<>
+					<div className="h-full w-[1px] bg-border" />
+					<div className="flex h-full w-[50px] items-center justify-center sm:w-[60px] md:w-[70px]">
+						{testimonial.social}
+					</div>
+				</>
+			)}
+		</div>
+	</div>
+);
+
 function TestimonialCard({
 	testimonial,
 }: {
 	testimonial: (typeof testimonials)[0];
 }) {
-	const CardContent = () => (
-		<div className="group flex h-[180px] w-[280px] shrink-0 flex-col justify-between rounded-xl border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[200px] sm:w-[350px] md:h-[220px] md:w-[420px]">
-			<p className="text-pretty px-4 pt-4 font-light text-foreground text-sm tracking-tight sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg">
-				&quot;{testimonial.description}&quot;
-			</p>
-			<div className="flex h-[60px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[65px] md:h-[70px]">
-				<div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 md:px-6">
-					<Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10">
-						<AvatarImage
-							src={testimonial.avatar.length > 2 ? testimonial.avatar : ''}
-						/>
-						<AvatarFallback className="bg-muted text-muted-foreground text-xs sm:text-sm">
-							{testimonial.avatar}
-						</AvatarFallback>
-					</Avatar>
-					<div className="flex flex-1 flex-col gap-0">
-						<h5 className="font-medium text-foreground text-sm sm:text-base">
-							{testimonial.name}
-						</h5>
-						<p className="mt-[-2px] truncate text-muted-foreground text-xs sm:text-sm">
-							{testimonial.profession}
-						</p>
-					</div>
-				</div>
-				{testimonial.social && (
-					<>
-						<div className="h-full w-[1px] bg-border" />
-						<div className="flex h-full w-[50px] items-center justify-center sm:w-[60px] md:w-[70px]">
-							{testimonial.social}
-						</div>
-					</>
-				)}
-			</div>
-		</div>
-	);
-
 	if (testimonial.link) {
 		return (
 			<Link className="block" href={testimonial.link} target="_blank">
-				<CardContent />
+				<CardContent testimonial={testimonial} />
 			</Link>
 		);
 	}
 
-	return <CardContent />;
+	return <CardContent testimonial={testimonial} />;
 }
 
 function SlidingTestimonials({
