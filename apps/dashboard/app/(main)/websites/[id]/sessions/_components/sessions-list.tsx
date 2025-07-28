@@ -1,7 +1,6 @@
 'use client';
 
-import { UserIcon } from '@phosphor-icons/react';
-import { Loader2Icon } from 'lucide-react';
+import { UserIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -136,7 +135,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 						</div>
 						<div className="flex items-center justify-center pt-4">
 							<div className="flex items-center gap-2 text-muted-foreground">
-								<Loader2Icon className="h-4 w-4 animate-spin" />
+								<SpinnerIcon className="h-4 w-4 animate-spin" />
 								<span className="text-sm">Loading sessions...</span>
 							</div>
 						</div>
@@ -216,7 +215,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 							<div className="flex justify-center">
 								{isLoading ? (
 									<div className="flex items-center gap-2 text-muted-foreground">
-										<Loader2Icon className="h-4 w-4 animate-spin" />
+										<SpinnerIcon className="h-4 w-4 animate-spin" />
 										<span className="text-sm">Loading more sessions...</span>
 									</div>
 								) : (

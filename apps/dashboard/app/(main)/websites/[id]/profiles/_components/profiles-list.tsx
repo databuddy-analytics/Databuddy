@@ -1,7 +1,6 @@
 'use client';
 
-import { Loader2Icon } from 'lucide-react';
-import { UsersIcon } from '@phosphor-icons/react';
+import { UsersIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useProfilesData } from '@/hooks/use-dynamic-query';
@@ -154,7 +153,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 						</div>
 						<div className="flex items-center justify-center pt-4">
 							<div className="flex items-center gap-2 text-muted-foreground">
-								<Loader2Icon className="h-4 w-4 animate-spin" />
+								<SpinnerIcon className="h-4 w-4 animate-spin" />
 								<span className="text-sm">Loading profiles...</span>
 							</div>
 						</div>
@@ -234,7 +233,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 							<div className="flex justify-center">
 								{isLoading ? (
 									<div className="flex items-center gap-2 text-muted-foreground">
-										<Loader2Icon className="h-4 w-4 animate-spin" />
+										<SpinnerIcon className="h-4 w-4 animate-spin" />
 										<span className="text-sm">Loading more profiles...</span>
 									</div>
 								) : null}
