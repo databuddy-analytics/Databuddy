@@ -90,9 +90,9 @@ export async function getCache<T>(
 	return fn();
 }
 
-export function cacheable<T extends (...args: any) => any>(
-	fn: T,
-	options: CacheOptions | number
+export function cacheable<Args extends unknown[], Return>(
+        fn: (...args: Args) => Promise<Return> | Return,
+        options: CacheOptions | number
 ) {
 	const {
 		expireInSec,
@@ -128,28 +128,28 @@ export function cacheable<T extends (...args: any) => any>(
 		return String(obj);
 	}
 
-	const getKey = (...args: Parameters<T>) =>
-		`${cachePrefix}:${stringify(args)}`;
+        const getKey = (...args: Args) =>
+                `${cachePrefix}:${stringify(args)}`;
 
-	const cachedFn = async (
-		...args: Parameters<T>
-	): Promise<Awaited<ReturnType<T>>> => {
+        const cachedFn = async (
+                ...args: Args
+        ): Promise<Awaited<Return>> => {
 		const key = getKey(...args);
 		let retries = 0;
 
 		while (retries < maxRetries) {
 			try {
 				const redis = getRedisCache();
-				const cached = await redis.get(key);
-				if (cached) {
-					const data = deserialize(cached) as Awaited<ReturnType<T>>;
+                                const cached = await redis.get(key);
+                                if (cached) {
+                                        const data = deserialize(cached) as Awaited<Return>;
 
 					if (staleWhileRevalidate) {
 						const ttl = await redis.ttl(key);
 						if (ttl < staleTime) {
 							// Return stale data and revalidate in background
-							fn(...args)
-								.then(async (freshData: Awaited<ReturnType<T>>) => {
+                                                        fn(...args)
+                                                                .then(async (freshData: Awaited<Return>) => {
 									if (freshData !== undefined && freshData !== null) {
 										const redis = getRedisCache();
 										await redis.setex(key, expireInSec, serialize(freshData));
@@ -167,7 +167,7 @@ export function cacheable<T extends (...args: any) => any>(
 					return data;
 				}
 
-				const result = await fn(...args);
+                                const result = await fn(...args);
 				if (result !== undefined && result !== null) {
 					await redis.setex(key, expireInSec, serialize(result));
 				}
@@ -188,8 +188,8 @@ export function cacheable<T extends (...args: any) => any>(
 		return fn(...args);
 	};
 
-	cachedFn.getKey = getKey;
-	cachedFn.clear = async (...args: Parameters<T>) => {
+        cachedFn.getKey = getKey;
+        cachedFn.clear = async (...args: Args) => {
 		const key = getKey(...args);
 		const redis = getRedisCache();
 		return redis.del(key);
@@ -203,15 +203,15 @@ export function cacheable<T extends (...args: any) => any>(
 		}
 	};
 
-	cachedFn.invalidate = async (...args: Parameters<T>) => {
-		const key = getKey(...args);
-		const result = await fn(...args);
-		if (result !== undefined && result !== null) {
-			const redis = getRedisCache();
-			await redis.setex(key, expireInSec, serialize(result));
-		}
-		return result;
-	};
+        cachedFn.invalidate = async (...args: Args) => {
+                const key = getKey(...args);
+                const result = await fn(...args);
+                if (result !== undefined && result !== null) {
+                        const redis = getRedisCache();
+                        await redis.setex(key, expireInSec, serialize(result));
+                }
+                return result;
+        };
 
 	return cachedFn;
 }

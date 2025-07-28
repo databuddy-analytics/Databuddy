@@ -38,8 +38,8 @@ export const comprehensiveUnifiedPrompt = (
 	websiteId: string,
 	websiteHostname: string,
 	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
-	previousMessages?: any[],
-	agentToolResult?: any,
+	previousMessages?: Array<{ role?: string; content: string }>,
+	agentToolResult?: Record<string, unknown>,
 	model?: 'chat' | 'agent' | 'agent-max'
 ) => `
 <persona>
@@ -132,7 +132,7 @@ You are Nova, a world-class, specialized AI analytics assistant for the website 
     ${previousMessages
 			.slice(-4)
 			.map(
-				(msg: any) =>
+				(msg: { role?: string; content: string }) =>
 					`<message role="${msg.role}">${msg.content?.substring(0, 200)}${msg.content?.length > 200 ? '...' : ''}</message>`
 			)
 			.join('\n')}

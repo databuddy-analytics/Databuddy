@@ -38,73 +38,73 @@ export interface BaseParameterData {
 
 // Parameter type mapping for better type safety
 export type ParameterDataMap = {
-	device_type: any;
-	browser_name: any;
-	browsers_grouped: any;
-	os_name: any;
-	screen_resolution: any;
-	connection_type: any;
-	country: any;
-	region: any;
-	city: any;
-	timezone: any;
-	language: any;
-	top_pages: any;
-	exit_page: any;
-	utm_source: any;
-	utm_medium: any;
-	utm_campaign: any;
-	referrer: any;
-	slow_pages: any;
-	performance_by_country: any;
-	performance_by_device: any;
-	performance_by_browser: any;
-	performance_by_os: any;
-	performance_by_region: any;
+	device_type: unknown;
+	browser_name: unknown;
+	browsers_grouped: unknown;
+	os_name: unknown;
+	screen_resolution: unknown;
+	connection_type: unknown;
+	country: unknown;
+	region: unknown;
+	city: unknown;
+	timezone: unknown;
+	language: unknown;
+	top_pages: unknown;
+	exit_page: unknown;
+	utm_source: unknown;
+	utm_medium: unknown;
+	utm_campaign: unknown;
+	referrer: unknown;
+	slow_pages: unknown;
+	performance_by_country: unknown;
+	performance_by_device: unknown;
+	performance_by_browser: unknown;
+	performance_by_os: unknown;
+	performance_by_region: unknown;
 	// Error-related parameters
-	recent_errors: any;
-	error_types: any;
-	errors_breakdown: any;
-	error_trends: any;
-	sessions_summary: any;
+	recent_errors: unknown;
+	error_types: unknown;
+	errors_breakdown: unknown;
+	error_trends: unknown;
+	sessions_summary: unknown;
 	// Custom Events parameters
-	custom_events: any;
-	custom_event_details: any;
-	custom_events_by_page: any;
-	custom_events_by_user: any;
-	custom_event_properties: any;
+	custom_events: unknown;
+	custom_event_details: unknown;
+	custom_events_by_page: unknown;
+	custom_events_by_user: unknown;
+	custom_event_properties: unknown;
 	custom_event_property_values: {
 		name: string;
 		total_events: number;
 		unique_users: number;
 	};
 	// Summary and overview parameters
-	summary_metrics: any;
-	today_metrics: any;
-	events_by_date: any;
-	entry_pages: any;
-	exit_pages: any;
-	top_referrers: any;
-	utm_sources: any;
-	utm_mediums: any;
-	utm_campaigns: any;
-	device_types: any;
-	browser_versions: any;
+	summary_metrics: unknown;
+	today_metrics: unknown;
+	events_by_date: unknown;
+	entry_pages: unknown;
+	exit_pages: unknown;
+	top_referrers: unknown;
+	utm_sources: unknown;
+	utm_mediums: unknown;
+	utm_campaigns: unknown;
+	device_types: unknown;
+	browser_versions: unknown;
 	// Revenue parameters
-	revenue_summary: any;
-	revenue_trends: any;
-	recent_transactions: any;
-	recent_refunds: any;
-	revenue_by_country: any;
-	revenue_by_currency: any;
-	revenue_by_card_brand: any;
+	revenue_summary: unknown;
+	revenue_trends: unknown;
+	recent_transactions: unknown;
+	recent_refunds: unknown;
+	revenue_by_country: unknown;
+	revenue_by_currency: unknown;
+	revenue_by_card_brand: unknown;
 	// Real-time
-	active_stats: any;
-	latest_events: any;
+	active_stats: unknown;
+	latest_events: unknown;
 	// Sessions
-	session_list: any;
+	session_list: unknown;
 	// Profiles
-	profile_list: any;
+	profile_list: unknown;
 };
 
 // Helper type to extract data types from parameters

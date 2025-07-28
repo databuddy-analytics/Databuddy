@@ -53,34 +53,34 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 
-interface QueryResult {
-	data: Record<string, any>[];
-	meta: Array<{ name: string; type: string }>;
-	rows: number;
-	statistics?: {
-		elapsed: number;
-		rows_read: number;
+interface QueryResult<T extends Record<string, unknown>> {
+        data: T[];
+        meta: Array<{ name: string; type: string }>;
+        rows: number;
+        statistics?: {
+                elapsed: number;
+                rows_read: number;
 		bytes_read: number;
 	};
 }
 
-interface DataTableProps {
-	result: QueryResult;
-	tableName?: string;
-	onDeleteRow?: (rowData: Record<string, any>) => void;
-	onEditRow?: (rowData: Record<string, any>) => void;
-	onRefresh?: () => void;
-	loading?: boolean;
+interface DataTableProps<T extends Record<string, unknown>> {
+        result: QueryResult<T>;
+        tableName?: string;
+        onDeleteRow?: (rowData: T) => void;
+        onEditRow?: (rowData: T) => void;
+        onRefresh?: () => void;
+        loading?: boolean;
 }
 
-export function DataTable({
-	result,
-	tableName,
-	onDeleteRow,
-	onEditRow,
-	onRefresh,
-	loading = false,
-}: DataTableProps) {
+export function DataTable<T extends Record<string, unknown>>({
+        result,
+        tableName,
+        onDeleteRow,
+        onEditRow,
+        onRefresh,
+        loading = false,
+}: DataTableProps<T>) {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(50);
 	const [searchTerm, setSearchTerm] = useState('');

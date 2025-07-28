@@ -363,7 +363,7 @@ export interface StripePaymentIntent {
 	amount_received: number;
 	amount_capturable: number;
 	livemode: number;
-	metadata: Record<string, any>;
+        metadata: Record<string, unknown>;
 	payment_method_types: string[];
 	failure_reason?: string;
 	canceled_at?: number;
@@ -407,7 +407,7 @@ export interface StripeRefund {
 	currency: string;
 	charge_id: string;
 	payment_intent_id?: string;
-	metadata: Record<string, any>;
+        metadata: Record<string, unknown>;
 	session_id?: string;
 }
 

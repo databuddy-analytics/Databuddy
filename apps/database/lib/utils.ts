@@ -64,12 +64,12 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 	}
 }
 
-export function debounce<T extends (...args: any[]) => any>(
-	func: T,
+export function debounce<A extends unknown[]>(
+	func: (...args: A) => void,
 	wait: number
-): (...args: Parameters<T>) => void {
+): (...args: A) => void {
 	let timeout: NodeJS.Timeout;
-	return (...args: Parameters<T>) => {
+	return (...args: A) => {
 		clearTimeout(timeout);
 		timeout = setTimeout(() => func(...args), wait);
 	};

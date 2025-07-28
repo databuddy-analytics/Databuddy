@@ -34,6 +34,10 @@ interface QueryHistory {
 	error?: string;
 }
 
+interface StoredQueryHistory extends Omit<QueryHistory, 'timestamp'> {
+	timestamp: string;
+}
+
 interface SqlEditorProps {
 	value: string;
 	onChange: (value: string) => void;
@@ -57,10 +61,12 @@ export function SqlEditor({
 		const saved = localStorage.getItem('sql-query-history');
 		if (saved) {
 			try {
-				const parsed = JSON.parse(saved).map((item: any) => ({
-					...item,
-					timestamp: new Date(item.timestamp),
-				}));
+				const parsed = (JSON.parse(saved) as StoredQueryHistory[]).map(
+					(item) => ({
+						...item,
+						timestamp: new Date(item.timestamp),
+					})
+				);
 				setQueryHistory(parsed);
 			} catch (error) {
 				console.error('Failed to load query history:', error);

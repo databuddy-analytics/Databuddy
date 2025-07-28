@@ -16,7 +16,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 
 interface QueryResult {
-	data: Record<string, any>[];
+        data: Record<string, unknown>[];
 	meta: Array<{ name: string; type: string }>;
 	rows: number;
 	statistics?: {

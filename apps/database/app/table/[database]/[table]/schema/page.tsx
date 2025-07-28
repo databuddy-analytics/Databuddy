@@ -183,11 +183,11 @@ export default async function TableSchemaPage({
 		null
 	);
 	const [confirmText, setConfirmText] = useState('');
-	const [schemaDiff, setSchemaDiff] = useState<{
-		added: any[];
-		dropped: any[];
-		modified: any[];
-	} | null>(null);
+        const [schemaDiff, setSchemaDiff] = useState<{
+                added: ColumnInfo[];
+                dropped: ColumnInfo[];
+                modified: ColumnInfo[];
+        } | null>(null);
 	const [backfillSource, setBackfillSource] = useState<string | null>(null);
 	const router = useRouter();
 
@@ -504,10 +504,10 @@ export default async function TableSchemaPage({
 		}
 	};
 
-	const calculateSchemaDiff = (
-		currentCols: ColumnInfo[],
-		importedCols: any[]
-	) => {
+        const calculateSchemaDiff = (
+                currentCols: ColumnInfo[],
+                importedCols: ColumnInfo[]
+        ) => {
 		const currentColsMap = new Map(currentCols.map((c) => [c.name, c]));
 		const importedColsMap = new Map(importedCols.map((c) => [c.name, c]));
 
