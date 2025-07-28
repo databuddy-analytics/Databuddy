@@ -1,5 +1,4 @@
 import { userPreferences } from '@databuddy/db';
-import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
@@ -11,15 +10,16 @@ const preferencesSchema = z.object({
 	timeFormat: z.string().optional(),
 });
 
+const defaultPreferences = {
+	timezone: 'auto',
+	dateFormat: 'MMM D, YYYY',
+	timeFormat: 'h:mm a',
+} as const;
+
 export const preferencesRouter = createTRPCRouter({
 	getUserPreferences: protectedProcedure.query(async ({ ctx }) => {
-		const user = ctx.user;
-		if (!user) {
-			throw new TRPCError({ code: 'UNAUTHORIZED' });
-		}
-
 		let preferences = await ctx.db.query.userPreferences.findFirst({
-			where: eq(userPreferences.userId, user.id),
+			where: eq(userPreferences.userId, ctx.user.id),
 		});
 
 		if (!preferences) {
@@ -27,10 +27,8 @@ export const preferencesRouter = createTRPCRouter({
 				.insert(userPreferences)
 				.values({
 					id: nanoid(),
-					userId: user.id,
-					timezone: 'auto',
-					dateFormat: 'MMM D, YYYY',
-					timeFormat: 'h:mm a',
+					userId: ctx.user.id,
+					...defaultPreferences,
 					updatedAt: new Date().toISOString(),
 				})
 				.returning();
@@ -42,41 +40,29 @@ export const preferencesRouter = createTRPCRouter({
 	updateUserPreferences: protectedProcedure
 		.input(preferencesSchema)
 		.mutation(async ({ ctx, input }) => {
-			const user = ctx.user;
-			if (!user) {
-				throw new TRPCError({ code: 'UNAUTHORIZED' });
-			}
+			const now = new Date().toISOString();
 
-			let preferences = await ctx.db.query.userPreferences.findFirst({
-				where: eq(userPreferences.userId, user.id),
-			});
+			const result = await ctx.db
+				.insert(userPreferences)
+				.values({
+					id: nanoid(),
+					userId: ctx.user.id,
+					timezone: input.timezone ?? defaultPreferences.timezone,
+					dateFormat: input.dateFormat ?? defaultPreferences.dateFormat,
+					timeFormat: input.timeFormat ?? defaultPreferences.timeFormat,
+					updatedAt: now,
+				})
+				.onConflictDoUpdate({
+					target: userPreferences.userId,
+					set: {
+						timezone: input.timezone,
+						dateFormat: input.dateFormat,
+						timeFormat: input.timeFormat,
+						updatedAt: now,
+					},
+				})
+				.returning();
 
-			if (preferences) {
-				const updated = await ctx.db
-					.update(userPreferences)
-					.set({
-						timezone: input.timezone || preferences.timezone,
-						dateFormat: input.dateFormat || preferences.dateFormat,
-						timeFormat: input.timeFormat || preferences.timeFormat,
-						updatedAt: new Date().toISOString(),
-					})
-					.where(eq(userPreferences.userId, user.id))
-					.returning();
-				preferences = updated[0];
-			} else {
-				const inserted = await ctx.db
-					.insert(userPreferences)
-					.values({
-						id: nanoid(),
-						userId: user.id,
-						timezone: input.timezone || 'auto',
-						dateFormat: input.dateFormat || 'MMM D, YYYY',
-						timeFormat: input.timeFormat || 'h:mm a',
-						updatedAt: new Date().toISOString(),
-					})
-					.returning();
-				preferences = inserted[0];
-			}
-			return preferences;
+			return result[0];
 		}),
 });

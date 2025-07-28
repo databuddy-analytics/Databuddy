@@ -1,8 +1,9 @@
-import { auth } from '@databuddy/auth';
-import { db, userPreferences, websites } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { eq } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
+import {
+	deriveWebsiteContext,
+	getCachedWebsiteDomain,
+	getWebsiteDomain,
+} from '../lib/website-utils';
 import { createRateLimitMiddleware } from '../middleware/rate-limit';
 import { compileQuery, executeQuery } from '../query';
 import { QueryBuilders } from '../query/builders';
@@ -23,66 +24,9 @@ interface QueryParams {
 	timezone?: string;
 }
 
-async function getTimezone(
-	request: Request,
-	session: { user?: { id: string } } | null
-) {
-	const url = new URL(request.url);
-	const headerTimezone = request.headers.get('x-timezone');
-	const paramTimezone = url.searchParams.get('timezone');
-
-	if (session?.user) {
-		const pref = await db.query.userPreferences.findFirst({
-			where: eq(userPreferences.userId, session.user.id),
-		});
-		if (pref?.timezone && pref.timezone !== 'auto') {
-			return pref.timezone;
-		}
-	}
-
-	return headerTimezone || paramTimezone || 'UTC';
-}
-
-async function deriveContext({ request }: { request: Request }) {
-	const session = await auth.api.getSession({
-		headers: request.headers,
-	});
-
-	const url = new URL(request.url);
-	const website_id = url.searchParams.get('website_id');
-
-	if (!website_id) {
-		if (!session?.user) {
-			throw new Error('Unauthorized');
-		}
-		const timezone = await getTimezone(request, session);
-		return { user: session.user, session, timezone };
-	}
-
-	const website = await db.query.websites.findFirst({
-		where: eq(websites.id, website_id),
-	});
-
-	if (!website) {
-		throw new Error('Website not found');
-	}
-
-	if (website.isPublic) {
-		const timezone = await getTimezone(request, null);
-		return { user: null, session: null, website, timezone };
-	}
-
-	if (!session?.user) {
-		throw new Error('Unauthorized');
-	}
-
-	const timezone = await getTimezone(request, session);
-	return { user: session.user, session, website, timezone };
-}
-
 export const query = new Elysia({ prefix: '/v1/query' })
 	.use(createRateLimitMiddleware({ type: 'api' }))
-	.derive(deriveContext)
+	.derive(deriveWebsiteContext)
 	.get('/types', () => ({
 		success: true,
 		types: Object.keys(QueryBuilders),
@@ -198,45 +142,6 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			]),
 		}
 	);
-
-const getWebsiteDomain = cacheable(
-	async (websiteId: string): Promise<string | null> => {
-		try {
-			const website = await db.query.websites.findFirst({
-				where: eq(websites.id, websiteId),
-			});
-			return website?.domain || null;
-		} catch {
-			return null;
-		}
-	},
-	{
-		expireInSec: 300,
-		prefix: 'website-domain',
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
-
-const getCachedWebsiteDomain = cacheable(
-	async (websiteIds: string[]): Promise<Record<string, string | null>> => {
-		const results: Record<string, string | null> = {};
-
-		await Promise.all(
-			websiteIds.map(async (id) => {
-				results[id] = await getWebsiteDomain(id);
-			})
-		);
-
-		return results;
-	},
-	{
-		expireInSec: 300,
-		prefix: 'website-domains-batch',
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
 
 async function executeDynamicQuery(
 	request: DynamicQueryRequestType,

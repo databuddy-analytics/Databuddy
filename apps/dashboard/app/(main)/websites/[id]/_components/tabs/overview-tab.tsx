@@ -112,10 +112,6 @@ function LiveUserIndicator({ websiteId }: { websiteId: string }) {
 		return () => clearTimeout(timer);
 	}, [count, prevCount]);
 
-	if (count <= 0) {
-		return null;
-	}
-
 	const getChangeColor = () => {
 		if (change === 'up') {
 			return 'text-green-500';

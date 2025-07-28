@@ -1,7 +1,4 @@
 import { auth } from '@databuddy/auth';
-import { db, websites } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import type { StreamingUpdate } from '../agent';
 import {
@@ -10,6 +7,7 @@ import {
 	createStreamingResponse,
 	processAssistantRequest,
 } from '../agent';
+import { validateWebsite } from '../lib/website-utils';
 import { createRateLimitMiddleware } from '../middleware/rate-limit';
 import { AssistantRequestSchema } from '../schemas';
 
@@ -18,35 +16,6 @@ async function* createErrorResponse(
 	message: string
 ): AsyncGenerator<StreamingUpdate> {
 	yield { type: 'error', content: message };
-}
-
-const getCachedWebsite = cacheable(
-	async (websiteId: string) => {
-		try {
-			const website = await db.query.websites.findFirst({
-				where: eq(websites.id, websiteId),
-			});
-			return website || null;
-		} catch {
-			return null;
-		}
-	},
-	{
-		expireInSec: 300,
-		prefix: 'assistant-website',
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
-
-async function validateWebsite(websiteId: string) {
-	const website = await getCachedWebsite(websiteId);
-
-	if (!website) {
-		return { success: false, error: 'Website not found' };
-	}
-
-	return { success: true, website };
 }
 
 export const assistant = new Elysia({ prefix: '/v1/assistant' })

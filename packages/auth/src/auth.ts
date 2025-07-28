@@ -277,6 +277,6 @@ export const websitesApi = {
 };
 
 export type User = (typeof auth)['$Infer']['Session']['user'] & {
-	role?: string;
+	role?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 };
 export type Session = (typeof auth)['$Infer']['Session'];

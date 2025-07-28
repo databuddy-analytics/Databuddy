@@ -13,17 +13,42 @@ interface SessionsListProps {
 	websiteId: string;
 }
 
+// Type for the transformed session data structure
+type SessionData = {
+	session_id: string;
+	session_name: string;
+	first_visit: string;
+	last_visit: string;
+	duration: number;
+	duration_formatted: string;
+	page_views: number;
+	unique_pages: number;
+	device: string;
+	browser: string;
+	os: string;
+	country: string;
+	region: string;
+	referrer: string;
+	events: Array<{
+		event_id: string;
+		time: string;
+		event_name: string;
+		path: string;
+		error_message?: string;
+		error_type?: string;
+		properties: Record<string, unknown>;
+	}>;
+};
+
 export function SessionsList({ websiteId }: SessionsListProps) {
 	const [dateRange] = useState(() => getDefaultDateRange());
 	const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
 		null
 	);
 	const [page, setPage] = useState(1);
-	const [allSessions, setAllSessions] = useState<any[]>([]);
+	const [allSessions, setAllSessions] = useState<SessionData[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
-	const [showLoadMore, setShowLoadMore] = useState(false);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
-	const [hasIntersected, setHasIntersected] = useState(false);
 
 	const { sessions, pagination, isLoading, isError, error } = useSessionsData(
 		websiteId,
@@ -42,7 +67,6 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		(entries: IntersectionObserverEntry[]) => {
 			const [entry] = entries;
 			if (entry.isIntersecting && pagination.hasNext && !isLoading) {
-				setHasIntersected(true);
 				setPage((prev) => prev + 1);
 			}
 		},
@@ -50,7 +74,9 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 	);
 
 	useEffect(() => {
-		if (!loadMoreRef) return;
+		if (!loadMoreRef) {
+			return;
+		}
 
 		const observer = new IntersectionObserver(handleIntersection, {
 			threshold: 0.1,
@@ -68,32 +94,24 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		if (sessions?.length) {
 			setAllSessions((prev) => {
 				const existingSessions = new Map(prev.map((s) => [s.session_id, s]));
+				let hasNewSessions = false;
+
 				for (const session of sessions) {
 					if (!existingSessions.has(session.session_id)) {
 						existingSessions.set(session.session_id, session);
+						hasNewSessions = true;
 					}
 				}
-				return Array.from(existingSessions.values());
+
+				if (hasNewSessions) {
+					return Array.from(existingSessions.values());
+				}
+
+				return prev;
 			});
 			setIsInitialLoad(false);
 		}
 	}, [sessions]);
-
-	useEffect(() => {
-		if (pagination.hasNext && !isLoading && !isInitialLoad && !hasIntersected) {
-			const timer = setTimeout(() => {
-				setShowLoadMore(true);
-			}, 3000);
-			return () => clearTimeout(timer);
-		}
-		setShowLoadMore(false);
-	}, [pagination.hasNext, isLoading, isInitialLoad, hasIntersected]);
-
-	useEffect(() => {
-		if (isLoading) {
-			setHasIntersected(false);
-		}
-	}, [isLoading]);
 
 	if (isLoading && isInitialLoad) {
 		return (
@@ -181,7 +199,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 			<Card>
 				<CardContent className="p-0">
 					<div className="divide-y divide-border">
-						{allSessions.map((session: any, index: number) => (
+						{allSessions.map((session: SessionData, index: number) => (
 							<SessionRow
 								index={index}
 								isExpanded={expandedSessionId === session.session_id}
@@ -200,7 +218,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 										<Loader2Icon className="h-4 w-4 animate-spin" />
 										<span className="text-sm">Loading more sessions...</span>
 									</div>
-								) : showLoadMore ? (
+								) : (
 									<Button
 										className="w-full"
 										onClick={() => setPage((prev) => prev + 1)}
@@ -208,7 +226,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 									>
 										Load More Sessions
 									</Button>
-								) : null}
+								)}
 							</div>
 						) : (
 							<div className="text-center text-muted-foreground text-sm">

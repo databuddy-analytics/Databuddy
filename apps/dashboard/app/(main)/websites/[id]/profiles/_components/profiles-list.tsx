@@ -2,7 +2,6 @@
 
 import { Loader2Icon, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useProfilesData } from '@/hooks/use-dynamic-query';
 
@@ -20,7 +19,31 @@ type ProfileData = {
 	os: string;
 	country: string;
 	region: string;
-	sessions: any[];
+	sessions: Array<{
+		session_id: string;
+		session_name: string;
+		first_visit: string;
+		last_visit: string;
+		duration: number;
+		duration_formatted: string;
+		page_views: number;
+		unique_pages: number;
+		device: string;
+		browser: string;
+		os: string;
+		country: string;
+		region: string;
+		referrer: string;
+		events: Array<{
+			event_id: string;
+			time: string;
+			event_name: string;
+			path: string;
+			error_message?: string;
+			error_type?: string;
+			properties: Record<string, unknown>;
+		}>;
+	}>;
 };
 
 import { WebsitePageHeader } from '../../_components/website-page-header';
@@ -39,9 +62,8 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 	const [page, setPage] = useState(1);
 	const [allProfiles, setAllProfiles] = useState<ProfileData[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
-	const [showLoadMore, setShowLoadMore] = useState(false);
+
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
-	const [hasIntersected, setHasIntersected] = useState(false);
 
 	const { profiles, pagination, isLoading, isError, error } = useProfilesData(
 		websiteId,
@@ -60,7 +82,6 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 		(entries: IntersectionObserverEntry[]) => {
 			const [entry] = entries;
 			if (entry.isIntersecting && pagination.hasNext && !isLoading) {
-				setHasIntersected(true);
 				setPage((prev) => prev + 1);
 			}
 		},
@@ -68,7 +89,9 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 	);
 
 	useEffect(() => {
-		if (!loadMoreRef) return;
+		if (!loadMoreRef) {
+			return;
+		}
 
 		const observer = new IntersectionObserver(handleIntersection, {
 			threshold: 0.1,
@@ -86,34 +109,29 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 		if (profiles?.length) {
 			setAllProfiles((prev) => {
 				const existingProfiles = new Map(prev.map((p) => [p.visitor_id, p]));
+				let hasNewProfiles = false;
+
 				for (const profile of profiles) {
 					if (!existingProfiles.has(profile.visitor_id)) {
-						existingProfiles.set(profile.visitor_id, profile);
+						existingProfiles.set(
+							profile.visitor_id,
+							profile as unknown as ProfileData
+						);
+						hasNewProfiles = true;
 					}
 				}
-				return Array.from(existingProfiles.values());
+
+				if (hasNewProfiles) {
+					return Array.from(existingProfiles.values());
+				}
+
+				return prev;
 			});
 			setIsInitialLoad(false);
 		}
 	}, [profiles]);
 
-	useEffect(() => {
-		if (pagination.hasNext && !isLoading && !isInitialLoad && !hasIntersected) {
-			const timer = setTimeout(() => {
-				setShowLoadMore(true);
-			}, 3000);
-			return () => clearTimeout(timer);
-		}
-		setShowLoadMore(false);
-	}, [pagination.hasNext, isLoading, isInitialLoad, hasIntersected]);
-
-	useEffect(() => {
-		if (isLoading) {
-			setHasIntersected(false);
-		}
-	}, [isLoading]);
-
-	if (isLoading) {
+	if (isLoading && isInitialLoad) {
 		return (
 			<div className="space-y-6">
 				<WebsitePageHeader
@@ -218,19 +236,13 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 										<Loader2Icon className="h-4 w-4 animate-spin" />
 										<span className="text-sm">Loading more profiles...</span>
 									</div>
-								) : showLoadMore ? (
-									<Button
-										className="w-full"
-										onClick={() => setPage((prev) => prev + 1)}
-										variant="outline"
-									>
-										Load More Profiles
-									</Button>
 								) : null}
 							</div>
 						) : (
 							<div className="text-center text-muted-foreground text-sm">
-								All profiles loaded
+								{allProfiles.length > 0
+									? 'All profiles loaded'
+									: 'No more profiles'}
 							</div>
 						)}
 					</div>

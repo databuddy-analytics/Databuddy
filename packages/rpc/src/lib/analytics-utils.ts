@@ -52,6 +52,7 @@ export interface ReferrerAnalytics {
 		name: string;
 		type: string;
 		domain: string;
+		url: string;
 	};
 	total_users: number;
 	completed_users: number;
@@ -372,6 +373,10 @@ const validateFilter = (filter: Filter): string | null => {
 	return null;
 };
 
+const escapeSqlWildcards = (value: string): string => {
+	return value.replace(/[%_]/g, '\\$&');
+};
+
 const buildStringCondition = (
 	field: string,
 	operator: AllowedOperator,
@@ -380,7 +385,22 @@ const buildStringCondition = (
 	params: Record<string, unknown>
 ): string => {
 	const paramKey = `${prefix}_${field}_${operator}`;
-	params[paramKey] = value;
+
+	let processedValue = value;
+
+	if (operator === 'contains') {
+		processedValue = `%${escapeSqlWildcards(value)}%`;
+	} else if (operator === 'not_contains') {
+		processedValue = `%${escapeSqlWildcards(value)}%`;
+	} else if (operator === 'starts_with') {
+		processedValue = `${escapeSqlWildcards(value)}%`;
+	} else if (operator === 'ends_with') {
+		processedValue = `%${escapeSqlWildcards(value)}`;
+	} else {
+		processedValue = escapeSqlWildcards(value);
+	}
+
+	params[paramKey] = processedValue;
 
 	const conditions: Record<AllowedOperator, string> = {
 		equals: `${field} = {${paramKey}:String}`,
@@ -484,14 +504,19 @@ export const buildFilterConditions = (
 
 const parseReferrer = (referrer: string) => {
 	if (!referrer || referrer === 'Direct') {
-		return { name: 'Direct', type: 'direct', domain: '' };
+		return { name: 'Direct', type: 'direct', domain: '', url: '' };
 	}
 
 	try {
 		const url = new URL(referrer);
-		return { name: url.hostname, type: 'referrer', domain: url.hostname };
+		return {
+			name: url.hostname,
+			type: 'referrer',
+			domain: url.hostname,
+			url: referrer,
+		};
 	} catch {
-		return { name: referrer, type: 'referrer', domain: '' };
+		return { name: referrer, type: 'referrer', domain: '', url: referrer };
 	}
 };
 
@@ -598,7 +623,7 @@ export const processFunnelAnalytics = async (
 
 const calculateReferrerStepCounts = (
 	group: {
-		parsed: { name: string; type: string; domain: string };
+		parsed: { name: string; type: string; domain: string; url: string };
 		sessionIds: Set<string>;
 	},
 	sessionEvents: Map<
@@ -652,7 +677,7 @@ const calculateReferrerConversionRate = (
 const processReferrerGroup = (
 	groupKey: string,
 	group: {
-		parsed: { name: string; type: string; domain: string };
+		parsed: { name: string; type: string; domain: string; url: string };
 		sessionIds: Set<string>;
 	},
 	sessionEvents: Map<
@@ -694,7 +719,7 @@ const aggregateReferrerAnalytics = (
 	const aggregated = new Map<
 		string,
 		{
-			parsed: { name: string; type: string; domain: string };
+			parsed: { name: string; type: string; domain: string; url: string };
 			total_users: number;
 			completed_users: number;
 			conversion_rate_sum: number;
@@ -797,7 +822,7 @@ export const processFunnelAnalyticsByReferrer = async (
 	const referrerGroups = new Map<
 		string,
 		{
-			parsed: { name: string; type: string; domain: string };
+			parsed: { name: string; type: string; domain: string; url: string };
 			sessionIds: Set<string>;
 		}
 	>();

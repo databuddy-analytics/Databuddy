@@ -283,14 +283,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	active_stats: {
-		customSql: (websiteId: string, startDate?: string, endDate?: string) => {
-			let timeCondition = '';
-			if (startDate && endDate) {
-				timeCondition =
-					'time >= parseDateTimeBestEffort({startDate:String}) AND time <= parseDateTimeBestEffort({endDate:String})';
-			} else {
-				timeCondition = 'time >= now() - INTERVAL 5 MINUTE';
-			}
+		customSql: (websiteId: string) => {
 			return {
 				sql: `
           SELECT
@@ -300,11 +293,10 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
           WHERE event_name = 'screen_view'
             AND client_id = {websiteId:String}
             AND session_id != ''
-            AND ${timeCondition}
+            AND time >= now() - INTERVAL 5 MINUTE
         `,
 				params: {
 					websiteId,
-					...(startDate && endDate ? { startDate, endDate } : {}),
 				},
 			};
 		},

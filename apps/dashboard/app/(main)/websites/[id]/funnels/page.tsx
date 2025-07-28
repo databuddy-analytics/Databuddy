@@ -221,16 +221,6 @@ export default function FunnelsPage() {
 		setSelectedReferrer(referrer);
 	};
 
-	const formatCompletionTime = (seconds: number) => {
-		if (seconds < 60) {
-			return `${Math.round(seconds)}s`;
-		}
-		if (seconds < 3600) {
-			return `${Math.round(seconds / 60)}m`;
-		}
-		return `${Math.round(seconds / 3600)}h`;
-	};
-
 	if (funnelsError) {
 		return (
 			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
@@ -335,7 +325,6 @@ export default function FunnelsPage() {
 									<FunnelAnalytics
 										data={analyticsData}
 										error={analyticsError as Error | null}
-										formatCompletionTime={formatCompletionTime}
 										isLoading={analyticsLoading}
 										onRetry={refetchAnalytics}
 										referrerAnalytics={

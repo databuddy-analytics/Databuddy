@@ -1,9 +1,14 @@
 import { chQuery } from '@databuddy/db';
+import { createDrizzleCache, redis } from '@databuddy/redis';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { logger } from '../lib/logger';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { authorizeWebsiteAccess } from '../utils/auth';
+
+const drizzleCache = createDrizzleCache({ redis, namespace: 'autocomplete' });
+
+const CACHE_TTL = 1800;
 
 const analyticsDateRangeSchema = z.object({
 	websiteId: z.string(),
@@ -136,34 +141,40 @@ const categorizeAutocompleteResults = (
 export const autocompleteRouter = createTRPCRouter({
 	get: protectedProcedure
 		.input(analyticsDateRangeSchema)
-		.query(async ({ ctx, input }) => {
-			const website = await authorizeWebsiteAccess(
-				ctx,
-				input.websiteId,
-				'read'
-			);
+		.query(({ ctx, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
-			const params = { websiteId: website.id, startDate, endDate };
 
-			try {
-				const results = await chQuery<{
-					category: string;
-					value: string;
-				}>(getAutocompleteQuery(), params);
+			const cacheKey = `autocomplete:${input.websiteId}:${startDate}:${endDate}`;
 
-				return categorizeAutocompleteResults(results);
-			} catch (error) {
-				logger.error('Failed to fetch autocomplete data', {
-					error: error instanceof Error ? error.message : String(error),
-					websiteId: website.id,
-				});
-				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch autocomplete data',
-				});
-			}
+			return drizzleCache.withCache({
+				key: cacheKey,
+				ttl: CACHE_TTL,
+				tables: ['websites'],
+				queryFn: async () => {
+					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					const params = { websiteId: input.websiteId, startDate, endDate };
+
+					try {
+						const results = await chQuery<{
+							category: string;
+							value: string;
+						}>(getAutocompleteQuery(), params);
+
+						return categorizeAutocompleteResults(results);
+					} catch (error) {
+						logger.error('Failed to fetch autocomplete data', {
+							error: error instanceof Error ? error.message : String(error),
+							websiteId: input.websiteId,
+						});
+						throw new TRPCError({
+							code: 'INTERNAL_SERVER_ERROR',
+							message: 'Failed to fetch autocomplete data',
+						});
+					}
+				},
+			});
 		}),
 });

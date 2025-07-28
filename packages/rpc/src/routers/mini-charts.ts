@@ -9,40 +9,62 @@ import {
 	or,
 	websites,
 } from '@databuddy/db';
+import { createDrizzleCache, redis } from '@databuddy/redis';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 
-async function getAuthorizedWebsiteIds(
+const drizzleCache = createDrizzleCache({ redis, namespace: 'mini-charts' });
+
+const CACHE_TTL = 300;
+const AUTH_CACHE_TTL = 60;
+
+interface MiniChartRow {
+	websiteId: string;
+	date: string;
+	value: number;
+}
+
+const getAuthorizedWebsiteIds = (
 	userId: string,
 	requestedIds: string[]
-): Promise<string[]> {
+): Promise<string[]> => {
 	if (!userId || requestedIds.length === 0) {
-		return [];
+		return Promise.resolve([]);
 	}
 
-	const userOrgs = await db.query.member.findMany({
-		where: eq(member.userId, userId),
-		columns: { organizationId: true },
-	});
-	const orgIds = userOrgs.map((m) => m.organizationId);
+	const authCacheKey = `auth:${userId}:${requestedIds.sort().join(',')}`;
 
-	const accessibleWebsites = await db.query.websites.findMany({
-		where: and(
-			inArray(websites.id, requestedIds),
-			or(
-				eq(websites.userId, userId),
-				orgIds.length > 0
-					? inArray(websites.organizationId, orgIds)
-					: isNull(websites.organizationId)
-			)
-		),
-		columns: {
-			id: true,
+	return drizzleCache.withCache({
+		key: authCacheKey,
+		ttl: AUTH_CACHE_TTL,
+		tables: ['websites', 'member'],
+		queryFn: async () => {
+			const userOrgs = await db.query.member.findMany({
+				where: eq(member.userId, userId),
+				columns: { organizationId: true },
+			});
+
+			const orgIds = userOrgs.map((m) => m.organizationId);
+
+			const accessibleWebsites = await db.query.websites.findMany({
+				where: and(
+					inArray(websites.id, requestedIds),
+					or(
+						eq(websites.userId, userId),
+						orgIds.length > 0
+							? inArray(websites.organizationId, orgIds)
+							: isNull(websites.organizationId)
+					)
+				),
+				columns: {
+					id: true,
+				},
+			});
+
+			return accessibleWebsites.map((w) => w.id);
 		},
 	});
-
-	return accessibleWebsites.map((w) => w.id);
-}
+};
 
 const getBatchedMiniChartData = async (websiteIds: string[]) => {
 	if (websiteIds.length === 0) {
@@ -80,12 +102,6 @@ const getBatchedMiniChartData = async (websiteIds: string[]) => {
       date ASC
   `;
 
-	interface MiniChartRow {
-		websiteId: string;
-		date: string;
-		value: number;
-	}
-
 	const queryResult = await chQuery<MiniChartRow>(query, { websiteIds });
 
 	const result = websiteIds.reduce(
@@ -115,12 +131,18 @@ export const miniChartsRouter = createTRPCRouter({
 				websiteIds: z.array(z.string()),
 			})
 		)
-		.query(async ({ ctx, input }) => {
-			const authorizedIds = await getAuthorizedWebsiteIds(
-				ctx.user.id,
-				input.websiteIds
-			);
-			const charts = await getBatchedMiniChartData(authorizedIds);
-			return charts;
+		.query(({ ctx, input }) => {
+			const cacheKey = `mini-charts:${ctx.user.id}:${input.websiteIds.sort().join(',')}`;
+
+			return drizzleCache.withCache({
+				key: cacheKey,
+				ttl: CACHE_TTL,
+				tables: ['websites', 'member'],
+				queryFn: () => {
+					return getAuthorizedWebsiteIds(ctx.user.id, input.websiteIds).then(
+						(authorizedIds) => getBatchedMiniChartData(authorizedIds)
+					);
+				},
+			});
 		}),
 });

@@ -5,7 +5,13 @@ import { Autumn } from 'autumn-js';
 
 const autumn = new Autumn();
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 export async function checkAndTrackWebsiteCreation(customerId: string) {
+	if (isDevelopment) {
+		return { allowed: true };
+	}
+
 	if (!customerId) {
 		return { allowed: true };
 	}
@@ -30,6 +36,10 @@ export async function checkAndTrackWebsiteCreation(customerId: string) {
 }
 
 export async function trackWebsiteUsage(customerId: string, value: number) {
+	if (isDevelopment) {
+		return { success: true };
+	}
+
 	if (!customerId) {
 		return { success: false };
 	}

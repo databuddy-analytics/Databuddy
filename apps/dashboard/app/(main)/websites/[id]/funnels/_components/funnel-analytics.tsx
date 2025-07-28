@@ -3,7 +3,6 @@
 import {
 	ArrowClockwiseIcon,
 	ChartBarIcon,
-	ClockIcon,
 	TargetIcon,
 	TrendDownIcon,
 	UsersIcon,
@@ -103,8 +102,8 @@ export function FunnelAnalytics({
 						<div className="h-4 w-4 animate-pulse rounded bg-muted" />
 						<div className="h-4 w-24 animate-pulse rounded bg-muted" />
 					</div>
-					<div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-						{[...new Array(4)].map((_, i) => (
+					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+						{[...new Array(3)].map((_, i) => (
 							<div
 								className="animate-pulse rounded border bg-card p-3"
 								key={`summary-stat-skeleton-${i + 1}`}
@@ -200,7 +199,7 @@ export function FunnelAnalytics({
 							: 'Performance'}
 					</h3>
 				</div>
-				<div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
 					<div className="rounded border bg-card p-3">
 						<div className="mb-1 flex items-center gap-2">
 							<UsersIcon className="text-muted-foreground" size={12} />
@@ -217,15 +216,6 @@ export function FunnelAnalytics({
 						</div>
 						<div className="font-semibold text-primary text-sm">
 							{displayData.overall_conversion_rate.toFixed(1)}%
-						</div>
-					</div>
-					<div className="rounded border bg-card p-3">
-						<div className="mb-1 flex items-center gap-2">
-							<ClockIcon className="text-muted-foreground" size={12} />
-							<span className="text-muted-foreground text-xs">Avg Time</span>
-						</div>
-						<div className="font-semibold text-sm">
-							{displayData.avg_completion_time}
 						</div>
 					</div>
 					<div className="rounded border bg-card p-3">

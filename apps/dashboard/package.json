@@ -40,6 +40,7 @@
     "d3-scale": "^4.0.2",
     "dagre": "^0.8.5",
     "date-fns": "^4.1.0",
+    "drizzle-zod": "^0.8.2",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "catalog:",
     "geojson": "^0.5.0",

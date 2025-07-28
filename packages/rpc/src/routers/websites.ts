@@ -20,16 +20,19 @@ import {
 
 const drizzleCache = createDrizzleCache({ redis, namespace: 'websites' });
 
+const CACHE_TTL = 60;
+
+const buildDomain = (domain: string, subdomain?: string) =>
+	subdomain ? `${subdomain}.${domain}` : domain;
+
 export const websitesRouter = createTRPCRouter({
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.query(({ ctx, input }) => {
-			const userId = ctx.user.id;
-			const orgId = input.organizationId || '';
-			const cacheKey = `list:${userId}:${orgId}`;
+			const cacheKey = `list:${ctx.user.id}:${input.organizationId || ''}`;
 			return drizzleCache.withCache({
 				key: cacheKey,
-				ttl: 60,
+				ttl: CACHE_TTL,
 				tables: ['websites'],
 				queryFn: () => {
 					const where = input.organizationId
@@ -52,7 +55,7 @@ export const websitesRouter = createTRPCRouter({
 			const cacheKey = `getById:${input.id}`;
 			return drizzleCache.withCache({
 				key: cacheKey,
-				ttl: 60,
+				ttl: CACHE_TTL,
 				tables: ['websites'],
 				queryFn: () => authorizeWebsiteAccess(ctx, input.id, 'read'),
 			});
@@ -83,9 +86,7 @@ export const websitesRouter = createTRPCRouter({
 				throw new TRPCError({ code: 'BAD_REQUEST', message: limitCheck.error });
 			}
 
-			const fullDomain = input.subdomain
-				? `${input.subdomain}.${input.domain}`
-				: input.domain;
+			const fullDomain = buildDomain(input.domain, input.subdomain);
 
 			const existingWebsite = await ctx.db.query.websites.findFirst({
 				where: and(
@@ -163,8 +164,10 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await drizzleCache.invalidateByTables(['websites']);
-			await drizzleCache.invalidateByKey(`getById:${input.id}`);
+			await Promise.all([
+				drizzleCache.invalidateByTables(['websites']),
+				drizzleCache.invalidateByKey(`getById:${input.id}`),
+			]);
 
 			return updatedWebsite;
 		}),
@@ -178,8 +181,10 @@ export const websitesRouter = createTRPCRouter({
 				website.organizationId
 			);
 
-			await ctx.db.delete(websites).where(eq(websites.id, input.id));
-			await trackWebsiteUsage(customerId, -1);
+			await Promise.all([
+				ctx.db.delete(websites).where(eq(websites.id, input.id)),
+				trackWebsiteUsage(customerId, -1),
+			]);
 
 			logger.warning(
 				'Website Deleted',
@@ -192,8 +197,10 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await drizzleCache.invalidateByTables(['websites']);
-			await drizzleCache.invalidateByKey(`getById:${input.id}`);
+			await Promise.all([
+				drizzleCache.invalidateByTables(['websites']),
+				drizzleCache.invalidateByKey(`getById:${input.id}`),
+			]);
 
 			return { success: true };
 		}),
@@ -239,8 +246,10 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await drizzleCache.invalidateByTables(['websites']);
-			await drizzleCache.invalidateByKey(`getById:${input.websiteId}`);
+			await Promise.all([
+				drizzleCache.invalidateByTables(['websites']),
+				drizzleCache.invalidateByKey(`getById:${input.websiteId}`),
+			]);
 
 			return updatedWebsite;
 		}),
