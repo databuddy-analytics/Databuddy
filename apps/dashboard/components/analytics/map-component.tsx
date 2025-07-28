@@ -104,7 +104,8 @@ export function MapComponent({
 		const metricToUse = mode === 'perCapita' ? 'perCapita' : 'count';
 		const values = processedCountryData?.map((d) => d[metricToUse]) || [0];
 		const maxValue = Math.max(...values);
-		const minValue = Math.min(...values.filter((v: number) => v > 0));
+		const nonZeroValues = values.filter((v) => v > 0);
+		const minValue = nonZeroValues.length > 0 ? Math.min(...nonZeroValues) : 0;
 
 		const baseBlue = '59, 130, 246';
 		const lightBlue = '147, 197, 253';
