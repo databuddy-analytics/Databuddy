@@ -1,7 +1,6 @@
 'use client';
 
 import { ArrowRight, Maximize2 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 
