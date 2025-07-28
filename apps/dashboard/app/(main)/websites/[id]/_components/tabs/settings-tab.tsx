@@ -1,29 +1,22 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { websites } from '@databuddy/db';
 import {
-	Activity,
-	AlertCircle,
-	BarChart,
-	BookOpen,
-	Check,
-	ChevronRight,
-	Clipboard,
-	Code,
-	ExternalLink,
-	FileCode,
-	Globe,
-	HelpCircle,
-	Info,
-	Laptop,
-	Pencil,
-	Server,
-	Settings2,
-	Sliders,
-	TableProperties,
-	Trash2,
-	Zap,
-} from 'lucide-react';
+	ActivityIcon,
+	ArrowRightIcon,
+	BookOpenIcon,
+	CheckIcon,
+	ClipboardIcon,
+	CodeIcon,
+	FileCodeIcon,
+	GlobeIcon,
+	InfoIcon,
+	PencilIcon,
+	SlidersIcon,
+	TableIcon,
+	TrashIcon,
+	WarningCircleIcon,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -70,13 +63,14 @@ import {
 } from '../utils/tracking-helpers';
 import type { TrackingOptions, WebsiteDataTabProps } from '../utils/types';
 
+type Website = typeof websites.$inferSelect;
+
 export function WebsiteSettingsTab({
 	websiteId,
 	websiteData,
 	onWebsiteUpdated,
 }: WebsiteDataTabProps) {
 	const router = useRouter();
-	const queryClient = useQueryClient();
 	const [copied, setCopied] = useState(false);
 	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
 		'script'
@@ -101,7 +95,7 @@ export function WebsiteSettingsTab({
 		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
 	};
 
-	const handleDeleteWebsite = async () => {
+	const handleDeleteWebsite = () => {
 		toast.promise(deleteWebsiteMutation.mutateAsync({ id: websiteId }), {
 			loading: 'Deleting website...',
 			success: () => {
@@ -241,7 +235,7 @@ function WebsiteHeader({
 	websiteId,
 	onEditClick,
 }: {
-	websiteData: any;
+	websiteData: Website;
 	websiteId: string;
 	onEditClick: () => void;
 }) {
@@ -252,7 +246,7 @@ function WebsiteHeader({
 					<div className="flex flex-col gap-3">
 						<div className="flex items-center gap-3">
 							<div className="rounded-lg bg-primary/10 p-2">
-								<Globe className="h-5 w-5 text-primary" />
+								<GlobeIcon className="h-5 w-5 text-primary" />
 							</div>
 							<div>
 								<div className="flex items-center gap-2">
@@ -268,7 +262,7 @@ function WebsiteHeader({
 													size="sm"
 													variant="ghost"
 												>
-													<Pencil className="h-3.5 w-3.5" />
+													<PencilIcon className="h-3.5 w-3.5" />
 													<span className="text-xs">Edit</span>
 												</Button>
 											</TooltipTrigger>
@@ -286,7 +280,7 @@ function WebsiteHeader({
 										target="_blank"
 									>
 										{websiteData.domain}
-										<ChevronRight className="h-3 w-3" />
+										<ArrowRightIcon className="h-3 w-3" />
 									</a>
 								</div>
 							</div>
@@ -337,7 +331,9 @@ function SettingsNavigation({
 	trackingOptions,
 }: {
 	activeTab: string;
-	setActiveTab: (tab: any) => void;
+	setActiveTab: (
+		tab: 'tracking' | 'basic' | 'advanced' | 'optimization'
+	) => void;
 	onDeleteClick: () => void;
 	trackingOptions: TrackingOptions;
 }) {
@@ -380,7 +376,7 @@ function SettingsNavigation({
 							variant={activeTab === 'tracking' ? 'default' : 'ghost'}
 						>
 							<div className="flex items-center gap-2">
-								<Code className="h-4 w-4" />
+								<CodeIcon className="h-4 w-4" />
 								<span>Tracking Code</span>
 							</div>
 							<Badge className="h-5 px-2 text-xs" variant="secondary">
@@ -400,18 +396,12 @@ function SettingsNavigation({
 							variant={activeTab === 'basic' ? 'default' : 'ghost'}
 						>
 							<div className="flex items-center gap-2">
-								<Activity className="h-4 w-4" />
+								<ActivityIcon className="h-4 w-4" />
 								<span>Basic Tracking</span>
 							</div>
 							<Badge
 								className="h-5 px-2 text-xs"
-								variant={
-									basicEnabled > 4
-										? 'default'
-										: basicEnabled > 2
-											? 'secondary'
-											: 'outline'
-								}
+								variant={basicEnabled > 4 ? 'default' : 'secondary'}
 							>
 								{basicEnabled}/7
 							</Badge>
@@ -423,18 +413,12 @@ function SettingsNavigation({
 							variant={activeTab === 'advanced' ? 'default' : 'ghost'}
 						>
 							<div className="flex items-center gap-2">
-								<TableProperties className="h-4 w-4" />
+								<TableIcon className="h-4 w-4" />
 								<span>Advanced Features</span>
 							</div>
 							<Badge
 								className="h-5 px-2 text-xs"
-								variant={
-									advancedEnabled > 4
-										? 'default'
-										: advancedEnabled > 2
-											? 'secondary'
-											: 'outline'
-								}
+								variant={advancedEnabled > 4 ? 'default' : 'secondary'}
 							>
 								{advancedEnabled}/7
 							</Badge>
@@ -446,7 +430,7 @@ function SettingsNavigation({
 							variant={activeTab === 'optimization' ? 'default' : 'ghost'}
 						>
 							<div className="flex items-center gap-2">
-								<Sliders className="h-4 w-4" />
+								<SlidersIcon className="h-4 w-4" />
 								<span>Optimization</span>
 							</div>
 							<Badge
@@ -469,9 +453,9 @@ function SettingsNavigation({
 									className="h-9 w-full justify-start gap-2 transition-all duration-200 hover:bg-muted/50"
 									variant="ghost"
 								>
-									<BookOpen className="h-4 w-4" />
+									<BookOpenIcon className="h-4 w-4" />
 									<span>Documentation</span>
-									<ChevronRight className="ml-auto h-3 w-3" />
+									<ArrowRightIcon className="ml-auto h-3 w-3" />
 								</Button>
 							</Link>
 
@@ -480,9 +464,9 @@ function SettingsNavigation({
 									className="h-9 w-full justify-start gap-2 transition-all duration-200 hover:bg-muted/50"
 									variant="ghost"
 								>
-									<FileCode className="h-4 w-4" />
+									<FileCodeIcon className="h-4 w-4" />
 									<span>API Reference</span>
-									<ChevronRight className="ml-auto h-3 w-3" />
+									<ArrowRightIcon className="ml-auto h-3 w-3" />
 								</Button>
 							</Link>
 						</div>
@@ -493,7 +477,7 @@ function SettingsNavigation({
 								onClick={onDeleteClick}
 								variant="ghost"
 							>
-								<Trash2 className="h-4 w-4" />
+								<TrashIcon className="h-4 w-4" />
 								<span>Delete Website</span>
 							</Button>
 						</div>
@@ -507,14 +491,20 @@ function SettingsNavigation({
 function TrackingCodeTab({
 	trackingCode,
 	npmCode,
-	installMethod,
-	setInstallMethod,
 	websiteData,
 	websiteId,
 	copied,
 	onCopyCode,
 	onCopyComponentCode,
-}: any) {
+}: {
+	trackingCode: string;
+	npmCode: string;
+	websiteData: Website;
+	websiteId: string;
+	copied: boolean;
+	onCopyCode: (code: string) => void;
+	onCopyComponentCode: () => void;
+}) {
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col space-y-1.5">
@@ -525,11 +515,7 @@ function TrackingCodeTab({
 				</p>
 			</div>
 
-			<Tabs
-				className="w-full"
-				defaultValue="script"
-				onValueChange={(value) => setInstallMethod(value as 'script' | 'npm')}
-			>
+			<Tabs className="w-full" defaultValue="script">
 				<TabsList className="mb-3 grid h-8 grid-cols-2">
 					<TabsTrigger className="text-xs" value="script">
 						Script Tag
@@ -623,12 +609,28 @@ function TrackingCodeTab({
 	);
 }
 
-function CodeBlock({ code, description, copied, onCopy }: any) {
+function CodeBlock({
+	code,
+	description,
+	copied,
+	onCopy,
+}: {
+	code: string;
+	description: string;
+	copied: boolean;
+	onCopy: () => void;
+}) {
 	// Determine language based on code content
 	const getLanguage = (code: string) => {
-		if (code.includes('npm install') || code.includes('bun add')) return 'bash';
-		if (code.includes('<script')) return 'html';
-		if (code.includes('import') && code.includes('from')) return 'jsx';
+		if (code.includes('npm install') || code.includes('bun add')) {
+			return 'bash';
+		}
+		if (code.includes('<script')) {
+			return 'html';
+		}
+		if (code.includes('import') && code.includes('from')) {
+			return 'jsx';
+		}
 		return 'javascript';
 	};
 
@@ -671,9 +673,9 @@ function CodeBlock({ code, description, copied, onCopy }: any) {
 					variant="ghost"
 				>
 					{copied ? (
-						<Check className="h-3.5 w-3.5 text-green-500" />
+						<CheckIcon className="h-3.5 w-3.5 text-green-500" />
 					) : (
-						<Clipboard className="h-3.5 w-3.5" />
+						<ClipboardIcon className="h-3.5 w-3.5" />
 					)}
 				</Button>
 			</div>
@@ -686,7 +688,7 @@ function WebsiteInfoSection({ websiteData, websiteId }: any) {
 		<div className="mt-6 grid grid-cols-2 gap-4">
 			<div className="space-y-3 rounded-md bg-muted/50 p-4">
 				<h4 className="flex items-center gap-2 font-medium text-sm">
-					<Info className="h-4 w-4 text-muted-foreground" />
+					<InfoIcon className="h-4 w-4 text-muted-foreground" />
 					Website Details
 				</h4>
 				<div className="space-y-2 text-sm">
@@ -707,7 +709,7 @@ function WebsiteInfoSection({ websiteData, websiteId }: any) {
 								size="icon"
 								variant="ghost"
 							>
-								<Clipboard className="h-3 w-3" />
+								<ClipboardIcon className="h-3 w-3" />
 							</Button>
 						</div>
 					</div>
@@ -717,7 +719,7 @@ function WebsiteInfoSection({ websiteData, websiteId }: any) {
 			<div className="rounded-md border border-primary/10 bg-primary/5 p-4">
 				<div className="flex items-start gap-3">
 					<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
-						<Check className="h-4 w-4 text-primary" />
+						<CheckIcon className="h-4 w-4 text-primary" />
 					</div>
 					<div>
 						<p className="font-medium text-sm">Ready to Track</p>
@@ -730,7 +732,7 @@ function WebsiteInfoSection({ websiteData, websiteId }: any) {
 							variant="link"
 						>
 							View Documentation
-							<ChevronRight className="ml-1 h-3 w-3" />
+							<ArrowRightIcon className="ml-1 h-3 w-3" />
 						</Button>
 					</div>
 				</div>
@@ -739,7 +741,13 @@ function WebsiteInfoSection({ websiteData, websiteId }: any) {
 	);
 }
 
-function BasicTrackingTab({ trackingOptions, onToggleOption }: any) {
+function BasicTrackingTab({
+	trackingOptions,
+	onToggleOption,
+}: {
+	trackingOptions: TrackingOptions;
+	onToggleOption: (option: keyof TrackingOptions) => void;
+}) {
 	const trackingOptionsConfig = [
 		{
 			key: 'disabled',
@@ -820,7 +828,13 @@ function BasicTrackingTab({ trackingOptions, onToggleOption }: any) {
 	);
 }
 
-function AdvancedTrackingTab({ trackingOptions, onToggleOption }: any) {
+function AdvancedTrackingTab({
+	trackingOptions,
+	onToggleOption,
+}: {
+	trackingOptions: TrackingOptions;
+	onToggleOption: (option: keyof TrackingOptions) => void;
+}) {
 	const advancedOptionsConfig = [
 		{
 			key: 'trackEngagement',
@@ -915,7 +929,21 @@ function TrackingOptionsGrid({
 	options,
 	trackingOptions,
 	onToggleOption,
-}: any) {
+}: {
+	title: string;
+	description: string;
+	options: {
+		key: keyof TrackingOptions;
+		title: string;
+		description: string;
+		data: string[];
+		enabled: boolean;
+		required: boolean;
+		inverted: boolean;
+	}[];
+	trackingOptions: TrackingOptions;
+	onToggleOption: (option: keyof TrackingOptions) => void;
+}) {
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col space-y-1.5">
@@ -924,14 +952,17 @@ function TrackingOptionsGrid({
 			</div>
 
 			<div className="grid grid-cols-2 gap-4">
-				{options.map((option: any) => (
-					<TrackingOptionCard
-						key={option.key}
-						{...option}
-						enabled={trackingOptions[option.key]}
-						onToggle={() => onToggleOption(option.key)}
-					/>
-				))}
+				{options.map((option) => {
+					const { key, ...optionProps } = option;
+					return (
+						<TrackingOptionCard
+							key={key}
+							{...optionProps}
+							enabled={trackingOptions[key]}
+							onToggle={() => onToggleOption(key)}
+						/>
+					);
+				})}
 			</div>
 		</div>
 	);
@@ -945,7 +976,15 @@ function TrackingOptionCard({
 	onToggle,
 	required,
 	inverted,
-}: any) {
+}: {
+	title: string;
+	description: string;
+	data: string[];
+	enabled: boolean;
+	onToggle: () => void;
+	required: boolean;
+	inverted: boolean;
+}) {
 	const isEnabled = inverted ? !enabled : enabled;
 
 	return (
@@ -960,7 +999,7 @@ function TrackingOptionCard({
 			{required && !isEnabled && (
 				<div className="rounded border border-red-200 bg-red-50 p-2 text-red-700 text-xs dark:border-red-800/20 dark:bg-red-950/20 dark:text-red-400">
 					<span className="flex items-center gap-1 font-medium">
-						<AlertCircle className="h-3 w-3" />
+						<WarningCircleIcon className="h-3 w-3" />
 						Warning:
 					</span>
 					Disabling page views will prevent analytics from working. This option
@@ -979,7 +1018,13 @@ function TrackingOptionCard({
 	);
 }
 
-function OptimizationTab({ trackingOptions, setTrackingOptions }: any) {
+function OptimizationTab({
+	trackingOptions,
+	setTrackingOptions,
+}: {
+	trackingOptions: TrackingOptions;
+	setTrackingOptions: (options: TrackingOptions) => void;
+}) {
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col space-y-1.5">
@@ -992,7 +1037,7 @@ function OptimizationTab({ trackingOptions, setTrackingOptions }: any) {
 			<div className="space-y-4">
 				<SamplingRateSection
 					onSamplingRateChange={(rate: number) =>
-						setTrackingOptions((prev: any) => ({ ...prev, samplingRate: rate }))
+						setTrackingOptions((prev) => ({ ...prev, samplingRate: rate }))
 					}
 					samplingRate={trackingOptions.samplingRate}
 				/>
@@ -1011,7 +1056,13 @@ function OptimizationTab({ trackingOptions, setTrackingOptions }: any) {
 	);
 }
 
-function SamplingRateSection({ samplingRate, onSamplingRateChange }: any) {
+function SamplingRateSection({
+	samplingRate,
+	onSamplingRateChange,
+}: {
+	samplingRate: number;
+	onSamplingRateChange: (rate: number) => void;
+}) {
 	return (
 		<div className="rounded-lg border p-4">
 			<h4 className="mb-3 font-medium">Sampling Rate</h4>
@@ -1049,7 +1100,7 @@ function SamplingRateSection({ samplingRate, onSamplingRateChange }: any) {
 							server load.
 						</p>
 						<p className="flex items-center gap-1 text-muted-foreground text-xs">
-							<Info className="h-3 w-3" />
+							<InfoIcon className="h-3 w-3" />
 							Recommended: 100% for low traffic sites, 10-50% for high traffic
 							sites
 						</p>
@@ -1060,7 +1111,13 @@ function SamplingRateSection({ samplingRate, onSamplingRateChange }: any) {
 	);
 }
 
-function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
+function BatchingSection({
+	trackingOptions,
+	setTrackingOptions,
+}: {
+	trackingOptions: TrackingOptions;
+	setTrackingOptions: (options: TrackingOptions) => void;
+}) {
 	return (
 		<div className="rounded-lg border p-4">
 			<h4 className="mb-3 font-medium">Batching</h4>
@@ -1070,7 +1127,7 @@ function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
 						checked={trackingOptions.enableBatching}
 						id="enable-batching"
 						onCheckedChange={(checked) =>
-							setTrackingOptions((prev: any) => ({
+							setTrackingOptions((prev) => ({
 								...prev,
 								enableBatching: checked,
 							}))
@@ -1090,7 +1147,7 @@ function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
 									className="h-7 w-7"
 									disabled={trackingOptions.batchSize <= 1}
 									onClick={() =>
-										setTrackingOptions((prev: any) => ({
+										setTrackingOptions((prev) => ({
 											...prev,
 											batchSize: Math.max(1, prev.batchSize - 1),
 										}))
@@ -1107,7 +1164,7 @@ function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
 									className="h-7 w-7"
 									disabled={trackingOptions.batchSize >= 10}
 									onClick={() =>
-										setTrackingOptions((prev: any) => ({
+										setTrackingOptions((prev) => ({
 											...prev,
 											batchSize: Math.min(10, prev.batchSize + 1),
 										}))
@@ -1130,9 +1187,9 @@ function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
 								max="5000"
 								min="100"
 								onChange={(e) =>
-									setTrackingOptions((prev: any) => ({
+									setTrackingOptions((prev) => ({
 										...prev,
-										batchTimeout: Number.parseInt(e.target.value),
+										batchTimeout: Number.parseInt(e.target.value, 10),
 									}))
 								}
 								step="100"
@@ -1155,7 +1212,10 @@ function BatchingSection({ trackingOptions, setTrackingOptions }: any) {
 function NetworkResilienceSection({
 	trackingOptions,
 	setTrackingOptions,
-}: any) {
+}: {
+	trackingOptions: TrackingOptions;
+	setTrackingOptions: (options: TrackingOptions) => void;
+}) {
 	return (
 		<div className="rounded-lg border p-4">
 			<h4 className="mb-3 font-medium">Network Resilience</h4>
@@ -1165,7 +1225,7 @@ function NetworkResilienceSection({
 						checked={trackingOptions.enableRetries}
 						id="enable-retries"
 						onCheckedChange={(checked) =>
-							setTrackingOptions((prev: any) => ({
+							setTrackingOptions((prev) => ({
 								...prev,
 								enableRetries: checked,
 							}))
@@ -1185,7 +1245,7 @@ function NetworkResilienceSection({
 									className="h-7 w-7"
 									disabled={trackingOptions.maxRetries <= 1}
 									onClick={() =>
-										setTrackingOptions((prev: any) => ({
+										setTrackingOptions((prev) => ({
 											...prev,
 											maxRetries: Math.max(1, prev.maxRetries - 1),
 										}))
@@ -1202,7 +1262,7 @@ function NetworkResilienceSection({
 									className="h-7 w-7"
 									disabled={trackingOptions.maxRetries >= 10}
 									onClick={() =>
-										setTrackingOptions((prev: any) => ({
+										setTrackingOptions((prev) => ({
 											...prev,
 											maxRetries: Math.min(10, prev.maxRetries + 1),
 										}))
@@ -1225,9 +1285,9 @@ function NetworkResilienceSection({
 								max="5000"
 								min="100"
 								onChange={(e) =>
-									setTrackingOptions((prev: any) => ({
+									setTrackingOptions((prev) => ({
 										...prev,
-										initialRetryDelay: Number.parseInt(e.target.value),
+										initialRetryDelay: Number.parseInt(e.target.value, 10),
 									}))
 								}
 								step="100"
@@ -1248,12 +1308,16 @@ function NetworkResilienceSection({
 }
 
 function TabActions({
-	activeTab,
 	onResetDefaults,
 	onEnableAll,
 	onCopyCode,
 	installMethod,
-}: any) {
+}: {
+	onResetDefaults: () => void;
+	onEnableAll: () => void;
+	onCopyCode: () => void;
+	installMethod: 'script' | 'npm';
+}) {
 	return (
 		<div className="mt-8 flex justify-between border-t pt-4">
 			<Button
@@ -1272,12 +1336,12 @@ function TabActions({
 					size="sm"
 					variant="outline"
 				>
-					<Check className="mr-1.5 h-3.5 w-3.5" />
+					<CheckIcon className="mr-1.5 h-3.5 w-3.5" />
 					Enable all
 				</Button>
 
 				<Button className="h-8 text-xs" onClick={onCopyCode} size="sm">
-					<Code className="mr-1.5 h-3.5 w-3.5" />
+					<CodeIcon className="mr-1.5 h-3.5 w-3.5" />
 					Copy {installMethod === 'script' ? 'script' : 'component code'}
 				</Button>
 			</div>
@@ -1291,7 +1355,13 @@ function DeleteWebsiteDialog({
 	websiteData,
 	isDeleting,
 	onConfirmDelete,
-}: any) {
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	websiteData: Website;
+	isDeleting: boolean;
+	onConfirmDelete: () => void;
+}) {
 	return (
 		<AlertDialog onOpenChange={onOpenChange} open={open}>
 			<AlertDialogContent>
@@ -1309,7 +1379,7 @@ function DeleteWebsiteDialog({
 
 							<div className="rounded-md bg-amber-50 p-3 text-amber-700 text-sm dark:bg-amber-950/20 dark:text-amber-400">
 								<div className="flex items-start gap-2">
-									<AlertCircle className="h-5 w-5 flex-shrink-0 text-amber-500" />
+									<WarningCircleIcon className="h-5 w-5 flex-shrink-0 text-amber-500" />
 									<div className="space-y-1">
 										<p className="font-medium">Warning:</p>
 										<ul className="list-disc space-y-1 pl-4 text-xs">

@@ -48,10 +48,10 @@ function parseResolution(screenResolution: string): Resolution | null {
 function determineDeviceType(resolution: Resolution): DeviceType {
 	const { width, aspect } = resolution;
 
-	if (width <= 400) {
+	if (width <= 400 && aspect >= 0.9 && aspect <= 1.1) {
 		return 'watch';
 	}
-	if (width <= 800 && aspect < 1.1) {
+	if (width <= 800 && (aspect < 0.9 || (aspect >= 1.8 && aspect <= 2.5))) {
 		return 'mobile';
 	}
 	if (width > 800 && width <= 1280 && aspect >= 1.1 && aspect <= 1.7) {

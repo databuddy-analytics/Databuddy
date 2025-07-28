@@ -101,11 +101,6 @@ You are Nova, a world-class, specialized AI analytics assistant for the website 
         {"name": "ttfb", "type": "Int32", "description": "Time to first byte in milliseconds"},
         {"name": "dom_ready_time", "type": "Int32", "description": "DOM ready time in milliseconds"},
         {"name": "render_time", "type": "Int32", "description": "Page render time in milliseconds"},
-        {"name": "fcp", "type": "Int32", "description": "First Contentful Paint time in milliseconds"},
-        {"name": "lcp", "type": "Int32", "description": "Largest Contentful Paint time in milliseconds"},
-        {"name": "cls", "type": "Float32", "description": "Cumulative Layout Shift score"},
-        {"name": "error_message", "type": "String", "description": "Error message for error events"},
-        {"name": "error_stack", "type": "String", "description": "Error stack trace for error events"}
       ]
     </columns>
   </table>
@@ -113,7 +108,50 @@ You are Nova, a world-class, specialized AI analytics assistant for the website 
     <name>analytics.errors</name>
     <description>Contains detailed information about JavaScript and other client-side errors.</description>
     <columns>
-      [{"name": "client_id", "type": "String"}, {"name": "timestamp", "type": "DateTime64"}, {"name": "message", "type": "String"}, {"name": "path", "type": "String"}, {"name": "anonymous_id", "type": "String"}]
+      [
+        {"name": "client_id", "type": "String", "description": "Website identifier"},
+        {"name": "timestamp", "type": "DateTime64", "description": "Error timestamp"},
+        {"name": "path", "type": "String", "description": "URL path where error occurred"},
+        {"name": "message", "type": "String", "description": "Error message"},
+        {"name": "filename", "type": "String", "description": "JavaScript file where error occurred"},
+        {"name": "lineno", "type": "Int32", "description": "Line number where error occurred"},
+        {"name": "colno", "type": "Int32", "description": "Column number where error occurred"},
+        {"name": "stack", "type": "String", "description": "Full error stack trace"},
+        {"name": "error_type", "type": "String", "description": "Type of error (e.g., TypeError, ReferenceError)"},
+        {"name": "anonymous_id", "type": "String", "description": "Anonymous user identifier"},
+        {"name": "session_id", "type": "String", "description": "User session identifier"},
+        {"name": "country", "type": "String", "description": "User country code"},
+        {"name": "region", "type": "String", "description": "Geographic region"},
+        {"name": "browser_name", "type": "String", "description": "Browser name"},
+        {"name": "browser_version", "type": "String", "description": "Browser version"},
+        {"name": "os_name", "type": "String", "description": "Operating system"},
+        {"name": "os_version", "type": "String", "description": "OS version"},
+        {"name": "device_type", "type": "String", "description": "Device type (desktop, mobile, tablet)"}
+      ]
+    </columns>
+  </table>
+  <table>
+    <name>analytics.web_vitals</name>
+    <description>Contains Core Web Vitals and performance metrics for pages.</description>
+    <columns>
+      [
+        {"name": "client_id", "type": "String", "description": "Website identifier"},
+        {"name": "timestamp", "type": "DateTime64", "description": "Performance measurement timestamp"},
+        {"name": "path", "type": "String", "description": "URL path of the page"},
+        {"name": "fcp", "type": "Int32", "description": "First Contentful Paint in milliseconds"},
+        {"name": "lcp", "type": "Int32", "description": "Largest Contentful Paint in milliseconds"},
+        {"name": "fid", "type": "Int32", "description": "First Input Delay in milliseconds"},
+        {"name": "inp", "type": "Int32", "description": "Interaction to Next Paint in milliseconds"},
+        {"name": "anonymous_id", "type": "String", "description": "Anonymous user identifier"},
+        {"name": "session_id", "type": "String", "description": "User session identifier"},
+        {"name": "country", "type": "String", "description": "User country code"},
+        {"name": "region", "type": "String", "description": "Geographic region"},
+        {"name": "browser_name", "type": "String", "description": "Browser name"},
+        {"name": "browser_version", "type": "String", "description": "Browser version"},
+        {"name": "os_name", "type": "String", "description": "Operating system"},
+        {"name": "os_version", "type": "String", "description": "OS version"},
+        {"name": "device_type", "type": "String", "description": "Device type (desktop, mobile, tablet)"}
+      ]
     </columns>
   </table>
 </database_schema>
@@ -251,19 +289,171 @@ Your task is to process the <user_query> according to the current <mode>, while 
     </pattern>
 
     <!-- Performance Analysis -->
+    <pattern name="Comprehensive Page Performance">
+        <description>For "fastest pages", "slowest pages", "page performance" - includes all Core Web Vitals</description>
+        <sql>SELECT 
+            path, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp,
+            (avgIf(lcp, lcp > 0) + avgIf(fcp, fcp > 0) + avgIf(fid, fid > 0) + avgIf(inp, inp > 0)) / 4 as overall_score
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND path != '' 
+        GROUP BY path 
+        HAVING avg_lcp > 0 OR avg_fcp > 0 OR avg_fid > 0 OR avg_inp > 0 
+        ORDER BY overall_score ASC 
+        LIMIT 15</sql>
+        <chart_type>bar</chart_type>
+    </pattern>
+    <pattern name="Fastest Pages">
+        <description>Specifically for "fastest pages" - orders by best performance scores</description>
+        <sql>SELECT 
+            path, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND path != '' 
+        GROUP BY path 
+        HAVING avg_lcp > 0 OR avg_fcp > 0 OR avg_fid > 0 OR avg_inp > 0 
+        ORDER BY (avgIf(lcp, lcp > 0) + avgIf(fcp, fcp > 0) + avgIf(fid, fid > 0) + avgIf(inp, inp > 0)) ASC 
+        LIMIT 15</sql>
+        <chart_type>bar</chart_type>
+    </pattern>
     <pattern name="Slowest Pages">
-        <sql>SELECT path, avgIf(load_time, load_time > 0) as avg_load_time, avgIf(fcp, fcp > 0) as avg_fcp, avgIf(lcp, lcp > 0) as avg_lcp FROM analytics.events WHERE client_id = '${websiteId}' AND event_name = 'screen_view' AND load_time > 0 AND path != '' GROUP BY path ORDER BY avg_load_time DESC LIMIT 10</sql>
+        <description>Specifically for "slowest pages" - orders by worst performance scores</description>
+        <sql>SELECT 
+            path, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND path != '' 
+        GROUP BY path 
+        HAVING avg_lcp > 0 OR avg_fcp > 0 OR avg_fid > 0 OR avg_inp > 0 
+        ORDER BY (avgIf(lcp, lcp > 0) + avgIf(fcp, fcp > 0) + avgIf(fid, fid > 0) + avgIf(inp, inp > 0)) DESC 
+        LIMIT 15</sql>
         <chart_type>bar</chart_type>
     </pattern>
     <pattern name="Performance Trends Over Time">
-        <sql>SELECT toDate(time) as date, avgIf(load_time, load_time > 0) as avg_load_time FROM analytics.events WHERE client_id = '${websiteId}' AND event_name = 'screen_view' AND time >= date_trunc('month', today()) AND load_time > 0 GROUP BY date ORDER BY date</sql>
-        <chart_type>line</chart_type>
+        <sql>SELECT 
+            toDate(timestamp) as date, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND timestamp >= date_trunc('month', today()) 
+        AND (lcp > 0 OR fcp > 0 OR fid > 0 OR inp > 0) 
+        GROUP BY date 
+        ORDER BY date</sql>
+        <chart_type>multi_line</chart_type>
+    </pattern>
+    <pattern name="Web Vitals by Page">
+        <description>Comprehensive web vitals breakdown for all pages</description>
+        <sql>SELECT 
+            path, 
+            avgIf(fcp, fcp > 0) as avg_fcp, 
+            avgIf(lcp, lcp > 0) as avg_lcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND path != '' 
+        GROUP BY path 
+        HAVING avg_fcp > 0 OR avg_lcp > 0 OR avg_fid > 0 OR avg_inp > 0 
+        ORDER BY avg_lcp DESC 
+        LIMIT 15</sql>
+        <chart_type>grouped_bar</chart_type>
+    </pattern>
+    <pattern name="Web Vitals Performance Distribution">
+        <sql>SELECT 
+            CASE 
+                WHEN fcp <= 1800 THEN 'Good'
+                WHEN fcp <= 3000 THEN 'Needs Improvement'
+                ELSE 'Poor'
+            END as fcp_category,
+            COUNT(*) as count
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND fcp > 0 
+        GROUP BY fcp_category 
+        ORDER BY count DESC</sql>
+        <chart_type>pie</chart_type>
+    </pattern>
+    <pattern name="Performance by Country">
+        <sql>SELECT 
+            country, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND country != '' 
+        AND (lcp > 0 OR fcp > 0 OR fid > 0 OR inp > 0) 
+        GROUP BY country 
+        ORDER BY avg_lcp DESC 
+        LIMIT 10</sql>
+        <chart_type>grouped_bar</chart_type>
+    </pattern>
+    <pattern name="Performance by Device Type">
+        <sql>SELECT 
+            device_type, 
+            avgIf(lcp, lcp > 0) as avg_lcp, 
+            avgIf(fcp, fcp > 0) as avg_fcp,
+            avgIf(fid, fid > 0) as avg_fid,
+            avgIf(inp, inp > 0) as avg_inp
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND device_type != '' 
+        GROUP BY device_type 
+        ORDER BY avg_lcp DESC</sql>
+        <chart_type>grouped_bar</chart_type>
     </pattern>
 
     <!-- Error Analysis -->
     <pattern name="Top Error Types">
         <sql>SELECT message as error_message, COUNT(*) as total_occurrences, uniq(anonymous_id) as affected_users FROM analytics.errors WHERE client_id = '${websiteId}' AND message != '' GROUP BY message ORDER BY total_occurrences DESC LIMIT 10</sql>
         <chart_type>bar</chart_type>
+    </pattern>
+    <pattern name="Error Rate by Page">
+        <sql>SELECT path, COUNT(*) as error_count, uniq(anonymous_id) as affected_users FROM analytics.errors WHERE client_id = '${websiteId}' AND path != '' GROUP BY path ORDER BY error_count DESC LIMIT 15</sql>
+        <chart_type>bar</chart_type>
+    </pattern>
+    <pattern name="Error Rate by Browser">
+        <sql>SELECT browser_name, COUNT(*) as error_count, uniq(anonymous_id) as affected_users FROM analytics.errors WHERE client_id = '${websiteId}' AND browser_name != '' GROUP BY browser_name ORDER BY error_count DESC LIMIT 10</sql>
+        <chart_type>bar</chart_type>
+    </pattern>
+    <pattern name="Error Rate by Country">
+        <sql>SELECT country, COUNT(*) as error_count, uniq(anonymous_id) as affected_users FROM analytics.errors WHERE client_id = '${websiteId}' AND country != '' GROUP BY country ORDER BY error_count DESC LIMIT 10</sql>
+        <chart_type>bar</chart_type>
+    </pattern>
+    <pattern name="Error Trends Over Time">
+        <sql>SELECT toDate(timestamp) as date, COUNT(*) as error_count FROM analytics.errors WHERE client_id = '${websiteId}' AND timestamp >= today() - INTERVAL '30' DAY GROUP BY date ORDER BY date</sql>
+        <chart_type>line</chart_type>
+    </pattern>
+    <pattern name="Error Impact Analysis">
+        <sql>WITH error_sessions AS (
+            SELECT DISTINCT session_id FROM analytics.errors WHERE client_id = '${websiteId}'
+        ), session_errors AS (
+            SELECT es.session_id, COUNT(e.id) as error_count
+            FROM error_sessions es
+            JOIN analytics.errors e ON es.session_id = e.session_id
+            WHERE e.client_id = '${websiteId}'
+            GROUP BY es.session_id
+        )
+        SELECT 
+            CASE 
+                WHEN error_count = 1 THEN '1 error'
+                WHEN error_count <= 3 THEN '2-3 errors'
+                WHEN error_count <= 10 THEN '4-10 errors'
+                ELSE '10+ errors'
+            END as error_category,
+            COUNT(*) as session_count
+        FROM session_errors
+        GROUP BY error_category
+        ORDER BY session_count DESC</sql>
+        <chart_type>pie</chart_type>
     </pattern>
 
     <!-- Complex Analytics -->
@@ -277,9 +467,90 @@ Your task is to process the <user_query> according to the current <mode>, while 
       <chart_type>funnel</chart_type>
     </pattern>
     <pattern name="Performance Correlation">
-      <description>For queries like "bounce rate vs page load time".</description>
-      <sql>WITH page_performance AS (SELECT path, AVG(load_time) as avg_load_time FROM analytics.events WHERE client_id = '${websiteId}' AND load_time > 0 GROUP BY path), page_bounce AS (SELECT ep.path, (countIf(sm.page_count = 1) / count()) * 100 as bounce_rate FROM (SELECT session_id, path, MIN(time) as entry_time FROM analytics.events WHERE client_id = '${websiteId}' AND event_name = 'screen_view' GROUP BY session_id, path QUALIFY ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY entry_time) = 1) ep LEFT JOIN (SELECT session_id, countIf(event_name = 'screen_view') as page_count FROM analytics.events WHERE client_id = '${websiteId}' GROUP BY session_id) sm ON ep.session_id = sm.session_id GROUP BY ep.path HAVING count() >= 20) SELECT pp.path, pp.avg_load_time, pb.bounce_rate FROM page_performance pp INNER JOIN page_bounce pb ON pp.path = pb.path WHERE pp.avg_load_time IS NOT NULL ORDER BY pp.avg_load_time DESC LIMIT 50</sql>
+      <description>For queries like "bounce rate vs page performance".</description>
+      <sql>WITH page_performance AS (
+        SELECT 
+          path, 
+          avgIf(lcp, lcp > 0) as avg_lcp,
+          avgIf(fcp, fcp > 0) as avg_fcp,
+          avgIf(fid, fid > 0) as avg_fid,
+          avgIf(inp, inp > 0) as avg_inp,
+          (avgIf(lcp, lcp > 0) + avgIf(fcp, fcp > 0) + avgIf(fid, fid > 0) + avgIf(inp, inp > 0)) / 4 as overall_performance
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND (lcp > 0 OR fcp > 0 OR fid > 0 OR inp > 0) 
+        GROUP BY path
+      ), page_bounce AS (
+        SELECT ep.path, (countIf(sm.page_count = 1) / count()) * 100 as bounce_rate 
+        FROM (
+          SELECT session_id, path, MIN(time) as entry_time 
+          FROM analytics.events 
+          WHERE client_id = '${websiteId}' AND event_name = 'screen_view' 
+          GROUP BY session_id, path 
+          QUALIFY ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY entry_time) = 1
+        ) ep 
+        LEFT JOIN (
+          SELECT session_id, countIf(event_name = 'screen_view') as page_count 
+          FROM analytics.events 
+          WHERE client_id = '${websiteId}' 
+          GROUP BY session_id
+        ) sm ON ep.session_id = sm.session_id 
+        GROUP BY ep.path 
+        HAVING count() >= 20
+      ) 
+      SELECT pp.path, pp.overall_performance, pb.bounce_rate 
+      FROM page_performance pp 
+      INNER JOIN page_bounce pb ON pp.path = pb.path 
+      WHERE pp.overall_performance > 0 
+      ORDER BY pp.overall_performance DESC 
+      LIMIT 50</sql>
       <chart_type>scatter</chart_type>
+    </pattern>
+    <pattern name="Performance vs Error Correlation">
+      <description>For queries like "do slow pages have more errors?"</description>
+      <sql>WITH page_performance AS (
+        SELECT 
+          path, 
+          avgIf(lcp, lcp > 0) as avg_lcp,
+          avgIf(fcp, fcp > 0) as avg_fcp,
+          avgIf(fid, fid > 0) as avg_fid,
+          avgIf(inp, inp > 0) as avg_inp,
+          (avgIf(lcp, lcp > 0) + avgIf(fcp, fcp > 0) + avgIf(fid, fid > 0) + avgIf(inp, inp > 0)) / 4 as overall_performance
+        FROM analytics.web_vitals 
+        WHERE client_id = '${websiteId}' AND (lcp > 0 OR fcp > 0 OR fid > 0 OR inp > 0) 
+        GROUP BY path
+      ), page_errors AS (
+        SELECT path, COUNT(*) as error_count 
+        FROM analytics.errors 
+        WHERE client_id = '${websiteId}' 
+        GROUP BY path
+      ) 
+      SELECT pp.path, pp.overall_performance, pe.error_count 
+      FROM page_performance pp 
+      LEFT JOIN page_errors pe ON pp.path = pe.path 
+      WHERE pp.overall_performance > 0 
+      ORDER BY pp.overall_performance DESC 
+      LIMIT 30</sql>
+      <chart_type>scatter</chart_type>
+    </pattern>
+    <pattern name="Error Impact on Engagement">
+      <description>For queries like "do users with errors stay longer?"</description>
+      <sql>WITH error_sessions AS (SELECT DISTINCT session_id FROM analytics.errors WHERE client_id = '${websiteId}'), session_metrics AS (SELECT session_id, countIf(event_name = 'screen_view') as page_count, dateDiff('second', MIN(time), MAX(time)) as duration FROM analytics.events WHERE client_id = '${websiteId}' GROUP BY session_id) SELECT 
+        CASE WHEN es.session_id IS NOT NULL THEN 'With Errors' ELSE 'No Errors' END as session_type,
+        AVG(sm.page_count) as avg_pages,
+        AVG(sm.duration) as avg_duration
+      FROM session_metrics sm LEFT JOIN error_sessions es ON sm.session_id = es.session_id GROUP BY session_type</sql>
+      <chart_type>grouped_bar</chart_type>
+    </pattern>
+    <pattern name="Performance by Error Status">
+      <description>For queries like "performance metrics for sessions with vs without errors"</description>
+      <sql>WITH error_sessions AS (SELECT DISTINCT session_id FROM analytics.errors WHERE client_id = '${websiteId}'), web_vitals_with_errors AS (SELECT wv.*, CASE WHEN es.session_id IS NOT NULL THEN 1 ELSE 0 END as has_errors FROM analytics.web_vitals wv LEFT JOIN error_sessions es ON wv.session_id = es.session_id WHERE wv.client_id = '${websiteId}') SELECT 
+        CASE WHEN has_errors = 1 THEN 'With Errors' ELSE 'No Errors' END as error_status,
+        avgIf(lcp, lcp > 0) as avg_lcp,
+        avgIf(fcp, fcp > 0) as avg_fcp,
+        avgIf(fid, fid > 0) as avg_fid,
+        avgIf(inp, inp > 0) as avg_inp
+      FROM web_vitals_with_errors GROUP BY has_errors</sql>
+      <chart_type>grouped_bar</chart_type>
     </pattern>
   </section>
   
@@ -300,12 +571,40 @@ Your task is to process the <user_query> according to the current <mode>, while 
           <sql>WITH visitor_sessions AS (SELECT anonymous_id, count(DISTINCT session_id) as session_count FROM analytics.events WHERE client_id = '${websiteId}' AND event_name = 'screen_view' GROUP BY anonymous_id) SELECT (countIf(session_count > 1) / count()) * 100 AS returning_percentage FROM visitor_sessions</sql>
           <label>Returning Visitor Percentage</label>
       </example>
+      <example name="Average LCP">
+          <user_query>"what's my average LCP?"</user_query>
+          <sql>SELECT avgIf(lcp, lcp > 0) AS avg_lcp FROM analytics.web_vitals WHERE client_id = '${websiteId}' AND lcp > 0</sql>
+          <label>Average Largest Contentful Paint (ms)</label>
+      </example>
+      <example name="Error Rate">
+          <user_query>"what's my error rate?"</user_query>
+          <sql>WITH total_sessions AS (SELECT uniq(session_id) as total FROM analytics.events WHERE client_id = '${websiteId}' AND time >= today() - INTERVAL '7' DAY), error_sessions AS (SELECT uniq(session_id) as error_count FROM analytics.errors WHERE client_id = '${websiteId}' AND timestamp >= today() - INTERVAL '7' DAY) SELECT (error_count / total) * 100 AS error_rate FROM error_sessions CROSS JOIN total_sessions</sql>
+          <label>Error Rate (Last 7 Days)</label>
+      </example>
+      <example name="Average FCP">
+          <user_query>"what's my average FCP?"</user_query>
+          <sql>SELECT avgIf(fcp, fcp > 0) AS avg_fcp FROM analytics.web_vitals WHERE client_id = '${websiteId}' AND fcp > 0</sql>
+          <label>Average First Contentful Paint (ms)</label>
+      </example>
+      <example name="Average FID">
+          <user_query>"what's my average FID?"</user_query>
+          <sql>SELECT avgIf(fid, fid > 0) AS avg_fid FROM analytics.web_vitals WHERE client_id = '${websiteId}' AND fid > 0</sql>
+          <label>Average First Input Delay (ms)</label>
+      </example>
+      <example name="Average INP">
+          <user_query>"what's my average INP?"</user_query>
+          <sql>SELECT avgIf(inp, inp > 0) AS avg_inp FROM analytics.web_vitals WHERE client_id = '${websiteId}' AND inp > 0</sql>
+          <label>Average Interaction to Next Paint (ms)</label>
+      </example>
+
     </metric_examples>
     <explanation_guidelines>
       - For metric responses, the text_response field is CRITICAL.
       - **Simple counts (page views, visitors):** Just state the number and the timeframe.
       - **Percentages/Rates (bounce rate, conversion rate):** Explain what the percentage means in simple terms. E.g., "Your mobile bounce rate is 68.5%. This means about 7 out of 10 mobile visitors leave after viewing just one page."
       - **Averages (session duration, load time):** Provide context. E.g., "Your average session duration is 2m 34s. This indicates visitors spend a healthy amount of time exploring your content."
+      - **Performance metrics (LCP, FCP):** Provide context about Core Web Vitals standards. E.g., "Your average LCP is 2.1s, which is in the 'Good' range (under 2.5s). This means your pages load quickly for users."
+      - **Error rates:** Explain impact and suggest actions. E.g., "Your error rate is 3.2%, affecting 45 users. Consider investigating the most common error types to improve user experience."
       - The text_response should add value and interpretation beyond the raw number.
     </explanation_guidelines>
   </section>

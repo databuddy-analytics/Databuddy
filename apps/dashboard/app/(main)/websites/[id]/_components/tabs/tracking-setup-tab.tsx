@@ -38,62 +38,36 @@ import { RECOMMENDED_DEFAULTS } from '../utils/tracking-defaults';
 import { toggleTrackingOption } from '../utils/tracking-helpers';
 import type { TrackingOptions, WebsiteDataTabProps } from '../utils/types';
 
-export function WebsiteTrackingSetupTab({
-	websiteId,
-	websiteData,
-	onWebsiteUpdated,
-}: WebsiteDataTabProps) {
-	const [copied, setCopied] = useState(false);
-	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
-		'script'
-	);
-	const [trackingOptions, setTrackingOptions] =
-		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
-
-	const trackingCode = generateScriptTag(websiteId, trackingOptions);
-	const npmCode = generateNpmCode(websiteId, trackingOptions);
-
-	const handleCopyCode = (code: string) => {
-		navigator.clipboard.writeText(code);
-		setCopied(true);
-		toast.success('Tracking code copied to clipboard');
-		setTimeout(() => setCopied(false), 2000);
-	};
-
-	const handleToggleOption = (option: keyof TrackingOptions) => {
-		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
-	};
-
-	const utils = trpc.useUtils();
-
-	const handleRefresh = () => {
-		utils.websites.isTrackingSetup.invalidate({ websiteId });
-		toast.success('Checking tracking status...');
-	};
-
-	// Determine language based on code content
-	const getLanguage = (code: string) => {
+const CodeBlock = ({
+	code,
+	description,
+	onCopy,
+	copied,
+}: {
+	code: string;
+	description?: string;
+	onCopy: () => void;
+	copied: boolean;
+}) => {
+	const getLanguage = (codeContent: string) => {
 		if (
-			code.includes('npm install') ||
-			code.includes('yarn add') ||
-			code.includes('pnpm add') ||
-			code.includes('bun add')
-		)
+			codeContent.includes('npm install') ||
+			codeContent.includes('yarn add') ||
+			codeContent.includes('pnpm add') ||
+			codeContent.includes('bun add')
+		) {
 			return 'bash';
-		if (code.includes('<script')) return 'html';
-		if (code.includes('import') && code.includes('from')) return 'jsx';
+		}
+		if (codeContent.includes('<script')) {
+			return 'html';
+		}
+		if (codeContent.includes('import') && codeContent.includes('from')) {
+			return 'jsx';
+		}
 		return 'javascript';
 	};
 
-	const CodeBlock = ({
-		code,
-		description,
-		onCopy,
-	}: {
-		code: string;
-		description?: string;
-		onCopy: () => void;
-	}) => (
+	return (
 		<div className="space-y-2">
 			{description && (
 				<p className="text-muted-foreground text-sm">{description}</p>
@@ -129,6 +103,36 @@ export function WebsiteTrackingSetupTab({
 			</div>
 		</div>
 	);
+};
+
+export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
+	const [copied, setCopied] = useState(false);
+	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
+		'script'
+	);
+	const [trackingOptions, setTrackingOptions] =
+		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
+
+	const trackingCode = generateScriptTag(websiteId, trackingOptions);
+	const npmCode = generateNpmCode(websiteId, trackingOptions);
+
+	const handleCopyCode = (code: string) => {
+		navigator.clipboard.writeText(code);
+		setCopied(true);
+		toast.success('Tracking code copied to clipboard');
+		setTimeout(() => setCopied(false), 2000);
+	};
+
+	const handleToggleOption = (option: keyof TrackingOptions) => {
+		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
+	};
+
+	const utils = trpc.useUtils();
+
+	const handleRefresh = () => {
+		utils.websites.isTrackingSetup.invalidate({ websiteId });
+		toast.success('Checking tracking status...');
+	};
 
 	return (
 		<div className="space-y-6">
@@ -189,6 +193,7 @@ export function WebsiteTrackingSetupTab({
 						<TabsContent className="space-y-4" value="script">
 							<CodeBlock
 								code={trackingCode}
+								copied={copied}
 								description="Add this script to the <head> section of your HTML:"
 								onCopy={() => handleCopyCode(trackingCode)}
 							/>
@@ -223,6 +228,7 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="npm">
 										<CodeBlock
 											code="npm install @databuddy/sdk"
+											copied={copied}
 											description=""
 											onCopy={() =>
 												handleCopyCode('npm install @databuddy/sdk')
@@ -233,6 +239,7 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="yarn">
 										<CodeBlock
 											code="yarn add @databuddy/sdk"
+											copied={copied}
 											description=""
 											onCopy={() => handleCopyCode('yarn add @databuddy/sdk')}
 										/>
@@ -241,6 +248,7 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="pnpm">
 										<CodeBlock
 											code="pnpm add @databuddy/sdk"
+											copied={copied}
 											description=""
 											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk')}
 										/>
@@ -249,6 +257,7 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="bun">
 										<CodeBlock
 											code="bun add @databuddy/sdk"
+											copied={copied}
 											description=""
 											onCopy={() => handleCopyCode('bun add @databuddy/sdk')}
 										/>
@@ -257,6 +266,7 @@ export function WebsiteTrackingSetupTab({
 
 								<CodeBlock
 									code={npmCode}
+									copied={copied}
 									description="Then initialize the tracker in your code:"
 									onCopy={() =>
 										handleCopyCode(

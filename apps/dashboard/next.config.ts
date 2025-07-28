@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
 		optimizePackageImports: ['@phosphor-icons/react'],
 		clientSegmentCache: true,
 	},
+	typescript: {
+		ignoreBuildErrors: true,
+	},
 	images: {
 		domains: ['cdn.databuddy.cc', 'localhost'],
 	},

@@ -117,7 +117,9 @@ export function deduplicateGeoRows(
 	let totalVisitors = 0;
 	for (const row of rows) {
 		const code = row.country_code || row.name;
-		if (!code) continue;
+		if (!code) {
+			continue;
+		}
 		if (map.has(code)) {
 			const existing = map.get(code);
 			if (existing) {
@@ -150,7 +152,9 @@ function applyReferrerParsing(
 ): Record<string, any>[] {
 	return data.map((row) => {
 		const referrerUrl = row.name || row.referrer;
-		if (!referrerUrl) return row;
+		if (!referrerUrl) {
+			return row;
+		}
 
 		const parsed = parseReferrer(referrerUrl, websiteDomain);
 

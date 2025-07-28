@@ -1,6 +1,11 @@
 'use client';
 
-import { CaretDown, Check, Flask, Star } from '@phosphor-icons/react';
+import {
+	CaretDownIcon,
+	CheckIcon,
+	FlaskIcon,
+	StarIcon,
+} from '@phosphor-icons/react';
 import type React from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,9 +19,11 @@ import type { AssistantModel } from '../types/model';
 import { MODEL_CONFIGS } from '../types/model';
 
 const modelIcons: Record<string, React.ReactNode> = {
-	chat: <Star className="h-4 w-4 text-yellow-400" weight="duotone" />, // Use Star for default
-	agent: <Flask className="h-4 w-4 text-blue-400" weight="duotone" />, // Flask for experimental/agent
-	'agent-max': <Flask className="h-4 w-4 text-purple-400" weight="duotone" />, // Flask for max
+	chat: <StarIcon className="h-4 w-4 text-yellow-400" weight="duotone" />, // Use Star for default
+	agent: <FlaskIcon className="h-4 w-4 text-blue-400" weight="duotone" />, // Flask for experimental/agent
+	'agent-max': (
+		<FlaskIcon className="h-4 w-4 text-purple-400" weight="duotone" />
+	), // Flask for max
 };
 
 interface ModelSelectorProps {
@@ -47,7 +54,7 @@ export function ModelSelector({
 				>
 					{modelIcons[selectedModel]}
 					<span className="mr-1 ml-2">{currentConfig.name}</span>
-					<CaretDown className="h-3 w-3 opacity-50" weight="duotone" />
+					<CaretDownIcon className="h-3 w-3 opacity-50" weight="duotone" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -77,7 +84,10 @@ export function ModelSelector({
 							</div>
 						</div>
 						{selectedModel === config.id && (
-							<Check className="ml-2 h-4 w-4 text-primary" weight="duotone" />
+							<CheckIcon
+								className="ml-2 h-4 w-4 text-primary"
+								weight="duotone"
+							/>
 						)}
 					</DropdownMenuItem>
 				))}

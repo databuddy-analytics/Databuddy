@@ -1,22 +1,22 @@
 'use client';
 
+import {
+	ClockIcon,
+	DeviceMobileIcon,
+	DeviceTabletIcon,
+	GlobeIcon,
+	InfoIcon,
+	LaptopIcon,
+	MapPinIcon,
+	MonitorIcon,
+	TranslateIcon,
+	WifiHighIcon,
+	WifiLowIcon,
+} from '@phosphor-icons/react';
 import type { CellContext, ColumnDef } from '@tanstack/react-table';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
-import {
-	Clock,
-	Globe,
-	HelpCircle,
-	Languages,
-	Laptop,
-	MapPin,
-	Monitor,
-	Smartphone,
-	Tablet,
-	Wifi,
-	WifiOff,
-} from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/analytics/data-table';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -114,33 +114,33 @@ const formatNumber = (value: number | null | undefined): string => {
 const getConnectionIcon = (connection: string): React.ReactNode => {
 	const connectionLower = connection.toLowerCase();
 	if (!connection || connection === 'Unknown') {
-		return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
+		return <InfoIcon className="h-4 w-4 text-muted-foreground" />;
 	}
 	if (connectionLower.includes('wifi')) {
-		return <Wifi className="h-4 w-4 text-green-500" />;
+		return <WifiHighIcon className="h-4 w-4 text-green-500" />;
 	}
 	if (connectionLower.includes('4g')) {
-		return <Smartphone className="h-4 w-4 text-blue-500" />;
+		return <DeviceMobileIcon className="h-4 w-4 text-blue-500" />;
 	}
 	if (connectionLower.includes('5g')) {
-		return <Smartphone className="h-4 w-4 text-purple-500" />;
+		return <DeviceMobileIcon className="h-4 w-4 text-purple-500" />;
 	}
 	if (connectionLower.includes('3g')) {
-		return <Smartphone className="h-4 w-4 text-yellow-500" />;
+		return <DeviceMobileIcon className="h-4 w-4 text-yellow-500" />;
 	}
 	if (connectionLower.includes('2g')) {
-		return <Smartphone className="h-4 w-4 text-orange-500" />;
+		return <DeviceMobileIcon className="h-4 w-4 text-orange-500" />;
 	}
 	if (connectionLower.includes('ethernet')) {
-		return <Laptop className="h-4 w-4 text-blue-400" />;
+		return <LaptopIcon className="h-4 w-4 text-blue-400" />;
 	}
 	if (connectionLower.includes('cellular')) {
-		return <Smartphone className="h-4 w-4 text-blue-500" />;
+		return <DeviceMobileIcon className="h-4 w-4 text-blue-500" />;
 	}
 	if (connectionLower.includes('offline')) {
-		return <WifiOff className="h-4 w-4 text-red-500" />;
+		return <WifiLowIcon className="h-4 w-4 text-red-500" />;
 	}
-	return <Globe className="h-4 w-4 text-primary" />;
+	return <GlobeIcon className="h-4 w-4 text-primary" />;
 };
 
 const normalizeData = (data: any[]): GeographicEntry[] =>
@@ -490,7 +490,7 @@ export function WebsiteAudienceTab({
 					const name = info.getValue() as string;
 					return (
 						<div className="flex items-center gap-2">
-							<Globe className="h-4 w-4 text-primary" />
+							<GlobeIcon className="h-4 w-4 text-primary" />
 							<span className="font-medium">{name}</span>
 						</div>
 					);
@@ -547,7 +547,7 @@ export function WebsiteAudienceTab({
 									src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${code.toUpperCase()}.svg`}
 								/>
 							) : (
-								<Globe className="h-3 w-3 text-muted-foreground" />
+								<GlobeIcon className="h-3 w-3 text-muted-foreground" />
 							)}
 							<span className="font-medium">{name}</span>
 						</div>
@@ -594,7 +594,7 @@ export function WebsiteAudienceTab({
 					const timezoneName = entry.name;
 					return (
 						<div className="flex items-center gap-2">
-							<Clock className="h-4 w-4 text-primary" />
+							<ClockIcon className="h-4 w-4 text-primary" />
 							<div>
 								<div className="font-medium">{timezoneName}</div>
 							</div>
@@ -690,7 +690,7 @@ export function WebsiteAudienceTab({
 					}
 					return (
 						<div className="flex items-center gap-2">
-							<Languages className="h-4 w-4 text-primary" />
+							<TranslateIcon className="h-4 w-4 text-primary" />
 							<div>
 								<div className="font-medium">{readableName}</div>
 								{code && code !== language && (
@@ -740,7 +740,7 @@ export function WebsiteAudienceTab({
 					const name = info.getValue() as string;
 					return (
 						<div className="flex items-center gap-2">
-							<MapPin className="h-4 w-4 text-primary" />
+							<MapPinIcon className="h-4 w-4 text-primary" />
 							<span className="font-medium">{name}</span>
 						</div>
 					);
@@ -1005,29 +1005,29 @@ export function WebsiteAudienceTab({
 
 										let deviceType = 'Unknown';
 										let deviceIcon = (
-											<Monitor className="h-4 w-4 text-muted-foreground" />
+											<MonitorIcon className="h-4 w-4 text-muted-foreground" />
 										);
 
 										if (isValid) {
 											if (width <= 480) {
 												deviceType = 'Mobile';
 												deviceIcon = (
-													<Smartphone className="h-4 w-4 text-blue-500" />
+													<DeviceMobileIcon className="h-4 w-4 text-blue-500" />
 												);
 											} else if (width <= 1024) {
 												deviceType = 'Tablet';
 												deviceIcon = (
-													<Tablet className="h-4 w-4 text-purple-500" />
+													<DeviceTabletIcon className="h-4 w-4 text-purple-500" />
 												);
 											} else if (width <= 1440) {
 												deviceType = 'Laptop';
 												deviceIcon = (
-													<Laptop className="h-4 w-4 text-green-500" />
+													<LaptopIcon className="h-4 w-4 text-green-500" />
 												);
 											} else {
 												deviceType = 'Desktop';
 												deviceIcon = (
-													<Monitor className="h-4 w-4 text-primary" />
+													<MonitorIcon className="h-4 w-4 text-primary" />
 												);
 											}
 										}
@@ -1159,7 +1159,7 @@ export function WebsiteAudienceTab({
 						>
 							<div className="mb-4">
 								<div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/20">
-									<Monitor className="h-7 w-7 text-muted-foreground/50" />
+									<MonitorIcon className="h-7 w-7 text-muted-foreground/50" />
 								</div>
 							</div>
 							<h4 className="mb-2 font-medium text-base text-foreground">

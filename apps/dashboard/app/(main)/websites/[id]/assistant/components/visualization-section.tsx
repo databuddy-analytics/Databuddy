@@ -1,18 +1,16 @@
 'use client';
 
 import {
-	ChartBar,
-	ChartLine,
-	ChartPie,
-	Compass, // for radar
-	Database,
-	DotsThreeOutlineVertical, // for scatter
-	Funnel,
-	TrendUp,
+	ChartBarIcon,
+	ChartLineIcon,
+	ChartPieIcon,
+	CompassIcon,
+	DotsThreeOutlineVerticalIcon,
+	FunnelIcon,
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAtom } from 'jotai';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
 	Area,
 	AreaChart,
@@ -29,7 +27,6 @@ import {
 	PolarAngleAxis,
 	PolarGrid,
 	RadarChart,
-	RadialBar,
 	Funnel as RechartsFunnel,
 	Radar as RechartsRadar,
 	ResponsiveContainer,
@@ -43,21 +40,12 @@ import { DataTable } from '@/components/analytics/data-table';
 import { Badge } from '@/components/ui/badge';
 import {
 	ChartContainer,
-	ChartLegend,
 	ChartLegendContent,
-	ChartTooltip,
 	ChartTooltipContent,
 } from '@/components/ui/chart';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import {
-	currentMessageAtom,
-	dateRangeAtom,
-	messagesAtom,
-	websiteDataAtom,
-	websiteIdAtom,
-} from '@/stores/jotai/assistantAtoms';
+import { messagesAtom, websiteDataAtom } from '@/stores/jotai/assistantAtoms';
 import type { Message } from '../types/message';
 
 const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
@@ -65,26 +53,24 @@ const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
 const getChartIcon = (chartType: string) => {
 	switch (chartType?.toLowerCase()) {
 		case 'bar':
-			return <ChartBar className="h-3 w-3" />;
+			return <ChartBarIcon className="h-3 w-3" />;
 		case 'line':
-		case 'area': // No ChartArea, use ChartLine
-			return <ChartLine className="h-3 w-3" />;
+			return <ChartLineIcon className="h-3 w-3" />;
 		case 'pie':
-			return <ChartPie className="h-3 w-3" />;
+			return <ChartPieIcon className="h-3 w-3" />;
 		case 'stacked_bar':
-			return <ChartBar className="h-3 w-3" />;
+		case 'grouped_bar':
+			return <ChartBarIcon className="h-3 w-3" />;
 		case 'multi_line':
-			return <ChartLine className="h-3 w-3" />;
+			return <ChartLineIcon className="h-3 w-3" />;
 		case 'scatter':
-			// TODO: Replace with a better scatter icon if available
-			return <DotsThreeOutlineVertical className="h-3 w-3" />;
+			return <DotsThreeOutlineVerticalIcon className="h-3 w-3" />;
 		case 'radar':
-			// TODO: Replace with a better radar icon if available
-			return <Compass className="h-3 w-3" />;
+			return <CompassIcon className="h-3 w-3" />;
 		case 'funnel':
-			return <Funnel className="h-3 w-3" />;
+			return <FunnelIcon className="h-3 w-3" />;
 		default:
-			return <ChartBar className="h-3 w-3" />;
+			return <ChartBarIcon className="h-3 w-3" />;
 	}
 };
 
@@ -117,16 +103,24 @@ export function VisualizationSkeleton() {
 }
 
 interface TransformResult {
-	chartData: any[];
+	chartData: ChartDataItem[];
 	xAxisKey: string;
+}
+
+interface ChartConfig {
+	[key: string]: {
+		label: string;
+		color?: string;
+	};
+}
+
+interface ChartDataItem {
+	[key: string]: string | number | null | undefined;
 }
 
 export default function VisualizationSection() {
 	const [websiteData] = useAtom(websiteDataAtom);
-	const [websiteId] = useAtom(websiteIdAtom);
-	const [dateRange] = useAtom(dateRangeAtom);
 	const [messages] = useAtom(messagesAtom);
-	const [currentMessage] = useAtom(currentMessageAtom);
 
 	// Find the latest assistant message with a chartType
 	const latestAssistantMsg = useMemo(() => {
@@ -136,17 +130,30 @@ export default function VisualizationSection() {
 	}, [messages]);
 
 	const rawAiData = useMemo(() => {
-		if (!latestAssistantMsg?.data || latestAssistantMsg.data.length === 0)
+		if (!latestAssistantMsg?.data || latestAssistantMsg.data.length === 0) {
 			return [];
-		return latestAssistantMsg.data;
+		}
+
+		// Validate that data is an array and has valid structure
+		const data = latestAssistantMsg.data;
+		if (!Array.isArray(data) || data.length === 0) {
+			return [];
+		}
+
+		// Ensure each item is an object
+		const validData = data.filter(
+			(item) => item && typeof item === 'object' && !Array.isArray(item)
+		);
+
+		return validData;
 	}, [latestAssistantMsg]);
 
 	const chartDisplayConfig = useMemo(() => {
-		if (!rawAiData || rawAiData.length === 0)
+		if (!rawAiData || rawAiData.length === 0) {
 			return { chartDataForDisplay: [], finalXAxisKey: 'date' };
+		}
 		const chartType = latestAssistantMsg?.chartType;
 
-		// For bar charts, use the raw data directly if it's already in the right format
 		if (chartType === 'bar' && rawAiData.length > 0) {
 			const firstRow = rawAiData[0];
 			const keys = Object.keys(firstRow);
@@ -224,16 +231,12 @@ export default function VisualizationSection() {
 			(chartType === 'bar' || chartType === 'pie') &&
 			workingData.length > MAX_CHART_ITEMS
 		) {
-			const primaryMetricKeyForSorting =
-				workingData[0] && 'pageviews' in workingData[0]
-					? 'pageviews'
-					: workingData[0]
-						? Object.keys(workingData[0]).find(
-								(k) =>
-									typeof workingData[0][k] === 'number' &&
-									k !== xAxisKeyFromFunc
-							)
-						: undefined;
+			const primaryMetricKeyForSorting = workingData[0]
+				? Object.keys(workingData[0]).find(
+						(k) =>
+							typeof workingData[0][k] === 'number' && k !== xAxisKeyFromFunc
+					)
+				: undefined;
 
 			if (primaryMetricKeyForSorting) {
 				const sortableData = [...workingData];
@@ -253,17 +256,18 @@ export default function VisualizationSection() {
 		};
 	}, [rawAiData, latestAssistantMsg?.chartType]);
 
-	const chartConfig = useMemo(() => {
+	const chartConfig = useMemo((): ChartConfig => {
 		if (
 			!chartDisplayConfig.chartDataForDisplay ||
-			chartDisplayConfig.chartDataForDisplay.length === 0
+			chartDisplayConfig.chartDataForDisplay.length === 0 ||
+			!chartDisplayConfig.chartDataForDisplay[0]
 		) {
 			return {};
 		}
 		const data = chartDisplayConfig.chartDataForDisplay;
 		const xAxisKey = chartDisplayConfig.finalXAxisKey;
 		const keys = Object.keys(data[0] || {}).filter((key) => key !== xAxisKey);
-		const config: any = {
+		const config: ChartConfig = {
 			[xAxisKey]: {
 				label: xAxisKey
 					.replace(/_/g, ' ')
@@ -280,9 +284,317 @@ export default function VisualizationSection() {
 	}, [chartDisplayConfig]);
 
 	const columnsForTable = useMemo(() => {
-		if (!rawAiData || rawAiData.length === 0) return [];
+		if (!rawAiData || rawAiData.length === 0) {
+			return [];
+		}
 		return generateColumns(rawAiData);
 	}, [rawAiData]);
+
+	const renderBarChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<BarChart data={data}>
+			<CartesianGrid vertical={false} />
+			<XAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+			/>
+			<YAxis />
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Bar
+				dataKey={availableMetricKeys[0]}
+				fill={chartConfig[availableMetricKeys[0]]?.color || CHART_COLORS[0]}
+				radius={4}
+			/>
+		</BarChart>
+	);
+
+	const renderLineChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<LineChart data={data}>
+			<CartesianGrid vertical={false} />
+			<XAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+			/>
+			<YAxis />
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key) => (
+				<Line
+					dataKey={key}
+					dot={false}
+					key={key}
+					stroke={chartConfig[key]?.color}
+					strokeWidth={2}
+				/>
+			))}
+		</LineChart>
+	);
+
+	const renderAreaChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<AreaChart data={data}>
+			<CartesianGrid vertical={false} />
+			<XAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+			/>
+			<YAxis />
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key) => (
+				<Area
+					dataKey={key}
+					fill={chartConfig[key]?.color}
+					key={key}
+					stackId="a"
+					stroke={chartConfig[key]?.color}
+					type="natural"
+				/>
+			))}
+		</AreaChart>
+	);
+
+	const renderPieChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[]
+	) => {
+		if (availableMetricKeys.length === 0) {
+			return (
+				<div className="flex h-full items-center justify-center text-muted-foreground">
+					<p>No valid data for pie chart</p>
+				</div>
+			);
+		}
+		const COLORS = data.map(
+			(_entry, index) => CHART_COLORS[index % CHART_COLORS.length]
+		);
+		return (
+			<PieChart>
+				<Tooltip
+					content={<ChartTooltipContent indicator="dot" />}
+					cursor={false}
+				/>
+				<Pie
+					data={data}
+					dataKey={availableMetricKeys[0]}
+					innerRadius={60}
+					nameKey={xAxisKey}
+					strokeWidth={5}
+				>
+					{data.map((entry, index) => (
+						<Cell
+							fill={COLORS[index % COLORS.length]}
+							key={`cell-${entry[xAxisKey]}`}
+						/>
+					))}
+				</Pie>
+				<Legend content={<ChartLegendContent />} />
+			</PieChart>
+		);
+	};
+
+	const renderMultiLineChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<LineChart data={data}>
+			<CartesianGrid vertical={false} />
+			<XAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+			/>
+			<YAxis />
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key) => (
+				<Line
+					dataKey={key}
+					dot={false}
+					key={key}
+					stroke={chartConfig[key]?.color}
+					strokeWidth={2}
+				/>
+			))}
+		</LineChart>
+	);
+
+	const renderStackedBarChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<BarChart data={data} layout="vertical">
+			<CartesianGrid horizontal={false} />
+			<XAxis type="number" />
+			<YAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+				type="category"
+			/>
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key) => (
+				<Bar
+					dataKey={key}
+					fill={chartConfig[key]?.color}
+					key={key}
+					radius={4}
+					stackId="a"
+				/>
+			))}
+		</BarChart>
+	);
+
+	const renderGroupedBarChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[]
+	) => (
+		<BarChart data={data}>
+			<CartesianGrid vertical={false} />
+			<XAxis
+				axisLine={false}
+				dataKey={xAxisKey}
+				tickLine={false}
+				tickMargin={8}
+			/>
+			<YAxis />
+			<Tooltip
+				content={<ChartTooltipContent indicator="dot" />}
+				cursor={false}
+			/>
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key, index) => (
+				<Bar
+					dataKey={key}
+					fill={CHART_COLORS[index % CHART_COLORS.length]}
+					key={key}
+					radius={4}
+				/>
+			))}
+		</BarChart>
+	);
+
+	const renderScatterChart = (
+		data: ChartDataItem[],
+		availableMetricKeys: string[]
+	) => {
+		if (availableMetricKeys.length < 2) {
+			return (
+				<div className="flex h-full items-center justify-center text-muted-foreground">
+					<p>Scatter chart requires at least 2 numeric columns</p>
+				</div>
+			);
+		}
+		return (
+			<ScatterChart>
+				<CartesianGrid />
+				<XAxis
+					dataKey={availableMetricKeys[0]}
+					name={availableMetricKeys[0]}
+					type="number"
+				/>
+				<YAxis
+					dataKey={availableMetricKeys[1]}
+					name={availableMetricKeys[1]}
+					type="number"
+				/>
+				<Tooltip
+					content={<ChartTooltipContent hideLabel />}
+					cursor={{ strokeDasharray: '3 3' }}
+				/>
+				<Scatter data={data} fill={CHART_COLORS[0]} />
+			</ScatterChart>
+		);
+	};
+
+	const renderRadarChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) => (
+		<RadarChart data={data}>
+			<PolarGrid />
+			<PolarAngleAxis dataKey={xAxisKey} />
+			<Tooltip content={<ChartTooltipContent />} />
+			<Legend content={<ChartLegendContent />} />
+			{availableMetricKeys.map((key) => (
+				<RechartsRadar
+					dataKey={key}
+					fill={chartConfig[key]?.color}
+					fillOpacity={0.6}
+					key={key}
+					name={key}
+					stroke={chartConfig[key]?.color}
+				/>
+			))}
+		</RadarChart>
+	);
+
+	const renderFunnelChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[]
+	) => (
+		<FunnelChart>
+			<Tooltip />
+			<RechartsFunnel
+				data={data}
+				dataKey={availableMetricKeys[0] || 'users'}
+				isAnimationActive
+			>
+				{data.map((entry, index) => (
+					<Cell
+						fill={CHART_COLORS[index % CHART_COLORS.length]}
+						key={`cell-${entry[xAxisKey] || index}`}
+					/>
+				))}
+			</RechartsFunnel>
+		</FunnelChart>
+	);
 
 	const renderChartContent = () => {
 		if (
@@ -319,6 +631,10 @@ export default function VisualizationSection() {
 			'multi_line',
 			'stacked_bar',
 			'grouped_bar',
+			'pie',
+			'scatter',
+			'radar',
+			'funnel',
 		].includes(aiChartType?.toLowerCase() || '');
 
 		const metricKeys = Object.keys(chartConfig).filter(
@@ -326,259 +642,111 @@ export default function VisualizationSection() {
 		);
 
 		const renderChart = () => {
+			if (
+				!chartDisplayConfig.chartDataForDisplay ||
+				chartDisplayConfig.chartDataForDisplay.length === 0
+			) {
+				return (
+					<div className="flex h-full items-center justify-center text-muted-foreground">
+						<p>No data available for visualization</p>
+					</div>
+				);
+			}
+
+			const data = chartDisplayConfig.chartDataForDisplay;
+			const xAxisKey = chartDisplayConfig.finalXAxisKey;
+			const availableMetricKeys = metricKeys.filter((key) =>
+				data.some((item) => item[key] !== null && item[key] !== undefined)
+			);
+
+			if (availableMetricKeys.length === 0) {
+				return (
+					<div className="flex h-full items-center justify-center text-muted-foreground">
+						<p>No valid metric data found</p>
+					</div>
+				);
+			}
+
+			// Additional validation for specific chart types
+			if (
+				aiChartType?.toLowerCase() === 'scatter' &&
+				availableMetricKeys.length < 2
+			) {
+				return (
+					<div className="flex h-full items-center justify-center text-muted-foreground">
+						<p>Scatter chart requires at least 2 numeric columns</p>
+					</div>
+				);
+			}
+
+			if (
+				aiChartType?.toLowerCase() === 'pie' &&
+				availableMetricKeys.length === 0
+			) {
+				return (
+					<div className="flex h-full items-center justify-center text-muted-foreground">
+						<p>Pie chart requires at least one numeric column</p>
+					</div>
+				);
+			}
+
 			switch (aiChartType?.toLowerCase()) {
 				case 'bar':
-					return (
-						<BarChart data={chartDisplayConfig.chartDataForDisplay}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-							/>
-							<YAxis />
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Bar
-								dataKey={metricKeys[0]}
-								fill={chartConfig[metricKeys[0]]?.color || CHART_COLORS[0]}
-								radius={4}
-							/>
-						</BarChart>
+					return renderBarChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
 				case 'line':
-					return (
-						<LineChart data={chartDisplayConfig.chartDataForDisplay}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-							/>
-							<YAxis />
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key) => (
-								<Line
-									dataKey={key}
-									dot={false}
-									key={key}
-									stroke={chartConfig[key]?.color}
-									strokeWidth={2}
-								/>
-							))}
-						</LineChart>
+					return renderLineChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
 				case 'area':
-					return (
-						<AreaChart data={chartDisplayConfig.chartDataForDisplay}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-							/>
-							<YAxis />
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key) => (
-								<Area
-									dataKey={key}
-									fill={chartConfig[key]?.color}
-									key={key}
-									stackId="a"
-									stroke={chartConfig[key]?.color}
-									type="natural"
-								/>
-							))}
-						</AreaChart>
+					return renderAreaChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
-				case 'pie': {
-					const COLORS = chartDisplayConfig.chartDataForDisplay.map(
-						(_entry, index) => CHART_COLORS[index % CHART_COLORS.length]
-					);
-					return (
-						<PieChart>
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Pie
-								data={chartDisplayConfig.chartDataForDisplay}
-								dataKey={metricKeys[0]}
-								innerRadius={60}
-								nameKey={chartDisplayConfig.finalXAxisKey}
-								strokeWidth={5}
-							>
-								{chartDisplayConfig.chartDataForDisplay.map((entry, index) => (
-									<Cell
-										fill={COLORS[index % COLORS.length]}
-										key={`cell-${entry[chartDisplayConfig.finalXAxisKey]}`}
-									/>
-								))}
-							</Pie>
-							<Legend content={<ChartLegendContent />} />
-						</PieChart>
-					);
-				}
+				case 'pie':
+					return renderPieChart(data, xAxisKey, availableMetricKeys);
 				case 'multi_line':
-					return (
-						<LineChart data={chartDisplayConfig.chartDataForDisplay}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-							/>
-							<YAxis />
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key) => (
-								<Line
-									dataKey={key}
-									dot={false}
-									key={key}
-									stroke={chartConfig[key]?.color}
-									strokeWidth={2}
-								/>
-							))}
-						</LineChart>
+					return renderMultiLineChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
 				case 'stacked_bar':
-					return (
-						<BarChart
-							data={chartDisplayConfig.chartDataForDisplay}
-							layout="vertical"
-						>
-							<CartesianGrid horizontal={false} />
-							<XAxis type="number" />
-							<YAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-								type="category"
-							/>
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key) => (
-								<Bar
-									dataKey={key}
-									fill={chartConfig[key]?.color}
-									key={key}
-									radius={4}
-									stackId="a"
-								/>
-							))}
-						</BarChart>
+					return renderStackedBarChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
 				case 'grouped_bar':
-					return (
-						<BarChart data={chartDisplayConfig.chartDataForDisplay}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								axisLine={false}
-								dataKey={chartDisplayConfig.finalXAxisKey}
-								tickLine={false}
-								tickMargin={8}
-							/>
-							<YAxis />
-							<Tooltip
-								content={<ChartTooltipContent indicator="dot" />}
-								cursor={false}
-							/>
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key, index) => (
-								<Bar
-									dataKey={key}
-									fill={CHART_COLORS[index % CHART_COLORS.length]}
-									key={key}
-									radius={4}
-								/>
-							))}
-						</BarChart>
-					);
+					return renderGroupedBarChart(data, xAxisKey, availableMetricKeys);
 				case 'scatter':
-					return (
-						<ScatterChart>
-							<CartesianGrid />
-							<XAxis
-								dataKey={metricKeys[0]}
-								name={metricKeys[0]}
-								type="number"
-							/>
-							<YAxis
-								dataKey={metricKeys[1]}
-								name={metricKeys[1]}
-								type="number"
-							/>
-							<Tooltip
-								content={<ChartTooltipContent hideLabel />}
-								cursor={{ strokeDasharray: '3 3' }}
-							/>
-							<Scatter
-								data={chartDisplayConfig.chartDataForDisplay}
-								fill={CHART_COLORS[0]}
-							/>
-						</ScatterChart>
-					);
+					return renderScatterChart(data, availableMetricKeys);
 				case 'radar':
-					return (
-						<RadarChart data={chartDisplayConfig.chartDataForDisplay}>
-							<PolarGrid />
-							<PolarAngleAxis dataKey={chartDisplayConfig.finalXAxisKey} />
-							<Tooltip content={<ChartTooltipContent />} />
-							<Legend content={<ChartLegendContent />} />
-							{metricKeys.map((key) => (
-								<RechartsRadar
-									dataKey={key}
-									fill={chartConfig[key]?.color}
-									fillOpacity={0.6}
-									key={key}
-									name={key}
-									stroke={chartConfig[key]?.color}
-								/>
-							))}
-						</RadarChart>
+					return renderRadarChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
 					);
 				case 'funnel':
-					return (
-						<FunnelChart>
-							<Tooltip />
-							<RechartsFunnel
-								data={chartDisplayConfig.chartDataForDisplay}
-								dataKey="users"
-								isAnimationActive
-							>
-								{chartDisplayConfig.chartDataForDisplay.map((entry, index) => (
-									<Cell
-										fill={CHART_COLORS[index % CHART_COLORS.length]}
-										key={`cell-${entry.step}`}
-									/>
-								))}
-							</RechartsFunnel>
-						</FunnelChart>
-					);
+					return renderFunnelChart(data, xAxisKey, availableMetricKeys);
 				default:
-					return <></>;
+					return (
+						<div className="flex h-full items-center justify-center text-muted-foreground">
+							<p>Unsupported chart type: {aiChartType}</p>
+						</div>
+					);
 			}
 		};
 
@@ -611,7 +779,9 @@ export default function VisualizationSection() {
 	};
 
 	const getChartTypeDescription = (chartType?: string) => {
-		if (!chartType) return 'Data';
+		if (!chartType) {
+			return 'Data';
+		}
 		switch (chartType.toLowerCase()) {
 			case 'multi_line':
 				return 'Multi-Series Line Chart';
@@ -749,12 +919,17 @@ function getReferrerDisplayName(referrer: string | unknown): string {
 
 		return baseHostname.charAt(0).toUpperCase() + baseHostname.slice(1);
 	} catch (e) {
+		console.error(e);
 		return trimmedReferrer.charAt(0).toUpperCase() + trimmedReferrer.slice(1);
 	}
 }
 
-const generateColumns = (data: any[]): ColumnDef<any, any>[] => {
-	if (!data || data.length === 0 || !data[0]) return [];
+const generateColumns = (
+	data: ChartDataItem[]
+): ColumnDef<ChartDataItem, any>[] => {
+	if (!data || data.length === 0 || !data[0]) {
+		return [];
+	}
 	const firstItemKeys = Object.keys(data[0]);
 
 	return firstItemKeys.map((key) => ({
@@ -785,8 +960,9 @@ const transformDataForMetricsChart = (
 	chartTypeInput?: string
 	// aiQuery parameter removed as it was unused
 ): TransformResult => {
-	if (!rawData || rawData.length === 0 || !rawData[0])
+	if (!rawData || rawData.length === 0 || !rawData[0]) {
 		return { chartData: [], xAxisKey: 'date' };
+	}
 
 	let determinedXAxisKey = 'date';
 	const chartType = chartTypeInput?.toLowerCase();
@@ -850,7 +1026,7 @@ const transformDataForMetricsChart = (
 
 		if (timeCol && categoryCol && metricCol) {
 			determinedXAxisKey = timeCol;
-			const pivotedData: { [key: string]: any } = {};
+			const pivotedData: { [key: string]: ChartDataItem } = {};
 			const _timeCol = timeCol;
 			const _categoryCol = categoryCol;
 			const _metricCol = metricCol;
@@ -866,8 +1042,9 @@ const transformDataForMetricsChart = (
 							? categoryVal.substring(1)
 							: categoryVal;
 					categoryVal = categoryVal.split('?')[0] || 'Home';
-					if (categoryVal.length > 20)
+					if (categoryVal.length > 20) {
 						categoryVal = `${categoryVal.substring(0, 17)}...`;
+					}
 				}
 				if (!pivotedData[timeVal]) {
 					pivotedData[timeVal] = { [_timeCol]: timeVal };
@@ -884,21 +1061,24 @@ const transformDataForMetricsChart = (
 							? categoryVal.substring(1)
 							: categoryVal;
 					categoryVal = categoryVal.split('?')[0] || 'Home';
-					if (categoryVal.length > 20)
+					if (categoryVal.length > 20) {
 						categoryVal = `${categoryVal.substring(0, 17)}...`;
+					}
 				}
 				allCategoryKeys.add(categoryVal);
 			}
 
-			const result = Object.values(pivotedData).map((dataPoint: any) => {
-				const completeDataPoint = { ...dataPoint };
-				for (const catKey of allCategoryKeys) {
-					if (!Object.hasOwn(completeDataPoint, catKey)) {
-						completeDataPoint[catKey] = null;
+			const result = Object.values(pivotedData).map(
+				(dataPoint: ChartDataItem) => {
+					const completeDataPoint = { ...dataPoint };
+					for (const catKey of allCategoryKeys) {
+						if (!Object.hasOwn(completeDataPoint, catKey)) {
+							completeDataPoint[catKey] = null;
+						}
 					}
+					return completeDataPoint;
 				}
-				return completeDataPoint;
-			});
+			);
 
 			if (TIME_KEYS.includes(_timeCol.toLowerCase())) {
 				try {
@@ -927,7 +1107,7 @@ const transformDataForMetricsChart = (
 	determinedXAxisKey = 'date';
 
 	const transformedChartData = rawData.map((item) => {
-		const transformed: any = {};
+		const transformed: ChartDataItem = {};
 		const originalKeys = Object.keys(item);
 		const usedOriginalKeys = new Set<string>();
 		const dateField = determinedXAxisKey;
@@ -987,7 +1167,6 @@ const transformDataForMetricsChart = (
 				'http',
 				'www',
 			];
-			// Corrected based on previous partial application: removed categoryValueToSet && and ! from categoryValueToSet.toLowerCase()
 			if (
 				keyUsedForCategoryIsReferrer ||
 				potentialReferrerIndicators.some((indicator) =>

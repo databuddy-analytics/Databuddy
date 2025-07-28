@@ -26,7 +26,6 @@ import {
 	modelAtom,
 	scrollAreaRefAtom,
 	websiteDataAtom,
-	websiteIdAtom,
 } from '@/stores/jotai/assistantAtoms';
 import { useChat } from '../hooks/use-chat';
 import { ChatHistorySheet } from './chat-history-sheet';
@@ -82,7 +81,6 @@ export default function ChatSection() {
 	const [scrollAreaRef] = useAtom(scrollAreaRefAtom);
 	const [selectedModel] = useAtom(modelAtom);
 	const [websiteData] = useAtom(websiteDataAtom);
-	const [websiteId] = useAtom(websiteIdAtom);
 
 	const inputRef = useRef<HTMLInputElement>(null);
 	const bottomRef = useRef<HTMLDivElement>(null);
