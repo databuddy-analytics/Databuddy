@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GeoJSON, MapContainer } from 'react-leaflet';
 import { getCountryPopulation } from '@/lib/data';
 import { useCountries } from '@/lib/geo';
+import type { LocationData } from '@databuddy/shared';
 import { CountryFlag } from './icons/CountryFlag';
 
 interface TooltipContent {
@@ -35,7 +36,7 @@ export function MapComponent({
 }: {
 	height: string;
 	mode?: 'total' | 'perCapita';
-	locationData?: any;
+	locationData?: LocationData;
 	isLoading?: boolean;
 }) {
 	const locationsData = locationData;
@@ -46,14 +47,14 @@ export function MapComponent({
 		}
 
 		const validCountries = locationsData.countries.filter(
-			(country: any) => country.country && country.country.trim() !== ''
+			(country) => country.country && country.country.trim() !== ''
 		);
 
 		const totalVisitors =
-			validCountries.reduce((sum: number, c: any) => sum + c.visitors, 0) || 1;
+			validCountries.reduce((sum, c) => sum + c.visitors, 0) || 1;
 
 		return {
-			data: validCountries.map((country: any) => ({
+			data: validCountries.map((country) => ({
 				value:
 					country.country_code?.toUpperCase() || country.country.toUpperCase(),
 				count: country.visitors,
@@ -85,7 +86,7 @@ export function MapComponent({
 			return null;
 		}
 
-		return countryData.data.map((item: any) => {
+		return countryData.data.map((item) => {
 			const population = getCountryPopulation(item.value);
 			const perCapitaValue = population > 0 ? item.count / population : 0;
 			return {
@@ -101,7 +102,7 @@ export function MapComponent({
 		}
 
 		const metricToUse = mode === 'perCapita' ? 'perCapita' : 'count';
-		const values = processedCountryData?.map((d: any) => d[metricToUse]) || [0];
+		const values = processedCountryData?.map((d) => d[metricToUse]) || [0];
 		const maxValue = Math.max(...values);
 		const minValue = Math.min(...values.filter((v: number) => v > 0));
 
@@ -135,7 +136,7 @@ export function MapComponent({
 	const handleStyle = (feature: Feature<any>) => {
 		const dataKey = feature?.properties?.ISO_A2;
 		const foundData = processedCountryData?.find(
-			({ value }: any) => value === dataKey
+			({ value }) => value === dataKey
 		);
 
 		const metricValue =
@@ -177,7 +178,7 @@ export function MapComponent({
 
 				const name = feature.properties?.ADMIN;
 				const foundData = processedCountryData?.find(
-					({ value }: any) => value === code
+					({ value }) => value === code
 				);
 				const count = foundData?.count || 0;
 				const percentage = foundData?.percentage || 0;
