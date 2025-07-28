@@ -1,17 +1,17 @@
 'use client';
 
 import {
-	Activity,
-	AlertCircle,
-	BookOpen,
-	Check,
-	Clipboard,
-	Code,
-	ExternalLink,
-	FileCode,
-	Info,
-	RefreshCw,
-} from 'lucide-react';
+	ActivityIcon,
+	WarningCircleIcon,
+	BookOpenIcon,
+	CheckIcon,
+	ClipboardIcon,
+	CodeIcon,
+	ArrowSquareOutIcon,
+	FileCodeIcon,
+	InfoIcon,
+	ArrowClockwiseIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -121,9 +121,9 @@ export function WebsiteTrackingSetupTab({
 					variant="ghost"
 				>
 					{copied ? (
-						<Check className="h-3.5 w-3.5 text-green-500" />
+						<CheckIcon className="h-3.5 w-3.5 text-green-500" weight="duotone" />
 					) : (
-						<Clipboard className="h-3.5 w-3.5" />
+						<ClipboardIcon className="h-3.5 w-3.5" weight="duotone" />
 					)}
 				</Button>
 			</div>
@@ -136,19 +136,19 @@ export function WebsiteTrackingSetupTab({
 			<Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20">
 				<CardHeader>
 					<div className="flex items-center justify-between">
-						<CardTitle className="flex items-center gap-2 text-lg">
-							<AlertCircle className="h-5 w-5" />
-							Tracking Not Setup
-						</CardTitle>
-						<Button
-							aria-label="Refresh tracking status"
-							className="h-8 w-8"
-							onClick={handleRefresh}
-							size="icon"
-							variant="outline"
-						>
-							<RefreshCw className="h-4 w-4" />
-						</Button>
+											<CardTitle className="flex items-center gap-2 text-lg">
+						<WarningCircleIcon className="h-5 w-5" weight="duotone" />
+						Tracking Not Setup
+					</CardTitle>
+											<Button
+						aria-label="Refresh tracking status"
+						className="h-8 w-8"
+						onClick={handleRefresh}
+						size="icon"
+						variant="outline"
+					>
+						<ArrowClockwiseIcon className="h-4 w-4" weight="fill" />
+					</Button>
 					</div>
 					<CardDescription>
 						Install the tracking script to start collecting analytics data for
@@ -161,7 +161,7 @@ export function WebsiteTrackingSetupTab({
 			<Card>
 				<CardHeader className="pb-4">
 					<CardTitle className="flex items-center gap-2 text-lg">
-						<Code className="h-5 w-5" />
+						<CodeIcon className="h-5 w-5" weight="duotone" />
 						Installation
 					</CardTitle>
 					<CardDescription>
@@ -177,11 +177,11 @@ export function WebsiteTrackingSetupTab({
 					>
 						<TabsList className="grid w-full grid-cols-2">
 							<TabsTrigger className="flex items-center gap-2" value="script">
-								<FileCode className="h-4 w-4" />
+								<FileCodeIcon className="h-4 w-4" weight="duotone" />
 								HTML Script Tag
 							</TabsTrigger>
 							<TabsTrigger className="flex items-center gap-2" value="npm">
-								<Code className="h-4 w-4" />
+								<CodeIcon className="h-4 w-4" weight="duotone" />
 								NPM Package
 							</TabsTrigger>
 						</TabsList>
@@ -274,7 +274,7 @@ export function WebsiteTrackingSetupTab({
 			<Card>
 				<CardHeader className="pb-4">
 					<CardTitle className="flex items-center gap-2 text-lg">
-						<Activity className="h-5 w-5" />
+						<ActivityIcon className="h-5 w-5" weight="duotone" />
 						Configuration
 					</CardTitle>
 					<CardDescription>
@@ -592,9 +592,9 @@ export function WebsiteTrackingSetupTab({
 						rel="noopener noreferrer"
 						target="_blank"
 					>
-						<BookOpen className="h-4 w-4" />
+						<BookOpenIcon className="h-4 w-4" weight="duotone" />
 						Documentation
-						<ExternalLink className="ml-auto h-3 w-3" />
+						<ArrowSquareOutIcon className="ml-auto h-3 w-3" weight="fill" />
 					</a>
 				</Button>
 				<Button asChild size="sm" variant="outline">
@@ -602,7 +602,7 @@ export function WebsiteTrackingSetupTab({
 						className="flex items-center gap-2"
 						href="mailto:support@databuddy.cc"
 					>
-						<Info className="h-4 w-4" />
+						<InfoIcon className="h-4 w-4" weight="duotone" />
 						Get Support
 					</a>
 				</Button>
