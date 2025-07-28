@@ -1,7 +1,7 @@
 import {
 	BugIcon,
 	ChatCircleIcon,
-	ClockIcon,
+	UserIcon,
 	CurrencyDollarIcon,
 	FunnelIcon,
 	GearIcon,
@@ -77,7 +77,7 @@ export const websiteNavigation: NavigationSection[] = [
 		title: 'Web Analytics',
 		items: [
 			{ name: 'Overview', icon: HouseIcon, href: '', highlight: true },
-			{ name: 'Sessions', icon: ClockIcon, href: '/sessions', highlight: true },
+			{ name: 'Sessions', icon: UserIcon, href: '/sessions', highlight: true },
 			{ name: 'Errors', icon: BugIcon, href: '/errors', highlight: true },
 			{ name: 'Map', icon: MapPinIcon, href: '/map', highlight: true },
 		],
@@ -115,7 +115,7 @@ export const demoNavigation: NavigationSection[] = [
 		title: 'Demo Analytics',
 		items: [
 			{ name: 'Overview', icon: HouseIcon, href: '', highlight: true },
-			{ name: 'Sessions', icon: ClockIcon, href: '/sessions', highlight: true },
+			{ name: 'Sessions', icon: UserIcon, href: '/sessions', highlight: true },
 			{ name: 'Profiles', icon: UsersIcon, href: '/profiles', highlight: true },
 			{ name: 'Map', icon: MapPinIcon, href: '/map', highlight: true },
 		],
