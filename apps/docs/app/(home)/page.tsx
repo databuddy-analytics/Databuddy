@@ -5,6 +5,7 @@ import FAQ from "@/components/landing/faq";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
 import { Spotlight } from "@/components/landing/spotlight";
+import { TrustedBy } from "@/components/landing/trusted-by";
 
 // async function getGitHubStars() {
 // 	try {
@@ -37,6 +38,13 @@ export default function HomePage() {
     <div className="h-full">
       <Section id="hero" className="overflow-y-clip" customPaddings>
         <Hero />
+      </Section>
+      <Section
+        id="trust"
+        customPaddings
+        className="border-t border-b dark:border-border border-stone-200 overflow-y-clip"
+      >
+        <TrustedBy />
       </Section>
     </div>
   );

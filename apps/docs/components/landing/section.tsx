@@ -9,11 +9,11 @@ const Section = ({
   customPaddings,
   children,
 }: {
-  className: string;
+  className?: string;
   id: string;
   crosses?: boolean;
   crossesOffset?: string;
-  customPaddings: boolean;
+  customPaddings?: boolean;
   children: React.ReactNode;
 }) => {
   return (

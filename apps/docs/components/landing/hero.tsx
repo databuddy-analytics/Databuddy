@@ -1,24 +1,11 @@
 "use client";
 
-import { ArrowRight, Maximize2 } from "lucide-react";
-import Link from "next/link";
-import { useRef, useState } from "react";
-import { Button } from "../ui/button";
 import { Map } from "./map";
 import { Spotlight } from "./spotlight";
 import { SciFiButton } from "./scifi-btn";
 import DemoContainer from "./demo";
 
 export default function Hero() {
-  const [isHovered, setIsHovered] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const handleFullscreen = () => {
-    if (iframeRef.current?.requestFullscreen) {
-      iframeRef.current.requestFullscreen();
-    }
-  };
-
   return (
     <section className="relative flex flex-col items-center w-full h-full overflow-hidden px-8">
       <Spotlight transform="translateX(-60%) translateY(-50%)" />
@@ -43,7 +30,6 @@ export default function Hero() {
           </div>
         </div>
       </div>
-
       <DemoContainer />
     </section>
   );
