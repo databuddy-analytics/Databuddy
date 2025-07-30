@@ -3,6 +3,8 @@ import Comparison from "@/components/landing/comparison";
 import CTA from "@/components/landing/cta";
 import FAQ from "@/components/landing/faq";
 import Hero from "@/components/landing/hero";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
 
 // async function getGitHubStars() {
 // 	try {
@@ -33,7 +35,9 @@ export default function HomePage() {
 
   return (
     <div className="h-full">
-      <Hero />
+      <Section id="hero" className="overflow-y-clip" customPaddings>
+        <Hero />
+      </Section>
     </div>
   );
 }

@@ -1,35 +1,41 @@
-import type { ReactNode } from 'react';
+import type React from "react";
+import SectionSvg from "./section-svg";
 
-interface SectionProps {
-	children: ReactNode;
-	className?: string;
-	crosses?: boolean;
-	crossesOffset?: string;
-	customPaddings?: boolean;
-	id?: string;
-}
+const Section = ({
+  className,
+  id,
+  crosses,
+  crossesOffset,
+  customPaddings,
+  children,
+}: {
+  className: string;
+  id: string;
+  crosses?: boolean;
+  crossesOffset?: string;
+  customPaddings: boolean;
+  children: React.ReactNode;
+}) => {
+  return (
+    <div
+      id={id}
+      className={`
+      relative
+      ${customPaddings || `py-10 lg:py-16  ${crosses ? "" : ""}`}
+      ${className || " "}`}
+    >
+      {children}
 
-export default function Section({
-	children,
-	className = '',
-	crosses = false,
-	crossesOffset = '',
-	customPaddings = false,
-	id,
-}: SectionProps) {
-	return (
-		<section
-			className={`relative ${customPaddings ? '' : 'py-20'} ${className} `}
-			id={id}
-		>
-			{children}
-			{crosses && (
-				<div
-					className={`pointer-events-none absolute inset-0 ${crossesOffset}`}
-				>
-					<div className="absolute inset-0 bg-grid-white/[0.02] dark:bg-grid-black/[0.02]" />
-				</div>
-			)}
-		</section>
-	);
-}
+      <div className="hidden absolute top-0 left-5 w-[0.0625rem] h-[calc(100%_+_30px)] dark:bg-border bg-stone-200  pointer-events-none lg:block lg:left-16 xl:left-16" />
+      <div className="hidden absolute top-0 right-5 w-[0.0625rem] h-[calc(100%_+_30px)]  dark:bg-border bg-stone-200  pointer-events-none lg:block lg:right-14 xl:right-14" />
+
+      {crosses && (
+        <>
+          <SectionSvg crossesOffset={crossesOffset} />
+        </>
+      )}
+    </div>
+  );
+};
+
+export default Section;

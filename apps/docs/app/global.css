@@ -193,3 +193,45 @@ html {
 #nd-home-layout {
   padding-top: 0px !important;
 }
+
+@keyframes borderGlitch {
+  0% {
+    border-color: rgb(41 37 36); /* stone-800 */
+  }
+  15% {
+    border-color: transparent;
+  }
+  30% {
+    border-color: rgb(41 37 36);
+  }
+  45% {
+    border-color: transparent;
+  }
+  60% {
+    border-color: rgb(41 37 36);
+  }
+  100% {
+    border-color: rgb(41 37 36);
+  }
+}
+
+@keyframes cornerGlitch {
+  0% {
+    opacity: 1;
+  }
+  15% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
