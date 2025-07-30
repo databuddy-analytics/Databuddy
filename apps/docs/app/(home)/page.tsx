@@ -1,10 +1,6 @@
-import Features from "@/components/features";
-import Comparison from "@/components/landing/comparison";
-import CTA from "@/components/landing/cta";
-import FAQ from "@/components/landing/faq";
+import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { TrustedBy } from "@/components/landing/trusted-by";
 
 // async function getGitHubStars() {
@@ -46,6 +42,14 @@ export default function HomePage() {
       >
         <TrustedBy />
       </Section>
+      <div>
+        <Section
+          id="cards"
+          className="border-b dark:border-border border-stone-200 overflow-y-clip"
+        >
+          <GridCards />
+        </Section>
+      </div>
     </div>
   );
 }

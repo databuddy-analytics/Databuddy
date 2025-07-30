@@ -54,7 +54,7 @@ function LogoColumn({ logos, columnIndex, currentTime }: LogoColumnProps) {
             transition: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
           }}
         >
-          <h1 className="font-bold">{currentLogo.name}</h1>
+          <h1 className="font-bold text-2xl">{currentLogo.name}</h1>
         </motion.div>
       </AnimatePresence>
     </motion.div>
