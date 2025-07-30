@@ -30,6 +30,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import type {
+	OrganizationMember,
+	UpdateMemberData,
+} from '@/hooks/use-organizations';
 
 dayjs.extend(relativeTime);
 
@@ -38,12 +42,33 @@ interface MemberToRemove {
 	name: string;
 }
 
+interface MemberListProps {
+	members: OrganizationMember[];
+	onRemoveMember: (memberId: string) => void;
+	isRemovingMember: boolean;
+	onUpdateRole: (member: UpdateMemberData) => void;
+	isUpdatingMember: boolean;
+	organizationId: string;
+}
+
+interface RoleSelectorProps {
+	member: MemberListProps['members'][number];
+	onUpdateRole: MemberListProps['onUpdateRole'];
+	isUpdatingMember: MemberListProps['isUpdatingMember'];
+	organizationId: MemberListProps['organizationId'];
+}
+
+/**
+ * Renders a role selector for an organization member, allowing role changes between "admin" and "member" unless the member is an "owner".
+ *
+ * Displays a static "Owner" badge for owner members. For other roles, provides a dropdown to select and update the member's role.
+ */
 function RoleSelector({
 	member,
 	onUpdateRole,
 	isUpdatingMember,
 	organizationId,
-}: any) {
+}: RoleSelectorProps) {
 	if (member.role === 'owner') {
 		return (
 			<Badge
@@ -60,7 +85,11 @@ function RoleSelector({
 			defaultValue={member.role}
 			disabled={isUpdatingMember}
 			onValueChange={(newRole) =>
-				onUpdateRole({ memberId: member.id, role: newRole, organizationId })
+				onUpdateRole({
+					memberId: member.id,
+					role: newRole as UpdateMemberData['role'],
+					organizationId,
+				})
 			}
 		>
 			<SelectTrigger className="w-32 rounded">
@@ -74,6 +103,11 @@ function RoleSelector({
 	);
 }
 
+/**
+ * Displays a list of organization members with role management and removal functionality.
+ *
+ * Renders each member with their avatar, name, email, join date, and current role. Allows updating member roles and removing non-owner members. Shows a confirmation dialog before removing a member. If no members are present, displays a placeholder message.
+ */
 export function MemberList({
 	members,
 	onRemoveMember,
@@ -81,7 +115,7 @@ export function MemberList({
 	onUpdateRole,
 	isUpdatingMember,
 	organizationId,
-}: any) {
+}: MemberListProps) {
 	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(
 		null
 	);
@@ -106,7 +140,7 @@ export function MemberList({
 
 			{members && members.length > 0 ? (
 				<div className="space-y-3">
-					{members.map((member: any) => (
+					{members.map((member) => (
 						<div
 							className="flex items-center justify-between rounded border border-border/50 bg-muted/30 p-4"
 							key={member.id}

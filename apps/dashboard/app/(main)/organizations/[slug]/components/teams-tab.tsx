@@ -9,8 +9,20 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { TeamView } from './team-view';
+import type { ActiveOrganization, Organization } from '@/hooks/use-organizations';
 
-export function TeamsTab({ organization }: { organization: any }) {
+/**
+ * Displays the team management interface or a prompt to select an organization.
+ *
+ * Renders team management features if a valid organization is provided; otherwise, shows guidance to select an organization before managing teams.
+ *
+ * @param organization - The current organization context, or undefined if none is selected
+ */
+export function TeamsTab({
+	organization,
+}: {
+	organization: Organization | ActiveOrganization;
+}) {
 	if (!(organization && organization.id)) {
 		return (
 			<div className="py-12 text-center">

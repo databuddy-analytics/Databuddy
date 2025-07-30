@@ -23,7 +23,7 @@ type InviteMemberData = {
 	resend?: boolean;
 };
 
-type UpdateMemberData = {
+export type UpdateMemberData = {
 	memberId: string;
 	role: 'owner' | 'admin' | 'member';
 	organizationId?: string;
@@ -403,6 +403,11 @@ export function useOrganizationInvitations(organizationId: string) {
 	};
 }
 
+/**
+ * Provides hooks and mutation functions for managing the current user's organization invitations.
+ *
+ * Returns the user's invitations, loading and error states, and functions to accept or reject invitations.
+ */
 export function useUserInvitations() {
 	const queryClient = useQueryClient();
 
@@ -476,3 +481,27 @@ export function useUserInvitations() {
 		isRejectingInvitation: rejectInvitationMutation.isPending,
 	};
 }
+
+export type Organization = ReturnType<
+	typeof useOrganizations
+>['organizations'][number];
+
+export type ActiveOrganization = ReturnType<
+	typeof useOrganizations
+>['activeOrganization'];
+
+export type OrganizationsError = ReturnType<
+	typeof useOrganizations
+>['organizationsError'];
+
+export type OrganizationMember = ReturnType<
+	typeof useOrganizationMembers
+>['members'][number];
+
+export type Invitation = ReturnType<
+	typeof useOrganizationInvitations
+>['invitations'][number];
+
+export type CancelInvitation = ReturnType<
+	typeof useOrganizationInvitations
+>['cancelInvitation'];

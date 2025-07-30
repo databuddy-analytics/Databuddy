@@ -19,26 +19,29 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { type Organization, useOrganizations } from '@/hooks/use-organizations';
 import { getOrganizationInitials } from '@/lib/utils';
 import 'react-image-crop/dist/ReactCrop.css';
 import { UploadSimpleIcon } from '@phosphor-icons/react';
 import { getCroppedImage } from '@/lib/canvas-utils';
 
 interface OrganizationLogoUploaderProps {
-	organization: {
-		id: string;
-		name: string;
-		logo: string | null;
-	};
+	organization: Organization;
 }
 
+/**
+ * React component for uploading, cropping, and updating an organization's logo.
+ *
+ * Allows users to select an image file, crop it to a circular aspect ratio, and upload the cropped image as the organization's new logo. Displays the current logo or organization initials as a fallback, and provides UI feedback for upload progress and errors.
+ *
+ * @param organization - The organization whose logo is being managed.
+ */
 export function OrganizationLogoUploader({
 	organization,
 }: OrganizationLogoUploaderProps) {
 	const { uploadOrganizationLogo, isUploadingOrganizationLogo } =
 		useOrganizations();
-	const [preview, setPreview] = useState<string | null>(organization.logo);
+	const [preview, setPreview] = useState(organization.logo);
 	const [imageSrc, setImageSrc] = useState<string | null>(null);
 	const [crop, setCrop] = useState<Crop>();
 	const [completedCrop, setCompletedCrop] = useState<PixelCrop>();

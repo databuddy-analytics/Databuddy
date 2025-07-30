@@ -22,14 +22,24 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizationMembers } from '@/hooks/use-organizations';
+import {
+	type Organization,
+	useOrganizationMembers,
+} from '@/hooks/use-organizations';
 
 dayjs.extend(relativeTime);
 
 interface OverviewTabProps {
-	organization: any;
+	organization: Organization;
 }
 
+/**
+ * Displays an overview of an organization's details, team statistics, and recent members.
+ *
+ * Renders organization metadata, quick statistics on member roles, and a list of the most recent team members with loading states and navigation controls.
+ *
+ * @param organization - The organization whose overview information is displayed.
+ */
 export function OverviewTab({ organization }: OverviewTabProps) {
 	const { members, isLoading: isLoadingMembers } = useOrganizationMembers(
 		organization.id

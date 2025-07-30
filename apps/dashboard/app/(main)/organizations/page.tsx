@@ -16,7 +16,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn } from '@/lib/utils';
 import { OrganizationSwitcher } from './components/organization-switcher';
 
@@ -77,13 +81,20 @@ const TeamsTab = dynamic(
 	}
 );
 
-// Active Organization Banner
+/**
+ * Displays a banner indicating the current workspace context, showing either personal mode or the active organization.
+ *
+ * If no organization is active, shows a warning banner for personal workspace with an optional organization switcher. If an organization is active, displays its name, an "Active" badge, organization count, a switcher, and a settings link.
+ *
+ * @param activeOrg - The currently active organization, or `null`/`undefined` for personal mode.
+ * @param organizations - List of all available organizations.
+ */
 function ActiveOrganizationBanner({
 	activeOrg,
 	organizations,
 }: {
-	activeOrg: any;
-	organizations: any[];
+	activeOrg: ActiveOrganization;
+	organizations: Organization[];
 }) {
 	if (!activeOrg) {
 		return (
@@ -176,12 +187,20 @@ function PageHeader({ onNewOrg }: { onNewOrg: () => void }) {
 	);
 }
 
+/**
+ * Displays summary statistics for organizations, current workspace, and mode.
+ *
+ * Shows the total number of organizations, the name of the active organization or "Personal" if none is selected, and indicates whether the user is in Team Mode or Personal Mode.
+ *
+ * @param orgCount - The total number of organizations
+ * @param activeOrg - The currently active organization, or undefined for personal workspace
+ */
 function QuickStats({
 	orgCount,
 	activeOrg,
 }: {
 	orgCount: number;
-	activeOrg: any;
+	activeOrg: ActiveOrganization;
 }) {
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -238,12 +257,27 @@ function QuickStats({
 	);
 }
 
+/**
+ * Renders the main content area with tabs for managing organizations and teams.
+ *
+ * Displays quick statistics, a tab list for switching between "Organizations" and "Teams," and dynamically loads the corresponding tab content. The "Teams" tab is disabled if no active organization is selected.
+ *
+ * @param organizations - The list of available organizations
+ * @param activeOrganization - The currently selected active organization
+ * @param isLoading - Indicates if organization data is loading
+ * @param onNewOrg - Callback invoked when creating a new organization
+ */
 function MainView({
 	organizations,
 	activeOrganization,
 	isLoading,
 	onNewOrg,
-}: any) {
+}: {
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
+	isLoading: boolean;
+	onNewOrg: () => void;
+}) {
 	const [activeTab, setActiveTab] = useState('organizations');
 
 	return (
@@ -303,7 +337,7 @@ function MainView({
 					value="teams"
 				>
 					<Suspense fallback={<TabSkeleton />}>
-						<TeamsTab organization={activeOrganization || {}} />
+						<TeamsTab organization={activeOrganization} />
 					</Suspense>
 				</TabsContent>
 			</Tabs>

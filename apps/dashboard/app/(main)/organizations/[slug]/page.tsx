@@ -16,18 +16,31 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type Organization,
+	type OrganizationsError,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { getOrganizationInitials } from '@/lib/utils';
 import { OrganizationPageSkeleton } from './components/organization-page-skeleton';
 import { OverviewTab } from './components/overview-tab';
 import { SettingsTab } from './components/settings-tab';
 import { TeamsTab } from './components/teams-tab';
 
+/**
+ * Renders a button or badge to indicate and set the active workspace status for an organization.
+ *
+ * Displays a badge if the workspace is currently active; otherwise, shows a button to set it as active, with loading state support.
+ */
 function SetActiveButton({
 	onSetActive,
 	isSettingActive,
 	isCurrentlyActive,
-}: any) {
+}: {
+	onSetActive: () => void;
+	isSettingActive: boolean;
+	isCurrentlyActive: boolean;
+}) {
 	if (isCurrentlyActive) {
 		return (
 			<Badge
@@ -62,12 +75,24 @@ function SetActiveButton({
 	);
 }
 
+interface PageHeaderProps {
+	organization: Organization;
+	isCurrentlyActive: boolean;
+	onSetActive: () => void;
+	isSettingActive: boolean;
+}
+
+/**
+ * Displays the organization's header section with avatar, name, slug, creation date, and active workspace controls.
+ *
+ * Shows organization details and provides a button to set or indicate the active workspace status.
+ */
 function PageHeader({
 	organization,
 	isCurrentlyActive,
 	onSetActive,
 	isSettingActive,
-}: any) {
+}: PageHeaderProps) {
 	return (
 		<div className="rounded border border-border/50 bg-muted/30 p-6">
 			<div className="flex items-center justify-between">
@@ -101,6 +126,9 @@ function PageHeader({
 	);
 }
 
+/**
+ * Displays a message indicating that the requested organization was not found or is inaccessible, with a link to return to the organizations list.
+ */
 function OrganizationNotFound() {
 	return (
 		<div className="py-12 text-center">
@@ -128,7 +156,21 @@ function OrganizationNotFound() {
 	);
 }
 
-function ErrorDisplay({ onRetry, error }: any) {
+/**
+ * Displays an error message and a retry button when organization data fails to load.
+ *
+ * Shows the provided error message if available, or a default message otherwise. Includes a button to retry the loading operation.
+ *
+ * @param onRetry - Callback invoked when the retry button is clicked.
+ * @param error - The error object containing details about the loading failure.
+ */
+function ErrorDisplay({
+	onRetry,
+	error,
+}: {
+	onRetry: () => void;
+	error: OrganizationsError;
+}) {
 	return (
 		<div className="py-12 text-center">
 			<div className="mx-auto max-w-md rounded border border-border/50 bg-muted/30 p-6">

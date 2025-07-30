@@ -19,13 +19,33 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { useOrganizationMembers } from '@/hooks/use-organizations';
+import {
+	type Organization,
+	useOrganizationMembers,
+} from '@/hooks/use-organizations';
 
-export function InviteMemberDialog({ isOpen, onClose, organizationId }: any) {
+type InviteRole = 'owner' | 'admin' | 'member';
+
+/**
+ * Renders a modal dialog for inviting a new member to an organization.
+ *
+ * Allows users to enter an email address and select a role for the invitee, then sends an invitation to join the specified organization. The dialog can be opened or closed via props.
+ *
+ * @param isOpen - Whether the dialog is visible
+ * @param onClose - Callback to close the dialog
+ * @param organizationId - Identifier of the organization to invite a member to
+ */
+export function InviteMemberDialog({
+	isOpen,
+	onClose,
+	organizationId,
+}: {
+	isOpen: boolean;
+	onClose: () => void;
+	organizationId: Organization['id'];
+}) {
 	const [inviteEmail, setInviteEmail] = useState('');
-	const [inviteRole, setInviteRole] = useState<'owner' | 'admin' | 'member'>(
-		'member'
-	);
+	const [inviteRole, setInviteRole] = useState<InviteRole>('member');
 	const { inviteMember, isInvitingMember } =
 		useOrganizationMembers(organizationId);
 
@@ -63,7 +83,7 @@ export function InviteMemberDialog({ isOpen, onClose, organizationId }: any) {
 					<div className="space-y-2">
 						<Label htmlFor="role">Role</Label>
 						<Select
-							onValueChange={(value) => setInviteRole(value as any)}
+							onValueChange={(value) => setInviteRole(value as InviteRole)}
 							value={inviteRole}
 						>
 							<SelectTrigger>

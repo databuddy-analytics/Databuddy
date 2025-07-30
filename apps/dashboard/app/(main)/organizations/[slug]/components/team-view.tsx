@@ -5,6 +5,7 @@ import {
 	EnvelopeIcon,
 	PlusIcon,
 	UsersIcon,
+	type Icon as IconType,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
 	useOrganizationInvitations,
 	useOrganizationMembers,
+	type ActiveOrganization,
+	type Organization,
 } from '@/hooks/use-organizations';
 import { InvitationList } from './invitation-list';
 import { InviteMemberDialog } from './invite-member-dialog';
@@ -23,7 +26,7 @@ const StatCard = ({
 	label,
 	value,
 }: {
-	icon: any;
+	icon: IconType;
 	label: string;
 	value: number;
 }) => (
@@ -55,7 +58,18 @@ const ViewSkeleton = () => (
 	</div>
 );
 
-export function TeamView({ organization }: { organization: any }) {
+/**
+ * Displays and manages the team members and invitations for a given organization.
+ *
+ * Renders team statistics, member and invitation lists, and provides controls for inviting new members and managing existing ones. Handles loading and error states for team data.
+ *
+ * @param organization - The organization whose team is being managed and displayed.
+ */
+export function TeamView({
+	organization,
+}: {
+	organization: NonNullable<Organization | ActiveOrganization>;
+}) {
 	const [showInviteDialog, setShowInviteDialog] = useState(false);
 
 	const {

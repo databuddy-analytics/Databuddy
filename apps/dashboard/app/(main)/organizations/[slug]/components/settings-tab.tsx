@@ -32,15 +32,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { type Organization, useOrganizations } from '@/hooks/use-organizations';
 import { trpc } from '@/lib/trpc';
 import { OrganizationLogoUploader } from './organization-logo-uploader';
 import { TransferAssets } from './transfer-assets';
 
 interface SettingsTabProps {
-	organization: any;
+	organization: Organization;
 }
 
+/**
+ * Displays and manages organization settings, including editing basic information, viewing associated websites, transferring assets, and deleting the organization.
+ *
+ * Renders UI for updating the organization's name and slug, uploading a logo, listing associated websites, transferring assets, and performing irreversible deletion with confirmation.
+ *
+ * @param organization - The organization whose settings are being managed
+ */
 export function SettingsTab({ organization }: SettingsTabProps) {
 	const router = useRouter();
 	const [name, setName] = useState(organization.name);
