@@ -22,6 +22,7 @@ export const GridPatternBg = () => {
             "radial-gradient(ellipse 40% 16% at 50% 15%, black 0%, black 40%, transparent 100%)",
           WebkitMaskImage:
             "radial-gradient(ellipse 40% 16% at 50% 15%, black 0%, black 40%, transparent 100%)",
+          opacity: 0.3,
         }}
       />
     </div>

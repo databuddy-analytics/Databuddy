@@ -49,7 +49,7 @@ const cards = [
 export const GridCards = () => {
   return (
     <div className="flex flex-col gap-16 mt-8 items-start mx-auto w-full sm:max-w-[40rem] md:max-w-[48rem] md:px-8 lg:max-w-[64rem] xl:max-w-[80rem]">
-      <h1 className="text-[36px]">
+      <h1 className="text-4xl">
         <span className="text-muted-foreground">Everything you need to </span>
         understand your users
       </h1>

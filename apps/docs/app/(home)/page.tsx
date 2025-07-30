@@ -1,3 +1,5 @@
+import { Description } from "@/components/landing/description";
+import FAQ from "@/components/landing/faq";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
@@ -31,7 +33,7 @@ export default function HomePage() {
   // const stars = await getGitHubStars();
 
   return (
-    <div className="h-full">
+    <div className="h-full overflow-hidden">
       <Section id="hero" className="overflow-y-clip" customPaddings>
         <Hero />
       </Section>
@@ -42,14 +44,32 @@ export default function HomePage() {
       >
         <TrustedBy />
       </Section>
-      <div>
-        <Section
-          id="cards"
-          className="border-b dark:border-border border-stone-200 overflow-y-clip"
-        >
-          <GridCards />
-        </Section>
-      </div>
+      <Section
+        id="cards"
+        className="border-b dark:border-border border-stone-200 overflow-y-clip"
+      >
+        <GridCards />
+      </Section>
+
+      <Section
+        id="desc-border"
+        customPaddings
+        className="overflow-x-clip overflow-hidden"
+      >
+        <div className="mx-5 lg:mx-16 xl:mx-16">
+          <Section customPaddings id="description" className="overflow-y-clip">
+            <Description />
+          </Section>
+
+          <div className="h-px bg-border mx-14"></div>
+
+          <Section id="faq" className="overflow-y-clip" customPaddings>
+            <FAQ />
+          </Section>
+
+          <div className="h-px bg-border mx-14"></div>
+        </div>
+      </Section>
     </div>
   );
 }
