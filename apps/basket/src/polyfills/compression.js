@@ -12,14 +12,15 @@ globalThis.CompressionStream ??= class CompressionStream {
 	writable;
 
 	constructor(format) {
-		make(
-			this,
-			format === 'deflate'
-				? zlib.createDeflate()
-				: format === 'gzip'
-					? zlib.createGzip()
-					: zlib.createDeflateRaw()
-		);
+		let handle;
+		if (format === 'deflate') {
+			handle = zlib.createDeflate();
+		} else if (format === 'gzip') {
+			handle = zlib.createGzip();
+		} else {
+			handle = zlib.createDeflateRaw();
+		}
+		make(this, handle);
 	}
 };
 
@@ -28,13 +29,14 @@ globalThis.DecompressionStream ??= class DecompressionStream {
 	writable;
 
 	constructor(format) {
-		make(
-			this,
-			format === 'deflate'
-				? zlib.createInflate()
-				: format === 'gzip'
-					? zlib.createGunzip()
-					: zlib.createInflateRaw()
-		);
+		let handle;
+		if (format === 'deflate') {
+			handle = zlib.createInflate();
+		} else if (format === 'gzip') {
+			handle = zlib.createGunzip();
+		} else {
+			handle = zlib.createInflateRaw();
+		}
+		make(this, handle);
 	}
 };

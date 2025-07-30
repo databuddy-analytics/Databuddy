@@ -6,9 +6,7 @@
       "indentStyle": "tab",
       "indentWidth": 2
     },
-    "globals": [
-      "chrome"
-    ]
+    "globals": ["chrome"]
   },
   "linter": {
     "rules": {

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	anonymizeIp,
 	extractIpFromRequest,
@@ -75,8 +75,10 @@ describe('IP Geo Utilities', () => {
 				'169.254.1.1', // Link-local
 			];
 
-			for (const ip of privateIPs) {
-				const result = await getGeoLocation(ip);
+			const results = await Promise.all(
+				privateIPs.map((ip) => getGeoLocation(ip))
+			);
+			for (const result of results) {
 				// Should return undefined for private IPs (not in public database)
 				expect(result).toEqual({
 					country: undefined,
@@ -362,7 +364,7 @@ describe('IP Geo Utilities', () => {
 
 	describe('Edge cases', () => {
 		it('should handle null/undefined IP gracefully', async () => {
-			const result = await getGeoLocation(null as any);
+			const result = await getGeoLocation(null as unknown as string);
 			expect(result).toEqual({
 				country: undefined,
 				region: undefined,
@@ -408,8 +410,10 @@ describe('IP Geo Utilities', () => {
 				'104.28.196.183', // Cloudflare IP
 			];
 
-			for (const ip of publicIPs) {
-				const result = await getGeoLocation(ip);
+			const results = await Promise.all(
+				publicIPs.map((ip) => getGeoLocation(ip))
+			);
+			for (const result of results) {
 				expect(result).toBeDefined();
 				// Should either have geo data or be undefined (not in database)
 				expect(
@@ -432,13 +436,15 @@ describe('IP Geo Utilities', () => {
 				'',
 			];
 
-			for (const ip of testIPs) {
-				const geoResult = await getGeoLocation(ip);
-				const fullResult = await getGeo(ip);
+			const geoResults = await Promise.all(
+				testIPs.map((ip) => getGeoLocation(ip))
+			);
+			const fullResults = await Promise.all(testIPs.map((ip) => getGeo(ip)));
 
-				expect(geoResult).toBeDefined();
-				expect(fullResult).toBeDefined();
-				expect(fullResult.anonymizedIP).toBeDefined();
+			for (let i = 0; i < testIPs.length; i++) {
+				expect(geoResults[i]).toBeDefined();
+				expect(fullResults[i]).toBeDefined();
+				expect(fullResults[i].anonymizedIP).toBeDefined();
 			}
 		});
 	});
