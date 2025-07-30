@@ -61,7 +61,6 @@ export default function AssistantPage() {
 	const [, setWebsiteData] = useAtom(websiteDataAtom);
 	const [, setDateRange] = useAtom(dateRangeAtom);
 
-	// Combine atom initialization
 	useEffect(() => {
 		if (id) {
 			setWebsiteId(id as string);

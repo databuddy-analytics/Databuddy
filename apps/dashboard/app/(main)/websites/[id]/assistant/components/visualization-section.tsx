@@ -7,6 +7,7 @@ import {
 	CompassIcon,
 	DotsThreeOutlineVerticalIcon,
 	FunnelIcon,
+	TrendUpIcon,
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAtom } from 'jotai';
@@ -818,7 +819,7 @@ export default function VisualizationSection() {
 				<div
 					className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded transition-all duration-300 ${websiteData ? 'bg-primary/10' : 'bg-muted/20'}`}
 				>
-					<TrendUp
+					<TrendUpIcon
 						className={`h-4 w-4 transition-all duration-300 ${websiteData ? 'text-primary' : 'text-muted-foreground/60'}`}
 					/>
 				</div>
