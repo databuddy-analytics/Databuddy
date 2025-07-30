@@ -469,7 +469,7 @@ export function EditFunnelDialog({
 											<Draggable
 												draggableId={`step-${index}`}
 												index={index}
-												key={`step-${index}-${step.type}-${step.target}-${step.name}`}
+												key={`step-${index}`}
 											>
 												{(provided: any, snapshot: any) => (
 													<div
@@ -529,7 +529,7 @@ export function EditFunnelDialog({
 								{formData.filters.map((filter, index) => (
 									<div
 										className="flex items-center gap-3 rounded border bg-muted/30 p-3"
-										key={`filter-${index}-${filter.field}-${filter.operator}-${filter.value}`}
+										key={`filter-${index}`}
 									>
 										<Select
 											onValueChange={(value) =>
