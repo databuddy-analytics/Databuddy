@@ -66,7 +66,12 @@ export function UserMenu() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button className="flex h-9 w-9 rounded-full" variant="ghost">
+				<Button
+					aria-label="User menu"
+					className="flex h-9 w-9 rounded-full transition-all duration-200 hover:bg-accent/50"
+					type="button"
+					variant="ghost"
+				>
 					<Avatar className="h-9 w-9 border border-border/50">
 						<AvatarImage
 							alt={session?.user?.name || 'User'}
@@ -105,7 +110,7 @@ export function UserMenu() {
 					<DropdownMenuItem asChild className="h-9 rounded-md">
 						<Link className="flex w-full items-center" href="/websites">
 							<HouseIcon
-								className="mr-2.5 h-4 w-4"
+								className="mr-2.5 h-4 w-4 not-dark:text-primary"
 								size={32}
 								weight="duotone"
 							/>
@@ -115,7 +120,7 @@ export function UserMenu() {
 					<DropdownMenuItem asChild className="h-9 rounded-md">
 						<Link className="flex w-full items-center" href="/billing">
 							<CreditCardIcon
-								className="mr-2.5 h-4 w-4"
+								className="mr-2.5 h-4 w-4 not-dark:text-primary"
 								size={32}
 								weight="duotone"
 							/>
@@ -127,7 +132,11 @@ export function UserMenu() {
 							className="flex w-full items-center"
 							href="/settings?tab=profile"
 						>
-							<UserIcon className="mr-2.5 h-4 w-4" size={32} weight="duotone" />
+							<UserIcon
+								className="mr-2.5 h-4 w-4 not-dark:text-primary"
+								size={32}
+								weight="duotone"
+							/>
 							Profile
 						</Link>
 					</DropdownMenuItem>
@@ -140,7 +149,11 @@ export function UserMenu() {
 					disabled={isLoggingOut}
 					onClick={handleLogout}
 				>
-					<SignOutIcon className="mr-2.5 h-5 w-5" size={32} weight="duotone" />
+					<SignOutIcon
+						className="mr-2.5 h-5 w-5 not-dark:text-primary"
+						size={32}
+						weight="duotone"
+					/>
 					{isLoggingOut ? 'Signing out...' : 'Sign out'}
 				</DropdownMenuItem>
 			</DropdownMenuContent>

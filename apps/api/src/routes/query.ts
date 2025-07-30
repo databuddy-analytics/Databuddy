@@ -151,9 +151,11 @@ async function executeDynamicQuery(
 	const startDate = queryParams.start_date || queryParams.startDate;
 	const endDate = queryParams.end_date || queryParams.endDate;
 	const websiteId = queryParams.website_id;
-	const websiteDomain = websiteId
-		? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
-		: null;
+
+	const websiteDomain =
+		websiteId && !domainCache?.[websiteId]
+			? await getWebsiteDomain(websiteId)
+			: domainCache?.[websiteId] || null;
 
 	const getTimeUnit = (granularity?: string): 'hour' | 'day' => {
 		if (['hourly', 'hour'].includes(granularity || '')) {

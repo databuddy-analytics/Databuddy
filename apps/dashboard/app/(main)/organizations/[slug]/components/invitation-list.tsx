@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { CancelInvitation, Invitation } from '@/hooks/use-organizations';
 
 dayjs.extend(relativeTime);
 
@@ -28,7 +29,11 @@ export function InvitationList({
 	invitations,
 	onCancelInvitation,
 	isCancellingInvitation,
-}: any) {
+}: {
+	invitations: Invitation[];
+	onCancelInvitation: CancelInvitation;
+	isCancellingInvitation: boolean;
+}) {
 	const [invitationToCancel, setInvitationToCancel] =
 		useState<InvitationToCancel | null>(null);
 
@@ -56,7 +61,7 @@ export function InvitationList({
 				</Badge>
 			</div>
 			<div className="space-y-3">
-				{invitations.map((invitation: any) => (
+				{invitations.map((invitation) => (
 					<div
 						className="flex items-center justify-between rounded border border-border/50 bg-muted/30 p-4"
 						key={invitation.id}

@@ -25,7 +25,7 @@ export function DeleteFunnelDialog({
 }: DeleteFunnelDialogProps) {
 	return (
 		<AlertDialog onOpenChange={onClose} open={isOpen}>
-			<AlertDialogContent className="fade-in-50 zoom-in-95 animate-in rounded-xl border-border/50 bg-gradient-to-br from-background to-muted/10 duration-300">
+			<AlertDialogContent className="rounded-xl border-border/50">
 				<AlertDialogHeader className="space-y-3">
 					<div className="flex items-center gap-3">
 						<div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3">
@@ -47,11 +47,11 @@ export function DeleteFunnelDialog({
 					</div>
 				</AlertDialogHeader>
 				<AlertDialogFooter className="gap-3 border-border/50 border-t pt-6">
-					<AlertDialogCancel className="rounded-lg border-border/50 px-6 py-2 font-medium transition-all duration-300 hover:border-border hover:bg-muted/50">
+					<AlertDialogCancel className="cursor-pointer rounded-lg border-border/50 px-6 py-2 font-medium hover:border-border hover:bg-muted/50">
 						Cancel
 					</AlertDialogCancel>
 					<AlertDialogAction
-						className="rounded-lg bg-destructive px-6 py-2 font-medium text-destructive-foreground shadow-lg transition-all duration-300 hover:bg-destructive/90 hover:shadow-xl"
+						className="cursor-pointer rounded-lg bg-destructive px-6 py-2 font-medium text-destructive-foreground shadow-lg hover:bg-destructive/90 hover:shadow-xl"
 						onClick={onConfirm}
 					>
 						Delete Funnel

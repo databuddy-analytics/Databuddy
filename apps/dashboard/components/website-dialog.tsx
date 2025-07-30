@@ -6,7 +6,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import * as z from 'zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -108,7 +108,7 @@ export function WebsiteDialog({
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
+			<DialogContent className="w-[95vw] max-w-md sm:w-full">
 				<DialogHeader>
 					<DialogTitle>
 						{isEditing ? 'Edit Website' : 'Create a new website'}
@@ -180,6 +180,7 @@ export function WebsiteDialog({
 				</Form>
 				<DialogFooter>
 					<Button
+						className="w-full sm:w-auto"
 						disabled={
 							createWebsiteMutation.isPending || updateWebsiteMutation.isPending
 						}

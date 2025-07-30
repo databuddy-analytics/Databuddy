@@ -3,6 +3,7 @@
 import {
 	CrownIcon,
 	EnvelopeIcon,
+	type Icon as IconType,
 	PlusIcon,
 	UsersIcon,
 } from '@phosphor-icons/react';
@@ -10,6 +11,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+	type ActiveOrganization,
+	type Organization,
 	useOrganizationInvitations,
 	useOrganizationMembers,
 } from '@/hooks/use-organizations';
@@ -23,7 +26,7 @@ const StatCard = ({
 	label,
 	value,
 }: {
-	icon: any;
+	icon: IconType;
 	label: string;
 	value: number;
 }) => (
@@ -55,7 +58,11 @@ const ViewSkeleton = () => (
 	</div>
 );
 
-export function TeamView({ organization }: { organization: any }) {
+export function TeamView({
+	organization,
+}: {
+	organization: NonNullable<Organization | ActiveOrganization>;
+}) {
 	const [showInviteDialog, setShowInviteDialog] = useState(false);
 
 	const {

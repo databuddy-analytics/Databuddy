@@ -2,7 +2,7 @@
 
 import { InfoIcon, ListIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { NotificationsPopover } from '@/components/notifications/notifications-popover';
 import { Button } from '@/components/ui/button';
 import { Logo } from './logo';
@@ -21,21 +21,32 @@ interface TopHeaderProps {
 	setMobileOpen: () => void;
 }
 
-export function TopHeader({ setMobileOpen }: TopHeaderProps) {
+export const TopHeader = memo(function TopHeaderComponent({
+	setMobileOpen,
+}: TopHeaderProps) {
 	const [helpOpen, setHelpOpen] = useState(false);
 
+	const handleHelpClick = () => {
+		setHelpOpen(true);
+	};
+
 	return (
-		<header className="fixed top-0 right-0 left-0 z-50 h-16 w-full border-b bg-background/95 backdrop-blur-md">
-			<div className="flex h-full items-center px-4 md:px-6">
-				{/* Left side: Logo + Mobile menu */}
+		<header className="fixed top-0 right-0 left-0 z-50 h-16 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+			<div className="flex h-full items-center justify-between px-4 md:px-6">
 				<div className="flex items-center gap-4">
 					<Button
+						aria-label="Toggle navigation menu"
 						className="md:hidden"
 						onClick={setMobileOpen}
 						size="icon"
+						type="button"
 						variant="ghost"
 					>
-						<ListIcon className="h-5 w-5" size={32} weight="duotone" />
+						<ListIcon
+							className="h-5 w-5 not-dark:text-primary"
+							size={32}
+							weight="duotone"
+						/>
 						<span className="sr-only">Toggle menu</span>
 					</Button>
 
@@ -46,31 +57,32 @@ export function TopHeader({ setMobileOpen }: TopHeaderProps) {
 					</div>
 				</div>
 
-				{/* Right Side - User Controls */}
-				<div className="ml-auto flex items-center gap-2">
+				<div className="flex items-center gap-1">
 					<ThemeToggle />
 
-					{/* Help */}
 					<Button
+						aria-label="Help and support"
 						className="hidden h-8 w-8 md:flex"
-						onClick={() => setHelpOpen(true)}
+						onClick={handleHelpClick}
 						size="icon"
+						type="button"
 						variant="ghost"
 					>
-						<InfoIcon className="h-6 w-6" size={32} weight="duotone" />
+						<InfoIcon
+							className="h-5 w-5 not-dark:text-primary"
+							size={32}
+							weight="duotone"
+						/>
 						<span className="sr-only">Help</span>
 					</Button>
 
-					{/* Notifications */}
 					<NotificationsPopover />
 
-					{/* User Menu */}
 					<UserMenu />
 				</div>
 			</div>
 
-			{/* Help dialog */}
 			<HelpDialog onOpenChange={setHelpOpen} open={helpOpen} />
 		</header>
 	);
-}
+});

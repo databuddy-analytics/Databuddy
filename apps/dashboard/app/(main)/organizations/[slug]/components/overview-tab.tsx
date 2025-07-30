@@ -22,12 +22,15 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizationMembers } from '@/hooks/use-organizations';
+import {
+	type Organization,
+	useOrganizationMembers,
+} from '@/hooks/use-organizations';
 
 dayjs.extend(relativeTime);
 
 interface OverviewTabProps {
-	organization: any;
+	organization: Organization;
 }
 
 export function OverviewTab({ organization }: OverviewTabProps) {

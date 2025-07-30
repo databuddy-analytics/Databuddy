@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { NavigationItem } from './navigation-item';
 import type { NavigationSection as NavigationSectionType } from './types';
 
@@ -8,7 +9,40 @@ interface NavigationSectionProps {
 	currentWebsiteId?: string | null;
 }
 
-export function NavigationSection({
+const getPathInfo = (
+	item: NavigationSectionType['items'][0],
+	pathname: string,
+	currentWebsiteId?: string | null
+) => {
+	let isActive: boolean;
+
+	if (item.rootLevel) {
+		isActive = pathname === item.href;
+	} else if (currentWebsiteId === 'sandbox') {
+		const fullPath = item.href === '' ? '/sandbox' : `/sandbox${item.href}`;
+		isActive =
+			item.href === '' ? pathname === '/sandbox' : pathname === fullPath;
+	} else if (pathname.startsWith('/demo')) {
+		const fullPath =
+			item.href === ''
+				? `/demo/${currentWebsiteId}`
+				: `/demo/${currentWebsiteId}${item.href}`;
+		isActive =
+			item.href === ''
+				? pathname === `/demo/${currentWebsiteId}`
+				: pathname === fullPath;
+	} else {
+		const fullPath = `/websites/${currentWebsiteId}${item.href}`;
+		isActive =
+			item.href === ''
+				? pathname === `/websites/${currentWebsiteId}`
+				: pathname === fullPath;
+	}
+
+	return { isActive };
+};
+
+export const NavigationSection = memo(function NavigationSectionComponent({
 	title,
 	items,
 	pathname,
@@ -19,56 +53,27 @@ export function NavigationSection({
 			<h3 className="mb-2 px-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
 				{title}
 			</h3>
-			<div className="ml-1 space-y-1">
+			<ul className="ml-1 space-y-1">
 				{items.map((item) => {
-					let fullPath: string;
-					let isActive: boolean;
-
-					if (item.rootLevel) {
-						fullPath = item.href;
-						isActive = pathname === item.href;
-					} else if (currentWebsiteId === 'sandbox') {
-						// Handle sandbox context
-						fullPath = item.href === '' ? '/sandbox' : `/sandbox${item.href}`;
-						isActive =
-							item.href === ''
-								? pathname === '/sandbox'
-								: pathname === fullPath;
-					} else if (pathname.startsWith('/demo')) {
-						// Handle demo context
-						fullPath =
-							item.href === ''
-								? `/demo/${currentWebsiteId}`
-								: `/demo/${currentWebsiteId}${item.href}`;
-						isActive =
-							item.href === ''
-								? pathname === `/demo/${currentWebsiteId}`
-								: pathname === fullPath;
-					} else {
-						// Handle website context
-						fullPath = `/websites/${currentWebsiteId}${item.href}`;
-						isActive =
-							item.href === ''
-								? pathname === `/websites/${currentWebsiteId}`
-								: pathname === fullPath;
-					}
+					const { isActive } = getPathInfo(item, pathname, currentWebsiteId);
 
 					return (
-						<NavigationItem
-							alpha={item.alpha}
-							currentWebsiteId={currentWebsiteId}
-							href={item.href}
-							icon={item.icon}
-							isActive={isActive}
-							isExternal={item.external}
-							isRootLevel={!!item.rootLevel}
-							key={item.name}
-							name={item.name}
-							production={item.production}
-						/>
+						<li key={item.name}>
+							<NavigationItem
+								alpha={item.alpha}
+								currentWebsiteId={currentWebsiteId}
+								href={item.href}
+								icon={item.icon}
+								isActive={isActive}
+								isExternal={item.external}
+								isRootLevel={!!item.rootLevel}
+								name={item.name}
+								production={item.production}
+							/>
+						</li>
 					);
 				})}
-			</div>
+			</ul>
 		</div>
 	);
-}
+});

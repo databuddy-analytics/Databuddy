@@ -1,6 +1,6 @@
 'use client';
 
-import { FileTextIcon, SparklesIcon } from 'lucide-react';
+import { FileTextIcon, SparkleIcon } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import {
 	cleanUrl,
@@ -97,7 +97,7 @@ export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 								{hasProperties && (
 									<div className="mt-3 rounded-lg border-2 border-accent/20 bg-accent/10 p-3">
 										<div className="mb-2 flex items-center gap-2">
-											<SparklesIcon className="h-4 w-4 text-accent-foreground" />
+											<SparkleIcon className="h-4 w-4 text-accent-foreground" />
 											<span className="font-semibold text-accent-foreground text-sm">
 												Event Properties
 											</span>

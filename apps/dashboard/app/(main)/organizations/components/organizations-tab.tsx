@@ -23,15 +23,19 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 import { OnboardingCard } from './onboarding-card';
 
 dayjs.extend(relativeTime);
 
 interface OrganizationsTabProps {
-	organizations: any[] | undefined;
-	activeOrganization: any | null;
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
 	isLoading: boolean;
 	onCreateOrganization: () => void;
 }

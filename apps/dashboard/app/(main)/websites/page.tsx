@@ -189,7 +189,7 @@ export default function WebsitesPage() {
 									weight="fill"
 								/>
 							</div>
-							<div>
+							<div className="min-w-0 flex-1">
 								<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
 									Websites
 								</h1>
@@ -213,7 +213,7 @@ export default function WebsitesPage() {
 						</Button>
 						<Button
 							className={cn(
-								'w-full gap-2 px-6 py-3 font-medium sm:w-auto',
+								'gap-2 px-3 py-2 font-medium sm:px-4 sm:py-2',
 								'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
 								'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
 							)}
@@ -243,7 +243,7 @@ export default function WebsitesPage() {
 								size={24}
 								weight="duotone"
 							/>
-							<span>
+							<span className="truncate">
 								Tracking{' '}
 								<span className="font-medium text-foreground">
 									{websites.length}

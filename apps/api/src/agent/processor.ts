@@ -1,3 +1,5 @@
+import type { User } from '@databuddy/auth';
+import type { Website } from '@databuddy/shared';
 import { handleChartResponse } from './handlers/chart-handler';
 import { handleMetricResponse } from './handlers/metric-handler';
 import { comprehensiveUnifiedPrompt } from './prompts/agent';
@@ -20,8 +22,8 @@ export interface AssistantRequest {
 }
 
 export interface AssistantContext {
-	user: any;
-	website: any;
+	user: User;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 }
 
