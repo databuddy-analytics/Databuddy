@@ -1,8 +1,8 @@
-import Features from '@/components/features';
-import Comparison from '@/components/landing/comparison';
-import CTA from '@/components/landing/cta';
-import FAQ from '@/components/landing/faq';
-import Hero from '@/components/landing/hero';
+import Features from "@/components/features";
+import Comparison from "@/components/landing/comparison";
+import CTA from "@/components/landing/cta";
+import FAQ from "@/components/landing/faq";
+import Hero from "@/components/landing/hero";
 
 // async function getGitHubStars() {
 // 	try {
@@ -29,19 +29,11 @@ import Hero from '@/components/landing/hero';
 // }
 
 export default function HomePage() {
-	// const stars = await getGitHubStars();
+  // const stars = await getGitHubStars();
 
-	return (
-		<div className="min-h-screen">
-			<Hero />
-
-			<Features stars={null} />
-
-			<Comparison />
-
-			<FAQ />
-
-			<CTA />
-		</div>
-	);
+  return (
+    <div className="h-full">
+      <Hero />
+    </div>
+  );
 }
