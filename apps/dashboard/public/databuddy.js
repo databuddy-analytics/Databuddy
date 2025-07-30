@@ -1355,7 +1355,8 @@
 			document.currentScript ||
 			(() => {
 				const scripts = document.getElementsByTagName('script');
-				return scripts.at(-1);
+				// biome-ignore lint/style/useAt: not supported in all target browsers
+				return scripts[scripts.length - 1];
 			})();
 
 		function getConfig() {

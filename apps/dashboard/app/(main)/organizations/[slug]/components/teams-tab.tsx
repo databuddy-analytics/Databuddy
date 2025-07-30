@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { TeamView } from './team-view';
 
-export function TeamsTab({ organization }: { organization: any }) {
+export function TeamsTab({ organization }: { organization?: { id?: string } }) {
 	if (!organization?.id) {
 		return (
 			<div className="py-12 text-center">

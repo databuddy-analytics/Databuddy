@@ -94,7 +94,8 @@ function RegisterPageContent() {
 			if (result?.error) {
 				toast.error(result.error.message || 'Failed to create account');
 			}
-		} catch (_error) {
+		} catch (error) {
+			console.error('Error creating account:', error);
 			toast.error('Something went wrong');
 		} finally {
 			setIsLoading(false);

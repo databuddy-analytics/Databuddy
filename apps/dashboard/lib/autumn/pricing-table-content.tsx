@@ -1,4 +1,6 @@
-export const getPricingTableContent = (product: any) => {
+import type { Product } from 'autumn-js';
+
+export const getPricingTableContent = (product: Product) => {
 	const { scenario, free_trial } = product;
 
 	if (free_trial?.trial_available) {

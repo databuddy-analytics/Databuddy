@@ -69,7 +69,8 @@ export function OrganizationsTab({
 		setDeletingId(organizationId);
 		try {
 			deleteOrganization(organizationId);
-		} catch (_error) {
+		} catch (error) {
+			console.error('Failed to delete organization:', error);
 			toast.error('Failed to delete organization');
 		} finally {
 			setDeletingId(null);

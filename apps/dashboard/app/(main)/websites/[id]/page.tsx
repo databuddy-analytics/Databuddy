@@ -85,7 +85,7 @@ function WebsiteDetailsPage() {
 	});
 	const { id } = useParams();
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [currentDateRange, _setCurrentDateRangeState] = useAtom(dateRangeAtom);
+	const [currentDateRange] = useAtom(dateRangeAtom);
 	const [currentGranularity, setCurrentGranularityAtomState] =
 		useAtom(timeGranularityAtom);
 	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);

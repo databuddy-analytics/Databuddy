@@ -21,7 +21,15 @@ import {
 } from '@/components/ui/select';
 import { useOrganizationMembers } from '@/hooks/use-organizations';
 
-export function InviteMemberDialog({ isOpen, onClose, organizationId }: any) {
+export function InviteMemberDialog({
+	isOpen,
+	onClose,
+	organizationId,
+}: {
+	isOpen: boolean;
+	onClose: () => void;
+	organizationId: string;
+}) {
 	const [inviteEmail, setInviteEmail] = useState('');
 	const [inviteRole, setInviteRole] = useState<'owner' | 'admin' | 'member'>(
 		'member'
