@@ -26,9 +26,11 @@ export const handleDataRefresh = async (
 	isRefreshing: boolean,
 	refetchFn: () => Promise<any>,
 	setIsRefreshing: (value: boolean) => void,
-	successMessage = 'Data has been updated'
+	_successMessage = 'Data has been updated'
 ): Promise<void> => {
-	if (!isRefreshing) return;
+	if (!isRefreshing) {
+		return;
+	}
 
 	try {
 		// Do the actual data refetch
@@ -48,7 +50,9 @@ export const handleDataRefresh = async (
 export const safeParseDate = (
 	date: string | Date | null | undefined
 ): dayjs.Dayjs => {
-	if (!date) return dayjs();
+	if (!date) {
+		return dayjs();
+	}
 
 	if (typeof date === 'object' && date instanceof Date) {
 		return dayjs(date).isValid() ? dayjs(date) : dayjs();
@@ -91,7 +95,9 @@ export const formatDistributionData = <T extends DataItem>(
 	nameField: keyof T,
 	valueField: keyof T = 'visitors' as keyof T
 ): ChartDataPoint[] => {
-	if (!data?.length) return [];
+	if (!data?.length) {
+		return [];
+	}
 
 	return data.map((item) => ({
 		name:
@@ -107,7 +113,9 @@ export const formatDistributionData = <T extends DataItem>(
 export const groupBrowserData = (
 	browserVersions: Array<{ browser: string; visitors: number }> | undefined
 ): ChartDataPoint[] => {
-	if (!browserVersions?.length) return [];
+	if (!browserVersions?.length) {
+		return [];
+	}
 
 	const browserCounts = browserVersions.reduce(
 		(acc, item) => {
@@ -135,8 +143,12 @@ export const getColorVariant = (
 	dangerThreshold: number,
 	warningThreshold: number
 ): 'danger' | 'warning' | 'success' => {
-	if (value > dangerThreshold) return 'danger';
-	if (value > warningThreshold) return 'warning';
+	if (value > dangerThreshold) {
+		return 'danger';
+	}
+	if (value > warningThreshold) {
+		return 'warning';
+	}
 	return 'success';
 };
 
@@ -180,7 +192,9 @@ export const calculatePercentChange = (
 	current: number,
 	previous: number
 ): number => {
-	if (previous === 0) return current > 0 ? 100 : 0;
+	if (previous === 0) {
+		return current > 0 ? 100 : 0;
+	}
 	return ((current - previous) / previous) * 100;
 };
 
@@ -203,7 +217,9 @@ export const PERFORMANCE_THRESHOLDS = {
  * Checks if analytics data indicates no tracking is set up (all key metrics are zero)
  */
 export function isTrackingNotSetup(analytics: any): boolean {
-	if (!analytics?.summary) return true;
+	if (!analytics?.summary) {
+		return true;
+	}
 
 	const { summary, events_by_date, top_pages, top_referrers } = analytics;
 

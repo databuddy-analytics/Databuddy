@@ -111,7 +111,7 @@ export default function ChatSection() {
 		if (inputRef.current && !isLoading) {
 			inputRef.current.focus();
 		}
-	}, [isLoading, messages]);
+	}, [isLoading]);
 
 	useEffect(() => {
 		if (bottomRef.current) {
@@ -123,7 +123,7 @@ export default function ChatSection() {
 		if (bottomRef.current) {
 			bottomRef.current.scrollIntoView({ behavior: 'smooth' });
 		}
-	}, [messages]);
+	}, []);
 
 	const hasMessages = messages.length > 1;
 

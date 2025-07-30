@@ -4,7 +4,6 @@ import {
 	BugIcon,
 	ClockIcon,
 	FunnelIcon,
-	GitBranchIcon,
 	GlobeIcon,
 	HouseIcon,
 	InfoIcon,

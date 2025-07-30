@@ -1,7 +1,6 @@
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useRef } from 'react';
 import {
-	dateRangeAtom,
 	inputValueAtom,
 	isLoadingAtom,
 	isRateLimitedAtom,
@@ -329,7 +328,7 @@ export function useChat() {
 										);
 										break;
 									}
-								} catch (parseError) {
+								} catch (_parseError) {
 									console.warn('Failed to parse SSE data:', line);
 								}
 							}
@@ -364,6 +363,10 @@ export function useChat() {
 			scrollToBottom,
 			chatDB,
 			model,
+			setInputValue,
+			setIsLoading,
+			setIsRateLimited,
+			setMessages,
 		]
 	);
 

@@ -53,7 +53,9 @@ function extractMetricValue(
 	queryData: unknown[],
 	defaultValue: unknown
 ): unknown {
-	if (!(queryData.length && queryData[0])) return defaultValue;
+	if (!(queryData.length && queryData[0])) {
+		return defaultValue;
+	}
 
 	const firstRow = queryData[0] as Record<string, unknown>;
 	const valueKey =

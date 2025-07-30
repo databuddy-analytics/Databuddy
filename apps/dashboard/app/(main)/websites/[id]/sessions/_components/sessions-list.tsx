@@ -1,6 +1,6 @@
 'use client';
 
-import { UserIcon, SpinnerIcon } from '@phosphor-icons/react';
+import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

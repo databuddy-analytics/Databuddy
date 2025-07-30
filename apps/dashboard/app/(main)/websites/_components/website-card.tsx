@@ -1,7 +1,6 @@
 import type { MiniChartDataPoint, Website } from '@databuddy/shared';
 import {
 	ArrowRightIcon,
-	GlobeIcon,
 	MinusIcon,
 	TrendDownIcon,
 	TrendUpIcon,
@@ -33,13 +32,19 @@ interface WebsiteCardProps {
 }
 
 const formatNumber = (num: number) => {
-	if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-	if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+	if (num >= 1_000_000) {
+		return `${(num / 1_000_000).toFixed(1)}M`;
+	}
+	if (num >= 1000) {
+		return `${(num / 1000).toFixed(1)}K`;
+	}
 	return num.toString();
 };
 
 const getTrend = (data: MiniChartDataPoint[]) => {
-	if (!data || data.length === 0) return null;
+	if (!data || data.length === 0) {
+		return null;
+	}
 
 	const mid = Math.floor(data.length / 2);
 	const [first, second] = [data.slice(0, mid), data.slice(mid)];
@@ -48,15 +53,19 @@ const getTrend = (data: MiniChartDataPoint[]) => {
 		arr.length > 0 ? arr.reduce((sum, p) => sum + p.value, 0) / arr.length : 0;
 	const [prevAvg, currAvg] = [avg(first), avg(second)];
 
-	if (prevAvg === 0)
+	if (prevAvg === 0) {
 		return currAvg > 0
 			? { type: 'up', value: 100 }
 			: { type: 'neutral', value: 0 };
+	}
 
 	const change = ((currAvg - prevAvg) / prevAvg) * 100;
 	let type: 'up' | 'down' | 'neutral' = 'neutral';
-	if (change > 5) type = 'up';
-	else if (change < -5) type = 'down';
+	if (change > 5) {
+		type = 'up';
+	} else if (change < -5) {
+		type = 'down';
+	}
 	return { type, value: Math.abs(change) };
 };
 

@@ -30,7 +30,9 @@ export function InviteMemberDialog({ isOpen, onClose, organizationId }: any) {
 		useOrganizationMembers(organizationId);
 
 	const handleInvite = async () => {
-		if (!inviteEmail.trim()) return;
+		if (!inviteEmail.trim()) {
+			return;
+		}
 		await inviteMember({
 			email: inviteEmail.trim(),
 			role: inviteRole,

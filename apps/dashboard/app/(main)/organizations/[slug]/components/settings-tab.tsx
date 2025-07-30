@@ -91,7 +91,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			if (slug !== organization.slug) {
 				router.push(`/organizations/${slug}`);
 			}
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Failed to update organization');
 		} finally {
 			setIsSaving(false);
@@ -104,7 +104,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			await deleteOrganization(organization.id);
 			toast.success('Organization deleted successfully');
 			router.push('/organizations');
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Failed to delete organization');
 		} finally {
 			setIsDeleting(false);

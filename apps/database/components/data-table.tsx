@@ -7,7 +7,6 @@ import {
 	ChevronsRight,
 	Download,
 	Edit,
-	Filter,
 	RefreshCw,
 	Search,
 	SortAsc,
@@ -119,14 +118,20 @@ export function DataTable({
 				const bVal = b[sortColumn];
 
 				// Handle null/undefined values
-				if (aVal == null && bVal == null) return 0;
-				if (aVal == null) return sortDirection === 'asc' ? -1 : 1;
-				if (bVal == null) return sortDirection === 'asc' ? 1 : -1;
+				if (aVal == null && bVal == null) {
+					return 0;
+				}
+				if (aVal == null) {
+					return sortDirection === 'asc' ? -1 : 1;
+				}
+				if (bVal == null) {
+					return sortDirection === 'asc' ? 1 : -1;
+				}
 
 				// Handle numbers
 				const aNum = Number(aVal);
 				const bNum = Number(bVal);
-				if (!(isNaN(aNum) || isNaN(bNum))) {
+				if (!(Number.isNaN(aNum) || Number.isNaN(bNum))) {
 					return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
 				}
 
@@ -203,11 +208,13 @@ export function DataTable({
 	};
 
 	const formatBytes = (bytes: number) => {
-		if (bytes === 0) return '0 B';
+		if (bytes === 0) {
+			return '0 B';
+		}
 		const k = 1024;
 		const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Number.parseFloat((bytes / k ** i).toFixed(2)) + ' ' + sizes[i];
+		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	};
 
 	const formatNumber = (num: number) => {

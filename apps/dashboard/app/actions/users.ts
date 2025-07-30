@@ -15,7 +15,9 @@ const getUser = cache(async () => {
 	const session = await auth.api.getSession({
 		headers: await headers(),
 	});
-	if (!session) return null;
+	if (!session) {
+		return null;
+	}
 	return session.user;
 });
 
@@ -99,7 +101,9 @@ const profileUpdateSchema = z.object({
  */
 export async function updateUserProfile(formData: FormData) {
 	const currentUser = await getUser();
-	if (!currentUser) return { error: 'Unauthorized' };
+	if (!currentUser) {
+		return { error: 'Unauthorized' };
+	}
 
 	try {
 		// Parse and validate form data
@@ -115,7 +119,7 @@ export async function updateUserProfile(formData: FormData) {
 		});
 
 		// Update user in database
-		const updated = await db
+		const _updated = await db
 			.update(user)
 			.set({
 				firstName: validatedData.firstName,
@@ -168,7 +172,9 @@ export async function updateUserProfile(formData: FormData) {
  */
 export async function deactivateUserAccount(formData: FormData) {
 	const currentUser = await getUser();
-	if (!currentUser) return { error: 'Unauthorized' };
+	if (!currentUser) {
+		return { error: 'Unauthorized' };
+	}
 
 	try {
 		const password = formData.get('password');

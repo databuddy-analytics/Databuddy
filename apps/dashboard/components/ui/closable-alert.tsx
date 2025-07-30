@@ -34,7 +34,9 @@ export function ClosableAlert({
 		onClose?.(id);
 	};
 
-	if (!isVisible) return null;
+	if (!isVisible) {
+		return null;
+	}
 
 	// Only use color for critical errors
 	const isError = variant === 'error';

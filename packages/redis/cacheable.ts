@@ -107,12 +107,24 @@ export function cacheable<T extends (...args: any) => any>(
 	const cachePrefix = `cacheable:${prefix}`;
 
 	function stringify(obj: unknown): string {
-		if (obj === null) return 'null';
-		if (obj === undefined) return 'undefined';
-		if (typeof obj === 'boolean') return obj ? 'true' : 'false';
-		if (typeof obj === 'number') return String(obj);
-		if (typeof obj === 'string') return obj;
-		if (typeof obj === 'function') return obj.toString();
+		if (obj === null) {
+			return 'null';
+		}
+		if (obj === undefined) {
+			return 'undefined';
+		}
+		if (typeof obj === 'boolean') {
+			return obj ? 'true' : 'false';
+		}
+		if (typeof obj === 'number') {
+			return String(obj);
+		}
+		if (typeof obj === 'string') {
+			return obj;
+		}
+		if (typeof obj === 'function') {
+			return obj.toString();
+		}
 
 		if (Array.isArray(obj)) {
 			return `[${obj.map(stringify).join(',')}]`;

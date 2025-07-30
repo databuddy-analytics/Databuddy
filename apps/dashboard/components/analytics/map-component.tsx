@@ -4,11 +4,11 @@ import { scalePow } from 'd3-scale';
 import type { Feature, GeoJsonObject } from 'geojson';
 import type { Layer } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { LocationData } from '@databuddy/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GeoJSON, MapContainer } from 'react-leaflet';
 import { getCountryPopulation } from '@/lib/data';
 import { useCountries } from '@/lib/geo';
-import type { LocationData } from '@databuddy/shared';
 import { CountryFlag } from './icons/CountryFlag';
 
 interface TooltipContent {

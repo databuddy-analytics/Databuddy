@@ -173,7 +173,9 @@ export const ExternalLinkButton: React.FC<ExternalLinkButtonProps> = ({
 		</a>
 	);
 
-	if (!showTooltip) return content;
+	if (!showTooltip) {
+		return content;
+	}
 
 	return (
 		<TooltipProvider>

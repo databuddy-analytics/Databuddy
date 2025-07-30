@@ -12,7 +12,7 @@ export function generateScriptTag(
 	const scriptUrl = isLocalhost
 		? 'http://localhost:3000/databuddy.js'
 		: 'https://cdn.databuddy.cc/databuddy.js';
-	const apiUrl = isLocalhost
+	const _apiUrl = isLocalhost
 		? 'http://localhost:4000'
 		: 'https://basket.databuddy.cc';
 
@@ -20,8 +20,12 @@ export function generateScriptTag(
 		.filter(([key, value]) => {
 			const actualDefault =
 				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
-			if (value === actualDefault) return false;
-			if (typeof value === 'boolean' && !value && !actualDefault) return false;
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === 'boolean' && !value && !actualDefault) {
+				return false;
+			}
 			return true;
 		})
 		.map(
@@ -51,8 +55,12 @@ export function generateNpmCode(
 		.filter(([key, value]) => {
 			const actualDefault =
 				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
-			if (value === actualDefault) return false;
-			if (typeof value === 'boolean' && !value && !actualDefault) return false;
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === 'boolean' && !value && !actualDefault) {
+				return false;
+			}
 			return true;
 		})
 		.map(([key, value]) => {
@@ -92,8 +100,12 @@ export function generateNpmComponentCode(
 		.filter(([key, value]) => {
 			const actualDefault =
 				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
-			if (value === actualDefault) return false;
-			if (typeof value === 'boolean' && !value && !actualDefault) return false;
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === 'boolean' && !value && !actualDefault) {
+				return false;
+			}
 			return true;
 		})
 		.map(([key, value]) => {

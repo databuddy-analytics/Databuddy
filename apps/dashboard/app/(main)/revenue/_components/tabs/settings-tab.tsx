@@ -50,7 +50,7 @@ export function RevenueSettingsTab({
 		if (!isMaskedSecret(currentSecret)) {
 			setWebhookSecret(currentSecret);
 		}
-	}, [revenueConfig.webhookSecret]);
+	}, [revenueConfig.webhookSecret, isMaskedSecret]);
 
 	const handleSave = async () => {
 		// Only update webhook secret if user has entered a new one

@@ -30,8 +30,8 @@ export function EmptyState({ onCreateGoal }: EmptyStateProps) {
 						No goals yet
 					</h3>
 					<p className="text-muted-foreground leading-relaxed">
-						Track conversions like sign-ups, purchases, or button clicks
-						to measure key user actions and optimize your conversion rates.
+						Track conversions like sign-ups, purchases, or button clicks to
+						measure key user actions and optimize your conversion rates.
 					</p>
 					<div className="pt-2">
 						<Button

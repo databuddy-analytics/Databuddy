@@ -23,10 +23,12 @@ function LoginPage() {
 		setLastUsed(localStorage.getItem('lastUsedLogin'));
 	}, []);
 
-	const handleLastUsed = () => {
-		if (lastUsed === 'github') handleGithubLogin();
-		else if (lastUsed === 'google') handleGoogleLogin();
-		else if (lastUsed === 'email') {
+	const _handleLastUsed = () => {
+		if (lastUsed === 'github') {
+			handleGithubLogin();
+		} else if (lastUsed === 'google') {
+			handleGoogleLogin();
+		} else if (lastUsed === 'email') {
 			// Focus email input
 			document.getElementById('email')?.focus();
 		}
@@ -109,7 +111,7 @@ function LoginPage() {
 				toast.error('Invalid credentials');
 				return;
 			}
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Something went wrong');
 		} finally {
 			setIsLoading(false);

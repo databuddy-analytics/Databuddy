@@ -1,4 +1,4 @@
-import { useAutumn, useCustomer } from 'autumn-js/react';
+import { useAutumn } from 'autumn-js/react';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,14 +16,14 @@ export function useBilling(refetch?: () => void) {
 		name: string;
 		currentPeriodEnd?: number;
 	} | null>(null);
-	const [isActionLoading, setIsActionLoading] = useState(false);
+	const [_isActionLoading, setIsActionLoading] = useState(false);
 	const { subscriptionData } = useBillingData();
 
 	const handleUpgrade = async (planId: string) => {
 		setIsActionLoading(true);
 
 		try {
-			const result = await attach({
+			const _result = await attach({
 				productId: planId,
 				dialog: AttachDialog,
 				successUrl: `${window.location.origin}/billing`,
@@ -67,7 +67,9 @@ export function useBilling(refetch?: () => void) {
 	};
 
 	const handleCancelConfirm = async (immediate: boolean) => {
-		if (!cancellingPlan) return;
+		if (!cancellingPlan) {
+			return;
+		}
 		await handleCancel(cancellingPlan.id, immediate);
 		setCancellingPlan(null);
 	};
@@ -79,9 +81,15 @@ export function useBilling(refetch?: () => void) {
 	};
 
 	const getSubscriptionStatus = (product: CustomerProduct) => {
-		if (product.status === 'canceled') return 'Cancelled';
-		if (product.status === 'scheduled') return 'Scheduled';
-		if (product.canceled_at) return 'Cancelling';
+		if (product.status === 'canceled') {
+			return 'Cancelled';
+		}
+		if (product.status === 'scheduled') {
+			return 'Scheduled';
+		}
+		if (product.canceled_at) {
+			return 'Cancelling';
+		}
 		return 'Active';
 	};
 
@@ -99,10 +107,14 @@ export function useBilling(refetch?: () => void) {
 	};
 
 	const getFeatureUsage = (featureId: string, customer?: Customer) => {
-		if (!(customer && customer.features)) return null;
+		if (!customer?.features) {
+			return null;
+		}
 
 		const feature = customer.features[featureId];
-		if (!feature) return null;
+		if (!feature) {
+			return null;
+		}
 
 		return {
 			id: feature.id,

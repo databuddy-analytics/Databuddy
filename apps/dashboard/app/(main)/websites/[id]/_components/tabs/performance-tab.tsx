@@ -31,16 +31,28 @@ const getPerformanceRating = (
 	if (typeof score !== 'number' || Number.isNaN(score)) {
 		return { rating: 'Unknown', className: 'text-muted-foreground' };
 	}
-	if (score >= 90) return { rating: 'Excellent', className: 'text-green-500' };
-	if (score >= 70) return { rating: 'Good', className: 'text-green-500' };
-	if (score >= 50) return { rating: 'Moderate', className: 'text-yellow-500' };
-	if (score >= 30) return { rating: 'Poor', className: 'text-orange-500' };
+	if (score >= 90) {
+		return { rating: 'Excellent', className: 'text-green-500' };
+	}
+	if (score >= 70) {
+		return { rating: 'Good', className: 'text-green-500' };
+	}
+	if (score >= 50) {
+		return { rating: 'Moderate', className: 'text-yellow-500' };
+	}
+	if (score >= 30) {
+		return { rating: 'Poor', className: 'text-orange-500' };
+	}
 	return { rating: 'Very Poor', className: 'text-red-500' };
 };
 
 const formatPerformanceTime = (value: number): string => {
-	if (!value || value === 0) return 'N/A';
-	if (value < 1000) return `${Math.round(value)}ms`;
+	if (!value || value === 0) {
+		return 'N/A';
+	}
+	if (value < 1000) {
+		return `${Math.round(value)}ms`;
+	}
 	const seconds = Math.round(value / 100) / 10;
 	return seconds % 1 === 0
 		? `${seconds.toFixed(0)}s`
@@ -48,7 +60,9 @@ const formatPerformanceTime = (value: number): string => {
 };
 
 const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) return '0';
+	if (value == null || Number.isNaN(value)) {
+		return '0';
+	}
 	return Intl.NumberFormat(undefined, {
 		notation: 'compact',
 		maximumFractionDigits: 1,
@@ -317,7 +331,9 @@ export function WebsitePerformanceTab({
 
 	const filterPagesByPerformance = useCallback(
 		(pages: PerformanceEntry[], filter: 'fast' | 'slow' | null) => {
-			if (!filter) return pages;
+			if (!filter) {
+				return pages;
+			}
 			return pages.filter((page) => {
 				const loadTime = page.avg_load_time || 0;
 				return filter === 'fast' ? loadTime < 1500 : loadTime >= 3000;

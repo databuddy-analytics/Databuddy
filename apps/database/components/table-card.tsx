@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Download, Eye, Settings, Trash2 } from 'lucide-react';
+import { BarChart3, Download, Eye, Trash2 } from 'lucide-react';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -42,11 +42,13 @@ export function TableCard({
 	loading = false,
 }: TableCardProps) {
 	const formatBytes = (bytes: number) => {
-		if (bytes === 0) return '0 B';
+		if (bytes === 0) {
+			return '0 B';
+		}
 		const k = 1024;
 		const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Number.parseFloat((bytes / k ** i).toFixed(2)) + ' ' + sizes[i];
+		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	};
 
 	const formatNumber = (num: number) => {

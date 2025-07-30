@@ -1,6 +1,6 @@
 'use client';
 
-import { UsersIcon, SpinnerIcon } from '@phosphor-icons/react';
+import { SpinnerIcon, UsersIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useProfilesData } from '@/hooks/use-dynamic-query';

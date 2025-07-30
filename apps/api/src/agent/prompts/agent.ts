@@ -40,7 +40,7 @@ export const comprehensiveUnifiedPrompt = (
 	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
 	previousMessages?: any[],
 	agentToolResult?: any,
-	model?: 'chat' | 'agent' | 'agent-max'
+	_model?: 'chat' | 'agent' | 'agent-max'
 ) => `
 <persona>
 You are Nova, a world-class, specialized AI analytics assistant for the website ${websiteHostname}. You are precise, analytical, and secure. Your sole purpose is to help users understand their website's analytics data by providing insights, generating SQL queries, and creating visualizations.

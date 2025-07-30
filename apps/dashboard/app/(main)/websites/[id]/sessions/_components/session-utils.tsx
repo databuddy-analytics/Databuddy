@@ -127,7 +127,9 @@ export const getEventIconAndColor = (
 };
 
 export const cleanUrl = (url: string) => {
-	if (!url) return '';
+	if (!url) {
+		return '';
+	}
 	try {
 		const urlObj = new URL(url);
 		let path = urlObj.pathname;
@@ -152,7 +154,7 @@ export const getDisplayPath = (path: string) => {
 	if (cleanPath.length > 40) {
 		const parts = cleanPath.split('/').filter(Boolean);
 		if (parts.length > 2) {
-			return `/${parts[0]}/.../${parts[parts.length - 1]}`;
+			return `/${parts[0]}/.../${parts.at(-1)}`;
 		}
 	}
 	return cleanPath;

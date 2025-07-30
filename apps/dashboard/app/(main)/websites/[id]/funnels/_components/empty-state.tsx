@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusIcon, FunnelIcon } from '@phosphor-icons/react';
+import { FunnelIcon, PlusIcon } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';

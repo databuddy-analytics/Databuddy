@@ -3,14 +3,12 @@
 import {
 	BellIcon,
 	GearSixIcon,
-	InfoIcon,
 	ShieldIcon,
 	UserIcon,
 } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
 import { useQueryState } from 'nuqs';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
 	Card,
 	CardContent,

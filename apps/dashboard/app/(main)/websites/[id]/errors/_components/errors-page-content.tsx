@@ -52,7 +52,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	};
 
 	// Remove a filter
-	const removeFilter = (filterToRemove: DynamicQueryFilter) => {
+	const _removeFilter = (filterToRemove: DynamicQueryFilter) => {
 		setActiveFilters((prev) =>
 			prev.filter(
 				(f) =>
@@ -64,7 +64,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	};
 
 	// Clear all filters
-	const clearFilters = () => {
+	const _clearFilters = () => {
 		setActiveFilters([]);
 	};
 
