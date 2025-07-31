@@ -83,23 +83,22 @@ interface TableColumn {
 	type: string;
 }
 
-interface DataTableViewProps {
-	data: Record<string, any>[];
-	columns: TableColumn[];
-	loading: boolean;
-	onDeleteRow?: (row: Record<string, any>) => void;
-	onEditRow?: (
-		originalRow: Record<string, any>,
-		updatedRow: Record<string, any>
-	) => void;
-	onHideRow?: (row: Record<string, any>) => void;
+interface DataTableViewProps<T extends Record<string, unknown>> {
+        data: T[];
+        columns: TableColumn[];
+        loading: boolean;
+        onDeleteRow?: (row: T) => void;
+        onEditRow?: (originalRow: T, updatedRow: T) => void;
+        onHideRow?: (row: T) => void;
 }
 
-const selectColumn: ColumnDef<any> = {
-	id: 'select',
-	header: ({ table }) => (
-		<Checkbox
-			aria-label="Select all"
+type DataRow<T extends Record<string, unknown>> = T;
+
+const selectColumn = <T extends Record<string, unknown>>(): ColumnDef<DataRow<T>> => ({
+        id: 'select',
+        header: ({ table }) => (
+                <Checkbox
+                        aria-label="Select all"
 			checked={
 				table.getIsAllPageRowsSelected() ||
 				(table.getIsSomePageRowsSelected() && 'indeterminate')
@@ -121,8 +120,8 @@ const selectColumn: ColumnDef<any> = {
 	enableResizing: false,
 	size: 40,
 	minSize: 40,
-	maxSize: 40,
-};
+        maxSize: 40,
+});
 
 const FieldIcon = ({
 	label,
@@ -156,11 +155,11 @@ const ValueCell = ({
 	type,
 	columnName,
 }: {
-	value: any;
+	value: unknown;
 	type: string;
 	columnName: string;
 }) => {
-	const formatValue = (val: any, dataType: string, colName: string) => {
+	const formatValue = (val: unknown, dataType: string, colName: string) => {
 		if (val === null || val === undefined) {
 			return <span className="text-muted-foreground text-xs italic">null</span>;
 		}
@@ -236,14 +235,14 @@ const getTypeIcon = (type: string) => {
 	return <Binary className="size-3 text-gray-500" />;
 };
 
-export function DataTableView({
-	data,
-	columns,
-	loading,
-	onDeleteRow,
-	onEditRow,
-	onHideRow,
-}: DataTableViewProps) {
+export function DataTableView<T extends Record<string, unknown>>({
+        data,
+        columns,
+        loading,
+        onDeleteRow,
+        onEditRow,
+        onHideRow,
+}: DataTableViewProps<T>) {
 	const [sorting, setSorting] = React.useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
 		[]
@@ -253,20 +252,15 @@ export function DataTableView({
 	const [rowSelection, setRowSelection] = React.useState({});
 	const [colSizing, setColSizing] = React.useState<ColumnSizingState>({});
 	const [hiddenRows, setHiddenRows] = React.useState<Set<string>>(new Set());
-	const [editingRow, setEditingRow] = React.useState<Record<
-		string,
-		any
-	> | null>(null);
-	const [editFormData, setEditFormData] = React.useState<Record<string, any>>(
-		{}
-	);
+        const [editingRow, setEditingRow] = React.useState<T | null>(null);
+        const [editFormData, setEditFormData] = React.useState<T>({} as T);
 	const [confirmText, setConfirmText] = React.useState('');
 
 	// Helper functions
-	const handleEditRow = (row: Record<string, any>) => {
-		setEditingRow(row);
-		setEditFormData({ ...row });
-	};
+        const handleEditRow = (row: T) => {
+                setEditingRow(row);
+                setEditFormData({ ...row });
+        };
 
 	const handleSaveEdit = () => {
 		if (editingRow && onEditRow) {
@@ -276,10 +270,10 @@ export function DataTableView({
 		}
 	};
 
-	const handleHideRow = (row: Record<string, any>) => {
-		const rowId = JSON.stringify(row);
-		setHiddenRows((prev) => new Set([...prev, rowId]));
-		if (onHideRow) {
+        const handleHideRow = (row: T) => {
+                const rowId = JSON.stringify(row);
+                setHiddenRows((prev) => new Set([...prev, rowId]));
+                if (onHideRow) {
 			onHideRow(row);
 		}
 	};
@@ -345,8 +339,8 @@ export function DataTableView({
 		</Dialog>
 	);
 
-	const tableColumns: ColumnDef<any>[] = React.useMemo(() => {
-		const fields: ColumnDef<any>[] = columns.map((col) => {
+        const tableColumns: ColumnDef<DataRow<T>>[] = React.useMemo(() => {
+                const fields: ColumnDef<DataRow<T>>[] = columns.map((col) => {
 			return {
 				accessorKey: col.name,
 				header: ({ column }) => (
@@ -386,7 +380,7 @@ export function DataTableView({
 					</div>
 				),
 				cell: ({ row }) => {
-					const value = row.getValue(col.name) as any;
+					const value = row.getValue(col.name) as unknown;
 					return (
 						<ValueCell columnName={col.name} type={col.type} value={value} />
 					);
@@ -399,7 +393,7 @@ export function DataTableView({
 			};
 		});
 
-		const actionColumn: ColumnDef<any> = {
+                const actionColumn: ColumnDef<DataRow<T>> = {
 			id: 'actions',
 			enableHiding: false,
 			enableResizing: false,
@@ -497,8 +491,8 @@ export function DataTableView({
 			},
 		};
 
-		return [selectColumn, ...fields, actionColumn];
-	}, [columns, onDeleteRow, onEditRow, handleEditRow, handleHideRow]);
+                return [selectColumn<T>(), ...fields, actionColumn];
+        }, [columns, onDeleteRow, onEditRow, handleEditRow, handleHideRow]);
 
 	// Filter out hidden rows
 	const filteredData = React.useMemo(() => {

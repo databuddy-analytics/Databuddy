@@ -1,3 +1,5 @@
+import type { User } from '@databuddy/auth';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
@@ -5,8 +7,8 @@ import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
 export interface MetricHandlerContext {
-	user: any;
-	website: any;
+	user: User;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 }
 
@@ -53,7 +55,9 @@ function extractMetricValue(
 	queryData: unknown[],
 	defaultValue: unknown
 ): unknown {
-	if (!(queryData.length && queryData[0])) return defaultValue;
+	if (!(queryData.length && queryData[0])) {
+		return defaultValue;
+	}
 
 	const firstRow = queryData[0] as Record<string, unknown>;
 	const valueKey =
@@ -63,7 +67,7 @@ function extractMetricValue(
 	return valueKey ? firstRow[valueKey] : defaultValue;
 }
 
-async function* sendMetricResponse(
+function* sendMetricResponse(
 	parsedAiJson: z.infer<typeof AIResponseJsonSchema>,
 	metricValue: unknown,
 	context: MetricHandlerContext

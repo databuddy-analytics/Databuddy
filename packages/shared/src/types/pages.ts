@@ -35,7 +35,7 @@ export interface SessionsSummaryData {
 }
 
 export interface SessionsResponse {
-	sessions: any[];
+	sessions: Record<string, unknown>[];
 	pagination: {
 		page: number;
 		limit: number;

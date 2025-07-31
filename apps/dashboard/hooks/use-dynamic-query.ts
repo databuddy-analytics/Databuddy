@@ -209,7 +209,7 @@ export function useDynamicQuery<T extends (keyof ParameterDataMap)[]>(
 					}
 					return acc;
 				},
-				{} as Record<string, any>
+				{} as Record<string, unknown>
 			) || {}
 		);
 	}, [query.data]);
@@ -290,7 +290,7 @@ export function useBatchDynamicQuery(
 			const processedResult = {
 				queryId: result.queryId,
 				success: false, // Will be set based on parameter results
-				data: {} as Record<string, any>,
+				data: {} as Record<string, unknown>,
 				errors: [] as Array<{ parameter: string; error?: string }>,
 				meta: result.meta,
 				rawResult: result, // Keep raw result for debugging
@@ -1045,7 +1045,7 @@ function transformSessionsData(sessions: any[]): any[] {
 							properties,
 						] = eventTuple;
 
-						let propertiesObj: Record<string, any> = {};
+						let propertiesObj: Record<string, unknown> = {};
 						if (properties) {
 							try {
 								propertiesObj = JSON.parse(properties);
@@ -1256,7 +1256,7 @@ function transformProfilesData(profiles: any[]): ProfileData[] {
 								properties,
 							] = eventTuple;
 
-							let propertiesObj: Record<string, any> = {};
+							let propertiesObj: Record<string, unknown> = {};
 							if (properties) {
 								try {
 									propertiesObj = JSON.parse(properties);

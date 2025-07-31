@@ -28,7 +28,7 @@ export interface DynamicQueryFilter {
 
 export interface DynamicQueryResult {
 	parameter: string;
-	data: any[];
+	data: Record<string, unknown>[];
 	success: boolean;
 	error?: string;
 }
@@ -45,7 +45,7 @@ export interface DynamicQueryResponse {
 		filters_applied: number;
 	};
 	error?: string;
-	date_range?: any;
+	date_range?: Record<string, unknown>;
 }
 
 export interface GoalFilter {

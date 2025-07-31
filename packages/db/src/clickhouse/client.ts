@@ -49,26 +49,27 @@ async function withRetry<T>(
 				logger.info('Retry operation succeeded', { attempt });
 			}
 			return res;
-		} catch (error: any) {
-			lastError = error;
+		} catch (error: unknown) {
+			const err = error instanceof Error ? error : new Error(String(error));
+			lastError = err;
 
 			if (
-				error.message.includes('Connect') ||
-				error.message.includes('socket hang up') ||
-				error.message.includes('Timeout error')
+				err.message.includes('Connect') ||
+				err.message.includes('socket hang up') ||
+				err.message.includes('Timeout error')
 			) {
 				const delay = baseDelay * 2 ** attempt;
 				logger.warn(
 					`Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms`,
 					{
-						error: error.message,
+						error: err.message,
 					}
 				);
 				await new Promise((resolve) => setTimeout(resolve, delay));
 				continue;
 			}
 
-			throw error; // Non-retriable error
+			throw err; // Non-retriable error
 		}
 	}
 
@@ -80,14 +81,17 @@ export const clickHouse = new Proxy(clickHouseOG, {
 		const value = Reflect.get(target, property, receiver);
 
 		if (property === 'insert') {
-			return (...args: any[]) => withRetry(() => value.apply(target, args));
+			return (...args: unknown[]) =>
+				withRetry(() =>
+					(value as (...params: unknown[]) => unknown).apply(target, args)
+				);
 		}
 
 		return value;
 	},
 });
 
-export async function chQueryWithMeta<T extends Record<string, any>>(
+export async function chQueryWithMeta<T extends Record<string, unknown>>(
 	query: string,
 	params?: Record<string, unknown>
 ): Promise<ResponseJSON<T>> {
@@ -109,7 +113,7 @@ export async function chQueryWithMeta<T extends Record<string, any>>(
 							: item[key];
 					return acc;
 				},
-				{} as Record<string, any>
+				{} as Record<string, unknown>
 			);
 		}),
 	};
@@ -117,7 +121,7 @@ export async function chQueryWithMeta<T extends Record<string, any>>(
 	return response as ResponseJSON<T>;
 }
 
-export async function chQuery<T extends Record<string, any>>(
+export async function chQuery<T extends Record<string, unknown>>(
 	query: string,
 	params?: Record<string, unknown>
 ): Promise<T[]> {

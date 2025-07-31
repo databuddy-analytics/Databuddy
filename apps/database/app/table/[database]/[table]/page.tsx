@@ -7,7 +7,7 @@ import { TableTabs } from '@/components/table-tabs';
 import { TableTopbar } from '@/components/table-topbar';
 
 interface QueryResult {
-	data: Record<string, any>[];
+        data: Record<string, unknown>[];
 	meta: Array<{ name: string; type: string }>;
 	rows: number;
 	statistics?: {
@@ -147,7 +147,7 @@ export default async function TableDetail({
 		}
 	};
 
-	const deleteRow = async (rowData: Record<string, any>) => {
+        const deleteRow = async (rowData: Record<string, unknown>) => {
 		setLoading(true);
 		try {
 			const whereClause = Object.entries(rowData)
@@ -176,10 +176,10 @@ export default async function TableDetail({
 		}
 	};
 
-	const editRow = async (
-		originalRow: Record<string, any>,
-		updatedRow: Record<string, any>
-	) => {
+        const editRow = async (
+                originalRow: Record<string, unknown>,
+                updatedRow: Record<string, unknown>
+        ) => {
 		setLoading(true);
 		try {
 			// Build WHERE clause from original row data
@@ -214,7 +214,7 @@ export default async function TableDetail({
 		}
 	};
 
-	const hideRow = (rowData: Record<string, any>) => {
+        const hideRow = (rowData: Record<string, unknown>) => {
 		// This is handled locally in the DataTableView component
 		// Could be extended to persist hidden rows to localStorage or backend
 		console.log('Row hidden:', rowData);

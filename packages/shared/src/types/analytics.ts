@@ -37,7 +37,7 @@ export interface ProfileSessionData extends BaseSessionData {
 	path: string;
 	error_message?: string;
 	error_type?: string;
-	properties: Record<string, any>;
+	properties: Record<string, string | number | boolean | null | undefined>;
 }
 
 export interface SessionData extends BaseSessionData {
