@@ -10,6 +10,7 @@ import {
 	websites,
 } from '@databuddy/db';
 import { createDrizzleCache, redis } from '@databuddy/redis';
+import type { ProcessedMiniChartData } from '@databuddy/shared';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 
@@ -66,7 +67,29 @@ const getAuthorizedWebsiteIds = (
 	});
 };
 
-const getBatchedMiniChartData = async (websiteIds: string[]) => {
+const calculateTrend = (data: { date: string; value: number }[]) => {
+	if (!data || data.length === 0) return null;
+
+	const mid = Math.floor(data.length / 2);
+	const [first, second] = [data.slice(0, mid), data.slice(mid)];
+
+	const avg = (arr: { value: number }[]) =>
+		arr.length > 0 ? arr.reduce((sum, p) => sum + p.value, 0) / arr.length : 0;
+	const [prevAvg, currAvg] = [avg(first), avg(second)];
+
+	if (prevAvg === 0)
+		return currAvg > 0
+			? { type: 'up' as const, value: 100 }
+			: { type: 'neutral' as const, value: 0 };
+
+	const change = ((currAvg - prevAvg) / prevAvg) * 100;
+	let type: 'up' | 'down' | 'neutral' = 'neutral';
+	if (change > 5) type = 'up';
+	else if (change < -5) type = 'down';
+	return { type, value: Math.abs(change) };
+};
+
+const getBatchedMiniChartData = async (websiteIds: string[]): Promise<Record<string, ProcessedMiniChartData>> => {
 	if (websiteIds.length === 0) {
 		return {};
 	}
@@ -104,7 +127,7 @@ const getBatchedMiniChartData = async (websiteIds: string[]) => {
 
 	const queryResult = await chQuery<MiniChartRow>(query, { websiteIds });
 
-	const result = websiteIds.reduce(
+	const rawData = websiteIds.reduce(
 		(acc, id) => {
 			acc[id] = [];
 			return acc;
@@ -113,12 +136,26 @@ const getBatchedMiniChartData = async (websiteIds: string[]) => {
 	);
 
 	for (const row of queryResult) {
-		if (result[row.websiteId]) {
-			result[row.websiteId].push({
+		if (rawData[row.websiteId]) {
+			rawData[row.websiteId].push({
 				date: row.date,
 				value: row.value,
 			});
 		}
+	}
+
+	const result: Record<string, ProcessedMiniChartData> = {};
+	
+	for (const websiteId of websiteIds) {
+		const data = rawData[websiteId] || [];
+		const totalViews = data.reduce((sum, point) => sum + point.value, 0);
+		const trend = calculateTrend(data);
+		
+		result[websiteId] = {
+			data,
+			totalViews,
+			trend,
+		};
 	}
 
 	return result;

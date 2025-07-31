@@ -1,7 +1,7 @@
 import { websitesApi } from '@databuddy/auth';
 import { and, chQuery, eq, isNull, websites } from '@databuddy/db';
 import { createDrizzleCache, redis } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
+import { logger, type ProcessedMiniChartData } from '@databuddy/shared';
 import {
 	createWebsiteSchema,
 	transferWebsiteSchema,
@@ -18,33 +18,182 @@ import {
 	trackWebsiteUsage,
 } from '../utils/billing';
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'websites' });
+const websiteCache = createDrizzleCache({ redis, namespace: 'websites' });
+const CACHE_DURATION = 60;
+const TREND_THRESHOLD = 5;
 
-const CACHE_TTL = 60;
-
-const buildDomain = (domain: string, subdomain?: string) =>
+const buildFullDomain = (domain: string, subdomain?: string) =>
 	subdomain ? `${subdomain}.${domain}` : domain;
+
+interface ChartDataPoint {
+	websiteId: string;
+	date: string;
+	value: number;
+}
+
+const calculateAverage = (values: { value: number }[]) =>
+	values.length > 0
+		? values.reduce((sum, item) => sum + item.value, 0) / values.length
+		: 0;
+
+const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
+	if (!dataPoints?.length) {
+		return null;
+	}
+
+	const midPoint = Math.floor(dataPoints.length / 2);
+	const firstHalf = dataPoints.slice(0, midPoint);
+	const secondHalf = dataPoints.slice(midPoint);
+
+	const previousAverage = calculateAverage(firstHalf);
+	const currentAverage = calculateAverage(secondHalf);
+
+	if (previousAverage === 0) {
+		return currentAverage > 0
+			? { type: 'up' as const, value: 100 }
+			: { type: 'neutral' as const, value: 0 };
+	}
+
+	const percentageChange =
+		((currentAverage - previousAverage) / previousAverage) * 100;
+
+	if (percentageChange > TREND_THRESHOLD) {
+		return { type: 'up' as const, value: Math.abs(percentageChange) };
+	}
+	if (percentageChange < -TREND_THRESHOLD) {
+		return { type: 'down' as const, value: Math.abs(percentageChange) };
+	}
+	return { type: 'neutral' as const, value: Math.abs(percentageChange) };
+};
+
+const fetchChartData = async (
+	websiteIds: string[]
+): Promise<Record<string, ProcessedMiniChartData>> => {
+	if (!websiteIds.length) {
+		return {};
+	}
+
+	const chartQuery = `
+    WITH
+      date_range AS (
+        SELECT arrayJoin(arrayMap(d -> toDate(today()) - d, range(7))) AS date
+      ),
+      daily_pageviews AS (
+        SELECT
+          client_id,
+          toDate(time) as event_date,
+          countIf(event_name = 'screen_view') as pageviews
+        FROM analytics.events
+        WHERE
+          client_id IN {websiteIds:Array(String)}
+          AND toDate(time) >= (today() - 6)
+        GROUP BY client_id, event_date
+      )
+    SELECT
+      all_websites.website_id AS websiteId,
+      toString(date_range.date) AS date,
+      COALESCE(daily_pageviews.pageviews, 0) AS value
+    FROM
+      (SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
+    CROSS JOIN
+      date_range
+    LEFT JOIN
+      daily_pageviews ON all_websites.website_id = daily_pageviews.client_id AND date_range.date = daily_pageviews.event_date
+    ORDER BY
+      websiteId,
+      date ASC
+  `;
+
+	const queryResults = await chQuery<ChartDataPoint>(chartQuery, {
+		websiteIds,
+	});
+
+	const groupedData = websiteIds.reduce(
+		(acc, id) => {
+			acc[id] = [];
+			return acc;
+		},
+		{} as Record<string, { date: string; value: number }[]>
+	);
+
+	for (const row of queryResults) {
+		groupedData[row.websiteId]?.push({
+			date: row.date,
+			value: row.value,
+		});
+	}
+
+	const processedData: Record<string, ProcessedMiniChartData> = {};
+
+	for (const websiteId of websiteIds) {
+		const dataPoints = groupedData[websiteId] || [];
+		const totalViews = dataPoints.reduce((sum, point) => sum + point.value, 0);
+		const trend = calculateTrend(dataPoints);
+
+		processedData[websiteId] = {
+			data: dataPoints,
+			totalViews,
+			trend,
+		};
+	}
+
+	return processedData;
+};
+
+const buildWebsiteFilter = (userId: string, organizationId?: string) =>
+	organizationId
+		? eq(websites.organizationId, organizationId)
+		: and(eq(websites.userId, userId), isNull(websites.organizationId));
 
 export const websitesRouter = createTRPCRouter({
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.query(({ ctx, input }) => {
-			const cacheKey = `list:${ctx.user.id}:${input.organizationId || ''}`;
-			return drizzleCache.withCache({
-				key: cacheKey,
-				ttl: CACHE_TTL,
+			const listCacheKey = `list:${ctx.user.id}:${input.organizationId || ''}`;
+			return websiteCache.withCache({
+				key: listCacheKey,
+				ttl: CACHE_DURATION,
 				tables: ['websites'],
 				queryFn: () => {
-					const where = input.organizationId
-						? eq(websites.organizationId, input.organizationId)
-						: and(
-								eq(websites.userId, ctx.user.id),
-								isNull(websites.organizationId)
-							);
+					const whereClause = buildWebsiteFilter(
+						ctx.user.id,
+						input.organizationId
+					);
 					return ctx.db.query.websites.findMany({
-						where,
+						where: whereClause,
 						orderBy: (table, { desc }) => [desc(table.createdAt)],
 					});
+				},
+			});
+		}),
+
+	listWithCharts: protectedProcedure
+		.input(z.object({ organizationId: z.string().optional() }).default({}))
+		.query(({ ctx, input }) => {
+			const chartsListCacheKey = `listWithCharts:${ctx.user.id}:${input.organizationId || ''}`;
+
+			return websiteCache.withCache({
+				key: chartsListCacheKey,
+				ttl: CACHE_DURATION,
+				tables: ['websites', 'member'],
+				queryFn: async () => {
+					const whereClause = buildWebsiteFilter(
+						ctx.user.id,
+						input.organizationId
+					);
+
+					const websitesList = await ctx.db.query.websites.findMany({
+						where: whereClause,
+						orderBy: (table, { desc }) => [desc(table.createdAt)],
+					});
+
+					const websiteIds = websitesList.map((site) => site.id);
+					const chartData = await fetchChartData(websiteIds);
+
+					return {
+						websites: websitesList,
+						chartData,
+					};
 				},
 			});
 		}),
@@ -52,10 +201,10 @@ export const websitesRouter = createTRPCRouter({
 	getById: publicProcedure
 		.input(z.object({ id: z.string() }))
 		.query(({ ctx, input }) => {
-			const cacheKey = `getById:${input.id}`;
-			return drizzleCache.withCache({
-				key: cacheKey,
-				ttl: CACHE_TTL,
+			const getByIdCacheKey = `getById:${input.id}`;
+			return websiteCache.withCache({
+				key: getByIdCacheKey,
+				ttl: CACHE_DURATION,
 				tables: ['websites'],
 				queryFn: () => authorizeWebsiteAccess(ctx, input.id, 'read'),
 			});
@@ -77,45 +226,45 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const customerId = await getBillingCustomerId(
+			const billingCustomerId = await getBillingCustomerId(
 				ctx.user.id,
 				input.organizationId
 			);
-			const limitCheck = await checkAndTrackWebsiteCreation(customerId);
-			if (!limitCheck.allowed) {
-				throw new TRPCError({ code: 'BAD_REQUEST', message: limitCheck.error });
+			const creationLimitCheck =
+				await checkAndTrackWebsiteCreation(billingCustomerId);
+			if (!creationLimitCheck.allowed) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: creationLimitCheck.error,
+				});
 			}
 
-			const fullDomain = buildDomain(input.domain, input.subdomain);
+			const domainToCreate = buildFullDomain(input.domain, input.subdomain);
+			const websiteFilter = and(
+				eq(websites.domain, domainToCreate),
+				buildWebsiteFilter(ctx.user.id, input.organizationId)
+			);
 
-			const existingWebsite = await ctx.db.query.websites.findFirst({
-				where: and(
-					eq(websites.domain, fullDomain),
-					input.organizationId
-						? eq(websites.organizationId, input.organizationId)
-						: and(
-								eq(websites.userId, ctx.user.id),
-								isNull(websites.organizationId)
-							)
-				),
+			const duplicateWebsite = await ctx.db.query.websites.findFirst({
+				where: websiteFilter,
 			});
 
-			if (existingWebsite) {
-				const location = input.organizationId
+			if (duplicateWebsite) {
+				const scopeDescription = input.organizationId
 					? 'in this organization'
 					: 'for your account';
 				throw new TRPCError({
 					code: 'CONFLICT',
-					message: `A website with the domain "${fullDomain}" already exists ${location}.`,
+					message: `A website with the domain "${domainToCreate}" already exists ${scopeDescription}.`,
 				});
 			}
 
-			const [website] = await ctx.db
+			const [createdWebsite] = await ctx.db
 				.insert(websites)
 				.values({
 					id: nanoid(),
 					name: input.name,
-					domain: fullDomain,
+					domain: domainToCreate,
 					userId: ctx.user.id,
 					organizationId: input.organizationId,
 					status: 'ACTIVE',
@@ -124,24 +273,24 @@ export const websitesRouter = createTRPCRouter({
 
 			logger.success(
 				'Website Created',
-				`New website "${website.name}" was created with domain "${website.domain}"`,
+				`New website "${createdWebsite.name}" was created with domain "${createdWebsite.domain}"`,
 				{
-					websiteId: website.id,
-					domain: website.domain,
+					websiteId: createdWebsite.id,
+					domain: createdWebsite.domain,
 					userId: ctx.user.id,
-					organizationId: website.organizationId,
+					organizationId: createdWebsite.organizationId,
 				}
 			);
 
-			await drizzleCache.invalidateByTables(['websites']);
+			await websiteCache.invalidateByTables(['websites']);
 
-			return website;
+			return createdWebsite;
 		}),
 
 	update: protectedProcedure
 		.input(updateWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
-			const originalWebsite = await authorizeWebsiteAccess(
+			const websiteToUpdate = await authorizeWebsiteAccess(
 				ctx,
 				input.id,
 				'update'
@@ -155,18 +304,18 @@ export const websitesRouter = createTRPCRouter({
 
 			logger.info(
 				'Website Updated',
-				`Website "${originalWebsite.name}" was renamed to "${updatedWebsite.name}"`,
+				`Website "${websiteToUpdate.name}" was renamed to "${updatedWebsite.name}"`,
 				{
 					websiteId: updatedWebsite.id,
-					oldName: originalWebsite.name,
+					oldName: websiteToUpdate.name,
 					newName: updatedWebsite.name,
 					userId: ctx.user.id,
 				}
 			);
 
 			await Promise.all([
-				drizzleCache.invalidateByTables(['websites']),
-				drizzleCache.invalidateByKey(`getById:${input.id}`),
+				websiteCache.invalidateByTables(['websites']),
+				websiteCache.invalidateByKey(`getById:${input.id}`),
 			]);
 
 			return updatedWebsite;
@@ -175,31 +324,35 @@ export const websitesRouter = createTRPCRouter({
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const website = await authorizeWebsiteAccess(ctx, input.id, 'delete');
-			const customerId = await getBillingCustomerId(
+			const websiteToDelete = await authorizeWebsiteAccess(
+				ctx,
+				input.id,
+				'delete'
+			);
+			const billingCustomerId = await getBillingCustomerId(
 				ctx.user.id,
-				website.organizationId
+				websiteToDelete.organizationId
 			);
 
 			await Promise.all([
 				ctx.db.delete(websites).where(eq(websites.id, input.id)),
-				trackWebsiteUsage(customerId, -1),
+				trackWebsiteUsage(billingCustomerId, -1),
 			]);
 
 			logger.warning(
 				'Website Deleted',
-				`Website "${website.name}" with domain "${website.domain}" was deleted`,
+				`Website "${websiteToDelete.name}" with domain "${websiteToDelete.domain}" was deleted`,
 				{
-					websiteId: website.id,
-					websiteName: website.name,
-					domain: website.domain,
+					websiteId: websiteToDelete.id,
+					websiteName: websiteToDelete.name,
+					domain: websiteToDelete.domain,
 					userId: ctx.user.id,
 				}
 			);
 
 			await Promise.all([
-				drizzleCache.invalidateByTables(['websites']),
-				drizzleCache.invalidateByKey(`getById:${input.id}`),
+				websiteCache.invalidateByTables(['websites']),
+				websiteCache.invalidateByKey(`getById:${input.id}`),
 			]);
 
 			return { success: true };
@@ -223,13 +376,13 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const [updatedWebsite] = await ctx.db
+			const [transferredWebsite] = await ctx.db
 				.update(websites)
 				.set({ organizationId: input.organizationId ?? null })
 				.where(eq(websites.id, input.websiteId))
 				.returning();
 
-			if (!updatedWebsite) {
+			if (!transferredWebsite) {
 				throw new TRPCError({
 					code: 'NOT_FOUND',
 					message: 'Website not found',
@@ -238,30 +391,30 @@ export const websitesRouter = createTRPCRouter({
 
 			logger.success(
 				'Website Transferred',
-				`Website "${updatedWebsite.name}" was transferred to organization "${input.organizationId}"`,
+				`Website "${transferredWebsite.name}" was transferred to organization "${input.organizationId}"`,
 				{
-					websiteId: updatedWebsite.id,
+					websiteId: transferredWebsite.id,
 					organizationId: input.organizationId,
 					userId: ctx.user.id,
 				}
 			);
 
 			await Promise.all([
-				drizzleCache.invalidateByTables(['websites']),
-				drizzleCache.invalidateByKey(`getById:${input.websiteId}`),
+				websiteCache.invalidateByTables(['websites']),
+				websiteCache.invalidateByKey(`getById:${input.websiteId}`),
 			]);
 
-			return updatedWebsite;
+			return transferredWebsite;
 		}),
 
 	isTrackingSetup: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
-			const result = await chQuery<{ count: number }>(
+			const trackingCheckResult = await chQuery<{ count: number }>(
 				`SELECT COUNT(*) as count FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' LIMIT 1`,
 				{ websiteId: input.websiteId }
 			);
-			return { tracking_setup: (result[0]?.count ?? 0) > 0 };
+			return { tracking_setup: (trackingCheckResult[0]?.count ?? 0) > 0 };
 		}),
 });
