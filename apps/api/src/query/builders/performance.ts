@@ -23,7 +23,7 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 	slow_pages: {
 		table: Analytics.events,
 		fields: [
-			'path(path) as name',
+			"trimRight(path(path), '/') as name",
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time',
 			'AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb',
@@ -35,7 +35,7 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			'COUNT(*) as pageviews',
 		],
 		where: ["event_name = 'screen_view'", "path != ''", 'load_time > 0'],
-		groupBy: ['path(path)'],
+		groupBy: ["trimRight(path(path), '/')"],
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',

@@ -5,13 +5,13 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
-			'path(path) as name',
+			"trimRight(path(path), '/') as name",
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: ["event_name = 'screen_view'", "path != ''"],
-		groupBy: ['path(path)'],
+		groupBy: ["trimRight(path(path), '/')"],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
@@ -48,7 +48,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT 
                     session_id,
                     anonymous_id,
-                    path(path) as entry_page,
+                    trimRight(path(path), '/') as entry_page,
                     time as entry_time,
                     ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY time) as page_rank
                 FROM analytics.events
@@ -118,7 +118,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             ),
             exit_pages AS (
                 SELECT
-                    path(e.path) as path,
+                    trimRight(path(e.path), '/') as path,
                     e.session_id,
                     e.anonymous_id
                 FROM analytics.events e
@@ -152,13 +152,13 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	page_performance: {
 		table: Analytics.events,
 		fields: [
-			'path(path) as name',
+			"trimRight(path(path), '/') as name",
 			'COUNT(*) as pageviews',
 			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 		],
 		where: ["event_name = 'screen_view'", "path != ''"],
-		groupBy: ['path(path)'],
+		groupBy: ["trimRight(path(path), '/')"],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',

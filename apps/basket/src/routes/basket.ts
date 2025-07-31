@@ -409,7 +409,9 @@ async function insertTrackEvent(
 		error_stack: undefined,
 		error_type: undefined,
 
-		properties: '{}',
+		properties: trackData.properties
+			? JSON.stringify(trackData.properties)
+			: '{}',
 		created_at: now,
 	};
 
