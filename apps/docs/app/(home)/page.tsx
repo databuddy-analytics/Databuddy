@@ -1,5 +1,6 @@
 import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
+import { Footer } from "@/components/landing/footer";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
@@ -54,7 +55,7 @@ export default function HomePage() {
       <Section
         id="desc-border"
         customPaddings
-        className="overflow-x-clip overflow-hidden"
+        className="border-b dark:border-border border-stone-200 overflow-x-clip overflow-hidden"
       >
         <div className="mx-5 lg:mx-16 xl:mx-16">
           <Section customPaddings id="description" className="overflow-y-clip">
@@ -66,9 +67,11 @@ export default function HomePage() {
           <Section id="faq" className="overflow-y-clip" customPaddings>
             <FAQ />
           </Section>
-
-          <div className="h-px bg-border mx-14"></div>
         </div>
+      </Section>
+
+      <Section id="footer" customPaddings>
+        <Footer />
       </Section>
     </div>
   );
