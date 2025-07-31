@@ -1,4 +1,4 @@
-import type { Website, ProcessedMiniChartData } from '@databuddy/shared';
+import type { ProcessedMiniChartData, Website } from '@databuddy/shared';
 import {
 	ArrowRightIcon,
 	MinusIcon,
@@ -36,7 +36,7 @@ const formatNumber = (num: number) => {
 
 // Lazy load the chart component to improve initial page load
 const MiniChart = dynamic(
-	() => import('./mini-chart').then(mod => mod.default),
+	() => import('./mini-chart').then((mod) => mod.default),
 	{
 		loading: () => <Skeleton className="h-12 w-full rounded" />,
 		ssr: false,
@@ -145,7 +145,9 @@ export const WebsiteCard = memo(
 										)}
 									</div>
 									<div className="transition-colors duration-300 [--chart-color:theme(colors.primary.DEFAULT)] group-hover:[--chart-color:theme(colors.primary.600)]">
-										<Suspense fallback={<Skeleton className="h-12 w-full rounded" />}>
+										<Suspense
+											fallback={<Skeleton className="h-12 w-full rounded" />}
+										>
 											<MiniChart data={chartData.data} id={website.id} />
 										</Suspense>
 									</div>

@@ -16,10 +16,11 @@ export function useWebsites() {
 	const { data: activeOrganization, isPending: isLoadingOrganization } =
 		authClient.useActiveOrganization();
 
-	const { data, isLoading, isError, refetch } = trpc.websites.listWithCharts.useQuery(
-		{ organizationId: activeOrganization?.id },
-		{ enabled: !isLoadingOrganization }
-	);
+	const { data, isLoading, isError, refetch } =
+		trpc.websites.listWithCharts.useQuery(
+			{ organizationId: activeOrganization?.id },
+			{ enabled: !isLoadingOrganization }
+		);
 
 	return {
 		websites: data?.websites || [],
@@ -41,16 +42,19 @@ export function useCreateWebsite() {
 			const queryKey = {
 				organizationId: variables.organizationId ?? undefined,
 			};
-			
+
 			utils.websites.listWithCharts.setData(queryKey, (old) => {
 				if (!old) return { websites: [newWebsite], chartData: {} };
-				const exists = old.websites.some(w => w.id === newWebsite.id);
-				return exists 
-					? old 
-					: { 
-						websites: [...old.websites, newWebsite], 
-						chartData: { ...old.chartData, [newWebsite.id]: { data: [], totalViews: 0, trend: null } }
-					};
+				const exists = old.websites.some((w) => w.id === newWebsite.id);
+				return exists
+					? old
+					: {
+							websites: [...old.websites, newWebsite],
+							chartData: {
+								...old.chartData,
+								[newWebsite.id]: { data: [], totalViews: 0, trend: null },
+							},
+						};
 			});
 		},
 		onError: (error) => {
@@ -74,10 +78,10 @@ export function useUpdateWebsite() {
 					...old,
 					websites: old.websites.map((website) =>
 						website.id === updatedWebsite.id ? updatedWebsite : website
-					)
+					),
 				};
 			});
-			
+
 			utils.websites.getById.setData(getByIdKey, updatedWebsite);
 		},
 		onError: (error) => {
@@ -107,7 +111,7 @@ export function useDeleteWebsite() {
 					websites: old.websites.filter((w) => w.id !== id),
 					chartData: Object.fromEntries(
 						Object.entries(old.chartData).filter(([key]) => key !== id)
-					)
+					),
 				};
 			});
 
@@ -115,7 +119,10 @@ export function useDeleteWebsite() {
 		},
 		onError: (_, __, context) => {
 			if (context?.previousData && context.listKey) {
-				utils.websites.listWithCharts.setData(context.listKey, context.previousData);
+				utils.websites.listWithCharts.setData(
+					context.listKey,
+					context.previousData
+				);
 			}
 		},
 		onSuccess: (_, { id }) => {

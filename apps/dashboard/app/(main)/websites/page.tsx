@@ -267,10 +267,7 @@ export default function WebsitesPage() {
 			</div>
 
 			{/* Website Dialog */}
-			<WebsiteDialog
-				onOpenChange={setDialogOpen}
-				open={dialogOpen}
-			/>
+			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
 		</div>
 	);
 }

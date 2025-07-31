@@ -26,7 +26,7 @@ import {
 import {
 	type ActiveOrganization,
 	type Organization,
-useOrganizations,
+	useOrganizations,
 } from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 import { OnboardingCard } from './onboarding-card';

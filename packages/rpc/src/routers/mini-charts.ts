@@ -89,7 +89,9 @@ const calculateTrend = (data: { date: string; value: number }[]) => {
 	return { type, value: Math.abs(change) };
 };
 
-const getBatchedMiniChartData = async (websiteIds: string[]): Promise<Record<string, ProcessedMiniChartData>> => {
+const getBatchedMiniChartData = async (
+	websiteIds: string[]
+): Promise<Record<string, ProcessedMiniChartData>> => {
 	if (websiteIds.length === 0) {
 		return {};
 	}
@@ -145,12 +147,12 @@ const getBatchedMiniChartData = async (websiteIds: string[]): Promise<Record<str
 	}
 
 	const result: Record<string, ProcessedMiniChartData> = {};
-	
+
 	for (const websiteId of websiteIds) {
 		const data = rawData[websiteId] || [];
 		const totalViews = data.reduce((sum, point) => sum + point.value, 0);
 		const trend = calculateTrend(data);
-		
+
 		result[websiteId] = {
 			data,
 			totalViews,

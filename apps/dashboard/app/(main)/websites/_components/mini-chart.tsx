@@ -24,10 +24,7 @@ const formatNumber = (num: number) => {
 const MiniChart = memo(({ data, id }: MiniChartProps) => (
 	<div className="chart-container">
 		<ResponsiveContainer height={50} width="100%">
-			<AreaChart
-				data={data}
-				margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
-			>
+			<AreaChart data={data} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
 				<defs>
 					<linearGradient id={`gradient-${id}`} x1="0" x2="0" y1="0" y2="1">
 						<stop

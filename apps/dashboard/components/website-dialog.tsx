@@ -86,9 +86,9 @@ export function WebsiteDialog({
 
 		try {
 			if (isEditing) {
-				const result = await updateWebsiteMutation.mutateAsync({ 
-					id: website.id, 
-					name: formData.name 
+				const result = await updateWebsiteMutation.mutateAsync({
+					id: website.id,
+					name: formData.name,
 				});
 				if (onSave) onSave(result);
 				toast.success('Website updated successfully!');
@@ -99,9 +99,10 @@ export function WebsiteDialog({
 			}
 			onOpenChange(false);
 		} catch (error: any) {
-			const message = error.data?.code === 'CONFLICT'
-				? 'A website with this domain already exists.'
-				: `Failed to ${isEditing ? 'update' : 'create'} website.`;
+			const message =
+				error.data?.code === 'CONFLICT'
+					? 'A website with this domain already exists.'
+					: `Failed to ${isEditing ? 'update' : 'create'} website.`;
 			toast.error(message);
 		}
 	});

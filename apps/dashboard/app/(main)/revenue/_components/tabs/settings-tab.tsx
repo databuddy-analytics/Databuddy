@@ -42,7 +42,10 @@ export function RevenueSettingsTab({
 	const [isLiveMode, setIsLiveMode] = useState(revenueConfig.isLiveMode);
 
 	// Check if the webhook secret is masked (contains asterisks)
-	const isMaskedSecret = useCallback((secret: string) => secret.includes('*'), []);
+	const isMaskedSecret = useCallback(
+		(secret: string) => secret.includes('*'),
+		[]
+	);
 
 	// Initialize webhook secret only if it's not masked
 	useEffect(() => {
