@@ -54,8 +54,9 @@ function calculatePasswordStrength(password: string): {
 	feedback: string;
 	color: string;
 } {
-	if (!password)
+	if (!password) {
 		return { score: 0, feedback: 'Enter a password', color: 'bg-gray-200' };
+	}
 
 	let score = 0;
 	const checks = {
@@ -72,9 +73,15 @@ function calculatePasswordStrength(password: string): {
 	score += checks.numbers ? 20 : 0;
 	score += checks.special ? 30 : 0;
 
-	if (score < 40) return { score, feedback: 'Weak', color: 'bg-red-500' };
-	if (score < 70) return { score, feedback: 'Fair', color: 'bg-yellow-500' };
-	if (score < 90) return { score, feedback: 'Good', color: 'bg-blue-500' };
+	if (score < 40) {
+		return { score, feedback: 'Weak', color: 'bg-red-500' };
+	}
+	if (score < 70) {
+		return { score, feedback: 'Fair', color: 'bg-yellow-500' };
+	}
+	if (score < 90) {
+		return { score, feedback: 'Good', color: 'bg-blue-500' };
+	}
 	return { score, feedback: 'Strong', color: 'bg-green-500' };
 }
 

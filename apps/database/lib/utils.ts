@@ -6,11 +6,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatBytes(bytes: number): string {
-	if (bytes === 0) return '0 B';
+	if (bytes === 0) {
+		return '0 B';
+	}
 	const k = 1024;
 	const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
 	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return Number.parseFloat((bytes / k ** i).toFixed(2)) + ' ' + sizes[i];
+	return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
 export function formatNumber(num: number): string {
@@ -18,15 +20,23 @@ export function formatNumber(num: number): string {
 }
 
 export function formatDuration(ms: number): string {
-	if (ms < 1000) return `${ms.toFixed(2)}ms`;
-	if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`;
-	if (ms < 3_600_000) return `${(ms / 60_000).toFixed(2)}m`;
+	if (ms < 1000) {
+		return `${ms.toFixed(2)}ms`;
+	}
+	if (ms < 60_000) {
+		return `${(ms / 1000).toFixed(2)}s`;
+	}
+	if (ms < 3_600_000) {
+		return `${(ms / 60_000).toFixed(2)}m`;
+	}
 	return `${(ms / 3_600_000).toFixed(2)}h`;
 }
 
 export function truncateText(text: string, maxLength = 50): string {
-	if (text.length <= maxLength) return text;
-	return text.substring(0, maxLength) + '...';
+	if (text.length <= maxLength) {
+		return text;
+	}
+	return `${text.substring(0, maxLength)}...`;
 }
 
 export function isValidJson(str: string): boolean {

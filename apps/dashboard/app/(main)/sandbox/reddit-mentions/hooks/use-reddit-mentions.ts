@@ -152,7 +152,9 @@ const redditApi = {
 		const result = await apiRequest<RedditMentionsResponse>(
 			`/reddit/mentions?${params}`
 		);
-		if (result.error) throw new Error(result.error);
+		if (result.error) {
+			throw new Error(result.error);
+		}
 
 		return (
 			result.data || {
@@ -177,7 +179,9 @@ const redditApi = {
 
 	getHealth: async (): Promise<RedditHealthResponse> => {
 		const result = await apiRequest<RedditHealthResponse>('/reddit/health');
-		if (result.error) throw new Error(result.error);
+		if (result.error) {
+			throw new Error(result.error);
+		}
 		return (
 			result.data || {
 				status: 'unhealthy',
@@ -191,7 +195,9 @@ const redditApi = {
 		const result = await apiRequest<{ success: boolean }>('/reddit/refresh', {
 			method: 'POST',
 		});
-		if (result.error) throw new Error(result.error);
+		if (result.error) {
+			throw new Error(result.error);
+		}
 		return result.data || { success: false };
 	},
 
@@ -226,7 +232,9 @@ const redditApi = {
 		});
 
 		const result = await apiRequest<any>(`/reddit/analytics?${params}`);
-		if (result.error) throw new Error(result.error);
+		if (result.error) {
+			throw new Error(result.error);
+		}
 		return result.data;
 	},
 };
@@ -431,14 +439,18 @@ export function useRedditAnalytics(filters: SearchFilters, enabled = false) {
 // Utility hook for managing search history
 export function useSearchHistory() {
 	const getHistory = useCallback(() => {
-		if (typeof window === 'undefined') return [];
+		if (typeof window === 'undefined') {
+			return [];
+		}
 		const history = localStorage.getItem('reddit-search-history');
 		return history ? JSON.parse(history) : [];
 	}, []);
 
 	const addToHistory = useCallback(
 		(filters: SearchFilters) => {
-			if (typeof window === 'undefined') return;
+			if (typeof window === 'undefined') {
+				return;
+			}
 
 			const history = getHistory();
 			const newEntry = {

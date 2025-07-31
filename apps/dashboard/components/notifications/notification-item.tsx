@@ -123,7 +123,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
 							{notification.details.changes &&
 								notification.details.changes.length > 0 && (
 									<div className="mt-1 space-y-0.5">
-										{notification.details.changes.map((change, i) => (
+										{notification.details.changes.map((change, _i) => (
 											<p
 												className="flex items-center gap-1"
 												key={notification.id}

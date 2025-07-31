@@ -48,13 +48,24 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	pathname,
 	currentWebsiteId,
 }: NavigationSectionProps) {
+	const visibleItems = items.filter((item) => {
+		if (item.production === false && process.env.NODE_ENV === 'production') {
+			return false;
+		}
+		return true;
+	});
+
+	if (visibleItems.length === 0) {
+		return null;
+	}
+
 	return (
 		<div>
 			<h3 className="mb-2 px-2 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
 				{title}
 			</h3>
 			<ul className="ml-1 space-y-1">
-				{items.map((item) => {
+				{visibleItems.map((item) => {
 					const { isActive } = getPathInfo(item, pathname, currentWebsiteId);
 
 					return (

@@ -85,7 +85,7 @@ function WebsiteDetailsPage() {
 	});
 	const { id } = useParams();
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [currentDateRange, setCurrentDateRangeState] = useAtom(dateRangeAtom);
+	const [currentDateRange] = useAtom(dateRangeAtom);
 	const [currentGranularity, setCurrentGranularityAtomState] =
 		useAtom(timeGranularityAtom);
 	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);
@@ -134,7 +134,7 @@ function WebsiteDetailsPage() {
 		[formattedDateRangeState, currentGranularity, timezone]
 	);
 
-	const handleDateRangeChange = useCallback(
+	const _handleDateRangeChange = useCallback(
 		(range: DayPickerRange | undefined) => {
 			if (range?.from && range?.to) {
 				setDateRangeAction({ startDate: range.from, endDate: range.to });

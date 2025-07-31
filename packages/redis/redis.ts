@@ -52,7 +52,9 @@ const createRedisClient = (
 
 	client.getJson = async <T = any>(key: string): Promise<T | null> => {
 		const value = await client.get(key);
-		if (!value) return null;
+		if (!value) {
+			return null;
+		}
 
 		try {
 			const res = SuperJSON.parse(value) as T;

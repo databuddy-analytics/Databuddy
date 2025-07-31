@@ -19,21 +19,17 @@ export const BORDER_RADIUS = {
 };
 
 interface MetricToggleProps {
-	id: string;
 	label: string;
 	checked: boolean;
 	onChange: () => void;
 	color: string;
-	description?: string;
 }
 
 export const MetricToggle: React.FC<MetricToggleProps> = ({
-	id,
 	label,
 	checked,
 	onChange,
 	color,
-	description,
 }) => {
 	// Get proper hex values for the colors
 	const getColorMap = (colorName: string) => {
@@ -105,7 +101,6 @@ interface MetricTogglesProps {
 	onToggle: (metric: string) => void;
 	colors: Record<string, string>;
 	labels?: Record<string, string>;
-	descriptions?: Record<string, string>;
 }
 
 export const MetricToggles: React.FC<MetricTogglesProps> = ({
@@ -113,32 +108,15 @@ export const MetricToggles: React.FC<MetricTogglesProps> = ({
 	onToggle,
 	colors,
 	labels = {},
-	descriptions = {},
 }) => {
-	const metricDescriptions = {
-		pageviews: 'Total number of pages viewed by visitors',
-		visitors: 'Number of unique users visiting your website',
-		sessions: 'A group of interactions within a time frame',
-		bounce_rate: 'Percentage of single-page sessions',
-		avg_session_duration: 'Average time spent during a session',
-		...descriptions,
-	};
-
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			{Object.keys(metrics).map((metric) => (
 				<MetricToggle
 					checked={metrics[metric]}
 					color={colors[metric] || 'blue-500'}
-					description={
-						metricDescriptions[metric as keyof typeof metricDescriptions]
-					}
-					id={`metric-${metric}`}
 					key={metric}
-					label={
-						labels[metric] ||
-						metric.charAt(0).toUpperCase() + metric.slice(1).replace(/_/g, ' ')
-					}
+					label={labels[metric] || metric}
 					onChange={() => onToggle(metric)}
 				/>
 			))}
@@ -173,7 +151,9 @@ export const ExternalLinkButton: React.FC<ExternalLinkButtonProps> = ({
 		</a>
 	);
 
-	if (!showTooltip) return content;
+	if (!showTooltip) {
+		return content;
+	}
 
 	return (
 		<TooltipProvider>

@@ -9,7 +9,6 @@ import { GeoJSON, MapContainer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { getCountryPopulation } from '@/lib/data';
 import { useCountries } from '@/lib/geo';
-import type { LocationData } from '@databuddy/shared';
 import { CountryFlag } from './icons/CountryFlag';
 
 interface TooltipContent {

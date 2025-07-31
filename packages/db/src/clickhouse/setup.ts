@@ -7,7 +7,9 @@ import { initClickHouseSchema } from './schema';
 		process.exit(0);
 	} else {
 		console.error(result.message);
-		if (result.error) console.error(result.error);
+		if (result.error) {
+			console.error(result.error);
+		}
 		process.exit(1);
 	}
 })();

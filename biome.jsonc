@@ -5,7 +5,8 @@
     "formatter": {
       "indentStyle": "tab",
       "indentWidth": 2
-    }
+    },
+    "globals": ["chrome"]
   },
   "linter": {
     "rules": {

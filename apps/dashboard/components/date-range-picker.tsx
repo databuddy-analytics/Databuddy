@@ -170,8 +170,12 @@ export function DateRangePicker({
 						<Calendar
 							defaultMonth={tempRange?.from || appliedRange?.from || new Date()}
 							disabled={(date) => {
-								if (minDate && date < minDate) return true;
-								if (maxDate && date > maxDate) return true;
+								if (minDate && date < minDate) {
+									return true;
+								}
+								if (maxDate && date > maxDate) {
+									return true;
+								}
 								return false;
 							}}
 							initialFocus

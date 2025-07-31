@@ -15,7 +15,7 @@ export type Subdivisions = {
 		};
 		geometry: {
 			type: string;
-			coordinates: Array<Array<Array<any>>>;
+			coordinates: number[][][];
 		};
 	}>;
 };
@@ -32,7 +32,7 @@ export type Country = {
 		};
 		geometry: {
 			type: string;
-			coordinates: Array<Array<Array<any>>>;
+			coordinates: number[][][];
 		};
 	}>;
 };

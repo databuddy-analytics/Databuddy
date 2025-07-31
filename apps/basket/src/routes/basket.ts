@@ -409,7 +409,9 @@ async function insertTrackEvent(
 		error_stack: undefined,
 		error_type: undefined,
 
-		properties: '{}',
+		properties: trackData.properties
+			? JSON.stringify(trackData.properties)
+			: '{}',
 		created_at: now,
 	};
 
@@ -445,7 +447,7 @@ async function checkDuplicate(
 async function logBlockedTraffic(
 	request: Request,
 	body: any,
-	query: any,
+	_query: any,
 	blockReason: string,
 	blockCategory: string,
 	botName?: string,

@@ -151,6 +151,7 @@ async function executeDynamicQuery(
 	const startDate = queryParams.start_date || queryParams.startDate;
 	const endDate = queryParams.end_date || queryParams.endDate;
 	const websiteId = queryParams.website_id;
+
 	const websiteDomain = websiteId
 		? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
 		: null;

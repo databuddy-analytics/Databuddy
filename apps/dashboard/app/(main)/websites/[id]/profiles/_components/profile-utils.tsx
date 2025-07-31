@@ -1,4 +1,4 @@
-import { GlobeIcon } from 'lucide-react';
+import { GlobeIcon } from '@phosphor-icons/react';
 import {
 	getBrowserIcon,
 	getDeviceTypeIcon,

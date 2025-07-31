@@ -430,19 +430,28 @@ export function WebsiteOverviewTab({
 
 	const pagesTabs = useTableTabs({
 		top_pages: {
-			data: analytics.top_pages || [],
+			data: (analytics.top_pages || []).map((page: any) => ({
+				...page,
+				name: decodeURIComponent(page.name),
+			})),
 			label: 'Top Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
 		},
 		entry_pages: {
-			data: analytics.entry_pages || [],
+			data: (analytics.entry_pages || []).map((page: any) => ({
+				...page,
+				name: decodeURIComponent(page.name),
+			})),
 			label: 'Entry Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
 		},
 		exit_pages: {
-			data: analytics.exit_pages || [],
+			data: (analytics.exit_pages || []).map((page: any) => ({
+				...page,
+				name: decodeURIComponent(page.name),
+			})),
 			label: 'Exit Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
@@ -849,11 +858,9 @@ export function WebsiteOverviewTab({
 		const canShowSessionBasedTrend =
 			previousSumSessions >= MIN_PREVIOUS_SESSIONS_FOR_TREND;
 		const previousPeriodStart = previousPeriodData[0]?.date;
-		const previousPeriodEnd =
-			previousPeriodData[previousPeriodData.length - 1]?.date;
+		const previousPeriodEnd = previousPeriodData.at(-1)?.date;
 		const currentPeriodStart = currentPeriodData[0]?.date;
-		const currentPeriodEnd =
-			currentPeriodData[currentPeriodData.length - 1]?.date;
+		const currentPeriodEnd = currentPeriodData.at(-1)?.date;
 		const createDetailedTrend = (
 			current: number,
 			previous: number,

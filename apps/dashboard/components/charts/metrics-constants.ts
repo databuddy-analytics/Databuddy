@@ -1,4 +1,4 @@
-import { Eye, LineChart, MousePointer, TrendingUp, Users } from 'lucide-react';
+import { Eye, MousePointer, TrendingUp, Users } from 'lucide-react';
 
 export const METRIC_COLORS = {
 	pageviews: {

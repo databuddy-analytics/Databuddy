@@ -44,6 +44,37 @@ interface StripeConfig {
 	isLiveMode: boolean;
 }
 
+interface StripeObjectWithMetadata {
+	metadata?: {
+		client_id?: string;
+		session_id?: string;
+		[key: string]: string | undefined;
+	} | null;
+}
+
+interface StripeDataRecord {
+	[key: string]:
+		| string
+		| number
+		| boolean
+		| null
+		| undefined
+		| Record<string, string>
+		| string[];
+}
+
+interface SecurityEventMetadata {
+	eventLivemode?: boolean;
+	configLivemode?: boolean;
+	eventType?: string;
+	[key: string]: unknown;
+}
+
+type StripeEventHandler = (
+	data: Stripe.PaymentIntent | Stripe.Charge | Stripe.Refund,
+	config: StripeConfig
+) => Promise<void>;
+
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const ENABLE_MODE_VALIDATION =
 	process.env.ENABLE_MODE_VALIDATION === 'true' || IS_PRODUCTION;
@@ -113,7 +144,11 @@ async function getStripeConfigByToken(
 /**
  * Webhook handler with conditional security
  */
-async function handleWebhook(request: Request, set: any, config: StripeConfig) {
+async function handleWebhook(
+	request: Request,
+	set: { status?: number | string },
+	config: StripeConfig
+) {
 	const sig = request.headers.get('stripe-signature');
 	const body = await request.text();
 
@@ -187,40 +222,53 @@ async function handleWebhook(request: Request, set: any, config: StripeConfig) {
  * Process webhook events and store data
  */
 async function processWebhookEvent(event: Stripe.Event, config: StripeConfig) {
-	const handlers: Record<string, (data: any) => Promise<void>> = {
-		'payment_intent.succeeded': (pi: Stripe.PaymentIntent) =>
-			insertPaymentIntent(pi, config),
-		'payment_intent.created': (pi: Stripe.PaymentIntent) =>
-			insertPaymentIntent(pi, config),
-		'payment_intent.canceled': (pi: Stripe.PaymentIntent) =>
-			insertPaymentIntent(pi, config),
-		'payment_intent.payment_failed': (pi: Stripe.PaymentIntent) =>
-			insertPaymentIntent(pi, config),
-		'payment_intent.requires_action': (pi: Stripe.PaymentIntent) =>
-			insertPaymentIntent(pi, config),
-		'charge.succeeded': (charge: Stripe.Charge) => insertCharge(charge, config),
-		'charge.failed': (charge: Stripe.Charge) => insertCharge(charge, config),
-		'charge.captured': (charge: Stripe.Charge) => insertCharge(charge, config),
-		'charge.dispute.created': (charge: Stripe.Charge) =>
-			insertCharge(charge, config),
-		'refund.created': (refund: Stripe.Refund) => insertRefund(refund, config),
-		'refund.updated': (refund: Stripe.Refund) => insertRefund(refund, config),
-		'refund.failed': (refund: Stripe.Refund) => insertRefund(refund, config),
+	const handlers: Record<string, StripeEventHandler> = {
+		'payment_intent.succeeded': (data, stripeConfig) =>
+			insertPaymentIntent(data as Stripe.PaymentIntent, stripeConfig),
+		'payment_intent.created': (data, stripeConfig) =>
+			insertPaymentIntent(data as Stripe.PaymentIntent, stripeConfig),
+		'payment_intent.canceled': (data, stripeConfig) =>
+			insertPaymentIntent(data as Stripe.PaymentIntent, stripeConfig),
+		'payment_intent.payment_failed': (data, stripeConfig) =>
+			insertPaymentIntent(data as Stripe.PaymentIntent, stripeConfig),
+		'payment_intent.requires_action': (data, stripeConfig) =>
+			insertPaymentIntent(data as Stripe.PaymentIntent, stripeConfig),
+		'charge.succeeded': (data, stripeConfig) =>
+			insertCharge(data as Stripe.Charge, stripeConfig),
+		'charge.failed': (data, stripeConfig) =>
+			insertCharge(data as Stripe.Charge, stripeConfig),
+		'charge.captured': (data, stripeConfig) =>
+			insertCharge(data as Stripe.Charge, stripeConfig),
+		'charge.dispute.created': (data, stripeConfig) =>
+			insertCharge(data as Stripe.Charge, stripeConfig),
+		'refund.created': (data, stripeConfig) =>
+			insertRefund(data as Stripe.Refund, stripeConfig),
+		'refund.updated': (data, stripeConfig) =>
+			insertRefund(data as Stripe.Refund, stripeConfig),
+		'refund.failed': (data, stripeConfig) =>
+			insertRefund(data as Stripe.Refund, stripeConfig),
 	};
 
 	const handler = handlers[event.type];
 	if (handler) {
-		await handler(event.data.object as any);
+		await handler(
+			event.data.object as Stripe.PaymentIntent | Stripe.Charge | Stripe.Refund,
+			config
+		);
 	} else {
 		logger.info(`🔄 Unhandled event type: ${event.type}`);
 	}
 }
 
-function extractClientId(stripeObject: any): string | null {
+function extractClientId(
+	stripeObject: StripeObjectWithMetadata
+): string | null {
 	return stripeObject.metadata?.client_id || null;
 }
 
-function extractSessionId(stripeObject: any): string | null {
+function extractSessionId(
+	stripeObject: StripeObjectWithMetadata
+): string | null {
 	return stripeObject.metadata?.session_id || null;
 }
 
@@ -236,7 +284,10 @@ function validateClientId(
 	}
 }
 
-async function insertStripeData(table: string, data: any): Promise<void> {
+async function insertStripeData(
+	table: string,
+	data: StripeDataRecord
+): Promise<void> {
 	await clickHouse.insert({
 		table,
 		values: [data],
@@ -352,7 +403,7 @@ function logSecurityEvent(
 	eventType: string,
 	webhookToken: string,
 	ip: string,
-	metadata?: any
+	metadata?: SecurityEventMetadata
 ) {
 	const logData = {
 		webhookToken,

@@ -192,7 +192,9 @@ function applyGeoNormalization(
 ): Record<string, any>[] {
 	return data.map((row) => {
 		// Only normalize if row has a 'name' field (country/region/etc)
-		if (!row.name) return row;
+		if (!row.name) {
+			return row;
+		}
 		const code = getCountryCode(row.name);
 		const name = getCountryName(code);
 		return {

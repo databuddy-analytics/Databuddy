@@ -5,12 +5,19 @@ import {
 	Card,
 	CardContent,
 	CardDescription,
-	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
+import type {
+	ActiveOrganization,
+	Organization,
+} from '@/hooks/use-organizations';
 import { TeamView } from './team-view';
 
-export function TeamsTab({ organization }: { organization: any }) {
+export function TeamsTab({
+	organization,
+}: {
+	organization: Organization | ActiveOrganization;
+}) {
 	if (!(organization && organization.id)) {
 		return (
 			<div className="py-12 text-center">

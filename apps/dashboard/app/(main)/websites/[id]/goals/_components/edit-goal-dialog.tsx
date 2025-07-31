@@ -276,9 +276,8 @@ export function EditGoalDialog({
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
 			<SheetContent
-				className="w-[60vw] overflow-y-auto"
+				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[1200px]"
 				side="right"
-				style={{ width: '40vw', padding: '1rem', maxWidth: '1200px' }}
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">

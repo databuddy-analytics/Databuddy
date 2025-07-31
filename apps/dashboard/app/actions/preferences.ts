@@ -14,7 +14,9 @@ const getUser = cache(async () => {
 	const session = await auth.api.getSession({
 		headers: await headers(),
 	});
-	if (!session) return null;
+	if (!session) {
+		return null;
+	}
 	return session.user;
 });
 
@@ -30,7 +32,9 @@ const preferencesSchema = z.object({
  */
 export async function getUserPreferences() {
 	const user = await getUser();
-	if (!user) return { error: 'Unauthorized' };
+	if (!user) {
+		return { error: 'Unauthorized' };
+	}
 
 	try {
 		// Try to find existing preferences
@@ -91,7 +95,9 @@ export async function getUserPreferences() {
  */
 export async function updateUserPreferences(formData: FormData) {
 	const user = await getUser();
-	if (!user) return { error: 'Unauthorized' };
+	if (!user) {
+		return { error: 'Unauthorized' };
+	}
 
 	try {
 		// Parse and validate form data

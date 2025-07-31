@@ -2,15 +2,15 @@
 
 import {
 	ActivityIcon,
-	WarningCircleIcon,
+	ArrowClockwiseIcon,
+	ArrowSquareOutIcon,
 	BookOpenIcon,
 	CheckIcon,
 	ClipboardIcon,
 	CodeIcon,
-	ArrowSquareOutIcon,
 	FileCodeIcon,
 	InfoIcon,
-	ArrowClockwiseIcon,
+	WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -95,7 +95,10 @@ const CodeBlock = ({
 					variant="ghost"
 				>
 					{copied ? (
-						<CheckIcon className="h-3.5 w-3.5 text-green-500" weight="duotone" />
+						<CheckIcon
+							className="h-3.5 w-3.5 text-green-500"
+							weight="duotone"
+						/>
 					) : (
 						<ClipboardIcon className="h-3.5 w-3.5" weight="duotone" />
 					)}
@@ -140,19 +143,19 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 			<Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20">
 				<CardHeader>
 					<div className="flex items-center justify-between">
-											<CardTitle className="flex items-center gap-2 text-lg">
-						<WarningCircleIcon className="h-5 w-5" weight="duotone" />
-						Tracking Not Setup
-					</CardTitle>
-											<Button
-						aria-label="Refresh tracking status"
-						className="h-8 w-8"
-						onClick={handleRefresh}
-						size="icon"
-						variant="outline"
-					>
-						<ArrowClockwiseIcon className="h-4 w-4" weight="fill" />
-					</Button>
+						<CardTitle className="flex items-center gap-2 text-lg">
+							<WarningCircleIcon className="h-5 w-5" weight="duotone" />
+							Tracking Not Setup
+						</CardTitle>
+						<Button
+							aria-label="Refresh tracking status"
+							className="h-8 w-8"
+							onClick={handleRefresh}
+							size="icon"
+							variant="outline"
+						>
+							<ArrowClockwiseIcon className="h-4 w-4" weight="fill" />
+						</Button>
 					</div>
 					<CardDescription>
 						Install the tracking script to start collecting analytics data for

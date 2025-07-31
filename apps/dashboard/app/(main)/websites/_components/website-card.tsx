@@ -1,21 +1,13 @@
-import type { MiniChartDataPoint, Website } from '@databuddy/shared';
+import type { ProcessedMiniChartData, Website } from '@databuddy/shared';
 import {
 	ArrowRightIcon,
-	GlobeIcon,
 	MinusIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from '@phosphor-icons/react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { memo, useMemo } from 'react';
-import {
-	Area,
-	AreaChart,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis,
-} from 'recharts';
+import { memo, Suspense } from 'react';
 import { FaviconImage } from '@/components/analytics/favicon-image';
 import {
 	Card,
@@ -28,107 +20,31 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface WebsiteCardProps {
 	website: Website;
-	chartData?: MiniChartDataPoint[];
+	chartData?: ProcessedMiniChartData;
 	isLoadingChart?: boolean;
 }
 
 const formatNumber = (num: number) => {
-	if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-	if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+	if (num >= 1_000_000) {
+		return `${(num / 1_000_000).toFixed(1)}M`;
+	}
+	if (num >= 1000) {
+		return `${(num / 1000).toFixed(1)}K`;
+	}
 	return num.toString();
 };
 
-const getTrend = (data: MiniChartDataPoint[]) => {
-	if (!data || data.length === 0) return null;
-
-	const mid = Math.floor(data.length / 2);
-	const [first, second] = [data.slice(0, mid), data.slice(mid)];
-
-	const avg = (arr: MiniChartDataPoint[]) =>
-		arr.length > 0 ? arr.reduce((sum, p) => sum + p.value, 0) / arr.length : 0;
-	const [prevAvg, currAvg] = [avg(first), avg(second)];
-
-	if (prevAvg === 0)
-		return currAvg > 0
-			? { type: 'up', value: 100 }
-			: { type: 'neutral', value: 0 };
-
-	const change = ((currAvg - prevAvg) / prevAvg) * 100;
-	let type: 'up' | 'down' | 'neutral' = 'neutral';
-	if (change > 5) type = 'up';
-	else if (change < -5) type = 'down';
-	return { type, value: Math.abs(change) };
-};
-
-const Chart = memo(
-	({ data, id }: { data: MiniChartDataPoint[]; id: string }) => (
-		<div className="chart-container">
-			<ResponsiveContainer height={50} width="100%">
-				<AreaChart
-					data={data}
-					margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
-				>
-					<defs>
-						<linearGradient id={`gradient-${id}`} x1="0" x2="0" y1="0" y2="1">
-							<stop
-								offset="5%"
-								stopColor="var(--chart-color)"
-								stopOpacity={0.8}
-							/>
-							<stop
-								offset="95%"
-								stopColor="var(--chart-color)"
-								stopOpacity={0.1}
-							/>
-						</linearGradient>
-					</defs>
-					<XAxis dataKey="date" hide />
-					<YAxis domain={['dataMin - 5', 'dataMax + 5']} hide />
-					<Tooltip
-						content={({ active, payload, label }) =>
-							active && payload?.[0] && typeof payload[0].value === 'number' ? (
-								<div className="rounded-lg border bg-background p-2 text-sm shadow-lg">
-									<p className="font-medium">
-										{new Date(label).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-										})}
-									</p>
-									<p className="text-primary">
-										{formatNumber(payload[0].value)} views
-									</p>
-								</div>
-							) : null
-						}
-					/>
-					<Area
-						dataKey="value"
-						dot={false}
-						fill={`url(#gradient-${id})`}
-						stroke="var(--chart-color)"
-						strokeWidth={2.5}
-						type="monotone"
-					/>
-				</AreaChart>
-			</ResponsiveContainer>
-		</div>
-	)
+// Lazy load the chart component to improve initial page load
+const MiniChart = dynamic(
+	() => import('./mini-chart').then((mod) => mod.default),
+	{
+		loading: () => <Skeleton className="h-12 w-full rounded" />,
+		ssr: false,
+	}
 );
-
-Chart.displayName = 'Chart';
 
 export const WebsiteCard = memo(
 	({ website, chartData, isLoadingChart }: WebsiteCardProps) => {
-		const data = chartData || [];
-
-		const { totalViews, trend } = useMemo(
-			() => ({
-				totalViews: data.reduce((sum, point) => sum + point.value, 0),
-				trend: getTrend(data),
-			}),
-			[data]
-		);
-
 		return (
 			<Link
 				className="group block"
@@ -173,15 +89,15 @@ export const WebsiteCard = memo(
 								<Skeleton className="h-12 w-full rounded" />
 							</div>
 						) : chartData ? (
-							data.length > 0 ? (
+							chartData.data.length > 0 ? (
 								<div className="space-y-2">
 									<div className="flex items-center justify-between">
 										<span className="font-medium text-muted-foreground text-xs">
-											{formatNumber(totalViews)} views
+											{formatNumber(chartData.totalViews)} views
 										</span>
-										{trend && (
+										{chartData.trend && (
 											<div className="flex items-center gap-1 font-medium text-xs">
-												{trend.type === 'up' ? (
+												{chartData.trend.type === 'up' ? (
 													<>
 														<TrendUpIcon
 															aria-hidden="true"
@@ -193,10 +109,10 @@ export const WebsiteCard = memo(
 															className="!text-success"
 															style={{ color: 'var(--tw-success, #22c55e)' }}
 														>
-															+{trend.value.toFixed(0)}%
+															+{chartData.trend.value.toFixed(0)}%
 														</span>
 													</>
-												) : trend.type === 'down' ? (
+												) : chartData.trend.type === 'down' ? (
 													<>
 														<TrendDownIcon
 															aria-hidden="true"
@@ -212,7 +128,7 @@ export const WebsiteCard = memo(
 																color: 'var(--tw-destructive, #ef4444)',
 															}}
 														>
-															-{trend.value.toFixed(0)}%
+															-{chartData.trend.value.toFixed(0)}%
 														</span>
 													</>
 												) : (
@@ -229,7 +145,11 @@ export const WebsiteCard = memo(
 										)}
 									</div>
 									<div className="transition-colors duration-300 [--chart-color:theme(colors.primary.DEFAULT)] group-hover:[--chart-color:theme(colors.primary.600)]">
-										<Chart data={data} id={website.id} />
+										<Suspense
+											fallback={<Skeleton className="h-12 w-full rounded" />}
+										>
+											<MiniChart data={chartData.data} id={website.id} />
+										</Suspense>
 									</div>
 								</div>
 							) : (

@@ -46,8 +46,12 @@ export function OrganizationSelector() {
 
 	const handleSelectOrganization = React.useCallback(
 		(organizationId: string | null) => {
-			if (organizationId === activeOrganization?.id) return;
-			if (organizationId === null && !activeOrganization) return;
+			if (organizationId === activeOrganization?.id) {
+				return;
+			}
+			if (organizationId === null && !activeOrganization) {
+				return;
+			}
 			setActiveOrganization(organizationId);
 			setIsOpen(false);
 		},

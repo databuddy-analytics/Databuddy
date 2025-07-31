@@ -1,14 +1,6 @@
 'use client';
 
-import {
-	BarChart3,
-	Database,
-	Download,
-	Play,
-	Plus,
-	Search,
-	Trash2,
-} from 'lucide-react';
+import { BarChart3, Database, Download, Play, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -84,8 +76,12 @@ export default function DatabaseManager() {
 			const tablesData = await tablesRes.json();
 			const statsData = await statsRes.json();
 
-			if (tablesData.success) setTables(tablesData.data);
-			if (statsData.success) setStats(statsData.data);
+			if (tablesData.success) {
+				setTables(tablesData.data);
+			}
+			if (statsData.success) {
+				setStats(statsData.data);
+			}
 		} catch (error) {
 			console.error('Failed to load data:', error);
 		} finally {
@@ -94,16 +90,22 @@ export default function DatabaseManager() {
 	};
 
 	const formatBytes = (bytes: number) => {
-		if (bytes === 0) return '0 B';
+		if (bytes === 0) {
+			return '0 B';
+		}
 		const k = 1024;
 		const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Number.parseFloat((bytes / k ** i).toFixed(1)) + ' ' + sizes[i];
+		return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 	};
 
 	const formatNumber = (num: number) => {
-		if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
-		if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+		if (num >= 1_000_000) {
+			return `${(num / 1_000_000).toFixed(1)}M`;
+		}
+		if (num >= 1000) {
+			return `${(num / 1000).toFixed(1)}K`;
+		}
 		return num.toString();
 	};
 

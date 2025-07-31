@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMapLocationData } from '@/hooks/use-dynamic-query';
 import { cn } from '@/lib/utils';
-import type { LocationData } from '@databuddy/shared';
 import { WebsitePageHeader } from '../_components/website-page-header';
 
 const MapComponent = dynamic(
@@ -204,20 +203,18 @@ function WebsiteMapPage() {
 					<CardContent className="min-h-0 flex-1 overflow-hidden p-0">
 						{isLoading ? (
 							<div className="space-y-2 p-4">
-								{Array(6)
-									.fill(0)
-									.map((_, i) => (
-										<div
-											className="flex items-center justify-between p-3"
-											key={`country-skeleton-${i + 1}`}
-										>
-											<div className="flex items-center gap-3">
-												<Skeleton className="h-4 w-6 rounded" />
-												<Skeleton className="h-4 w-20" />
-											</div>
-											<Skeleton className="h-4 w-12" />
+								{new Array(6).fill(0).map((_, i) => (
+									<div
+										className="flex items-center justify-between p-3"
+										key={`country-skeleton-${i + 1}`}
+									>
+										<div className="flex items-center gap-3">
+											<Skeleton className="h-4 w-6 rounded" />
+											<Skeleton className="h-4 w-20" />
 										</div>
-									))}
+										<Skeleton className="h-4 w-12" />
+									</div>
+								))}
 							</div>
 						) : (
 							<div className="max-h-full overflow-y-auto">

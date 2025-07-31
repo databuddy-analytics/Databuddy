@@ -11,7 +11,7 @@ import {
 	TestTubeIcon,
 	TrashIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
 	AlertDialog,
@@ -42,7 +42,10 @@ export function RevenueSettingsTab({
 	const [isLiveMode, setIsLiveMode] = useState(revenueConfig.isLiveMode);
 
 	// Check if the webhook secret is masked (contains asterisks)
-	const isMaskedSecret = (secret: string) => secret.includes('*');
+	const isMaskedSecret = useCallback(
+		(secret: string) => secret.includes('*'),
+		[]
+	);
 
 	// Initialize webhook secret only if it's not masked
 	useEffect(() => {
@@ -50,7 +53,7 @@ export function RevenueSettingsTab({
 		if (!isMaskedSecret(currentSecret)) {
 			setWebhookSecret(currentSecret);
 		}
-	}, [revenueConfig.webhookSecret]);
+	}, [revenueConfig.webhookSecret, isMaskedSecret]);
 
 	const handleSave = async () => {
 		// Only update webhook secret if user has entered a new one

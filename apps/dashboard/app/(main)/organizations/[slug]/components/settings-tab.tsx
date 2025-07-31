@@ -32,13 +32,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { type Organization, useOrganizations } from '@/hooks/use-organizations';
 import { trpc } from '@/lib/trpc';
 import { OrganizationLogoUploader } from './organization-logo-uploader';
 import { TransferAssets } from './transfer-assets';
 
 interface SettingsTabProps {
-	organization: any;
+	organization: Organization;
 }
 
 export function SettingsTab({ organization }: SettingsTabProps) {
@@ -91,7 +91,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			if (slug !== organization.slug) {
 				router.push(`/organizations/${slug}`);
 			}
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Failed to update organization');
 		} finally {
 			setIsSaving(false);
@@ -104,7 +104,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			await deleteOrganization(organization.id);
 			toast.success('Organization deleted successfully');
 			router.push('/organizations');
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Failed to delete organization');
 		} finally {
 			setIsDeleting(false);

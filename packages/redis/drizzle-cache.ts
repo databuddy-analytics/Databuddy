@@ -16,7 +16,9 @@ export type WithCacheArgs<T> = {
 
 // Add a custom log function
 function logIfDebug(type: 'info' | 'error', ...args: any[]) {
-	if (!process.env.DEBUG) return;
+	if (!process.env.DEBUG) {
+		return;
+	}
 	if (type === 'error') {
 		console.error(...args);
 	} else {
@@ -142,7 +144,9 @@ export function createDrizzleCache({
 			for (const table of tables) {
 				const depKey = makeDepKey(table);
 				const members = await redis.smembers(depKey);
-				for (const k of members) keys.add(makeKey(k));
+				for (const k of members) {
+					keys.add(makeKey(k));
+				}
 				await redis.del(depKey);
 			}
 
@@ -156,7 +160,9 @@ export function createDrizzleCache({
 			for (const tag of tags) {
 				const tagKey = makeTagKey(tag);
 				const members = await redis.smembers(tagKey);
-				for (const k of members) keys.add(makeKey(k));
+				for (const k of members) {
+					keys.add(makeKey(k));
+				}
 				await redis.del(tagKey);
 			}
 
@@ -185,13 +191,17 @@ export function createDrizzleCache({
 			const depKeys = await redis.keys(`${namespace}:dep:*`);
 			for (const depKey of depKeys) {
 				const count = await redis.scard(depKey);
-				if (count === 0) await redis.del(depKey);
+				if (count === 0) {
+					await redis.del(depKey);
+				}
 			}
 			// Clean up empty tag sets
 			const tagKeys = await redis.keys(`${namespace}:tag:*`);
 			for (const tagKey of tagKeys) {
 				const count = await redis.scard(tagKey);
-				if (count === 0) await redis.del(tagKey);
+				if (count === 0) {
+					await redis.del(tagKey);
+				}
 			}
 		},
 	};

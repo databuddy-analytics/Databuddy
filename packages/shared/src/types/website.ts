@@ -17,6 +17,15 @@ export interface MiniChartDataPoint {
 	value: number;
 }
 
+export interface ProcessedMiniChartData {
+	data: MiniChartDataPoint[];
+	totalViews: number;
+	trend: {
+		type: 'up' | 'down' | 'neutral';
+		value: number;
+	} | null;
+}
+
 export interface CreateWebsiteData {
 	name: string;
 	domain: string;

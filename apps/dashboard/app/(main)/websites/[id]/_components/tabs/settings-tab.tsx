@@ -72,9 +72,7 @@ export function WebsiteSettingsTab({
 }: WebsiteDataTabProps) {
 	const router = useRouter();
 	const [copied, setCopied] = useState(false);
-	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
-		'script'
-	);
+	const [installMethod] = useState<'script' | 'npm'>('script');
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [showEditDialog, setShowEditDialog] = useState(false);
 	const [activeTab, setActiveTab] = useState<
@@ -140,7 +138,6 @@ export function WebsiteSettingsTab({
 							{activeTab === 'tracking' && (
 								<TrackingCodeTab
 									copied={copied}
-									installMethod={installMethod}
 									npmCode={npmCode}
 									onCopyCode={handleCopyCode}
 									onCopyComponentCode={() =>
@@ -148,7 +145,6 @@ export function WebsiteSettingsTab({
 											generateNpmComponentCode(websiteId, trackingOptions)
 										)
 									}
-									setInstallMethod={setInstallMethod}
 									trackingCode={trackingCode}
 									websiteData={websiteData}
 									websiteId={websiteId}
@@ -178,7 +174,6 @@ export function WebsiteSettingsTab({
 
 							{activeTab !== 'tracking' && (
 								<TabActions
-									activeTab={activeTab}
 									installMethod={installMethod}
 									onCopyCode={() =>
 										handleCopyCode(
@@ -201,7 +196,6 @@ export function WebsiteSettingsTab({
 										}
 									}}
 									onResetDefaults={() => setTrackingOptions(resetToDefaults())}
-									trackingCode={trackingCode}
 								/>
 							)}
 						</CardContent>
@@ -351,8 +345,6 @@ function SettingsNavigation({
 	const advancedEnabled = [
 		trackingOptions.trackEngagement,
 		trackingOptions.trackScrollDepth,
-		trackingOptions.trackExitIntent,
-		trackingOptions.trackBounceRate,
 		trackingOptions.trackErrors,
 		trackingOptions.trackPerformance,
 		trackingOptions.trackWebVitals,
@@ -418,9 +410,9 @@ function SettingsNavigation({
 							</div>
 							<Badge
 								className="h-5 px-2 text-xs"
-								variant={advancedEnabled > 4 ? 'default' : 'secondary'}
+								variant={advancedEnabled > 2 ? 'default' : 'secondary'}
 							>
-								{advancedEnabled}/7
+								{advancedEnabled}/5
 							</Badge>
 						</Button>
 
@@ -621,14 +613,17 @@ function CodeBlock({
 	onCopy: () => void;
 }) {
 	// Determine language based on code content
-	const getLanguage = (code: string) => {
-		if (code.includes('npm install') || code.includes('bun add')) {
+	const getLanguage = (codeContent: string) => {
+		if (
+			codeContent.includes('npm install') ||
+			codeContent.includes('bun add')
+		) {
 			return 'bash';
 		}
-		if (code.includes('<script')) {
+		if (codeContent.includes('<script')) {
 			return 'html';
 		}
-		if (code.includes('import') && code.includes('from')) {
+		if (codeContent.includes('import') && codeContent.includes('from')) {
 			return 'jsx';
 		}
 		return 'javascript';
@@ -683,7 +678,13 @@ function CodeBlock({
 	);
 }
 
-function WebsiteInfoSection({ websiteData, websiteId }: any) {
+function WebsiteInfoSection({
+	websiteData,
+	websiteId,
+}: {
+	websiteData: Website;
+	websiteId: string;
+}) {
 	return (
 		<div className="mt-6 grid grid-cols-2 gap-4">
 			<div className="space-y-3 rounded-md bg-muted/50 p-4">
@@ -748,7 +749,14 @@ function BasicTrackingTab({
 	trackingOptions: TrackingOptions;
 	onToggleOption: (option: keyof TrackingOptions) => void;
 }) {
-	const trackingOptionsConfig = [
+	const trackingOptionsConfig: Array<{
+		key: keyof TrackingOptions;
+		title: string;
+		description: string;
+		data: string[];
+		required?: boolean;
+		inverted?: boolean;
+	}> = [
 		{
 			key: 'disabled',
 			title: 'Enable Tracking',
@@ -835,7 +843,14 @@ function AdvancedTrackingTab({
 	trackingOptions: TrackingOptions;
 	onToggleOption: (option: keyof TrackingOptions) => void;
 }) {
-	const advancedOptionsConfig = [
+	const advancedOptionsConfig: Array<{
+		key: keyof TrackingOptions;
+		title: string;
+		description: string;
+		data: string[];
+		required?: boolean;
+		inverted?: boolean;
+	}> = [
 		{
 			key: 'trackEngagement',
 			title: 'Engagement Tracking',
@@ -855,26 +870,6 @@ function AdvancedTrackingTab({
 				'Maximum scroll percentage',
 				'Scroll milestones (25%, 50%, 75%, 100%)',
 				'Time spent at different scroll positions',
-			],
-		},
-		{
-			key: 'trackExitIntent',
-			title: 'Exit Intent',
-			description: 'Track when users are about to leave the page',
-			data: [
-				'Mouse movement towards browser controls',
-				'Exit intent events',
-				'Time before exit detection',
-			],
-		},
-		{
-			key: 'trackBounceRate',
-			title: 'Bounce Rate',
-			description: 'Track bounce behavior and engagement quality',
-			data: [
-				'Single page sessions',
-				'Time spent before bounce',
-				'Interaction before leaving',
 			],
 		},
 		{
@@ -937,9 +932,8 @@ function TrackingOptionsGrid({
 		title: string;
 		description: string;
 		data: string[];
-		enabled: boolean;
-		required: boolean;
-		inverted: boolean;
+		required?: boolean;
+		inverted?: boolean;
 	}[];
 	trackingOptions: TrackingOptions;
 	onToggleOption: (option: keyof TrackingOptions) => void;
@@ -958,8 +952,10 @@ function TrackingOptionsGrid({
 						<TrackingOptionCard
 							key={key}
 							{...optionProps}
-							enabled={trackingOptions[key]}
+							enabled={trackingOptions[key] as boolean}
+							inverted={optionProps.inverted ?? false}
 							onToggle={() => onToggleOption(key)}
+							required={optionProps.required ?? false}
 						/>
 					);
 				})}
@@ -974,16 +970,16 @@ function TrackingOptionCard({
 	data,
 	enabled,
 	onToggle,
-	required,
-	inverted,
+	required = false,
+	inverted = false,
 }: {
 	title: string;
 	description: string;
 	data: string[];
 	enabled: boolean;
 	onToggle: () => void;
-	required: boolean;
-	inverted: boolean;
+	required?: boolean;
+	inverted?: boolean;
 }) {
 	const isEnabled = inverted ? !enabled : enabled;
 
@@ -1023,7 +1019,9 @@ function OptimizationTab({
 	setTrackingOptions,
 }: {
 	trackingOptions: TrackingOptions;
-	setTrackingOptions: (options: TrackingOptions) => void;
+	setTrackingOptions: (
+		options: TrackingOptions | ((prev: TrackingOptions) => TrackingOptions)
+	) => void;
 }) {
 	return (
 		<div className="space-y-4">
@@ -1116,7 +1114,9 @@ function BatchingSection({
 	setTrackingOptions,
 }: {
 	trackingOptions: TrackingOptions;
-	setTrackingOptions: (options: TrackingOptions) => void;
+	setTrackingOptions: (
+		options: TrackingOptions | ((prev: TrackingOptions) => TrackingOptions)
+	) => void;
 }) {
 	return (
 		<div className="rounded-lg border p-4">
@@ -1214,7 +1214,9 @@ function NetworkResilienceSection({
 	setTrackingOptions,
 }: {
 	trackingOptions: TrackingOptions;
-	setTrackingOptions: (options: TrackingOptions) => void;
+	setTrackingOptions: (
+		options: TrackingOptions | ((prev: TrackingOptions) => TrackingOptions)
+	) => void;
 }) {
 	return (
 		<div className="rounded-lg border p-4">

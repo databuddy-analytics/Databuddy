@@ -222,7 +222,9 @@ export function MinimalTable<TData extends RowData, TValue>({
 	// Enhanced tab switching with transition
 	const handleTabChange = useCallback(
 		(tabId: string) => {
-			if (tabId === activeTab) return;
+			if (tabId === activeTab) {
+				return;
+			}
 
 			setIsTransitioning(true);
 			setTimeout(() => {
@@ -333,7 +335,6 @@ export function MinimalTable<TData extends RowData, TValue>({
 					<nav
 						aria-label="Data view options"
 						className="flex gap-0.5 rounded-lg bg-muted/40 p-0.5"
-						role="tablist"
 					>
 						{tabs.map((tab) => {
 							const isActive = activeTab === tab.id;

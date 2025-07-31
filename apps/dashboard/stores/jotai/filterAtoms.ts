@@ -40,7 +40,7 @@ export const timeGranularityAtom = atom<TimeGranularity>('daily');
  */
 export const setDateRangeAndAdjustGranularityAtom = atom(
 	null,
-	(get, set, newRange: DateRangeState) => {
+	(_get, set, newRange: DateRangeState) => {
 		set(dateRangeAtom, newRange);
 		const diffDays = differenceInDays(newRange.endDate, newRange.startDate);
 		if (diffDays <= 2) {
@@ -113,7 +113,7 @@ export const complexFiltersAtom = atom<ComplexFilter[]>([]);
  */
 export const setBasicFilterAtom = atom(
 	null,
-	(get, set, { key, value }: { key: string; value: BasicFilterValue }) => {
+	(_get, set, { key, value }: { key: string; value: BasicFilterValue }) => {
 		set(basicFiltersAtom, (prev) => {
 			if (value === undefined) {
 				const { [key]: _, ...rest } = prev;
@@ -127,7 +127,7 @@ export const setBasicFilterAtom = atom(
 /**
  * Clears a specific basic filter by its key, or all basic filters if no key is provided.
  */
-export const clearBasicFilterAtom = atom(null, (get, set, key?: string) => {
+export const clearBasicFilterAtom = atom(null, (_get, set, key?: string) => {
 	if (key) {
 		set(basicFiltersAtom, (prev) => {
 			const { [key]: _, ...rest } = prev;
@@ -147,7 +147,7 @@ export const clearBasicFilterAtom = atom(null, (get, set, key?: string) => {
  */
 export const upsertComplexFilterAtom = atom(
 	null,
-	(get, set, filter: ComplexFilter) => {
+	(_get, set, filter: ComplexFilter) => {
 		set(complexFiltersAtom, (prev) => {
 			const existingIndex = prev.findIndex((f) => f.id === filter.id);
 			if (existingIndex > -1) {
@@ -165,7 +165,7 @@ export const upsertComplexFilterAtom = atom(
  */
 export const removeComplexFilterAtom = atom(
 	null,
-	(get, set, filterId: string) => {
+	(_get, set, filterId: string) => {
 		set(complexFiltersAtom, (prev) => prev.filter((f) => f.id !== filterId));
 	}
 );
@@ -173,14 +173,14 @@ export const removeComplexFilterAtom = atom(
 /**
  * Clears all complex filters.
  */
-export const clearComplexFiltersAtom = atom(null, (get, set) => {
+export const clearComplexFiltersAtom = atom(null, (_get, set) => {
 	set(complexFiltersAtom, []);
 });
 
 /**
  * Resets all filters (date range, granularity, basic, complex) to their initial states.
  */
-export const clearAllFiltersAtom = atom(null, (get, set) => {
+export const clearAllFiltersAtom = atom(null, (_get, set) => {
 	set(dateRangeAtom, { startDate: initialStartDate, endDate: initialEndDate });
 	set(timeGranularityAtom, 'daily'); // Reset to default granularity
 	set(basicFiltersAtom, {});

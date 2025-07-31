@@ -16,7 +16,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type Organization,
+	type OrganizationsError,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { getOrganizationInitials } from '@/lib/utils';
 import { OrganizationPageSkeleton } from './components/organization-page-skeleton';
 import { OverviewTab } from './components/overview-tab';
@@ -27,7 +31,11 @@ function SetActiveButton({
 	onSetActive,
 	isSettingActive,
 	isCurrentlyActive,
-}: any) {
+}: {
+	onSetActive: () => void;
+	isSettingActive: boolean;
+	isCurrentlyActive: boolean;
+}) {
 	if (isCurrentlyActive) {
 		return (
 			<Badge
@@ -62,12 +70,19 @@ function SetActiveButton({
 	);
 }
 
+interface PageHeaderProps {
+	organization: Organization;
+	isCurrentlyActive: boolean;
+	onSetActive: () => void;
+	isSettingActive: boolean;
+}
+
 function PageHeader({
 	organization,
 	isCurrentlyActive,
 	onSetActive,
 	isSettingActive,
-}: any) {
+}: PageHeaderProps) {
 	return (
 		<div className="rounded border border-border/50 bg-muted/30 p-6">
 			<div className="flex items-center justify-between">
@@ -128,7 +143,13 @@ function OrganizationNotFound() {
 	);
 }
 
-function ErrorDisplay({ onRetry, error }: any) {
+function ErrorDisplay({
+	onRetry,
+	error,
+}: {
+	onRetry: () => void;
+	error: OrganizationsError;
+}) {
 	return (
 		<div className="py-12 text-center">
 			<div className="mx-auto max-w-md rounded border border-border/50 bg-muted/30 p-6">

@@ -1,9 +1,9 @@
-import type { CheckProductPreview } from 'autumn-js';
+import type { Product } from 'autumn-js';
 
-export const getPricingTableContent = (product: any) => {
+export const getPricingTableContent = (product: Product) => {
 	const { scenario, free_trial } = product;
 
-	if (free_trial && free_trial.trial_available) {
+	if (free_trial?.trial_available) {
 		return {
 			buttonText: <p>Start Free Trial</p>,
 		};

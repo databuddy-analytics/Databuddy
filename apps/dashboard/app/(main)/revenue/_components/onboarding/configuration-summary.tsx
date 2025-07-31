@@ -1,10 +1,6 @@
 'use client';
 
-import {
-	CheckCircleIcon,
-	KeyIcon,
-	WarningCircleIcon,
-} from '@phosphor-icons/react';
+import { CheckCircleIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';

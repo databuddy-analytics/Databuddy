@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WebsiteDialog } from '@/components/website-dialog';
 import { useWebsites } from '@/hooks/use-websites';
+
 import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import { WebsiteCard } from './_components/website-card';
@@ -151,26 +152,11 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 export default function WebsitesPage() {
-	const { websites, isLoading, isError, refetch } = useWebsites();
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const websiteIds = websites.map((w) => w.id);
-
-	const { data: chartData, isLoading: isLoadingChart } =
-		trpc.miniCharts.getMiniCharts.useQuery(
-			{
-				websiteIds,
-			},
-			{
-				enabled: !isLoading && websiteIds.length > 0,
-			}
-		);
+	const { websites, chartData, isLoading, isError, refetch } = useWebsites();
 
 	const handleRetry = () => {
-		refetch();
-	};
-
-	const handleWebsiteCreated = () => {
 		refetch();
 	};
 
@@ -270,8 +256,8 @@ export default function WebsitesPage() {
 					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 						{websites.map((website) => (
 							<WebsiteCard
-								chartData={chartData?.[website.id] || []}
-								isLoadingChart={isLoadingChart}
+								chartData={chartData?.[website.id]}
+								isLoadingChart={isLoading}
 								key={website.id}
 								website={website}
 							/>
@@ -281,11 +267,7 @@ export default function WebsitesPage() {
 			</div>
 
 			{/* Website Dialog */}
-			<WebsiteDialog
-				onOpenChange={setDialogOpen}
-				onSave={handleWebsiteCreated}
-				open={dialogOpen}
-			/>
+			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
 		</div>
 	);
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import {
-	ArrowRightIcon,
 	BuildingsIcon,
 	CheckIcon,
 	GearIcon,
@@ -16,7 +15,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn } from '@/lib/utils';
 import { OrganizationSwitcher } from './components/organization-switcher';
 
@@ -82,8 +85,8 @@ function ActiveOrganizationBanner({
 	activeOrg,
 	organizations,
 }: {
-	activeOrg: any;
-	organizations: any[];
+	activeOrg: ActiveOrganization;
+	organizations: Organization[];
 }) {
 	if (!activeOrg) {
 		return (
@@ -181,7 +184,7 @@ function QuickStats({
 	activeOrg,
 }: {
 	orgCount: number;
-	activeOrg: any;
+	activeOrg: ActiveOrganization;
 }) {
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -243,7 +246,12 @@ function MainView({
 	activeOrganization,
 	isLoading,
 	onNewOrg,
-}: any) {
+}: {
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
+	isLoading: boolean;
+	onNewOrg: () => void;
+}) {
 	const [activeTab, setActiveTab] = useState('organizations');
 
 	return (
@@ -303,7 +311,7 @@ function MainView({
 					value="teams"
 				>
 					<Suspense fallback={<TabSkeleton />}>
-						<TeamsTab organization={activeOrganization || {}} />
+						<TeamsTab organization={activeOrganization} />
 					</Suspense>
 				</TabsContent>
 			</Tabs>

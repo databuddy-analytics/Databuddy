@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, BarChart, Home } from 'lucide-react';
+import { ArrowLeft, Home } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Logo } from '@/components/layout/logo';
@@ -22,7 +22,9 @@ export default function NotFound() {
 		return () => clearInterval(interval);
 	}, []);
 
-	if (!mounted) return null;
+	if (!mounted) {
+		return null;
+	}
 
 	return (
 		<div className="flex h-screen flex-col items-center justify-center bg-background p-4">

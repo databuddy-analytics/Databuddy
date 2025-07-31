@@ -65,7 +65,9 @@ export default function Iridescence({
 	const mousePos = useRef({ x: 0.5, y: 0.5 });
 
 	useEffect(() => {
-		if (!ctnDom.current) return;
+		if (!ctnDom.current) {
+			return;
+		}
 		const ctn = ctnDom.current;
 		const renderer = new Renderer();
 		const gl = renderer.gl;
