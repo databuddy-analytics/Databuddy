@@ -54,7 +54,9 @@ function MapZoomController({
 		const countryFeature = countriesGeoData.features?.find(
 			(feature: Feature<any>) => 
 				feature.properties?.ISO_A2 === selectedCountry ||
-				feature.properties?.ADMIN?.toUpperCase() === selectedCountry?.toUpperCase()
+				feature.properties?.ADMIN?.toUpperCase() === selectedCountry?.toUpperCase() ||
+				feature.properties?.NAME?.toUpperCase() === selectedCountry?.toUpperCase() ||
+				feature.properties?.ISO_A3 === selectedCountry
 		);
 
 		if (countryFeature?.geometry) {
