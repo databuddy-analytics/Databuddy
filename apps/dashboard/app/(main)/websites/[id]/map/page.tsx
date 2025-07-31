@@ -1,11 +1,11 @@
 'use client';
 
-import { GlobeIcon, MapPinIcon, QuestionIcon } from '@phosphor-icons/react';
+import { GlobeIcon, MapPinIcon, QuestionIcon, ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { CountryFlag } from '@/components/analytics/icons/CountryFlag';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,6 +37,7 @@ const MapComponent = dynamic(
 function WebsiteMapPage() {
 	const { id } = useParams<{ id: string }>();
 	const [mode, setMode] = useState<'total' | 'perCapita'>('total');
+	const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
 	const { isLoading, getDataForQuery } = useMapLocationData(id, {
 		start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -85,6 +86,14 @@ function WebsiteMapPage() {
 	const unknownVisitors =
 		locationData.countries.find((c) => !c.country || c.country.trim() === '')
 			?.visitors || 0;
+
+	const handleCountryClick = (countryCode: string) => {
+		setSelectedCountry(countryCode);
+	};
+
+	const handleResetZoom = () => {
+		setSelectedCountry(null);
+	};
 
 	return (
 		<div className="flex h-[calc(100vh-7rem)] flex-col space-y-4 p-3 sm:p-4 lg:p-6">
@@ -149,9 +158,25 @@ function WebsiteMapPage() {
 								/>
 								World Map
 							</span>
-							<Badge className="text-xs" variant="secondary">
-								Hover to explore
-							</Badge>
+							<div className="flex items-center gap-2">
+								<Badge className="text-xs" variant="secondary">
+									Hover to explore
+								</Badge>
+								{selectedCountry && (
+									<Button
+										className="h-7 px-2 text-xs"
+										onClick={handleResetZoom}
+										size="sm"
+										variant="outline"
+									>
+										<ArrowCounterClockwiseIcon 
+											className="h-3 w-3 mr-1" 
+											weight="duotone"
+										/>
+										Reset
+									</Button>
+								)}
+							</div>
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="min-h-0 flex-1 p-0">
@@ -160,6 +185,7 @@ function WebsiteMapPage() {
 							isLoading={isLoading}
 							locationData={locationData}
 							mode={mode}
+							selectedCountry={selectedCountry}
 						/>
 					</CardContent>
 				</Card>
@@ -202,13 +228,24 @@ function WebsiteMapPage() {
 												totalVisitors > 0
 													? (country.visitors / totalVisitors) * 100
 													: 0;
+											const isSelected = selectedCountry === (country.country_code || country.country);
 											return (
 												<div
 													className={cn(
 														'flex cursor-pointer items-center justify-between border-border/20 border-b p-3 transition-colors last:border-b-0 hover:bg-muted/50',
-														index === 0 && 'bg-primary/5'
+														index === 0 && 'bg-primary/5',
+														isSelected && 'bg-primary/10 border-primary/30 ring-1 ring-primary/20'
 													)}
 													key={country.country}
+													onClick={() => handleCountryClick(country.country_code || country.country)}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															handleCountryClick(country.country_code || country.country);
+														}
+													}}
+													role="button"
+													tabIndex={0}
 												>
 													<div className="flex min-w-0 flex-1 items-center gap-3">
 														<div className="relative h-4 w-6 flex-shrink-0 overflow-hidden rounded shadow-sm">
@@ -223,7 +260,10 @@ function WebsiteMapPage() {
 															/>
 														</div>
 														<div className="min-w-0 flex-1">
-															<div className="truncate font-medium text-sm">
+															<div className={cn(
+																"truncate font-medium text-sm",
+																isSelected && "text-primary font-semibold"
+															)}>
 																{country.country}
 															</div>
 															<div className="text-muted-foreground text-xs">
