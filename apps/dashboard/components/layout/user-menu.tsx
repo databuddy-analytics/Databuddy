@@ -94,11 +94,11 @@ export function UserMenu() {
 							{getUserInitials()}
 						</AvatarFallback>
 					</Avatar>
-					<div className="flex flex-col space-y-0.5">
-						<span className="font-medium text-sm leading-none">
+					<div className="flex min-w-0 flex-col space-y-0.5">
+						<span className="truncate font-medium text-sm leading-none">
 							{session?.user?.name || 'User'}
 						</span>
-						<span className="text-muted-foreground text-xs leading-none">
+						<span className="truncate text-muted-foreground text-xs leading-none">
 							{session?.user?.email || ''}
 						</span>
 					</div>

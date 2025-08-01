@@ -18,11 +18,11 @@ const HelpDialog = dynamic(
 );
 
 interface TopHeaderProps {
-	setMobileOpen: () => void;
+	toggleMobileSidebar: () => void;
 }
 
 export const TopHeader = memo(function TopHeaderComponent({
-	setMobileOpen,
+	toggleMobileSidebar,
 }: TopHeaderProps) {
 	const [helpOpen, setHelpOpen] = useState(false);
 
@@ -37,7 +37,7 @@ export const TopHeader = memo(function TopHeaderComponent({
 					<Button
 						aria-label="Toggle navigation menu"
 						className="md:hidden"
-						onClick={setMobileOpen}
+						onClick={toggleMobileSidebar}
 						size="icon"
 						type="button"
 						variant="ghost"

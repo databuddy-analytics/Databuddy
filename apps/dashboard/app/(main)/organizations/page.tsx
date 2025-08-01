@@ -164,14 +164,14 @@ function ActiveOrganizationBanner({
 // Sub-components
 function PageHeader({ onNewOrg }: { onNewOrg: () => void }) {
 	return (
-		<div className="flex items-center justify-between">
+		<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 			<div>
 				<h1 className="font-bold text-2xl">Organizations</h1>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Manage your organizations and team collaboration
 				</p>
 			</div>
-			<Button className="rounded" onClick={onNewOrg} size="sm">
+			<Button className="w-full rounded sm:w-auto" onClick={onNewOrg} size="sm">
 				<PlusIcon className="mr-2 h-4 w-4" size={16} />
 				New Organization
 			</Button>

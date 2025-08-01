@@ -53,6 +53,14 @@ export function Sidebar() {
 		setIsMobileOpen(true);
 	}, []);
 
+	const toggleSidebar = useCallback(() => {
+		if (isMobileOpen) {
+			closeSidebar();
+		} else {
+			openSidebar();
+		}
+	}, [isMobileOpen, closeSidebar, openSidebar]);
+
 	const getNavigationConfig = useMemo((): NavigationConfig => {
 		if (isWebsite) {
 			return {
@@ -112,7 +120,7 @@ export function Sidebar() {
 
 	return (
 		<>
-			<TopHeader setMobileOpen={openSidebar} />
+			<TopHeader toggleMobileSidebar={toggleSidebar} />
 
 			{isMobileOpen && (
 				<div

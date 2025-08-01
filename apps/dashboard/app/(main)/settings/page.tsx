@@ -8,7 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
 import { useQueryState } from 'nuqs';
-
+import { Button } from '@/components/ui/button';
 import {
 	Card,
 	CardContent,
@@ -17,6 +17,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { type NavItem, SettingsSidebar } from './_components/settings-sidebar';
 
 const EmailForm = dynamic(
@@ -149,6 +150,27 @@ export default function SettingsPage() {
 								</p>
 							</div>
 						</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Mobile Tab Nav */}
+			<div className="border-b sm:hidden">
+				<div className="flex overflow-x-auto p-4">
+					<div className="flex min-w-full gap-2">
+						{tabs.map((item) => (
+							<Button
+								className="flex-shrink-0 whitespace-nowrap"
+								disabled={item.disabled}
+								key={item.id}
+								onClick={() => setActiveTab(item.id)}
+								size="sm"
+								variant={activeTab === item.id ? 'secondary' : 'ghost'}
+							>
+								<item.icon className="mr-2 h-4 w-4" />
+								{item.label}
+							</Button>
+						))}
 					</div>
 				</div>
 			</div>

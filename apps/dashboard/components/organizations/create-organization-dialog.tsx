@@ -213,31 +213,30 @@ export function CreateOrganizationDialog({
 		<>
 			<Sheet onOpenChange={handleClose} open={isOpen}>
 				<SheetContent
-					className="w-[40vw] overflow-y-auto p-6"
+					className="w-full max-w-md overflow-y-auto p-4 sm:max-w-lg sm:p-6 md:max-w-xl lg:max-w-2xl"
 					side="right"
-					style={{ maxWidth: '600px', minWidth: '500px' }}
 				>
-					<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
-						<div className="flex items-center gap-3">
-							<div className="rounded border border-primary/20 bg-primary/10 p-3">
+					<SheetHeader className="space-y-3 border-border/50 border-b pb-4 sm:pb-6">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+							<div className="self-start rounded border border-primary/20 bg-primary/10 p-3 sm:self-center">
 								<BuildingsIcon
 									className="h-6 w-6 text-primary"
 									size={16}
 									weight="duotone"
 								/>
 							</div>
-							<div>
-								<SheetTitle className="font-semibold text-foreground text-xl">
+							<div className="min-w-0 flex-1">
+								<SheetTitle className="font-semibold text-foreground text-lg sm:text-xl">
 									Create New Organization
 								</SheetTitle>
-								<SheetDescription className="mt-1 text-muted-foreground">
+								<SheetDescription className="mt-1 text-muted-foreground text-sm">
 									Set up a new organization to collaborate with your team
 								</SheetDescription>
 							</div>
 						</div>
 					</SheetHeader>
 
-					<div className="space-y-6 pt-6">
+					<div className="space-y-4 pt-4 sm:space-y-6 sm:pt-6">
 						<div className="space-y-4">
 							<div className="space-y-2">
 								<Label
@@ -290,8 +289,8 @@ export function CreateOrganizationDialog({
 										(optional)
 									</span>
 								</Label>
-								<div className="flex items-center gap-4">
-									<div className="group relative">
+								<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+									<div className="group relative self-start">
 										<Avatar className="h-16 w-16 border border-border/50">
 											<AvatarImage
 												alt={formData.name || 'Organization'}
@@ -310,7 +309,7 @@ export function CreateOrganizationDialog({
 											<UploadSimple className="text-white" size={20} />
 										</button>
 									</div>
-									<div className="grid gap-2">
+									<div className="min-w-0 flex-1">
 										<p className="font-medium text-sm">Upload your logo</p>
 										<p className="text-muted-foreground text-xs">
 											Click the image to upload a new one.
@@ -359,9 +358,9 @@ export function CreateOrganizationDialog({
 							</div>
 						</div>
 
-						<div className="flex justify-end gap-3 border-border/50 border-t pt-6">
+						<div className="flex flex-col justify-end gap-3 border-border/50 border-t pt-4 sm:flex-row sm:pt-6">
 							<Button
-								className="rounded"
+								className="order-2 rounded sm:order-1"
 								disabled={isCreatingOrganization}
 								onClick={handleClose}
 								type="button"
@@ -370,7 +369,7 @@ export function CreateOrganizationDialog({
 								Cancel
 							</Button>
 							<Button
-								className="relative rounded"
+								className="relative order-1 rounded sm:order-2"
 								disabled={!isFormValid || isCreatingOrganization}
 								onClick={handleSubmit}
 							>
@@ -391,36 +390,41 @@ export function CreateOrganizationDialog({
 			</Sheet>
 
 			<Dialog onOpenChange={handleCropModalOpenChange} open={isCropModalOpen}>
-				<DialogContent>
+				<DialogContent className="max-h-[95vh] max-w-[95vw] overflow-auto">
 					<DialogHeader>
 						<DialogTitle>Crop your organization logo</DialogTitle>
 					</DialogHeader>
 					{imageSrc && (
-						<ReactCrop
-							aspect={1}
-							circularCrop={true}
-							crop={crop}
-							onChange={(pixelCrop, percentCrop) => {
-								setCrop(percentCrop);
-								setCompletedCrop(pixelCrop);
-							}}
-						>
-							<img
-								alt="Crop preview"
-								onLoad={onImageLoad}
-								ref={imageRef}
-								src={imageSrc}
-							/>
-						</ReactCrop>
+						<div className="flex justify-center">
+							<ReactCrop
+								aspect={1}
+								circularCrop={true}
+								crop={crop}
+								onChange={(pixelCrop, percentCrop) => {
+									setCrop(percentCrop);
+									setCompletedCrop(pixelCrop);
+								}}
+							>
+								<img
+									alt="Crop preview"
+									className="max-h-[60vh] max-w-full object-contain"
+									onLoad={onImageLoad}
+									ref={imageRef}
+									src={imageSrc}
+								/>
+							</ReactCrop>
+						</div>
 					)}
-					<DialogFooter>
+					<DialogFooter className="flex flex-col gap-2 sm:flex-row">
 						<Button
+							className="w-full sm:w-auto"
 							onClick={() => handleCropModalOpenChange(false)}
 							variant="outline"
 						>
 							Cancel
 						</Button>
 						<Button
+							className="w-full sm:w-auto"
 							disabled={!(imageSrc && completedCrop)}
 							onClick={handleCropSave}
 						>
