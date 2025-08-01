@@ -11,12 +11,12 @@ import { cn } from "@/lib/utils";
 
 export const Footer = () => {
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center justify-center pt-4">
       <div className="flex flex-col items-center gap-12">
         <div>
           <p className="text-muted-foreground text-xs">Databuddy @ 2025</p>
         </div>
-        <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex items-center justify-center">
           <MagicSVG
             width={1166}
             height={149}

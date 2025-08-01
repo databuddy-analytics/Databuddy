@@ -1,9 +1,11 @@
 import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
 import { Footer } from "@/components/landing/footer";
+import { FooterNav } from "@/components/landing/footer-nav";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
+import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
 
 // async function getGitHubStars() {
@@ -69,6 +71,18 @@ export default function HomePage() {
           </Section>
         </div>
       </Section>
+
+      <Section id="testimonial" customPaddings className="overflow-y-clip">
+        <Testimonials />
+      </Section>
+
+      <div className="mx-auto h-px w-full bg-gradient-to-r from-transparent via-neutral-500 to-transparent"></div>
+
+      <Section id="footer-nav" className="overflow-y-clip" customPaddings>
+        <FooterNav />
+      </Section>
+
+      <div className="mx-auto h-px w-full bg-gradient-to-r from-transparent via-neutral-500 to-transparent"></div>
 
       <Section id="footer" customPaddings>
         <Footer />

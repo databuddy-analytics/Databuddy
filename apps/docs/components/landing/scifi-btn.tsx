@@ -14,7 +14,7 @@ const SciFiButton = React.forwardRef<HTMLButtonElement, SciFiButtonProps>(
   ({ className, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     const [play] = useSound("/scifi-hover.mp3", {
-      volume: 0.2,
+      volume: 0.02,
     });
 
     return (
