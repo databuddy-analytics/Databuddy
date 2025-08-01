@@ -109,7 +109,7 @@ const CodeBlock = ({
 };
 
 export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
-	const [copied, setCopied] = useState(false);
+	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
 		'script'
 	);
@@ -119,11 +119,11 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 	const trackingCode = generateScriptTag(websiteId, trackingOptions);
 	const npmCode = generateNpmCode(websiteId, trackingOptions);
 
-	const handleCopyCode = (code: string) => {
+	const handleCopyCode = (code: string, blockId: string, message: string) => {
 		navigator.clipboard.writeText(code);
-		setCopied(true);
-		toast.success('Tracking code copied to clipboard');
-		setTimeout(() => setCopied(false), 2000);
+		setCopiedBlockId(blockId);
+		toast.success(message);
+		setTimeout(() => setCopiedBlockId(null), 2000);
 	};
 
 	const handleToggleOption = (option: keyof TrackingOptions) => {
@@ -196,9 +196,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 						<TabsContent className="space-y-4" value="script">
 							<CodeBlock
 								code={trackingCode}
-								copied={copied}
+								copied={copiedBlockId === 'script-tag'}
 								description="Add this script to the <head> section of your HTML:"
-								onCopy={() => handleCopyCode(trackingCode)}
+								onCopy={() => handleCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
 							/>
 							<p className="text-muted-foreground text-xs">
 								Data will appear within a few minutes after installation.
@@ -231,10 +231,10 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 									<TabsContent className="mt-0" value="npm">
 										<CodeBlock
 											code="npm install @databuddy/sdk"
-											copied={copied}
+											copied={copiedBlockId === 'npm-install'}
 											description=""
 											onCopy={() =>
-												handleCopyCode('npm install @databuddy/sdk')
+												handleCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')
 											}
 										/>
 									</TabsContent>
@@ -242,38 +242,40 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 									<TabsContent className="mt-0" value="yarn">
 										<CodeBlock
 											code="yarn add @databuddy/sdk"
-											copied={copied}
+											copied={copiedBlockId === 'yarn-install'}
 											description=""
-											onCopy={() => handleCopyCode('yarn add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 
 									<TabsContent className="mt-0" value="pnpm">
 										<CodeBlock
 											code="pnpm add @databuddy/sdk"
-											copied={copied}
+											copied={copiedBlockId === 'pnpm-install'}
 											description=""
-											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 
 									<TabsContent className="mt-0" value="bun">
 										<CodeBlock
 											code="bun add @databuddy/sdk"
-											copied={copied}
+											copied={copiedBlockId === 'bun-install'}
 											description=""
-											onCopy={() => handleCopyCode('bun add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 								</Tabs>
 
 								<CodeBlock
 									code={npmCode}
-									copied={copied}
+									copied={copiedBlockId === 'tracking-code'}
 									description="Then initialize the tracker in your code:"
 									onCopy={() =>
 										handleCopyCode(
-											generateNpmComponentCode(websiteId, trackingOptions)
+											generateNpmComponentCode(websiteId, trackingOptions),
+											'tracking-code',
+											'Tracking code copied to clipboard!'
 										)
 									}
 								/>

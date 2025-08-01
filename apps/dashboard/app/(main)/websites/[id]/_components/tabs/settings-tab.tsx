@@ -71,7 +71,7 @@ export function WebsiteSettingsTab({
 	onWebsiteUpdated,
 }: WebsiteDataTabProps) {
 	const router = useRouter();
-	const [copied, setCopied] = useState(false);
+	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [installMethod] = useState<'script' | 'npm'>('script');
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [showEditDialog, setShowEditDialog] = useState(false);
@@ -82,11 +82,11 @@ export function WebsiteSettingsTab({
 		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
 	const deleteWebsiteMutation = useDeleteWebsite();
 
-	const handleCopyCode = (code: string) => {
+	const handleCopyCode = (code: string, blockId: string, message: string) => {
 		navigator.clipboard.writeText(code);
-		setCopied(true);
-		toast.success('Code copied to clipboard');
-		setTimeout(() => setCopied(false), 2000);
+		setCopiedBlockId(blockId);
+		toast.success(message);
+		setTimeout(() => setCopiedBlockId(null), 2000);
 	};
 
 	const handleToggleOption = (option: keyof TrackingOptions) => {
@@ -137,14 +137,9 @@ export function WebsiteSettingsTab({
 						<CardContent className="p-6">
 							{activeTab === 'tracking' && (
 								<TrackingCodeTab
-									copied={copied}
+									copiedBlockId={copiedBlockId}
 									npmCode={npmCode}
 									onCopyCode={handleCopyCode}
-									onCopyComponentCode={() =>
-										handleCopyCode(
-											generateNpmComponentCode(websiteId, trackingOptions)
-										)
-									}
 									trackingCode={trackingCode}
 									websiteData={websiteData}
 									websiteId={websiteId}
@@ -179,7 +174,11 @@ export function WebsiteSettingsTab({
 										handleCopyCode(
 											installMethod === 'script'
 												? trackingCode
-												: generateNpmComponentCode(websiteId, trackingOptions)
+												: generateNpmComponentCode(websiteId, trackingOptions),
+											installMethod === 'script' ? 'script-tag' : 'tracking-code',
+											installMethod === 'script' 
+												? 'Script tag copied to clipboard!' 
+												: 'Tracking code copied to clipboard!'
 										)
 									}
 									onEnableAll={() => {
@@ -485,17 +484,15 @@ function TrackingCodeTab({
 	npmCode,
 	websiteData,
 	websiteId,
-	copied,
+	copiedBlockId,
 	onCopyCode,
-	onCopyComponentCode,
 }: {
 	trackingCode: string;
 	npmCode: string;
 	websiteData: Website;
 	websiteId: string;
-	copied: boolean;
-	onCopyCode: (code: string) => void;
-	onCopyComponentCode: () => void;
+	copiedBlockId: string | null;
+	onCopyCode: (code: string, blockId: string, message: string) => void;
 }) {
 	return (
 		<div className="space-y-4">
@@ -520,9 +517,9 @@ function TrackingCodeTab({
 				<TabsContent className="mt-0" value="script">
 					<CodeBlock
 						code={trackingCode}
-						copied={copied}
+						copied={copiedBlockId === 'script-tag'}
 						description="Add this script to the <head> section of your website:"
-						onCopy={() => onCopyCode(trackingCode)}
+						onCopy={() => onCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
 					/>
 				</TabsContent>
 
@@ -552,45 +549,45 @@ function TrackingCodeTab({
 							<TabsContent className="mt-0" value="npm">
 								<CodeBlock
 									code="npm install @databuddy/sdk"
-									copied={copied}
+									copied={copiedBlockId === 'npm-install'}
 									description=""
-									onCopy={() => onCopyCode('npm install @databuddy/sdk')}
+									onCopy={() => onCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')}
 								/>
 							</TabsContent>
 
 							<TabsContent className="mt-0" value="yarn">
 								<CodeBlock
 									code="yarn add @databuddy/sdk"
-									copied={copied}
+									copied={copiedBlockId === 'yarn-install'}
 									description=""
-									onCopy={() => onCopyCode('yarn add @databuddy/sdk')}
+									onCopy={() => onCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
 								/>
 							</TabsContent>
 
 							<TabsContent className="mt-0" value="pnpm">
 								<CodeBlock
 									code="pnpm add @databuddy/sdk"
-									copied={copied}
+									copied={copiedBlockId === 'pnpm-install'}
 									description=""
-									onCopy={() => onCopyCode('pnpm add @databuddy/sdk')}
+									onCopy={() => onCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
 								/>
 							</TabsContent>
 
 							<TabsContent className="mt-0" value="bun">
 								<CodeBlock
 									code="bun add @databuddy/sdk"
-									copied={copied}
+									copied={copiedBlockId === 'bun-install'}
 									description=""
-									onCopy={() => onCopyCode('bun add @databuddy/sdk')}
+									onCopy={() => onCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
 								/>
 							</TabsContent>
 						</Tabs>
 
 						<CodeBlock
 							code={npmCode}
-							copied={copied}
+							copied={copiedBlockId === 'tracking-code'}
 							description="Then initialize the tracker in your code:"
-							onCopy={onCopyComponentCode}
+							onCopy={() => onCopyCode(npmCode, 'tracking-code', 'Tracking code copied to clipboard!')}
 						/>
 					</div>
 				</TabsContent>
