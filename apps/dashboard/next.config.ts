@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
 		viewTransition: true,
 		optimizePackageImports: ['@phosphor-icons/react'],
 		clientSegmentCache: true,
+		reactCompiler: true,
 	},
 	typescript: {
 		ignoreBuildErrors: true,
@@ -12,6 +13,7 @@ const nextConfig: NextConfig = {
 	images: {
 		domains: ['cdn.databuddy.cc', 'localhost', 'icons.duckduckgo.com'],
 	},
+
 	output: 'standalone',
 };
 

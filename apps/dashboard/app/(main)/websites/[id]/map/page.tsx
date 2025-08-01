@@ -3,8 +3,9 @@
 import type { LocationData } from '@databuddy/shared';
 import { GlobeIcon, MapPinIcon, QuestionIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,6 +37,15 @@ const MapComponent = dynamic(
 function WebsiteMapPage() {
 	const { id } = useParams<{ id: string }>();
 	const [mode, setMode] = useState<'total' | 'perCapita'>('total');
+	const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+
+	const handleModeChange = useCallback((value: string) => {
+		setMode(value as 'total' | 'perCapita');
+	}, []);
+
+	const handleCountrySelect = useCallback((countryCode: string) => {
+		setSelectedCountry(countryCode);
+	}, []);
 
 	const { isLoading, getDataForQuery } = useMapLocationData(id, {
 		start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -45,12 +55,11 @@ function WebsiteMapPage() {
 		granularity: 'daily',
 	});
 
-	if (!id) {
-		return <div>No website ID</div>;
-	}
+	const countriesFromQuery = getDataForQuery('map-countries', 'country');
+	const regionsFromQuery = getDataForQuery('map-regions', 'region');
 
-	const locationData: LocationData = {
-		countries: (getDataForQuery('map-countries', 'country') || []).map(
+	const locationData = useMemo<LocationData>(() => {
+		const countries = (countriesFromQuery || []).map(
 			(item: {
 				name: string;
 				visitors: number;
@@ -63,37 +72,50 @@ function WebsiteMapPage() {
 				visitors: item.visitors,
 				pageviews: item.pageviews,
 			})
-		),
-		regions: (getDataForQuery('map-regions', 'region') || []).map(
+		);
+		const regions = (regionsFromQuery || []).map(
 			(item: { name: string; visitors: number; pageviews: number }) => ({
 				country: item.name,
 				visitors: item.visitors,
 				pageviews: item.pageviews,
 			})
-		),
-	};
+		);
+		return { countries, regions };
+	}, [countriesFromQuery, regionsFromQuery]);
 
-	const topCountries = locationData.countries
-		.filter((c) => c.country && c.country.trim() !== '')
-		.slice(0, 8);
-
-	const totalVisitors = locationData.countries.reduce(
-		(sum, country) => sum + country.visitors,
-		0
+	const topCountries = useMemo(
+		() =>
+			locationData.countries
+				.filter((c) => c.country && c.country.trim() !== '')
+				.slice(0, 8),
+		[locationData.countries]
 	);
-	const unknownVisitors =
-		locationData.countries.find((c) => !c.country || c.country.trim() === '')
-			?.visitors || 0;
+
+	const totalVisitors = useMemo(
+		() =>
+			locationData.countries.reduce(
+				(sum, country) => sum + country.visitors,
+				0
+			),
+		[locationData.countries]
+	);
+	const unknownVisitors = useMemo(
+		() =>
+			locationData.countries.find((c) => !c.country || c.country.trim() === '')
+				?.visitors || 0,
+		[locationData.countries]
+	);
+
+	if (!id) {
+		return <div>No website ID</div>;
+	}
 
 	return (
 		<div className="flex h-[calc(100vh-7rem)] flex-col space-y-4 p-3 sm:p-4 lg:p-6">
 			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 				<WebsitePageHeader
 					additionalActions={
-						<Tabs
-							onValueChange={(value) => setMode(value as 'total' | 'perCapita')}
-							value={mode}
-						>
+						<Tabs onValueChange={handleModeChange} value={mode}>
 							<div className="relative border-b">
 								<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
 									<TabsTrigger
@@ -159,6 +181,8 @@ function WebsiteMapPage() {
 							isLoading={isLoading}
 							locationData={locationData}
 							mode={mode}
+							onCountrySelect={handleCountrySelect}
+							selectedCountry={selectedCountry}
 						/>
 					</CardContent>
 				</Card>
@@ -200,22 +224,27 @@ function WebsiteMapPage() {
 													? (country.visitors / totalVisitors) * 100
 													: 0;
 											return (
-												<div
+												<button
 													className={cn(
-														'flex cursor-pointer items-center justify-between border-border/20 border-b p-3 transition-colors last:border-b-0 hover:bg-muted/50',
+														'flex w-full cursor-pointer items-center justify-between border-border/20 border-b p-3 text-left transition-colors last:border-b-0 hover:bg-muted/50',
 														index === 0 && 'bg-primary/5'
 													)}
 													key={country.country}
+													onClick={() =>
+														handleCountrySelect(
+															country.country_code?.toUpperCase() ||
+																country.country.toUpperCase()
+														)
+													}
+													type="button"
 												>
 													<div className="flex min-w-0 flex-1 items-center gap-3">
 														<div className="relative h-4 w-6 flex-shrink-0 overflow-hidden rounded shadow-sm">
-															<img
-																alt={country.country}
-																className="absolute inset-0 h-full w-full object-cover"
-																onError={(e) => {
-																	(e.target as HTMLImageElement).style.display =
-																		'none';
-																}}
+															<Image
+																alt={`${country.country} flag`}
+																className="object-cover"
+																fill
+																sizes="24px"
 																src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${country.country_code?.toUpperCase() || country.country.toUpperCase()}.svg`}
 															/>
 														</div>
@@ -241,7 +270,7 @@ function WebsiteMapPage() {
 															{country.pageviews.toLocaleString()} views
 														</div>
 													</div>
-												</div>
+												</button>
 											);
 										})}
 									</div>
