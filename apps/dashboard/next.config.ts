@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
 		optimizePackageImports: ['@phosphor-icons/react'],
 		clientSegmentCache: true,
 		reactCompiler: true,
+		staleTimes: {
+			dynamic: 30,
+			static: 180,
+		},
 	},
 	typescript: {
 		ignoreBuildErrors: true,
