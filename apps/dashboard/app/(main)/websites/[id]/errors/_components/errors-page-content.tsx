@@ -264,7 +264,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	if (error) {
 		return (
-			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+			<div className="mx-auto p-3 sm:p-4 lg:p-6">
 				<Card className="rounded-xl border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex flex-col items-center space-y-3 text-center">
@@ -305,7 +305,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	}
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 p-3 sm:p-4 lg:p-6">
+		<div className="mx-auto space-y-6 p-3 sm:p-4 lg:p-6">
 			<WebsitePageHeader
 				description="Monitor and analyze application errors to improve user experience"
 				icon={
@@ -315,6 +315,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 						weight="duotone"
 					/>
 				}
+				variant="minimal"
 				isRefreshing={isRefreshing}
 				onRefresh={handleRefresh}
 				title="Error Analytics"

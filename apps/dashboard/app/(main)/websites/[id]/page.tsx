@@ -275,7 +275,7 @@ function WebsiteDetailsPage() {
 			];
 
 	return (
-		<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+		<div className="mx-auto w-full p-3 sm:p-4 lg:p-6">
 			<header className="border-b pb-3">
 				{/* Only show date range controls if tracking is set up */}
 				{isTrackingSetup && (

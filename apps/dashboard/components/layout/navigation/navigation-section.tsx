@@ -117,7 +117,7 @@ export function NavigationSection({
                   href={href}
                   className={cn(isDisabled && 'pointer-events-none opacity-50')}
                 >
-                  <Icon size={20} weight="duotone" />
+                  <Icon size={20} weight="duotone" className="not-dark:text-primary" />
                   <span>{item.name}</span>
                   {item.alpha && (
                     <SidebarMenuBadge className="ml-auto">Alpha</SidebarMenuBadge>

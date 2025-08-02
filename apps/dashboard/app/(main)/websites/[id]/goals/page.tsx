@@ -195,7 +195,7 @@ export default function GoalsPage() {
 
 	if (goalsError) {
 		return (
-			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+			<div className="mx-auto p-3 sm:p-4 lg:p-6">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
@@ -217,7 +217,7 @@ export default function GoalsPage() {
 
 	return (
 		<div
-			className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6"
+			className="mx-auto space-y-4 p-3 sm:p-4 lg:p-6"
 			ref={pageRef}
 		>
 			<WebsitePageHeader
@@ -246,6 +246,7 @@ export default function GoalsPage() {
 				title="Goals"
 				websiteId={websiteId}
 				websiteName={websiteData?.name || undefined}
+				variant="minimal"
 			/>
 
 			{isVisible && (
