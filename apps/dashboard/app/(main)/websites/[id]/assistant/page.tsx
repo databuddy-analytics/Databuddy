@@ -22,7 +22,7 @@ const AIAssistantMain = dynamic(
 
 function AIAssistantLoadingSkeleton() {
 	return (
-		<div className="flex flex-1 gap-3 overflow-hidden p-3">
+		<div className="flex flex-1 gap-3 overflow-hidden">
 			<div className="flex flex-[2_2_0%] flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
 				<div className="flex-shrink-0 border-b p-3">
 					<Skeleton className="mb-1 h-5 w-32" />
@@ -76,14 +76,12 @@ export default function AssistantPage() {
 	}, [id, setWebsiteId, websiteData, setWebsiteData, setDateRange]);
 
 	return (
-		<div className="fixed inset-0 flex flex-col bg-gradient-to-br from-background to-muted/20 pt-16 md:pl-72">
-			<div className="flex flex-1 overflow-hidden p-3 sm:p-4 lg:p-6">
-				{isLoading || !websiteData ? (
-					<AIAssistantLoadingSkeleton />
-				) : (
-					<AIAssistantMain />
-				)}
-			</div>
+		<div className="mx-auto flex w-full flex-1 flex-col h-full p-3 sm:p-4 lg:p-6">
+			{isLoading || !websiteData ? (
+				<AIAssistantLoadingSkeleton />
+			) : (
+				<AIAssistantMain />
+			)}
 		</div>
 	);
 }

@@ -55,9 +55,8 @@ export default function AIAssistantMain() {
 	);
 
 	return (
-		<div className="fixed inset-0 flex flex-col bg-gradient-to-br from-background to-muted/20 pt-16 md:pl-72">
-			<div className="flex flex-1 overflow-hidden p-3 sm:p-4 lg:p-6">
-				<div className="flex flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
+		<div className="flex flex-1 gap-3 overflow-hidden">
+				<div className="flex flex-1 flex-col gap-3 overflow-hidden lg:flex-row h-[calc(100dvh-(64px+24px))] sm:h-[calc(100dvh-(64px+32px))] md:h-[calc(100dvh-(64px+48px))]">
 					<div
 						className={cn(
 							'flex flex-col overflow-hidden',
@@ -76,7 +75,9 @@ export default function AIAssistantMain() {
 						</div>
 					)}
 				</div>
-			</div>
 		</div>
 	);
 }
+
+
+// p-3 sm:p-4 lg:p-6
