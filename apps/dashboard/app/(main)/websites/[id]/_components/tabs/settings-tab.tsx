@@ -132,8 +132,8 @@ export function WebsiteSettingsTab({
 					trackingOptions={trackingOptions}
 				/>
 
-				<div className="col-span-12 lg:col-span-9">
-					<Card className="rounded-lg border bg-background shadow-sm">
+				<div className="col-span-12 lg:col-span-7 xl:col-span-9">
+					<Card className="rounded-lg border bg-background py-0 shadow-sm">
 						<CardContent className="p-6">
 							{activeTab === 'tracking' && (
 								<TrackingCodeTab
@@ -234,7 +234,7 @@ function WebsiteHeader({
 	onEditClick: () => void;
 }) {
 	return (
-		<Card className="rounded-lg border bg-background shadow-sm">
+		<Card className="rounded-lg border bg-background py-0 shadow-sm">
 			<CardContent className="p-6">
 				<div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
 					<div className="flex flex-col gap-3">
@@ -358,8 +358,8 @@ function SettingsNavigation({
 		!trackingOptions.enableRetries;
 
 	return (
-		<div className="col-span-12 lg:col-span-3">
-			<Card className="rounded-lg border bg-background shadow-sm">
+		<div className="col-span-12 lg:col-span-5 xl:col-span-3">
+			<Card className="rounded-lg border bg-background py-0 shadow-sm">
 				<CardContent className="p-4">
 					<div className="sticky top-4 space-y-2">
 						<Button
@@ -686,7 +686,7 @@ function WebsiteInfoSection({
 	websiteId: string;
 }) {
 	return (
-		<div className="mt-6 grid grid-cols-2 gap-4">
+		<div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-1 xl:grid-cols-2">
 			<div className="space-y-3 rounded-md bg-muted/50 p-4">
 				<h4 className="flex items-center gap-2 font-medium text-sm">
 					<InfoIcon className="h-4 w-4 text-muted-foreground" />
