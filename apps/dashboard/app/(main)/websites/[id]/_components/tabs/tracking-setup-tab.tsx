@@ -9,7 +9,7 @@ import {
 	ClipboardIcon,
 	CodeIcon,
 	FileCodeIcon,
-	InfoIcon,
+	ChatCircleIcon,
 	WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
@@ -600,22 +600,21 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 			<div className="grid grid-cols-2 gap-3">
 				<Button asChild size="sm" variant="outline">
 					<a
-						className="flex items-center gap-2"
-						href="https://docs.databuddy.cc"
+						className="flex items-center justify-center gap-2"
+						href="https://www.databuddy.cc/docs"
 						rel="noopener noreferrer"
 						target="_blank"
 					>
 						<BookOpenIcon className="h-4 w-4" weight="duotone" />
 						Documentation
-						<ArrowSquareOutIcon className="ml-auto h-3 w-3" weight="fill" />
 					</a>
 				</Button>
 				<Button asChild size="sm" variant="outline">
 					<a
-						className="flex items-center gap-2"
+						className="flex items-center justify-center gap-2"
 						href="mailto:support@databuddy.cc"
 					>
-						<InfoIcon className="h-4 w-4" weight="duotone" />
+						<ChatCircleIcon className="h-4 w-4" weight="duotone" />
 						Get Support
 					</a>
 				</Button>
