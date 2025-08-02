@@ -1,7 +1,9 @@
 import { auth } from '@databuddy/auth';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Sidebar } from '@/components/layout/sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
+import { TopHeader } from '@/components/layout/top-header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 async function AuthGuard({ children }: { children: React.ReactNode }) {
 	const session = await auth.api.getSession({ headers: await headers() });
@@ -11,21 +13,25 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
 	return <>{children}</>;
 }
 
-export default function MainLayout({
+export default async function MainLayout({
 	children,
 }: {
 	children: React.ReactNode;
 }) {
+	const cookieStore = await cookies();
+	const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
+
 	return (
 		<AuthGuard>
-			<div className="h-screen overflow-hidden text-foreground">
-				<Sidebar />
-				<div className="relative h-screen pt-16 md:pl-64">
-					<div className="h-[calc(100vh-4rem)] overflow-y-auto overflow-x-hidden">
+			<SidebarProvider defaultOpen={defaultOpen}>
+				<AppSidebar />
+				<SidebarInset>
+					<TopHeader />
+					<div className="flex-1 overflow-y-auto overflow-x-hidden pt-16">
 						{children}
 					</div>
-				</div>
-			</div>
+				</SidebarInset>
+			</SidebarProvider>
 		</AuthGuard>
 	);
 }
