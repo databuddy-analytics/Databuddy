@@ -58,6 +58,6 @@ Thank you for your interest in contributing!
 
 ## Code Style
 
-- Use Ultracite for linting and Prettier for formatting
+- Use Biome for linting and formatting
 - Follow the coding standards in the README
 - Keep it simple and type-safe
