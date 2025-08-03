@@ -6,6 +6,20 @@ import { SciFiButton } from "./scifi-btn";
 import DemoContainer from "./demo";
 
 export default function Hero() {
+  const handleGetStarted = () => {
+    const newWindow = window.open(
+      "https://app.databuddy.cc/login",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (
+      !newWindow ||
+      newWindow.closed ||
+      typeof newWindow.closed == "undefined"
+    ) {
+      // Handle popup blocked case if needed
+    }
+  };
   return (
     <section className="relative flex flex-col items-center w-full h-full overflow-hidden px-8">
       <Spotlight transform="translateX(-60%) translateY(-50%)" />
@@ -22,7 +36,7 @@ export default function Hero() {
               cookies and 100% GDPR compliance.
             </p>
             <div>
-              <SciFiButton>GET STARTED</SciFiButton>
+              <SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
             </div>
           </div>
           <div>
