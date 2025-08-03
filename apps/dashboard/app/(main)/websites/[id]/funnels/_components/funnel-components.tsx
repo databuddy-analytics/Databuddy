@@ -1,9 +1,20 @@
 'use client';
 
 import { DotsNineIcon, TrashIcon } from '@phosphor-icons/react';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+	Command,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -12,6 +23,9 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import type { FunnelStep } from '@/hooks/use-funnels';
+import { cn } from '@/lib/utils';
+
+const MAX_SUGGESTIONS = 7;
 
 // Optimized Autocomplete Component
 export const AutocompleteInput = memo(
@@ -28,54 +42,24 @@ export const AutocompleteInput = memo(
 		placeholder?: string;
 		className?: string;
 	}) => {
+		const [searchValue, setSearchValue] = useState('');
 		const [isOpen, setIsOpen] = useState(false);
-		const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>(
-			[]
+		const [filteredSuggestions, setFilteredSuggestions] = useState(
+			suggestions.slice(0, MAX_SUGGESTIONS)
 		);
-		const containerRef = useRef<HTMLDivElement>(null);
-
-		// Handle click outside to close dropdown
-		useEffect(() => {
-			const handleClickOutside = (event: MouseEvent) => {
-				if (
-					containerRef.current &&
-					!containerRef.current.contains(event.target as Node)
-				) {
-					setIsOpen(false);
-				}
-			};
-
-			if (isOpen) {
-				document.addEventListener('mousedown', handleClickOutside);
-				return () =>
-					document.removeEventListener('mousedown', handleClickOutside);
-			}
-		}, [isOpen]);
 
 		const handleInputChange = (newValue: string) => {
 			onValueChange(newValue);
+			setSearchValue(newValue);
 
 			if (newValue.trim()) {
 				const filtered = suggestions
 					.filter((s) => s.toLowerCase().includes(newValue.toLowerCase()))
-					.slice(0, 8);
+					.slice(0, MAX_SUGGESTIONS);
 				setFilteredSuggestions(filtered);
 				setIsOpen(filtered.length > 0);
 			} else {
-				setFilteredSuggestions(suggestions.slice(0, 8));
-				setIsOpen(suggestions.length > 0);
-			}
-		};
-
-		const handleFocus = () => {
-			if (value.trim()) {
-				const filtered = suggestions
-					.filter((s) => s.toLowerCase().includes(value.toLowerCase()))
-					.slice(0, 8);
-				setFilteredSuggestions(filtered);
-				setIsOpen(filtered.length > 0);
-			} else {
-				setFilteredSuggestions(suggestions.slice(0, 8));
+				setFilteredSuggestions(suggestions.slice(0, MAX_SUGGESTIONS));
 				setIsOpen(suggestions.length > 0);
 			}
 		};
@@ -86,34 +70,43 @@ export const AutocompleteInput = memo(
 		};
 
 		return (
-			<div className="relative" ref={containerRef}>
-				<Input
-					className={className}
-					onChange={(e) => handleInputChange(e.target.value)}
-					onFocus={handleFocus}
-					placeholder={placeholder}
-					value={value || ''}
-				/>
-				{isOpen && filteredSuggestions.length > 0 && (
-					<div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover shadow-lg">
-						{filteredSuggestions.map((suggestion) => (
-							<button
-								className="w-full cursor-pointer border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent hover:text-accent-foreground"
-								key={suggestion}
-								onClick={() => handleSelect(suggestion)}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') {
-										handleSelect(suggestion);
-									}
-								}}
-								type="button"
-							>
-								{suggestion}
-							</button>
-						))}
-					</div>
-				)}
-			</div>
+			<Popover onOpenChange={setIsOpen} open={isOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						aria-expanded={isOpen}
+						className={cn(
+							'flex justify-start overflow-x-auto bg-transparent px-3',
+							className
+						)}
+						role="combobox"
+						variant="outline"
+					>
+						{value === '' ? placeholder : value}
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="p-0">
+					<Command shouldFilter={false}>
+						<CommandInput
+							className="w-full"
+							onValueChange={handleInputChange}
+							placeholder={placeholder}
+							value={searchValue}
+						/>
+						<CommandList>
+							{filteredSuggestions.map((suggestion) => (
+								<CommandItem
+									className="w-full cursor-pointer border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent hover:text-accent-foreground"
+									key={suggestion}
+									onSelect={() => handleSelect(suggestion)}
+									value={suggestion}
+								>
+									{suggestion}
+								</CommandItem>
+							))}
+						</CommandList>
+					</Command>
+				</PopoverContent>
+			</Popover>
 		);
 	}
 );
