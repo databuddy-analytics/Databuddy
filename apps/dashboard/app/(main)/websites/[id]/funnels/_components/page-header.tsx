@@ -55,7 +55,6 @@ export function PageHeader({
 							className="gap-2 rounded-lg border-border/50 px-4 py-2 font-medium transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
 							disabled={isRefreshing}
 							onClick={onRefresh}
-							size="default"
 							variant="outline"
 						>
 							<ArrowClockwiseIcon

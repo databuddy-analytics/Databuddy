@@ -1,3 +1,4 @@
+import './polyfills/compression';
 import { appRouter, createTRPCContext } from '@databuddy/rpc';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';

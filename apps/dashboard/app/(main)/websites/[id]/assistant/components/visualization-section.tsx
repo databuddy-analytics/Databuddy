@@ -1,14 +1,13 @@
 'use client';
 
 import {
-	ChartBar,
-	ChartLine,
-	ChartPie,
-	Compass, // for radar
-	Database,
-	DotsThreeOutlineVertical, // for scatter
-	Funnel,
-	TrendUp,
+	ChartBarIcon,
+	ChartLineIcon,
+	ChartPieIcon,
+	CompassIcon,
+	DotsThreeOutlineVerticalIcon,
+	FunnelIcon,
+	TrendUpIcon,
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAtom } from 'jotai';
@@ -47,13 +46,7 @@ import {
 } from '@/components/ui/chart';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-	currentMessageAtom,
-	dateRangeAtom,
-	messagesAtom,
-	websiteDataAtom,
-	websiteIdAtom,
-} from '@/stores/jotai/assistantAtoms';
+import { messagesAtom, websiteDataAtom } from '@/stores/jotai/assistantAtoms';
 import type { Message } from '../types/message';
 
 const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
@@ -61,25 +54,24 @@ const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
 const getChartIcon = (chartType: string) => {
 	switch (chartType?.toLowerCase()) {
 		case 'bar':
-			return <ChartBar className="h-3 w-3" />;
+			return <ChartBarIcon className="h-3 w-3" />;
 		case 'line':
-		case 'area': // No ChartArea, use ChartLine
-			return <ChartLine className="h-3 w-3" />;
+			return <ChartLineIcon className="h-3 w-3" />;
 		case 'pie':
-			return <ChartPie className="h-3 w-3" />;
+			return <ChartPieIcon className="h-3 w-3" />;
 		case 'stacked_bar':
 		case 'grouped_bar':
-			return <ChartBar className="h-3 w-3" />;
+			return <ChartBarIcon className="h-3 w-3" />;
 		case 'multi_line':
-			return <ChartLine className="h-3 w-3" />;
+			return <ChartLineIcon className="h-3 w-3" />;
 		case 'scatter':
-			return <DotsThreeOutlineVertical className="h-3 w-3" />;
+			return <DotsThreeOutlineVerticalIcon className="h-3 w-3" />;
 		case 'radar':
-			return <Compass className="h-3 w-3" />;
+			return <CompassIcon className="h-3 w-3" />;
 		case 'funnel':
-			return <Funnel className="h-3 w-3" />;
+			return <FunnelIcon className="h-3 w-3" />;
 		default:
-			return <ChartBar className="h-3 w-3" />;
+			return <ChartBarIcon className="h-3 w-3" />;
 	}
 };
 
@@ -163,7 +155,6 @@ export default function VisualizationSection() {
 		}
 		const chartType = latestAssistantMsg?.chartType;
 
-		// For bar charts, use the raw data directly if it's already in the right format
 		if (chartType === 'bar' && rawAiData.length > 0) {
 			const firstRow = rawAiData[0];
 			const keys = Object.keys(firstRow);
@@ -241,16 +232,12 @@ export default function VisualizationSection() {
 			(chartType === 'bar' || chartType === 'pie') &&
 			workingData.length > MAX_CHART_ITEMS
 		) {
-			const primaryMetricKeyForSorting =
-				workingData[0] && 'pageviews' in workingData[0]
-					? 'pageviews'
-					: workingData[0]
-						? Object.keys(workingData[0]).find(
-								(k) =>
-									typeof workingData[0][k] === 'number' &&
-									k !== xAxisKeyFromFunc
-							)
-						: undefined;
+			const primaryMetricKeyForSorting = workingData[0]
+				? Object.keys(workingData[0]).find(
+						(k) =>
+							typeof workingData[0][k] === 'number' && k !== xAxisKeyFromFunc
+					)
+				: undefined;
 
 			if (primaryMetricKeyForSorting) {
 				const sortableData = [...workingData];
@@ -832,7 +819,7 @@ export default function VisualizationSection() {
 				<div
 					className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded transition-all duration-300 ${websiteData ? 'bg-primary/10' : 'bg-muted/20'}`}
 				>
-					<TrendUp
+					<TrendUpIcon
 						className={`h-4 w-4 transition-all duration-300 ${websiteData ? 'text-primary' : 'text-muted-foreground/60'}`}
 					/>
 				</div>

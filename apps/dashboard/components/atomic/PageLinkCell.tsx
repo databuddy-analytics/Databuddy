@@ -1,8 +1,8 @@
 'use client';
 
-import { ExternalLinkIcon, FileTextIcon } from 'lucide-react'; // Using FileTextIcon as a generic page icon
+import { ArrowSquareOutIcon, FileTextIcon } from '@phosphor-icons/react';
 import type React from 'react';
-import { formatDomainLink } from '@/app/(main)/websites/[id]/_components/utils/analytics-helpers'; // Adjusted path
+import { formatDomainLink } from '@/app/(main)/websites/[id]/_components/utils/analytics-helpers';
 import { cn } from '@/lib/utils';
 
 export interface PageLinkCellData {
@@ -50,7 +50,10 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 			rel={isExternal ? 'noopener noreferrer' : undefined}
 			target={isExternal ? '_blank' : undefined}
 		>
-			<FileTextIcon className={cn('flex-shrink-0', iconClassName)} />
+			<FileTextIcon
+				className={cn('flex-shrink-0', iconClassName)}
+				weight="duotone"
+			/>
 			<span
 				className={cn('truncate group-hover:text-primary', textClassName)}
 				style={{ maxWidth: `${maxLength + 2}ch` }}
@@ -58,7 +61,10 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 				{display}
 			</span>
 			{isExternal && (
-				<ExternalLinkIcon className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+				<ArrowSquareOutIcon
+					className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+					weight="duotone"
+				/>
 			)}
 		</a>
 	);

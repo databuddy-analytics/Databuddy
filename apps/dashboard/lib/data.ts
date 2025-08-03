@@ -201,7 +201,9 @@ export const countryPopulations: Record<string, number> = {
 
 // Helper function to get population with fallback
 export function getCountryPopulation(countryCode: string): number {
-	if (!countryCode) return 1;
+	if (!countryCode) {
+		return 1;
+	}
 
 	// Normalize to uppercase and get first 2 characters (ISO2 code)
 	const normalizedCode = countryCode.slice(0, 2).toUpperCase();

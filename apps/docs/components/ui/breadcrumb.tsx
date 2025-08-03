@@ -57,6 +57,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
 			className={cn('font-normal text-foreground', className)}
 			data-slot="breadcrumb-page"
 			role="link"
+			tabIndex={0}
 			{...props}
 		/>
 	);

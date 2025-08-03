@@ -5,6 +5,21 @@
     "formatter": {
       "indentStyle": "tab",
       "indentWidth": 2
+    },
+    "globals": ["chrome"]
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noConsole": {
+          "options": {
+            "allow": ["assert", "error", "info", "warn"]
+          }
+        }
+      },
+      "style": {
+        "noNestedTernary": "off"
+      }
     }
   }
 }

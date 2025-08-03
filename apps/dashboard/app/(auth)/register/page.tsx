@@ -95,6 +95,7 @@ function RegisterPageContent() {
 				toast.error(result.error.message || 'Failed to create account');
 			}
 		} catch (error) {
+			console.error('Error creating account:', error);
 			toast.error('Something went wrong');
 		} finally {
 			setIsLoading(false);
@@ -118,7 +119,7 @@ function RegisterPageContent() {
 					},
 				},
 			});
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Failed to send verification email. Please try again later.');
 		} finally {
 			setIsLoading(false);
@@ -144,7 +145,7 @@ function RegisterPageContent() {
 					},
 				},
 			});
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Something went wrong');
 		} finally {
 			setIsLoading(false);

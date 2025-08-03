@@ -1,17 +1,17 @@
 'use client';
 
 import {
-	Activity,
-	AlertCircle,
-	BookOpen,
-	Check,
-	Clipboard,
-	Code,
-	ExternalLink,
-	FileCode,
-	Info,
-	RefreshCw,
-} from 'lucide-react';
+	ActivityIcon,
+	ArrowClockwiseIcon,
+	ArrowSquareOutIcon,
+	BookOpenIcon,
+	CheckIcon,
+	ClipboardIcon,
+	CodeIcon,
+	FileCodeIcon,
+	ChatCircleIcon,
+	WarningCircleIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -38,62 +38,36 @@ import { RECOMMENDED_DEFAULTS } from '../utils/tracking-defaults';
 import { toggleTrackingOption } from '../utils/tracking-helpers';
 import type { TrackingOptions, WebsiteDataTabProps } from '../utils/types';
 
-export function WebsiteTrackingSetupTab({
-	websiteId,
-	websiteData,
-	onWebsiteUpdated,
-}: WebsiteDataTabProps) {
-	const [copied, setCopied] = useState(false);
-	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
-		'script'
-	);
-	const [trackingOptions, setTrackingOptions] =
-		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
-
-	const trackingCode = generateScriptTag(websiteId, trackingOptions);
-	const npmCode = generateNpmCode(websiteId, trackingOptions);
-
-	const handleCopyCode = (code: string) => {
-		navigator.clipboard.writeText(code);
-		setCopied(true);
-		toast.success('Tracking code copied to clipboard');
-		setTimeout(() => setCopied(false), 2000);
-	};
-
-	const handleToggleOption = (option: keyof TrackingOptions) => {
-		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
-	};
-
-	const utils = trpc.useUtils();
-
-	const handleRefresh = () => {
-		utils.websites.isTrackingSetup.invalidate({ websiteId });
-		toast.success('Checking tracking status...');
-	};
-
-	// Determine language based on code content
-	const getLanguage = (code: string) => {
+const CodeBlock = ({
+	code,
+	description,
+	onCopy,
+	copied,
+}: {
+	code: string;
+	description?: string;
+	onCopy: () => void;
+	copied: boolean;
+}) => {
+	const getLanguage = (codeContent: string) => {
 		if (
-			code.includes('npm install') ||
-			code.includes('yarn add') ||
-			code.includes('pnpm add') ||
-			code.includes('bun add')
-		)
+			codeContent.includes('npm install') ||
+			codeContent.includes('yarn add') ||
+			codeContent.includes('pnpm add') ||
+			codeContent.includes('bun add')
+		) {
 			return 'bash';
-		if (code.includes('<script')) return 'html';
-		if (code.includes('import') && code.includes('from')) return 'jsx';
+		}
+		if (codeContent.includes('<script')) {
+			return 'html';
+		}
+		if (codeContent.includes('import') && codeContent.includes('from')) {
+			return 'jsx';
+		}
 		return 'javascript';
 	};
 
-	const CodeBlock = ({
-		code,
-		description,
-		onCopy,
-	}: {
-		code: string;
-		description?: string;
-		onCopy: () => void;
-	}) => (
+	return (
 		<div className="space-y-2">
 			{description && (
 				<p className="text-muted-foreground text-sm">{description}</p>
@@ -121,14 +95,47 @@ export function WebsiteTrackingSetupTab({
 					variant="ghost"
 				>
 					{copied ? (
-						<Check className="h-3.5 w-3.5 text-green-500" />
+						<CheckIcon
+							className="h-3.5 w-3.5 text-green-500"
+							weight="duotone"
+						/>
 					) : (
-						<Clipboard className="h-3.5 w-3.5" />
+						<ClipboardIcon className="h-3.5 w-3.5" weight="duotone" />
 					)}
 				</Button>
 			</div>
 		</div>
 	);
+};
+
+export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
+	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+	const [installMethod, setInstallMethod] = useState<'script' | 'npm'>(
+		'script'
+	);
+	const [trackingOptions, setTrackingOptions] =
+		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
+
+	const trackingCode = generateScriptTag(websiteId, trackingOptions);
+	const npmCode = generateNpmCode(websiteId, trackingOptions);
+
+	const handleCopyCode = (code: string, blockId: string, message: string) => {
+		navigator.clipboard.writeText(code);
+		setCopiedBlockId(blockId);
+		toast.success(message);
+		setTimeout(() => setCopiedBlockId(null), 2000);
+	};
+
+	const handleToggleOption = (option: keyof TrackingOptions) => {
+		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
+	};
+
+	const utils = trpc.useUtils();
+
+	const handleRefresh = () => {
+		utils.websites.isTrackingSetup.invalidate({ websiteId });
+		toast.success('Checking tracking status...');
+	};
 
 	return (
 		<div className="space-y-6">
@@ -137,7 +144,7 @@ export function WebsiteTrackingSetupTab({
 				<CardHeader>
 					<div className="flex items-center justify-between">
 						<CardTitle className="flex items-center gap-2 text-lg">
-							<AlertCircle className="h-5 w-5" />
+							<WarningCircleIcon className="h-5 w-5" weight="duotone" />
 							Tracking Not Setup
 						</CardTitle>
 						<Button
@@ -147,7 +154,7 @@ export function WebsiteTrackingSetupTab({
 							size="icon"
 							variant="outline"
 						>
-							<RefreshCw className="h-4 w-4" />
+							<ArrowClockwiseIcon className="h-4 w-4" weight="fill" />
 						</Button>
 					</div>
 					<CardDescription>
@@ -161,7 +168,7 @@ export function WebsiteTrackingSetupTab({
 			<Card>
 				<CardHeader className="pb-4">
 					<CardTitle className="flex items-center gap-2 text-lg">
-						<Code className="h-5 w-5" />
+						<CodeIcon className="h-5 w-5" weight="duotone" />
 						Installation
 					</CardTitle>
 					<CardDescription>
@@ -177,11 +184,11 @@ export function WebsiteTrackingSetupTab({
 					>
 						<TabsList className="grid w-full grid-cols-2">
 							<TabsTrigger className="flex items-center gap-2" value="script">
-								<FileCode className="h-4 w-4" />
+								<FileCodeIcon className="h-4 w-4" weight="duotone" />
 								HTML Script Tag
 							</TabsTrigger>
 							<TabsTrigger className="flex items-center gap-2" value="npm">
-								<Code className="h-4 w-4" />
+								<CodeIcon className="h-4 w-4" weight="duotone" />
 								NPM Package
 							</TabsTrigger>
 						</TabsList>
@@ -189,8 +196,9 @@ export function WebsiteTrackingSetupTab({
 						<TabsContent className="space-y-4" value="script">
 							<CodeBlock
 								code={trackingCode}
+								copied={copiedBlockId === 'script-tag'}
 								description="Add this script to the <head> section of your HTML:"
-								onCopy={() => handleCopyCode(trackingCode)}
+								onCopy={() => handleCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
 							/>
 							<p className="text-muted-foreground text-xs">
 								Data will appear within a few minutes after installation.
@@ -223,9 +231,10 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="npm">
 										<CodeBlock
 											code="npm install @databuddy/sdk"
+											copied={copiedBlockId === 'npm-install'}
 											description=""
 											onCopy={() =>
-												handleCopyCode('npm install @databuddy/sdk')
+												handleCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')
 											}
 										/>
 									</TabsContent>
@@ -233,34 +242,40 @@ export function WebsiteTrackingSetupTab({
 									<TabsContent className="mt-0" value="yarn">
 										<CodeBlock
 											code="yarn add @databuddy/sdk"
+											copied={copiedBlockId === 'yarn-install'}
 											description=""
-											onCopy={() => handleCopyCode('yarn add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 
 									<TabsContent className="mt-0" value="pnpm">
 										<CodeBlock
 											code="pnpm add @databuddy/sdk"
+											copied={copiedBlockId === 'pnpm-install'}
 											description=""
-											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 
 									<TabsContent className="mt-0" value="bun">
 										<CodeBlock
 											code="bun add @databuddy/sdk"
+											copied={copiedBlockId === 'bun-install'}
 											description=""
-											onCopy={() => handleCopyCode('bun add @databuddy/sdk')}
+											onCopy={() => handleCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
 										/>
 									</TabsContent>
 								</Tabs>
 
 								<CodeBlock
 									code={npmCode}
+									copied={copiedBlockId === 'tracking-code'}
 									description="Then initialize the tracker in your code:"
 									onCopy={() =>
 										handleCopyCode(
-											generateNpmComponentCode(websiteId, trackingOptions)
+											generateNpmComponentCode(websiteId, trackingOptions),
+											'tracking-code',
+											'Tracking code copied to clipboard!'
 										)
 									}
 								/>
@@ -274,7 +289,7 @@ export function WebsiteTrackingSetupTab({
 			<Card>
 				<CardHeader className="pb-4">
 					<CardTitle className="flex items-center gap-2 text-lg">
-						<Activity className="h-5 w-5" />
+						<ActivityIcon className="h-5 w-5" weight="duotone" />
 						Configuration
 					</CardTitle>
 					<CardDescription>
@@ -587,22 +602,21 @@ export function WebsiteTrackingSetupTab({
 			<div className="grid grid-cols-2 gap-3">
 				<Button asChild size="sm" variant="outline">
 					<a
-						className="flex items-center gap-2"
-						href="https://docs.databuddy.cc"
+						className="flex items-center justify-center gap-2"
+						href="https://www.databuddy.cc/docs"
 						rel="noopener noreferrer"
 						target="_blank"
 					>
-						<BookOpen className="h-4 w-4" />
+						<BookOpenIcon className="h-4 w-4" weight="duotone" />
 						Documentation
-						<ExternalLink className="ml-auto h-3 w-3" />
 					</a>
 				</Button>
 				<Button asChild size="sm" variant="outline">
 					<a
-						className="flex items-center gap-2"
+						className="flex items-center justify-center gap-2"
 						href="mailto:support@databuddy.cc"
 					>
-						<Info className="h-4 w-4" />
+						<ChatCircleIcon className="h-4 w-4" weight="duotone" />
 						Get Support
 					</a>
 				</Button>

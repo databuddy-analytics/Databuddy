@@ -78,7 +78,7 @@ export function EmailForm() {
 			{/* Current Email Display */}
 			<Card className="border-muted/50 bg-gradient-to-br from-muted/20 to-muted/5">
 				<CardContent className="p-4">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col-reverse items-start justify-between gap-2 lg:flex-row">
 						<div className="flex items-center gap-3">
 							<div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/20 bg-gradient-to-br from-blue-500/20 to-blue-600/5">
 								<EnvelopeSimpleIcon

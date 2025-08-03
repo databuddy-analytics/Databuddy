@@ -71,7 +71,9 @@ export function EditGoalDialog({
 	}, [goal]);
 
 	const handleSubmit = async () => {
-		if (!formData) return;
+		if (!formData) {
+			return;
+		}
 		await onSave(formData);
 	};
 
@@ -89,7 +91,9 @@ export function EditGoalDialog({
 
 	const updateGoal = useCallback(
 		(field: keyof Goal | keyof CreateGoalData, value: string) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -103,7 +107,9 @@ export function EditGoalDialog({
 	);
 
 	const addFilter = useCallback(() => {
-		if (!formData) return;
+		if (!formData) {
+			return;
+		}
 		setFormData((prev) =>
 			prev
 				? {
@@ -119,7 +125,9 @@ export function EditGoalDialog({
 
 	const removeFilter = useCallback(
 		(index: number) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -134,7 +142,9 @@ export function EditGoalDialog({
 
 	const updateFilter = useCallback(
 		(index: number, field: keyof any, value: string) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -173,7 +183,9 @@ export function EditGoalDialog({
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
-			if (!autocompleteData) return [];
+			if (!autocompleteData) {
+				return [];
+			}
 
 			switch (field) {
 				case 'browser_name':
@@ -199,7 +211,9 @@ export function EditGoalDialog({
 
 	const getStepSuggestions = useCallback(
 		(stepType: string): string[] => {
-			if (!autocompleteData) return [];
+			if (!autocompleteData) {
+				return [];
+			}
 
 			if (stepType === 'PAGE_VIEW') {
 				return autocompleteData.pagePaths || [];
@@ -222,7 +236,9 @@ export function EditGoalDialog({
 
 	// Memoize form validation
 	const isFormValid = useMemo(() => {
-		if (!formData) return false;
+		if (!formData) {
+			return false;
+		}
 		return (
 			formData.name &&
 			formData.target &&
@@ -253,14 +269,15 @@ export function EditGoalDialog({
 		}
 	};
 
-	if (!formData) return null;
+	if (!formData) {
+		return null;
+	}
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
 			<SheetContent
-				className="w-[60vw] overflow-y-auto"
+				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[1200px]"
 				side="right"
-				style={{ width: '40vw', padding: '1rem', maxWidth: '1200px' }}
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">

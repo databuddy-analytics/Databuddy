@@ -3,7 +3,7 @@
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
-import React, { Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWebsite } from '@/hooks/use-websites';
 import {
@@ -61,10 +61,13 @@ export default function AssistantPage() {
 	const [, setWebsiteData] = useAtom(websiteDataAtom);
 	const [, setDateRange] = useAtom(dateRangeAtom);
 
-	// Combine atom initialization
-	React.useEffect(() => {
-		if (id) setWebsiteId(id as string);
-		if (websiteData) setWebsiteData(websiteData);
+	useEffect(() => {
+		if (id) {
+			setWebsiteId(id as string);
+		}
+		if (websiteData) {
+			setWebsiteData(websiteData);
+		}
 		setDateRange({
 			start_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
 			end_date: new Date().toISOString(),

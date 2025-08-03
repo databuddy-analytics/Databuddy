@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Home, Link2Off } from 'lucide-react';
+import { ArrowLeft, Home } from 'lucide-react';
 import { Geist } from 'next/font/google';
 import Link from 'next/link';
 import LiquidChrome from '@/components/bits/liquid';

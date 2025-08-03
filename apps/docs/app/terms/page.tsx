@@ -1,12 +1,10 @@
 import {
 	AlertTriangle,
-	Clock,
 	CreditCard,
 	FileText,
 	HelpCircle,
 	Scale,
 	Shield,
-	Users,
 } from 'lucide-react';
 
 export const metadata = {

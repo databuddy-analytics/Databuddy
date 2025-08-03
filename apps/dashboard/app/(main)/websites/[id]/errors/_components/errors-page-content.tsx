@@ -43,15 +43,16 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	// Add a new filter
 	const addFilter = (field: string, value: string | number) => {
 		// Prevent adding duplicate filters
-		if (activeFilters.some((f) => f.field === field && f.value === value))
+		if (activeFilters.some((f) => f.field === field && f.value === value)) {
 			return;
+		}
 
 		const newFilter: DynamicQueryFilter = { field, operator: 'eq', value };
 		setActiveFilters((prev) => [...prev, newFilter]);
 	};
 
 	// Remove a filter
-	const removeFilter = (filterToRemove: DynamicQueryFilter) => {
+	const _removeFilter = (filterToRemove: DynamicQueryFilter) => {
 		setActiveFilters((prev) =>
 			prev.filter(
 				(f) =>
@@ -63,7 +64,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	};
 
 	// Clear all filters
-	const clearFilters = () => {
+	const _clearFilters = () => {
 		setActiveFilters([]);
 	};
 
@@ -182,7 +183,9 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	// Find the top error
 	const topError = useMemo(() => {
-		if (!processedData.error_types?.length) return null;
+		if (!processedData.error_types?.length) {
+			return null;
+		}
 
 		return processedData.error_types.reduce(
 			(max, error) => (error.count > max.count ? error : max),
@@ -192,7 +195,9 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	// Chart data for error trends
 	const errorChartData = useMemo(() => {
-		if (!processedData.error_trends?.length) return [];
+		if (!processedData.error_trends?.length) {
+			return [];
+		}
 
 		return processedData.error_trends.map((point: any) => ({
 			date: safeFormatDate(point.date, 'MMM d'),

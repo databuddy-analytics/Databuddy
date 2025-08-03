@@ -69,7 +69,7 @@ const COMPETITORS = [
 		plans: [{ name: 'Free', price: 0, events: 1_000_000 }],
 		overage: false,
 		overageTooltip: false,
-		calc: (events: number) => 0,
+		calc: () => 0,
 	},
 	{
 		name: 'Plausible',
@@ -321,6 +321,48 @@ function DataSoldMeter({ events }: { events: number }) {
 	);
 }
 
+const formatCost = (cost: number | string): string => {
+	if (typeof cost === 'number') {
+		return `$${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+	return cost;
+};
+
+const getProviderCost = (
+	provider: (typeof COMPETITORS)[0],
+	events: number
+): string => {
+	if (provider.name === 'Fathom') {
+		const cost = calculateFathomCost(events);
+		return formatCost(cost);
+	}
+
+	if (provider.name === 'Plausible') {
+		const cost = calculatePlausibleCost(events);
+		return formatCost(cost);
+	}
+
+	const cost = provider.calc(events);
+	return formatCost(cost);
+};
+
+const ProviderRow = ({
+	provider,
+	events,
+}: {
+	provider: (typeof COMPETITORS)[0];
+	events: number;
+}) => (
+	<TableRow key={provider.name}>
+		<TableCell className="font-medium text-lg text-primary">
+			{provider.name}
+		</TableCell>
+		<TableCell className="font-bold text-foreground text-xl">
+			{getProviderCost(provider, events)}
+		</TableCell>
+	</TableRow>
+);
+
 export default function PricingPageContent() {
 	const [events, setEvents] = useState(25_000);
 
@@ -483,25 +525,11 @@ export default function PricingPageContent() {
 										{COMPETITORS.filter(
 											(p) => p.name !== 'Google Analytics'
 										).map((provider) => (
-											<TableRow key={provider.name}>
-												<TableCell className="font-medium text-lg text-primary">
-													{provider.name}
-												</TableCell>
-												<TableCell className="font-bold text-foreground text-xl">
-													{provider.name === 'Fathom'
-														? typeof calculateFathomCost(events) === 'number'
-															? `$${Number(calculateFathomCost(events)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-															: calculateFathomCost(events)
-														: provider.name === 'Plausible'
-															? typeof calculatePlausibleCost(events) ===
-																'number'
-																? `$${Number(calculatePlausibleCost(events)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-																: calculatePlausibleCost(events)
-															: typeof provider.calc(events) === 'number'
-																? `$${(provider.calc(events) as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-																: provider.calc(events)}
-												</TableCell>
-											</TableRow>
+											<ProviderRow
+												events={events}
+												key={provider.name}
+												provider={provider}
+											/>
 										))}
 										{/* Google Analytics always last */}
 										<TableRow key="Google Analytics">

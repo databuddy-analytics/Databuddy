@@ -66,7 +66,7 @@ const PageHeaderSkeleton = () => (
 		</div>
 
 		<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-			{[...Array(4)].map((_, i) => (
+			{[...new Array(4)].map((_, i) => (
 				<div
 					className="overflow-hidden rounded-lg border bg-card"
 					key={`${i + 1}-metrics-skeleton`}
@@ -89,7 +89,7 @@ const PageHeaderSkeleton = () => (
 
 const RevenueMetricsSkeleton = () => (
 	<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-		{[...Array(4)].map((_, i) => (
+		{Array.from({ length: 4 }).map((_, i) => (
 			<div
 				className="overflow-hidden rounded-lg border bg-card"
 				key={`${i + 1}-metrics-skeleton`}
@@ -331,7 +331,7 @@ export default function WebsiteRevenuePage() {
 							<Suspense
 								fallback={
 									<div className="space-y-3">
-										{[...Array(5)].map((_, i) => (
+										{[...new Array(5)].map((_, i) => (
 											<div
 												className="flex items-center justify-between rounded-lg border p-3"
 												key={`${i + 1}-item`}

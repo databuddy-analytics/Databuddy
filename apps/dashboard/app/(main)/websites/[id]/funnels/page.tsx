@@ -1,6 +1,6 @@
 'use client';
 
-import { ChartBarIcon, TrendDownIcon } from '@phosphor-icons/react';
+import { FunnelIcon, TrendDownIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
@@ -255,7 +255,7 @@ export default function FunnelsPage() {
 				description="Track user journeys and optimize conversion drop-off points"
 				hasError={!!funnelsError}
 				icon={
-					<ChartBarIcon
+					<FunnelIcon
 						className="h-6 w-6 text-primary"
 						size={16}
 						weight="duotone"

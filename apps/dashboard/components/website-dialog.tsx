@@ -6,7 +6,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import * as z from 'zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -52,7 +52,7 @@ export function WebsiteDialog({
 	open,
 	onOpenChange,
 	website,
-	onSave = () => {},
+	onSave,
 }: WebsiteDialogProps) {
 	const isEditing = !!website;
 	const { data: activeOrganization } = authClient.useActiveOrganization();
@@ -84,31 +84,32 @@ export function WebsiteDialog({
 			organizationId: activeOrganization?.id,
 		};
 
-		const promise = async () =>
-			isEditing
-				? updateWebsiteMutation.mutate({ id: website.id, name: formData.name })
-				: createWebsiteMutation.mutate(submissionData);
-
-		toast.promise(promise(), {
-			loading: 'Loading...',
-			success: (result) => {
-				onSave(result as unknown as Website);
-				onOpenChange(false);
-				return `Website ${isEditing ? 'updated' : 'created'} successfully!`;
-			},
-			error: (err: any) => {
-				const message =
-					err.data?.code === 'CONFLICT'
-						? 'A website with this domain already exists.'
-						: `Failed to ${isEditing ? 'update' : 'create'} website.`;
-				return message;
-			},
-		});
+		try {
+			if (isEditing) {
+				const result = await updateWebsiteMutation.mutateAsync({
+					id: website.id,
+					name: formData.name,
+				});
+				if (onSave) onSave(result);
+				toast.success('Website updated successfully!');
+			} else {
+				const result = await createWebsiteMutation.mutateAsync(submissionData);
+				if (onSave) onSave(result);
+				toast.success('Website created successfully!');
+			}
+			onOpenChange(false);
+		} catch (error: any) {
+			const message =
+				error.data?.code === 'CONFLICT'
+					? 'A website with this domain already exists.'
+					: `Failed to ${isEditing ? 'update' : 'create'} website.`;
+			toast.error(message);
+		}
 	});
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
+			<DialogContent className="w-[95vw] max-w-md sm:w-full">
 				<DialogHeader>
 					<DialogTitle>
 						{isEditing ? 'Edit Website' : 'Create a new website'}
@@ -180,6 +181,7 @@ export function WebsiteDialog({
 				</Form>
 				<DialogFooter>
 					<Button
+						className="w-full sm:w-auto"
 						disabled={
 							createWebsiteMutation.isPending || updateWebsiteMutation.isPending
 						}

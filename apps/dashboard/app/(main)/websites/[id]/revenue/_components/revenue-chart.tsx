@@ -13,13 +13,6 @@ import {
 	YAxis,
 } from 'recharts';
 import { SkeletonChart } from '@/components/charts/skeleton-chart';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
@@ -41,13 +34,17 @@ const REVENUE_COLORS = {
 
 // Enhanced tooltip with glass morphism effect
 const CustomTooltip = ({ active, payload, label }: any) => {
-	if (!(active && payload && payload.length)) return null;
+	if (!(active && payload && payload.length)) {
+		return null;
+	}
 
 	const getMetricIcon = (name: string) => {
-		if (name.toLowerCase().includes('revenue'))
+		if (name.toLowerCase().includes('revenue')) {
 			return <CurrencyDollarIcon className="h-3 w-3" />;
-		if (name.toLowerCase().includes('transaction'))
+		}
+		if (name.toLowerCase().includes('transaction')) {
 			return <CreditCardIcon className="h-3 w-3" />;
+		}
 		return <CurrencyDollarIcon className="h-3 w-3" />;
 	};
 
@@ -58,7 +55,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 				<p className="font-semibold text-foreground text-sm">{label}</p>
 			</div>
 			<div className="space-y-2.5">
-				{payload.map((entry: any, index: number) => {
+				{payload.map((entry: any, _index: number) => {
 					let displayValue: string;
 					if (entry.name.toLowerCase().includes('revenue')) {
 						displayValue = formatCurrency(entry.value);
@@ -117,8 +114,12 @@ export function RevenueChart({
 	const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
 
 	const valueFormatter = (value: number): string => {
-		if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-		if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
+		if (value >= 1_000_000) {
+			return `$${(value / 1_000_000).toFixed(1)}M`;
+		}
+		if (value >= 1000) {
+			return `$${(value / 1000).toFixed(1)}k`;
+		}
 		return `$${value}`;
 	};
 
@@ -190,7 +191,7 @@ export function RevenueChart({
 							))}
 
 							{/* Glow effects */}
-							{Object.entries(REVENUE_COLORS).map(([key, colors]) => (
+							{Object.entries(REVENUE_COLORS).map(([key, _colors]) => (
 								<filter id={`glow-${key}`} key={`glow-${key}`}>
 									<feGaussianBlur result="coloredBlur" stdDeviation="3" />
 									<feMerge>
@@ -261,7 +262,7 @@ export function RevenueChart({
 						/>
 
 						<Legend
-							formatter={(value, entry: any) => (
+							formatter={(value, _entry: any) => (
 								<span
 									className={cn(
 										'cursor-pointer font-medium text-xs transition-all duration-200',

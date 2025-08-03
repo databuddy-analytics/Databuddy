@@ -23,7 +23,9 @@ export interface TabConfig<T extends BaseTabItem> {
 
 // Generic function to add percentages to data
 export function addPercentages<T extends BaseTabItem>(data: T[]): T[] {
-	if (!data?.length) return [];
+	if (!data?.length) {
+		return [];
+	}
 
 	const totalVisitors = data.reduce(
 		(sum: number, item: T) => sum + (item.visitors || 0),
@@ -39,7 +41,9 @@ export function addPercentages<T extends BaseTabItem>(data: T[]): T[] {
 
 // Utility for compact number formatting
 const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) return '0';
+	if (value == null || Number.isNaN(value)) {
+		return '0';
+	}
 	return Intl.NumberFormat(undefined, {
 		notation: 'compact',
 		maximumFractionDigits: 1,

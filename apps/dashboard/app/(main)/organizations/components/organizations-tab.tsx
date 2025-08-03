@@ -2,13 +2,10 @@
 
 import {
 	ArrowRightIcon,
-	BuildingsIcon,
 	CalendarIcon,
 	CheckIcon,
 	GearIcon,
-	PlusIcon,
 	TrashIcon,
-	UsersIcon,
 } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -26,15 +23,19 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 import { OnboardingCard } from './onboarding-card';
 
 dayjs.extend(relativeTime);
 
 interface OrganizationsTabProps {
-	organizations: any[] | undefined;
-	activeOrganization: any | null;
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
 	isLoading: boolean;
 	onCreateOrganization: () => void;
 }
@@ -73,6 +74,7 @@ export function OrganizationsTab({
 		try {
 			deleteOrganization(organizationId);
 		} catch (error) {
+			console.error('Failed to delete organization:', error);
 			toast.error('Failed to delete organization');
 		} finally {
 			setDeletingId(null);

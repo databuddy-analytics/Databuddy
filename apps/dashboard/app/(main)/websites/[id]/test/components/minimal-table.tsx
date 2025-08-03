@@ -21,7 +21,6 @@ import {
 	ChevronRight,
 	ChevronRight as ChevronRightIcon,
 	DatabaseIcon,
-	ListFilterIcon,
 	Search,
 } from 'lucide-react';
 import { Fragment, useCallback, useMemo, useState } from 'react';
@@ -72,12 +71,18 @@ interface MinimalTableProps<TData extends RowData, TValue> {
 // Helper function to get percentage value from row data
 function getRowPercentage(row: any): number {
 	// Try to find percentage in common property names
-	if (row.marketShare !== undefined)
+	if (row.marketShare !== undefined) {
 		return Number.parseFloat(row.marketShare) || 0;
-	if (row.percentage !== undefined)
+	}
+	if (row.percentage !== undefined) {
 		return Number.parseFloat(row.percentage) || 0;
-	if (row.percent !== undefined) return Number.parseFloat(row.percent) || 0;
-	if (row.share !== undefined) return Number.parseFloat(row.share) || 0;
+	}
+	if (row.percent !== undefined) {
+		return Number.parseFloat(row.percent) || 0;
+	}
+	if (row.share !== undefined) {
+		return Number.parseFloat(row.share) || 0;
+	}
 	return 0;
 }
 
@@ -217,7 +222,9 @@ export function MinimalTable<TData extends RowData, TValue>({
 	// Enhanced tab switching with transition
 	const handleTabChange = useCallback(
 		(tabId: string) => {
-			if (tabId === activeTab) return;
+			if (tabId === activeTab) {
+				return;
+			}
 
 			setIsTransitioning(true);
 			setTimeout(() => {
@@ -328,7 +335,6 @@ export function MinimalTable<TData extends RowData, TValue>({
 					<nav
 						aria-label="Data view options"
 						className="flex gap-0.5 rounded-lg bg-muted/40 p-0.5"
-						role="tablist"
 					>
 						{tabs.map((tab) => {
 							const isActive = activeTab === tab.id;

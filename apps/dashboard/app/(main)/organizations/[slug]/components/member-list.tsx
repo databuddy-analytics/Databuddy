@@ -30,6 +30,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import type {
+	OrganizationMember,
+	UpdateMemberData,
+} from '@/hooks/use-organizations';
 
 dayjs.extend(relativeTime);
 
@@ -38,12 +42,28 @@ interface MemberToRemove {
 	name: string;
 }
 
+interface MemberListProps {
+	members: OrganizationMember[];
+	onRemoveMember: (memberId: string) => void;
+	isRemovingMember: boolean;
+	onUpdateRole: (member: UpdateMemberData) => void;
+	isUpdatingMember: boolean;
+	organizationId: string;
+}
+
+interface RoleSelectorProps {
+	member: MemberListProps['members'][number];
+	onUpdateRole: MemberListProps['onUpdateRole'];
+	isUpdatingMember: MemberListProps['isUpdatingMember'];
+	organizationId: MemberListProps['organizationId'];
+}
+
 function RoleSelector({
 	member,
 	onUpdateRole,
 	isUpdatingMember,
 	organizationId,
-}: any) {
+}: RoleSelectorProps) {
 	if (member.role === 'owner') {
 		return (
 			<Badge
@@ -60,7 +80,11 @@ function RoleSelector({
 			defaultValue={member.role}
 			disabled={isUpdatingMember}
 			onValueChange={(newRole) =>
-				onUpdateRole({ memberId: member.id, role: newRole, organizationId })
+				onUpdateRole({
+					memberId: member.id,
+					role: newRole as UpdateMemberData['role'],
+					organizationId,
+				})
 			}
 		>
 			<SelectTrigger className="w-32 rounded">
@@ -81,13 +105,15 @@ export function MemberList({
 	onUpdateRole,
 	isUpdatingMember,
 	organizationId,
-}: any) {
+}: MemberListProps) {
 	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(
 		null
 	);
 
 	const handleRemove = async () => {
-		if (!memberToRemove) return;
+		if (!memberToRemove) {
+			return;
+		}
 		await onRemoveMember(memberToRemove.id);
 		setMemberToRemove(null);
 	};
@@ -106,7 +132,7 @@ export function MemberList({
 
 			{members && members.length > 0 ? (
 				<div className="space-y-3">
-					{members.map((member: any) => (
+					{members.map((member) => (
 						<div
 							className="flex items-center justify-between rounded border border-border/50 bg-muted/30 p-4"
 							key={member.id}

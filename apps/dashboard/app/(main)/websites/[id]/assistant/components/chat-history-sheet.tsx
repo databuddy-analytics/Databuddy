@@ -5,7 +5,6 @@ import {
 	ClockIcon,
 	DotsThreeOutlineVerticalIcon,
 	DownloadIcon,
-	ImageSquareIcon,
 	MagnifyingGlassIcon,
 	TrashIcon,
 } from '@phosphor-icons/react';
@@ -32,7 +31,6 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
 	Sheet,
 	SheetContent,
@@ -66,10 +64,18 @@ function formatRelativeTime(timestamp: number): string {
 	const hours = Math.floor(diff / (1000 * 60 * 60));
 	const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-	if (minutes < 1) return 'Just now';
-	if (minutes < 60) return `${minutes}m ago`;
-	if (hours < 24) return `${hours}h ago`;
-	if (days < 7) return `${days}d ago`;
+	if (minutes < 1) {
+		return 'Just now';
+	}
+	if (minutes < 60) {
+		return `${minutes}m ago`;
+	}
+	if (hours < 24) {
+		return `${hours}h ago`;
+	}
+	if (days < 7) {
+		return `${days}d ago`;
+	}
 	return new Date(timestamp).toLocaleDateString();
 }
 
@@ -90,11 +96,11 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 				const chats = await chatDB.getAllChats();
 
 				const chatsWithPreview = await Promise.all(
-					chats.map(async (chat: any) => {
+					chats.map(async (chat) => {
 						try {
 							const messages = await chatDB.getMessages(chat.websiteId);
 							const lastUserMessage = messages
-								.filter((m: any) => m.type === 'user')
+								.filter((m) => m.type === 'user')
 								.pop();
 
 							return {

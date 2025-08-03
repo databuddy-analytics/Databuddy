@@ -90,7 +90,7 @@ export function ProfileForm() {
 							<FormControl>
 								<Input placeholder="Your name" {...field} />
 							</FormControl>
-							<FormDescription>
+							<FormDescription className="text-xs">
 								This is your public display name visible to other users.
 							</FormDescription>
 							<FormMessage />

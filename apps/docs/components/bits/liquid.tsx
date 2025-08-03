@@ -29,7 +29,9 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
-		if (!containerRef.current) return;
+		if (!containerRef.current) {
+			return;
+		}
 
 		const container = containerRef.current;
 		// Enable built-in antialiasing.

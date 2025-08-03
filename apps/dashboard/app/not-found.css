@@ -1,0 +1,31 @@
+@keyframes digit-cycle {
+  0% {
+    content: "0";
+  }
+  14.28% {
+    content: "1";
+  }
+  28.57% {
+    content: "4";
+  }
+  42.85% {
+    content: "5";
+  }
+  57.14% {
+    content: "?";
+  }
+  71.42% {
+    content: "!";
+  }
+  85.71% {
+    content: "x";
+  }
+  100% {
+    content: "0";
+  }
+}
+
+.cycling-digit::before {
+  content: "0";
+  animation: digit-cycle 5.6s infinite steps(1);
+}

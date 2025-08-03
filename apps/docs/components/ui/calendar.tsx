@@ -5,7 +5,7 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 } from 'lucide-react';
-import * as React from 'react';
+import { useEffect, useRef } from 'react';
 import {
 	type DayButton,
 	DayPicker,
@@ -119,6 +119,7 @@ function Calendar({
 				...classNames,
 			}}
 			components={{
+				// biome-ignore lint: false positive
 				Root: ({ className, rootRef, ...props }) => {
 					return (
 						<div
@@ -129,6 +130,7 @@ function Calendar({
 						/>
 					);
 				},
+				// biome-ignore lint: false positive
 				Chevron: ({ className, orientation, ...props }) => {
 					if (orientation === 'left') {
 						return (
@@ -150,6 +152,7 @@ function Calendar({
 					);
 				},
 				DayButton: CalendarDayButton,
+				// biome-ignore lint: false positive
 				WeekNumber: ({ children, ...props }) => {
 					return (
 						<td {...props}>
@@ -180,9 +183,11 @@ function CalendarDayButton({
 }: React.ComponentProps<typeof DayButton>) {
 	const defaultClassNames = getDefaultClassNames();
 
-	const ref = React.useRef<HTMLButtonElement>(null);
-	React.useEffect(() => {
-		if (modifiers.focused) ref.current?.focus();
+	const ref = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		if (modifiers.focused) {
+			ref.current?.focus();
+		}
 	}, [modifiers.focused]);
 
 	return (

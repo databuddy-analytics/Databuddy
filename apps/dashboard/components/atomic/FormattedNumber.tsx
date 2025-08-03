@@ -4,7 +4,7 @@ import type React from 'react';
 import { formatMetricNumber } from '@/lib/formatters';
 
 interface FormattedNumberProps {
-	id?: string; // Optional unique ID
+	id?: string;
 	value: number;
 	className?: string;
 }

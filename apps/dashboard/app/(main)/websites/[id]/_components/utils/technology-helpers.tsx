@@ -249,12 +249,15 @@ export const TechnologyIcon = ({
 // Percentage badge component
 export const PercentageBadge = ({ percentage }: { percentage: number }) => {
 	const getColorClass = (pct: number) => {
-		if (pct >= 50)
+		if (pct >= 50) {
 			return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-		if (pct >= 25)
+		}
+		if (pct >= 25) {
 			return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-		if (pct >= 10)
+		}
+		if (pct >= 10) {
 			return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+		}
 		return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
 	};
 

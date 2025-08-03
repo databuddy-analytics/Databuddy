@@ -1,12 +1,12 @@
 'use client';
 
 import type React from 'react';
-import { cn } from '@/lib/utils'; // Assuming cn is available for class name composition
+import { cn } from '@/lib/utils';
 
 interface TrendArrowProps {
 	id?: string;
-	value: number; // Positive, negative, or zero
-	invertColor?: boolean; // If true, positive is red, negative is green
+	value: number;
+	invertColor?: boolean;
 	className?: string;
 }
 

@@ -1,7 +1,5 @@
 import {
-	Activity,
 	AlertCircle,
-	BarChart,
 	Bell,
 	Database,
 	FileText,
@@ -40,7 +38,9 @@ function getResourceIcon(resourceType: string) {
 
 // Helper function to format percentage
 function formatPercentage(value: number | undefined) {
-	if (typeof value !== 'number') return '';
+	if (typeof value !== 'number') {
+		return '';
+	}
 	return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 }
 
@@ -123,7 +123,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
 							{notification.details.changes &&
 								notification.details.changes.length > 0 && (
 									<div className="mt-1 space-y-0.5">
-										{notification.details.changes.map((change, i) => (
+										{notification.details.changes.map((change, _i) => (
 											<p
 												className="flex items-center gap-1"
 												key={notification.id}

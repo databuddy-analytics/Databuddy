@@ -751,7 +751,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 					className
 				)}
 			>
-				<div className="px-2 pb-2 sm:px-3">
+				<div className="p-4 px-2 pb-2 sm:px-3">
 					<div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
 						<div className="min-w-0 flex-1">
 							<Skeleton className="h-5 w-32 rounded-md" />

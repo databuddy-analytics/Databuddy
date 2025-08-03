@@ -1,7 +1,8 @@
 'use client';
 
 import { GripVerticalIcon } from 'lucide-react';
-import type * as React from 'react';
+import type { ComponentProps } from 'react';
+// biome-ignore lint: false positive
 import * as ResizablePrimitive from 'react-resizable-panels';
 
 import { cn } from '@/lib/utils';
@@ -9,7 +10,7 @@ import { cn } from '@/lib/utils';
 function ResizablePanelGroup({
 	className,
 	...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelGroup>) {
+}: ComponentProps<typeof ResizablePrimitive.PanelGroup>) {
 	return (
 		<ResizablePrimitive.PanelGroup
 			className={cn(
@@ -24,7 +25,7 @@ function ResizablePanelGroup({
 
 function ResizablePanel({
 	...props
-}: React.ComponentProps<typeof ResizablePrimitive.Panel>) {
+}: ComponentProps<typeof ResizablePrimitive.Panel>) {
 	return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
 }
 
@@ -32,7 +33,7 @@ function ResizableHandle({
 	withHandle,
 	className,
 	...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
+}: ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
 	withHandle?: boolean;
 }) {
 	return (

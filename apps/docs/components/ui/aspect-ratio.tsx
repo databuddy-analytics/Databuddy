@@ -1,5 +1,6 @@
 'use client';
 
+// biome-ignore lint: false positive
 import * as AspectRatioPrimitive from '@radix-ui/react-aspect-ratio';
 
 function AspectRatio({

@@ -1,29 +1,28 @@
 "use client";
 
 import {
-  BugIcon,
-  ClockIcon,
-  FunnelIcon,
-  GitBranchIcon,
-  GlobeIcon,
-  HouseIcon,
-  InfoIcon,
-  ListIcon,
-  MapPinIcon,
-  TargetIcon,
-  UsersIcon,
-  XIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Logo } from "@/components/layout/logo";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { UserMenu } from "@/components/layout/user-menu";
-import { NotificationsPopover } from "@/components/notifications/notifications-popover";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+	BugIcon,
+	ClockIcon,
+	FunnelIcon,
+	GlobeIcon,
+	HouseIcon,
+	InfoIcon,
+	ListIcon,
+	MapPinIcon,
+	TargetIcon,
+	UsersIcon,
+	XIcon,
+} from '@phosphor-icons/react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { Logo } from '@/components/layout/logo';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { UserMenu } from '@/components/layout/user-menu';
+import { NotificationsPopover } from '@/components/notifications/notifications-popover';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const demoNavigation = [
   {

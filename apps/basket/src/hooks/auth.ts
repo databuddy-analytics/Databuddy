@@ -15,6 +15,9 @@ type WebsiteWithOwner = Website & {
 	ownerId: string | null;
 };
 
+const REGEX_WWW_PREFIX = /^www\./;
+const REGEX_DOMAIN_LABEL = /^[a-zA-Z0-9-]+$/;
+
 /**
  * Resolves the owner's user ID for a given website.
  * The owner is the user if it's a personal project, or the organization's owner
@@ -161,7 +164,7 @@ export function normalizeDomain(domain: string): string {
 
 	try {
 		const hostname = new URL(urlString).hostname;
-		const finalDomain = hostname.replace(/^www\./, '');
+		const finalDomain = hostname.replace(REGEX_WWW_PREFIX, '');
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw new Error(
@@ -213,7 +216,7 @@ export function isValidDomainFormat(domain: string): boolean {
 			return false;
 		}
 		if (
-			!/^[a-zA-Z0-9-]+$/.test(label) ||
+			!REGEX_DOMAIN_LABEL.test(label) ||
 			label.startsWith('-') ||
 			label.endsWith('-')
 		) {

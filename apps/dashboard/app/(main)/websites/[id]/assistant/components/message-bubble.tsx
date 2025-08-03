@@ -1,17 +1,17 @@
 'use client';
 
 import {
-	Brain,
-	CaretDown,
-	ChartBar,
-	ChartLine,
-	ChartPie,
-	Clock,
-	Hash,
-	Robot,
-	User,
+	BrainIcon,
+	CaretDownIcon,
+	ChartBarIcon,
+	ChartLineIcon,
+	ChartPieIcon,
+	ClockIcon,
+	HashIcon,
+	RobotIcon,
+	UserIcon,
 } from '@phosphor-icons/react';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
 	Accordion,
 	AccordionContent,
@@ -28,13 +28,13 @@ interface MessageBubbleProps {
 const getChartIcon = (chartType: string) => {
 	switch (chartType) {
 		case 'bar':
-			return <ChartBar className="h-4 w-4" />;
+			return <ChartBarIcon className="h-4 w-4" />;
 		case 'line':
-			return <ChartLine className="h-4 w-4" />;
+			return <ChartLineIcon className="h-4 w-4" />;
 		case 'pie':
-			return <ChartPie className="h-4 w-4" />;
+			return <ChartPieIcon className="h-4 w-4" />;
 		default:
-			return <ChartBar className="h-4 w-4" />;
+			return <ChartBarIcon className="h-4 w-4" />;
 	}
 };
 
@@ -44,7 +44,9 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 	const maxPreviewSteps = 3;
 
 	useEffect(() => {
-		if (steps.length === 0) return;
+		if (steps.length === 0) {
+			return;
+		}
 
 		// Show the latest steps in the preview (sliding window)
 		const latestSteps = steps.slice(-maxPreviewSteps);
@@ -59,7 +61,9 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 		}
 	}, [steps]);
 
-	if (visibleSteps.length === 0) return null;
+	if (visibleSteps.length === 0) {
+		return null;
+	}
 
 	return (
 		<div className="mt-2 max-h-20 space-y-1 overflow-hidden">
@@ -76,14 +80,14 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 						)}
 						key={`preview-${index}-${step.slice(0, 20)}`}
 					>
-						<Clock className="mt-0.5 h-3 w-3 flex-shrink-0" />
+						<ClockIcon className="mt-0.5 h-3 w-3 flex-shrink-0" />
 						<span className="break-words leading-relaxed">{step}</span>
 					</div>
 				);
 			})}
 			{steps.length > maxPreviewSteps && (
 				<div className="flex items-center gap-2 py-1 pl-1 text-muted-foreground text-xs opacity-60">
-					<CaretDown className="h-3 w-3" />
+					<CaretDownIcon className="h-3 w-3" />
 					<span>+{steps.length - maxPreviewSteps} more steps...</span>
 				</div>
 			)}
@@ -92,14 +96,16 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 }
 
 function ThinkingStepsAccordion({ steps }: { steps: string[] }) {
-	if (steps.length === 0) return null;
+	if (steps.length === 0) {
+		return null;
+	}
 
 	return (
 		<Accordion className="w-full" collapsible type="single">
 			<AccordionItem className="border-border/30" value="thinking-steps">
 				<AccordionTrigger className="py-2 text-xs hover:no-underline">
 					<div className="flex items-center gap-2">
-						<Brain className="h-3 w-3" />
+						<BrainIcon className="h-3 w-3" />
 						<span>Thinking Process ({steps.length} steps)</span>
 					</div>
 				</AccordionTrigger>
@@ -125,37 +131,44 @@ function ThinkingStepsAccordion({ steps }: { steps: string[] }) {
 	);
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
-	const isUser = message.type === 'user';
-	const isInProgress = message.type === 'assistant' && !message.content;
+function InProgressMessage({ message }: { message: Message }) {
 	const hasThinkingSteps =
 		message.thinkingSteps && message.thinkingSteps.length > 0;
 
-	if (isInProgress) {
-		return (
-			<div className="flex w-full max-w-[85%] gap-3">
-				<div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border bg-muted shadow-sm">
-					<Robot className="h-4 w-4" />
-				</div>
-				<div className="min-w-0 flex-1 rounded-lg border bg-muted px-4 py-3 shadow-sm">
-					<div className="flex items-center gap-2 text-sm">
-						<div className="flex space-x-1">
-							<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.3s]" />
-							<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.15s]" />
-							<div className="h-2 w-2 animate-bounce rounded-full bg-foreground" />
-						</div>
-						<span className="text-muted-foreground">Nova is analyzing...</span>
-					</div>
-
-					{hasThinkingSteps && (
-						<div className="mt-3 border-border/30 border-t pt-3">
-							<ThinkingStepsPreview steps={message.thinkingSteps || []} />
-						</div>
-					)}
-				</div>
+	return (
+		<div className="flex w-full max-w-[85%] gap-3">
+			<div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border bg-muted shadow-sm">
+				<RobotIcon className="h-4 w-4" />
 			</div>
-		);
-	}
+			<div className="min-w-0 flex-1 rounded-lg border bg-muted px-4 py-3 shadow-sm">
+				<div className="flex items-center gap-2 text-sm">
+					<div className="flex space-x-1">
+						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.3s]" />
+						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.15s]" />
+						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground" />
+					</div>
+					<span className="text-muted-foreground">Nova is analyzing...</span>
+				</div>
+
+				{hasThinkingSteps && (
+					<div className="mt-3 border-border/30 border-t pt-3">
+						<ThinkingStepsPreview steps={message.thinkingSteps || []} />
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function CompletedMessage({
+	message,
+	isUser,
+}: {
+	message: Message;
+	isUser: boolean;
+}) {
+	const hasThinkingSteps =
+		message.thinkingSteps && message.thinkingSteps.length > 0;
 
 	return (
 		<div
@@ -164,7 +177,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 				isUser ? 'justify-end' : 'justify-start'
 			)}
 		>
-			{/* Avatar */}
 			<div
 				className={cn(
 					'mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full shadow-sm',
@@ -173,10 +185,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 						: 'order-1 border bg-muted'
 				)}
 			>
-				{isUser ? <User className="h-4 w-4" /> : <Robot className="h-4 w-4" />}
+				{isUser ? (
+					<UserIcon className="h-4 w-4" />
+				) : (
+					<RobotIcon className="h-4 w-4" />
+				)}
 			</div>
 
-			{/* Message Content */}
 			<div
 				className={cn(
 					'relative min-w-0 max-w-[85%] rounded-lg px-4 py-3 shadow-sm',
@@ -185,26 +200,23 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 						: 'order-2 border bg-muted'
 				)}
 			>
-				{/* Main message text */}
 				<div className="overflow-wrap-anywhere whitespace-pre-wrap break-words text-sm leading-relaxed">
 					{message.content}
 				</div>
 
-				{/* Thinking Steps Accordion (for completed messages) */}
 				{hasThinkingSteps && !isUser && message.content && (
 					<div className="mt-3">
 						<ThinkingStepsAccordion steps={message.thinkingSteps || []} />
 					</div>
 				)}
 
-				{/* Metric Display */}
 				{message.responseType === 'metric' &&
 					message.metricValue !== undefined &&
 					!isUser && (
 						<div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
 							<div className="flex min-w-0 items-center gap-3">
 								<div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
-									<Hash className="h-5 w-5 text-primary" />
+									<HashIcon className="h-5 w-5 text-primary" />
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="truncate font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -220,7 +232,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 						</div>
 					)}
 
-				{/* Visualization Indicator */}
 				{message.hasVisualization && !isUser && (
 					<div className="mt-3 border-border/30 border-t pt-3">
 						<div className="flex items-center gap-2 text-muted-foreground text-xs">
@@ -230,7 +241,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 					</div>
 				)}
 
-				{/* Timestamp (hover) */}
 				<div className="-bottom-5 absolute right-0 opacity-0 transition-opacity group-hover:opacity-60">
 					<div className="mt-1 font-mono text-xs">
 						{message.timestamp.toLocaleTimeString([], {
@@ -242,4 +252,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 			</div>
 		</div>
 	);
+}
+
+export function MessageBubble({ message }: MessageBubbleProps) {
+	const isUser = message.type === 'user';
+	const isInProgress = message.type === 'assistant' && !message.content;
+
+	if (isInProgress) {
+		return <InProgressMessage message={message} />;
+	}
+
+	return <CompletedMessage isUser={isUser} message={message} />;
 }

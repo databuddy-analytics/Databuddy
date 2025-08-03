@@ -32,7 +32,9 @@ const Squares: React.FC<SquaresProps> = ({
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
-		if (!canvas) return;
+		if (!canvas) {
+			return;
+		}
 		const ctx = canvas.getContext('2d');
 
 		const resizeCanvas = () => {
@@ -42,35 +44,36 @@ const Squares: React.FC<SquaresProps> = ({
 			numSquaresY.current = Math.ceil(canvas.height / squareSize) + 1;
 		};
 
-		window.addEventListener('resize', resizeCanvas);
-		resizeCanvas();
-
-		const drawGrid = () => {
-			if (!ctx) return;
-
-			ctx.clearRect(0, 0, canvas.width, canvas.height);
+		const drawSquare = (
+			x: number,
+			y: number,
+			squareX: number,
+			squareY: number
+		) => {
+			if (!ctx) {
+				return;
+			}
 
 			const startX = Math.floor(gridOffset.current.x / squareSize) * squareSize;
 			const startY = Math.floor(gridOffset.current.y / squareSize) * squareSize;
 
-			for (let x = startX; x < canvas.width + squareSize; x += squareSize) {
-				for (let y = startY; y < canvas.height + squareSize; y += squareSize) {
-					const squareX = x - (gridOffset.current.x % squareSize);
-					const squareY = y - (gridOffset.current.y % squareSize);
+			const isHovered =
+				hoveredSquareRef.current &&
+				Math.floor((x - startX) / squareSize) === hoveredSquareRef.current.x &&
+				Math.floor((y - startY) / squareSize) === hoveredSquareRef.current.y;
 
-					if (
-						hoveredSquareRef.current &&
-						Math.floor((x - startX) / squareSize) ===
-							hoveredSquareRef.current.x &&
-						Math.floor((y - startY) / squareSize) === hoveredSquareRef.current.y
-					) {
-						ctx.fillStyle = hoverFillColor;
-						ctx.fillRect(squareX, squareY, squareSize, squareSize);
-					}
+			if (isHovered) {
+				ctx.fillStyle = hoverFillColor;
+				ctx.fillRect(squareX, squareY, squareSize, squareSize);
+			}
 
-					ctx.strokeStyle = borderColor;
-					ctx.strokeRect(squareX, squareY, squareSize, squareSize);
-				}
+			ctx.strokeStyle = borderColor;
+			ctx.strokeRect(squareX, squareY, squareSize, squareSize);
+		};
+
+		const drawGradient = () => {
+			if (!ctx) {
+				return;
 			}
 
 			const gradient = ctx.createRadialGradient(
@@ -87,6 +90,27 @@ const Squares: React.FC<SquaresProps> = ({
 
 			ctx.fillStyle = gradient;
 			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		};
+
+		const drawGrid = () => {
+			if (!ctx) {
+				return;
+			}
+
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+			const startX = Math.floor(gridOffset.current.x / squareSize) * squareSize;
+			const startY = Math.floor(gridOffset.current.y / squareSize) * squareSize;
+
+			for (let x = startX; x < canvas.width + squareSize; x += squareSize) {
+				for (let y = startY; y < canvas.height + squareSize; y += squareSize) {
+					const squareX = x - (gridOffset.current.x % squareSize);
+					const squareY = y - (gridOffset.current.y % squareSize);
+					drawSquare(x, y, squareX, squareY);
+				}
+			}
+
+			drawGradient();
 		};
 
 		const updateAnimation = () => {
@@ -150,13 +174,18 @@ const Squares: React.FC<SquaresProps> = ({
 			hoveredSquareRef.current = null;
 		};
 
+		window.addEventListener('resize', resizeCanvas);
+		resizeCanvas();
+
 		canvas.addEventListener('mousemove', handleMouseMove);
 		canvas.addEventListener('mouseleave', handleMouseLeave);
 		requestRef.current = requestAnimationFrame(updateAnimation);
 
 		return () => {
 			window.removeEventListener('resize', resizeCanvas);
-			if (requestRef.current) cancelAnimationFrame(requestRef.current);
+			if (requestRef.current) {
+				cancelAnimationFrame(requestRef.current);
+			}
 			canvas.removeEventListener('mousemove', handleMouseMove);
 			canvas.removeEventListener('mouseleave', handleMouseLeave);
 		};

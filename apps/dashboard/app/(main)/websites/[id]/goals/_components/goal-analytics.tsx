@@ -27,7 +27,7 @@ export function GoalAnalytics({
 		return (
 			<div className="space-y-4">
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-					{[...Array(3)].map((_, i) => (
+					{[...new Array(3)].map((_, i) => (
 						<Card className="animate-pulse rounded" key={i}>
 							<CardContent className="p-6">
 								<div className="mb-2 h-4 w-24 rounded bg-muted" />
@@ -79,8 +79,12 @@ export function GoalAnalytics({
 	}
 
 	const formatNumber = (num: number) => {
-		if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-		if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+		if (num >= 1_000_000) {
+			return `${(num / 1_000_000).toFixed(1)}M`;
+		}
+		if (num >= 1000) {
+			return `${(num / 1000).toFixed(1)}K`;
+		}
 		return num.toLocaleString();
 	};
 

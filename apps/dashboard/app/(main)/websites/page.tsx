@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WebsiteDialog } from '@/components/website-dialog';
 import { useWebsites } from '@/hooks/use-websites';
+
 import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import { WebsiteCard } from './_components/website-card';
@@ -151,26 +152,11 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 export default function WebsitesPage() {
-	const { websites, isLoading, isError, refetch } = useWebsites();
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const websiteIds = websites.map((w) => w.id);
-
-	const { data: chartData, isLoading: isLoadingChart } =
-		trpc.miniCharts.getMiniCharts.useQuery(
-			{
-				websiteIds,
-			},
-			{
-				enabled: !isLoading && websiteIds.length > 0,
-			}
-		);
+	const { websites, chartData, isLoading, isError, refetch } = useWebsites();
 
 	const handleRetry = () => {
-		refetch();
-	};
-
-	const handleWebsiteCreated = () => {
 		refetch();
 	};
 
@@ -189,7 +175,7 @@ export default function WebsitesPage() {
 									weight="fill"
 								/>
 							</div>
-							<div>
+							<div className="min-w-0 flex-1">
 								<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
 									Websites
 								</h1>
@@ -213,7 +199,7 @@ export default function WebsitesPage() {
 						</Button>
 						<Button
 							className={cn(
-								'w-full gap-2 px-6 py-3 font-medium sm:w-auto',
+								'gap-2 px-3 py-2 font-medium sm:px-4 sm:py-2',
 								'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
 								'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
 							)}
@@ -243,7 +229,7 @@ export default function WebsitesPage() {
 								size={24}
 								weight="duotone"
 							/>
-							<span>
+							<span className="truncate">
 								Tracking{' '}
 								<span className="font-medium text-foreground">
 									{websites.length}
@@ -270,8 +256,8 @@ export default function WebsitesPage() {
 					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 						{websites.map((website) => (
 							<WebsiteCard
-								chartData={chartData?.[website.id] || []}
-								isLoadingChart={isLoadingChart}
+								chartData={chartData?.[website.id]}
+								isLoadingChart={isLoading}
 								key={website.id}
 								website={website}
 							/>
@@ -281,11 +267,7 @@ export default function WebsitesPage() {
 			</div>
 
 			{/* Website Dialog */}
-			<WebsiteDialog
-				onOpenChange={setDialogOpen}
-				onSave={handleWebsiteCreated}
-				open={dialogOpen}
-			/>
+			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
 		</div>
 	);
 }

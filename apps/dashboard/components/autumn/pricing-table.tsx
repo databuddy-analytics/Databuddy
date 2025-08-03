@@ -45,7 +45,9 @@ export default function PricingTable({
 	);
 
 	const handleRetry = useCallback(() => {
-		if (typeof refetch === 'function') refetch();
+		if (typeof refetch === 'function') {
+			refetch();
+		}
 	}, [refetch]);
 
 	if (isLoading) {
@@ -91,7 +93,7 @@ export default function PricingTable({
 
 	const multiInterval = intervals.length > 1;
 
-	const intervalFilter = (product: any) => {
+	const intervalFilter = (product: Product) => {
 		if (!product.properties?.interval_group) {
 			return true;
 		}
@@ -152,7 +154,7 @@ export default function PricingTable({
 				<PricingTableContainer
 					isAnnualToggle={isAnnual}
 					multiInterval={multiInterval}
-					products={products as any}
+					products={products}
 					setIsAnnualToggle={setIsAnnual}
 				>
 					{products
@@ -189,7 +191,9 @@ const PricingTableContext = createContext<{
 	showFeatures: boolean;
 }>({
 	isAnnualToggle: false,
-	setIsAnnualToggle: () => {},
+	setIsAnnualToggle: () => {
+		throw new Error('setIsAnnualToggle is not implemented');
+	},
 	products: [],
 	showFeatures: true,
 });

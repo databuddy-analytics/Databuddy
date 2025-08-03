@@ -130,10 +130,12 @@ export default function RootLayout({
 				trackScreenViews={true}
 				trackWebVitals={true}
 			/>
-			<Script
-				crossOrigin="anonymous"
-				src="//unpkg.com/react-scan/dist/auto.global.js"
-			/>
+			{process.env.NODE_ENV === 'development' && (
+				<Script
+					crossOrigin="anonymous"
+					src="//unpkg.com/react-scan/dist/auto.global.js"
+				/>
+			)}
 			<body className="flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
 				<Providers>
 					<main className="flex-1">{children}</main>

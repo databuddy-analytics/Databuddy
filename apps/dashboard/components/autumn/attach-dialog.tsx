@@ -31,11 +31,11 @@ export default function AttachDialog(params?: AttachDialogProps) {
 
 	const getTotalPrice = () => {
 		let sum = due_today?.price || 0;
-		optionsInput.forEach((option) => {
+		for (const option of optionsInput) {
 			if (option.price && option.quantity) {
 				sum += option.price * (option.quantity / option.billing_units);
 			}
-		});
+		}
 		return sum;
 	};
 
@@ -43,8 +43,8 @@ export default function AttachDialog(params?: AttachDialogProps) {
 		setOptionsInput(params?.preview?.options || []);
 	}, [params?.preview?.options]);
 
-	if (!(params && params.preview)) {
-		return <></>;
+	if (!params?.preview) {
+		return null;
 	}
 
 	const { open, setOpen, preview } = params;
@@ -115,9 +115,7 @@ export default function AttachDialog(params?: AttachDialogProps) {
 						{loading ? (
 							<Loader2 className="h-4 w-4 animate-spin" />
 						) : (
-							<>
-								<span className="flex gap-1 whitespace-nowrap">Confirm</span>
-							</>
+							<span className="flex gap-1 whitespace-nowrap">Confirm</span>
 						)}
 					</Button>
 				</DialogFooter>
@@ -167,7 +165,6 @@ export const OptionsInput = ({
 	optionsInput,
 	setOptionsInput,
 	index,
-	...props
 }: {
 	className?: string;
 	option: FeatureOptionWithRequiredPrice;
@@ -184,7 +181,7 @@ export const OptionsInput = ({
 				onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
 					const newOptions = [...optionsInput];
 					newOptions[index].quantity =
-						Number.parseInt(e.target.value) * billing_units;
+						Number.parseInt(e.target.value, 10) * billing_units;
 					setOptionsInput(newOptions);
 				}}
 				value={quantity ? quantity / billing_units : ''}

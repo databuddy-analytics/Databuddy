@@ -3,12 +3,14 @@
 @import "fumadocs-ui/css/preset.css";
 @import "tw-animate-css";
 
+/* biome-ignore lint: tailwind css directive */
 @custom-variant dark (&:is(.dark *));
 
 * {
   font-family: var(--font-geist);
 }
 
+/* biome-ignore lint: tailwind css directive */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -179,9 +181,11 @@
 
 @layer base {
   * {
+    /* biome-ignore lint: tailwind css directive */
     @apply border-border outline-ring/50;
   }
   body {
+    /* biome-ignore lint: tailwind css directive */
     @apply bg-background text-foreground;
   }
 }
@@ -191,6 +195,7 @@ html {
 }
 
 #nd-home-layout {
+  /* biome-ignore lint: false positive */
   padding-top: 0px !important;
 }
 

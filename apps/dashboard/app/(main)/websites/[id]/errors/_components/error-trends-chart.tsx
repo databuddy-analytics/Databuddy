@@ -155,9 +155,12 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 								axisLine={false}
 								tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
 								tickFormatter={(value) => {
-									if (value >= 1_000_000)
+									if (value >= 1_000_000) {
 										return `${(value / 1_000_000).toFixed(1)}M`;
-									if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+									}
+									if (value >= 1000) {
+										return `${(value / 1000).toFixed(1)}k`;
+									}
 									return value.toString();
 								}}
 								tickLine={false}

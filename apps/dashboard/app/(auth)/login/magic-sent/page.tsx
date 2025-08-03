@@ -1,7 +1,7 @@
 'use client';
 
 import { signIn } from '@databuddy/auth/client';
-import { ChevronLeft, Loader2, MailCheck, Sparkles } from 'lucide-react';
+import { ChevronLeft, Loader2, MailCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -35,7 +35,7 @@ export default function MagicSentPage() {
 					},
 				},
 			});
-		} catch (error) {
+		} catch (_error) {
 			setIsLoading(false);
 			toast.error('Failed to send magic link. Please try again.');
 		}

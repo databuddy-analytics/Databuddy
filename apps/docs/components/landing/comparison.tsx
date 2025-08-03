@@ -83,6 +83,95 @@ const features = [
 	},
 ];
 
+const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
+	<div
+		className="border-border/50 border-b transition-colors last:border-b-0 hover:bg-muted/30"
+		key={feature.name}
+	>
+		{/* Desktop layout */}
+		<div className="hidden grid-cols-6 p-4 md:grid">
+			<div className="pr-4 text-foreground text-sm">{feature.name}</div>
+			<div className="flex justify-center">
+				{feature.us ? (
+					<Check className="h-5 w-5 text-primary" />
+				) : (
+					<X className="h-5 w-5 text-muted-foreground" />
+				)}
+			</div>
+			<div className="flex justify-center">
+				{feature.ga ? (
+					<Check className="h-5 w-5 text-muted-foreground" />
+				) : (
+					<X className="h-5 w-5 text-muted-foreground" />
+				)}
+			</div>
+			<div className="flex justify-center">
+				{feature.plausible ? (
+					<Check className="h-5 w-5 text-muted-foreground" />
+				) : (
+					<X className="h-5 w-5 text-muted-foreground" />
+				)}
+			</div>
+			<div className="flex justify-center">
+				{feature.fathom ? (
+					<Check className="h-5 w-5 text-muted-foreground" />
+				) : (
+					<X className="h-5 w-5 text-muted-foreground" />
+				)}
+			</div>
+			<div className="text-muted-foreground text-xs">{feature.benefit}</div>
+		</div>
+
+		{/* Mobile layout */}
+		<div className="space-y-3 p-4 md:hidden">
+			<div className="flex items-start justify-between">
+				<div className="flex-1 pr-4 font-medium text-foreground text-sm">
+					{feature.name}
+				</div>
+				<div className="flex items-center gap-1">
+					<span className="font-medium text-primary text-xs">Databuddy</span>
+					{feature.us ? (
+						<Check className="h-4 w-4 text-primary" />
+					) : (
+						<X className="h-4 w-4 text-muted-foreground" />
+					)}
+				</div>
+			</div>
+
+			<div className="text-muted-foreground text-xs leading-relaxed">
+				{feature.benefit}
+			</div>
+
+			<div className="flex flex-wrap gap-3 pt-2">
+				<div className="flex items-center gap-1">
+					<span className="text-muted-foreground text-xs">GA</span>
+					{feature.ga ? (
+						<Check className="h-3 w-3 text-muted-foreground" />
+					) : (
+						<X className="h-3 w-3 text-muted-foreground" />
+					)}
+				</div>
+				<div className="flex items-center gap-1">
+					<span className="text-muted-foreground text-xs">Plausible</span>
+					{feature.plausible ? (
+						<Check className="h-3 w-3 text-muted-foreground" />
+					) : (
+						<X className="h-3 w-3 text-muted-foreground" />
+					)}
+				</div>
+				<div className="flex items-center gap-1">
+					<span className="text-muted-foreground text-xs">Fathom</span>
+					{feature.fathom ? (
+						<Check className="h-3 w-3 text-muted-foreground" />
+					) : (
+						<X className="h-3 w-3 text-muted-foreground" />
+					)}
+				</div>
+			</div>
+		</div>
+	</div>
+);
+
 export default function Comparison() {
 	return (
 		<div className="-pr-2 relative mx-auto rounded-none border-border bg-background/95 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
@@ -139,102 +228,7 @@ export default function Comparison() {
 						</div>
 
 						{features.map((feature) => (
-							<div
-								className="border-border/50 border-b transition-colors last:border-b-0 hover:bg-muted/30"
-								key={feature.name}
-							>
-								{/* Desktop layout */}
-								<div className="hidden grid-cols-6 p-4 md:grid">
-									<div className="pr-4 text-foreground text-sm">
-										{feature.name}
-									</div>
-									<div className="flex justify-center">
-										{feature.us ? (
-											<Check className="h-5 w-5 text-primary" />
-										) : (
-											<X className="h-5 w-5 text-muted-foreground" />
-										)}
-									</div>
-									<div className="flex justify-center">
-										{feature.ga ? (
-											<Check className="h-5 w-5 text-muted-foreground" />
-										) : (
-											<X className="h-5 w-5 text-muted-foreground" />
-										)}
-									</div>
-									<div className="flex justify-center">
-										{feature.plausible ? (
-											<Check className="h-5 w-5 text-muted-foreground" />
-										) : (
-											<X className="h-5 w-5 text-muted-foreground" />
-										)}
-									</div>
-									<div className="flex justify-center">
-										{feature.fathom ? (
-											<Check className="h-5 w-5 text-muted-foreground" />
-										) : (
-											<X className="h-5 w-5 text-muted-foreground" />
-										)}
-									</div>
-									<div className="text-muted-foreground text-xs">
-										{feature.benefit}
-									</div>
-								</div>
-
-								{/* Mobile layout */}
-								<div className="space-y-3 p-4 md:hidden">
-									<div className="flex items-start justify-between">
-										<div className="flex-1 pr-4 font-medium text-foreground text-sm">
-											{feature.name}
-										</div>
-										<div className="flex items-center gap-1">
-											<span className="font-medium text-primary text-xs">
-												Databuddy
-											</span>
-											{feature.us ? (
-												<Check className="h-4 w-4 text-primary" />
-											) : (
-												<X className="h-4 w-4 text-muted-foreground" />
-											)}
-										</div>
-									</div>
-
-									<div className="text-muted-foreground text-xs leading-relaxed">
-										{feature.benefit}
-									</div>
-
-									<div className="flex flex-wrap gap-3 pt-2">
-										<div className="flex items-center gap-1">
-											<span className="text-muted-foreground text-xs">GA</span>
-											{feature.ga ? (
-												<Check className="h-3 w-3 text-muted-foreground" />
-											) : (
-												<X className="h-3 w-3 text-muted-foreground" />
-											)}
-										</div>
-										<div className="flex items-center gap-1">
-											<span className="text-muted-foreground text-xs">
-												Plausible
-											</span>
-											{feature.plausible ? (
-												<Check className="h-3 w-3 text-muted-foreground" />
-											) : (
-												<X className="h-3 w-3 text-muted-foreground" />
-											)}
-										</div>
-										<div className="flex items-center gap-1">
-											<span className="text-muted-foreground text-xs">
-												Fathom
-											</span>
-											{feature.fathom ? (
-												<Check className="h-3 w-3 text-muted-foreground" />
-											) : (
-												<X className="h-3 w-3 text-muted-foreground" />
-											)}
-										</div>
-									</div>
-								</div>
-							</div>
+							<FeatureRow feature={feature} key={feature.name} />
 						))}
 					</div>
 

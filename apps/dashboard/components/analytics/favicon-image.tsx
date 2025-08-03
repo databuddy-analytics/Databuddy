@@ -1,6 +1,7 @@
 'use client';
 
 import { GlobeIcon } from '@phosphor-icons/react';
+import Image from 'next/image';
 import { useState } from 'react';
 
 interface FaviconImageProps {
@@ -9,6 +10,9 @@ interface FaviconImageProps {
 	size?: number;
 	className?: string;
 }
+
+const hostnameRegex = /^https?:\/\//;
+const wwwRegex = /^www\./;
 
 export function FaviconImage({
 	domain,
@@ -19,8 +23,8 @@ export function FaviconImage({
 	const [error, setError] = useState(false);
 
 	const hostname = domain
-		.replace(/^https?:\/\//, '')
-		.replace(/^www\./, '')
+		.replace(hostnameRegex, '')
+		.replace(wwwRegex, '')
 		.split('/')[0]
 		.split('?')[0]
 		.split('#')[0];
@@ -34,7 +38,7 @@ export function FaviconImage({
 		hostname.includes('localhost') ||
 		hostname.includes('127.0.0.1');
 
-	if (error || invalid) {
+	if (invalid || error) {
 		return (
 			<div
 				className={`${className} flex items-center justify-center rounded-sm`}
@@ -42,7 +46,7 @@ export function FaviconImage({
 			>
 				<GlobeIcon
 					aria-label={altText || 'Website icon'}
-					className="text-muted-foreground"
+					className="not-dark:text-primary text-muted-foreground"
 					size={size}
 					weight="duotone"
 				/>
@@ -51,19 +55,12 @@ export function FaviconImage({
 	}
 
 	return (
-		<img
+		<Image
 			alt={altText || `${domain} favicon`}
 			className={className}
 			height={size}
 			onError={() => setError(true)}
 			src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`}
-			style={{
-				width: size,
-				height: size,
-				objectFit: 'contain',
-				imageRendering: '-webkit-optimize-contrast',
-				filter: 'contrast(1.1) saturate(1.1)',
-			}}
 			width={size}
 		/>
 	);

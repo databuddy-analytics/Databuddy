@@ -12,12 +12,16 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 
 interface OrganizationSwitcherProps {
-	organizations: any[];
-	activeOrganization: any | null;
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
 	className?: string;
 }
 

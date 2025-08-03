@@ -28,7 +28,7 @@ export const metricVisibilityAtom = atomWithStorage<MetricVisibilityState>(
 // Action atom to toggle a specific metric
 export const toggleMetricAtom = atom(
 	null,
-	(get: any, set: any, metric: keyof MetricVisibilityState) => {
+	(_get: any, set: any, metric: keyof MetricVisibilityState) => {
 		set(metricVisibilityAtom, (prev: MetricVisibilityState) => ({
 			...prev,
 			[metric]: !prev[metric],
@@ -39,7 +39,7 @@ export const toggleMetricAtom = atom(
 // Action atom to set all metrics visibility at once
 export const setMetricVisibilityAtom = atom(
 	null,
-	(get: any, set: any, visibility: Partial<MetricVisibilityState>) => {
+	(_get: any, set: any, visibility: Partial<MetricVisibilityState>) => {
 		set(metricVisibilityAtom, (prev: MetricVisibilityState) => ({
 			...prev,
 			...visibility,
@@ -48,7 +48,7 @@ export const setMetricVisibilityAtom = atom(
 );
 
 // Action atom to reset to default visibility
-export const resetMetricVisibilityAtom = atom(null, (get: any, set: any) => {
+export const resetMetricVisibilityAtom = atom(null, (_get: any, set: any) => {
 	set(metricVisibilityAtom, defaultVisibleMetrics);
 });
 

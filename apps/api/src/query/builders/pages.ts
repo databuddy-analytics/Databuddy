@@ -5,13 +5,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
-			'path(path) as name',
+			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name",
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
-		where: ["event_name = 'screen_view'", "path != ''"],
-		groupBy: ['path(path)'],
+		where: ["event_name = 'screen_view'"],
+		groupBy: [
+			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END",
+		],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
@@ -27,7 +29,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
-		where: ["event_name = 'screen_view'", "path != ''"],
+		where: ["event_name = 'screen_view'"],
 		groupBy: ['entry_page'],
 		orderBy: 'pageviews DESC',
 		limit: 100,
@@ -48,7 +50,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT 
                     session_id,
                     anonymous_id,
-                    path(path) as entry_page,
+                    CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as entry_page,
                     time as entry_time,
                     ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY time) as page_rank
                 FROM analytics.events
@@ -56,7 +58,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort({endDate:String})
                     AND event_name = 'screen_view'
-                    AND path != ''
             )
             SELECT 
                 entry_page as name,
@@ -87,7 +88,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(DISTINCT session_id) / SUM(COUNT(DISTINCT session_id)) OVER()) * 100, 2) as percentage',
 		],
-		where: ["event_name = 'screen_view'", "path != ''"],
+		where: ["event_name = 'screen_view'"],
 		groupBy: ['path'],
 		orderBy: 'pageviews DESC',
 		limit: 100,
@@ -113,12 +114,11 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort({endDate:String})
                     AND event_name = 'screen_view'
-                    AND path != ''
                 GROUP BY session_id
             ),
             exit_pages AS (
                 SELECT
-                    path(e.path) as path,
+                    CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END as path,
                     e.session_id,
                     e.anonymous_id
                 FROM analytics.events e
@@ -127,7 +127,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
                     AND e.time <= parseDateTimeBestEffort({endDate:String})
                     AND e.event_name = 'screen_view'
-                    AND e.path != ''
             )
             SELECT 
                 path as name,
@@ -152,13 +151,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	page_performance: {
 		table: Analytics.events,
 		fields: [
-			'path(path) as name',
+			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name",
 			'COUNT(*) as pageviews',
 			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 		],
-		where: ["event_name = 'screen_view'", "path != ''"],
-		groupBy: ['path(path)'],
+		where: ["event_name = 'screen_view'"],
+		groupBy: [
+			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END",
+		],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',

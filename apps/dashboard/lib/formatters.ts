@@ -1,9 +1,13 @@
 // Helper function to format numbers with metric prefixes (K, M, B)
 export const formatMetricNumber = (num: number | undefined | null): string => {
-	if (num === undefined || num === null) return '0';
+	if (num === undefined || num === null) {
+		return '0';
+	}
 
 	// Handle edge case for non-numeric strings that might have been converted to NaN
-	if (Number.isNaN(num)) return '0';
+	if (Number.isNaN(num)) {
+		return '0';
+	}
 
 	if (Math.abs(num) >= 1_000_000_000) {
 		return `${(num / 1_000_000_000).toFixed(1)}B`;
@@ -23,8 +27,9 @@ export const formatCurrency = (
 	amount: number | undefined | null,
 	currency = 'USD'
 ): string => {
-	if (amount === undefined || amount === null || Number.isNaN(amount))
+	if (amount === undefined || amount === null || Number.isNaN(amount)) {
 		return '$0.00';
+	}
 
 	return new Intl.NumberFormat('en-US', {
 		style: 'currency',
@@ -34,7 +39,9 @@ export const formatCurrency = (
 
 // Format regular numbers with commas
 export const formatNumber = (num: number | undefined | null): string => {
-	if (num === undefined || num === null || Number.isNaN(num)) return '0';
+	if (num === undefined || num === null || Number.isNaN(num)) {
+		return '0';
+	}
 
 	return new Intl.NumberFormat('en-US').format(num);
 };

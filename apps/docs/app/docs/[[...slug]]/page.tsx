@@ -15,7 +15,9 @@ export default async function Page(props: {
 }) {
 	const params = await props.params;
 	const page = source.getPage(params.slug);
-	if (!page) notFound();
+	if (!page) {
+		notFound();
+	}
 
 	const MDXContent = page.data.body;
 	const url = `https://www.databuddy.cc${page.url}`;
@@ -30,7 +32,7 @@ export default async function Page(props: {
 		let currentPath = '/docs';
 		params.slug.forEach((segment, index) => {
 			currentPath += `/${segment}`;
-			if (index < params.slug!.length - 1) {
+			if (index < (params.slug?.length ?? 0) - 1) {
 				breadcrumbs.push({
 					name: segment.charAt(0).toUpperCase() + segment.slice(1),
 					url: currentPath,
@@ -67,7 +69,7 @@ export default async function Page(props: {
 	);
 }
 
-export async function generateStaticParams() {
+export function generateStaticParams() {
 	return source.generateParams();
 }
 
@@ -76,7 +78,9 @@ export async function generateMetadata(props: {
 }) {
 	const params = await props.params;
 	const page = source.getPage(params.slug);
-	if (!page) notFound();
+	if (!page) {
+		notFound();
+	}
 
 	const url = `https://www.databuddy.cc${page.url}`;
 	const title = `${page.data.title} | Databuddy Documentation`;

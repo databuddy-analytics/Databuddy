@@ -42,7 +42,7 @@ export function RecentTransactions({
 	if (isLoading) {
 		return (
 			<div className="space-y-3">
-				{[...Array(5)].map((_, i) => (
+				{Array.from({ length: 5 }).map((_, i) => (
 					<TransactionSkeleton key={i} />
 				))}
 			</div>
@@ -91,7 +91,7 @@ export function RecentTransactions({
 
 	return (
 		<div className="space-y-3">
-			{data.map((transaction, index) => (
+			{data.map((transaction) => (
 				<div
 					className="group flex items-center justify-between rounded-lg border border-border/50 bg-gradient-to-r from-background to-muted/10 p-4 transition-all duration-300 hover:border-primary/20 hover:bg-gradient-to-r hover:from-primary/5 hover:to-primary/10"
 					key={transaction.id}

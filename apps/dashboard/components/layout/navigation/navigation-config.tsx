@@ -1,17 +1,20 @@
 import {
 	BugIcon,
 	ChatCircleIcon,
-	ClockIcon,
+	CodeIcon,
 	CurrencyDollarIcon,
+	FileTextIcon,
 	FunnelIcon,
 	GearIcon,
 	GlobeIcon,
+	HeartIcon,
 	HouseIcon,
 	// LinkIcon,
 	MapPinIcon,
 	RobotIcon,
 	TargetIcon,
 	TestTubeIcon,
+	UserIcon,
 	UsersIcon,
 } from '@phosphor-icons/react';
 import type { NavigationSection } from './types';
@@ -77,9 +80,22 @@ export const websiteNavigation: NavigationSection[] = [
 		title: 'Web Analytics',
 		items: [
 			{ name: 'Overview', icon: HouseIcon, href: '', highlight: true },
-			{ name: 'Sessions', icon: ClockIcon, href: '/sessions', highlight: true },
+			{ name: 'Sessions', icon: UserIcon, href: '/sessions', highlight: true },
 			{ name: 'Errors', icon: BugIcon, href: '/errors', highlight: true },
 			{ name: 'Map', icon: MapPinIcon, href: '/map', highlight: true },
+		],
+	},
+	{
+		title: 'API Analytics',
+		items: [
+			{
+				name: 'API Metrics',
+				icon: CodeIcon,
+				href: '/api-analytics',
+				highlight: true,
+				alpha: true,
+				production: false,
+			},
 		],
 	},
 	{
@@ -104,6 +120,32 @@ export const websiteNavigation: NavigationSection[] = [
 			},
 		],
 	},
+	{
+		title: 'Observability',
+		items: [
+			{
+				name: 'Status',
+				icon: HeartIcon,
+				href: '/status',
+				highlight: true,
+				alpha: true,
+				production: false,
+			},
+		],
+	},
+	{
+		title: 'Automation',
+		items: [
+			{
+				name: 'Reports',
+				icon: FileTextIcon,
+				href: '/reports',
+				highlight: true,
+				alpha: true,
+				production: false,
+			},
+		],
+	},
 	// {
 	//   title: "Configuration",
 	//   items: [{ name: "Settings", icon: GearIcon, href: "/settings", highlight: true }],
@@ -115,7 +157,7 @@ export const demoNavigation: NavigationSection[] = [
 		title: 'Demo Analytics',
 		items: [
 			{ name: 'Overview', icon: HouseIcon, href: '', highlight: true },
-			{ name: 'Sessions', icon: ClockIcon, href: '/sessions', highlight: true },
+			{ name: 'Sessions', icon: UserIcon, href: '/sessions', highlight: true },
 			{ name: 'Profiles', icon: UsersIcon, href: '/profiles', highlight: true },
 			{ name: 'Map', icon: MapPinIcon, href: '/map', highlight: true },
 		],

@@ -104,6 +104,7 @@ export function StructuredData({
 
 	return (
 		<Script
+			// biome-ignore lint: false positive
 			dangerouslySetInnerHTML={{
 				__html: JSON.stringify(getStructuredData()),
 			}}

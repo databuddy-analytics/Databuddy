@@ -86,7 +86,25 @@ bun install
 cp .env.example .env
 ```
 
-4. Start development servers:
+4. Start Docker services (PostgreSQL, Redis, ClickHouse):
+
+```bash
+docker-compose up -d
+```
+
+5. Set up the database:
+
+```bash
+bun db:push
+```
+
+6. Build the SDK:
+
+```bash
+bun sdk:build
+```
+
+7. Start development servers:
 
 ```bash
 bun run dev

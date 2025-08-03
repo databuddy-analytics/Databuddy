@@ -1,6 +1,8 @@
 // Enhanced Custom Tooltip for Error Chart
 export const ErrorChartTooltip = ({ active, payload, label }: any) => {
-	if (!(active && payload && payload.length)) return null;
+	if (!(active && payload && payload.length)) {
+		return null;
+	}
 
 	return (
 		<div className="rounded-lg border border-border bg-background p-3 text-xs shadow-lg">

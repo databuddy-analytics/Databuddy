@@ -12,11 +12,9 @@ import {
 	Shield,
 	TrendingUp,
 	Users,
-	Zap,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import LiquidChrome from './bits/liquid';
 import Testimonials from './landing/testimonials';
 
 const whyWeExist = [
@@ -103,11 +101,7 @@ const whatYouGet = [
 	},
 ];
 
-interface FeaturesProps {
-	stars: string | null;
-}
-
-export default function Features({ stars }: FeaturesProps) {
+export default function Features() {
 	return (
 		<div className="-pr-2 relative mx-auto rounded-none border-border bg-background/95 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
 			<div className="w-full md:mx-0">
@@ -133,7 +127,7 @@ export default function Features({ stars }: FeaturesProps) {
 						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 					</div>
-					{whyWeExist.map((item, index) => (
+					{whyWeExist.map((item) => (
 						<div
 							className={cn(
 								'flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0'
@@ -149,7 +143,7 @@ export default function Features({ stars }: FeaturesProps) {
 									<div className="flex gap-3">
 										<p
 											className="max-w-lg font-normal text-foreground text-xl tracking-tighter md:text-2xl"
-											// biome-ignore lint/security/noDangerouslySetInnerHtml: <explanation>
+											// biome-ignore lint/security/noDangerouslySetInnerHtml: false positive
 											dangerouslySetInnerHTML={{ __html: item.title }}
 										/>
 									</div>
@@ -184,7 +178,7 @@ export default function Features({ stars }: FeaturesProps) {
 						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 					</div>
-					{whatYouGet.map((item, index) => (
+					{whatYouGet.map((item) => (
 						<div
 							className={cn(
 								'flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-b-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0'
@@ -200,7 +194,7 @@ export default function Features({ stars }: FeaturesProps) {
 									<div className="flex gap-3">
 										<p
 											className="max-w-lg font-normal text-foreground text-xl tracking-tighter md:text-2xl"
-											// biome-ignore lint/security/noDangerouslySetInnerHtml: <explanation>
+											// biome-ignore lint/security/noDangerouslySetInnerHtml: false positive
 											dangerouslySetInnerHTML={{ __html: item.title }}
 										/>
 									</div>

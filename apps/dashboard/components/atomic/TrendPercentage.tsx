@@ -5,10 +5,10 @@ import { cn } from '@/lib/utils';
 
 interface TrendPercentageProps {
 	id?: string;
-	value: number; // The percentage value (e.g., 10.5, -5.2)
-	invertColor?: boolean; // If true, positive is red, negative is green
+	value: number;
+	invertColor?: boolean;
 	className?: string;
-	digits?: number; // Number of digits after the decimal point
+	digits?: number;
 }
 
 const formatPercentage = (value: number, digits = 1): string => {
@@ -23,10 +23,9 @@ export const TrendPercentage: React.FC<TrendPercentageProps> = ({
 	className,
 	digits = 1,
 }) => {
-	let colorClass = 'text-muted-foreground'; // Default for zero or NaN
+	let colorClass = 'text-muted-foreground';
 
 	if (Number.isNaN(value)) {
-		// Handle NaN case, perhaps display '--%'
 		return (
 			<span className={cn('text-muted-foreground', className)} id={id}>
 				--%

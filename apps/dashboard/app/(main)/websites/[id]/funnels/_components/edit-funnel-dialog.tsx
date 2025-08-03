@@ -93,7 +93,9 @@ export function EditFunnelDialog({
 	}, [funnel]);
 
 	const handleSubmit = async () => {
-		if (!formData) return;
+		if (!formData) {
+			return;
+		}
 
 		if (isCreateMode && onCreate) {
 			const createData: CreateFunnelData = {
@@ -132,7 +134,9 @@ export function EditFunnelDialog({
 	}, [isCreateMode]);
 
 	const addStep = useCallback(() => {
-		if (!formData) return;
+		if (!formData) {
+			return;
+		}
 		setFormData((prev) =>
 			prev
 				? {
@@ -148,7 +152,9 @@ export function EditFunnelDialog({
 
 	const removeStep = useCallback(
 		(index: number) => {
-			if (!formData || formData.steps.length <= 2) return;
+			if (!formData || formData.steps.length <= 2) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -163,7 +169,9 @@ export function EditFunnelDialog({
 
 	const updateStep = useCallback(
 		(index: number, field: keyof FunnelStep, value: string) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -180,13 +188,17 @@ export function EditFunnelDialog({
 
 	const reorderSteps = useCallback(
 		(result: DropResult) => {
-			if (!(result.destination && formData)) return;
+			if (!(result.destination && formData)) {
+				return;
+			}
 
 			const sourceIndex = result.source.index;
 			const destinationIndex = result.destination.index;
 
 			// No change needed
-			if (sourceIndex === destinationIndex) return;
+			if (sourceIndex === destinationIndex) {
+				return;
+			}
 
 			const items = [...formData.steps];
 			const [reorderedItem] = items.splice(sourceIndex, 1);
@@ -205,7 +217,9 @@ export function EditFunnelDialog({
 	);
 
 	const addFilter = useCallback(() => {
-		if (!formData) return;
+		if (!formData) {
+			return;
+		}
 		setFormData((prev) =>
 			prev
 				? {
@@ -221,7 +235,9 @@ export function EditFunnelDialog({
 
 	const removeFilter = useCallback(
 		(index: number) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -236,7 +252,9 @@ export function EditFunnelDialog({
 
 	const updateFilter = useCallback(
 		(index: number, field: keyof FunnelFilter, value: string) => {
-			if (!formData) return;
+			if (!formData) {
+				return;
+			}
 			setFormData((prev) =>
 				prev
 					? {
@@ -275,7 +293,9 @@ export function EditFunnelDialog({
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
-			if (!autocompleteData) return [];
+			if (!autocompleteData) {
+				return [];
+			}
 
 			switch (field) {
 				case 'browser_name':
@@ -301,7 +321,9 @@ export function EditFunnelDialog({
 
 	const getStepSuggestions = useCallback(
 		(stepType: string): string[] => {
-			if (!autocompleteData) return [];
+			if (!autocompleteData) {
+				return [];
+			}
 
 			if (stepType === 'PAGE_VIEW') {
 				return autocompleteData.pagePaths || [];
@@ -324,7 +346,9 @@ export function EditFunnelDialog({
 
 	// Memoize form validation
 	const isFormValid = useMemo(() => {
-		if (!formData) return false;
+		if (!formData) {
+			return false;
+		}
 		return (
 			formData.name &&
 			!formData.steps.some((s) => !(s.name && s.target)) &&
@@ -332,14 +356,15 @@ export function EditFunnelDialog({
 		);
 	}, [formData]);
 
-	if (!formData) return null;
+	if (!formData) {
+		return null;
+	}
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
 			<SheetContent
-				className="w-[60vw] overflow-y-auto"
+				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[1200px]"
 				side="right"
-				style={{ width: '40vw', padding: '1rem', maxWidth: '1200px' }}
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">
@@ -443,7 +468,7 @@ export function EditFunnelDialog({
 											<Draggable
 												draggableId={`step-${index}`}
 												index={index}
-												key={`step-${index}-${step.type}-${step.target}-${step.name}`}
+												key={`step-${index}`}
 											>
 												{(provided: any, snapshot: any) => (
 													<div
@@ -503,7 +528,7 @@ export function EditFunnelDialog({
 								{formData.filters.map((filter, index) => (
 									<div
 										className="flex items-center gap-3 rounded border bg-muted/30 p-3"
-										key={`filter-${index}-${filter.field}-${filter.operator}-${filter.value}`}
+										key={`filter-${index}`}
 									>
 										<Select
 											onValueChange={(value) =>

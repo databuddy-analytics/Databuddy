@@ -1,5 +1,6 @@
 'use client';
 
+// biome-ignore lint: false positive
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
 import { CheckIcon } from 'lucide-react';
 import type * as React from 'react';

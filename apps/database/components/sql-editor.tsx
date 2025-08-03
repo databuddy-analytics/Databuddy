@@ -4,7 +4,6 @@ import {
 	CheckCircle,
 	Clock,
 	Copy,
-	Download,
 	History,
 	Play,
 	Save,
@@ -21,7 +20,6 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
@@ -75,7 +73,7 @@ export function SqlEditor({
 	};
 
 	// Add query to history
-	const addToHistory = (
+	const _addToHistory = (
 		query: string,
 		success: boolean,
 		duration?: number,

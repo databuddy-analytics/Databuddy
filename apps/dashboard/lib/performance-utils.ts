@@ -32,8 +32,11 @@ export function calculatePerformanceSummary(
 		totalLoadTime += loadTime * visitors;
 		totalVisitorWeight += visitors;
 
-		if (loadTime < SCORE_THRESHOLDS.FAST) fastPages++;
-		else if (loadTime > SCORE_THRESHOLDS.MODERATE) slowPages++;
+		if (loadTime < SCORE_THRESHOLDS.FAST) {
+			fastPages++;
+		} else if (loadTime > SCORE_THRESHOLDS.MODERATE) {
+			slowPages++;
+		}
 
 		let score: number;
 		if (loadTime <= SCORE_THRESHOLDS.FAST) {

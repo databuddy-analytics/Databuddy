@@ -4,27 +4,23 @@ import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
 	CheckIcon,
-	ClockIcon,
 	CreditCardIcon,
 	FileTextIcon,
-	XIcon,
 } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
+import { memo } from 'react';
 import { useBilling } from '@/app/(main)/billing/hooks/use-billing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Customer, Invoice } from '../data/billing-data';
 
-function InvoiceCard({ invoice }: { invoice: Invoice }) {
+const InvoiceCard = memo(function InvoiceCardComponent({
+	invoice,
+}: {
+	invoice: Invoice;
+}) {
 	const getStatusBadge = () => {
 		switch (invoice.status) {
 			case 'paid':
@@ -84,8 +80,12 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
 			<CardContent className="p-4">
 				<div className="flex items-center justify-between">
 					<div className="flex min-w-0 flex-1 items-center gap-3">
-						<div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border">
-							<FileTextIcon className="text-muted-foreground" size={16} />
+						<div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border bg-muted">
+							<FileTextIcon
+								className="not-dark:text-primary text-muted-foreground"
+								size={16}
+								weight="duotone"
+							/>
 						</div>
 						<div className="min-w-0 flex-1">
 							<div className="mb-1 flex items-center gap-2">
@@ -110,6 +110,7 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
 
 						{invoice.hosted_invoice_url && (
 							<Button
+								aria-label="View invoice details"
 								className="h-8 cursor-pointer px-2"
 								onClick={() => {
 									if (invoice.hosted_invoice_url) {
@@ -117,9 +118,14 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
 									}
 								}}
 								size="sm"
+								type="button"
 								variant="ghost"
 							>
-								<ArrowSquareOutIcon size={14} />
+								<ArrowSquareOutIcon
+									className="not-dark:text-primary"
+									size={14}
+									weight="duotone"
+								/>
 							</Button>
 						)}
 					</div>
@@ -127,28 +133,32 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
 			</CardContent>
 		</Card>
 	);
-}
+});
 
-function SubscriptionHistoryCard({ customerData }: { customerData: any }) {
-	if (!customerData?.products?.length) return null;
+const SubscriptionHistoryCard = memo(function SubscriptionHistoryCardComponent({
+	customerData,
+}: {
+	customerData: Customer;
+}) {
+	if (!customerData?.products?.length) {
+		return null;
+	}
 
 	return (
 		<Card>
-			<CardHeader className="pb-3">
-				<CardTitle className="flex items-center gap-2 text-base">
-					<CalendarIcon size={16} />
-					Subscription History
-				</CardTitle>
-			</CardHeader>
-			<CardContent className="pt-0">
-				<div className="space-y-3">
-					{customerData.products.map((product: any) => (
+			<CardContent className="p-4">
+				<div className="space-y-2">
+					{customerData.products.map((product) => (
 						<div
 							className="flex items-start gap-2 rounded border p-2 text-sm"
 							key={product.id}
 						>
-							<div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-								<CheckIcon className="text-primary" size={10} />
+							<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+								<CheckIcon
+									className="not-dark:text-primary text-primary"
+									size={10}
+									weight="duotone"
+								/>
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="mb-1 flex items-center justify-between">
@@ -182,7 +192,7 @@ function SubscriptionHistoryCard({ customerData }: { customerData: any }) {
 			</CardContent>
 		</Card>
 	);
-}
+});
 
 interface HistoryTabProps {
 	invoices: Invoice[];
@@ -190,7 +200,7 @@ interface HistoryTabProps {
 	isLoading: boolean;
 }
 
-export function HistoryTab({
+export const HistoryTab = memo(function HistoryTabComponent({
 	invoices,
 	customerData,
 	isLoading,
@@ -206,7 +216,7 @@ export function HistoryTab({
 				</div>
 				<div className="grid gap-6">
 					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton className="h-48 w-full" key={i} />
+						<Skeleton className="h-48 w-full" key={`skeleton-${i + 1}`} />
 					))}
 				</div>
 			</div>
@@ -215,62 +225,91 @@ export function HistoryTab({
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			{/* Header */}
+			<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 				<div>
-					<h2 className="font-bold text-xl">Billing History</h2>
-					<p className="text-muted-foreground text-sm">
-						View your invoices, payments, and subscription changes
+					<h1 className="font-bold text-2xl tracking-tight">Billing History</h1>
+					<p className="mt-1 text-muted-foreground">
+						View your invoices and subscription changes
 					</p>
 				</div>
-
 				<Button
-					className="cursor-pointer"
+					aria-label="Manage billing settings"
+					className="w-full sm:w-auto"
 					onClick={onManageBilling}
 					size="sm"
+					type="button"
 					variant="outline"
 				>
-					<CreditCardIcon className="mr-2" size={14} />
+					<CreditCardIcon
+						className="mr-2 not-dark:text-primary"
+						size={16}
+						weight="duotone"
+					/>
 					Manage Billing
-					<ArrowSquareOutIcon className="ml-1" size={12} />
+					<ArrowSquareOutIcon
+						className="ml-2 not-dark:text-primary"
+						size={12}
+						weight="duotone"
+					/>
 				</Button>
 			</div>
 
-			<div className="grid gap-6 lg:grid-cols-4">
-				<div className="space-y-4 lg:col-span-3">
-					<div>
-						<h3 className="mb-3 font-semibold text-lg">Recent Invoices</h3>
-
-						{invoices.length ? (
-							<div className="space-y-2">
-								{invoices
-									.sort((a: Invoice, b: Invoice) => b.created_at - a.created_at)
-									.map((invoice: Invoice) => (
-										<InvoiceCard invoice={invoice} key={invoice.stripe_id} />
-									))}
-							</div>
-						) : (
-							<Card>
-								<CardContent className="flex flex-col items-center justify-center py-12">
-									<div className="mb-4 flex h-12 w-12 items-center justify-center rounded border">
-										<FileTextIcon className="text-muted-foreground" size={24} />
-									</div>
-									<h4 className="mb-2 font-semibold text-lg">
-										No Invoices Yet
-									</h4>
-									<p className="max-w-sm text-center text-muted-foreground text-sm">
-										Your invoices will appear here once you start using paid
-										features.
-									</p>
-								</CardContent>
-							</Card>
-						)}
-					</div>
+			{/* Content Grid */}
+			<div className="grid gap-6 lg:grid-cols-3">
+				{/* Invoices */}
+				<div className="lg:col-span-2">
+					{invoices.length ? (
+						<div className="space-y-3">
+							{invoices
+								.sort((a: Invoice, b: Invoice) => b.created_at - a.created_at)
+								.map((invoice: Invoice) => (
+									<InvoiceCard invoice={invoice} key={invoice.stripe_id} />
+								))}
+						</div>
+					) : (
+						<Card>
+							<CardContent className="flex flex-col items-center justify-center py-12">
+								<div className="mb-4 flex h-12 w-12 items-center justify-center rounded border bg-muted">
+									<FileTextIcon
+										className="not-dark:text-primary text-muted-foreground"
+										size={24}
+										weight="duotone"
+									/>
+								</div>
+								<h3 className="mb-2 font-semibold text-lg">No Invoices Yet</h3>
+								<p className="text-center text-muted-foreground text-sm">
+									Your invoices will appear here once you start using paid
+									features.
+								</p>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 
+				{/* Subscription History */}
 				<div className="lg:col-span-1">
-					<SubscriptionHistoryCard customerData={customerData} />
+					{customerData ? (
+						<SubscriptionHistoryCard customerData={customerData} />
+					) : (
+						<Card>
+							<CardContent className="flex flex-col items-center justify-center py-12">
+								<div className="mb-4 flex h-12 w-12 items-center justify-center rounded border bg-muted">
+									<CalendarIcon
+										className="not-dark:text-primary text-muted-foreground"
+										size={24}
+										weight="duotone"
+									/>
+								</div>
+								<h3 className="mb-2 font-semibold text-lg">No History</h3>
+								<p className="text-center text-muted-foreground text-sm">
+									Your subscription history will appear here.
+								</p>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 			</div>
 		</div>
 	);
-}
+});

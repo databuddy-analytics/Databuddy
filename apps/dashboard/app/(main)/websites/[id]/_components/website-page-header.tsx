@@ -50,7 +50,6 @@ export function WebsitePageHeader({
 	description,
 	icon,
 	websiteId,
-	websiteName,
 	isLoading = false,
 	isRefreshing = false,
 	hasError = false,

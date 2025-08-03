@@ -31,16 +31,28 @@ const getPerformanceRating = (
 	if (typeof score !== 'number' || Number.isNaN(score)) {
 		return { rating: 'Unknown', className: 'text-muted-foreground' };
 	}
-	if (score >= 90) return { rating: 'Excellent', className: 'text-green-500' };
-	if (score >= 70) return { rating: 'Good', className: 'text-green-500' };
-	if (score >= 50) return { rating: 'Moderate', className: 'text-yellow-500' };
-	if (score >= 30) return { rating: 'Poor', className: 'text-orange-500' };
+	if (score >= 90) {
+		return { rating: 'Excellent', className: 'text-green-500' };
+	}
+	if (score >= 70) {
+		return { rating: 'Good', className: 'text-green-500' };
+	}
+	if (score >= 50) {
+		return { rating: 'Moderate', className: 'text-yellow-500' };
+	}
+	if (score >= 30) {
+		return { rating: 'Poor', className: 'text-orange-500' };
+	}
 	return { rating: 'Very Poor', className: 'text-red-500' };
 };
 
 const formatPerformanceTime = (value: number): string => {
-	if (!value || value === 0) return 'N/A';
-	if (value < 1000) return `${Math.round(value)}ms`;
+	if (!value || value === 0) {
+		return 'N/A';
+	}
+	if (value < 1000) {
+		return `${Math.round(value)}ms`;
+	}
 	const seconds = Math.round(value / 100) / 10;
 	return seconds % 1 === 0
 		? `${seconds.toFixed(0)}s`
@@ -48,7 +60,9 @@ const formatPerformanceTime = (value: number): string => {
 };
 
 const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) return '0';
+	if (value == null || Number.isNaN(value)) {
+		return '0';
+	}
 	return Intl.NumberFormat(undefined, {
 		notation: 'compact',
 		maximumFractionDigits: 1,
@@ -317,7 +331,9 @@ export function WebsitePerformanceTab({
 
 	const filterPagesByPerformance = useCallback(
 		(pages: PerformanceEntry[], filter: 'fast' | 'slow' | null) => {
-			if (!filter) return pages;
+			if (!filter) {
+				return pages;
+			}
 			return pages.filter((page) => {
 				const loadTime = page.avg_load_time || 0;
 				return filter === 'fast' ? loadTime < 1500 : loadTime >= 3000;
@@ -349,11 +365,11 @@ export function WebsitePerformanceTab({
 		}
 
 		const data: Record<string, any> = {};
-		performanceResults
-			.filter((result) => result.success && result.data)
-			.forEach((result) => {
+		for (const result of performanceResults) {
+			if (result.success && result.data) {
 				Object.assign(data, result.data);
-			});
+			}
+		}
 
 		const allPages = data.slow_pages || [];
 		const filteredPages = filterPagesByPerformance(allPages, activeFilter);
@@ -395,7 +411,7 @@ export function WebsitePerformanceTab({
 
 		const getCountryIcon = (name: string) => {
 			const item = processedData.countries.find(
-				(item: any) => item.country_name === name
+				(item) => item.country_name === name
 			);
 			return <CountryFlag country={item?.country_code || name} size={16} />;
 		};
@@ -473,19 +489,36 @@ export function WebsitePerformanceTab({
 		return configs.map((config) => ({
 			id: config.id,
 			label: config.label,
-			data: config.data.map((item: any, i: number) => ({
-				name: item.country_name || item.name || 'Unknown',
-				visitors: item.visitors || 0,
-				avg_load_time: item.avg_load_time || 0,
-				avg_ttfb: item.avg_ttfb,
-				avg_dom_ready_time: item.avg_dom_ready_time,
-				avg_render_time: item.avg_render_time,
-				avg_fcp: item.avg_fcp,
-				avg_lcp: item.avg_lcp,
-				avg_cls: item.avg_cls,
-				country_code: item.country_code,
-				_uniqueKey: `${config.id}-${i}`,
-			})),
+			data: config.data.map(
+				(
+					item: {
+						country_name: string;
+						name: string;
+						visitors: number;
+						avg_load_time: number;
+						avg_ttfb: number;
+						avg_dom_ready_time: number;
+						avg_render_time: number;
+						avg_fcp: number;
+						avg_lcp: number;
+						avg_cls: number;
+						country_code: string;
+					},
+					i: number
+				) => ({
+					name: item.country_name || item.name || 'Unknown',
+					visitors: item.visitors || 0,
+					avg_load_time: item.avg_load_time || 0,
+					avg_ttfb: item.avg_ttfb,
+					avg_dom_ready_time: item.avg_dom_ready_time,
+					avg_render_time: item.avg_render_time,
+					avg_fcp: item.avg_fcp,
+					avg_lcp: item.avg_lcp,
+					avg_cls: item.avg_cls,
+					country_code: item.country_code,
+					_uniqueKey: `${config.id}-${i}`,
+				})
+			),
 			columns: [
 				createNameColumn(
 					config.label,

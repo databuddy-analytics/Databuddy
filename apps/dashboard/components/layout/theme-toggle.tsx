@@ -17,23 +17,30 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 	};
 
 	const toggleTheme = () => {
-		if (!document.startViewTransition) switchTheme();
+		if (!document.startViewTransition) {
+			switchTheme();
+		}
 		document.startViewTransition(switchTheme);
 	};
 
 	return (
 		<Button
-			className={cn('relative hidden h-8 w-8 md:flex', className)}
+			aria-label="Toggle theme"
+			className={cn(
+				'relative hidden h-8 w-8 transition-all duration-200 hover:bg-accent/50 md:flex',
+				className
+			)}
 			onClick={toggleTheme}
+			type="button"
 			variant="ghost"
 		>
 			<SunIcon
-				className="dark:-rotate-90 h-5 w-5 rotate-0 scale-100 transition-all dark:scale-0"
+				className="dark:-rotate-90 h-5 w-5 rotate-0 scale-100 not-dark:text-primary transition-all duration-300 dark:scale-0"
 				size={32}
 				weight="duotone"
 			/>
 			<MoonIcon
-				className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+				className="absolute h-5 w-5 rotate-90 scale-0 not-dark:text-primary transition-all duration-300 dark:rotate-0 dark:scale-100"
 				size={32}
 				weight="duotone"
 			/>

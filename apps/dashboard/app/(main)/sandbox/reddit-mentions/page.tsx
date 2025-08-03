@@ -43,7 +43,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import {
 	type RedditPost,
-	type SearchFilters,
 	useExportRedditData,
 	useRedditHealth,
 	useRedditMentions,
@@ -176,7 +175,7 @@ export default function RedditMentionsPage() {
 	const [keywords, setKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
 	const [newKeyword, setNewKeyword] = useState('');
 	const [timeRange, setTimeRange] = useState('24h');
-	const [subreddits, setSubreddits] = useState<string[]>([]);
+	const [subreddits, _setSubreddits] = useState<string[]>([]);
 	const [minScore, setMinScore] = useState<number | undefined>(undefined);
 	const [sortBy, setSortBy] = useState<'relevance' | 'new' | 'top' | 'hot'>(
 		'new'
@@ -237,7 +236,7 @@ export default function RedditMentionsPage() {
 		setKeywords(keywords.filter((k) => k !== keyword));
 	};
 
-	const handleExport = (format: 'json' | 'csv') => {
+	const _handleExport = (format: 'json' | 'csv') => {
 		exportMutation.mutate({ format, filters });
 	};
 
@@ -248,9 +247,15 @@ export default function RedditMentionsPage() {
 			(now.getTime() - date.getTime()) / (1000 * 60 * 60)
 		);
 
-		if (diffInHours < 1) return 'Less than an hour ago';
-		if (diffInHours === 1) return '1 hour ago';
-		if (diffInHours < 24) return `${diffInHours} hours ago`;
+		if (diffInHours < 1) {
+			return 'Less than an hour ago';
+		}
+		if (diffInHours === 1) {
+			return '1 hour ago';
+		}
+		if (diffInHours < 24) {
+			return `${diffInHours} hours ago`;
+		}
 		return `${Math.floor(diffInHours / 24)} days ago`;
 	};
 
@@ -471,7 +476,7 @@ export default function RedditMentionsPage() {
 										onChange={(e) =>
 											setMinScore(
 												e.target.value
-													? Number.parseInt(e.target.value)
+													? Number.parseInt(e.target.value, 10)
 													: undefined
 											)
 										}

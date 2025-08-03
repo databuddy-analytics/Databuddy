@@ -23,15 +23,6 @@ function LoginPage() {
 		setLastUsed(localStorage.getItem('lastUsedLogin'));
 	}, []);
 
-	const handleLastUsed = () => {
-		if (lastUsed === 'github') handleGithubLogin();
-		else if (lastUsed === 'google') handleGoogleLogin();
-		else if (lastUsed === 'email') {
-			// Focus email input
-			document.getElementById('email')?.focus();
-		}
-	};
-
 	const handleGoogleLogin = () => {
 		setIsLoading(true);
 		signIn.social({
@@ -40,7 +31,6 @@ function LoginPage() {
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'google');
-					toast.success('Login successful!');
 				},
 				onError: () => {
 					setIsLoading(false);
@@ -58,7 +48,6 @@ function LoginPage() {
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'github');
-					toast.success('Login successful!');
 				},
 				onError: () => {
 					setIsLoading(false);
@@ -77,14 +66,13 @@ function LoginPage() {
 
 		setIsLoading(true);
 		try {
-			const result = await signIn.email({
+			await signIn.email({
 				email,
 				password,
 				callbackURL: '/home',
 				fetchOptions: {
 					onSuccess: () => {
 						localStorage.setItem('lastUsedLogin', 'email');
-						toast.success('Login successful!');
 					},
 					onError: (error) => {
 						setIsLoading(false);
@@ -104,12 +92,7 @@ function LoginPage() {
 					},
 				},
 			});
-
-			if (result?.error) {
-				toast.error('Invalid credentials');
-				return;
-			}
-		} catch (error) {
+		} catch (_error) {
 			toast.error('Something went wrong');
 		} finally {
 			setIsLoading(false);

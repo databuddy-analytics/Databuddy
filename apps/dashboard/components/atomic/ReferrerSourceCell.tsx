@@ -3,16 +3,10 @@
 import type React from 'react';
 import { FaviconImage } from '../analytics/favicon-image';
 
-// Mirroring the ReferrerItem type from WebsiteOverviewTab.tsx
-// Ideally, this would be a shared type if used in multiple places outside atomic components.
 export interface ReferrerSourceCellData {
-	// The primary display name, maps to 'value' if accessorKey is 'name' in a table
 	name?: string;
-	// The raw referrer string
 	referrer?: string;
-	// The domain used for fetching the favicon
 	domain?: string;
-	// Optional unique ID for the component instance
 	id?: string;
 }
 

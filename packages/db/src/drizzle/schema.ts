@@ -85,6 +85,10 @@ export const account = pgTable(
 		updatedAt: timestamp('updated_at', { mode: 'string' }).notNull(),
 	},
 	(table) => [
+		index('accounts_userId_idx').using(
+			'btree',
+			table.userId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -109,11 +113,11 @@ export const session = pgTable(
 		activeOrganizationId: text('active_organization_id'),
 	},
 	(table) => [
-		uniqueIndex('session_token_key').using(
+		uniqueIndex('sessions_token_key').using(
 			'btree',
 			table.token.asc().nullsLast().op('text_ops')
 		),
-		index('session_userId_idx').using(
+		index('sessions_userId_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
 		),
@@ -140,6 +144,14 @@ export const invitation = pgTable(
 		inviterId: text('inviter_id').notNull(),
 	},
 	(table) => [
+		index('invitations_email_idx').using(
+			'btree',
+			table.email.asc().nullsLast().op('text_ops')
+		),
+		index('invitations_organizationId_idx').using(
+			'btree',
+			table.organizationId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -164,6 +176,14 @@ export const member = pgTable(
 		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 	},
 	(table) => [
+		index('members_userId_idx').using(
+			'btree',
+			table.userId.asc().nullsLast().op('text_ops')
+		),
+		index('members_organizationId_idx').using(
+			'btree',
+			table.organizationId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -177,14 +197,23 @@ export const member = pgTable(
 	]
 );
 
-export const verification = pgTable('verification', {
-	id: text().primaryKey().notNull(),
-	identifier: text().notNull(),
-	value: text().notNull(),
-	expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
-	createdAt: timestamp('created_at', { mode: 'string' }),
-	updatedAt: timestamp('updated_at', { mode: 'string' }),
-});
+export const verification = pgTable(
+	'verification',
+	{
+		id: text().primaryKey().notNull(),
+		identifier: text().notNull(),
+		value: text().notNull(),
+		expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at', { mode: 'string' }),
+		updatedAt: timestamp('updated_at', { mode: 'string' }),
+	},
+	(table) => [
+		index('verifications_identifier_idx').using(
+			'btree',
+			table.identifier.asc().nullsLast().op('text_ops')
+		),
+	]
+);
 
 export const twoFactor = pgTable(
 	'two_factor',
@@ -195,6 +224,10 @@ export const twoFactor = pgTable(
 		userId: text('user_id').notNull(),
 	},
 	(table) => [
+		index('twoFactor_secret_idx').using(
+			'btree',
+			table.secret.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -299,7 +332,13 @@ export const user = pgTable(
 		role: role().default('USER').notNull(),
 		twoFactorEnabled: boolean('two_factor_enabled'),
 	},
-	(table) => [unique('user_email_unique').on(table.email)]
+	(table) => [
+		unique('users_email_unique').on(table.email),
+		index('users_email_idx').using(
+			'btree',
+			table.email.asc().nullsLast().op('text_ops')
+		),
+	]
 );
 
 export const userStripeConfig = pgTable(
@@ -442,6 +481,16 @@ export const goals = pgTable(
 			'btree',
 			table.createdBy.asc().nullsLast().op('text_ops')
 		),
+		index('goals_websiteId_deletedAt_createdAt_idx').using(
+			'btree',
+			table.websiteId.asc().nullsLast().op('text_ops'),
+			table.deletedAt.asc().nullsLast(),
+			table.createdAt.desc().nullsLast()
+		),
+		index('goals_deletedAt_idx').using(
+			'btree',
+			table.deletedAt.asc().nullsLast()
+		),
 		foreignKey({
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
@@ -553,7 +602,13 @@ export const organization = pgTable(
 		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 		metadata: text(),
 	},
-	(table) => [unique('organization_slug_unique').on(table.slug)]
+	(table) => [
+		unique('organizations_slug_unique').on(table.slug),
+		index('organizations_slug_idx').using(
+			'btree',
+			table.slug.asc().nullsLast().op('text_ops')
+		),
+	]
 );
 
 export const abTestStatus = pgEnum('ab_test_status', [

@@ -7,19 +7,19 @@ export interface BaseMetricData {
 	pageviews: number;
 }
 
-export interface DeviceTypeData extends BaseMetricData {}
+export interface DeviceTypeMetricData extends BaseMetricData {}
 
-export interface BrowserData extends BaseMetricData {}
+export interface BrowserMetricData extends BaseMetricData {}
 
-export interface CountryData extends BaseMetricData {}
+export interface CountryMetricData extends BaseMetricData {}
 
-export interface RegionData extends BaseMetricData {}
+export interface RegionMetricData extends BaseMetricData {}
 
-export interface PageData extends BaseMetricData {}
+export interface PageMetricData extends BaseMetricData {}
 
-export interface ReferrerData extends BaseMetricData {}
+export interface ReferrerMetricData extends BaseMetricData {}
 
-export interface PerformanceData extends BaseMetricData {
+export interface PerformanceMetricData extends BaseMetricData {
 	sessions: number;
 	avg_load_time: number;
 	avg_ttfb?: number;

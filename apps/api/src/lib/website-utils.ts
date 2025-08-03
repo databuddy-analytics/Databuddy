@@ -75,6 +75,38 @@ const getCachedWebsiteDomain = cacheable(
 	}
 );
 
+const userPreferencesCache = cacheable(
+	async (userId: string) => {
+		try {
+			return await db.query.userPreferences.findFirst({
+				where: eq(userPreferences.userId, userId),
+			});
+		} catch {
+			return null;
+		}
+	},
+	{
+		expireInSec: 600,
+		prefix: 'user-prefs',
+		staleWhileRevalidate: true,
+		staleTime: 120,
+	}
+);
+
+const getCachedSession = cacheable(
+	async (headers: Headers) => {
+		return await auth.api.getSession({
+			headers,
+		});
+	},
+	{
+		expireInSec: 60,
+		prefix: 'auth-session',
+		staleWhileRevalidate: true,
+		staleTime: 30,
+	}
+);
+
 export async function getTimezone(
 	request: Request,
 	session: { user?: { id: string } } | null
@@ -84,9 +116,7 @@ export async function getTimezone(
 	const paramTimezone = url.searchParams.get('timezone');
 
 	if (session?.user) {
-		const pref = await db.query.userPreferences.findFirst({
-			where: eq(userPreferences.userId, session.user.id),
-		});
+		const pref = await userPreferencesCache(session.user.id);
 		if (pref?.timezone && pref.timezone !== 'auto') {
 			return pref.timezone;
 		}
@@ -96,12 +126,10 @@ export async function getTimezone(
 }
 
 export async function deriveWebsiteContext({ request }: { request: Request }) {
-	const session = await auth.api.getSession({
-		headers: request.headers,
-	});
-
 	const url = new URL(request.url);
 	const website_id = url.searchParams.get('website_id');
+
+	const session = await getCachedSession(request.headers);
 
 	if (!website_id) {
 		if (!session?.user) {
@@ -111,14 +139,18 @@ export async function deriveWebsiteContext({ request }: { request: Request }) {
 		return { user: session.user, session, timezone };
 	}
 
-	const website = await getCachedWebsite(website_id);
+	const [website, timezone] = await Promise.all([
+		getCachedWebsite(website_id),
+		website_id && session?.user
+			? getTimezone(request, session)
+			: getTimezone(request, null),
+	]);
 
 	if (!website) {
 		throw new Error('Website not found');
 	}
 
 	if (website.isPublic) {
-		const timezone = await getTimezone(request, null);
 		return { user: null, session: null, website, timezone };
 	}
 
@@ -126,7 +158,6 @@ export async function deriveWebsiteContext({ request }: { request: Request }) {
 		throw new Error('Unauthorized');
 	}
 
-	const timezone = await getTimezone(request, session);
 	return { user: session.user, session, website, timezone };
 }
 

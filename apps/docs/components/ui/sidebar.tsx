@@ -3,7 +3,16 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { PanelLeftIcon } from 'lucide-react';
-import * as React from 'react';
+import {
+	type ComponentProps,
+	type CSSProperties,
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -41,10 +50,10 @@ type SidebarContextProps = {
 	toggleSidebar: () => void;
 };
 
-const SidebarContext = React.createContext<SidebarContextProps | null>(null);
+const SidebarContext = createContext<SidebarContextProps | null>(null);
 
 function useSidebar() {
-	const context = React.useContext(SidebarContext);
+	const context = useContext(SidebarContext);
 	if (!context) {
 		throw new Error('useSidebar must be used within a SidebarProvider.');
 	}
@@ -60,21 +69,22 @@ function SidebarProvider({
 	style,
 	children,
 	...props
-}: React.ComponentProps<'div'> & {
+}: ComponentProps<'div'> & {
 	defaultOpen?: boolean;
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
 }) {
 	const isMobile = useIsMobile();
-	const [openMobile, setOpenMobile] = React.useState(false);
+	const [openMobile, setOpenMobile] = useState(false);
 
 	// This is the internal state of the sidebar.
 	// We use openProp and setOpenProp for control from outside the component.
-	const [_open, _setOpen] = React.useState(defaultOpen);
+	const [_open, _setOpen] = useState(defaultOpen);
 	const open = openProp ?? _open;
-	const setOpen = React.useCallback(
-		(value: boolean | ((value: boolean) => boolean)) => {
-			const openState = typeof value === 'function' ? value(open) : value;
+	const setOpen = useCallback(
+		(newValue: boolean | ((value: boolean) => boolean)) => {
+			const openState =
+				typeof newValue === 'function' ? newValue(open) : newValue;
 			if (setOpenProp) {
 				setOpenProp(openState);
 			} else {
@@ -82,18 +92,21 @@ function SidebarProvider({
 			}
 
 			// This sets the cookie to keep the sidebar state.
+			// biome-ignore lint: not all browsers support Cookie Store API
 			document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 		},
 		[setOpenProp, open]
 	);
 
 	// Helper to toggle the sidebar.
-	const toggleSidebar = React.useCallback(() => {
-		return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-	}, [isMobile, setOpen, setOpenMobile]);
+	const toggleSidebar = useCallback(() => {
+		return isMobile
+			? setOpenMobile((prevOpen) => !prevOpen)
+			: setOpen((prevOpen) => !prevOpen);
+	}, [isMobile, setOpen]);
 
 	// Adds a keyboard shortcut to toggle the sidebar.
-	React.useEffect(() => {
+	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (
 				event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
@@ -112,7 +125,7 @@ function SidebarProvider({
 	// This makes it easier to style the sidebar with Tailwind classes.
 	const state = open ? 'expanded' : 'collapsed';
 
-	const contextValue = React.useMemo<SidebarContextProps>(
+	const contextValue = useMemo<SidebarContextProps>(
 		() => ({
 			state,
 			open,
@@ -122,7 +135,7 @@ function SidebarProvider({
 			setOpenMobile,
 			toggleSidebar,
 		}),
-		[state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+		[state, open, setOpen, isMobile, openMobile, toggleSidebar]
 	);
 
 	return (
@@ -139,7 +152,7 @@ function SidebarProvider({
 							'--sidebar-width': SIDEBAR_WIDTH,
 							'--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
 							...style,
-						} as React.CSSProperties
+						} as CSSProperties
 					}
 					{...props}
 				>
@@ -602,11 +615,11 @@ function SidebarMenuSkeleton({
 	className,
 	showIcon = false,
 	...props
-}: React.ComponentProps<'div'> & {
+}: ComponentProps<'div'> & {
 	showIcon?: boolean;
 }) {
 	// Random width between 50 to 90%.
-	const width = React.useMemo(() => {
+	const width = useMemo(() => {
 		return `${Math.floor(Math.random() * 40) + 50}%`;
 	}, []);
 
@@ -629,7 +642,7 @@ function SidebarMenuSkeleton({
 				style={
 					{
 						'--skeleton-width': width,
-					} as React.CSSProperties
+					} as CSSProperties
 				}
 			/>
 		</div>

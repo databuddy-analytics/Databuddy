@@ -1,7 +1,6 @@
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useRef } from 'react';
 import {
-	dateRangeAtom,
 	inputValueAtom,
 	isLoadingAtom,
 	isRateLimitedAtom,
@@ -46,7 +45,6 @@ export function useChat() {
 	const [model] = useAtom(modelAtom);
 	const [websiteId] = useAtom(websiteIdAtom);
 	const [websiteData] = useAtom(websiteDataAtom);
-	const [dateRange] = useAtom(dateRangeAtom);
 	const [messages, setMessages] = useAtom(messagesAtom);
 	const [inputValue, setInputValue] = useAtom(inputValueAtom);
 	const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
@@ -124,9 +122,6 @@ export function useChat() {
 		}, 50);
 	}, [scrollAreaRef]);
 
-	const lastMessage = messages[messages.length - 1];
-	const lastMessageThinkingSteps = lastMessage?.thinkingSteps?.length || 0;
-
 	useEffect(() => {
 		scrollToBottom();
 	}, [scrollToBottom]);
@@ -143,7 +138,9 @@ export function useChat() {
 	const sendMessage = useCallback(
 		async (content?: string) => {
 			const messageContent = content || inputValue.trim();
-			if (!messageContent || isLoading || isRateLimited) return;
+			if (!messageContent || isLoading || isRateLimited) {
+				return;
+			}
 
 			const userMessage: Message = {
 				id: Date.now().toString(),
@@ -238,7 +235,9 @@ export function useChat() {
 				try {
 					while (true) {
 						const { done, value } = await reader.read();
-						if (done) break;
+						if (done) {
+							break;
+						}
 
 						const chunk = new TextDecoder().decode(value);
 						const lines = chunk.split('\n');
@@ -329,7 +328,7 @@ export function useChat() {
 										);
 										break;
 									}
-								} catch (parseError) {
+								} catch (_parseError) {
 									console.warn('Failed to parse SSE data:', line);
 								}
 							}
@@ -364,6 +363,10 @@ export function useChat() {
 			scrollToBottom,
 			chatDB,
 			model,
+			setInputValue,
+			setIsLoading,
+			setIsRateLimited,
+			setMessages,
 		]
 	);
 

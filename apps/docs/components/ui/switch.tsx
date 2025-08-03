@@ -1,5 +1,6 @@
 'use client';
 
+// biome-ignore lint: false positive
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import type * as React from 'react';
 

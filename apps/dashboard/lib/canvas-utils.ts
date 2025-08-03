@@ -27,8 +27,8 @@ export async function getCroppedImage(
 	const cropX = crop.x * scaleX;
 	const cropY = crop.y * scaleY;
 
-	const centerX = image.naturalWidth / 2;
-	const centerY = image.naturalHeight / 2;
+	const _centerX = image.naturalWidth / 2;
+	const _centerY = image.naturalHeight / 2;
 
 	ctx.save();
 

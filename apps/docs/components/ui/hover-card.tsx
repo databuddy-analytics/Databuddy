@@ -1,5 +1,6 @@
 'use client';
 
+// biome-ignore lint: false positive
 import * as HoverCardPrimitive from '@radix-ui/react-hover-card';
 import type * as React from 'react';
 

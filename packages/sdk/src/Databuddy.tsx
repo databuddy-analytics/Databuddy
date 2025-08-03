@@ -11,9 +11,15 @@ import type { DatabuddyConfig } from './types';
  */
 export function Databuddy(props: DatabuddyConfig) {
 	useEffect(() => {
-		if (typeof window === 'undefined') return;
-		if (props.disabled) return;
-		if (document.querySelector('script[data-databuddy-injected]')) return;
+		if (typeof window === 'undefined') {
+			return;
+		}
+		if (props.disabled) {
+			return;
+		}
+		if (document.querySelector('script[data-databuddy-injected]')) {
+			return;
+		}
 		const script = document.createElement('script');
 		script.src = props.scriptUrl || 'https://cdn.databuddy.cc/databuddy.js';
 		script.async = true;

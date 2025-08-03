@@ -1,7 +1,6 @@
 'use client';
 
 import {
-	ArrowRightIcon,
 	BuildingsIcon,
 	CheckIcon,
 	GearIcon,
@@ -16,7 +15,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+	type ActiveOrganization,
+	type Organization,
+	useOrganizations,
+} from '@/hooks/use-organizations';
 import { cn } from '@/lib/utils';
 import { OrganizationSwitcher } from './components/organization-switcher';
 
@@ -82,8 +85,8 @@ function ActiveOrganizationBanner({
 	activeOrg,
 	organizations,
 }: {
-	activeOrg: any;
-	organizations: any[];
+	activeOrg: ActiveOrganization;
+	organizations: Organization[];
 }) {
 	if (!activeOrg) {
 		return (
@@ -161,14 +164,14 @@ function ActiveOrganizationBanner({
 // Sub-components
 function PageHeader({ onNewOrg }: { onNewOrg: () => void }) {
 	return (
-		<div className="flex items-center justify-between">
+		<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 			<div>
 				<h1 className="font-bold text-2xl">Organizations</h1>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Manage your organizations and team collaboration
 				</p>
 			</div>
-			<Button className="rounded" onClick={onNewOrg} size="sm">
+			<Button className="w-full rounded sm:w-auto" onClick={onNewOrg} size="sm">
 				<PlusIcon className="mr-2 h-4 w-4" size={16} />
 				New Organization
 			</Button>
@@ -181,7 +184,7 @@ function QuickStats({
 	activeOrg,
 }: {
 	orgCount: number;
-	activeOrg: any;
+	activeOrg: ActiveOrganization;
 }) {
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -243,7 +246,12 @@ function MainView({
 	activeOrganization,
 	isLoading,
 	onNewOrg,
-}: any) {
+}: {
+	organizations: Organization[];
+	activeOrganization: ActiveOrganization;
+	isLoading: boolean;
+	onNewOrg: () => void;
+}) {
 	const [activeTab, setActiveTab] = useState('organizations');
 
 	return (
@@ -303,7 +311,7 @@ function MainView({
 					value="teams"
 				>
 					<Suspense fallback={<TabSkeleton />}>
-						<TeamsTab organization={activeOrganization || {}} />
+						<TeamsTab organization={activeOrganization} />
 					</Suspense>
 				</TabsContent>
 			</Tabs>

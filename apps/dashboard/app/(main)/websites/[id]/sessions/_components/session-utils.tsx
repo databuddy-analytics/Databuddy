@@ -1,11 +1,11 @@
 import {
-	AlertTriangleIcon,
+	CursorClickIcon,
 	FileTextIcon,
 	GlobeIcon,
-	MousePointerClickIcon,
-	SparklesIcon,
-	ZapIcon,
-} from 'lucide-react';
+	LightningIcon,
+	SparkleIcon,
+	WarningIcon,
+} from '@phosphor-icons/react';
 import {
 	getBrowserIcon,
 	getDeviceTypeIcon,
@@ -78,7 +78,7 @@ export const getEventIconAndColor = (
 ) => {
 	if (hasError) {
 		return {
-			icon: <AlertTriangleIcon className="h-4 w-4" />,
+			icon: <WarningIcon className="h-4 w-4" />,
 			color: 'text-destructive',
 			bgColor: 'bg-destructive/10',
 			borderColor: 'border-destructive/20',
@@ -88,7 +88,7 @@ export const getEventIconAndColor = (
 
 	if (hasProperties) {
 		return {
-			icon: <SparklesIcon className="h-4 w-4" />,
+			icon: <SparkleIcon className="h-4 w-4" />,
 			color: 'text-accent-foreground',
 			bgColor: 'bg-accent/20',
 			borderColor: 'border-accent',
@@ -109,7 +109,7 @@ export const getEventIconAndColor = (
 		case 'click':
 		case 'player-page-tab':
 			return {
-				icon: <MousePointerClickIcon className="h-4 w-4" />,
+				icon: <CursorClickIcon className="h-4 w-4" />,
 				color: 'text-secondary-foreground',
 				bgColor: 'bg-secondary/50',
 				borderColor: 'border-secondary',
@@ -117,7 +117,7 @@ export const getEventIconAndColor = (
 			};
 		default:
 			return {
-				icon: <ZapIcon className="h-4 w-4" />,
+				icon: <LightningIcon className="h-4 w-4" />,
 				color: 'text-muted-foreground',
 				bgColor: 'bg-muted/30',
 				borderColor: 'border-muted',
@@ -127,7 +127,9 @@ export const getEventIconAndColor = (
 };
 
 export const cleanUrl = (url: string) => {
-	if (!url) return '';
+	if (!url) {
+		return '';
+	}
 	try {
 		const urlObj = new URL(url);
 		let path = urlObj.pathname;
@@ -145,21 +147,31 @@ export const cleanUrl = (url: string) => {
 };
 
 export const getDisplayPath = (path: string) => {
-	if (!path || path === '/') return '/';
+	if (!path || path === '/') {
+		return '/';
+	}
 	const cleanPath = cleanUrl(path);
 	if (cleanPath.length > 40) {
 		const parts = cleanPath.split('/').filter(Boolean);
 		if (parts.length > 2) {
-			return `/${parts[0]}/.../${parts[parts.length - 1]}`;
+			return `/${parts[0]}/.../${parts.at(-1)}`;
 		}
 	}
 	return cleanPath;
 };
 
 export const formatPropertyValue = (value: any): string => {
-	if (value === null || value === undefined) return 'null';
-	if (typeof value === 'boolean') return value.toString();
-	if (typeof value === 'number') return value.toString();
-	if (typeof value === 'string') return value;
+	if (value === null || value === undefined) {
+		return 'null';
+	}
+	if (typeof value === 'boolean') {
+		return value.toString();
+	}
+	if (typeof value === 'number') {
+		return value.toString();
+	}
+	if (typeof value === 'string') {
+		return value;
+	}
 	return JSON.stringify(value);
 };
