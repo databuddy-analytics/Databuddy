@@ -6,6 +6,7 @@ const OPENAI_CONFIG = {
 } as const;
 
 const AI_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
+// const AI_MODEL = 'openrouter/horizon-beta';
 
 const openai = new OpenAI(OPENAI_CONFIG);
 

@@ -5,15 +5,23 @@ export const AIResponseJsonSchema = z.object({
 	chart_type: z
 		.enum([
 			'bar',
+			'horizontal_bar',
 			'line',
+			'sparkline',
 			'pie',
+			'donut',
 			'area',
+			'unstacked_area',
 			'stacked_bar',
 			'multi_line',
 			'scatter',
+			'bubble',
 			'radar',
 			'funnel',
 			'grouped_bar',
+			'histogram',
+			'treemap',
+			'gauge',
 		])
 		.nullable()
 		.optional(),
@@ -38,8 +46,8 @@ export const comprehensiveUnifiedPrompt = (
 	websiteId: string,
 	websiteHostname: string,
 	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
-	previousMessages?: any[],
-	agentToolResult?: any,
+	previousMessages?: Array<{ role: string; content: string }>,
+	agentToolResult?: Record<string, unknown>,
 	_model?: 'chat' | 'agent' | 'agent-max'
 ) => `
 <persona>
@@ -170,7 +178,7 @@ You are Nova, a world-class, specialized AI analytics assistant for the website 
     ${previousMessages
 			.slice(-4)
 			.map(
-				(msg: any) =>
+				(msg) =>
 					`<message role="${msg.role}">${msg.content?.substring(0, 200)}${msg.content?.length > 200 ? '...' : ''}</message>`
 			)
 			.join('\n')}
@@ -230,15 +238,24 @@ Your task is to process the <user_query> according to the current <mode>, while 
         - "chart": Trends, comparisons, breakdowns that need visualization.
       </response_type_selection>
       <chart_type_selection>
-        - "line": Single metric over time.
+        - "line": Single metric over time (temporal data).
+        - "sparkline": Minimal line chart for inline/compact displays.
         - "bar": Categorical comparisons (top pages, countries, etc.).
+        - "horizontal_bar": When category labels are long or you have many categories.
         - "pie": Part-of-whole relationships (ideal for 2-5 segments).
+        - "donut": Like pie but with more visual emphasis and space for central text.
+        - "area": Single metric over time with filled area (shows magnitude).
+        - "unstacked_area": Multiple overlapping areas without stacking.
         - "multi_line": Comparing multiple metrics/categories over a continuous time series.
         - "stacked_bar": Showing parts of a whole across categories or time.
         - "grouped_bar": Comparing different categories side-by-side across a shared axis.
         - "funnel": For analyzing sequential steps in a user journey.
         - "scatter": For correlating two numeric variables.
+        - "bubble": Like scatter but with a third dimension shown as bubble size.
         - "radar": For comparing multiple quantitative metrics on a single entity.
+        - "histogram": For showing distribution of a continuous variable (frequencies in bins).
+        - "treemap": For hierarchical data with size proportional to values.
+        - "gauge": For showing a single metric against a scale (KPIs, percentages).
       </chart_type_selection>
     </response_guides>
     <sql_rules>

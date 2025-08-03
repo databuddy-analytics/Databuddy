@@ -7,6 +7,8 @@ import {
 	CompassIcon,
 	DotsThreeOutlineVerticalIcon,
 	FunnelIcon,
+	GaugeIcon,
+	TreeStructureIcon,
 	TrendUpIcon,
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -34,6 +36,7 @@ import {
 	Scatter,
 	ScatterChart,
 	Tooltip,
+	Treemap,
 	XAxis,
 	YAxis,
 } from 'recharts';
@@ -54,22 +57,36 @@ const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
 const getChartIcon = (chartType: string) => {
 	switch (chartType?.toLowerCase()) {
 		case 'bar':
+		case 'horizontal_bar':
 			return <ChartBarIcon className="h-3 w-3" />;
 		case 'line':
+		case 'sparkline':
 			return <ChartLineIcon className="h-3 w-3" />;
 		case 'pie':
+		case 'donut':
 			return <ChartPieIcon className="h-3 w-3" />;
+		case 'area':
+		case 'unstacked_area':
+			return <ChartLineIcon className="h-3 w-3" />;
 		case 'stacked_bar':
 		case 'grouped_bar':
 			return <ChartBarIcon className="h-3 w-3" />;
 		case 'multi_line':
 			return <ChartLineIcon className="h-3 w-3" />;
 		case 'scatter':
+		case 'bubble':
 			return <DotsThreeOutlineVerticalIcon className="h-3 w-3" />;
 		case 'radar':
 			return <CompassIcon className="h-3 w-3" />;
 		case 'funnel':
 			return <FunnelIcon className="h-3 w-3" />;
+		case 'treemap':
+			return <TreeStructureIcon className="h-3 w-3" />;
+		case 'histogram':
+			return <ChartBarIcon className="h-3 w-3" />;
+		case 'gauge':
+		case 'progress':
+			return <GaugeIcon className="h-3 w-3" />;
 		default:
 			return <ChartBarIcon className="h-3 w-3" />;
 	}
@@ -291,31 +308,124 @@ export default function VisualizationSection() {
 		return generateColumns(rawAiData);
 	}, [rawAiData]);
 
+	// Base chart components for reusability
+	const renderBaseBarChart = (
+		chartData: ChartDataItem[],
+		xKey: string,
+		metricKeys: string[],
+		config: ChartConfig,
+		chartOptions: {
+			layout?: 'vertical' | 'horizontal';
+			stacked?: boolean;
+			grouped?: boolean;
+		} = {}
+	) => {
+		const isVertical = chartOptions.layout === 'vertical';
+		return (
+			<BarChart data={chartData} layout={isVertical ? 'vertical' : undefined}>
+				<CartesianGrid horizontal={isVertical} vertical={!isVertical} />
+				{isVertical ? (
+					<>
+						<XAxis type="number" />
+						<YAxis
+							axisLine={false}
+							dataKey={xKey}
+							tickLine={false}
+							tickMargin={8}
+							type="category"
+						/>
+					</>
+				) : (
+					<>
+						<XAxis
+							axisLine={false}
+							dataKey={xKey}
+							tickLine={false}
+							tickMargin={8}
+						/>
+						<YAxis />
+					</>
+				)}
+				<Tooltip
+					content={<ChartTooltipContent indicator="dot" />}
+					cursor={false}
+				/>
+				{chartOptions.stacked && <Legend content={<ChartLegendContent />} />}
+				{chartOptions.grouped && metricKeys.length > 1 && (
+					<Legend content={<ChartLegendContent />} />
+				)}
+				{metricKeys.map((metricKey, keyIndex) => (
+					<Bar
+						dataKey={metricKey}
+						fill={
+							config[metricKey]?.color ||
+							CHART_COLORS[keyIndex % CHART_COLORS.length]
+						}
+						key={metricKey}
+						radius={4}
+						stackId={chartOptions.stacked ? 'a' : undefined}
+					/>
+				))}
+			</BarChart>
+		);
+	};
+
 	const renderBarChart = (
 		data: ChartDataItem[],
 		xAxisKey: string,
 		availableMetricKeys: string[],
 		chartConfig: ChartConfig
+	) =>
+		renderBaseBarChart(
+			data,
+			xAxisKey,
+			availableMetricKeys.slice(0, 1),
+			chartConfig
+		);
+
+	const renderBaseLineChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig,
+		options: { minimal?: boolean; showGrid?: boolean; showAxes?: boolean } = {}
 	) => (
-		<BarChart data={data}>
-			<CartesianGrid vertical={false} />
-			<XAxis
-				axisLine={false}
-				dataKey={xAxisKey}
-				tickLine={false}
-				tickMargin={8}
-			/>
-			<YAxis />
-			<Tooltip
-				content={<ChartTooltipContent indicator="dot" />}
-				cursor={false}
-			/>
-			<Bar
-				dataKey={availableMetricKeys[0]}
-				fill={chartConfig[availableMetricKeys[0]]?.color || CHART_COLORS[0]}
-				radius={4}
-			/>
-		</BarChart>
+		<LineChart data={data}>
+			{options.showGrid !== false && <CartesianGrid vertical={false} />}
+			{options.showAxes !== false && (
+				<>
+					<XAxis
+						axisLine={false}
+						dataKey={xAxisKey}
+						tickLine={false}
+						tickMargin={8}
+					/>
+					<YAxis />
+				</>
+			)}
+			{!options.minimal && (
+				<>
+					<Tooltip
+						content={<ChartTooltipContent indicator="dot" />}
+						cursor={false}
+					/>
+					{availableMetricKeys.length > 1 && (
+						<Legend content={<ChartLegendContent />} />
+					)}
+				</>
+			)}
+			{availableMetricKeys.map((key, index) => (
+				<Line
+					dataKey={key}
+					dot={options.minimal ? false : undefined}
+					key={key}
+					stroke={
+						chartConfig[key]?.color || CHART_COLORS[index % CHART_COLORS.length]
+					}
+					strokeWidth={options.minimal ? 1 : 2}
+				/>
+			))}
+		</LineChart>
 	);
 
 	const renderLineChart = (
@@ -323,38 +433,20 @@ export default function VisualizationSection() {
 		xAxisKey: string,
 		availableMetricKeys: string[],
 		chartConfig: ChartConfig
-	) => (
-		<LineChart data={data}>
-			<CartesianGrid vertical={false} />
-			<XAxis
-				axisLine={false}
-				dataKey={xAxisKey}
-				tickLine={false}
-				tickMargin={8}
-			/>
-			<YAxis />
-			<Tooltip
-				content={<ChartTooltipContent indicator="dot" />}
-				cursor={false}
-			/>
-			<Legend content={<ChartLegendContent />} />
-			{availableMetricKeys.map((key) => (
-				<Line
-					dataKey={key}
-					dot={false}
-					key={key}
-					stroke={chartConfig[key]?.color}
-					strokeWidth={2}
-				/>
-			))}
-		</LineChart>
-	);
+	) =>
+		renderBaseLineChart(
+			data,
+			xAxisKey,
+			availableMetricKeys.slice(0, 1),
+			chartConfig
+		);
 
-	const renderAreaChart = (
+	const renderBaseAreaChart = (
 		data: ChartDataItem[],
 		xAxisKey: string,
 		availableMetricKeys: string[],
-		chartConfig: ChartConfig
+		chartConfig: ChartConfig,
+		options: { stacked?: boolean } = {}
 	) => (
 		<AreaChart data={data}>
 			<CartesianGrid vertical={false} />
@@ -369,19 +461,35 @@ export default function VisualizationSection() {
 				content={<ChartTooltipContent indicator="dot" />}
 				cursor={false}
 			/>
-			<Legend content={<ChartLegendContent />} />
-			{availableMetricKeys.map((key) => (
+			{availableMetricKeys.length > 1 && (
+				<Legend content={<ChartLegendContent />} />
+			)}
+			{availableMetricKeys.map((key, index) => (
 				<Area
 					dataKey={key}
-					fill={chartConfig[key]?.color}
+					fill={
+						chartConfig[key]?.color || CHART_COLORS[index % CHART_COLORS.length]
+					}
 					key={key}
-					stackId="a"
-					stroke={chartConfig[key]?.color}
+					stackId={options.stacked !== false ? 'a' : undefined}
+					stroke={
+						chartConfig[key]?.color || CHART_COLORS[index % CHART_COLORS.length]
+					}
 					type="natural"
 				/>
 			))}
 		</AreaChart>
 	);
+
+	const renderAreaChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) =>
+		renderBaseAreaChart(data, xAxisKey, availableMetricKeys, chartConfig, {
+			stacked: true,
+		});
 
 	const renderPieChart = (
 		data: ChartDataItem[],
@@ -428,99 +536,33 @@ export default function VisualizationSection() {
 		xAxisKey: string,
 		availableMetricKeys: string[],
 		chartConfig: ChartConfig
-	) => (
-		<LineChart data={data}>
-			<CartesianGrid vertical={false} />
-			<XAxis
-				axisLine={false}
-				dataKey={xAxisKey}
-				tickLine={false}
-				tickMargin={8}
-			/>
-			<YAxis />
-			<Tooltip
-				content={<ChartTooltipContent indicator="dot" />}
-				cursor={false}
-			/>
-			<Legend content={<ChartLegendContent />} />
-			{availableMetricKeys.map((key) => (
-				<Line
-					dataKey={key}
-					dot={false}
-					key={key}
-					stroke={chartConfig[key]?.color}
-					strokeWidth={2}
-				/>
-			))}
-		</LineChart>
-	);
+	) => renderBaseLineChart(data, xAxisKey, availableMetricKeys, chartConfig);
 
 	const renderStackedBarChart = (
 		data: ChartDataItem[],
 		xAxisKey: string,
 		availableMetricKeys: string[],
 		chartConfig: ChartConfig
-	) => (
-		<BarChart data={data} layout="vertical">
-			<CartesianGrid horizontal={false} />
-			<XAxis type="number" />
-			<YAxis
-				axisLine={false}
-				dataKey={xAxisKey}
-				tickLine={false}
-				tickMargin={8}
-				type="category"
-			/>
-			<Tooltip
-				content={<ChartTooltipContent indicator="dot" />}
-				cursor={false}
-			/>
-			<Legend content={<ChartLegendContent />} />
-			{availableMetricKeys.map((key) => (
-				<Bar
-					dataKey={key}
-					fill={chartConfig[key]?.color}
-					key={key}
-					radius={4}
-					stackId="a"
-				/>
-			))}
-		</BarChart>
-	);
+	) =>
+		renderBaseBarChart(data, xAxisKey, availableMetricKeys, chartConfig, {
+			layout: 'vertical',
+			stacked: true,
+		});
 
 	const renderGroupedBarChart = (
 		data: ChartDataItem[],
 		xAxisKey: string,
-		availableMetricKeys: string[]
-	) => (
-		<BarChart data={data}>
-			<CartesianGrid vertical={false} />
-			<XAxis
-				axisLine={false}
-				dataKey={xAxisKey}
-				tickLine={false}
-				tickMargin={8}
-			/>
-			<YAxis />
-			<Tooltip
-				content={<ChartTooltipContent indicator="dot" />}
-				cursor={false}
-			/>
-			<Legend content={<ChartLegendContent />} />
-			{availableMetricKeys.map((key, index) => (
-				<Bar
-					dataKey={key}
-					fill={CHART_COLORS[index % CHART_COLORS.length]}
-					key={key}
-					radius={4}
-				/>
-			))}
-		</BarChart>
-	);
+		availableMetricKeys: string[],
+		chartConfig: ChartConfig
+	) =>
+		renderBaseBarChart(data, xAxisKey, availableMetricKeys, chartConfig, {
+			grouped: true,
+		});
 
-	const renderScatterChart = (
+	const renderBaseScatterChart = (
 		data: ChartDataItem[],
-		availableMetricKeys: string[]
+		availableMetricKeys: string[],
+		options: { sizeKey?: string } = {}
 	) => {
 		if (availableMetricKeys.length < 2) {
 			return (
@@ -546,10 +588,43 @@ export default function VisualizationSection() {
 					content={<ChartTooltipContent hideLabel />}
 					cursor={{ strokeDasharray: '3 3' }}
 				/>
-				<Scatter data={data} fill={CHART_COLORS[0]} />
+				<Scatter
+					data={data}
+					fill={CHART_COLORS[0]}
+					{...(options.sizeKey && availableMetricKeys.length > 2
+						? {
+								shape: (props: {
+									cx: number;
+									cy: number;
+									payload: Record<string, unknown>;
+								}) => {
+									const sizeValue = options.sizeKey
+										? props.payload[options.sizeKey]
+										: 1;
+									const size = Math.max(
+										2,
+										Math.min(20, (Number(sizeValue) || 1) / 10)
+									);
+									return (
+										<circle
+											cx={props.cx}
+											cy={props.cy}
+											fill={CHART_COLORS[0]}
+											r={size}
+										/>
+									);
+								},
+							}
+						: {})}
+				/>
 			</ScatterChart>
 		);
 	};
+
+	const renderScatterChart = (
+		data: ChartDataItem[],
+		availableMetricKeys: string[]
+	) => renderBaseScatterChart(data, availableMetricKeys);
 
 	const renderRadarChart = (
 		data: ChartDataItem[],
@@ -581,7 +656,7 @@ export default function VisualizationSection() {
 		availableMetricKeys: string[]
 	) => (
 		<FunnelChart>
-			<Tooltip />
+			<Tooltip content={<ChartTooltipContent />} />
 			<RechartsFunnel
 				data={data}
 				dataKey={availableMetricKeys[0] || 'users'}
@@ -597,6 +672,190 @@ export default function VisualizationSection() {
 		</FunnelChart>
 	);
 
+	// New chart type implementations
+	const renderDonutChart = (
+		data: ChartDataItem[],
+		xAxisKey: string,
+		availableMetricKeys: string[]
+	) => {
+		if (availableMetricKeys.length === 0) {
+			return (
+				<div className="flex h-full items-center justify-center text-muted-foreground">
+					<p>No valid data for donut chart</p>
+				</div>
+			);
+		}
+		const COLORS = data.map(
+			(_entry, index) => CHART_COLORS[index % CHART_COLORS.length]
+		);
+		return (
+			<PieChart>
+				<Tooltip
+					content={<ChartTooltipContent indicator="dot" />}
+					cursor={false}
+				/>
+				<Pie
+					data={data}
+					dataKey={availableMetricKeys[0]}
+					innerRadius={80}
+					nameKey={xAxisKey}
+					outerRadius={120}
+					strokeWidth={5}
+				>
+					{data.map((entry, index) => (
+						<Cell
+							fill={COLORS[index % COLORS.length]}
+							key={`cell-${entry[xAxisKey]}`}
+						/>
+					))}
+				</Pie>
+				<Legend content={<ChartLegendContent />} />
+			</PieChart>
+		);
+	};
+
+	const renderBubbleChart = (
+		data: ChartDataItem[],
+		availableMetricKeys: string[]
+	) =>
+		renderBaseScatterChart(data, availableMetricKeys, {
+			sizeKey: availableMetricKeys[2],
+		});
+
+	const renderHistogramChart = (data: ChartDataItem[], metricKey: string) => {
+		// Create histogram bins from data
+		const values = data
+			.map((d) => Number(d[metricKey]))
+			.filter((v) => !Number.isNaN(v));
+		if (values.length === 0) {
+			return (
+				<div className="flex h-full items-center justify-center text-muted-foreground">
+					<p>No valid numeric data for histogram</p>
+				</div>
+			);
+		}
+
+		const min = Math.min(...values);
+		const max = Math.max(...values);
+		const binCount = Math.min(
+			10,
+			Math.max(5, Math.floor(Math.sqrt(values.length)))
+		);
+		const binSize = (max - min) / binCount;
+
+		const bins = Array.from({ length: binCount }, (_, i) => {
+			const binStart = min + i * binSize;
+			const binEnd = binStart + binSize;
+			const count = values.filter(
+				(v) => v >= binStart && (i === binCount - 1 ? v <= binEnd : v < binEnd)
+			).length;
+			return {
+				range: `${binStart.toFixed(1)}-${binEnd.toFixed(1)}`,
+				count,
+				binStart,
+				binEnd,
+			};
+		});
+
+		return (
+			<BarChart data={bins}>
+				<CartesianGrid vertical={false} />
+				<XAxis
+					axisLine={false}
+					dataKey="range"
+					tickLine={false}
+					tickMargin={8}
+				/>
+				<YAxis />
+				<Tooltip
+					content={<ChartTooltipContent indicator="dot" />}
+					cursor={false}
+				/>
+				<Bar dataKey="count" fill={CHART_COLORS[0]} radius={4} />
+			</BarChart>
+		);
+	};
+
+	const renderTreemapChart = (
+		data: ChartDataItem[],
+		nameKey: string,
+		availableMetricKeys: string[]
+	) => {
+		if (availableMetricKeys.length === 0) {
+			return (
+				<div className="flex h-full items-center justify-center text-muted-foreground">
+					<p>No valid data for treemap</p>
+				</div>
+			);
+		}
+
+		const treemapData = data.map((item, index) => ({
+			name: String(item[nameKey]),
+			size: Number(item[availableMetricKeys[0]]) || 0,
+			fill: CHART_COLORS[index % CHART_COLORS.length],
+		}));
+
+		return (
+			<Treemap
+				aspectRatio={4 / 3}
+				data={treemapData}
+				dataKey="size"
+				stroke="#fff"
+			/>
+		);
+	};
+
+	const renderGaugeChart = (data: ChartDataItem[], metricKey: string) => {
+		const value = data.length > 0 ? Number(data[0][metricKey]) || 0 : 0;
+		const maxValue = 100; // Default max, could be dynamic based on data
+		const percentage = Math.min(100, Math.max(0, (value / maxValue) * 100));
+
+		return (
+			<div className="flex h-full items-center justify-center">
+				<div className="relative">
+					<svg height="120" viewBox="0 0 200 120" width="200">
+						<title>Gauge chart showing {metricKey} value</title>
+						{/* Background arc */}
+						<path
+							d="M 20 100 A 80 80 0 0 1 180 100"
+							fill="none"
+							stroke="hsl(var(--muted))"
+							strokeLinecap="round"
+							strokeWidth="12"
+						/>
+						{/* Progress arc */}
+						<path
+							d="M 20 100 A 80 80 0 0 1 180 100"
+							fill="none"
+							stroke={CHART_COLORS[0]}
+							strokeDasharray={`${(percentage / 100) * 251.33} 251.33`}
+							strokeLinecap="round"
+							strokeWidth="12"
+							style={{ transition: 'stroke-dasharray 1s ease-in-out' }}
+						/>
+						{/* Value text */}
+						<text
+							className="fill-foreground font-bold text-2xl"
+							textAnchor="middle"
+							x="100"
+							y="90"
+						>
+							{value.toFixed(1)}
+						</text>
+						<text
+							className="fill-muted-foreground text-sm"
+							textAnchor="middle"
+							x="100"
+							y="105"
+						>
+							{metricKey}
+						</text>
+					</svg>
+				</div>
+			</div>
+		);
+	};
+
 	const renderChartContent = () => {
 		if (
 			!(websiteData && rawAiData) ||
@@ -608,7 +867,7 @@ export default function VisualizationSection() {
 					className={`flex h-full min-h-[200px] flex-col items-center justify-center py-6 text-center text-muted-foreground transition-all duration-300 ${websiteData ? 'animate-pulse' : 'fade-in-0 slide-in-from-bottom-2 animate-in'}`}
 				>
 					<div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-muted transition-all duration-300">
-						<Database className="h-6 w-6 opacity-50" />
+						<DatabaseIcon className="h-6 w-6 opacity-50" />
 					</div>
 					<h3 className="mb-1 font-medium text-sm transition-all duration-300">
 						{websiteData
@@ -699,12 +958,28 @@ export default function VisualizationSection() {
 						availableMetricKeys,
 						chartConfig
 					);
+				case 'horizontal_bar':
+					return renderBaseBarChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig,
+						{ layout: 'vertical' }
+					);
 				case 'line':
 					return renderLineChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
+					);
+				case 'sparkline':
+					return renderBaseLineChart(
+						data,
+						xAxisKey,
+						availableMetricKeys.slice(0, 1),
+						chartConfig,
+						{ minimal: true, showGrid: false, showAxes: false }
 					);
 				case 'area':
 					return renderAreaChart(
@@ -713,8 +988,18 @@ export default function VisualizationSection() {
 						availableMetricKeys,
 						chartConfig
 					);
+				case 'unstacked_area':
+					return renderBaseAreaChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig,
+						{ stacked: false }
+					);
 				case 'pie':
 					return renderPieChart(data, xAxisKey, availableMetricKeys);
+				case 'donut':
+					return renderDonutChart(data, xAxisKey, availableMetricKeys);
 				case 'multi_line':
 					return renderMultiLineChart(
 						data,
@@ -730,9 +1015,16 @@ export default function VisualizationSection() {
 						chartConfig
 					);
 				case 'grouped_bar':
-					return renderGroupedBarChart(data, xAxisKey, availableMetricKeys);
+					return renderGroupedBarChart(
+						data,
+						xAxisKey,
+						availableMetricKeys,
+						chartConfig
+					);
 				case 'scatter':
 					return renderScatterChart(data, availableMetricKeys);
+				case 'bubble':
+					return renderBubbleChart(data, availableMetricKeys);
 				case 'radar':
 					return renderRadarChart(
 						data,
@@ -742,6 +1034,12 @@ export default function VisualizationSection() {
 					);
 				case 'funnel':
 					return renderFunnelChart(data, xAxisKey, availableMetricKeys);
+				case 'histogram':
+					return renderHistogramChart(data, availableMetricKeys[0]);
+				case 'treemap':
+					return renderTreemapChart(data, xAxisKey, availableMetricKeys);
+				case 'gauge':
+					return renderGaugeChart(data, availableMetricKeys[0]);
 				default:
 					return (
 						<div className="flex h-full items-center justify-center text-muted-foreground">
@@ -790,20 +1088,36 @@ export default function VisualizationSection() {
 				return 'Stacked Bar Chart';
 			case 'grouped_bar':
 				return 'Grouped Bar Chart';
+			case 'horizontal_bar':
+				return 'Horizontal Bar Chart';
 			case 'area':
 				return 'Area Chart';
+			case 'unstacked_area':
+				return 'Unstacked Area Chart';
 			case 'line':
 				return 'Line Chart';
+			case 'sparkline':
+				return 'Sparkline Chart';
 			case 'bar':
 				return 'Bar Chart';
 			case 'pie':
 				return 'Pie Chart';
+			case 'donut':
+				return 'Donut Chart';
 			case 'scatter':
 				return 'Scatter Chart';
+			case 'bubble':
+				return 'Bubble Chart';
 			case 'radar':
 				return 'Radar Chart';
 			case 'funnel':
 				return 'Funnel Chart';
+			case 'histogram':
+				return 'Histogram Chart';
+			case 'treemap':
+				return 'Treemap Chart';
+			case 'gauge':
+				return 'Gauge Chart';
 			default:
 				return chartType
 					.replace(/_/g, ' ')
