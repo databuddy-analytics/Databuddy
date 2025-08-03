@@ -105,13 +105,13 @@ function TestimonialCard({
   testimonial: (typeof testimonials)[0];
 }) {
   const CardContent = () => (
-    <div className="group relative flex h-[180px] w-[280px] shrink-0 flex-col justify-between rounded-xl border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[200px] sm:w-[350px] md:h-[220px] md:w-[420px]">
-      <p className="text-pretty px-4 pt-4 font-light text-foreground text-sm tracking-tight sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg">
+    <div className="group relative flex h-[200px] w-[300px] shrink-0 flex-col justify-between rounded-xl border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[220px] sm:w-[350px] lg:h-[240px] lg:w-[400px]">
+      <p className="text-pretty px-4 pt-4 font-light text-foreground text-sm tracking-tight leading-relaxed sm:px-5 sm:pt-5 sm:text-base lg:px-6 lg:pt-6 lg:text-base">
         &quot;{testimonial.description}&quot;
       </p>
-      <div className="flex h-[60px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[65px] md:h-[70px]">
-        <div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 md:px-6">
-          <Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10">
+      <div className="flex h-[65px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[70px] lg:h-[75px]">
+        <div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 lg:px-6">
+          <Avatar className="h-9 w-9 border border-border sm:h-10 sm:w-10 lg:h-11 lg:w-11">
             <AvatarImage
               src={testimonial.avatar.length > 2 ? testimonial.avatar : ""}
             />
@@ -120,10 +120,10 @@ function TestimonialCard({
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-1 flex-col gap-0">
-            <h5 className="font-medium text-foreground text-sm sm:text-base">
+            <h5 className="font-medium text-foreground text-sm sm:text-base lg:text-base">
               {testimonial.name}
             </h5>
-            <p className="mt-[-2px] truncate text-muted-foreground text-xs sm:text-sm">
+            <p className="mt-[-2px] truncate text-muted-foreground text-xs sm:text-sm lg:text-sm">
               {testimonial.profession}
             </p>
           </div>
@@ -131,7 +131,7 @@ function TestimonialCard({
         {testimonial.social && (
           <>
             <div className="h-full w-[1px] bg-border" />
-            <div className="flex h-full w-[50px] items-center justify-center sm:w-[60px] md:w-[70px]">
+            <div className="flex h-full w-[55px] items-center justify-center sm:w-[65px] lg:w-[75px]">
               {testimonial.social}
             </div>
           </>
@@ -214,13 +214,24 @@ export default function Testimonials() {
 				}
 			`}</style>
 
-      <div className="relative px-16 py-16">
-        {/* Section header */}
+      <div className="relative w-full">
+        {/* Header Section */}
+        <div className="text-center mb-8 lg:mb-12 px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-medium leading-tight mb-4">
+            What developers are saying
+          </h2>
+          <p className="text-muted-foreground text-sm sm:text-base lg:text-lg max-w-2xl mx-auto">
+            Join thousands of developers who trust Databuddy for their analytics
+            needs
+          </p>
+        </div>
+
+        {/* Testimonials Slider */}
         <div
-          className="flex flex-col gap-3 sm:gap-5"
+          className="flex flex-col gap-3 sm:gap-4 lg:gap-5 px-4 sm:px-0"
           style={{
             maskImage:
-              "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+              "linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)",
           }}
         >
           <SlidingTestimonials

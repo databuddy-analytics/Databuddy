@@ -8,7 +8,7 @@ const cards = [
     id: 1,
     title: "Privacy First Approach",
     description:
-      "Build trust & reduce legal risk with built-in GDPR/CCPA compliance.",
+      "Build trust & reduce legal risk with built-in GDPR/CCPA compliance.",
     icon: Shield,
   },
   {
@@ -48,19 +48,25 @@ const cards = [
 
 export const GridCards = () => {
   return (
-    <div className="flex flex-col gap-16 mt-8 items-start mx-auto w-full sm:max-w-[40rem] md:max-w-[48rem] md:px-8 lg:max-w-[64rem] xl:max-w-[80rem]">
-      <h1 className="text-4xl">
-        <span className="text-muted-foreground">Everything you need to </span>
-        understand your users
-      </h1>
-      <div className="grid grid-cols-1 gap-x-24 gap-y-12 md:grid-cols-2 lg:grid-cols-3">
+    <div className="w-full">
+      {/* Header Section */}
+      <div className="text-center lg:text-left mb-12 lg:mb-16">
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-tight max-w-4xl mx-auto lg:mx-0">
+          <span className="text-muted-foreground">Everything you need to </span>
+          <span className="text-foreground">understand your users</span>
+        </h2>
+      </div>
+
+      {/* Grid Section */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10 xl:gap-12">
         {cards.map((card) => (
-          <SciFiGridCard
-            key={card.id}
-            title={card.title}
-            description={card.description}
-            icon={card.icon}
-          />
+          <div key={card.id} className="flex">
+            <SciFiGridCard
+              title={card.title}
+              description={card.description}
+              icon={card.icon}
+            />
+          </div>
         ))}
       </div>
     </div>

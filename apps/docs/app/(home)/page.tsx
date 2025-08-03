@@ -36,56 +36,94 @@ export default function HomePage() {
   // const stars = await getGitHubStars();
 
   return (
-    <div className="h-full overflow-hidden">
-      <Section id="hero" className="overflow-y-clip" customPaddings>
+    <div className="min-h-screen overflow-x-hidden">
+      {/* Hero Section */}
+      <Section id="hero" className="overflow-hidden" customPaddings>
         <Hero />
       </Section>
+
+      {/* Trusted By Section */}
       <Section
         id="trust"
         customPaddings
-        className="border-t border-b dark:border-border border-stone-200 overflow-y-clip"
+        className="border-t border-b dark:border-border border-stone-200 bg-background/50"
       >
-        <TrustedBy />
-      </Section>
-      <Section
-        id="cards"
-        className="border-b dark:border-border border-stone-200 overflow-y-clip"
-      >
-        <GridCards />
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <TrustedBy />
+        </div>
       </Section>
 
+      {/* Grid Cards Section */}
+      <Section
+        id="cards"
+        className="border-b dark:border-border border-stone-200 py-16 lg:py-24"
+      >
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <GridCards />
+        </div>
+      </Section>
+
+      {/* Description and FAQ Section */}
       <Section
         id="desc-border"
         customPaddings
-        className="border-b dark:border-border border-stone-200 overflow-x-clip overflow-hidden"
+        className="border-b dark:border-border border-stone-200 bg-background/30"
       >
-        <div className="mx-5 lg:mx-16 xl:mx-16">
-          <Section customPaddings id="description" className="overflow-y-clip">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Description Section */}
+          <Section customPaddings id="description">
             <Description />
           </Section>
 
-          <div className="h-px bg-border mx-14"></div>
+          {/* Divider */}
+          <div className="w-full mx-auto">
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent"></div>
+          </div>
 
-          <Section id="faq" className="overflow-y-clip" customPaddings>
+          {/* FAQ Section */}
+          <Section id="faq" className="py-16 lg:py-20" customPaddings>
             <FAQ />
           </Section>
         </div>
       </Section>
 
-      <Section id="testimonial" customPaddings className="overflow-y-clip">
-        <Testimonials />
+      {/* Testimonials Section */}
+      <Section
+        id="testimonial"
+        customPaddings
+        className="py-16 lg:py-24 bg-background/50"
+      >
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Testimonials />
+        </div>
       </Section>
 
-      <div className="mx-auto h-px w-full bg-gradient-to-r from-transparent via-neutral-500 to-transparent"></div>
+      {/* Gradient Divider */}
+      <div className="w-full">
+        <div className="h-px bg-gradient-to-r from-transparent via-neutral-500/30 to-transparent max-w-6xl mx-auto"></div>
+      </div>
 
-      <Section id="footer-nav" className="overflow-y-clip" customPaddings>
-        <FooterNav />
+      {/* Footer Navigation Section */}
+      <Section id="footer-nav" className="py-16 lg:py-20" customPaddings>
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <FooterNav />
+        </div>
       </Section>
 
-      <div className="mx-auto h-px w-full bg-gradient-to-r from-transparent via-neutral-500 to-transparent"></div>
+      {/* Final Gradient Divider */}
+      <div className="w-full">
+        <div className="h-px bg-gradient-to-r from-transparent via-neutral-500/30 to-transparent max-w-6xl mx-auto"></div>
+      </div>
 
-      <Section id="footer" customPaddings>
-        <Footer />
+      {/* Footer Section */}
+      <Section
+        id="footer"
+        customPaddings
+        className="overflow-y-clip pt-2 xl:pt-4"
+      >
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Footer />
+        </div>
       </Section>
     </div>
   );

@@ -77,19 +77,19 @@ export const FooterNav = () => {
 
   const NavLinks = () => {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-16 max-w-4xl w-full">
+      <div className="w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10 lg:gap-12">
           {navItems.map((section, index) => (
-            <div key={index} className="space-y-8">
-              <h2 className="text-xs text-muted-foreground uppercase">
+            <div key={index} className="space-y-4 lg:space-y-6">
+              <h3 className="text-xs sm:text-sm text-muted-foreground uppercase font-medium tracking-wider">
                 {section.header}
-              </h2>
-              <div className="space-y-3">
+              </h3>
+              <div className="space-y-2 lg:space-y-3">
                 {section.items.map((item, itemIndex) => (
                   <div key={itemIndex}>
                     <a
                       href={item.link}
-                      className="text-xs hover:underline hover:underline-offset-4 block"
+                      className="text-sm sm:text-base text-foreground hover:text-primary hover:underline hover:underline-offset-4 transition-colors duration-200 block"
                       target={item.link.startsWith("http") ? "_blank" : "_self"}
                       rel={
                         item.link.startsWith("http")
@@ -110,15 +110,41 @@ export const FooterNav = () => {
   };
 
   return (
-    <div className="flex items-center justify-center gap-52 py-12">
-      <div className="flex flex-col gap-8">
-        <h1 className="text-[32px]">{`You're just one click away.`}</h1>
-        <div>
-          <SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
+    <div className="w-full">
+      {/* Mobile Layout */}
+      <div className="block lg:hidden space-y-12">
+        {/* CTA Section */}
+        <div className="text-center space-y-6">
+          <h2 className="text-2xl sm:text-3xl font-medium leading-tight">
+            You're just one click away.
+          </h2>
+          <div>
+            <SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="px-4">
+          <NavLinks />
         </div>
       </div>
-      <div>
-        <NavLinks />
+
+      {/* Desktop Layout */}
+      <div className="hidden lg:flex items-start justify-between gap-16 xl:gap-24">
+        {/* CTA Section */}
+        <div className="flex-shrink-0 space-y-6 xl:space-y-8">
+          <h2 className="text-2xl xl:text-3xl font-medium leading-tight max-w-sm">
+            You're just one click away.
+          </h2>
+          <div>
+            <SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="flex-1 max-w-2xl">
+          <NavLinks />
+        </div>
       </div>
     </div>
   );

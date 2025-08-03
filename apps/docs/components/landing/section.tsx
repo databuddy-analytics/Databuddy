@@ -20,14 +20,19 @@ const Section = ({
     <div
       id={id}
       className={`
-      relative
-      ${customPaddings || `py-10 lg:py-16  ${crosses ? "" : ""}`}
-      ${className || " "}`}
+        relative
+        w-full
+        ${customPaddings ? "" : "py-8 sm:py-12 lg:py-16 xl:py-20"}
+        ${className || ""}
+      `}
     >
       {children}
 
-      <div className="hidden absolute top-0 left-5 w-[0.0625rem] h-[calc(100%_+_30px)] dark:bg-border bg-stone-200  pointer-events-none lg:block lg:left-16 xl:left-16" />
-      <div className="hidden absolute top-0 right-5 w-[0.0625rem] h-[calc(100%_+_30px)]  dark:bg-border bg-stone-200  pointer-events-none lg:block lg:right-14 xl:right-14" />
+      {/* Left border line - hidden on mobile, visible on larger screens */}
+      <div className="hidden absolute top-0 left-4 w-[0.0625rem] h-[calc(100%_+_30px)] dark:bg-border bg-stone-200 pointer-events-none sm:left-6 lg:block lg:left-16 xl:left-16" />
+
+      {/* Right border line - hidden on mobile, visible on larger screens */}
+      <div className="hidden absolute top-0 right-4 w-[0.0625rem] h-[calc(100%_+_30px)] dark:bg-border bg-stone-200 pointer-events-none sm:right-6 lg:block lg:right-14 xl:right-14" />
 
       {crosses && (
         <>

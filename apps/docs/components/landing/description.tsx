@@ -82,31 +82,39 @@ export const Description = () => {
   };
 
   return (
-    <div className="flex items-center px-5 lg:px-16 xl:px-16">
-      <div className="flex items-center justify-center w-full">
-        <div className="flex-1 mt-12 mb-16 px-12 lg:px-14">
-          <h1 className="text-[32px] font-medium leading-tight mb-12">
+    <div className="w-full">
+      {/* Mobile Layout */}
+      <div className="block lg:hidden">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl sm:text-3xl font-medium leading-tight mb-8">
             Most Analytics Tools are
-          </h1>
-
-          <div className="space-y-2">
-            {data.map((item, index) => (
-              <motion.div
-                key={index}
-                variants={titleVariants}
-                animate={item.isActive ? "active" : "inactive"}
-                className="text-lg font-medium cursor-pointer"
-                onClick={() => setCurrentIndex(index)}
-              >
-                {item.title}
-              </motion.div>
-            ))}
-          </div>
+          </h2>
         </div>
 
-        <div className="w-px bg-border h-80 mx-6 lg:mx-8"></div>
+        {/* Mobile Navigation Dots */}
+        <div className="flex justify-center space-x-2 mb-8">
+          {data.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentIndex(index)}
+              className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                index === currentIndex
+                  ? "bg-foreground scale-125"
+                  : "bg-muted-foreground/30"
+              }`}
+            />
+          ))}
+        </div>
 
-        <div className="flex-1 max-w-sm">
+        {/* Mobile Active Title */}
+        <div className="text-center mb-6">
+          <h3 className="text-xl font-medium text-foreground">
+            {data[currentIndex].title}
+          </h3>
+        </div>
+
+        {/* Mobile Content */}
+        <div className="min-h-[80px] flex items-center justify-center px-4">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentIndex}
@@ -114,11 +122,58 @@ export const Description = () => {
               initial="enter"
               animate="center"
               exit="exit"
-              className="text-xs leading-relaxed"
+              className="text-sm sm:text-base leading-relaxed text-center text-muted-foreground max-w-md"
             >
               {data[currentIndex].content}
             </motion.div>
           </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden lg:flex items-center justify-center w-full">
+        <div className="flex items-center justify-center w-full max-w-6xl">
+          {/* Left Column - Titles */}
+          <div className="flex-1 px-8 xl:px-12">
+            <h2 className="text-2xl xl:text-3xl font-medium leading-tight mb-8 xl:mb-12">
+              Most Analytics Tools are
+            </h2>
+
+            <div className="space-y-3 xl:space-y-4">
+              {data.map((item, index) => (
+                <motion.div
+                  key={index}
+                  variants={titleVariants}
+                  animate={item.isActive ? "active" : "inactive"}
+                  className="text-lg xl:text-xl font-medium cursor-pointer transition-colors duration-200 hover:opacity-80"
+                  onClick={() => setCurrentIndex(index)}
+                >
+                  {item.title}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px bg-border h-60 xl:h-80 mx-6 xl:mx-8 flex-shrink-0"></div>
+
+          {/* Right Column - Content */}
+          <div className="flex-1 px-8 xl:px-12">
+            <div className="min-h-[120px] xl:min-h-[160px] flex items-center">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentIndex}
+                  variants={contentVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="text-sm xl:text-base leading-relaxed text-muted-foreground max-w-md"
+                >
+                  {data[currentIndex].content}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
       </div>
     </div>

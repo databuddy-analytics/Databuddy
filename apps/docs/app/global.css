@@ -191,7 +191,204 @@
 }
 
 html {
-  scroll-behaviour: smooth;
+  scroll-behavior: smooth;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1025px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+/* Performance optimizations */
+* {
+  box-sizing: border-box;
+}
+
+/* Smooth transitions for responsive elements */
+.responsive-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Container utilities */
+.container-responsive {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Mobile-first spacing utilities */
+.spacing-mobile-sm {
+  padding: 0.5rem;
+}
+
+.spacing-mobile-md {
+  padding: 1rem;
+}
+
+.spacing-mobile-lg {
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .spacing-mobile-sm {
+    padding: 1rem;
+  }
+
+  .spacing-mobile-md {
+    padding: 1.5rem;
+  }
+
+  .spacing-mobile-lg {
+    padding: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .spacing-mobile-sm {
+    padding: 1.5rem;
+  }
+
+  .spacing-mobile-md {
+    padding: 2rem;
+  }
+
+  .spacing-mobile-lg {
+    padding: 3rem;
+  }
+}
+
+/* Responsive text utilities */
+.text-responsive-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.text-responsive-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.text-responsive-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .text-responsive-sm {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .text-responsive-base {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+
+  .text-responsive-lg {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-responsive-sm {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+
+  .text-responsive-base {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  .text-responsive-lg {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+}
+
+/* Mobile performance optimizations */
+@media (max-width: 767px) {
+  /* Reduce animation complexity on mobile */
+  * {
+    animation-duration: 0.3s !important;
+    transition-duration: 0.3s !important;
+  }
+
+  /* Optimize images */
+  img {
+    image-rendering: optimizeSpeed;
+  }
+
+  /* Reduce blur effects on mobile for performance */
+  .backdrop-blur-sm {
+    backdrop-filter: blur(2px) !important;
+  }
+
+  .backdrop-blur-md {
+    backdrop-filter: blur(4px) !important;
+  }
+}
+
+/* Touch-friendly interactive elements */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase touch targets */
+  button,
+  [role="button"],
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Remove hover effects on touch devices */
+  .hover\:scale-105:hover {
+    transform: none !important;
+  }
+
+  .hover\:shadow-lg:hover {
+    box-shadow: none !important;
+  }
+}
+
+/* Prevent horizontal scrolling */
+body {
+  overflow-x: hidden;
+}
+
+/* Smooth scrolling for all elements */
+* {
+  scroll-behavior: smooth;
 }
 
 #nd-home-layout {
