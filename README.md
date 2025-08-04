@@ -116,7 +116,7 @@ bun run dev
 cd packages/db && bunx tsx src/seed.ts "YOUR_WEBSITE_ID" "YOUR_DOMAIN" "NUMBER_OF_EVENTS(optional)"
 ```
 
-**Note:** Replace `YOUR_WEBSITE_ID` with your actual website ID from the database and `YOUR_DOMAIN` with your website domain. You can find your website ID from DrizzleStudio.
+**Note:** Replace `YOUR_WEBSITE_ID` with your actual website ID from the database and `YOUR_DOMAIN` with your website domain. You can find your website ID from Drizzle Studio.
 
 ```bash
 bun run db:studio
