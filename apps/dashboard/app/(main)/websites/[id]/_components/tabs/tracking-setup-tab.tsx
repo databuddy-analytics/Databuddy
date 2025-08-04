@@ -5,11 +5,11 @@ import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
 	BookOpenIcon,
+	ChatCircleIcon,
 	CheckIcon,
 	ClipboardIcon,
 	CodeIcon,
 	FileCodeIcon,
-	ChatCircleIcon,
 	WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
@@ -198,7 +198,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 								code={trackingCode}
 								copied={copiedBlockId === 'script-tag'}
 								description="Add this script to the <head> section of your HTML:"
-								onCopy={() => handleCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
+								onCopy={() =>
+									handleCopyCode(
+										trackingCode,
+										'script-tag',
+										'Script tag copied to clipboard!'
+									)
+								}
 							/>
 							<p className="text-muted-foreground text-xs">
 								Data will appear within a few minutes after installation.
@@ -234,7 +240,11 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 											copied={copiedBlockId === 'npm-install'}
 											description=""
 											onCopy={() =>
-												handleCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')
+												handleCopyCode(
+													'npm install @databuddy/sdk',
+													'npm-install',
+													'Command copied to clipboard!'
+												)
 											}
 										/>
 									</TabsContent>
@@ -244,7 +254,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 											code="yarn add @databuddy/sdk"
 											copied={copiedBlockId === 'yarn-install'}
 											description=""
-											onCopy={() => handleCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
+											onCopy={() =>
+												handleCopyCode(
+													'yarn add @databuddy/sdk',
+													'yarn-install',
+													'Command copied to clipboard!'
+												)
+											}
 										/>
 									</TabsContent>
 
@@ -253,7 +269,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 											code="pnpm add @databuddy/sdk"
 											copied={copiedBlockId === 'pnpm-install'}
 											description=""
-											onCopy={() => handleCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
+											onCopy={() =>
+												handleCopyCode(
+													'pnpm add @databuddy/sdk',
+													'pnpm-install',
+													'Command copied to clipboard!'
+												)
+											}
 										/>
 									</TabsContent>
 
@@ -262,7 +284,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 											code="bun add @databuddy/sdk"
 											copied={copiedBlockId === 'bun-install'}
 											description=""
-											onCopy={() => handleCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
+											onCopy={() =>
+												handleCopyCode(
+													'bun add @databuddy/sdk',
+													'bun-install',
+													'Command copied to clipboard!'
+												)
+											}
 										/>
 									</TabsContent>
 								</Tabs>

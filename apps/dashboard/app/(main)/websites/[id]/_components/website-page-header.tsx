@@ -88,22 +88,28 @@ export function WebsitePageHeader({
 
 	if (variant === 'minimal') {
 		return (
-			<div className="mb-6 flex items-center gap-3">
-				{showBackButton && (
-					<Button asChild size="sm" variant="ghost">
-						<Link href={`/websites/${websiteId}`}>
-							<ArrowLeftIcon size={16} />
-							Back
-						</Link>
-					</Button>
-				)}
-				<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-					{icon}
+			<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
+				<div className="flex items-center gap-3">
+					<div className="flex items-center gap-3">
+						{showBackButton && (
+							<Button asChild size="sm" variant="ghost">
+								<Link href={`/websites/${websiteId}`}>
+									<ArrowLeftIcon size={16} />
+									<span className="xs:inline hidden">Back</span>
+								</Link>
+							</Button>
+						)}
+						<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+							{icon}
+						</div>
+					</div>
+
+					<div className="flex-1">
+						<h1 className="font-semibold text-xl">{title}</h1>
+						{renderSubtitle()}
+					</div>
 				</div>
-				<div className="flex-1">
-					<h1 className="font-semibold text-xl">{title}</h1>
-					{renderSubtitle()}
-				</div>
+
 				<div className="flex items-center gap-3">
 					{onRefresh && (
 						<Button
@@ -116,7 +122,7 @@ export function WebsitePageHeader({
 								className={isRefreshing ? 'animate-spin' : ''}
 								size={16}
 							/>
-							Refresh
+							<span className="xs:inline hidden">Refresh</span>
 						</Button>
 					)}
 					{additionalActions}
