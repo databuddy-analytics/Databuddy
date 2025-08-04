@@ -755,12 +755,15 @@ function WebsiteInfoSection({
 			</div>
 
 			<div className="rounded-md border border-primary/10 bg-primary/5 p-4">
-				<div className="flex flex-col items-start gap-3 sm:flex-row">
-					<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
-						<CheckIcon className="h-4 w-4 text-primary" />
-					</div>
-					<div>
+				<div className="flex flex-col items-start gap-x-3 gap-y-2">
+					<div className="flex items-center gap-x-2">
+						<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
+							<CheckIcon className="h-4 w-4 text-primary" />
+						</div>
 						<p className="font-medium text-sm">Ready to Track</p>
+					</div>
+
+					<div>
 						<p className="mt-1 text-muted-foreground text-xs">
 							Add the tracking code to your website to start collecting data.
 						</p>
