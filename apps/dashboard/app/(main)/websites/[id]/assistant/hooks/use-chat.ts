@@ -38,7 +38,7 @@ function generateWelcomeMessage(websiteName?: string): string {
 		'Show me traffic by country',
 	];
 
-	return `Hello! I'm Nova, your AI analytics partner for ${websiteName || 'your website'}. I can help you understand your data with charts, single metrics, or detailed answers. Try asking me questions like:\n\n${examples.map((prompt: string) => `• "${prompt}"`).join('\n')}\n\nI'll automatically choose the best way to present your data - whether it's a chart, a single number, or a detailed explanation.`;
+	return `Hello! I'm Databunny, your data analyst for ${websiteName || 'your website'}. I can help you understand your data with charts, single metrics, or detailed answers. Try asking me questions like:\n\n${examples.map((prompt: string) => `• "${prompt}"`).join('\n')}\n\nI'll automatically choose the best way to present your data - whether it's a chart, a single number, or a detailed explanation.`;
 }
 
 export function useChat() {
@@ -53,13 +53,11 @@ export function useChat() {
 	const rateLimitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const chatDB = getChatDB();
 
-	// Initialize chat from IndexedDB
 	useEffect(() => {
 		let isMounted = true;
 
 		const initializeChat = async () => {
 			try {
-				// Load existing messages from IndexedDB
 				const existingMessages = await chatDB.getMessages(websiteId || '');
 
 				if (isMounted) {
@@ -302,7 +300,7 @@ export function useChat() {
 											);
 										} catch (error) {
 											console.error(
-												'Failed to save assistant message to IndexedDB:',
+												'Failed to save Databunny message to IndexedDB:',
 												error
 											);
 										}

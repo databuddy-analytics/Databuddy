@@ -8,6 +8,22 @@ import { parseAIResponse } from './utils/response-parser';
 import type { StreamingUpdate } from './utils/stream-utils';
 import { generateThinkingSteps } from './utils/stream-utils';
 
+// Simple message variation helpers
+const getRandomMessage = (messages: string[]) =>
+	messages[Math.floor(Math.random() * messages.length)];
+
+const parseErrorMessages = [
+	"I'm having trouble understanding that request. Could you try asking in a different way?",
+	'Something went wrong while I was processing your question. Mind rephrasing it?',
+	"I didn't quite catch that - could you ask me again, maybe with different words?",
+];
+
+const unexpectedErrorMessages = [
+	'Oops! Something unexpected happened. Mind trying that again?',
+	'I hit a snag there! Could you give that another shot?',
+	'Something went a bit wonky on my end. Try asking me again?',
+];
+
 export interface AssistantRequest {
 	message: string;
 	website_id: string;
@@ -72,7 +88,7 @@ export async function* processAssistantRequest(
 		if (!parsedResponse.success) {
 			yield {
 				type: 'error',
-				content: 'AI response parsing failed. Please try rephrasing.',
+				content: getRandomMessage(parseErrorMessages),
 				debugInfo:
 					context.user.role === 'ADMIN'
 						? {
@@ -89,7 +105,7 @@ export async function* processAssistantRequest(
 		if (!aiJson) {
 			yield {
 				type: 'error',
-				content: 'AI response data is missing.',
+				content: getRandomMessage(parseErrorMessages),
 				debugInfo:
 					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
 			};
@@ -157,7 +173,7 @@ export async function* processAssistantRequest(
 
 		yield {
 			type: 'error',
-			content: 'An unexpected error occurred.',
+			content: getRandomMessage(unexpectedErrorMessages),
 			debugInfo:
 				context.user.role === 'ADMIN' ? { error: errorMessage } : undefined,
 		};

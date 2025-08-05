@@ -175,9 +175,11 @@ export function WebsiteSettingsTab({
 											installMethod === 'script'
 												? trackingCode
 												: generateNpmComponentCode(websiteId, trackingOptions),
-											installMethod === 'script' ? 'script-tag' : 'tracking-code',
-											installMethod === 'script' 
-												? 'Script tag copied to clipboard!' 
+											installMethod === 'script'
+												? 'script-tag'
+												: 'tracking-code',
+											installMethod === 'script'
+												? 'Script tag copied to clipboard!'
 												: 'Tracking code copied to clipboard!'
 										)
 									}
@@ -519,7 +521,13 @@ function TrackingCodeTab({
 						code={trackingCode}
 						copied={copiedBlockId === 'script-tag'}
 						description="Add this script to the <head> section of your website:"
-						onCopy={() => onCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
+						onCopy={() =>
+							onCopyCode(
+								trackingCode,
+								'script-tag',
+								'Script tag copied to clipboard!'
+							)
+						}
 					/>
 				</TabsContent>
 
@@ -551,7 +559,13 @@ function TrackingCodeTab({
 									code="npm install @databuddy/sdk"
 									copied={copiedBlockId === 'npm-install'}
 									description=""
-									onCopy={() => onCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'npm install @databuddy/sdk',
+											'npm-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -560,7 +574,13 @@ function TrackingCodeTab({
 									code="yarn add @databuddy/sdk"
 									copied={copiedBlockId === 'yarn-install'}
 									description=""
-									onCopy={() => onCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'yarn add @databuddy/sdk',
+											'yarn-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -569,7 +589,13 @@ function TrackingCodeTab({
 									code="pnpm add @databuddy/sdk"
 									copied={copiedBlockId === 'pnpm-install'}
 									description=""
-									onCopy={() => onCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'pnpm add @databuddy/sdk',
+											'pnpm-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -578,7 +604,13 @@ function TrackingCodeTab({
 									code="bun add @databuddy/sdk"
 									copied={copiedBlockId === 'bun-install'}
 									description=""
-									onCopy={() => onCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'bun add @databuddy/sdk',
+											'bun-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 						</Tabs>
@@ -587,7 +619,13 @@ function TrackingCodeTab({
 							code={npmCode}
 							copied={copiedBlockId === 'tracking-code'}
 							description="Then initialize the tracker in your code:"
-							onCopy={() => onCopyCode(npmCode, 'tracking-code', 'Tracking code copied to clipboard!')}
+							onCopy={() =>
+								onCopyCode(
+									npmCode,
+									'tracking-code',
+									'Tracking code copied to clipboard!'
+								)
+							}
 						/>
 					</div>
 				</TabsContent>
@@ -683,20 +721,22 @@ function WebsiteInfoSection({
 	websiteId: string;
 }) {
 	return (
-		<div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-1 xl:grid-cols-2">
+		<div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
 			<div className="space-y-3 rounded-md bg-muted/50 p-4">
 				<h4 className="flex items-center gap-2 font-medium text-sm">
 					<InfoIcon className="h-4 w-4 text-muted-foreground" />
 					Website Details
 				</h4>
 				<div className="space-y-2 text-sm">
-					<div className="flex justify-between">
+					<div className="flex flex-col sm:flex-row sm:justify-between">
 						<span className="text-muted-foreground">Created</span>
-						<span>{new Date(websiteData.createdAt).toLocaleDateString()}</span>
+						<span className="mt-1 sm:mt-0">
+							{new Date(websiteData.createdAt).toLocaleDateString()}
+						</span>
 					</div>
-					<div className="flex justify-between">
+					<div className="flex flex-col sm:flex-row sm:justify-between">
 						<span className="text-muted-foreground">Website ID</span>
-						<div className="flex items-center gap-1 font-mono text-xs">
+						<div className="mt-1 flex items-center gap-1 font-mono text-xs sm:mt-0">
 							{websiteId}
 							<Button
 								className="h-5 w-5"
@@ -715,17 +755,20 @@ function WebsiteInfoSection({
 			</div>
 
 			<div className="rounded-md border border-primary/10 bg-primary/5 p-4">
-				<div className="flex items-start gap-3">
-					<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
-						<CheckIcon className="h-4 w-4 text-primary" />
-					</div>
-					<div>
+				<div className="flex flex-col items-start gap-x-3 gap-y-2">
+					<div className="flex items-center gap-x-2">
+						<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
+							<CheckIcon className="h-4 w-4 text-primary" />
+						</div>
 						<p className="font-medium text-sm">Ready to Track</p>
+					</div>
+
+					<div>
 						<p className="mt-1 text-muted-foreground text-xs">
 							Add the tracking code to your website to start collecting data.
 						</p>
 						<Button
-							className="h-6 px-0 text-primary text-xs"
+							className="-ml-2 h-6 px-0 text-primary text-xs"
 							size="sm"
 							variant="link"
 						>

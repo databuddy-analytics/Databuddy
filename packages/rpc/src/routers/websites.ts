@@ -18,18 +18,26 @@ import {
 	trackWebsiteUsage,
 } from '../utils/billing';
 
+// Cache configuration
 const websiteCache = createDrizzleCache({ redis, namespace: 'websites' });
-const CACHE_DURATION = 60;
-const TREND_THRESHOLD = 5;
+const CACHE_DURATION = 60; // seconds
+const TREND_THRESHOLD = 5; // percentage
 
-const buildFullDomain = (domain: string, subdomain?: string) =>
-	subdomain ? `${subdomain}.${domain}` : domain;
-
+// Types
 interface ChartDataPoint {
 	websiteId: string;
 	date: string;
 	value: number;
 }
+
+// Helper functions
+const buildFullDomain = (domain: string, subdomain?: string) =>
+	subdomain ? `${subdomain}.${domain}` : domain;
+
+const buildWebsiteFilter = (userId: string, organizationId?: string) =>
+	organizationId
+		? eq(websites.organizationId, organizationId)
+		: and(eq(websites.userId, userId), isNull(websites.organizationId));
 
 const calculateAverage = (values: { value: number }[]) =>
 	values.length > 0
@@ -140,11 +148,7 @@ const fetchChartData = async (
 	return processedData;
 };
 
-const buildWebsiteFilter = (userId: string, organizationId?: string) =>
-	organizationId
-		? eq(websites.organizationId, organizationId)
-		: and(eq(websites.userId, userId), isNull(websites.organizationId));
-
+// Router definition
 export const websitesRouter = createTRPCRouter({
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
@@ -213,6 +217,7 @@ export const websitesRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
+			// Validate organization permissions upfront
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
@@ -230,6 +235,8 @@ export const websitesRouter = createTRPCRouter({
 				ctx.user.id,
 				input.organizationId
 			);
+
+			// Check billing limits before starting transaction
 			const creationLimitCheck =
 				await checkAndTrackWebsiteCreation(billingCustomerId);
 			if (!creationLimitCheck.allowed) {
@@ -245,32 +252,40 @@ export const websitesRouter = createTRPCRouter({
 				buildWebsiteFilter(ctx.user.id, input.organizationId)
 			);
 
-			const duplicateWebsite = await ctx.db.query.websites.findFirst({
-				where: websiteFilter,
+			// Execute database operations in transaction
+			const createdWebsite = await ctx.db.transaction(async (tx) => {
+				// Check for duplicate websites within transaction
+				const duplicateWebsite = await tx.query.websites.findFirst({
+					where: websiteFilter,
+				});
+
+				if (duplicateWebsite) {
+					const scopeDescription = input.organizationId
+						? 'in this organization'
+						: 'for your account';
+					throw new TRPCError({
+						code: 'CONFLICT',
+						message: `A website with the domain "${domainToCreate}" already exists ${scopeDescription}.`,
+					});
+				}
+
+				// Create website
+				const [website] = await tx
+					.insert(websites)
+					.values({
+						id: nanoid(),
+						name: input.name,
+						domain: domainToCreate,
+						userId: ctx.user.id,
+						organizationId: input.organizationId,
+						status: 'ACTIVE',
+					})
+					.returning();
+
+				return website;
 			});
 
-			if (duplicateWebsite) {
-				const scopeDescription = input.organizationId
-					? 'in this organization'
-					: 'for your account';
-				throw new TRPCError({
-					code: 'CONFLICT',
-					message: `A website with the domain "${domainToCreate}" already exists ${scopeDescription}.`,
-				});
-			}
-
-			const [createdWebsite] = await ctx.db
-				.insert(websites)
-				.values({
-					id: nanoid(),
-					name: input.name,
-					domain: domainToCreate,
-					userId: ctx.user.id,
-					organizationId: input.organizationId,
-					status: 'ACTIVE',
-				})
-				.returning();
-
+			// Log success after transaction completes
 			logger.success(
 				'Website Created',
 				`New website "${createdWebsite.name}" was created with domain "${createdWebsite.domain}"`,
@@ -282,6 +297,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
+			// Invalidate cache after successful creation
 			await websiteCache.invalidateByTables(['websites']);
 
 			return createdWebsite;
@@ -290,18 +306,32 @@ export const websitesRouter = createTRPCRouter({
 	update: protectedProcedure
 		.input(updateWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
+			// Authorize access before transaction
 			const websiteToUpdate = await authorizeWebsiteAccess(
 				ctx,
 				input.id,
 				'update'
 			);
 
-			const [updatedWebsite] = await ctx.db
-				.update(websites)
-				.set({ name: input.name })
-				.where(eq(websites.id, input.id))
-				.returning();
+			// Execute update in transaction
+			const updatedWebsite = await ctx.db.transaction(async (tx) => {
+				const [website] = await tx
+					.update(websites)
+					.set({ name: input.name })
+					.where(eq(websites.id, input.id))
+					.returning();
 
+				if (!website) {
+					throw new TRPCError({
+						code: 'NOT_FOUND',
+						message: 'Website not found',
+					});
+				}
+
+				return website;
+			});
+
+			// Log success after transaction
 			logger.info(
 				'Website Updated',
 				`Website "${websiteToUpdate.name}" was renamed to "${updatedWebsite.name}"`,
@@ -313,6 +343,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
+			// Invalidate cache after successful update
 			await Promise.all([
 				websiteCache.invalidateByTables(['websites']),
 				websiteCache.invalidateByKey(`getById:${input.id}`),
@@ -324,6 +355,7 @@ export const websitesRouter = createTRPCRouter({
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
+			// Authorize access and get billing info before transaction
 			const websiteToDelete = await authorizeWebsiteAccess(
 				ctx,
 				input.id,
@@ -334,11 +366,16 @@ export const websitesRouter = createTRPCRouter({
 				websiteToDelete.organizationId
 			);
 
-			await Promise.all([
-				ctx.db.delete(websites).where(eq(websites.id, input.id)),
-				trackWebsiteUsage(billingCustomerId, -1),
-			]);
+			// Execute deletion and billing update in transaction
+			await ctx.db.transaction(async (tx) => {
+				// Delete website
+				await tx.delete(websites).where(eq(websites.id, input.id));
 
+				// Track billing usage (decrement)
+				await trackWebsiteUsage(billingCustomerId, -1);
+			});
+
+			// Log after successful deletion
 			logger.warning(
 				'Website Deleted',
 				`Website "${websiteToDelete.name}" with domain "${websiteToDelete.domain}" was deleted`,
@@ -350,6 +387,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
+			// Invalidate cache after successful deletion
 			await Promise.all([
 				websiteCache.invalidateByTables(['websites']),
 				websiteCache.invalidateByKey(`getById:${input.id}`),
@@ -361,8 +399,10 @@ export const websitesRouter = createTRPCRouter({
 	transfer: protectedProcedure
 		.input(transferWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
+			// Authorize access before transaction
 			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
 
+			// Validate organization permissions upfront
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
@@ -376,19 +416,25 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const [transferredWebsite] = await ctx.db
-				.update(websites)
-				.set({ organizationId: input.organizationId ?? null })
-				.where(eq(websites.id, input.websiteId))
-				.returning();
+			// Execute transfer in transaction
+			const transferredWebsite = await ctx.db.transaction(async (tx) => {
+				const [website] = await tx
+					.update(websites)
+					.set({ organizationId: input.organizationId ?? null })
+					.where(eq(websites.id, input.websiteId))
+					.returning();
 
-			if (!transferredWebsite) {
-				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Website not found',
-				});
-			}
+				if (!website) {
+					throw new TRPCError({
+						code: 'NOT_FOUND',
+						message: 'Website not found',
+					});
+				}
 
+				return website;
+			});
+
+			// Log success after transaction
 			logger.success(
 				'Website Transferred',
 				`Website "${transferredWebsite.name}" was transferred to organization "${input.organizationId}"`,
@@ -399,6 +445,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
+			// Invalidate cache after successful transfer
 			await Promise.all([
 				websiteCache.invalidateByTables(['websites']),
 				websiteCache.invalidateByKey(`getById:${input.websiteId}`),

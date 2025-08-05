@@ -2,6 +2,8 @@ import { getRedisCache } from './redis';
 
 const logger = console;
 
+const stringifyRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z$/;
+
 interface CacheOptions {
 	expireInSec: number;
 	prefix?: string;
@@ -15,10 +17,7 @@ interface CacheOptions {
 const defaultSerialize = (data: unknown): string => JSON.stringify(data);
 const defaultDeserialize = (data: string): unknown =>
 	JSON.parse(data, (_, value) => {
-		if (
-			typeof value === 'string' &&
-			/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z$/.test(value)
-		) {
+		if (typeof value === 'string' && stringifyRegex.test(value)) {
 			return new Date(value);
 		}
 		return value;
@@ -201,7 +200,7 @@ export function cacheable<T extends (...args: any) => any>(
 	};
 
 	cachedFn.getKey = getKey;
-	cachedFn.clear = async (...args: Parameters<T>) => {
+	cachedFn.clear = (...args: Parameters<T>) => {
 		const key = getKey(...args);
 		const redis = getRedisCache();
 		return redis.del(key);

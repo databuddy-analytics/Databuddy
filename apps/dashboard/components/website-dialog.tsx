@@ -28,15 +28,16 @@ import { Input } from '@/components/ui/input';
 import type { CreateWebsiteData, Website } from '@/hooks/use-websites';
 import { useCreateWebsite, useUpdateWebsite } from '@/hooks/use-websites';
 
+const domainRegex =
+	/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
+const wwwRegex = /^www\./;
+
 const formSchema = z.object({
 	name: z.string().min(1, 'Name is required'),
 	domain: z
 		.string()
 		.min(1, 'Domain is required')
-		.regex(
-			/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/,
-			'Invalid domain format'
-		),
+		.regex(domainRegex, 'Invalid domain format'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -90,15 +91,19 @@ export function WebsiteDialog({
 					id: website.id,
 					name: formData.name,
 				});
-				if (onSave) onSave(result);
+				if (onSave) {
+					onSave(result);
+				}
 				toast.success('Website updated successfully!');
 			} else {
 				const result = await createWebsiteMutation.mutateAsync(submissionData);
-				if (onSave) onSave(result);
+				if (onSave) {
+					onSave(result);
+				}
 				toast.success('Website created successfully!');
 			}
 			onOpenChange(false);
-		} catch (error: any) {
+		} catch (error) {
 			const message =
 				error.data?.code === 'CONFLICT'
 					? 'A website with this domain already exists.'
@@ -165,9 +170,11 @@ export function WebsiteDialog({
 														) {
 															try {
 																domain = new URL(domain).hostname;
-															} catch {}
+															} catch {
+																// Do nothing
+															}
 														}
-														field.onChange(domain.replace(/^www\./, ''));
+														field.onChange(domain.replace(wwwRegex, ''));
 													}}
 												/>
 											</div>

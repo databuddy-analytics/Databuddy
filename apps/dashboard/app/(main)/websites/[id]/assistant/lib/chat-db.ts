@@ -31,7 +31,7 @@ interface ChatDBSchema extends DBSchema {
 
 class ChatDatabase {
 	private dbPromise: Promise<IDBPDatabase<ChatDBSchema>>;
-	private readonly DB_NAME = 'databuddy-assistant';
+	private readonly DB_NAME = 'databuddy-databunny';
 	private readonly DB_VERSION = 1;
 
 	constructor() {

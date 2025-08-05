@@ -25,7 +25,7 @@ import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import { useAtom } from 'jotai';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useBillingData } from '@/app/(main)/billing/data/billing-data';
 import { DataTable } from '@/components/analytics/data-table';
 import { StatCard } from '@/components/analytics/stat-card';
@@ -100,19 +100,29 @@ const QUERY_CONFIG = {
 
 function LiveUserIndicator({ websiteId }: { websiteId: string }) {
 	const { activeUsers: count } = useRealTimeStats(websiteId);
-	const [prevCount, setPrevCount] = useState(count);
+	const prevCountRef = useRef(count);
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const [change, setChange] = useState<'up' | 'down' | null>(null);
 
-	useEffect(() => {
+	useMemo(() => {
+		const prevCount = prevCountRef.current;
+
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current);
+		}
+
 		if (count > prevCount) {
 			setChange('up');
+			timeoutRef.current = setTimeout(() => setChange(null), 1000);
 		} else if (count < prevCount) {
 			setChange('down');
+			timeoutRef.current = setTimeout(() => setChange(null), 1000);
 		}
-		const timer = setTimeout(() => setChange(null), 1000);
-		setPrevCount(count);
-		return () => clearTimeout(timer);
-	}, [count, prevCount]);
+
+		prevCountRef.current = count;
+
+		return null;
+	}, [count]);
 
 	const getChangeColor = () => {
 		if (change === 'up') {
@@ -365,28 +375,20 @@ export function WebsiteOverviewTab({
 		avg_session_duration: visibleMetrics.avg_session_duration,
 	};
 
-	useEffect(() => {
-		let isMounted = true;
-
+	useMemo(() => {
 		if (isRefreshing) {
 			const doRefresh = async () => {
 				try {
 					await refetchBatch();
-				} catch (error) {
-					console.error('Failed to refresh data:', error);
+				} catch (refreshError) {
+					console.error('Failed to refresh data:', refreshError);
 				} finally {
-					if (isMounted) {
-						setIsRefreshing(false);
-					}
+					setIsRefreshing(false);
 				}
 			};
-
 			doRefresh();
 		}
-
-		return () => {
-			isMounted = false;
-		};
+		return null;
 	}, [isRefreshing, refetchBatch, setIsRefreshing]);
 
 	const isLoading = loading.summary || isRefreshing;
@@ -497,19 +499,20 @@ export function WebsiteOverviewTab({
 				date: formatDateByGranularity(event.date, dateRange.granularity),
 			};
 			if (visibleMetrics.pageviews) {
-				filtered.pageviews = event.pageviews;
+				filtered.pageviews = event.pageviews as number;
 			}
 			if (visibleMetrics.visitors) {
-				filtered.visitors = event.visitors || event.unique_visitors || 0;
+				filtered.visitors =
+					(event.visitors as number) || (event.unique_visitors as number) || 0;
 			}
 			if (visibleMetrics.sessions) {
-				filtered.sessions = event.sessions;
+				filtered.sessions = event.sessions as number;
 			}
 			if (visibleMetrics.bounce_rate) {
-				filtered.bounce_rate = event.bounce_rate;
+				filtered.bounce_rate = event.bounce_rate as number;
 			}
 			if (visibleMetrics.avg_session_duration) {
-				filtered.avg_session_duration = event.avg_session_duration;
+				filtered.avg_session_duration = event.avg_session_duration as number;
 			}
 			return filtered;
 		});
