@@ -113,14 +113,17 @@ bun run dev
 8. Seed the database with sample data (optional):
 
 ```bash
-cd packages/db && bunx tsx src/seed.ts "YOUR_WEBSITE_ID" "YOUR_DOMAIN" "NUMBER_OF_EVENTS(optional)"
+bun db:seed <WEBSITE_ID> [DOMAIN] [EVENT_COUNT]
 ```
 
-**Note:** Replace `YOUR_WEBSITE_ID` with your actual website ID from the database and `YOUR_DOMAIN` with your website domain. You can find your website ID from Drizzle Studio.
+**Examples:**
 
 ```bash
-bun run db:studio
+bun db:seed g0zlgMtBaXzIP1EGY2ieG onlybuddies.com 10000
+bun db:seed d7zlgMtBaSzIL1EGR2ieR notmybuddy.cc 5000
 ```
+
+**Note:** You can find your website ID in your website overview settings.
 
 ## 💻 Development
 

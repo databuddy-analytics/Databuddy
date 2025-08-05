@@ -28,6 +28,7 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate": "drizzle-kit generate && tsx src/migrate.ts",
     "db:deploy": "tsx src/migrate.ts",
+    "db:seed": "tsx src/seed.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts"
   }
 }
