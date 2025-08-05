@@ -141,7 +141,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                 ),
                 hour_range AS (
                   SELECT arrayJoin(arrayMap(
-                    h -> toDateTime(concat({startDate:String}, ' 00:00:00')) + (h * 3600),
+                    h -> toStartOfHour(toTimeZone(toDateTime(concat({startDate:String}, ' 00:00:00')) + (h * 3600), {timezone:String})),
                     range(toUInt32(dateDiff('hour', toDateTime(concat({startDate:String}, ' 00:00:00')), toDateTime(concat({endDate:String}, ' 23:59:59'))) + 1))
                   )) AS datetime
                 ),
