@@ -98,12 +98,12 @@ export function NavigationSection({
                     rel="noopener noreferrer"
                     className={cn(isDisabled && 'pointer-events-none opacity-50')}
                   >
-                    <Icon size={20} weight="duotone" />
+                    <Icon size={20} className="not-dark:text-primary" weight="duotone" />
                     <span>{item.name}</span>
                     {item.alpha && (
                       <SidebarMenuBadge className="ml-auto">Alpha</SidebarMenuBadge>
                     )}
-                    <ExternalLinkIcon className="ml-2 h-3 w-3" />
+                    <ExternalLinkIcon className="ml-2 h-2 w-2" size={12} />
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
