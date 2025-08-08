@@ -1,5 +1,13 @@
-import Image from "next/image";
+import Image from 'next/image';
 
-export const Map = () => {
-  return <Image src={"/world.svg"} alt="map" width={559} height={327} />;
+export const WorldMap = () => {
+	return (
+		<Image
+			alt="World map visualization"
+			height={327}
+			priority={false}
+			src={'/world.svg'}
+			width={559}
+		/>
+	);
 };

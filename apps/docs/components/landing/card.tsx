@@ -1,89 +1,75 @@
-"use client";
-
-import { cn } from "@/lib/utils";
-import { LucideIcon } from "lucide-react";
-import useSound from "use-sound";
-import { GridPatternBg } from "./grid-pattern";
+import type { IconProps } from '@phosphor-icons/react';
+import { cn } from '@/lib/utils';
+import { GridPatternBg } from './grid-pattern';
 
 interface GridCard {
-  title: string;
-  description: string;
-  icon: LucideIcon;
+	title: string;
+	description: string;
+	icon: (props: IconProps) => JSX.Element;
 }
 
 interface SciFiGridCardProps extends GridCard {
-  className?: string;
-  onClick?: () => void;
+	className?: string;
 }
 
 export const SciFiGridCard = ({
-  title,
-  description,
-  icon: Icon,
-  className,
-  onClick,
+	title,
+	description,
+	icon: Icon,
+	className,
 }: SciFiGridCardProps) => {
-  const [play] = useSound("/scifi-card-hover.mp3", {
-    volume: 0.01,
-  });
+	return (
+		<div
+			className={cn(
+				'group relative w-full overflow-hidden',
+				'min-h-[280px] sm:min-h-[320px] lg:min-h-[370px]',
+				className
+			)}
+		>
+			<div className="absolute inset-0">
+				<GridPatternBg />
+			</div>
 
-  return (
-    <div
-      className={cn(
-        "relative group overflow-hidden w-full",
-        "min-h-[280px] sm:min-h-[320px] lg:min-h-[370px]",
-        "max-w-none sm:max-w-[350px]",
-        className,
-      )}
-      onClick={onClick}
-      onMouseEnter={() => {
-        play();
-      }}
-    >
-      <div className="absolute inset-0">
-        <GridPatternBg />
-      </div>
+			<div className="relative h-full border border-border bg-transparent px-4 transition-all duration-300 sm:px-6 lg:px-8">
+				<div className="pointer-events-none absolute inset-0">
+					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
+						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
+					</div>
 
-      <div className="relative h-full bg-transparent px-4 sm:px-6 lg:px-8 border border-border transition-all duration-300">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute left-0 top-0 w-2 h-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-            <div className="absolute h-0.5 top-0 left-0.5 w-1.5 bg-white origin-left"></div>
-            <div className="absolute w-0.5 top-0 left-0 h-2 bg-white origin-top"></div>
-          </div>
+					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
+						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
+					</div>
 
-          <div className="absolute right-0 top-0 w-2 h-2 -scale-x-[1] group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-            <div className="absolute h-0.5 top-0 left-0.5 w-1.5 bg-white origin-left"></div>
-            <div className="absolute w-0.5 top-0 left-0 h-2 bg-white origin-top"></div>
-          </div>
+					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
+						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
+					</div>
 
-          <div className="absolute left-0 bottom-0 w-2 h-2 -scale-y-[1] group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-            <div className="absolute h-0.5 top-0 left-0.5 w-1.5 bg-white origin-left"></div>
-            <div className="absolute w-0.5 top-0 left-0 h-2 bg-white origin-top"></div>
-          </div>
+					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
+						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
+					</div>
+				</div>
 
-          <div className="absolute right-0 bottom-0 w-2 h-2 -scale-[1] group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-            <div className="absolute h-0.5 top-0 left-0.5 w-1.5 bg-white origin-left"></div>
-            <div className="absolute w-0.5 top-0 left-0 h-2 bg-white origin-top"></div>
-          </div>
-        </div>
+				<div className="relative flex h-full flex-col items-center justify-center py-6 sm:py-8">
+					<div className="mb-4 rounded border border-border bg-card p-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] sm:mb-6 sm:p-3">
+						<Icon
+							className="h-5 w-5 text-foreground/80 transition-colors duration-300 group-hover:text-foreground sm:h-6 sm:w-6"
+							weight="duotone"
+						/>
+					</div>
 
-        <div className="relative h-full flex flex-col items-center justify-center py-6 sm:py-8">
-          <div className="mb-4 sm:mb-6 bg-gradient-to-br from-zinc-950 to-zinc-800 border border-border p-2 sm:p-3 shadow-[inset_0_1px_3px_rgba(255,255,255,0.2)]">
-            <Icon
-              className="w-5 h-5 sm:w-6 sm:h-6 text-white/80 group-hover:text-white transition-colors duration-300"
-              strokeWidth={1.5}
-            />
-          </div>
+					<h3 className="px-2 pb-6 text-center font-medium text-base text-foreground transition-colors duration-300 group-hover:text-foreground/90 sm:pb-8 sm:text-lg lg:pb-12">
+						{title}
+					</h3>
 
-          <h3 className="text-base sm:text-lg font-medium text-white pb-6 sm:pb-8 lg:pb-12 group-hover:text-white/90 transition-colors duration-300 text-center px-2">
-            {title}
-          </h3>
-
-          <p className="text-xs sm:text-sm text-center text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors duration-300 leading-relaxed px-2">
-            {description}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+					<p className="px-2 text-center text-muted-foreground/70 text-xs leading-relaxed transition-colors duration-300 group-hover:text-muted-foreground sm:text-sm">
+						{description}
+					</p>
+				</div>
+			</div>
+		</div>
+	);
 };

@@ -11,6 +11,7 @@
   "dependencies": {
     "@databuddy/sdk": "^1.2.0",
     "@hookform/resolvers": "^5.0.1",
+    "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -57,6 +58,7 @@
     "react-day-picker": "^9.7.0",
     "react-dom": "19.0.0",
     "react-hook-form": "^7.57.0",
+    "react-icons": "^5.5.0",
     "react-resizable-panels": "^3.0.2",
     "recharts": "^2.15.3",
     "sonner": "^2.0.5",
