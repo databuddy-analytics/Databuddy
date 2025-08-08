@@ -1,12 +1,12 @@
 import { Description } from '@/components/landing/description';
 import FAQ from '@/components/landing/faq';
-import { Footer } from '@/components/landing/footer';
 import { FooterNav } from '@/components/landing/footer-nav';
 import { GridCards } from '@/components/landing/grid-cards';
 import Hero from '@/components/landing/hero';
 import Section from '@/components/landing/section';
 import Testimonials from '@/components/landing/testimonials';
 import { TrustedBy } from '@/components/landing/trusted-by';
+import { Wordmark } from '@/components/landing/wordmark';
 
 // async function getGitHubStars() {
 // 	try {
@@ -36,7 +36,7 @@ export default function HomePage() {
 	// const stars = await getGitHubStars();
 
 	return (
-		<div className="min-h-screen overflow-x-hidden">
+		<div className="overflow-hidden">
 			{/* Hero Section */}
 			<Section className="overflow-hidden" customPaddings id="hero">
 				<Hero />
@@ -104,6 +104,7 @@ export default function HomePage() {
 			<Section className="py-16 lg:py-20" customPaddings id="footer-nav">
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<FooterNav />
+					<Wordmark />
 				</div>
 			</Section>
 
@@ -111,17 +112,6 @@ export default function HomePage() {
 			<div className="w-full">
 				<div className="mx-auto h-px max-w-6xl bg-gradient-to-r from-transparent via-border/30 to-transparent" />
 			</div>
-
-			{/* Footer Section */}
-			<Section
-				className="overflow-y-clip pt-2 xl:pt-4"
-				customPaddings
-				id="footer"
-			>
-				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-					<Footer />
-				</div>
-			</Section>
 		</div>
 	);
 }

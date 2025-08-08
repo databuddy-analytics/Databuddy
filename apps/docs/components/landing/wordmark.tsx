@@ -9,7 +9,7 @@ import {
 import React, { useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
-export const Footer = () => {
+export const Wordmark = () => {
 	return (
 		<div className="w-full">
 			<div className="flex flex-col items-center gap-8 lg:gap-12">
