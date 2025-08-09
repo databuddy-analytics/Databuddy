@@ -71,12 +71,22 @@ const config = {
 	},
 
 	images: {
+		remotePatterns: [
+			{
+				protocol: 'https',
+				hostname: 'icons.duckduckgo.com',
+			},
+		],
 		formats: ['image/webp', 'image/avif'],
 		minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
 	},
 
 	experimental: {
-		optimizePackageImports: ['fumadocs-ui', 'lucide-react'],
+		optimizePackageImports: [
+			'fumadocs-ui',
+			'lucide-react',
+			'@phosphor-icons/react',
+		],
 	},
 };
 

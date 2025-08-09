@@ -3,7 +3,8 @@
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Logo } from './logo';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { LogoContent } from './logo';
 import { NavLink } from './nav-link';
 
 export const Navbar = () => {
@@ -14,18 +15,18 @@ export const Navbar = () => {
 	};
 
 	return (
-		<div className="sticky top-0 z-30 flex flex-col border-border/50 border-b bg-background/95 shadow-sm backdrop-blur-lg">
+		<div className="sticky top-0 z-30 flex flex-col border-b backdrop-blur-md">
 			<nav>
-				<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+				<div className="mx-auto w-full px-2 sm:px-2 md:px-6 lg:px-8">
 					<div className="flex h-16 items-center justify-between">
 						{/* Logo Section */}
 						<div className="flex-shrink-0">
-							<Logo />
+							<LogoContent />
 						</div>
 
 						{/* Desktop Navigation */}
 						<div className="hidden md:block">
-							<ul className="flex items-center divide-x divide-border/30">
+							<ul className="flex items-center">
 								{navMenu.map((menu) => (
 									<NavLink
 										external={menu.external}
@@ -35,11 +36,7 @@ export const Navbar = () => {
 										{menu.name}
 									</NavLink>
 								))}
-								<NavLink
-									className="border border-border/30 bg-muted/30 transition-all duration-200 hover:border-border/50 hover:bg-muted/50"
-									external
-									href="https://github.com/databuddy-analytics"
-								>
+								<NavLink external href="https://github.com/databuddy-analytics">
 									<svg
 										className="transition-transform duration-200 hover:scale-110"
 										height="1.4em"
@@ -54,6 +51,9 @@ export const Navbar = () => {
 										/>
 									</svg>
 								</NavLink>
+								<li className="ml-2">
+									<ThemeToggle />
+								</li>
 							</ul>
 						</div>
 

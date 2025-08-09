@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowSquareOutIcon,
@@ -12,128 +12,128 @@ import dayjs from 'dayjs';
 import { FaviconImage } from '@/components/analytics/favicon-image';
 import { Badge } from '@/components/ui/badge';
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 type ProfileData = {
-	visitor_id: string;
-	first_visit: string;
-	last_visit: string;
-	total_sessions: number;
-	total_pageviews: number;
-	total_duration: number;
-	total_duration_formatted: string;
-	device: string;
-	browser: string;
-	os: string;
-	country: string;
-	region: string;
-	sessions: Array<{
-		session_id: string;
-		session_name: string;
-		first_visit: string;
-		last_visit: string;
-		duration: number;
-		duration_formatted: string;
-		page_views: number;
-		unique_pages: number;
-		device: string;
-		browser: string;
-		os: string;
-		country: string;
-		region: string;
-		referrer: string;
-		events: Array<{
-			event_id: string;
-			time: string;
-			event_name: string;
-			path: string;
-			error_message?: string;
-			error_type?: string;
-			properties: Record<string, any>;
-		}>;
-	}>;
+  visitor_id: string;
+  first_visit: string;
+  last_visit: string;
+  total_sessions: number;
+  total_pageviews: number;
+  total_duration: number;
+  total_duration_formatted: string;
+  device: string;
+  browser: string;
+  os: string;
+  country: string;
+  region: string;
+  sessions: Array<{
+    session_id: string;
+    session_name: string;
+    first_visit: string;
+    last_visit: string;
+    duration: number;
+    duration_formatted: string;
+    page_views: number;
+    unique_pages: number;
+    device: string;
+    browser: string;
+    os: string;
+    country: string;
+    region: string;
+    referrer: string;
+    events: Array<{
+      event_id: string;
+      time: string;
+      event_name: string;
+      path: string;
+      error_message?: string;
+      error_type?: string;
+      properties: Record<string, any>;
+    }>;
+  }>;
 };
 
 import {
-	formatDuration,
-	getBrowserIconComponent,
-	getCountryFlag,
-	getDeviceIcon,
-	getOSIconComponent,
-} from './profile-utils';
+  formatDuration,
+  getBrowserIconComponent,
+  getCountryFlag,
+  getDeviceIcon,
+  getOSIconComponent,
+} from "./profile-utils";
 
 interface ProfileRowProps {
-	profile: ProfileData;
-	index: number;
-	isExpanded: boolean;
-	onToggle: () => void;
+  profile: ProfileData;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
 }
 
 function getReferrerDisplayInfo(session: any) {
-	// Check if we have parsed referrer info
-	if (session.referrer_parsed) {
-		return {
-			name:
-				session.referrer_parsed.name ||
-				session.referrer_parsed.domain ||
-				'Unknown',
-			domain: session.referrer_parsed.domain,
-			type: session.referrer_parsed.type,
-		};
-	}
+  // Check if we have parsed referrer info
+  if (session.referrer_parsed) {
+    return {
+      name:
+        session.referrer_parsed.name ||
+        session.referrer_parsed.domain ||
+        "Unknown",
+      domain: session.referrer_parsed.domain,
+      type: session.referrer_parsed.type,
+    };
+  }
 
-	// Fallback to raw referrer
-	if (
-		session.referrer &&
-		session.referrer !== 'direct' &&
-		session.referrer !== ''
-	) {
-		try {
-			const url = new URL(
-				session.referrer.startsWith('http')
-					? session.referrer
-					: `https://${session.referrer}`
-			);
-			return {
-				name: url.hostname.replace('www.', ''),
-				domain: url.hostname,
-				type: 'referrer',
-			};
-		} catch {
-			return {
-				name: session.referrer,
-				domain: null,
-				type: 'referrer',
-			};
-		}
-	}
+  // Fallback to raw referrer
+  if (
+    session.referrer &&
+    session.referrer !== "direct" &&
+    session.referrer !== ""
+  ) {
+    try {
+      const url = new URL(
+        session.referrer.startsWith("http")
+          ? session.referrer
+          : `https://${session.referrer}`,
+      );
+      return {
+        name: url.hostname.replace("www.", ""),
+        domain: url.hostname,
+        type: "referrer",
+      };
+    } catch {
+      return {
+        name: session.referrer,
+        domain: null,
+        type: "referrer",
+      };
+    }
+  }
 
-	return {
-		name: 'Direct',
-		domain: null,
-		type: 'direct',
-	};
+  return {
+    name: "Direct",
+    domain: null,
+    type: "direct",
+  };
 }
 
 export function ProfileRow({
-	profile,
-	index,
-	isExpanded,
-	onToggle,
+  profile,
+  index,
+  isExpanded,
+  onToggle,
 }: ProfileRowProps) {
-	const avgSessionDuration =
-		profile.total_sessions > 0
-			? (profile.total_duration || 0) / profile.total_sessions
-			: 0;
+  const avgSessionDuration =
+    profile.total_sessions > 0
+      ? (profile.total_duration || 0) / profile.total_sessions
+      : 0;
 
-	// Get the most recent session's referrer for the main profile display
-	const latestSession = profile.sessions?.[0];
-	const profileReferrerInfo = latestSession
-		? getReferrerDisplayInfo(latestSession)
-		: null;
+  // Get the most recent session's referrer for the main profile display
+  const latestSession = profile.sessions?.[0];
+  const profileReferrerInfo = latestSession
+    ? getReferrerDisplayInfo(latestSession)
+    : null;
 
 	return (
 		<Collapsible onOpenChange={onToggle} open={isExpanded}>
@@ -158,17 +158,17 @@ export function ProfileRow({
 							{getOSIconComponent(profile.os)}
 						</div>
 
-						{/* Profile Info */}
-						<div className="min-w-0 flex-1">
-							<div className="truncate font-semibold text-base text-foreground">
-								Visitor {profile.visitor_id.substring(0, 8)}...
-							</div>
-							<div className="flex items-center gap-2 text-muted-foreground text-sm">
-								<span>{profile.browser}</span>
-								<span className="text-muted-foreground/60">•</span>
-								<span>{profile.country || 'Unknown'}</span>
-							</div>
-						</div>
+            {/* Profile Info */}
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-semibold text-base text-foreground">
+                Visitor {profile.visitor_id.substring(0, 8)}...
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <span>{profile.browser}</span>
+                <span className="text-muted-foreground/60">•</span>
+                <span>{profile.country || "Unknown"}</span>
+              </div>
+            </div>
 
 						{/* Latest Referrer Info */}
 						{profileReferrerInfo && (
@@ -204,41 +204,41 @@ export function ProfileRow({
 							</span>
 						</div>
 
-						{/* Page Views */}
-						<div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
-							<div className="flex items-center gap-1 text-muted-foreground text-xs">
-								<EyeIcon className="h-3 w-3" />
-								<span>Pages</span>
-							</div>
-							<span className="font-semibold text-foreground text-sm">
-								{profile.total_pageviews}
-							</span>
-						</div>
+            {/* Page Views */}
+            <div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
+              <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                <EyeIcon className="h-3 w-3" />
+                <span>Pages</span>
+              </div>
+              <span className="font-semibold text-foreground text-sm">
+                {profile.total_pageviews}
+              </span>
+            </div>
 
-						{/* Avg Duration */}
-						<div className="hidden min-w-[60px] flex-col items-center gap-1 lg:flex">
-							<div className="flex items-center gap-1 text-muted-foreground text-xs">
-								<ClockIcon className="h-3 w-3" />
-								<span>Avg Time</span>
-							</div>
-							<span className="font-semibold text-foreground text-sm">
-								{formatDuration(avgSessionDuration)}
-							</span>
-						</div>
+            {/* Avg Duration */}
+            <div className="hidden min-w-[60px] flex-col items-center gap-1 lg:flex">
+              <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                <ClockIcon className="h-3 w-3" />
+                <span>Avg Time</span>
+              </div>
+              <span className="font-semibold text-foreground text-sm">
+                {formatDuration(avgSessionDuration)}
+              </span>
+            </div>
 
-						{/* Visitor Type Badge */}
-						<div className="flex min-w-[70px] flex-col items-center gap-1">
-							<div className="text-muted-foreground text-xs">Type</div>
-							<Badge
-								className="px-2 py-1 font-semibold text-xs"
-								variant={profile.total_sessions > 1 ? 'default' : 'secondary'}
-							>
-								{profile.total_sessions > 1 ? 'Return' : 'New'}
-							</Badge>
-						</div>
-					</div>
-				</div>
-			</CollapsibleTrigger>
+            {/* Visitor Type Badge */}
+            <div className="flex min-w-[70px] flex-col items-center gap-1">
+              <div className="text-muted-foreground text-xs">Type</div>
+              <Badge
+                className="px-2 py-1 font-semibold text-xs"
+                variant={profile.total_sessions > 1 ? "default" : "secondary"}
+              >
+                {profile.total_sessions > 1 ? "Return" : "New"}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </CollapsibleTrigger>
 
 			<CollapsibleContent>
 				<div className="border-t bg-muted/20 px-4 pb-4">
