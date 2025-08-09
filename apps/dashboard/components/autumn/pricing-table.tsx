@@ -1,6 +1,10 @@
 import { Star } from '@phosphor-icons/react';
 import type { Product, ProductItem } from 'autumn-js';
-import { useCustomer, usePricingTable } from 'autumn-js/react';
+import {
+	type ProductDetails,
+	useCustomer,
+	usePricingTable,
+} from 'autumn-js/react';
 import { Check, Loader2 } from 'lucide-react';
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { PricingTiersTooltip } from '@/app/(main)/billing/components/pricing-tiers-tooltip';
@@ -10,10 +14,30 @@ import { Switch } from '@/components/ui/switch';
 import { getPricingTableContent } from '@/lib/autumn/pricing-table-content';
 import { cn } from '@/lib/utils';
 
+const PricingTableSkeleton = () => (
+	<div
+		aria-live="polite"
+		className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+	>
+		{[1, 2, 3].map((i) => (
+			<div
+				className="mx-auto flex h-64 w-full max-w-xl animate-pulse flex-col rounded-lg border bg-secondary/40 p-6"
+				key={i}
+			>
+				<div className="mb-4 h-6 w-1/2 rounded bg-zinc-300/60" />
+				<div className="mb-2 h-4 w-1/3 rounded bg-zinc-200/60" />
+				<div className="mb-6 h-4 w-2/3 rounded bg-zinc-200/60" />
+				<div className="flex-1" />
+				<div className="mt-4 h-10 w-full rounded bg-zinc-300/60" />
+			</div>
+		))}
+	</div>
+);
+
 export default function PricingTable({
 	productDetails,
 }: {
-	productDetails?: any;
+	productDetails?: ProductDetails[];
 }) {
 	const { attach } = useCustomer();
 	const [isAnnual, setIsAnnual] = useState(false);
@@ -23,26 +47,6 @@ export default function PricingTable({
 
 	const summary =
 		'All plans include unlimited team members, full analytics, and priority support.';
-
-	const PricingTableSkeleton = () => (
-		<div
-			aria-live="polite"
-			className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-		>
-			{[1, 2, 3].map((i) => (
-				<div
-					className="mx-auto flex h-64 w-full max-w-xl animate-pulse flex-col rounded-lg border bg-secondary/40 p-6"
-					key={i}
-				>
-					<div className="mb-4 h-6 w-1/2 rounded bg-zinc-300/60" />
-					<div className="mb-2 h-4 w-1/3 rounded bg-zinc-200/60" />
-					<div className="mb-6 h-4 w-2/3 rounded bg-zinc-200/60" />
-					<div className="flex-1" />
-					<div className="mt-4 h-10 w-full rounded bg-zinc-300/60" />
-				</div>
-			))}
-		</div>
-	);
 
 	const handleRetry = useCallback(() => {
 		if (typeof refetch === 'function') {
