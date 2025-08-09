@@ -82,7 +82,11 @@ const config = {
 	},
 
 	experimental: {
-		optimizePackageImports: ['fumadocs-ui', 'lucide-react'],
+		optimizePackageImports: [
+			'fumadocs-ui',
+			'lucide-react',
+			'@phosphor-icons/react',
+		],
 	},
 };
 
