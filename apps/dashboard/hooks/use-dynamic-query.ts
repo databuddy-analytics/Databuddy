@@ -114,30 +114,38 @@ async function fetchDynamicQuery(
 	const params = buildParams(websiteId, dateRange, { timezone });
 	const url = `${API_BASE_URL}/v1/query?${params}`;
 
-	// Prepare the request body
-	const requestBody = Array.isArray(queryData)
-		? queryData.map((query) => ({
-				...query,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: query.limit || 100,
-				page: query.page || 1,
-				filters: query.filters || [],
-				granularity: query.granularity || dateRange.granularity || 'daily',
-				groupBy: query.groupBy,
-			}))
-		: {
-				...queryData,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: queryData.limit || 100,
-				page: queryData.page || 1,
-				filters: queryData.filters || [],
-				granularity: queryData.granularity || dateRange.granularity || 'daily',
-				groupBy: queryData.groupBy,
-			};
+  const toApiFilters = (filters?: any[]) =>
+    (filters || []).map((f) =>
+      'op' in f
+        ? f
+        : 'operator' in f
+          ? { field: f.field, op: f.operator, value: f.value }
+          : f
+    );
+
+  const requestBody = Array.isArray(queryData)
+    ? queryData.map((query) => ({
+        ...query,
+        startDate: dateRange.start_date,
+        endDate: dateRange.end_date,
+        timeZone: timezone,
+        limit: query.limit || 100,
+        page: query.page || 1,
+        filters: toApiFilters(query.filters),
+        granularity: query.granularity || dateRange.granularity || 'daily',
+        groupBy: query.groupBy,
+      }))
+    : {
+        ...queryData,
+        startDate: dateRange.start_date,
+        endDate: dateRange.end_date,
+        timeZone: timezone,
+        limit: queryData.limit || 100,
+        page: queryData.page || 1,
+        filters: toApiFilters(queryData.filters),
+        granularity: queryData.granularity || dateRange.granularity || 'daily',
+        groupBy: queryData.groupBy,
+      };
 
 	const response = await fetch(url, {
 		method: 'POST',
@@ -706,21 +714,24 @@ function transformSessionsData(sessions: any[]): any[] {
  * Hook for sessions with pagination support
  */
 export function useSessionsData(
-	websiteId: string,
-	dateRange: DateRange,
-	limit = 50,
-	page = 1,
-	options?: Partial<UseQueryOptions<DynamicQueryResponse>>
+    websiteId: string,
+    dateRange: DateRange,
+    limit = 50,
+    page = 1,
+    options?: Partial<UseQueryOptions<DynamicQueryResponse>> & {
+        filters?: DynamicQueryFilter[];
+    }
 ) {
 	const queryResult = useDynamicQuery(
 		websiteId,
 		dateRange,
-		{
+        {
 			id: 'sessions-list',
 			parameters: ['session_list'],
 			limit,
 			page,
-		},
+            filters: options?.filters || [],
+        },
 		{
 			...options,
 			staleTime: 5 * 60 * 1000, // 5 minutes

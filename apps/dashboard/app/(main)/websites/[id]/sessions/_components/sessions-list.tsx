@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionsData } from '@/hooks/use-dynamic-query';
+import SessionsFilters, { buildSessionFilters, type FilterItem } from './sessions-filters';
 import { WebsitePageHeader } from '../../_components/website-page-header';
 import { getDefaultDateRange } from './session-utils';
 
@@ -60,12 +61,16 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 	const [allSessions, setAllSessions] = useState<SessionData[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [filterItems, setFilterItems] = useState<FilterItem[]>([]);
 
-	const { sessions, pagination, isLoading, isError, error } = useSessionsData(
+  const { sessions, pagination, isLoading, isError, error } = useSessionsData(
 		websiteId,
 		dateRange,
 		50,
-		page
+    page,
+    {
+      filters: buildSessionFilters(filterItems),
+    }
 	);
 
 	const toggleSession = useCallback((sessionId: string) => {
@@ -122,9 +127,16 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 			});
 			setIsInitialLoad(false);
 		}
-	}, [sessions]);
+  }, [sessions]);
 
-	if (isLoading && isInitialLoad) {
+  useEffect(() => {
+    setPage(1);
+    setAllSessions([]);
+    setExpandedSessionId(null);
+    setIsInitialLoad(true);
+  }, [JSON.stringify(buildSessionFilters(filterItems))]);
+
+  if (isLoading && (isInitialLoad || allSessions.length === 0)) {
 		return (
 			<div className="space-y-6">
 				<WebsitePageHeader
@@ -172,7 +184,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		);
 	}
 
-	if (!allSessions.length) {
+  if (!allSessions.length && !isLoading) {
 		return (
 			<div className="space-y-6">
 				<WebsitePageHeader
@@ -207,6 +219,16 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 				variant="minimal"
 				websiteId={websiteId}
 			/>
+      <Card>
+        <CardContent className="p-0">
+          <SessionsFilters
+            filters={filterItems}
+            onChange={setFilterItems}
+            browserOptions={Array.from(new Set(allSessions.map((s:any)=> s.browser || s.browser_name).filter(Boolean)))}
+            osOptions={Array.from(new Set(allSessions.map((s:any)=> s.os || s.os_name).filter(Boolean)))}
+          />
+        </CardContent>
+      </Card>
 			<Card>
 				<CardContent className="p-0">
 					<div className="divide-y divide-border">

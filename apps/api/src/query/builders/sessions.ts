@@ -109,17 +109,52 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 	},
 
-	session_list: {
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
-			limit?: number,
-			offset?: number
-		) => ({
-			sql: `
+    session_list: {
+        customSql: (
+            websiteId: string,
+            startDate: string,
+            endDate: string,
+            _filters?: unknown[],
+            _granularity?: unknown,
+            limit?: number,
+            offset?: number
+        ) => {
+            const allowed = new Set([
+                'path',
+                'referrer',
+                'device_type',
+                'browser_name',
+                'os_name',
+                'country',
+            ]);
+            const filters = Array.isArray(_filters) ? (_filters as any[]) : [];
+            const clauses: string[] = [];
+            const params: Record<string, unknown> = {
+                websiteId,
+                startDate,
+                endDate: `${endDate} 23:59:59`,
+                limit: limit || 25,
+                offset: offset || 0,
+            };
+            let idx = 0;
+            for (const f of filters) {
+                if (!f || !allowed.has(f.field)) continue;
+                const key = `sf${idx++}`;
+                const op = (f as any).op || (f as any).operator;
+                if (op === 'like') {
+                    clauses.push(`${f.field} LIKE {${key}:String}`);
+                    (params as any)[key] = `%${(f as any).value}%`;
+                } else {
+                    clauses.push(`${f.field} = {${key}:String}`);
+                    (params as any)[key] = Array.isArray((f as any).value)
+                        ? String((f as any).value[0])
+                        : String((f as any).value);
+                }
+            }
+            const whereFilters = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
+
+            return {
+                sql: `
     WITH session_list AS (
       SELECT
         session_id,
@@ -138,7 +173,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       WHERE 
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
-        AND time <= parseDateTimeBestEffort({endDate:String})
+        AND time <= parseDateTimeBestEffort({endDate:String})${whereFilters}
       GROUP BY session_id
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
@@ -165,7 +200,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         ) as events
       FROM analytics.events e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
-      WHERE e.client_id = {websiteId:String}
+      WHERE e.client_id = {websiteId:String}${whereFilters}
       GROUP BY e.session_id
     )
     SELECT
@@ -186,22 +221,18 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
     LEFT JOIN session_events se ON sl.session_id = se.session_id
     ORDER BY sl.first_visit DESC
   `,
-			params: {
-				websiteId,
-				startDate,
-				endDate: `${endDate} 23:59:59`,
-				limit: limit || 25,
-				offset: offset || 0,
-			},
-		}),
+                params,
+            };
+        },
 		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
+			allowedFilters: [
+				'path',
+				'referrer',
+				'device_type',
+				'browser_name',
+				'os_name',
+				'country',
+			],
 		customizable: true,
 	},
 
