@@ -101,7 +101,7 @@ export default function HomePage() {
 			</div>
 
 			{/* Footer Navigation Section */}
-			<Section className="py-16 lg:py-20" customPaddings id="footer-nav">
+			<Section className="pt-16 lg:pt-20" customPaddings id="footer-nav">
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<FooterNav />
 					<Wordmark />

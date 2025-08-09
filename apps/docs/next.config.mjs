@@ -1,12 +1,12 @@
-import { createMDX } from "fumadocs-mdx/next";
+import { createMDX } from 'fumadocs-mdx/next';
 
 const withMDX = createMDX();
 
 /** @type {import('next').NextConfig} */
 const config = {
-  reactStrictMode: true,
-  compress: true,
-  poweredByHeader: false,
+	reactStrictMode: true,
+	compress: true,
+	poweredByHeader: false,
 
 	// biome-ignore lint: false positive
 	async headers() {
@@ -70,14 +70,20 @@ const config = {
 		];
 	},
 
-  images: {
-    formats: ["image/webp", "image/avif"],
-    minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
-  },
+	images: {
+		remotePatterns: [
+			{
+				protocol: 'https',
+				hostname: 'icons.duckduckgo.com',
+			},
+		],
+		formats: ['image/webp', 'image/avif'],
+		minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
+	},
 
-  experimental: {
-    optimizePackageImports: ["fumadocs-ui", "lucide-react"],
-  },
+	experimental: {
+		optimizePackageImports: ['fumadocs-ui', 'lucide-react'],
+	},
 };
 
 export default withMDX(config);

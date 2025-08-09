@@ -161,6 +161,7 @@ export function MagicSVG({
 
 	return (
 		<motion.svg
+			aria-label="Magic SVG"
 			className={cn('cursor-pointer transition-all duration-300', className)}
 			fill="none"
 			height={height}
@@ -170,6 +171,7 @@ export function MagicSVG({
 			width={width}
 			xmlns="http://www.w3.org/2000/svg"
 		>
+			<title>Magic SVG</title>
 			<defs>
 				<motion.radialGradient
 					cx={useMotionTemplate`${animatedX}px`}
@@ -196,7 +198,7 @@ export function MagicSVG({
 
 			{React.Children.map(children, (child) => {
 				if (React.isValidElement(child)) {
-					const childType = (child as any).type;
+					const childType = (child as React.ReactElement).type;
 					if (
 						childType === 'defs' ||
 						childType === 'mask' ||
@@ -211,7 +213,7 @@ export function MagicSVG({
 			<g>
 				{React.Children.map(children, (child) => {
 					if (React.isValidElement(child)) {
-						const childType = (child as any).type;
+						const childType = (child as React.ReactElement).type;
 						if (
 							childType !== 'defs' &&
 							childType !== 'mask' &&
@@ -231,7 +233,7 @@ export function MagicSVG({
 			<g mask={`url(#${maskId})`}>
 				{React.Children.map(children, (child) => {
 					if (React.isValidElement(child)) {
-						const childType = (child as any).type;
+						const childType = (child as React.ReactElement).type;
 						if (
 							childType !== 'defs' &&
 							childType !== 'mask' &&
