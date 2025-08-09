@@ -127,9 +127,25 @@ export function Footer() {
 					<p className="text-muted-foreground text-sm">
 						© {new Date().getFullYear()} Databuddy
 					</p>
-					<p className="text-muted-foreground text-sm">
-						Privacy-first analytics
-					</p>
+					<div className="flex items-center gap-4">
+						<a
+							className="transition-opacity hover:opacity-80"
+							href="https://twelve.tools"
+							rel="noopener"
+							target="_blank"
+						>
+							<img
+								alt="Featured on Twelve Tools"
+								className="h-auto max-w-[150px] sm:max-w-[200px]"
+								height="40"
+								src="https://twelve.tools/badge0-white.svg"
+								width="150"
+							/>
+						</a>
+						<p className="text-muted-foreground text-sm">
+							Privacy-first analytics
+						</p>
+					</div>
 				</div>
 				<Wordmark />
 			</div>

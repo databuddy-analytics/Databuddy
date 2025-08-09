@@ -24,6 +24,64 @@ interface WebsiteCardProps {
 	isLoadingChart?: boolean;
 }
 
+function TrendStat({
+	trend,
+	className = 'flex items-center gap-1 font-medium text-xs sm:text-sm',
+}: {
+	trend: ProcessedMiniChartData['trend'] | undefined;
+	className?: string;
+}) {
+	if (!trend) {
+		return null;
+	}
+	if (trend.type === 'up') {
+		return (
+			<div className={className}>
+				<TrendUpIcon
+					aria-hidden="true"
+					className="!text-success h-4 w-4"
+					style={{ color: 'var(--tw-success, #22c55e)' }}
+					weight="duotone"
+				/>
+				<span
+					className="!text-success"
+					style={{ color: 'var(--tw-success, #22c55e)' }}
+				>
+					+{trend.value.toFixed(0)}%
+				</span>
+			</div>
+		);
+	}
+	if (trend.type === 'down') {
+		return (
+			<div className={className}>
+				<TrendDownIcon
+					aria-hidden
+					className="!text-destructive h-4 w-4"
+					style={{ color: 'var(--tw-destructive, #ef4444)' }}
+					weight="duotone"
+				/>
+				<span
+					className="!text-destructive"
+					style={{ color: 'var(--tw-destructive, #ef4444)' }}
+				>
+					-{trend.value.toFixed(0)}%
+				</span>
+			</div>
+		);
+	}
+	return (
+		<div className={className}>
+			<MinusIcon
+				aria-hidden
+				className="h-4 w-4 text-muted-foreground"
+				weight="fill"
+			/>
+			<span className="text-muted-foreground">0%</span>
+		</div>
+	);
+}
+
 const formatNumber = (num: number) => {
 	if (num >= 1_000_000) {
 		return `${(num / 1_000_000).toFixed(1)}M`;
@@ -47,18 +105,19 @@ export const WebsiteCard = memo(
 	({ website, chartData, isLoadingChart }: WebsiteCardProps) => {
 		return (
 			<Link
-				className="group block"
+				aria-label={`Open ${website.name} analytics`}
+				className="group block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 				data-section="website-grid"
 				data-track="website-card-click"
 				data-website-id={website.id}
 				data-website-name={website.name}
 				href={`/websites/${website.id}`}
 			>
-				<Card className="flex h-full select-none flex-col bg-background transition-all duration-300 ease-in-out group-hover:border-primary/60 group-hover:shadow-primary/5 group-hover:shadow-xl">
+				<Card className="flex h-full select-none flex-col overflow-hidden bg-background transition-all duration-300 ease-in-out group-hover:border-primary/60 group-hover:shadow-primary/5 group-hover:shadow-xl motion-reduce:transform-none motion-reduce:transition-none">
 					<CardHeader className="pb-2">
-						<div className="flex items-center justify-between">
+						<div className="flex items-center justify-between gap-2">
 							<div className="min-w-0 flex-1">
-								<CardTitle className="truncate font-bold text-base transition-colors group-hover:text-primary">
+								<CardTitle className="truncate font-bold text-base leading-tight transition-colors group-hover:text-primary sm:text-lg">
 									{website.name}
 								</CardTitle>
 								<CardDescription className="flex items-center gap-1 pt-0.5">
@@ -68,7 +127,9 @@ export const WebsiteCard = memo(
 										domain={website.domain}
 										size={24}
 									/>
-									<span className="truncate text-xs">{website.domain}</span>
+									<span className="truncate text-xs sm:text-sm">
+										{website.domain}
+									</span>
 								</CardDescription>
 							</div>
 							<ArrowRightIcon
@@ -86,69 +147,28 @@ export const WebsiteCard = memo(
 									<Skeleton className="h-3 w-12 rounded" />
 									<Skeleton className="h-3 w-8 rounded" />
 								</div>
-								<Skeleton className="h-12 w-full rounded" />
+								<Skeleton className="h-12 w-full rounded sm:h-16" />
 							</div>
 						) : chartData ? (
 							chartData.data.length > 0 ? (
 								<div className="space-y-2">
 									<div className="flex items-center justify-between">
-										<span className="font-medium text-muted-foreground text-xs">
+										<span className="font-medium text-muted-foreground text-xs sm:text-sm">
 											{formatNumber(chartData.totalViews)} views
 										</span>
-										{chartData.trend && (
-											<div className="flex items-center gap-1 font-medium text-xs">
-												{chartData.trend.type === 'up' ? (
-													<>
-														<TrendUpIcon
-															aria-hidden="true"
-															className="!text-success h-4 w-4"
-															style={{ color: 'var(--tw-success, #22c55e)' }}
-															weight="fill"
-														/>
-														<span
-															className="!text-success"
-															style={{ color: 'var(--tw-success, #22c55e)' }}
-														>
-															+{chartData.trend.value.toFixed(0)}%
-														</span>
-													</>
-												) : chartData.trend.type === 'down' ? (
-													<>
-														<TrendDownIcon
-															aria-hidden="true"
-															className="!text-destructive h-4 w-4"
-															style={{
-																color: 'var(--tw-destructive, #ef4444)',
-															}}
-															weight="fill"
-														/>
-														<span
-															className="!text-destructive"
-															style={{
-																color: 'var(--tw-destructive, #ef4444)',
-															}}
-														>
-															-{chartData.trend.value.toFixed(0)}%
-														</span>
-													</>
-												) : (
-													<>
-														<MinusIcon
-															aria-hidden="true"
-															className="h-4 w-4 text-muted-foreground"
-															weight="fill"
-														/>
-														<span className="text-muted-foreground">0%</span>
-													</>
-												)}
-											</div>
-										)}
+										<TrendStat trend={chartData.trend} />
 									</div>
-									<div className="transition-colors duration-300 [--chart-color:theme(colors.primary.DEFAULT)] group-hover:[--chart-color:theme(colors.primary.600)]">
+									<div className="transition-colors duration-300 [--chart-color:theme(colors.primary.DEFAULT)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
 										<Suspense
-											fallback={<Skeleton className="h-12 w-full rounded" />}
+											fallback={
+												<Skeleton className="h-12 w-full rounded sm:h-16" />
+											}
 										>
-											<MiniChart data={chartData.data} id={website.id} />
+											<MiniChart
+												data={chartData.data}
+												days={chartData.data.length}
+												id={website.id}
+											/>
 										</Suspense>
 									</div>
 								</div>
@@ -175,11 +195,11 @@ export function WebsiteCardSkeleton() {
 	return (
 		<Card className="h-full">
 			<CardHeader>
-				<Skeleton className="h-6 w-3/4 rounded-md" />
-				<Skeleton className="mt-1 h-4 w-1/2 rounded-md" />
+				<Skeleton className="h-6 w-3/4 rounded" />
+				<Skeleton className="mt-1 h-4 w-1/2 rounded" />
 			</CardHeader>
 			<CardContent>
-				<Skeleton className="h-20 w-full rounded-md" />
+				<Skeleton className="h-20 w-full rounded sm:h-24" />
 			</CardContent>
 		</Card>
 	);

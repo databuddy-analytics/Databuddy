@@ -49,7 +49,8 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 	const [isSaving, setIsSaving] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	const { updateOrganization, deleteOrganization } = useOrganizations();
+	const { updateOrganizationAsync, deleteOrganizationAsync } =
+		useOrganizations();
 
 	// Fetch organization websites using tRPC
 	const { data: websites, isLoading: isLoadingWebsites } =
@@ -69,7 +70,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 		setSlug(cleanSlug(value));
 	};
 
-	const handleSave = () => {
+	const handleSave = async () => {
 		if (!(name.trim() && slug.trim())) {
 			toast.error('Name and slug are required');
 			return;
@@ -77,15 +78,13 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 
 		setIsSaving(true);
 		try {
-			updateOrganization({
+			await updateOrganizationAsync({
 				organizationId: organization.id,
 				data: {
 					name: name.trim(),
 					slug: slug.trim(),
 				},
 			});
-
-			toast.success('Organization updated successfully');
 
 			// If slug changed, redirect to new URL
 			if (slug !== organization.slug) {
@@ -101,7 +100,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 	const handleDelete = async () => {
 		setIsDeleting(true);
 		try {
-			await deleteOrganization(organization.id);
+			await deleteOrganizationAsync(organization.id);
 			toast.success('Organization deleted successfully');
 			router.push('/organizations');
 		} catch (_error) {
@@ -120,7 +119,11 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<GearIcon className="h-5 w-5" size={16} weight="duotone" />
+						<GearIcon
+							className="h-5 w-5 not-dark:text-primary"
+							size={16}
+							weight="duotone"
+						/>
 						Organization Settings
 					</CardTitle>
 					<CardDescription>
@@ -135,7 +138,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 					<div className="space-y-2">
 						<Label htmlFor="org-name">Organization Name</Label>
 						<Input
-							className="rounded-lg"
+							className="rounded"
 							id="org-name"
 							onChange={(e) => setName(e.target.value)}
 							placeholder="My Organization"
@@ -147,7 +150,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 					<div className="space-y-2">
 						<Label htmlFor="org-slug">Organization Slug</Label>
 						<Input
-							className="rounded-lg font-mono"
+							className="rounded font-mono"
 							id="org-slug"
 							onChange={(e) => handleSlugChange(e.target.value)}
 							placeholder="my-organization"
@@ -162,7 +165,7 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 					{/* Save Button */}
 					<div className="flex justify-end pt-4">
 						<Button
-							className="rounded-lg"
+							className="rounded"
 							disabled={!hasChanges || isSaving}
 							onClick={handleSave}
 						>
@@ -186,7 +189,11 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<GlobeIcon className="h-5 w-5" size={16} weight="duotone" />
+						<GlobeIcon
+							className="h-5 w-5 not-dark:text-primary"
+							size={16}
+							weight="duotone"
+						/>
 						Organization Websites
 					</CardTitle>
 					<CardDescription>
@@ -236,16 +243,16 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 							))}
 						</div>
 					) : (
-						<div className="py-8 text-center">
+						<div className="mx-auto py-8 text-center">
 							<GlobeIcon
-								className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+								className="mx-auto mb-2 h-8 w-8 not-dark:text-primary"
 								size={32}
 								weight="duotone"
 							/>
-							<p className="text-muted-foreground text-sm">
+							<p className="mx-auto text-muted-foreground text-sm">
 								No websites in this organization
 							</p>
-							<p className="mt-1 text-muted-foreground text-xs">
+							<p className="mx-auto mt-1 text-muted-foreground text-xs">
 								Transfer websites from your personal account or create new ones
 							</p>
 						</div>

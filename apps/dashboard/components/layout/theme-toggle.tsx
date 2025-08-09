@@ -15,14 +15,6 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 	const switchTheme = () => {
 		setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
 	};
-
-	const toggleTheme = () => {
-		if (!document.startViewTransition) {
-			switchTheme();
-		}
-		document.startViewTransition(switchTheme);
-	};
-
 	return (
 		<Button
 			aria-label="Toggle theme"
@@ -30,7 +22,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 				'relative hidden h-8 w-8 transition-all duration-200 hover:bg-accent/50 md:flex',
 				className
 			)}
-			onClick={toggleTheme}
+			onClick={switchTheme}
 			type="button"
 			variant="ghost"
 		>

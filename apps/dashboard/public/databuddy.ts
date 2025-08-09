@@ -1,14 +1,101 @@
 (() => {
+	// Constants
+	const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+	const MAX_CLAMP_VALUE = 60_000;
+	const MAX_DIMENSION_VALUE = 10_000;
+	const MIN_DIMENSION_VALUE = 240;
+	const MAX_COUNT_VALUE = 10_000;
+	const MAX_TIME_ON_PAGE = 86_400; // 24 hours in seconds
+
+	// Config validation constants
+	const MIN_RETRY_DELAY = 50;
+	const MAX_RETRY_DELAY = 10_000;
+	const MIN_BATCH_SIZE = 1;
+	const MAX_BATCH_SIZE = 50;
+	const MIN_BATCH_TIMEOUT = 100;
+	const MAX_BATCH_TIMEOUT = 30_000;
+
+	// Utility functions
+	const clampValue = (v) =>
+		typeof v === 'number' ? Math.min(MAX_CLAMP_VALUE, Math.max(0, v)) : v;
+	const noop = () => {};
+
+	const validateUrl = (url) => {
+		if (typeof url !== 'string' || !url) {
+			return null;
+		}
+		try {
+			new URL(url);
+			return url;
+		} catch {
+			return null;
+		}
+	};
+
+	const sanitizeUrl = (url) => {
+		if (typeof url !== 'string' || !url) {
+			return url;
+		}
+
+		try {
+			const urlObj = new URL(url);
+			const sensitiveParams = [
+				'token',
+				'api_key',
+				'session',
+				'auth',
+				'password',
+				'secret',
+				'key',
+				'access_token',
+				'refresh_token',
+				'id_token',
+			];
+
+			// Remove sensitive query parameters
+			sensitiveParams.forEach((param) => {
+				urlObj.searchParams.delete(param);
+			});
+
+			return urlObj.toString();
+		} catch {
+			// If URL parsing fails, return the original URL
+			return url;
+		}
+	};
+
+	const validateDimensions = (width, height) => {
+		if (
+			typeof width !== 'number' ||
+			typeof height !== 'number' ||
+			width < MIN_DIMENSION_VALUE ||
+			width > MAX_DIMENSION_VALUE ||
+			height < MIN_DIMENSION_VALUE ||
+			height > MAX_DIMENSION_VALUE
+		) {
+			return { width: null, height: null };
+		}
+		return { width, height };
+	};
+
+	const validateConfigRange = (value, min, max) => {
+		if (value === undefined) return value;
+		return Math.min(max, Math.max(min, value));
+	};
+
 	function generateUUIDv4() {
+		// Use crypto.randomUUID() if available (modern browsers)
+		if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+			return crypto.randomUUID();
+		}
 		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-			const r = (Math.random() * 16) | 0;
+			const r = Math.floor(Math.random() * 16);
 			const v = c === 'x' ? r : (r & 0x3) | 0x8;
 			return v.toString(16);
 		});
 	}
-
 	// HTTP Client
-	const c = class {
+	const HttpClient = class {
 		constructor(config) {
 			this.baseUrl = config.baseUrl;
 			this.staticHeaders = {};
@@ -32,13 +119,11 @@
 		}
 
 		async resolveHeaders() {
-			const dynamicEntries = await Promise.all(
-				Object.entries(this.dynamicHeaderFns).map(async ([key, fn]) => [
-					key,
-					await (typeof fn === 'function' ? fn() : fn),
-				])
-			);
-			return { ...this.staticHeaders, ...Object.fromEntries(dynamicEntries) };
+			const headers = { ...this.staticHeaders };
+			for (const [key, fn] of Object.entries(this.dynamicHeaderFns)) {
+				headers[key] = await (typeof fn === 'function' ? fn() : fn);
+			}
+			return headers;
 		}
 
 		addHeader(key, value) {
@@ -123,7 +208,7 @@
 				trackOutgoingLinks: false,
 				trackSessions: true,
 				trackPerformance: true,
-				trackWebVitals: false,
+
 				trackEngagement: false,
 				trackScrollDepth: false,
 				trackExitIntent: false,
@@ -148,7 +233,7 @@
 				'databuddy-sdk-version': this.options.sdkVersion || '1.0.0',
 			};
 
-			this.api = new c({
+			this.api = new HttpClient({
 				baseUrl: this.options.apiUrl || 'https://basket.databuddy.cc',
 				defaultHeaders: headers,
 				maxRetries: this.options.maxRetries,
@@ -167,15 +252,8 @@
 			this.maxScrollDepth = 0;
 			this.interactionCount = 0;
 			this.hasExitIntent = false;
-			this.pageStartTime = Date.now();
 			this.pageEngagementStart = Date.now();
 			this.utmParams = this.getUtmParams();
-			this.isTemporarilyHidden = false;
-			this.visibilityChangeTimer = null;
-			this.webVitalObservers = [];
-			this.webVitalsReportTimeoutId = null;
-			this.webVitalsVisibilityChangeHandler = null;
-			this.webVitalsPageHideHandler = null;
 
 			this.isLikelyBot = this.detectBot();
 			this.hasInteracted = false;
@@ -213,8 +291,6 @@
 
 			if (storedId && sessionTimestamp) {
 				const sessionAge = Date.now() - Number.parseInt(sessionTimestamp, 10);
-				const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-
 				if (sessionAge < SESSION_TIMEOUT) {
 					sessionStorage.setItem(
 						'did_session_timestamp',
@@ -238,14 +314,10 @@
 		}
 
 		getSessionStartTime() {
-			if (this.isServer()) {
-				return Date.now();
-			}
+			if (this.isServer()) return Date.now();
 
 			const storedTime = sessionStorage.getItem('did_session_start');
-			if (storedTime) {
-				return Number.parseInt(storedTime, 10);
-			}
+			if (storedTime) return Number.parseInt(storedTime, 10);
 
 			const now = Date.now();
 			sessionStorage.setItem('did_session_start', now.toString());
@@ -275,25 +347,21 @@
 				'keypress',
 				'mousemove',
 			];
+			const handler = () => this.interactionCount++;
+
 			if (this.options.trackInteractions) {
 				for (const eventType of interactionEvents) {
-					window.addEventListener(
-						eventType,
-						() => {
-							this.interactionCount++;
-						},
-						{ passive: true }
-					);
+					window.addEventListener(eventType, handler, { passive: true });
 				}
 			} else {
-				const handler = () => {
+				const oneTimeHandler = () => {
 					this.interactionCount++;
 					for (const eventType of interactionEvents) {
-						window.removeEventListener(eventType, handler);
+						window.removeEventListener(eventType, oneTimeHandler);
 					}
 				};
 				for (const eventType of interactionEvents) {
-					window.addEventListener(eventType, handler, { passive: true });
+					window.addEventListener(eventType, oneTimeHandler, { passive: true });
 				}
 			}
 
@@ -327,9 +395,8 @@
 		}
 
 		trackScrollDepth() {
-			if (this.isServer()) {
-				return;
-			}
+			if (this.isServer()) return;
+
 			const scrollHeight =
 				document.documentElement.scrollHeight - window.innerHeight;
 			const currentScroll = window.scrollY;
@@ -410,7 +477,6 @@
 
 				if (isNetworkError) {
 					for (const event of batchEvents) {
-						// Re-wrap the event for retry
 						const originalEvent = {
 							type: 'track',
 							payload: event,
@@ -418,7 +484,6 @@
 						};
 						this.send(originalEvent);
 					}
-				} else {
 				}
 
 				return null;
@@ -479,10 +544,8 @@
 				finalProperties = { value: properties };
 			}
 
-			// Collect base context data
 			const baseContext = this.getBaseContext();
 
-			// Collect performance data for page views
 			let performanceData = {};
 			if (
 				(eventName === 'screen_view' || eventName === 'page_view') &&
@@ -490,10 +553,6 @@
 				this.options.trackPerformance
 			) {
 				performanceData = this.collectNavigationTiming();
-
-				if (this.options.trackWebVitals) {
-					this.initWebVitalsObservers(eventName);
-				}
 			}
 
 			const payload = {
@@ -507,7 +566,7 @@
 					timestamp: Date.now(),
 					...baseContext,
 					...performanceData,
-					...finalProperties,
+					properties: { ...finalProperties },
 				},
 			};
 
@@ -608,29 +667,22 @@
 		}
 
 		collectNavigationTiming() {
-			if (this.isServer() || !this.options.trackPerformance) {
-				return {};
-			}
-
-			const clampTime = (v) =>
-				typeof v === 'number' ? Math.min(60_000, Math.max(0, v)) : v;
+			if (this.isServer() || !this.options.trackPerformance) return {};
 
 			try {
 				const navEntry = window.performance?.getEntriesByType('navigation')[0];
-				if (!navEntry) {
-					return {};
-				}
+				if (!navEntry) return {};
 
 				return {
-					load_time: clampTime(Math.round(navEntry.loadEventEnd)),
-					dom_ready_time: clampTime(
+					load_time: clampValue(Math.round(navEntry.loadEventEnd)),
+					dom_ready_time: clampValue(
 						Math.round(navEntry.domContentLoadedEventEnd)
 					),
-					dom_interactive: clampTime(Math.round(navEntry.domInteractive)),
-					ttfb: clampTime(
+					dom_interactive: clampValue(Math.round(navEntry.domInteractive)),
+					ttfb: clampValue(
 						Math.round(navEntry.responseStart - navEntry.requestStart)
 					),
-					request_time: clampTime(
+					request_time: clampValue(
 						Math.round(navEntry.responseEnd - navEntry.requestStart)
 					),
 					render_time: Math.max(
@@ -644,9 +696,7 @@
 		}
 
 		getUtmParams() {
-			if (typeof window === 'undefined') {
-				return {};
-			}
+			if (typeof window === 'undefined') return {};
 
 			const urlParams = new URLSearchParams(window.location.search);
 			return {
@@ -659,10 +709,7 @@
 		}
 
 		detectBot() {
-			if (typeof window === 'undefined') {
-				return false;
-			}
-
+			if (typeof window === 'undefined') return false;
 			return (
 				navigator.webdriver ||
 				!navigator.plugins.length ||
@@ -671,18 +718,11 @@
 		}
 
 		setupBotDetection() {
-			if (typeof window === 'undefined') {
-				return;
-			}
+			if (typeof window === 'undefined') return;
 
+			const handler = () => (this.hasInteracted = true);
 			for (const event of ['mousemove', 'scroll', 'keydown']) {
-				window.addEventListener(
-					event,
-					() => {
-						this.hasInteracted = true;
-					},
-					{ once: true, passive: true }
-				);
+				window.addEventListener(event, handler, { once: true, passive: true });
 			}
 		}
 
@@ -756,10 +796,13 @@
 
 			const exitEventId = `exit_${this.sessionId}_${btoa(window.location.pathname)}_${this.pageEngagementStart}`;
 
-			const page_count = Math.min(10_000, this.pageCount);
-			const interaction_count = Math.min(10_000, this.interactionCount);
+			const page_count = Math.min(MAX_COUNT_VALUE, this.pageCount);
+			const interaction_count = Math.min(
+				MAX_COUNT_VALUE,
+				this.interactionCount
+			);
 			const time_on_page = Math.min(
-				86_400,
+				MAX_TIME_ON_PAGE,
 				Math.round((Date.now() - this.pageEngagementStart) / 1000)
 			);
 
@@ -800,178 +843,22 @@
 			}
 		}
 
-		cleanupWebVitals() {
-			if (this.webVitalObservers) {
-				for (const o of this.webVitalObservers) {
-					try {
-						o.disconnect();
-					} catch (e) {
-						console.error(e);
-					}
-				}
-				this.webVitalObservers = [];
-			}
-			if (this.webVitalsReportTimeoutId) {
-				clearTimeout(this.webVitalsReportTimeoutId);
-				this.webVitalsReportTimeoutId = null;
-			}
-			if (this.webVitalsVisibilityChangeHandler) {
-				document.removeEventListener(
-					'visibilitychange',
-					this.webVitalsVisibilityChangeHandler
-				);
-				this.webVitalsVisibilityChangeHandler = null;
-			}
-			if (this.webVitalsPageHideHandler) {
-				window.removeEventListener('pagehide', this.webVitalsPageHideHandler);
-				this.webVitalsPageHideHandler = null;
-			}
-		}
-
-		initWebVitalsObservers(_eventName) {
-			if (
-				this.isServer() ||
-				!this.options.trackWebVitals ||
-				typeof window.performance === 'undefined' ||
-				typeof PerformanceObserver === 'undefined'
-			) {
-				return;
-			}
-
-			try {
-				const metrics = { fcp: null, lcp: null, cls: 0, fid: null, inp: null };
-				let reported = false;
-
-				const clamp = (v) =>
-					typeof v === 'number' ? Math.min(60_000, Math.max(0, v)) : v;
-
-				const report = () => {
-					if (
-						reported ||
-						!Object.values(metrics).some((m) => m !== null && m !== 0)
-					) {
-						return;
-					}
-					reported = true;
-					this.trackWebVitals({
-						timestamp: Date.now(),
-						fcp: clamp(metrics.fcp),
-						lcp: clamp(metrics.lcp),
-						cls: metrics.cls,
-						fid: metrics.fid,
-						inp: metrics.inp,
-					});
-					this.cleanupWebVitals();
-				};
-
-				const observe = (type, callback) => {
-					try {
-						if (PerformanceObserver.supportedEntryTypes?.includes(type)) {
-							const observer = new PerformanceObserver((list) =>
-								callback(list.getEntries())
-							);
-							observer.observe({ type, buffered: true });
-							this.webVitalObservers.push(observer);
-						}
-					} catch (_e) {}
-				};
-
-				observe('paint', (entries) => {
-					for (const entry of entries) {
-						if (entry.name === 'first-contentful-paint' && !metrics.fcp) {
-							metrics.fcp = Math.round(entry.startTime);
-						}
-					}
-				});
-
-				observe('largest-contentful-paint', (entries) => {
-					const entry = entries.at(-1);
-					if (entry) {
-						metrics.lcp = Math.round(entry.startTime);
-					}
-				});
-
-				observe('layout-shift', (entries) => {
-					for (const entry of entries) {
-						if (!entry.hadRecentInput) {
-							metrics.cls += entry.value;
-						}
-					}
-				});
-
-				observe('first-input', (entries) => {
-					const entry = entries[0];
-					if (entry && !metrics.fid) {
-						metrics.fid = Math.round(entry.processingStart - entry.startTime);
-					}
-				});
-
-				observe('event', (entries) => {
-					for (const entry of entries) {
-						if (entry.interactionId && entry.duration > (metrics.inp || 0)) {
-							metrics.inp = Math.round(entry.duration);
-						}
-					}
-				});
-
-				this.webVitalsVisibilityChangeHandler = () => {
-					if (document.visibilityState === 'hidden') {
-						report();
-					}
-				};
-				document.addEventListener(
-					'visibilitychange',
-					this.webVitalsVisibilityChangeHandler,
-					{
-						once: true,
-					}
-				);
-
-				this.webVitalsPageHideHandler = report;
-				window.addEventListener('pagehide', this.webVitalsPageHideHandler, {
-					once: true,
-				});
-
-				this.webVitalsReportTimeoutId = setTimeout(report, 10_000);
-			} catch (_e) {}
-		}
-
 		getConnectionInfo() {
+			if (typeof navigator === 'undefined') {
+				return { connection_type: null, rtt: null, downlink: null };
+			}
 			const connection =
 				navigator.connection ||
 				navigator.mozConnection ||
 				navigator.webkitConnection;
-
 			if (!connection) {
-				return {
-					connection_type: null,
-					rtt: null,
-					downlink: null,
-				};
+				return { connection_type: null, rtt: null, downlink: null };
 			}
-
 			return {
 				connection_type: connection.effectiveType || connection.type || null,
 				rtt: connection.rtt || null,
 				downlink: connection.downlink || null,
 			};
-		}
-
-		trackCustomEvent(eventName, properties = {}) {
-			if (this.isServer()) {
-				return;
-			}
-
-			let finalProperties;
-			if (properties === undefined || properties === null) {
-				finalProperties = {};
-			} else if (typeof properties === 'object') {
-				finalProperties = properties;
-			} else {
-				finalProperties = { value: properties };
-			}
-
-			this.track(eventName, finalProperties);
 		}
 
 		getBaseContext() {
@@ -982,71 +869,35 @@
 			const utmParams = this.getUtmParams();
 			const connectionInfo = this.getConnectionInfo();
 
-			let width = window.innerWidth;
-			let height = window.innerHeight;
-			if (
-				typeof width !== 'number' ||
-				typeof height !== 'number' ||
-				width < 240 ||
-				width > 10_000 ||
-				height < 240 ||
-				height > 10_000
-			) {
-				width = null;
-				height = null;
-			}
+			const { width, height } = validateDimensions(
+				window.innerWidth,
+				window.innerHeight
+			);
 			const viewport_size = width && height ? `${width}x${height}` : null;
 
-			// Clamp screen resolution
-			let screenWidth = window.screen.width;
-			let screenHeight = window.screen.height;
-			if (
-				typeof screenWidth !== 'number' ||
-				typeof screenHeight !== 'number' ||
-				screenWidth < 240 ||
-				screenWidth > 10_000 ||
-				screenHeight < 240 ||
-				screenHeight > 10_000
-			) {
-				screenWidth = null;
-				screenHeight = null;
-			}
+			const { width: screenWidth, height: screenHeight } = validateDimensions(
+				window.screen.width,
+				window.screen.height
+			);
 			const screen_resolution =
 				screenWidth && screenHeight ? `${screenWidth}x${screenHeight}` : null;
 
-			// Validate referrer and path as URLs
-			let referrer = this.global?.referrer || document.referrer || 'direct';
-			try {
-				if (referrer && referrer !== 'direct') {
-					new URL(referrer);
-				}
-			} catch {
-				referrer = null;
-			}
-			let path = window.location.href;
-			try {
-				if (path) {
-					new URL(path);
-				}
-			} catch {
-				path = null;
-			}
+			const referrer = validateUrl(
+				sanitizeUrl(this.global?.referrer || document.referrer || 'direct')
+			);
+			const path = validateUrl(sanitizeUrl(window.location.href));
 
 			return {
-				// Page context
 				path,
 				title: document.title,
 				referrer,
-				// User context
 				screen_resolution,
 				viewport_size,
 				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 				language: navigator.language,
-				// Connection info
 				connection_type: connectionInfo.connection_type,
 				rtt: connectionInfo.rtt,
 				downlink: connectionInfo.downlink,
-				// UTM parameters
 				utm_source: utmParams.utm_source,
 				utm_medium: utmParams.utm_medium,
 				utm_campaign: utmParams.utm_campaign,
@@ -1089,45 +940,6 @@
 			} catch (_e) {}
 
 			return this.send(errorEvent);
-		}
-
-		async trackWebVitals(vitalsData) {
-			if (this.isServer()) {
-				return;
-			}
-
-			// Clamp fcp and lcp to 60000
-			const clamp = (v) =>
-				typeof v === 'number' ? Math.min(60_000, Math.max(0, v)) : v;
-
-			const webVitalsEvent = {
-				type: 'web_vitals',
-				payload: {
-					eventId: generateUUIDv4(),
-					anonymousId: this.anonymousId,
-					sessionId: this.sessionId,
-					timestamp: vitalsData.timestamp || Date.now(),
-					path: window.location.pathname,
-					fcp: clamp(vitalsData.fcp),
-					lcp: clamp(vitalsData.lcp),
-					cls: vitalsData.cls,
-					fid: vitalsData.fid,
-					inp: vitalsData.inp,
-				},
-			};
-
-			if (this.options.enableBatching) {
-				return this.send(webVitalsEvent);
-			}
-
-			try {
-				const beaconResult = await this.sendBeacon(webVitalsEvent);
-				if (beaconResult) {
-					return beaconResult;
-				}
-			} catch (_e) {}
-
-			return this.send(webVitalsEvent);
 		}
 	};
 
@@ -1223,7 +1035,8 @@
 
 			const i = () =>
 				this.debounce(() => {
-					const previous_path = this.lastPath || window.location.href;
+					const previous_path =
+						this.lastPath || sanitizeUrl(window.location.href);
 					this.setGlobalProperties({
 						referrer: previous_path,
 					});
@@ -1282,14 +1095,11 @@
 				i = t;
 				n = r;
 			} else {
-				i = window.location.href;
+				i = sanitizeUrl(window.location.href);
 				n = t;
 			}
 
 			if (this.lastPath !== i) {
-				if (this.options.trackWebVitals) {
-					this.cleanupWebVitals();
-				}
 				this.lastPath = i;
 				this.pageCount++;
 
@@ -1297,7 +1107,7 @@
 
 				// Clamp page_count
 				const pageData = {
-					page_count: Math.min(10_000, this.pageCount),
+					page_count: Math.min(MAX_COUNT_VALUE, this.pageCount),
 					...(n ?? {}),
 				};
 
@@ -1321,22 +1131,22 @@
 			) {
 				// Set up no-op functions for compatibility
 				window.databuddy = {
-					track: () => {},
-					screenView: () => {},
-					clear: () => {},
-					flush: () => {},
-					setGlobalProperties: () => {},
-					trackCustomEvent: () => {},
+					track: noop,
+					screenView: noop,
+					clear: noop,
+					flush: noop,
+					setGlobalProperties: noop,
+					trackCustomEvent: noop,
 					options: { disabled: true },
 				};
 
 				window.db = {
-					track: () => {},
-					screenView: () => {},
-					clear: () => {},
-					flush: () => {},
-					setGlobalProperties: () => {},
-					trackCustomEvent: () => {},
+					track: noop,
+					screenView: noop,
+					clear: noop,
+					flush: noop,
+					setGlobalProperties: noop,
+					trackCustomEvent: noop,
 				};
 
 				return;
@@ -1418,32 +1228,21 @@
 				config.maxRetries = 0;
 			}
 
-			if (config.initialRetryDelay !== undefined) {
-				if (config.initialRetryDelay < 50) {
-					config.initialRetryDelay = 50;
-				}
-				if (config.initialRetryDelay > 10_000) {
-					config.initialRetryDelay = 10_000;
-				}
-			}
-
-			if (config.batchSize !== undefined) {
-				if (config.batchSize < 1) {
-					config.batchSize = 1;
-				}
-				if (config.batchSize > 50) {
-					config.batchSize = 50;
-				}
-			}
-
-			if (config.batchTimeout !== undefined) {
-				if (config.batchTimeout < 100) {
-					config.batchTimeout = 100;
-				}
-				if (config.batchTimeout > 30_000) {
-					config.batchTimeout = 30_000;
-				}
-			}
+			config.initialRetryDelay = validateConfigRange(
+				config.initialRetryDelay,
+				MIN_RETRY_DELAY,
+				MAX_RETRY_DELAY
+			);
+			config.batchSize = validateConfigRange(
+				config.batchSize,
+				MIN_BATCH_SIZE,
+				MAX_BATCH_SIZE
+			);
+			config.batchTimeout = validateConfigRange(
+				config.batchTimeout,
+				MIN_BATCH_TIMEOUT,
+				MAX_BATCH_TIMEOUT
+			);
 
 			if (config.apiUrl) {
 				try {
@@ -1528,7 +1327,6 @@
 				window.databuddy.options.disabled = true;
 
 				// Override methods to no-ops
-				const noop = () => {};
 				window.databuddy.track = noop;
 				window.databuddy.screenView = noop;
 				window.databuddy.trackCustomEvent = noop;
@@ -1538,7 +1336,6 @@
 			}
 
 			if (window.db) {
-				const noop = () => {};
 				window.db.track = noop;
 				window.db.screenView = noop;
 				window.db.trackCustomEvent = noop;

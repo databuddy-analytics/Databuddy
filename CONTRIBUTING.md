@@ -16,20 +16,28 @@ Thank you for your interest in contributing!
    cp .env.example .env
    ```
 
-3. **Initialize databases:**
+3. **Start services:**
+
+   Make sure you have Docker running, then:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Initialize databases:**
 
    ```bash
    bun run db:push        # Apply database schema
    bun run clickhouse:init # Initialize ClickHouse for basket
    ```
 
-4. **Build SDK:**
+5. **Build SDK:**
 
    ```bash
    bun run sdk:build
    ```
 
-5. **Start development:**
+6. **Start development:**
    ```bash
    bun run dev
    ```
@@ -50,6 +58,6 @@ Thank you for your interest in contributing!
 
 ## Code Style
 
-- Use Ultracite for linting and Prettier for formatting
+- Use Biome for linting and formatting
 - Follow the coding standards in the README
 - Keep it simple and type-safe

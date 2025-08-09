@@ -15,6 +15,7 @@
     "db:push": "dotenv -- turbo run db:push",
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
+    "db:seed": "dotenv -- sh -c 'cd packages/db && bun run db:seed \"$@\"' --",
     "email:dev": "cd packages/email && bun run dev",
     "sdk:build": "cd packages/sdk && bun run build",
     "dashboard:dev": "dotenv -- cd apps/dashboard; bun run dev"

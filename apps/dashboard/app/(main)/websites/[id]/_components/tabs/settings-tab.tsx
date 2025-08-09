@@ -12,6 +12,7 @@ import {
 	GlobeIcon,
 	InfoIcon,
 	PencilIcon,
+	ShareIcon,
 	SlidersIcon,
 	TableIcon,
 	TrashIcon,
@@ -47,7 +48,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { WebsiteDialog } from '@/components/website-dialog';
-import { useDeleteWebsite } from '@/hooks/use-websites';
+import { useDeleteWebsite, useUpdateWebsite } from '@/hooks/use-websites';
 import {
 	generateNpmCode,
 	generateNpmComponentCode,
@@ -75,8 +76,10 @@ export function WebsiteSettingsTab({
 	const [installMethod] = useState<'script' | 'npm'>('script');
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [showEditDialog, setShowEditDialog] = useState(false);
+	const [isPublic, setIsPublic] = useState(websiteData.isPublic);
+	const updateWebsiteMutation = useUpdateWebsite();
 	const [activeTab, setActiveTab] = useState<
-		'tracking' | 'basic' | 'advanced' | 'optimization'
+		'tracking' | 'basic' | 'advanced' | 'optimization' | 'privacy'
 	>('tracking');
 	const [trackingOptions, setTrackingOptions] =
 		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
@@ -87,6 +90,23 @@ export function WebsiteSettingsTab({
 		setCopiedBlockId(blockId);
 		toast.success(message);
 		setTimeout(() => setCopiedBlockId(null), 2000);
+	};
+
+	const handleTogglePublic = () => {
+		const newIsPublic = !isPublic;
+		setIsPublic(newIsPublic);
+		toast.promise(
+			updateWebsiteMutation.mutateAsync({
+				id: websiteId,
+				isPublic: newIsPublic,
+				name: websiteData.name,
+			}),
+			{
+				loading: 'Updating privacy settings...',
+				success: 'Privacy settings updated!',
+				error: 'Failed to update settings.',
+			}
+		);
 	};
 
 	const handleToggleOption = (option: keyof TrackingOptions) => {
@@ -132,8 +152,8 @@ export function WebsiteSettingsTab({
 					trackingOptions={trackingOptions}
 				/>
 
-				<div className="col-span-12 lg:col-span-9">
-					<Card className="rounded-lg border bg-background shadow-sm">
+				<div className="col-span-12 lg:col-span-7 xl:col-span-9">
+					<Card className="rounded border bg-background py-0 shadow-sm">
 						<CardContent className="p-6">
 							{activeTab === 'tracking' && (
 								<TrackingCodeTab
@@ -167,6 +187,14 @@ export function WebsiteSettingsTab({
 								/>
 							)}
 
+							{activeTab === 'privacy' && (
+								<PrivacyTab
+									isPublic={isPublic}
+									onTogglePublic={handleTogglePublic}
+									websiteId={websiteId}
+								/>
+							)}
+
 							{activeTab !== 'tracking' && (
 								<TabActions
 									installMethod={installMethod}
@@ -175,9 +203,11 @@ export function WebsiteSettingsTab({
 											installMethod === 'script'
 												? trackingCode
 												: generateNpmComponentCode(websiteId, trackingOptions),
-											installMethod === 'script' ? 'script-tag' : 'tracking-code',
-											installMethod === 'script' 
-												? 'Script tag copied to clipboard!' 
+											installMethod === 'script'
+												? 'script-tag'
+												: 'tracking-code',
+											installMethod === 'script'
+												? 'Script tag copied to clipboard!'
 												: 'Tracking code copied to clipboard!'
 										)
 									}
@@ -233,12 +263,12 @@ function WebsiteHeader({
 	onEditClick: () => void;
 }) {
 	return (
-		<Card className="rounded-lg border bg-background shadow-sm">
+		<Card className="rounded border bg-background py-0 shadow-sm">
 			<CardContent className="p-6">
 				<div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
 					<div className="flex flex-col gap-3">
 						<div className="flex items-center gap-3">
-							<div className="rounded-lg bg-primary/10 p-2">
+							<div className="rounded bg-primary/10 p-2">
 								<GlobeIcon className="h-5 w-5 text-primary" />
 							</div>
 							<div>
@@ -325,7 +355,7 @@ function SettingsNavigation({
 }: {
 	activeTab: string;
 	setActiveTab: (
-		tab: 'tracking' | 'basic' | 'advanced' | 'optimization'
+		tab: 'tracking' | 'basic' | 'advanced' | 'optimization' | 'privacy'
 	) => void;
 	onDeleteClick: () => void;
 	trackingOptions: TrackingOptions;
@@ -357,8 +387,8 @@ function SettingsNavigation({
 		!trackingOptions.enableRetries;
 
 	return (
-		<div className="col-span-12 lg:col-span-3">
-			<Card className="rounded-lg border bg-background shadow-sm">
+		<div className="col-span-12 lg:col-span-5 xl:col-span-3">
+			<Card className="rounded border bg-background py-0 shadow-sm">
 				<CardContent className="p-4">
 					<div className="sticky top-4 space-y-2">
 						<Button
@@ -430,6 +460,17 @@ function SettingsNavigation({
 							>
 								{optimizationConfigured ? 'Custom' : 'Default'}
 							</Badge>
+						</Button>
+
+						<Button
+							className="h-10 w-full justify-between gap-2 transition-all duration-200"
+							onClick={() => setActiveTab('privacy')}
+							variant={activeTab === 'privacy' ? 'default' : 'ghost'}
+						>
+							<div className="flex items-center gap-2">
+								<ShareIcon className="h-4 w-4" />
+								<span>Sharing</span>
+							</div>
 						</Button>
 
 						<div className="border-t pt-4">
@@ -519,7 +560,13 @@ function TrackingCodeTab({
 						code={trackingCode}
 						copied={copiedBlockId === 'script-tag'}
 						description="Add this script to the <head> section of your website:"
-						onCopy={() => onCopyCode(trackingCode, 'script-tag', 'Script tag copied to clipboard!')}
+						onCopy={() =>
+							onCopyCode(
+								trackingCode,
+								'script-tag',
+								'Script tag copied to clipboard!'
+							)
+						}
 					/>
 				</TabsContent>
 
@@ -551,7 +598,13 @@ function TrackingCodeTab({
 									code="npm install @databuddy/sdk"
 									copied={copiedBlockId === 'npm-install'}
 									description=""
-									onCopy={() => onCopyCode('npm install @databuddy/sdk', 'npm-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'npm install @databuddy/sdk',
+											'npm-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -560,7 +613,13 @@ function TrackingCodeTab({
 									code="yarn add @databuddy/sdk"
 									copied={copiedBlockId === 'yarn-install'}
 									description=""
-									onCopy={() => onCopyCode('yarn add @databuddy/sdk', 'yarn-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'yarn add @databuddy/sdk',
+											'yarn-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -569,7 +628,13 @@ function TrackingCodeTab({
 									code="pnpm add @databuddy/sdk"
 									copied={copiedBlockId === 'pnpm-install'}
 									description=""
-									onCopy={() => onCopyCode('pnpm add @databuddy/sdk', 'pnpm-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'pnpm add @databuddy/sdk',
+											'pnpm-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 
@@ -578,7 +643,13 @@ function TrackingCodeTab({
 									code="bun add @databuddy/sdk"
 									copied={copiedBlockId === 'bun-install'}
 									description=""
-									onCopy={() => onCopyCode('bun add @databuddy/sdk', 'bun-install', 'Command copied to clipboard!')}
+									onCopy={() =>
+										onCopyCode(
+											'bun add @databuddy/sdk',
+											'bun-install',
+											'Command copied to clipboard!'
+										)
+									}
 								/>
 							</TabsContent>
 						</Tabs>
@@ -587,7 +658,13 @@ function TrackingCodeTab({
 							code={npmCode}
 							copied={copiedBlockId === 'tracking-code'}
 							description="Then initialize the tracker in your code:"
-							onCopy={() => onCopyCode(npmCode, 'tracking-code', 'Tracking code copied to clipboard!')}
+							onCopy={() =>
+								onCopyCode(
+									npmCode,
+									'tracking-code',
+									'Tracking code copied to clipboard!'
+								)
+							}
 						/>
 					</div>
 				</TabsContent>
@@ -683,20 +760,22 @@ function WebsiteInfoSection({
 	websiteId: string;
 }) {
 	return (
-		<div className="mt-6 grid grid-cols-2 gap-4">
+		<div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
 			<div className="space-y-3 rounded-md bg-muted/50 p-4">
 				<h4 className="flex items-center gap-2 font-medium text-sm">
 					<InfoIcon className="h-4 w-4 text-muted-foreground" />
 					Website Details
 				</h4>
 				<div className="space-y-2 text-sm">
-					<div className="flex justify-between">
+					<div className="flex flex-col sm:flex-row sm:justify-between">
 						<span className="text-muted-foreground">Created</span>
-						<span>{new Date(websiteData.createdAt).toLocaleDateString()}</span>
+						<span className="mt-1 sm:mt-0">
+							{new Date(websiteData.createdAt).toLocaleDateString()}
+						</span>
 					</div>
-					<div className="flex justify-between">
+					<div className="flex flex-col sm:flex-row sm:justify-between">
 						<span className="text-muted-foreground">Website ID</span>
-						<div className="flex items-center gap-1 font-mono text-xs">
+						<div className="mt-1 flex items-center gap-1 font-mono text-xs sm:mt-0">
 							{websiteId}
 							<Button
 								className="h-5 w-5"
@@ -715,17 +794,20 @@ function WebsiteInfoSection({
 			</div>
 
 			<div className="rounded-md border border-primary/10 bg-primary/5 p-4">
-				<div className="flex items-start gap-3">
-					<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
-						<CheckIcon className="h-4 w-4 text-primary" />
-					</div>
-					<div>
+				<div className="flex flex-col items-start gap-x-3 gap-y-2">
+					<div className="flex items-center gap-x-2">
+						<div className="mt-0.5 rounded-full bg-primary/10 p-1.5">
+							<CheckIcon className="h-4 w-4 text-primary" />
+						</div>
 						<p className="font-medium text-sm">Ready to Track</p>
+					</div>
+
+					<div>
 						<p className="mt-1 text-muted-foreground text-xs">
 							Add the tracking code to your website to start collecting data.
 						</p>
 						<Button
-							className="h-6 px-0 text-primary text-xs"
+							className="-ml-2 h-6 px-0 text-primary text-xs"
 							size="sm"
 							variant="link"
 						>
@@ -981,7 +1063,7 @@ function TrackingOptionCard({
 	const isEnabled = inverted ? !enabled : enabled;
 
 	return (
-		<div className="space-y-4 rounded-lg border p-4">
+		<div className="space-y-4 rounded border p-4">
 			<div className="flex items-start justify-between border-b pb-2">
 				<div className="space-y-0.5">
 					<div className="font-medium">{title}</div>
@@ -1059,7 +1141,7 @@ function SamplingRateSection({
 	onSamplingRateChange: (rate: number) => void;
 }) {
 	return (
-		<div className="rounded-lg border p-4">
+		<div className="rounded border p-4">
 			<h4 className="mb-3 font-medium">Sampling Rate</h4>
 			<div className="space-y-4">
 				<div className="grid grid-cols-2 gap-8">
@@ -1116,7 +1198,7 @@ function BatchingSection({
 	) => void;
 }) {
 	return (
-		<div className="rounded-lg border p-4">
+		<div className="rounded border p-4">
 			<h4 className="mb-3 font-medium">Batching</h4>
 			<div className="space-y-4">
 				<div className="flex items-center space-x-2">
@@ -1216,7 +1298,7 @@ function NetworkResilienceSection({
 	) => void;
 }) {
 	return (
-		<div className="rounded-lg border p-4">
+		<div className="rounded border p-4">
 			<h4 className="mb-3 font-medium">Network Resilience</h4>
 			<div className="space-y-4">
 				<div className="flex items-center space-x-2">
@@ -1404,5 +1486,77 @@ function DeleteWebsiteDialog({
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
+	);
+}
+
+function PrivacyTab({
+	isPublic,
+	onTogglePublic,
+	websiteId,
+}: {
+	isPublic: boolean;
+	onTogglePublic: () => void;
+	websiteId: string;
+}) {
+	const shareableLink = `${window.location.origin}/demo/${websiteId}`;
+
+	const handleCopyLink = () => {
+		navigator.clipboard.writeText(shareableLink);
+		toast.success('Shareable link copied to clipboard!');
+	};
+
+	return (
+		<div className="space-y-4">
+			<div className="flex flex-col space-y-1.5">
+				<h3 className="font-semibold text-lg">Sharing & Privacy</h3>
+				<p className="text-muted-foreground text-sm">
+					Manage your website's public visibility and shareable link.
+				</p>
+			</div>
+			<div className="rounded border p-4">
+				<div className="flex items-start justify-between">
+					<div className="space-y-1">
+						<Label className="font-medium" htmlFor="public-access">
+							Public Access
+						</Label>
+						<p className="text-muted-foreground text-xs">
+							Allow anyone with the link to view your website's dashboard.
+						</p>
+					</div>
+					<Switch
+						checked={isPublic}
+						id="public-access"
+						onCheckedChange={onTogglePublic}
+					/>
+				</div>
+
+				{isPublic && (
+					<div className="mt-4 space-y-2 border-t pt-4">
+						<Label htmlFor="shareable-link">Shareable Link</Label>
+						<div className="flex items-center gap-2">
+							<input
+								className="flex-grow rounded border bg-background px-3 py-1.5 text-sm"
+								id="shareable-link"
+								readOnly
+								type="text"
+								value={shareableLink}
+							/>
+							<Button
+								className="h-8 gap-1.5 px-3 text-xs"
+								onClick={handleCopyLink}
+								size="sm"
+								variant="outline"
+							>
+								<ClipboardIcon className="h-3.5 w-3.5" />
+								Copy
+							</Button>
+						</div>
+						<p className="text-muted-foreground text-xs">
+							Anyone with this link can view the analytics for this website.
+						</p>
+					</div>
+				)}
+			</div>
+		</div>
 	);
 }

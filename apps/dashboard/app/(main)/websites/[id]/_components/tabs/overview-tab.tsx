@@ -19,13 +19,12 @@ import {
 	WarningIcon,
 	WatchIcon,
 } from '@phosphor-icons/react';
-import { differenceInDays } from 'date-fns';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import { useAtom } from 'jotai';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBillingData } from '@/app/(main)/billing/data/billing-data';
 import { DataTable } from '@/components/analytics/data-table';
 import { StatCard } from '@/components/analytics/stat-card';
@@ -76,6 +75,59 @@ interface ChartDataPoint {
 	[key: string]: unknown;
 }
 
+interface PageData {
+	name: string;
+	visitors: number;
+	pageviews?: number;
+	percentage: number;
+}
+
+interface TechnologyData {
+	name: string;
+	visitors: number;
+	pageviews?: number;
+	percentage: number;
+	icon?: string;
+	category?: string;
+}
+
+interface CustomEventData {
+	name: string;
+	total_events: number;
+	unique_users: number;
+	percentage: number;
+	last_occurrence?: string;
+	first_occurrence?: string;
+	propertyCategories?: PropertyCategory[];
+}
+
+interface PropertyCategory {
+	key: string;
+	total: number;
+	values: PropertyValue[];
+}
+
+interface PropertyValue {
+	value: string;
+	count: number;
+	percentage: number;
+	percentage_within_event: number;
+	unique_users: number;
+	unique_sessions: number;
+}
+
+interface CellInfo {
+	getValue: () => unknown;
+	row: { original: unknown };
+}
+
+interface EventProperty {
+	name: string;
+	property_key: string;
+	property_value: string;
+	count: number;
+}
+
 // Constants
 const MIN_PREVIOUS_SESSIONS_FOR_TREND = 5;
 const MIN_PREVIOUS_VISITORS_FOR_TREND = 5;
@@ -94,25 +146,33 @@ const QUERY_CONFIG = {
 			'utm_campaigns',
 		] as string[],
 		tech: ['device_types', 'browsers', 'operating_systems'] as string[], // <-- add 'operating_systems' here
-		customEvents: ['custom_events'] as string[],
+		customEvents: ['custom_events', 'custom_event_properties'] as string[],
 	},
 } as const;
 
 function LiveUserIndicator({ websiteId }: { websiteId: string }) {
 	const { activeUsers: count } = useRealTimeStats(websiteId);
-	const [prevCount, setPrevCount] = useState(count);
+	const prevCountRef = useRef(count);
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const [change, setChange] = useState<'up' | 'down' | null>(null);
 
 	useEffect(() => {
+		const prevCount = prevCountRef.current;
+
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current);
+		}
+
 		if (count > prevCount) {
 			setChange('up');
+			timeoutRef.current = setTimeout(() => setChange(null), 1000);
 		} else if (count < prevCount) {
 			setChange('down');
+			timeoutRef.current = setTimeout(() => setChange(null), 1000);
 		}
-		const timer = setTimeout(() => setChange(null), 1000);
-		setPrevCount(count);
-		return () => clearTimeout(timer);
-	}, [count, prevCount]);
+
+		prevCountRef.current = count;
+	}, [count]);
 
 	const getChangeColor = () => {
 		if (change === 'up') {
@@ -337,6 +397,9 @@ export function WebsiteOverviewTab({
 	const customEventsData = {
 		custom_events:
 			getDataForQuery('overview-custom-events', 'custom_events') || [],
+		custom_event_properties:
+			getDataForQuery('overview-custom-events', 'custom_event_properties') ||
+			[],
 	};
 
 	const loading = {
@@ -366,27 +429,18 @@ export function WebsiteOverviewTab({
 	};
 
 	useEffect(() => {
-		let isMounted = true;
-
 		if (isRefreshing) {
 			const doRefresh = async () => {
 				try {
 					await refetchBatch();
-				} catch (error) {
-					console.error('Failed to refresh data:', error);
+				} catch {
+					// Handle error silently or use proper error reporting
 				} finally {
-					if (isMounted) {
-						setIsRefreshing(false);
-					}
+					setIsRefreshing(false);
 				}
 			};
-
 			doRefresh();
 		}
-
-		return () => {
-			isMounted = false;
-		};
 	}, [isRefreshing, refetchBatch, setIsRefreshing]);
 
 	const isLoading = loading.summary || isRefreshing;
@@ -395,8 +449,8 @@ export function WebsiteOverviewTab({
 		new Set()
 	);
 
-	const referrerCustomCell = (info: any) => {
-		const cellData: ReferrerSourceCellData = info.row.original;
+	const referrerCustomCell = (info: CellInfo) => {
+		const cellData = info.row.original as ReferrerSourceCellData;
 		return <ReferrerSourceCell {...cellData} />;
 	};
 
@@ -430,7 +484,7 @@ export function WebsiteOverviewTab({
 
 	const pagesTabs = useTableTabs({
 		top_pages: {
-			data: (analytics.top_pages || []).map((page: any) => ({
+			data: (analytics.top_pages || []).map((page: PageData) => ({
 				...page,
 				name: decodeURIComponent(page.name),
 			})),
@@ -439,7 +493,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Page',
 		},
 		entry_pages: {
-			data: (analytics.entry_pages || []).map((page: any) => ({
+			data: (analytics.entry_pages || []).map((page: PageData) => ({
 				...page,
 				name: decodeURIComponent(page.name),
 			})),
@@ -448,7 +502,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Page',
 		},
 		exit_pages: {
-			data: (analytics.exit_pages || []).map((page: any) => ({
+			data: (analytics.exit_pages || []).map((page: PageData) => ({
 				...page,
 				name: decodeURIComponent(page.name),
 			})),
@@ -465,15 +519,15 @@ export function WebsiteOverviewTab({
 		bounce_rate: 'amber-500',
 		avg_session_duration: 'red-500',
 	};
-	const dateFrom = new Date(dateRange.start_date);
-	const dateTo = new Date(dateRange.end_date);
-	const dateDiff = differenceInDays(dateTo, dateFrom);
+	const dateFrom = dayjs(dateRange.start_date);
+	const dateTo = dayjs(dateRange.end_date);
+	const dateDiff = dateTo.diff(dateFrom, 'day');
 
-	const filterFutureEvents = (events: any[]) => {
+	const filterFutureEvents = (events: MetricPoint[]) => {
 		const userTimezone = getUserTimezone();
 		const now = dayjs().tz(userTimezone);
 
-		return events.filter((event: any) => {
+		return events.filter((event: MetricPoint) => {
 			const eventDate = dayjs.utc(event.date).tz(userTimezone);
 
 			if (dateRange.granularity === 'hourly') {
@@ -492,24 +546,25 @@ export function WebsiteOverviewTab({
 			return [];
 		}
 		const filteredEvents = filterFutureEvents(analytics.events_by_date);
-		return filteredEvents.map((event: any): ChartDataPoint => {
+		return filteredEvents.map((event: MetricPoint): ChartDataPoint => {
 			const filtered: ChartDataPoint = {
 				date: formatDateByGranularity(event.date, dateRange.granularity),
 			};
 			if (visibleMetrics.pageviews) {
-				filtered.pageviews = event.pageviews;
+				filtered.pageviews = event.pageviews as number;
 			}
 			if (visibleMetrics.visitors) {
-				filtered.visitors = event.visitors || event.unique_visitors || 0;
+				filtered.visitors =
+					(event.visitors as number) || (event.unique_visitors as number) || 0;
 			}
 			if (visibleMetrics.sessions) {
-				filtered.sessions = event.sessions;
+				filtered.sessions = event.sessions as number;
 			}
 			if (visibleMetrics.bounce_rate) {
-				filtered.bounce_rate = event.bounce_rate;
+				filtered.bounce_rate = event.bounce_rate as number;
 			}
 			if (visibleMetrics.avg_session_duration) {
-				filtered.avg_session_duration = event.avg_session_duration;
+				filtered.avg_session_duration = event.avg_session_duration as number;
 			}
 			return filtered;
 		});
@@ -521,15 +576,17 @@ export function WebsiteOverviewTab({
 		}
 		const filteredEvents = filterFutureEvents(analytics.events_by_date);
 		const createChartSeries = (
-			field: string,
-			transform?: (value: any) => number
+			field: keyof MetricPoint,
+			transform?: (value: number) => number
 		) =>
-			filteredEvents.map((event: any) => ({
+			filteredEvents.map((event: MetricPoint) => ({
 				date:
 					dateRange.granularity === 'hourly'
 						? event.date
 						: event.date.slice(0, 10),
-				value: transform ? transform(event[field]) : event[field] || 0,
+				value: transform
+					? transform(event[field] as number)
+					: (event[field] as number) || 0,
 			}));
 		return {
 			visitors: createChartSeries('visitors'),
@@ -550,16 +607,18 @@ export function WebsiteOverviewTab({
 
 	const processedDeviceData = (() => {
 		const deviceData = analytics.device_types || [];
-		return deviceData.map((item: any) => ({
-			name: item.name,
-			visitors: item.visitors,
-			percentage: item.percentage,
-		}));
+		return deviceData.map(
+			(item: { name: string; visitors: number; percentage: number }) => ({
+				name: item.name,
+				visitors: item.visitors,
+				percentage: item.percentage,
+			})
+		);
 	})();
 
 	const processedBrowserData = (() => {
 		const browserData = analytics.browser_versions || [];
-		return browserData.map((item: any) => ({
+		return browserData.map((item: TechnologyData) => ({
 			name: item.name,
 			visitors: item.visitors,
 			pageviews: item.pageviews,
@@ -569,14 +628,16 @@ export function WebsiteOverviewTab({
 		}));
 	})();
 
-	const processedOSData = analytics.operating_systems.map((item: any) => ({
-		name: item.name,
-		visitors: item.visitors,
-		pageviews: item.pageviews,
-		percentage: item.percentage ?? 0,
-		icon: getOSIcon(item.name),
-		category: 'os',
-	}));
+	const processedOSData = (analytics.operating_systems || []).map(
+		(item: TechnologyData) => ({
+			name: item.name,
+			visitors: item.visitors,
+			pageviews: item.pageviews,
+			percentage: item.percentage ?? 0,
+			icon: getOSIcon(item.name),
+			category: 'os',
+		})
+	);
 
 	const togglePropertyExpansion = (propertyId: string) => {
 		const newExpanded = new Set(expandedProperties);
@@ -593,7 +654,60 @@ export function WebsiteOverviewTab({
 			return [];
 		}
 		const customEvents = customEventsData.custom_events;
-		return customEvents.map((event: any) => {
+		const propertiesData = customEventsData.custom_event_properties || [];
+
+		return customEvents.map((event: CustomEventData) => {
+			// Find properties for this event
+			const eventProperties = propertiesData.filter(
+				(prop: EventProperty) => prop.name === event.name
+			);
+
+			// Group properties by key and aggregate values
+			const propertyCategories: PropertyCategory[] = [];
+			const propertyMap = new Map<
+				string,
+				Map<
+					string,
+					{
+						count: number;
+					}
+				>
+			>();
+
+			for (const prop of eventProperties) {
+				// Data is already pre-aggregated from API with percentages
+				const key = prop.property_key;
+				const value = prop.property_value;
+				const data = {
+					count: prop.count,
+				};
+
+				if (!propertyMap.has(key)) {
+					propertyMap.set(key, new Map());
+				}
+
+				const valueMap = propertyMap.get(key);
+				if (valueMap) {
+					valueMap.set(value, data);
+				}
+			}
+
+			// Convert to array format for display - use pre-computed percentages
+			for (const [key, valueMap] of propertyMap.entries()) {
+				const values = Array.from(valueMap.entries()).map(([value, data]) => ({
+					value,
+					count: data.count,
+				}));
+
+				const total = values.reduce((sum, item) => sum + item.count, 0);
+
+				propertyCategories.push({
+					key,
+					total,
+					values: values.sort((a, b) => b.count - a.count) as PropertyValue[],
+				});
+			}
+
 			return {
 				...event,
 				percentage: event.percentage || 0,
@@ -603,13 +717,15 @@ export function WebsiteOverviewTab({
 				first_occurrence_formatted: event.first_occurrence
 					? new Date(event.first_occurrence).toLocaleDateString()
 					: 'N/A',
-				propertyCategories: [],
+				propertyCategories: propertyCategories.sort(
+					(a, b) => b.total - a.total
+				),
 			};
 		});
 	})();
 
-	const createTechnologyCell = () => (info: any) => {
-		const entry = info.row.original;
+	const createTechnologyCell = () => (info: CellInfo) => {
+		const entry = info.row.original as TechnologyData;
 		return (
 			<div className="flex items-center gap-3">
 				<TechnologyIcon entry={entry} size="md" />
@@ -618,7 +734,7 @@ export function WebsiteOverviewTab({
 		);
 	};
 
-	const createPercentageCell = () => (info: any) => {
+	const createPercentageCell = () => (info: CellInfo) => {
 		const percentage = info.getValue() as number;
 		return <PercentageBadge percentage={percentage} />;
 	};
@@ -633,10 +749,10 @@ export function WebsiteOverviewTab({
 		}).format(value);
 	};
 
-	const createMetricCell = (label: string) => (info: any) => (
+	const createMetricCell = (label: string) => (info: CellInfo) => (
 		<div>
 			<div className="font-medium text-foreground">
-				{formatNumber(info.getValue())}
+				{formatNumber(info.getValue() as number)}
 			</div>
 			<div className="text-muted-foreground text-xs">{label}</div>
 		</div>
@@ -647,8 +763,8 @@ export function WebsiteOverviewTab({
 			id: 'device_type',
 			accessorKey: 'device_type',
 			header: 'Device Type',
-			cell: (info: any) => {
-				const row = info.row.original;
+			cell: (info: CellInfo) => {
+				const row = info.row.original as { name: string };
 				return <DeviceTypeCell device_type={row.name} />;
 			},
 		},
@@ -656,8 +772,10 @@ export function WebsiteOverviewTab({
 			id: 'visitors',
 			accessorKey: 'visitors',
 			header: 'Visitors',
-			cell: (info: any) => (
-				<span className="font-medium">{formatNumber(info.getValue())}</span>
+			cell: (info: CellInfo) => (
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		},
 		{
@@ -679,16 +797,20 @@ export function WebsiteOverviewTab({
 			id: 'visitors',
 			accessorKey: 'visitors',
 			header: 'Visitors',
-			cell: (info: any) => (
-				<span className="font-medium">{formatNumber(info.getValue())}</span>
+			cell: (info: CellInfo) => (
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		},
 		{
 			id: 'pageviews',
 			accessorKey: 'pageviews',
 			header: 'Pageviews',
-			cell: (info: any) => (
-				<span className="font-medium">{formatNumber(info.getValue())}</span>
+			cell: (info: CellInfo) => (
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		},
 		{
@@ -710,16 +832,20 @@ export function WebsiteOverviewTab({
 			id: 'visitors',
 			accessorKey: 'visitors',
 			header: 'Visitors',
-			cell: (info: any) => (
-				<span className="font-medium">{formatNumber(info.getValue())}</span>
+			cell: (info: CellInfo) => (
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		},
 		{
 			id: 'pageviews',
 			accessorKey: 'pageviews',
 			header: 'Pageviews',
-			cell: (info: any) => (
-				<span className="font-medium">{formatNumber(info.getValue())}</span>
+			cell: (info: CellInfo) => (
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		},
 		{
@@ -735,7 +861,7 @@ export function WebsiteOverviewTab({
 			id: 'name',
 			accessorKey: 'name',
 			header: 'Event Name',
-			cell: (info: any) => {
+			cell: (info: CellInfo) => {
 				const eventName = info.getValue() as string;
 				return (
 					<div className="flex items-center gap-3">
@@ -770,7 +896,7 @@ export function WebsiteOverviewTab({
 	dayjs.extend(timezone);
 	const todayDate = dayjs().tz(userTimezone).format('YYYY-MM-DD');
 	const todayEvent = analytics.events_by_date.find(
-		(event: any) =>
+		(event: MetricPoint) =>
 			dayjs(event.date).tz(userTimezone).format('YYYY-MM-DD') === todayDate
 	);
 	const todayVisitors = todayEvent?.visitors ?? 0;
@@ -1118,14 +1244,17 @@ export function WebsiteOverviewTab({
 				description="User-defined events and interactions with property breakdowns"
 				emptyMessage="No custom events tracked yet"
 				expandable={true}
-				getSubRows={(row: any) => row.propertyCategories}
+				getSubRows={(row: CustomEventData) =>
+					row.propertyCategories as unknown as CustomEventData[]
+				}
 				initialPageSize={8}
 				isLoading={isLoading}
 				minHeight={350}
-				renderSubRow={(subRow: any, parentRow: any) => {
-					const propertyKey = subRow.key;
-					const propertyTotal = subRow.total;
-					const propertyValues = subRow.values;
+				renderSubRow={(subRow: CustomEventData, parentRow: CustomEventData) => {
+					const typedSubRow = subRow as unknown as PropertyCategory;
+					const propertyKey = typedSubRow.key;
+					const propertyTotal = typedSubRow.total;
+					const propertyValues = typedSubRow.values;
 					const propertyId = `${parentRow.name}-${propertyKey}`;
 					const isPropertyExpanded = expandedProperties.has(propertyId);
 
@@ -1167,27 +1296,29 @@ export function WebsiteOverviewTab({
 
 							{isPropertyExpanded && (
 								<div className="mt-1 max-h-48 overflow-y-auto rounded border border-border/20">
-									{propertyValues.map((valueItem: any, valueIndex: number) => (
-										<div
-											className="flex items-center justify-between border-border/10 border-b px-3 py-2 last:border-b-0 hover:bg-muted/20"
-											key={`${propertyKey}-${valueItem.value}-${valueIndex}`}
-										>
-											<span
-												className="truncate font-mono text-foreground text-sm"
-												title={valueItem.value}
+									{propertyValues.map(
+										(valueItem: PropertyValue, valueIndex: number) => (
+											<div
+												className="flex items-center justify-between border-border/10 border-b px-3 py-2 last:border-b-0 hover:bg-muted/20"
+												key={`${propertyKey}-${valueItem.value}-${valueIndex}`}
 											>
-												{valueItem.value}
-											</span>
-											<div className="flex items-center gap-2">
-												<span className="font-medium text-foreground text-sm">
-													{formatNumber(valueItem.count)}
+												<span
+													className="truncate font-mono text-foreground text-sm"
+													title={valueItem.value}
+												>
+													{valueItem.value}
 												</span>
-												<div className="min-w-[2.5rem] rounded bg-muted px-2 py-0.5 text-center font-medium text-muted-foreground text-xs">
-													{valueItem.percentage}%
+												<div className="flex items-center gap-2">
+													<span className="font-medium text-foreground text-sm">
+														{formatNumber(valueItem.count)}
+													</span>
+													<div className="min-w-[2.5rem] rounded bg-muted px-2 py-0.5 text-center font-medium text-muted-foreground text-xs">
+														{valueItem.percentage}%
+													</div>
 												</div>
 											</div>
-										</div>
-									))}
+										)
+									)}
 								</div>
 							)}
 						</div>

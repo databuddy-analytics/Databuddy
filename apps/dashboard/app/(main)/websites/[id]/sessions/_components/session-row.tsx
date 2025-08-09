@@ -9,7 +9,7 @@ import {
 	SparkleIcon,
 	WarningIcon,
 } from '@phosphor-icons/react';
-import dynamic from 'next/dynamic';
+import lazy from 'next/dynamic';
 import React, { useCallback } from 'react';
 import { FaviconImage } from '@/components/analytics/favicon-image';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,7 @@ import {
 	CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 
-const SessionEventTimeline = dynamic(
+const SessionEventTimeline = lazy(
 	() =>
 		import('./session-event-timeline').then((mod) => ({
 			default: mod.SessionEventTimeline,

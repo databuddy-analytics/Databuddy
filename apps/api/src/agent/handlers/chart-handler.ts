@@ -4,6 +4,21 @@ import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
+const getRandomMessage = (messages: string[]) =>
+	messages[Math.floor(Math.random() * messages.length)];
+
+const queryFailedMessages = [
+	'I ran into an issue getting that data. The information might not be available right now.',
+	'Something went wrong while fetching your analytics data. Try asking again in a moment?',
+	"I couldn't retrieve that data - there might be a temporary issue. Want to try a different question?",
+];
+
+const noDataMessages = [
+	"I couldn't find any data for that query. Try asking about a different time period or metric?",
+	'No data showed up for that request. Maybe try a different date range or ask about something else?',
+	'That search came up empty! Want to try asking about a different metric or time frame?',
+];
+
 export interface ChartHandlerContext {
 	user: any;
 	website: any;
@@ -51,7 +66,7 @@ export async function* handleChartResponse(
 			content:
 				queryResult.data.length > 0
 					? `Found ${queryResult.data.length} data points. Displaying as a ${parsedAiJson.chart_type?.replace(/_/g, ' ') || 'chart'}.`
-					: 'No data found for your query.',
+					: getRandomMessage(noDataMessages),
 			data: {
 				hasVisualization: queryResult.data.length > 0,
 				chartType: parsedAiJson.chart_type,
@@ -67,7 +82,7 @@ export async function* handleChartResponse(
 		});
 		yield {
 			type: 'error',
-			content: 'Database query failed. The data might not be available.',
+			content: getRandomMessage(queryFailedMessages),
 			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 	}

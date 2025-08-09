@@ -8,6 +8,8 @@ import {
 	UsersIcon,
 } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useQueryState } from 'nuqs';
 import { Suspense, useState } from 'react';
 import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +36,7 @@ function PageSkeleton() {
 				</div>
 				<Skeleton className="h-9 w-40" />
 			</div>
-			<Skeleton className="h-32 w-full rounded-lg" />
+			<Skeleton className="h-32 w-full rounded" />
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 				<Skeleton className="h-24 w-full" />
 				<Skeleton className="h-24 w-full" />
@@ -149,10 +151,10 @@ function ActiveOrganizationBanner({
 							organizations={organizations}
 						/>
 						<Button asChild className="rounded" size="sm" variant="outline">
-							<a href={`/organizations/${activeOrg.slug}`}>
+							<Link href={`/organizations/${activeOrg.slug}`}>
 								<GearIcon className="mr-2 h-4 w-4" size={16} />
 								Settings
-							</a>
+							</Link>
 						</Button>
 					</div>
 				</div>
@@ -252,7 +254,9 @@ function MainView({
 	isLoading: boolean;
 	onNewOrg: () => void;
 }) {
-	const [activeTab, setActiveTab] = useState('organizations');
+	const [activeTab, setActiveTab] = useQueryState('tab', {
+		defaultValue: 'organizations',
+	});
 
 	return (
 		<>
@@ -279,10 +283,8 @@ function MainView({
 						</TabsTrigger>
 						<TabsTrigger
 							className={cn(
-								'relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm',
-								!activeOrganization && 'cursor-not-allowed opacity-50'
+								'relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm'
 							)}
-							disabled={!activeOrganization}
 							value="teams"
 						>
 							<UsersIcon className="mr-1 h-3 w-3" size={16} />
@@ -310,9 +312,26 @@ function MainView({
 					className="animate-fadeIn transition-all duration-200"
 					value="teams"
 				>
-					<Suspense fallback={<TabSkeleton />}>
-						<TeamsTab organization={activeOrganization} />
-					</Suspense>
+					{activeOrganization ? (
+						<Suspense fallback={<TabSkeleton />}>
+							<TeamsTab organization={activeOrganization} />
+						</Suspense>
+					) : (
+						<div className="rounded border border-border/50 bg-muted/30 p-6 text-center">
+							<p className="mb-2 text-sm">
+								Teams are available inside a workspace.
+							</p>
+							<div className="flex items-center justify-center gap-2">
+								<Button className="rounded" onClick={onNewOrg} size="sm">
+									Create organization
+								</Button>
+								<OrganizationSwitcher
+									activeOrganization={activeOrganization}
+									organizations={organizations}
+								/>
+							</div>
+						</div>
+					)}
 				</TabsContent>
 			</Tabs>
 		</>

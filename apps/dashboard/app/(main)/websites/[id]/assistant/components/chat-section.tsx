@@ -155,7 +155,7 @@ export default function ChatSection() {
 					</div>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
-							<h2 className="truncate font-semibold text-lg">Nova</h2>
+							<h2 className="truncate font-semibold text-lg">Databunny</h2>
 							{hasMessages && (
 								<span className="px-2 py-0.5 text-muted-foreground text-xs">
 									{messageStats.total}{' '}
@@ -165,8 +165,8 @@ export default function ChatSection() {
 						</div>
 						<p className="truncate text-muted-foreground text-sm">
 							{isLoading
-								? 'Nova is analyzing your data...'
-								: `Your AI analytics partner for ${websiteData?.name || 'your website'}`}
+								? 'Databunny is analyzing your data...'
+								: `Your data analyst for ${websiteData?.name || 'your website'}`}
 						</p>
 					</div>
 				</div>
@@ -214,12 +214,12 @@ export default function ChatSection() {
 										<Sparkle className="h-8 w-8 text-primary" />
 									</div>
 									<h3 className="mb-2 font-semibold text-lg">
-										Welcome to Nova
+										Welcome to Databunny
 									</h3>
 									<p className="mx-auto max-w-md text-muted-foreground text-sm">
-										I'm Nova, your AI analytics partner. I can help you
-										understand your website data through charts, metrics, and
-										insights. Just ask me anything!
+										I'm Databunny, your data analyst. I can help you understand
+										your website data through charts, metrics, and insights.
+										Just ask me anything!
 									</p>
 								</div>
 
@@ -299,10 +299,10 @@ export default function ChatSection() {
 							}}
 							placeholder={
 								isLoading
-									? 'Nova is thinking...'
+									? 'Databunny is thinking...'
 									: isRateLimited
 										? 'Rate limited - please wait...'
-										: 'Ask Nova about your analytics data...'
+										: 'Ask Databunny about your analytics data...'
 							}
 							ref={inputRef}
 							value={inputValue}

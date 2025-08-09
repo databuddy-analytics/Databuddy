@@ -41,6 +41,7 @@ export const createWebsiteSchema = z.object({
 export const updateWebsiteSchema = z.object({
 	id: z.string(),
 	name: websiteNameSchema,
+	isPublic: z.boolean().optional(),
 });
 
 export const transferWebsiteSchema = z.object({

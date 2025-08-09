@@ -9,7 +9,7 @@ import {
 	processGoalAnalytics,
 } from '../lib/analytics-utils';
 import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 import { authorizeWebsiteAccess } from '../utils/auth';
 
 const drizzleCache = createDrizzleCache({ redis, namespace: 'goals' });
@@ -72,7 +72,7 @@ const getDefaultDateRange = () => {
 };
 
 export const goalsRouter = createTRPCRouter({
-	list: protectedProcedure
+	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.query(({ ctx, input }) => {
 			const cacheKey = `goals:list:${input.websiteId}`;
@@ -94,7 +94,7 @@ export const goalsRouter = createTRPCRouter({
 			});
 		}),
 
-	getById: protectedProcedure
+	getById: publicProcedure
 		.input(z.object({ id: z.string(), websiteId: z.string() }))
 		.query(({ ctx, input }) => {
 			const cacheKey = `goals:byId:${input.id}:${input.websiteId}`;
@@ -214,7 +214,7 @@ export const goalsRouter = createTRPCRouter({
 			return { success: true };
 		}),
 
-	getAnalytics: protectedProcedure
+	getAnalytics: publicProcedure
 		.input(analyticsDateRangeSchema)
 		.query(({ ctx, input }) => {
 			const { startDate, endDate } =
@@ -282,7 +282,7 @@ export const goalsRouter = createTRPCRouter({
 			});
 		}),
 
-	bulkAnalytics: protectedProcedure
+	bulkAnalytics: publicProcedure
 		.input(
 			z.object({
 				websiteId: z.string(),

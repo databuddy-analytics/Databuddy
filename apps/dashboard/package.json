@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack -p 3000",
     "build": "next build --turbopack",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:script": "bun build ./public/databuddy.ts --outfile ./public/databuddy.js --minify"
   },
   "dependencies": {
     "@databuddy/sdk": "workspace:*",

@@ -141,6 +141,10 @@ export const apikeyRelations = relations(apikey, ({ one }) => ({
 		fields: [apikey.userId],
 		references: [user.id],
 	}),
+	organization: one(organization, {
+		fields: [apikey.organizationId],
+		references: [organization.id],
+	}),
 }));
 
 export const abExperimentsRelations = relations(

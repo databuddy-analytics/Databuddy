@@ -112,7 +112,7 @@ export const websiteNavigation: NavigationSection[] = [
 		title: 'Engagement',
 		items: [
 			{
-				name: 'Assistant',
+				name: 'Databunny',
 				icon: RobotIcon,
 				href: '/assistant',
 				highlight: true,

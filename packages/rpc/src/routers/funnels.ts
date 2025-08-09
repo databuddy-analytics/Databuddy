@@ -9,7 +9,7 @@ import {
 	processFunnelAnalyticsByReferrer,
 } from '../lib/analytics-utils';
 import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 import { authorizeWebsiteAccess } from '../utils/auth';
 
 const drizzleCache = createDrizzleCache({ redis, namespace: 'funnels' });
@@ -63,7 +63,7 @@ const getDefaultDateRange = () => {
 };
 
 export const funnelsRouter = createTRPCRouter({
-	list: protectedProcedure
+	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.query(({ ctx, input }) => {
 			const cacheKey = `funnels:list:${input.websiteId}`;
@@ -316,7 +316,7 @@ export const funnelsRouter = createTRPCRouter({
 			}
 		}),
 
-	getAnalytics: protectedProcedure
+	getAnalytics: publicProcedure
 		.input(funnelAnalyticsSchema)
 		.query(({ ctx, input }) => {
 			const { startDate, endDate } =
@@ -403,7 +403,7 @@ export const funnelsRouter = createTRPCRouter({
 			});
 		}),
 
-	getAnalyticsByReferrer: protectedProcedure
+	getAnalyticsByReferrer: publicProcedure
 		.input(funnelAnalyticsSchema)
 		.query(({ ctx, input }) => {
 			const { startDate, endDate } =

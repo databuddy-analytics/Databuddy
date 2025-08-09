@@ -1,5 +1,6 @@
 import { getCountryCode, getCountryName, referrers } from '@databuddy/shared';
 import { mapScreenResolutionToDeviceType } from './screen-resolution-to-device-type';
+import type { SimpleQueryConfig } from './types';
 
 export interface ParsedReferrer {
 	type: string;
@@ -80,11 +81,29 @@ function getReferrerByDomain(
 	return null;
 }
 
+interface DataRow {
+	name?: string;
+	pageviews?: number;
+	visitors?: number;
+	percentage?: number;
+	referrer?: string;
+	domain?: string;
+	country_code?: string;
+	country_name?: string;
+	[key: string]: unknown;
+}
+
+const getNumber = (value: unknown): number =>
+	typeof value === 'number' ? value : 0;
+
+const getString = (value: unknown): string =>
+	typeof value === 'string' ? value : '';
+
 export function applyPlugins(
-	data: Record<string, any>[],
-	config: any,
+	data: DataRow[],
+	config: SimpleQueryConfig,
 	websiteDomain?: string | null
-): Record<string, any>[] {
+): DataRow[] {
 	let result = data;
 
 	if (shouldApplyReferrerParsing(config)) {
@@ -110,48 +129,50 @@ export function applyPlugins(
 	return result;
 }
 
-export function deduplicateGeoRows(
-	rows: Record<string, any>[]
-): Record<string, any>[] {
-	const map = new Map<string, Record<string, any>>();
+export function deduplicateGeoRows(rows: DataRow[]): DataRow[] {
+	const aggregated = new Map<string, DataRow>();
 	let totalVisitors = 0;
 	for (const row of rows) {
-		const code = row.country_code || row.name;
+		const code = row.country_code || getString(row.name);
 		if (!code) {
 			continue;
 		}
-		if (map.has(code)) {
-			const existing = map.get(code);
+		if (aggregated.has(code)) {
+			const existing = aggregated.get(code);
 			if (existing) {
-				existing.pageviews += row.pageviews || 0;
-				existing.visitors += row.visitors || 0;
+				existing.pageviews =
+					getNumber(existing.pageviews) + getNumber(row.pageviews);
+				existing.visitors =
+					getNumber(existing.visitors) + getNumber(row.visitors);
 			}
-			// Optionally, merge other fields as needed
 		} else {
-			map.set(code, { ...row });
+			aggregated.set(code, { ...row });
 		}
 	}
-	// Recalculate total visitors for percentage
-	for (const row of map.values()) {
-		totalVisitors += row.visitors || 0;
+	for (const row of aggregated.values()) {
+		totalVisitors += getNumber(row.visitors);
 	}
-	for (const row of map.values()) {
+	for (const row of aggregated.values()) {
 		row.percentage =
-			totalVisitors > 0 ? Math.round((row.visitors / totalVisitors) * 100) : 0;
+			totalVisitors > 0
+				? Math.round((getNumber(row.visitors) / totalVisitors) * 100)
+				: 0;
 	}
-	return Array.from(map.values());
+	return Array.from(aggregated.values());
 }
 
-function shouldApplyReferrerParsing(config: any): boolean {
-	return config.plugins?.parseReferrers || shouldAutoParseReferrers(config);
+function shouldApplyReferrerParsing(config: SimpleQueryConfig): boolean {
+	return (
+		Boolean(config.plugins?.parseReferrers) || shouldAutoParseReferrers(config)
+	);
 }
 
 function applyReferrerParsing(
-	data: Record<string, any>[],
+	data: DataRow[],
 	websiteDomain?: string | null
-): Record<string, any>[] {
+): DataRow[] {
 	return data.map((row) => {
-		const referrerUrl = row.name || row.referrer;
+		const referrerUrl = getString(row.name) || getString(row.referrer);
 		if (!referrerUrl) {
 			return row;
 		}
@@ -163,87 +184,96 @@ function applyReferrerParsing(
 			name: parsed.name,
 			referrer: referrerUrl,
 			domain: parsed.domain,
-		};
+		} as DataRow;
 	});
 }
 
-function applyUrlNormalization(
-	data: Record<string, any>[]
-): Record<string, any>[] {
+function applyGeoNormalization(data: DataRow[]): DataRow[] {
 	return data.map((row) => {
-		if (row.path) {
-			try {
-				const url = new URL(
-					row.path.startsWith('http')
-						? row.path
-						: `https://example.com${row.path}`
-				);
-				row.path_clean = url.pathname;
-			} catch {
-				row.path_clean = row.path;
-			}
-		}
-		return row;
-	});
-}
-
-function applyGeoNormalization(
-	data: Record<string, any>[]
-): Record<string, any>[] {
-	return data.map((row) => {
-		// Only normalize if row has a 'name' field (country/region/etc)
-		if (!row.name) {
+		const currentName = getString(row.name);
+		if (!currentName) {
 			return row;
 		}
-		const code = getCountryCode(row.name);
+		const code = getCountryCode(currentName);
 		const name = getCountryName(code);
 		return {
 			...row,
 			country_code: code,
 			country_name: name,
-		};
+		} as DataRow;
 	});
 }
 
-function shouldAutoParseReferrers(config: any): boolean {
+function shouldAutoParseReferrers(
+	config: SimpleQueryConfig | { type?: string; name?: string }
+): boolean {
 	const referrerConfigs = ['top_referrers', 'referrer', 'traffic_sources'];
-	return referrerConfigs.includes(config.type || config.name);
+	const typeOrName =
+		(config as { type?: string; name?: string }).type ||
+		(config as { type?: string; name?: string }).name;
+	return typeOrName ? referrerConfigs.includes(typeOrName) : false;
 }
 
 /**
  * Groups and maps screen resolutions to device types, summing pageviews/visitors by type.
  * Preserves all original fields (e.g., percentage) from the first row of each device type.
  */
-export function mapDeviceTypesPlugin(
-	rows: Record<string, any>[]
-): Record<string, any>[] {
-	const map = new Map<string, Record<string, any>>();
+export function mapDeviceTypesPlugin(rows: DataRow[]): DataRow[] {
+	const grouped = new Map<string, DataRow>();
 	for (const row of rows) {
-		const deviceType = mapScreenResolutionToDeviceType(row.name);
-		if (!map.has(deviceType)) {
-			map.set(deviceType, { ...row, name: deviceType });
+		const name = getString(row.name);
+		const deviceType = mapScreenResolutionToDeviceType(name);
+		if (!grouped.has(deviceType)) {
+			grouped.set(deviceType, { ...row, name: deviceType });
 		}
-		const agg = map.get(deviceType);
+		const agg = grouped.get(deviceType);
 		if (agg) {
-			agg.pageviews = (agg.pageviews || 0) + (row.pageviews || 0);
-			agg.visitors = (agg.visitors || 0) + (row.visitors || 0);
-			if (
-				typeof agg.percentage === 'number' &&
-				typeof row.percentage === 'number'
-			) {
-				agg.percentage += row.percentage;
+			agg.pageviews = getNumber(agg.pageviews) + getNumber(row.pageviews);
+			agg.visitors = getNumber(agg.visitors) + getNumber(row.visitors);
+			const aggPct = agg.percentage;
+			const rowPct = row.percentage;
+			if (typeof aggPct === 'number' && typeof rowPct === 'number') {
+				agg.percentage = aggPct + rowPct;
 			}
 		}
 	}
 	let totalPageviews = 0;
-	for (const row of map.values()) {
-		totalPageviews += row.pageviews || 0;
+	for (const row of grouped.values()) {
+		totalPageviews += getNumber(row.pageviews);
 	}
-	for (const row of map.values()) {
+	for (const row of grouped.values()) {
 		row.percentage =
 			totalPageviews > 0
-				? Math.round((row.pageviews / totalPageviews) * 10_000) / 100
+				? Math.round((getNumber(row.pageviews) / totalPageviews) * 10_000) / 100
 				: 0;
 	}
-	return Array.from(map.values());
+	return Array.from(grouped.values());
+}
+
+function applyUrlNormalization(data: DataRow[]): DataRow[] {
+	return data.map((row) => {
+		const original = getString(row.name);
+		if (!original) {
+			return row;
+		}
+		let normalized = original;
+		try {
+			if (
+				normalized.startsWith('http://') ||
+				normalized.startsWith('https://')
+			) {
+				const url = new URL(normalized);
+				normalized = url.pathname || '/';
+			}
+			if (!normalized.startsWith('/')) {
+				normalized = `/${normalized}`;
+			}
+			if (normalized.length > 1 && normalized.endsWith('/')) {
+				normalized = normalized.slice(0, -1);
+			}
+			return { ...row, name: normalized } as DataRow;
+		} catch {
+			return row;
+		}
+	});
 }

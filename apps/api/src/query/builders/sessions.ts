@@ -215,7 +215,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			'path',
 			'error_message',
 			'error_type',
-			'properties_json',
+			'properties',
 			'device_type',
 			'browser_name',
 			'country',

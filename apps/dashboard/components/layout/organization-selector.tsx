@@ -4,11 +4,12 @@ import {
 	CaretDownIcon,
 	CheckIcon,
 	PlusIcon,
+	SpinnerGapIcon,
 	UserIcon,
 	UsersIcon,
 } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
-import * as React from 'react';
+import { useCallback, useState } from 'react';
 import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,28 @@ const getOrganizationInitials = (name: string) => {
 		.slice(0, 2);
 };
 
+function filterOrganizations<T extends { name: string; slug?: string | null }>(
+	orgs: T[] | undefined,
+	query: string
+): T[] {
+	if (!orgs || orgs.length === 0) {
+		return [];
+	}
+	if (!query) {
+		return orgs;
+	}
+	const q = query.toLowerCase();
+	const filtered: T[] = [];
+	for (const org of orgs) {
+		const nameMatch = org.name.toLowerCase().includes(q);
+		const slugMatch = org.slug ? org.slug.toLowerCase().includes(q) : false;
+		if (nameMatch || slugMatch) {
+			filtered.push(org);
+		}
+	}
+	return filtered;
+}
+
 export function OrganizationSelector() {
 	const {
 		organizations,
@@ -39,12 +62,14 @@ export function OrganizationSelector() {
 		isLoading,
 		setActiveOrganization,
 		isSettingActiveOrganization,
+		hasError,
 	} = useOrganizations();
 	const router = useRouter();
-	const [isOpen, setIsOpen] = React.useState(false);
-	const [showCreateDialog, setShowCreateDialog] = React.useState(false);
+	const [isOpen, setIsOpen] = useState(false);
+	const [showCreateDialog, setShowCreateDialog] = useState(false);
+	const [query, setQuery] = useState('');
 
-	const handleSelectOrganization = React.useCallback(
+	const handleSelectOrganization = useCallback(
 		(organizationId: string | null) => {
 			if (organizationId === activeOrganization?.id) {
 				return;
@@ -58,21 +83,23 @@ export function OrganizationSelector() {
 		[activeOrganization, setActiveOrganization]
 	);
 
-	const handleCreateOrganization = React.useCallback(() => {
+	const handleCreateOrganization = useCallback(() => {
 		setShowCreateDialog(true);
 		setIsOpen(false);
 	}, []);
 
-	const handleManageOrganizations = React.useCallback(() => {
+	const handleManageOrganizations = useCallback(() => {
 		router.push('/organizations');
 		setIsOpen(false);
 	}, [router]);
+
+	const filteredOrganizations = filterOrganizations(organizations, query);
 
 	if (isLoading) {
 		return (
 			<div className="rounded border border-border/50 bg-accent/30 px-2 py-2">
 				<div className="flex items-center gap-3">
-					<Skeleton className="h-8 w-8 rounded-full" />
+					<Skeleton className="h-8 w-8 rounded" />
 					<div className="space-y-1">
 						<Skeleton className="h-4 w-24 rounded" />
 						<Skeleton className="h-3 w-16 rounded" />
@@ -82,19 +109,40 @@ export function OrganizationSelector() {
 		);
 	}
 
+	if (hasError) {
+		return (
+			<div className="rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive">
+				<div className="flex items-center gap-2 text-sm">
+					<span>Failed to load workspaces</span>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<>
-			<DropdownMenu onOpenChange={setIsOpen} open={isOpen}>
+			<DropdownMenu
+				onOpenChange={(open) => {
+					setIsOpen(open);
+					if (!open) {
+						setQuery('');
+					}
+				}}
+				open={isOpen}
+			>
 				<DropdownMenuTrigger asChild>
 					<Button
-						className="h-auto w-full p-0 hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+						aria-expanded={isOpen}
+						aria-haspopup="listbox"
+						className="h-auto w-full p-0 hover:bg-transparent"
 						disabled={isSettingActiveOrganization}
+						type="button"
 						variant="ghost"
 					>
 						<div
 							className={cn(
-								'w-full rounded border border-border/50 bg-accent/30 px-2 py-2 transition-all duration-200',
-								'hover:border-border/70 hover:bg-accent/50',
+								'w-full rounded border border-border/50 bg-accent/30 px-2 py-2 transition-colors',
+								'hover:border-border/70 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
 								isSettingActiveOrganization && 'cursor-not-allowed opacity-70',
 								isOpen && 'border-border/70 bg-accent/50'
 							)}
@@ -111,35 +159,41 @@ export function OrganizationSelector() {
 												getOrganizationInitials(activeOrganization.name)
 											) : (
 												<UserIcon
-													className="h-4 w-4"
-													size={32}
+													className="not-dark:text-primary"
 													weight="duotone"
 												/>
 											)}
 										</AvatarFallback>
 									</Avatar>
 									<div className="flex min-w-0 flex-col text-left">
-										<span className="max-w-[140px] truncate font-medium text-sm">
+										<span className="max-w-[140px] truncate font-medium text-sm sm:max-w-[180px]">
 											{activeOrganization?.name || 'Personal'}
 										</span>
-										<span className="max-w-[140px] truncate text-muted-foreground text-xs">
+										<span className="max-w-[140px] truncate text-muted-foreground text-xs sm:max-w-[180px]">
 											{activeOrganization?.slug || 'Your workspace'}
 										</span>
 									</div>
 								</div>
-								<CaretDownIcon
-									className={cn(
-										'h-4 w-4 text-muted-foreground transition-transform duration-200',
-										isOpen && 'rotate-180'
-									)}
-									size={32}
-									weight="duotone"
-								/>
+								{isSettingActiveOrganization ? (
+									<SpinnerGapIcon
+										aria-label="Switching workspace"
+										className="h-4 w-4 animate-spin text-muted-foreground"
+										weight="duotone"
+									/>
+								) : (
+									<CaretDownIcon
+										className={cn(
+											'h-4 w-4 text-muted-foreground transition-transform duration-200',
+											isOpen && 'rotate-180'
+										)}
+										weight="fill"
+									/>
+								)}
 							</div>
 						</div>
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent align="start" className="w-64 p-1" sideOffset={4}>
+				<DropdownMenuContent align="start" className="w-72 p-1" sideOffset={4}>
 					{/* Personal Workspace */}
 					<DropdownMenuItem
 						className={cn(
@@ -151,7 +205,7 @@ export function OrganizationSelector() {
 					>
 						<Avatar className="h-6 w-6">
 							<AvatarFallback className="bg-muted text-xs">
-								<UserIcon className="h-4 w-4" size={32} weight="duotone" />
+								<UserIcon className="not-dark:text-primary" weight="duotone" />
 							</AvatarFallback>
 						</Avatar>
 						<div className="flex min-w-0 flex-1 flex-col">
@@ -162,17 +216,16 @@ export function OrganizationSelector() {
 						</div>
 						{!activeOrganization && (
 							<CheckIcon
-								className="h-4 w-4 text-primary"
-								size={32}
+								className="h-4 w-4 not-dark:text-primary"
 								weight="duotone"
 							/>
 						)}
 					</DropdownMenuItem>
 
-					{organizations && organizations.length > 0 && (
-						<>
+					{filteredOrganizations && filteredOrganizations.length > 0 && (
+						<div className="flex flex-col gap-1">
 							<DropdownMenuSeparator className="my-1" />
-							{organizations.map((org) => (
+							{filteredOrganizations.map((org) => (
 								<DropdownMenuItem
 									className={cn(
 										'flex cursor-pointer items-center gap-3 rounded px-2 py-2 transition-colors',
@@ -200,13 +253,18 @@ export function OrganizationSelector() {
 									{activeOrganization?.id === org.id && (
 										<CheckIcon
 											className="h-4 w-4 text-primary"
-											size={32}
 											weight="duotone"
 										/>
 									)}
 								</DropdownMenuItem>
 							))}
-						</>
+						</div>
+					)}
+
+					{filteredOrganizations.length === 0 && (
+						<div className="px-2 py-2 text-muted-foreground text-xs">
+							No workspaces match “{query}”.
+						</div>
 					)}
 
 					<DropdownMenuSeparator className="my-1" />
@@ -214,8 +272,8 @@ export function OrganizationSelector() {
 						className="flex cursor-pointer items-center gap-3 rounded px-2 py-2 transition-colors focus:bg-accent focus:text-accent-foreground"
 						onClick={handleCreateOrganization}
 					>
-						<div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-							<PlusIcon className="h-4 w-4 text-muted-foreground" size={32} />
+						<div className="flex h-6 w-6 items-center justify-center rounded bg-muted">
+							<PlusIcon className="not-dark:text-primary" />
 						</div>
 						<span className="font-medium text-sm">Create Organization</span>
 					</DropdownMenuItem>
@@ -223,12 +281,8 @@ export function OrganizationSelector() {
 						className="flex cursor-pointer items-center gap-3 rounded px-2 py-2 transition-colors focus:bg-accent focus:text-accent-foreground"
 						onClick={handleManageOrganizations}
 					>
-						<div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-							<UsersIcon
-								className="h-4 w-4 text-muted-foreground"
-								size={32}
-								weight="duotone"
-							/>
+						<div className="flex h-6 w-6 items-center justify-center rounded bg-muted">
+							<UsersIcon className="not-dark:text-primary" weight="duotone" />
 						</div>
 						<span className="font-medium text-sm">Manage Organizations</span>
 					</DropdownMenuItem>

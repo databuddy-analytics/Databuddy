@@ -1,6 +1,11 @@
 'use client';
 
-import { BuildingsIcon, UploadSimple, UsersIcon } from '@phosphor-icons/react';
+import {
+	BuildingsIcon,
+	UploadSimpleIcon,
+	UsersIcon,
+} from '@phosphor-icons/react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactCrop, {
@@ -32,11 +37,19 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { getCroppedImage } from '@/lib/canvas-utils';
 import 'react-image-crop/dist/ReactCrop.css';
 
+// Top-level regex literals for performance and lint compliance
+const SLUG_ALLOWED_REGEX = /^[a-z0-9-]+$/;
+const REGEX_NON_SLUG_NAME_CHARS = /[^a-z0-9\s-]/g;
+const REGEX_SPACES_TO_DASH = /\s+/g;
+const REGEX_MULTI_DASH = /-+/g;
+const REGEX_TRIM_DASH = /^-+|-+$/g;
+const REGEX_INVALID_SLUG_CHARS = /[^a-z0-9-]/g;
+
 interface CreateOrganizationData {
 	name: string;
 	slug: string;
 	logo: string;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 }
 
 interface CreateOrganizationDialogProps {
@@ -48,7 +61,8 @@ export function CreateOrganizationDialog({
 	isOpen,
 	onClose,
 }: CreateOrganizationDialogProps) {
-	const { createOrganization, isCreatingOrganization } = useOrganizations();
+	const { createOrganizationAsync, isCreatingOrganization } =
+		useOrganizations();
 	const router = useRouter();
 
 	// Form state
@@ -67,17 +81,17 @@ export function CreateOrganizationDialog({
 	const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
 	const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const imageRef = useRef<HTMLImageElement>(null);
+	const imageRef = useRef<HTMLImageElement | null>(null);
 
 	// Slug auto-generation
 	useEffect(() => {
 		if (!(slugManuallyEdited && formData.slug)) {
 			const generatedSlug = formData.name
 				.toLowerCase()
-				.replace(/[^a-z0-9\s-]/g, '')
-				.replace(/\s+/g, '-')
-				.replace(/-+/g, '-')
-				.replace(/^-+|-+$/g, '');
+				.replace(REGEX_NON_SLUG_NAME_CHARS, '')
+				.replace(REGEX_SPACES_TO_DASH, '-')
+				.replace(REGEX_MULTI_DASH, '-')
+				.replace(REGEX_TRIM_DASH, '');
 			setFormData((prev) => ({ ...prev, slug: generatedSlug }));
 		}
 	}, [formData.name, formData.slug, slugManuallyEdited]);
@@ -100,9 +114,9 @@ export function CreateOrganizationDialog({
 		setSlugManuallyEdited(true);
 		const cleanSlug = value
 			.toLowerCase()
-			.replace(/[^a-z0-9-]/g, '')
-			.replace(/-+/g, '-')
-			.replace(/^-+|-+$/g, '');
+			.replace(REGEX_INVALID_SLUG_CHARS, '')
+			.replace(REGEX_MULTI_DASH, '-')
+			.replace(REGEX_TRIM_DASH, '');
 		setFormData((prev) => ({ ...prev, slug: cleanSlug }));
 		if (cleanSlug === '') {
 			setSlugManuallyEdited(false);
@@ -114,25 +128,26 @@ export function CreateOrganizationDialog({
 		() =>
 			formData.name.trim().length >= 2 &&
 			(formData.slug || '').trim().length >= 2 &&
-			/^[a-z0-9-]+$/.test(formData.slug || ''),
+			SLUG_ALLOWED_REGEX.test(formData.slug || ''),
 		[formData.name, formData.slug]
 	);
 
 	// Image crop modal handlers
-	const handleCropModalOpenChange = (isOpen: boolean) => {
-		if (!isOpen && fileInputRef.current) {
+	const handleCropModalOpenChange = (open: boolean) => {
+		if (!open && fileInputRef.current) {
 			fileInputRef.current.value = '';
 		}
-		if (!isOpen) {
+		if (!open) {
 			setImageSrc(null);
 			setCrop(undefined);
 			setCompletedCrop(undefined);
 		}
-		setIsCropModalOpen(isOpen);
+		setIsCropModalOpen(open);
 	};
 
-	function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-		const { width, height } = e.currentTarget;
+	function onImageLoad(img: HTMLImageElement) {
+		const width = img.naturalWidth;
+		const height = img.naturalHeight;
 		const percentCrop = centerCrop(
 			makeAspectCrop({ unit: '%', width: 90 }, 1, width, height),
 			width,
@@ -146,6 +161,7 @@ export function CreateOrganizationDialog({
 			width: Math.round((percentCrop.width / 100) * width),
 			height: Math.round((percentCrop.height / 100) * height),
 		});
+		imageRef.current = img;
 	}
 
 	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,9 +196,8 @@ export function CreateOrganizationDialog({
 				toast.success('Logo saved successfully!');
 			};
 			reader.readAsDataURL(croppedFile);
-		} catch (e) {
+		} catch {
 			toast.error('Failed to crop image.');
-			console.error(e);
 		}
 	};
 
@@ -201,11 +216,11 @@ export function CreateOrganizationDialog({
 			return;
 		}
 		try {
-			createOrganization(formData);
+			await createOrganizationAsync(formData);
 			handleClose();
 			router.push('/organizations');
 		} catch {
-			// Error handled by mutation
+			// handled by mutation toast
 		}
 	};
 
@@ -221,7 +236,6 @@ export function CreateOrganizationDialog({
 							<div className="self-start rounded border border-primary/20 bg-primary/10 p-3 sm:self-center">
 								<BuildingsIcon
 									className="h-6 w-6 text-primary"
-									size={16}
 									weight="duotone"
 								/>
 							</div>
@@ -245,19 +259,36 @@ export function CreateOrganizationDialog({
 								>
 									Organization Name *
 								</Label>
-								<Input
-									className="rounded border-border/50 focus:border-primary/50 focus:ring-primary/20"
-									id="org-name"
-									maxLength={100}
-									onChange={(e) =>
-										setFormData((prev) => ({ ...prev, name: e.target.value }))
-									}
-									placeholder="e.g., Acme Corporation"
-									value={formData.name}
-								/>
-								<p className="text-muted-foreground text-xs">
-									This is the display name for your organization
-								</p>
+								{(() => {
+									const isNameValid = formData.name.trim().length >= 2;
+									return (
+										<>
+											<Input
+												aria-describedby="org-name-help"
+												aria-invalid={!isNameValid}
+												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
+													isNameValid ? '' : 'border-destructive'
+												}`}
+												id="org-name"
+												maxLength={100}
+												onChange={(e) =>
+													setFormData((prev) => ({
+														...prev,
+														name: e.target.value,
+													}))
+												}
+												placeholder="e.g., Acme Corporation"
+												value={formData.name}
+											/>
+											<p
+												className="text-muted-foreground text-xs"
+												id="org-name-help"
+											>
+												This is the display name for your organization
+											</p>
+										</>
+									);
+								})()}
 							</div>
 
 							<div className="space-y-2">
@@ -267,18 +298,34 @@ export function CreateOrganizationDialog({
 								>
 									Organization Slug *
 								</Label>
-								<Input
-									className="rounded border-border/50 focus:border-primary/50 focus:ring-primary/20"
-									id="org-slug"
-									maxLength={50}
-									onChange={(e) => handleSlugChange(e.target.value)}
-									placeholder="e.g., acme-corp"
-									value={formData.slug}
-								/>
-								<p className="text-muted-foreground text-xs">
-									Used in URLs and must be unique. Only lowercase letters,
-									numbers, and hyphens allowed.
-								</p>
+								{(() => {
+									const isSlugValid =
+										SLUG_ALLOWED_REGEX.test(formData.slug || '') &&
+										(formData.slug || '').trim().length >= 2;
+									return (
+										<>
+											<Input
+												aria-describedby="org-slug-help"
+												aria-invalid={!isSlugValid}
+												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
+													isSlugValid ? '' : 'border-destructive'
+												}`}
+												id="org-slug"
+												maxLength={50}
+												onChange={(e) => handleSlugChange(e.target.value)}
+												placeholder="e.g., acme-corp"
+												value={formData.slug}
+											/>
+											<p
+												className="text-muted-foreground text-xs"
+												id="org-slug-help"
+											>
+												Used in URLs and must be unique. Only lowercase letters,
+												numbers, and hyphens allowed.
+											</p>
+										</>
+									);
+								})()}
 							</div>
 
 							<div className="space-y-2">
@@ -302,11 +349,18 @@ export function CreateOrganizationDialog({
 										</Avatar>
 										<button
 											aria-label="Upload organization logo"
-											className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100"
+											className="absolute inset-0 flex cursor-pointer items-center justify-center rounded bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100"
 											onClick={() => fileInputRef.current?.click()}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													fileInputRef.current?.click();
+												}
+											}}
 											type="button"
 										>
-											<UploadSimple className="text-white" size={20} />
+											<UploadSimpleIcon className="h-5 w-5 text-white" />
+											<span className="sr-only">Upload organization logo</span>
 										</button>
 									</div>
 									<div className="min-w-0 flex-1">
@@ -328,11 +382,7 @@ export function CreateOrganizationDialog({
 
 						<div className="space-y-4">
 							<div className="flex items-center gap-2">
-								<UsersIcon
-									className="h-5 w-5 text-primary"
-									size={16}
-									weight="duotone"
-								/>
+								<UsersIcon className="h-5 w-5 text-primary" weight="duotone" />
 								<Label className="font-semibold text-base text-foreground">
 									Getting Started
 								</Label>
@@ -341,19 +391,10 @@ export function CreateOrganizationDialog({
 								<p className="text-muted-foreground text-sm">
 									After creating your organization, you'll be able to:
 								</p>
-								<ul className="mt-2 space-y-1 text-muted-foreground text-sm">
-									<li className="flex items-start gap-2">
-										<span className="mt-0.5 text-primary">•</span>
-										Invite team members with different roles
-									</li>
-									<li className="flex items-start gap-2">
-										<span className="mt-0.5 text-primary">•</span>
-										Share websites and analytics data
-									</li>
-									<li className="flex items-start gap-2">
-										<span className="mt-0.5 text-primary">•</span>
-										Manage organization settings and permissions
-									</li>
+								<ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground text-sm">
+									<li>Invite team members with different roles</li>
+									<li>Share websites and analytics data</li>
+									<li>Manage organization settings and permissions</li>
 								</ul>
 							</div>
 						</div>
@@ -372,6 +413,7 @@ export function CreateOrganizationDialog({
 								className="relative order-1 rounded sm:order-2"
 								disabled={!isFormValid || isCreatingOrganization}
 								onClick={handleSubmit}
+								type="button"
 							>
 								{isCreatingOrganization && (
 									<div className="absolute left-3">
@@ -392,25 +434,26 @@ export function CreateOrganizationDialog({
 			<Dialog onOpenChange={handleCropModalOpenChange} open={isCropModalOpen}>
 				<DialogContent className="max-h-[95vh] max-w-[95vw] overflow-auto">
 					<DialogHeader>
-						<DialogTitle>Crop your organization logo</DialogTitle>
+						<DialogTitle>Crop organization logo</DialogTitle>
 					</DialogHeader>
 					{imageSrc && (
 						<div className="flex justify-center">
 							<ReactCrop
 								aspect={1}
-								circularCrop={true}
+								circularCrop
 								crop={crop}
 								onChange={(pixelCrop, percentCrop) => {
 									setCrop(percentCrop);
 									setCompletedCrop(pixelCrop);
 								}}
 							>
-								<img
+								<Image
 									alt="Crop preview"
 									className="max-h-[60vh] max-w-full object-contain"
-									onLoad={onImageLoad}
-									ref={imageRef}
-									src={imageSrc}
+									height={600}
+									onLoadingComplete={onImageLoad}
+									src={imageSrc as string}
+									width={800}
 								/>
 							</ReactCrop>
 						</div>
@@ -419,6 +462,7 @@ export function CreateOrganizationDialog({
 						<Button
 							className="w-full sm:w-auto"
 							onClick={() => handleCropModalOpenChange(false)}
+							type="button"
 							variant="outline"
 						>
 							Cancel
@@ -427,6 +471,7 @@ export function CreateOrganizationDialog({
 							className="w-full sm:w-auto"
 							disabled={!(imageSrc && completedCrop)}
 							onClick={handleCropSave}
+							type="button"
 						>
 							Save Logo
 						</Button>

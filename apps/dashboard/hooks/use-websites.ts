@@ -16,7 +16,7 @@ export function useWebsites() {
 	const { data: activeOrganization, isPending: isLoadingOrganization } =
 		authClient.useActiveOrganization();
 
-	const { data, isLoading, isError, refetch } =
+	const { data, isLoading, isError, refetch, isFetching } =
 		trpc.websites.listWithCharts.useQuery(
 			{ organizationId: activeOrganization?.id },
 			{ enabled: !isLoadingOrganization }
@@ -26,6 +26,7 @@ export function useWebsites() {
 		websites: data?.websites || [],
 		chartData: data?.chartData,
 		isLoading: isLoading || isLoadingOrganization,
+		isFetching,
 		isError,
 		refetch,
 	};
@@ -44,7 +45,9 @@ export function useCreateWebsite() {
 			};
 
 			utils.websites.listWithCharts.setData(queryKey, (old) => {
-				if (!old) return { websites: [newWebsite], chartData: {} };
+				if (!old) {
+					return { websites: [newWebsite], chartData: {} };
+				}
 				const exists = old.websites.some((w) => w.id === newWebsite.id);
 				return exists
 					? old
@@ -73,7 +76,9 @@ export function useUpdateWebsite() {
 			};
 
 			utils.websites.listWithCharts.setData(listKey, (old) => {
-				if (!old) return old;
+				if (!old) {
+					return old;
+				}
 				return {
 					...old,
 					websites: old.websites.map((website) =>
@@ -105,7 +110,9 @@ export function useDeleteWebsite() {
 			const previousData = utils.websites.listWithCharts.getData(listKey);
 
 			utils.websites.listWithCharts.setData(listKey, (old) => {
-				if (!old) return old;
+				if (!old) {
+					return old;
+				}
 				return {
 					...old,
 					websites: old.websites.filter((w) => w.id !== id),

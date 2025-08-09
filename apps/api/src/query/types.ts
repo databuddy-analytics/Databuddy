@@ -38,7 +38,9 @@ export interface SimpleQueryConfig {
 	plugins?: {
 		parseReferrers?: boolean;
 		normalizeUrls?: boolean;
-		[key: string]: unknown;
+		normalizeGeo?: boolean;
+		deduplicateGeo?: boolean;
+		mapDeviceTypes?: boolean;
 	};
 	customSql?: (
 		websiteId: string,

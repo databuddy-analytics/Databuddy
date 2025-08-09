@@ -110,6 +110,21 @@ bun sdk:build
 bun run dev
 ```
 
+8. Seed the database with sample data (optional):
+
+```bash
+bun db:seed <WEBSITE_ID> [DOMAIN] [EVENT_COUNT]
+```
+
+**Examples:**
+
+```bash
+bun db:seed g0zlgMtBaXzIP1EGY2ieG onlybuddies.com 10000
+bun db:seed d7zlgMtBaSzIL1EGR2ieR notmybuddy.cc 5000
+```
+
+**Note:** You can find your website ID in your website overview settings.
+
 ## 💻 Development
 
 ### Available Scripts

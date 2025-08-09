@@ -17,13 +17,11 @@ import {
 	getBillingCustomerId,
 	trackWebsiteUsage,
 } from '../utils/billing';
+import { invalidateWebsiteCaches } from '../utils/cache-invalidation';
 
 const websiteCache = createDrizzleCache({ redis, namespace: 'websites' });
-const CACHE_DURATION = 60;
-const TREND_THRESHOLD = 5;
-
-const buildFullDomain = (domain: string, subdomain?: string) =>
-	subdomain ? `${subdomain}.${domain}` : domain;
+const CACHE_DURATION = 60; // seconds
+const TREND_THRESHOLD = 5; // percentage
 
 interface ChartDataPoint {
 	websiteId: string;
@@ -31,13 +29,24 @@ interface ChartDataPoint {
 	value: number;
 }
 
+const buildFullDomain = (rawDomain: string, rawSubdomain?: string) => {
+	const domain = rawDomain.trim().toLowerCase();
+	const subdomain = rawSubdomain?.trim().toLowerCase();
+	return subdomain ? `${subdomain}.${domain}` : domain;
+};
+
+const buildWebsiteFilter = (userId: string, organizationId?: string) =>
+	organizationId
+		? eq(websites.organizationId, organizationId)
+		: and(eq(websites.userId, userId), isNull(websites.organizationId));
+
 const calculateAverage = (values: { value: number }[]) =>
 	values.length > 0
 		? values.reduce((sum, item) => sum + item.value, 0) / values.length
 		: 0;
 
 const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
-	if (!dataPoints?.length) {
+	if (!dataPoints?.length || dataPoints.length < 4) {
 		return null;
 	}
 
@@ -140,11 +149,6 @@ const fetchChartData = async (
 	return processedData;
 };
 
-const buildWebsiteFilter = (userId: string, organizationId?: string) =>
-	organizationId
-		? eq(websites.organizationId, organizationId)
-		: and(eq(websites.userId, userId), isNull(websites.organizationId));
-
 export const websitesRouter = createTRPCRouter({
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
@@ -154,7 +158,19 @@ export const websitesRouter = createTRPCRouter({
 				key: listCacheKey,
 				ttl: CACHE_DURATION,
 				tables: ['websites'],
-				queryFn: () => {
+				queryFn: async () => {
+					if (input.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: ctx.headers,
+							body: { permissions: { website: ['read'] } },
+						});
+						if (!success) {
+							throw new TRPCError({
+								code: 'FORBIDDEN',
+								message: 'Missing organization permissions.',
+							});
+						}
+					}
 					const whereClause = buildWebsiteFilter(
 						ctx.user.id,
 						input.organizationId
@@ -175,8 +191,20 @@ export const websitesRouter = createTRPCRouter({
 			return websiteCache.withCache({
 				key: chartsListCacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['websites', 'member'],
+				tables: ['websites'],
 				queryFn: async () => {
+					if (input.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: ctx.headers,
+							body: { permissions: { website: ['read'] } },
+						});
+						if (!success) {
+							throw new TRPCError({
+								code: 'FORBIDDEN',
+								message: 'Missing organization permissions.',
+							});
+						}
+					}
 					const whereClause = buildWebsiteFilter(
 						ctx.user.id,
 						input.organizationId
@@ -230,6 +258,7 @@ export const websitesRouter = createTRPCRouter({
 				ctx.user.id,
 				input.organizationId
 			);
+
 			const creationLimitCheck =
 				await checkAndTrackWebsiteCreation(billingCustomerId);
 			if (!creationLimitCheck.allowed) {
@@ -245,31 +274,36 @@ export const websitesRouter = createTRPCRouter({
 				buildWebsiteFilter(ctx.user.id, input.organizationId)
 			);
 
-			const duplicateWebsite = await ctx.db.query.websites.findFirst({
-				where: websiteFilter,
-			});
-
-			if (duplicateWebsite) {
-				const scopeDescription = input.organizationId
-					? 'in this organization'
-					: 'for your account';
-				throw new TRPCError({
-					code: 'CONFLICT',
-					message: `A website with the domain "${domainToCreate}" already exists ${scopeDescription}.`,
+			const createdWebsite = await ctx.db.transaction(async (tx) => {
+				const duplicateWebsite = await tx.query.websites.findFirst({
+					where: websiteFilter,
 				});
-			}
 
-			const [createdWebsite] = await ctx.db
-				.insert(websites)
-				.values({
-					id: nanoid(),
-					name: input.name,
-					domain: domainToCreate,
-					userId: ctx.user.id,
-					organizationId: input.organizationId,
-					status: 'ACTIVE',
-				})
-				.returning();
+				if (duplicateWebsite) {
+					const scopeDescription = input.organizationId
+						? 'in this organization'
+						: 'for your account';
+					throw new TRPCError({
+						code: 'CONFLICT',
+						message: `A website with the domain "${domainToCreate}" already exists ${scopeDescription}.`,
+					});
+				}
+
+				// Create website
+				const [website] = await tx
+					.insert(websites)
+					.values({
+						id: nanoid(),
+						name: input.name,
+						domain: domainToCreate,
+						userId: ctx.user.id,
+						organizationId: input.organizationId,
+						status: 'ACTIVE',
+					})
+					.returning();
+
+				return website;
+			});
 
 			logger.success(
 				'Website Created',
@@ -282,7 +316,11 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await websiteCache.invalidateByTables(['websites']);
+			await invalidateWebsiteCaches(
+				createdWebsite.id,
+				ctx.user.id,
+				'website created'
+			);
 
 			return createdWebsite;
 		}),
@@ -296,11 +334,22 @@ export const websitesRouter = createTRPCRouter({
 				'update'
 			);
 
-			const [updatedWebsite] = await ctx.db
-				.update(websites)
-				.set({ name: input.name })
-				.where(eq(websites.id, input.id))
-				.returning();
+			const updatedWebsite = await ctx.db.transaction(async (tx) => {
+				const [website] = await tx
+					.update(websites)
+					.set({ name: input.name, isPublic: input.isPublic })
+					.where(eq(websites.id, input.id))
+					.returning();
+
+				if (!website) {
+					throw new TRPCError({
+						code: 'NOT_FOUND',
+						message: 'Website not found',
+					});
+				}
+
+				return website;
+			});
 
 			logger.info(
 				'Website Updated',
@@ -313,10 +362,23 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await Promise.all([
-				websiteCache.invalidateByTables(['websites']),
-				websiteCache.invalidateByKey(`getById:${input.id}`),
-			]);
+			if (
+				input.isPublic !== undefined &&
+				input.isPublic !== websiteToUpdate.isPublic
+			) {
+				logger.info(
+					'Public status changed - caches invalidated',
+					`Website ${input.id} public status changed to ${input.isPublic}`,
+					{
+						websiteId: input.id,
+						oldIsPublic: websiteToUpdate.isPublic,
+						newIsPublic: input.isPublic,
+						userId: ctx.user.id,
+					}
+				);
+			}
+
+			await invalidateWebsiteCaches(input.id, ctx.user.id, 'website updated');
 
 			return updatedWebsite;
 		}),
@@ -334,10 +396,12 @@ export const websitesRouter = createTRPCRouter({
 				websiteToDelete.organizationId
 			);
 
-			await Promise.all([
-				ctx.db.delete(websites).where(eq(websites.id, input.id)),
-				trackWebsiteUsage(billingCustomerId, -1),
-			]);
+			await ctx.db.transaction(async (tx) => {
+				await tx.delete(websites).where(eq(websites.id, input.id));
+
+				// Track billing usage (decrement)
+				await trackWebsiteUsage(billingCustomerId, -1);
+			});
 
 			logger.warning(
 				'Website Deleted',
@@ -350,10 +414,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await Promise.all([
-				websiteCache.invalidateByTables(['websites']),
-				websiteCache.invalidateByKey(`getById:${input.id}`),
-			]);
+			await invalidateWebsiteCaches(input.id, ctx.user.id, 'website deleted');
 
 			return { success: true };
 		}),
@@ -376,20 +437,20 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const [transferredWebsite] = await ctx.db
-				.update(websites)
-				.set({ organizationId: input.organizationId ?? null })
-				.where(eq(websites.id, input.websiteId))
-				.returning();
+			const transferredWebsite = await ctx.db.transaction(async (tx) => {
+				const [website] = await tx
+					.update(websites)
+					.set({
+						organizationId: input.organizationId ?? null,
+						updatedAt: new Date().toISOString(),
+					})
+					.where(eq(websites.id, input.websiteId))
+					.returning();
 
-			if (!transferredWebsite) {
-				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Website not found',
-				});
-			}
+				return website;
+			});
 
-			logger.success(
+			logger.info(
 				'Website Transferred',
 				`Website "${transferredWebsite.name}" was transferred to organization "${input.organizationId}"`,
 				{
@@ -399,12 +460,42 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await Promise.all([
-				websiteCache.invalidateByTables(['websites']),
-				websiteCache.invalidateByKey(`getById:${input.websiteId}`),
-			]);
+			await invalidateWebsiteCaches(
+				input.websiteId,
+				ctx.user.id,
+				'website transferred'
+			);
 
 			return transferredWebsite;
+		}),
+
+	invalidateCaches: protectedProcedure
+		.input(z.object({ websiteId: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+
+			try {
+				await invalidateWebsiteCaches(
+					input.websiteId,
+					ctx.user.id,
+					'manual cache invalidation'
+				);
+
+				return { success: true };
+			} catch (error) {
+				logger.error(
+					'Failed to invalidate caches',
+					error instanceof Error ? error.message : String(error),
+					{
+						websiteId: input.websiteId,
+						userId: ctx.user.id,
+					}
+				);
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to invalidate caches',
+				});
+			}
 		}),
 
 	isTrackingSetup: publicProcedure

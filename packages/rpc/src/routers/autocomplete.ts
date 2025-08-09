@@ -3,7 +3,7 @@ import { createDrizzleCache, redis } from '@databuddy/redis';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, publicProcedure } from '../trpc';
 import { authorizeWebsiteAccess } from '../utils/auth';
 
 const drizzleCache = createDrizzleCache({ redis, namespace: 'autocomplete' });
@@ -139,7 +139,7 @@ const categorizeAutocompleteResults = (
 });
 
 export const autocompleteRouter = createTRPCRouter({
-	get: protectedProcedure
+	get: publicProcedure
 		.input(analyticsDateRangeSchema)
 		.query(({ ctx, input }) => {
 			const { startDate, endDate } =

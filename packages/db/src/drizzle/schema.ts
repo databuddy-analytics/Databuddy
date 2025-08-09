@@ -89,6 +89,11 @@ export const account = pgTable(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
 		),
+		uniqueIndex('accounts_provider_account_unique').using(
+			'btree',
+			table.providerId.asc().nullsLast().op('text_ops'),
+			table.accountId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -120,6 +125,10 @@ export const session = pgTable(
 		index('sessions_userId_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
+		),
+		index('sessions_expiresAt_idx').using(
+			'btree',
+			table.expiresAt.asc().nullsLast()
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -211,6 +220,10 @@ export const verification = pgTable(
 		index('verifications_identifier_idx').using(
 			'btree',
 			table.identifier.asc().nullsLast().op('text_ops')
+		),
+		index('verifications_expiresAt_idx').using(
+			'btree',
+			table.expiresAt.asc().nullsLast()
 		),
 	]
 );
@@ -305,13 +318,6 @@ export const websites = pgTable(
 			foreignColumns: [organization.id],
 			name: 'websites_organization_id_organization_id_fk',
 		}).onDelete('cascade'),
-		foreignKey({
-			columns: [table.organizationId],
-			foreignColumns: [organization.id],
-			name: 'websites_organizationId_fkey',
-		})
-			.onUpdate('cascade')
-			.onDelete('cascade'),
 	]
 );
 
@@ -332,13 +338,7 @@ export const user = pgTable(
 		role: role().default('USER').notNull(),
 		twoFactorEnabled: boolean('two_factor_enabled'),
 	},
-	(table) => [
-		unique('users_email_unique').on(table.email),
-		index('users_email_idx').using(
-			'btree',
-			table.email.asc().nullsLast().op('text_ops')
-		),
-	]
+	(table) => [unique('users_email_unique').on(table.email)]
 );
 
 export const userStripeConfig = pgTable(
@@ -577,6 +577,10 @@ export const apikey = pgTable(
 			foreignColumns: [organization.id],
 			name: 'apikey_organization_id_organization_id_fk',
 		}).onDelete('cascade'),
+		uniqueIndex('apikey_key_unique').using(
+			'btree',
+			table.key.asc().nullsLast().op('text_ops')
+		),
 		index('apikey_user_id_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')

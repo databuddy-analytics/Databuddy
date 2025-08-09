@@ -1,6 +1,7 @@
 'use client';
 
 import { TargetIcon } from '@phosphor-icons/react';
+import { format, subDays, subHours } from 'date-fns';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import {
@@ -11,6 +12,9 @@ import {
 	useRef,
 	useState,
 } from 'react';
+import type { DateRange as DayPickerRange } from 'react-day-picker';
+import { DateRangePicker } from '@/components/date-range-picker';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAutocompleteData } from '@/hooks/use-funnels';
 import {
@@ -20,9 +24,11 @@ import {
 	useGoals,
 } from '@/hooks/use-goals';
 import { useWebsite } from '@/hooks/use-websites';
+import { trpc } from '@/lib/trpc';
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
+	setDateRangeAndAdjustGranularityAtom,
 	timeGranularityAtom,
 } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../_components/website-page-header';
@@ -73,7 +79,6 @@ export default function GoalsPage() {
 	const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 
-	// Intersection observer for lazy loading
 	const [isVisible, setIsVisible] = useState(false);
 	const pageRef = useRef<HTMLDivElement>(null);
 
@@ -95,9 +100,54 @@ export default function GoalsPage() {
 		return () => observer.disconnect();
 	}, []);
 
-	const [,] = useAtom(dateRangeAtom);
+	const [currentDateRange] = useAtom(dateRangeAtom);
 	const [currentGranularity] = useAtom(timeGranularityAtom);
+	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
+
+	const { data: trackingSetupData, isLoading: isTrackingSetupLoading } =
+		trpc.websites.isTrackingSetup.useQuery(
+			{ websiteId },
+			{ enabled: !!websiteId }
+		);
+
+	const isTrackingSetup = useMemo(() => {
+		if (isTrackingSetupLoading) {
+			return null;
+		}
+		return trackingSetupData?.tracking_setup ?? false;
+	}, [isTrackingSetupLoading, trackingSetupData?.tracking_setup]);
+
+	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
+		() => ({
+			from: currentDateRange.startDate,
+			to: currentDateRange.endDate,
+		}),
+		[currentDateRange]
+	);
+
+	const quickRanges = useMemo(
+		() => [
+			{ label: '24h', fullLabel: 'Last 24 hours', hours: 24 },
+			{ label: '7d', fullLabel: 'Last 7 days', days: 7 },
+			{ label: '30d', fullLabel: 'Last 30 days', days: 30 },
+			{ label: '90d', fullLabel: 'Last 90 days', days: 90 },
+			{ label: '180d', fullLabel: 'Last 180 days', days: 180 },
+			{ label: '365d', fullLabel: 'Last 365 days', days: 365 },
+		],
+		[]
+	);
+
+	const handleQuickRangeSelect = useCallback(
+		(range: (typeof quickRanges)[0]) => {
+			const now = new Date();
+			const start = range.hours
+				? subHours(now, range.hours)
+				: subDays(now, range.days || 7);
+			setDateRangeAction({ startDate: start, endDate: now });
+		},
+		[setDateRangeAction]
+	);
 
 	const memoizedDateRangeForTabs = useMemo(
 		() => ({
@@ -122,18 +172,14 @@ export default function GoalsPage() {
 		isUpdating,
 	} = useGoals(websiteId);
 
-	// Get goal IDs for bulk analytics
 	const goalIds = useMemo(() => goals.map((goal) => goal.id), [goals]);
 
-	// Fetch analytics for all goals
 	const {
 		data: goalAnalytics,
 		isLoading: analyticsLoading,
-		error: analyticsError,
 		refetch: refetchAnalytics,
 	} = useBulkGoalAnalytics(websiteId, goalIds, memoizedDateRangeForTabs);
 
-	// Preload autocomplete data for instant suggestions in dialogs
 	const autocompleteQuery = useAutocompleteData(websiteId);
 
 	const handleRefresh = useCallback(async () => {
@@ -160,7 +206,6 @@ export default function GoalsPage() {
 	) => {
 		try {
 			if ('id' in data) {
-				// Updating existing goal
 				await updateGoal({
 					goalId: data.id,
 					updates: {
@@ -247,6 +292,58 @@ export default function GoalsPage() {
 				websiteId={websiteId}
 				websiteName={websiteData?.name || undefined}
 			/>
+
+			{isTrackingSetup && (
+				<div className="mt-3 flex flex-col gap-3 rounded-lg border bg-muted/30 p-2.5">
+					<div className="flex items-center gap-2 overflow-x-auto rounded-md border bg-background p-1 shadow-sm">
+						{quickRanges.map((range) => {
+							const now = new Date();
+							const start = range.hours
+								? subHours(now, range.hours)
+								: subDays(now, range.days || 7);
+							const dayPickerCurrentRange = dayPickerSelectedRange;
+							const isActive =
+								dayPickerCurrentRange?.from &&
+								dayPickerCurrentRange?.to &&
+								format(dayPickerCurrentRange.from, 'yyyy-MM-dd') ===
+									format(start, 'yyyy-MM-dd') &&
+								format(dayPickerCurrentRange.to, 'yyyy-MM-dd') ===
+									format(now, 'yyyy-MM-dd');
+
+							return (
+								<Button
+									className={`h-6 cursor-pointer touch-manipulation whitespace-nowrap px-2 text-xs sm:px-2.5 ${isActive ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+									key={range.label}
+									onClick={() => handleQuickRangeSelect(range)}
+									size="sm"
+									title={range.fullLabel}
+									variant={isActive ? 'default' : 'ghost'}
+								>
+									<span className="sm:hidden">{range.label}</span>
+									<span className="hidden sm:inline">{range.fullLabel}</span>
+								</Button>
+							);
+						})}
+
+						<div className="ml-1 border-border/50 border-l pl-2 sm:pl-3">
+							<DateRangePicker
+								className="w-auto"
+								maxDate={new Date()}
+								minDate={new Date(2020, 0, 1)}
+								onChange={(range) => {
+									if (range?.from && range?.to) {
+										setDateRangeAction({
+											startDate: range.from,
+											endDate: range.to,
+										});
+									}
+								}}
+								value={dayPickerSelectedRange}
+							/>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{isVisible && (
 				<Suspense fallback={<GoalsListSkeleton />}>

@@ -16,7 +16,7 @@ export function Logo() {
 			<div className="flex items-center">
 				<h1
 					className={`
-          ${geistMono.variable}text-lg select-none font-semibold text-foreground leading-none tracking-wider transition-colors duration-200 `}
+          ${geistMono.variable} select-none font-semibold text-foreground leading-none tracking-wider transition-colors duration-200 `}
 				>
 					DATABUDDY
 				</h1>

@@ -12,6 +12,16 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,36 +58,36 @@ export function OrganizationsTab({
 }: OrganizationsTabProps) {
 	const {
 		setActiveOrganization,
-		deleteOrganization,
+		deleteOrganizationAsync,
 		isSettingActiveOrganization,
 		isDeletingOrganization,
 	} = useOrganizations();
 	const [deletingId, setDeletingId] = useState<string | null>(null);
+	const [confirmDelete, setConfirmDelete] = useState<{
+		id: string;
+		name: string;
+	} | null>(null);
 
 	const handleSetActive = (organizationId: string) => {
 		setActiveOrganization(organizationId);
 	};
 
-	const handleDelete = async (
-		organizationId: string,
-		organizationName: string
-	) => {
-		if (
-			!confirm(
-				`Are you sure you want to delete "${organizationName}"? This action cannot be undone.`
-			)
-		) {
+	const handleDelete = (organizationId: string, organizationName: string) => {
+		setConfirmDelete({ id: organizationId, name: organizationName });
+	};
+
+	const confirmDeleteAction = async () => {
+		if (!confirmDelete) {
 			return;
 		}
-
-		setDeletingId(organizationId);
+		setDeletingId(confirmDelete.id);
 		try {
-			deleteOrganization(organizationId);
-		} catch (error) {
-			console.error('Failed to delete organization:', error);
+			await deleteOrganizationAsync(confirmDelete.id);
+		} catch (_error) {
 			toast.error('Failed to delete organization');
 		} finally {
 			setDeletingId(null);
+			setConfirmDelete(null);
 		}
 	};
 
@@ -262,6 +272,30 @@ export function OrganizationsTab({
 					);
 				})}
 			</div>
+
+			<AlertDialog
+				onOpenChange={(open) => !open && setConfirmDelete(null)}
+				open={!!confirmDelete}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete organization</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete "{confirmDelete?.name}" and all
+							associated resources. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={confirmDeleteAction}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
