@@ -1,11 +1,10 @@
-import { Star } from '@phosphor-icons/react';
+import { CheckIcon, CircleNotchIcon, StarIcon } from '@phosphor-icons/react';
 import type { Product, ProductItem } from 'autumn-js';
 import {
 	type ProductDetails,
 	useCustomer,
 	usePricingTable,
 } from 'autumn-js/react';
-import { Check, Loader2 } from 'lucide-react';
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { PricingTiersTooltip } from '@/app/(main)/billing/components/pricing-tiers-tooltip';
 import AttachDialog from '@/components/autumn/attach-dialog';
@@ -441,7 +440,7 @@ export const PricingFeatureList = ({
 							key={featureItem.display?.primary_text}
 						>
 							{showIcon && (
-								<Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+								<CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
 							)}
 							<div className="flex flex-col">
 								<span>{featureItem.display?.primary_text}</span>
@@ -502,7 +501,7 @@ export const PricingCardButton = React.forwardRef<
 			variant={recommended ? 'default' : 'secondary'}
 		>
 			{loading ? (
-				<Loader2 className="h-4 w-4 animate-spin" />
+				<CircleNotchIcon className="h-4 w-4 animate-spin" />
 			) : (
 				<>
 					<div className="flex w-full items-center justify-between transition-transform duration-300 group-hover:translate-y-[-130%]">
@@ -554,7 +553,7 @@ export const AnnualSwitch = ({
 export const RecommendedBadge = ({ recommended }: { recommended: string }) => {
 	return (
 		<div className="absolute top-[-1px] right-[-1px] flex animate-bounce-in items-center gap-1 rounded-bl-lg border border-primary bg-primary/90 px-3 font-medium text-primary-foreground text-sm shadow-md lg:top-4 lg:right-4 lg:rounded-full lg:py-0.5">
-			<Star aria-hidden="true" className="h-4 w-4" weight="duotone" />
+			<StarIcon aria-hidden="true" className="h-4 w-4" weight="duotone" />
 			<span>{recommended}</span>
 		</div>
 	);
