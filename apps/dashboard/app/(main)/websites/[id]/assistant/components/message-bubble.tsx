@@ -147,7 +147,9 @@ function InProgressMessage({ message }: { message: Message }) {
 						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.15s]" />
 						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground" />
 					</div>
-					<span className="text-muted-foreground">Nova is analyzing...</span>
+					<span className="text-muted-foreground">
+						Databunny is analyzing...
+					</span>
 				</div>
 
 				{hasThinkingSteps && (
