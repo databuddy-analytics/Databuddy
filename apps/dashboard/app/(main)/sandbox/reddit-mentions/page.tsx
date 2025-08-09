@@ -171,15 +171,15 @@ function ErrorState({
 	);
 }
 
+type SortBy = 'relevance' | 'new' | 'top' | 'hot';
+
 export default function RedditMentionsPage() {
 	const [keywords, setKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
 	const [newKeyword, setNewKeyword] = useState('');
 	const [timeRange, setTimeRange] = useState('24h');
 	const [subreddits, _setSubreddits] = useState<string[]>([]);
 	const [minScore, setMinScore] = useState<number | undefined>(undefined);
-	const [sortBy, setSortBy] = useState<'relevance' | 'new' | 'top' | 'hot'>(
-		'new'
-	);
+	const [sortBy, setSortBy] = useState<SortBy>('new');
 	const [excludeStickied, setExcludeStickied] = useState(false);
 	const [backgroundSync, setBackgroundSync] = useState(false);
 
@@ -455,7 +455,7 @@ export default function RedditMentionsPage() {
 								<div className="space-y-2">
 									<Label className="font-medium text-xs">Sort By</Label>
 									<Select
-										onValueChange={(value: any) => setSortBy(value)}
+										onValueChange={(value: SortBy) => setSortBy(value)}
 										value={sortBy}
 									>
 										<SelectTrigger>
