@@ -227,7 +227,7 @@ export default function RevenuePage() {
 								</div>
 							) : websites && websites.length > 0 ? (
 								<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-									{websites.map((website: any) => (
+									{websites.map((website) => (
 										<Link
 											href={`/websites/${website.id}/revenue`}
 											key={website.id}

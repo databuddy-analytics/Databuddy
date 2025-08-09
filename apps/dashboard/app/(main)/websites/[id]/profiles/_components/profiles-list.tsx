@@ -228,7 +228,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 			<Card>
 				<CardContent className="p-0">
 					<div className="divide-y divide-border">
-						{allProfiles.map((profile: ProfileData, index: number) => (
+						{allProfiles.map((profile, index) => (
 							<ProfileRow
 								index={index}
 								isExpanded={expandedProfileId === profile.visitor_id}

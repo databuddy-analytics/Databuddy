@@ -9,7 +9,7 @@ import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GeoJSON, MapContainer, useMap } from 'react-leaflet';
 import { getCountryPopulation } from '@/lib/data';
-import { useCountries } from '@/lib/geo';
+import { type Country, useCountries } from '@/lib/geo';
 import { CountryFlag } from './icons/CountryFlag';
 
 interface TooltipContent {
@@ -343,42 +343,45 @@ export function MapComponent({
 	}, [resolvedTheme]);
 
 	// Helper function to calculate country centroid
-	const calculateCountryCentroid = useCallback((geometry: any) => {
-		let centroidLat = 0;
-		let centroidLng = 0;
-		let pointCount = 0;
+	const calculateCountryCentroid = useCallback(
+		(geometry: Country['features'][number]['geometry']) => {
+			let centroidLat = 0;
+			let centroidLng = 0;
+			let pointCount = 0;
 
-		const processCoordinates = (
-			coords: number[] | number[][] | number[][][]
-		) => {
-			if (typeof coords[0] === 'number') {
-				// Single coordinate pair
-				centroidLng += coords[0] as number;
-				centroidLat += coords[1] as number;
-				pointCount += 1;
-			} else {
-				// Array of coordinates
-				for (const coord of coords) {
-					processCoordinates(coord as number[] | number[][] | number[][][]);
+			const processCoordinates = (
+				coords: number[] | number[][] | number[][][]
+			) => {
+				if (typeof coords[0] === 'number') {
+					// Single coordinate pair
+					centroidLng += coords[0] as number;
+					centroidLat += coords[1] as number;
+					pointCount += 1;
+				} else {
+					// Array of coordinates
+					for (const coord of coords) {
+						processCoordinates(coord as number[] | number[][] | number[][][]);
+					}
+				}
+			};
+
+			if (geometry.type === 'Polygon') {
+				processCoordinates(geometry.coordinates[0]);
+			} else if (geometry.type === 'MultiPolygon') {
+				for (const polygon of geometry.coordinates) {
+					processCoordinates(polygon[0]);
 				}
 			}
-		};
 
-		if (geometry.type === 'Polygon') {
-			processCoordinates(geometry.coordinates[0]);
-		} else if (geometry.type === 'MultiPolygon') {
-			for (const polygon of geometry.coordinates) {
-				processCoordinates(polygon[0]);
-			}
-		}
-
-		return pointCount > 0
-			? {
-					lat: centroidLat / pointCount,
-					lng: centroidLng / pointCount,
-				}
-			: null;
-	}, []);
+			return pointCount > 0
+				? {
+						lat: centroidLat / pointCount,
+						lng: centroidLng / pointCount,
+					}
+				: null;
+		},
+		[]
+	);
 
 	// Fly to selected country
 	useEffect(() => {
@@ -388,7 +391,7 @@ export function MapComponent({
 
 		// Find the country feature in the GeoJSON data
 		const countryFeature = countriesGeoData.features?.find(
-			(feature: any) => feature.properties?.ISO_A2 === selectedCountry
+			(feature) => feature.properties?.ISO_A2 === selectedCountry
 		);
 
 		if (!countryFeature?.geometry) {

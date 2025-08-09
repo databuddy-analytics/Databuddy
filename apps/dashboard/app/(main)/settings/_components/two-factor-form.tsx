@@ -16,7 +16,7 @@ import {
 	ShieldCheckIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { type SubmitHandler, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,15 @@ import {
 	FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+
+const setupFormDefaultValues = {
+	password: '',
+};
+
+const verifyFormDefaultValues = {
+	code: '',
+	trustDevice: false,
+};
 
 export function TwoFactorForm() {
 	const { data: session } = useSession();
@@ -45,17 +54,12 @@ export function TwoFactorForm() {
 
 	// Setup form for entering password
 	const setupForm = useForm({
-		defaultValues: {
-			password: '',
-		},
+		defaultValues: setupFormDefaultValues,
 	});
 
 	// Verify form for entering 2FA code
 	const verifyForm = useForm({
-		defaultValues: {
-			code: '',
-			trustDevice: false,
-		},
+		defaultValues: verifyFormDefaultValues,
 	});
 
 	// Check if 2FA is already enabled
@@ -90,7 +94,9 @@ export function TwoFactorForm() {
 	}, [setupStep]);
 
 	// Handle setup 2FA (Step 1: Enter password)
-	const onSetupSubmit = async (data: any) => {
+	const onSetupSubmit: SubmitHandler<typeof setupFormDefaultValues> = async (
+		data
+	) => {
 		setIsLoading(true);
 		try {
 			const result = await enableTwoFactor(data.password, {
@@ -117,7 +123,9 @@ export function TwoFactorForm() {
 	};
 
 	// Handle verify code (Step 2: Enter 2FA code)
-	const onVerifySubmit = async (data: any) => {
+	const onVerifySubmit: SubmitHandler<typeof verifyFormDefaultValues> = async (
+		data
+	) => {
 		setIsLoading(true);
 		try {
 			const result = await verifyTwoFactorCode(data.code, {

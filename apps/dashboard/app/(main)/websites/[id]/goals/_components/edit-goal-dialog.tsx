@@ -141,7 +141,7 @@ export function EditGoalDialog({
 	);
 
 	const updateFilter = useCallback(
-		(index: number, field: keyof any, value: string) => {
+		(index: number, field: 'field' | 'operator' | 'value', value: string) => {
 			if (!formData) {
 				return;
 			}
