@@ -1,6 +1,7 @@
 'use client';
 
 import type React from 'react';
+import { cn } from '@/lib/utils';
 import { FaviconImage } from '../analytics/favicon-image';
 
 export interface ReferrerSourceCellData {
@@ -37,13 +38,15 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 	}
 
 	return (
-		<span
-			className={
+		<a
+			className={cn(
+				'flex cursor-pointer items-center gap-2 font-medium text-sm transition-colors hover:text-blue-600 hover:underline',
 				className
-					? `${className} flex items-center gap-2 font-medium text-sm`
-					: 'flex items-center gap-2 font-medium text-sm'
-			}
+			)}
+			href={`https://${domain.trim()}`}
 			id={id}
+			rel="noopener noreferrer nofollow"
+			target="_blank"
 		>
 			<FaviconImage
 				altText={`${displayName} favicon`}
@@ -52,7 +55,7 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 				size={16}
 			/>
 			{displayName}
-		</span>
+		</a>
 	);
 };
 
