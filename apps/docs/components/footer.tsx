@@ -1,5 +1,6 @@
 import { FaDiscord, FaGithub, FaXTwitter } from 'react-icons/fa6';
 import { IoMdMail } from 'react-icons/io';
+import { Wordmark } from './landing/wordmark';
 import { LogoContent } from './logo';
 
 export function Footer() {
@@ -146,6 +147,7 @@ export function Footer() {
 						</p>
 					</div>
 				</div>
+				<Wordmark />
 			</div>
 		</footer>
 	);

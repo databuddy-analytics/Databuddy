@@ -1,16 +1,22 @@
 import './global.css';
 import { RootProvider } from 'fumadocs-ui/provider';
 import type { Metadata, Viewport } from 'next';
-import { Geist } from 'next/font/google';
+import { Geist, Manrope } from 'next/font/google';
+import Head from 'next/head';
 import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
 import type { ReactNode } from 'react';
-import { Footer } from '@/components/footer';
 
 const geist = Geist({
 	subsets: ['latin'],
 	weight: ['400', '500', '600', '700'],
 	variable: '--font-geist',
+});
+
+const manrope = Manrope({
+	subsets: ['latin'],
+	weight: ['400', '500', '600', '700'],
+	variable: '--font-manrope',
 });
 
 export const metadata: Metadata = {
@@ -87,24 +93,29 @@ export const viewport: Viewport = {
 
 export default function Layout({ children }: { children: ReactNode }) {
 	return (
-		<html className={geist.className} lang="en" suppressHydrationWarning>
-			<Script
-				async
-				data-client-id="OXmNQsViBT-FOS_wZCTHc"
-				data-track-attributes={true}
-				data-track-errors={true}
-				data-track-outgoing-links={true}
-				data-track-web-vitals={true}
-				src="https://cdn.databuddy.cc/databuddy.js"
-				strategy="afterInteractive"
-			/>
-			<body className="flex min-h-screen flex-col">
+		<html
+			className={`${geist.className} ${manrope.className}`}
+			lang="en"
+			suppressHydrationWarning
+		>
+			<Head>
+				<link href="https://icons.duckduckgo.com" rel="preconnect" />
+				<link href="https://icons.duckduckgo.com" rel="dns-prefetch" />
+				<Script
+					async
+					data-client-id="OXmNQsViBT-FOS_wZCTHc"
+					data-track-attributes={true}
+					data-track-errors={true}
+					data-track-outgoing-links={true}
+					data-track-web-vitals={true}
+					src="https://cdn.databuddy.cc/databuddy.js"
+					strategy="afterInteractive"
+				/>
+			</Head>
+			<body>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 					<RootProvider>
-						<div className="flex min-h-screen flex-col">
-							<main className="flex-1">{children}</main>
-							<Footer />
-						</div>
+						<main>{children}</main>
 					</RootProvider>
 				</ThemeProvider>
 			</body>

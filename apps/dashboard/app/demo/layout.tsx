@@ -149,6 +149,7 @@ export function Sidebar() {
 			{/* Mobile backdrop */}
 			{isMobileOpen && (
 				<div
+					aria-hidden="true"
 					className="fixed inset-0 z-30 bg-black/20 md:hidden"
 					onClick={closeSidebar}
 					onKeyDown={closeSidebar}
@@ -248,7 +249,7 @@ export default function MainLayout({
 	return (
 		<div className="h-screen overflow-hidden bg-gradient-to-br from-background to-muted/20 text-foreground">
 			<Sidebar />
-			<div className="relative h-screen pt-16 md:pl-72">
+			<div className="relative h-screen pt-16 md:pl-64">
 				<div className="h-[calc(100vh-4rem)] overflow-y-scroll">{children}</div>
 			</div>
 		</div>
