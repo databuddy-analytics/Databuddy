@@ -4,7 +4,7 @@ import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Logo } from './logo';
+import { LogoContent } from './logo';
 import { NavLink } from './nav-link';
 
 export const Navbar = () => {
@@ -21,13 +21,13 @@ export const Navbar = () => {
 					<div className="flex h-16 items-center justify-between">
 						{/* Logo Section */}
 						<div className="flex-shrink-0">
-							<Logo />
+							<LogoContent />
 						</div>
 
 						{/* Desktop Navigation */}
 						<div className="hidden md:block">
 							<ul className="flex items-center">
-								{navMenu.map((menu, i) => (
+								{navMenu.map((menu) => (
 									<NavLink
 										external={menu.external}
 										href={menu.path}
@@ -62,6 +62,7 @@ export const Navbar = () => {
 							aria-label="Toggle mobile menu"
 							className="group relative rounded-lg border border-transparent p-2.5 transition-all duration-200 hover:border-border/30 hover:bg-muted/50 active:bg-muted/70 md:hidden"
 							onClick={toggleMobileMenu}
+							type="button"
 						>
 							<div className="relative h-6 w-6">
 								<Menu

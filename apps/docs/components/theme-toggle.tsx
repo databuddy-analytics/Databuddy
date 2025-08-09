@@ -17,10 +17,11 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 	};
 
 	const toggleTheme = () => {
-		if (!document.startViewTransition) {
+		if (document.startViewTransition) {
+			document.startViewTransition(switchTheme);
+		} else {
 			switchTheme();
 		}
-		document.startViewTransition(switchTheme);
 	};
 
 	return (
