@@ -22,12 +22,12 @@ export function LogoContent() {
         />
       </div>
       <div className="flex items-center">
-        <h1
+        <span
           className={`
           ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider transition-colors duration-200 `}
         >
           DATABUDDY
-        </h1>
+        </span>
       </div>
     </div>
   );
