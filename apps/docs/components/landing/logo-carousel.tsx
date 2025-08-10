@@ -1,80 +1,80 @@
-'use client';
+"use client";
 
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion } from "motion/react";
 // import Image from 'next/image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 // const RE_WWW_PREFIX = /^www\./;
 
 interface Logo {
-	id: number;
-	name: string;
-	src?: string;
+  id: number;
+  name: string;
+  src?: string;
 }
 
 interface LogoColumnProps {
-	logos: Logo[];
-	columnIndex: number;
-	currentTime: number;
+  logos: Logo[];
+  columnIndex: number;
+  currentTime: number;
 }
 
 function LogoColumn({ logos, columnIndex, currentTime }: LogoColumnProps) {
-	const CYCLE_DURATION = 2000;
-	const columnDelay = columnIndex * 200;
-	const adjustedTime =
-		(currentTime + columnDelay) % (CYCLE_DURATION * logos.length);
-	const currentIndex = Math.floor(adjustedTime / CYCLE_DURATION);
-	const currentLogo = logos[currentIndex];
+  const CYCLE_DURATION = 2000;
+  const columnDelay = columnIndex * 200;
+  const adjustedTime =
+    (currentTime + columnDelay) % (CYCLE_DURATION * logos.length);
+  const currentIndex = Math.floor(adjustedTime / CYCLE_DURATION);
+  const currentLogo = logos[currentIndex];
 
-	// const [imgError, setImgError] = useState(false);
+  // const [imgError, setImgError] = useState(false);
 
-	// const getHostnameFromUrl = (url: string): string => {
-	// 	try {
-	// 		const u = new URL(url);
-	// 		return u.hostname.replace(RE_WWW_PREFIX, '');
-	// 	} catch {
-	// 		return '';
-	// 	}
-	// };
+  // const getHostnameFromUrl = (url: string): string => {
+  // 	try {
+  // 		const u = new URL(url);
+  // 		return u.hostname.replace(RE_WWW_PREFIX, '');
+  // 	} catch {
+  // 		return '';
+  // 	}
+  // };
 
-	// const faviconSrc = currentLogo.src
-	// 	? `https://icons.duckduckgo.com/ip3/${getHostnameFromUrl(currentLogo.src)}.ico`
-	// 	: '';
+  // const faviconSrc = currentLogo.src
+  // 	? `https://icons.duckduckgo.com/ip3/${getHostnameFromUrl(currentLogo.src)}.ico`
+  // 	: '';
 
-	// const showFavicon = Boolean(faviconSrc) && !imgError;
+  // const showFavicon = Boolean(faviconSrc) && !imgError;
 
-	return (
-		<motion.div
-			animate={{ opacity: 1, y: 0 }}
-			className="relative h-16 w-40 overflow-hidden border-r sm:h-20 md:h-24 md:w-64 lg:w-72"
-			initial={{ opacity: 0, y: 20 }}
-			transition={{
-				delay: columnIndex * 0.1,
-				duration: 0.5,
-				ease: [0.25, 0.1, 0.25, 1],
-			}}
-		>
-			<AnimatePresence mode="wait">
-				<motion.div
-					animate={{
-						y: '0%',
-						opacity: 1,
-						transition: {
-							duration: 0.6,
-							ease: [0.25, 0.46, 0.45, 0.94],
-						},
-					}}
-					className="absolute inset-0 flex items-center justify-center gap-2"
-					exit={{
-						y: '-20%',
-						filter: 'blur(3px)',
-						opacity: 0,
-						transition: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
-					}}
-					initial={{ y: '10%', opacity: 0 }}
-					key={`${currentLogo.id}-${currentIndex}`}
-				>
-					{/* {showFavicon ? (
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="relative h-16 w-40 overflow-hidden border-r sm:h-20 md:h-24 md:w-64 lg:w-72"
+      initial={{ opacity: 0, y: 20 }}
+      transition={{
+        delay: columnIndex * 0.1,
+        duration: 0.5,
+        ease: [0.25, 0.1, 0.25, 1],
+      }}
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          animate={{
+            y: "0%",
+            opacity: 1,
+            transition: {
+              duration: 0.6,
+              ease: [0.25, 0.46, 0.45, 0.94],
+            },
+          }}
+          className="absolute inset-0 flex items-center justify-center gap-2"
+          exit={{
+            y: "-20%",
+            filter: "blur(3px)",
+            opacity: 0,
+            transition: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
+          }}
+          initial={{ y: "10%", opacity: 0 }}
+          key={`${currentLogo.id}-${currentIndex}`}
+        >
+          {/* {showFavicon ? (
 						<Image
 							alt={`${currentLogo.name} favicon`}
 							className="h-6 w-6"
@@ -87,66 +87,66 @@ function LogoColumn({ logos, columnIndex, currentTime }: LogoColumnProps) {
 							width={24}
 						/>
 					) : null} */}
-					<h1 className="truncate font-bold text-base sm:text-xl md:text-2xl">
-						{currentLogo.name}
-					</h1>
-				</motion.div>
-			</AnimatePresence>
-		</motion.div>
-	);
+          <span className="truncate font-bold text-base sm:text-xl md:text-2xl">
+            {currentLogo.name}
+          </span>
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
+  );
 }
 
 interface LogoCarouselProps {
-	columns?: number;
-	logos: Logo[];
+  columns?: number;
+  logos: Logo[];
 }
 
 export function LogoCarousel({ columns = 2, logos }: LogoCarouselProps) {
-	const [logoColumns, setLogoColumns] = useState<Logo[][]>([]);
-	const [time, setTime] = useState(0);
+  const [logoColumns, setLogoColumns] = useState<Logo[][]>([]);
+  const [time, setTime] = useState(0);
 
-	const distributeLogos = useCallback(
-		(logoList: Logo[]) => {
-			const shuffled = [...logoList].sort(() => Math.random() - 0.5);
-			const result: Logo[][] = Array.from({ length: columns }, () => []);
+  const distributeLogos = useCallback(
+    (logoList: Logo[]) => {
+      const shuffled = [...logoList].sort(() => Math.random() - 0.5);
+      const result: Logo[][] = Array.from({ length: columns }, () => []);
 
-			shuffled.forEach((logo, index) => {
-				result[index % columns].push(logo);
-			});
+      shuffled.forEach((logo, index) => {
+        result[index % columns].push(logo);
+      });
 
-			const maxLength = Math.max(...result.map((col) => col.length));
-			for (const col of result) {
-				while (col.length < maxLength) {
-					col.push(shuffled[Math.floor(Math.random() * shuffled.length)]);
-				}
-			}
+      const maxLength = Math.max(...result.map((col) => col.length));
+      for (const col of result) {
+        while (col.length < maxLength) {
+          col.push(shuffled[Math.floor(Math.random() * shuffled.length)]);
+        }
+      }
 
-			return result;
-		},
-		[columns]
-	);
+      return result;
+    },
+    [columns]
+  );
 
-	useEffect(() => {
-		setLogoColumns(distributeLogos(logos));
-	}, [logos, distributeLogos]);
+  useEffect(() => {
+    setLogoColumns(distributeLogos(logos));
+  }, [logos, distributeLogos]);
 
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setTime((prev) => prev + 100);
-		}, 100);
-		return () => clearInterval(interval);
-	}, []);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime((prev) => prev + 100);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
-	return (
-		<div className="flex justify-center gap-4">
-			{logoColumns.map((columnLogos, index) => (
-				<LogoColumn
-					columnIndex={index}
-					currentTime={time}
-					key={`${index}-${columnLogos.map((logo) => logo.id).join('-')}`}
-					logos={columnLogos}
-				/>
-			))}
-		</div>
-	);
+  return (
+    <div className="flex justify-center gap-4">
+      {logoColumns.map((columnLogos, index) => (
+        <LogoColumn
+          columnIndex={index}
+          currentTime={time}
+          key={`${index}-${columnLogos.map((logo) => logo.id).join("-")}`}
+          logos={columnLogos}
+        />
+      ))}
+    </div>
+  );
 }
