@@ -1,7 +1,10 @@
-import { Star } from '@phosphor-icons/react';
+import { CheckIcon, CircleNotchIcon, StarIcon } from '@phosphor-icons/react';
 import type { Product, ProductItem } from 'autumn-js';
-import { useCustomer, usePricingTable } from 'autumn-js/react';
-import { Check, Loader2 } from 'lucide-react';
+import {
+	type ProductDetails,
+	useCustomer,
+	usePricingTable,
+} from 'autumn-js/react';
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { PricingTiersTooltip } from '@/app/(main)/billing/components/pricing-tiers-tooltip';
 import AttachDialog from '@/components/autumn/attach-dialog';
@@ -10,10 +13,30 @@ import { Switch } from '@/components/ui/switch';
 import { getPricingTableContent } from '@/lib/autumn/pricing-table-content';
 import { cn } from '@/lib/utils';
 
+const PricingTableSkeleton = () => (
+	<div
+		aria-live="polite"
+		className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+	>
+		{[1, 2, 3].map((i) => (
+			<div
+				className="mx-auto flex h-64 w-full max-w-xl animate-pulse flex-col rounded-lg border bg-secondary/40 p-6"
+				key={i}
+			>
+				<div className="mb-4 h-6 w-1/2 rounded bg-zinc-300/60" />
+				<div className="mb-2 h-4 w-1/3 rounded bg-zinc-200/60" />
+				<div className="mb-6 h-4 w-2/3 rounded bg-zinc-200/60" />
+				<div className="flex-1" />
+				<div className="mt-4 h-10 w-full rounded bg-zinc-300/60" />
+			</div>
+		))}
+	</div>
+);
+
 export default function PricingTable({
 	productDetails,
 }: {
-	productDetails?: any;
+	productDetails?: ProductDetails[];
 }) {
 	const { attach } = useCustomer();
 	const [isAnnual, setIsAnnual] = useState(false);
@@ -23,26 +46,6 @@ export default function PricingTable({
 
 	const summary =
 		'All plans include unlimited team members, full analytics, and priority support.';
-
-	const PricingTableSkeleton = () => (
-		<div
-			aria-live="polite"
-			className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-		>
-			{[1, 2, 3].map((i) => (
-				<div
-					className="mx-auto flex h-64 w-full max-w-xl animate-pulse flex-col rounded-lg border bg-secondary/40 p-6"
-					key={i}
-				>
-					<div className="mb-4 h-6 w-1/2 rounded bg-zinc-300/60" />
-					<div className="mb-2 h-4 w-1/3 rounded bg-zinc-200/60" />
-					<div className="mb-6 h-4 w-2/3 rounded bg-zinc-200/60" />
-					<div className="flex-1" />
-					<div className="mt-4 h-10 w-full rounded bg-zinc-300/60" />
-				</div>
-			))}
-		</div>
-	);
 
 	const handleRetry = useCallback(() => {
 		if (typeof refetch === 'function') {
@@ -437,7 +440,7 @@ export const PricingFeatureList = ({
 							key={featureItem.display?.primary_text}
 						>
 							{showIcon && (
-								<Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+								<CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
 							)}
 							<div className="flex flex-col">
 								<span>{featureItem.display?.primary_text}</span>
@@ -498,7 +501,7 @@ export const PricingCardButton = React.forwardRef<
 			variant={recommended ? 'default' : 'secondary'}
 		>
 			{loading ? (
-				<Loader2 className="h-4 w-4 animate-spin" />
+				<CircleNotchIcon className="h-4 w-4 animate-spin" />
 			) : (
 				<>
 					<div className="flex w-full items-center justify-between transition-transform duration-300 group-hover:translate-y-[-130%]">
@@ -550,7 +553,7 @@ export const AnnualSwitch = ({
 export const RecommendedBadge = ({ recommended }: { recommended: string }) => {
 	return (
 		<div className="absolute top-[-1px] right-[-1px] flex animate-bounce-in items-center gap-1 rounded-bl-lg border border-primary bg-primary/90 px-3 font-medium text-primary-foreground text-sm shadow-md lg:top-4 lg:right-4 lg:rounded-full lg:py-0.5">
-			<Star aria-hidden="true" className="h-4 w-4" weight="duotone" />
+			<StarIcon aria-hidden="true" className="h-4 w-4" weight="duotone" />
 			<span>{recommended}</span>
 		</div>
 	);

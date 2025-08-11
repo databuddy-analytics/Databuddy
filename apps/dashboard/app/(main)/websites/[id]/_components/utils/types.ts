@@ -1,4 +1,4 @@
-import type { DateRange as BaseDateRange } from '@databuddy/shared';
+import type { DateRange as BaseDateRange, Website } from '@databuddy/shared';
 
 // Extended date range with granularity
 export interface DateRange extends BaseDateRange {
@@ -19,13 +19,13 @@ export interface RefreshableTabProps extends BaseTabProps {
 
 // Tab props with website data
 export interface WebsiteDataTabProps extends BaseTabProps {
-	websiteData: any;
+	websiteData: Website | undefined;
 	onWebsiteUpdated?: () => void;
 }
 
 // Combined tab props that include all features
 export interface FullTabProps extends BaseTabProps {
-	websiteData: any;
+	websiteData: Website | undefined;
 	isRefreshing: boolean;
 	setIsRefreshing: (value: boolean) => void;
 }

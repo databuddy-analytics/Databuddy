@@ -43,16 +43,40 @@ export default async function Page(props: {
 
 	breadcrumbs.push({ name: page.data.title, url: page.url });
 
+	const title = `${page.data.title} | Databuddy Documentation`;
+	const description =
+		page.data.description ||
+		`Learn about ${page.data.title} in Databuddy's privacy-first analytics platform. Complete guides and API documentation.`;
+
+	const publishedDate = new Date();
+	const lastModified = page.data.lastModified
+		? new Date(page.data.lastModified)
+		: null;
+
 	return (
 		<>
 			<StructuredData
-				datePublished={new Date().toISOString()}
-				description={page.data.description}
-				title={page.data.title}
-				type="documentation"
-				url={url}
+				elements={[
+					{
+						type: 'article',
+						value: {
+							title,
+							description,
+							datePublished: publishedDate.toISOString(),
+							dateModified: lastModified?.toISOString(),
+						},
+					},
+				]}
+				page={{
+					title,
+					description,
+					url,
+					dateModified: lastModified?.toISOString(),
+					datePublished: publishedDate.toISOString(),
+					breadcrumbs,
+					inLanguage: 'en',
+				}}
 			/>
-			<StructuredData breadcrumbs={breadcrumbs} type="breadcrumb" />
 			<DocsPage full={page.data.full} toc={page.data.toc}>
 				<DocsTitle>{page.data.title}</DocsTitle>
 				<DocsDescription>{page.data.description}</DocsDescription>

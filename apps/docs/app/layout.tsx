@@ -20,7 +20,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-	title: 'Databuddy - Privacy-First Web Analytics',
+	title:
+		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 	description:
 		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
 	keywords: [
@@ -43,7 +44,8 @@ export const metadata: Metadata = {
 		type: 'website',
 		locale: 'en_US',
 		url: 'https://www.databuddy.cc',
-		title: 'Databuddy - Privacy-First Web Analytics',
+		title:
+			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 		description:
 			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
 		siteName: 'Databuddy',
@@ -58,7 +60,8 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: 'summary_large_image',
-		title: 'Databuddy - Privacy-First Web Analytics',
+		title:
+			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 		description:
 			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
 		images: ['og.webp'],

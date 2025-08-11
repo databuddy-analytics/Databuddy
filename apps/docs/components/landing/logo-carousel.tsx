@@ -87,9 +87,9 @@ function LogoColumn({ logos, columnIndex, currentTime }: LogoColumnProps) {
 							width={24}
 						/>
 					) : null} */}
-					<h1 className="truncate font-bold text-base sm:text-xl md:text-2xl">
+					<span className="truncate font-bold text-base sm:text-xl md:text-2xl">
 						{currentLogo.name}
-					</h1>
+					</span>
 				</motion.div>
 			</AnimatePresence>
 		</motion.div>

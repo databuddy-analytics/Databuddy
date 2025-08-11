@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { Footer } from '@/components/footer';
-import { displayNameForPlan, selectBestPlan } from './@pricing/best-plan';
-import { Estimator } from './@pricing/estimator';
-import { estimateTieredOverageCostFromTiers } from './@pricing/estimator-utils';
-import { normalizePlans } from './@pricing/normalize';
-import { PlansComparisonTable } from './@pricing/table';
-import type { NormalizedPlan } from './@pricing/types';
+import { displayNameForPlan, selectBestPlan } from './_pricing/best-plan';
+import { Estimator } from './_pricing/estimator';
+import { estimateTieredOverageCostFromTiers } from './_pricing/estimator-utils';
+import { normalizePlans } from './_pricing/normalize';
+import { PlansComparisonTable } from './_pricing/table';
+import type { NormalizedPlan } from './_pricing/types';
 import { RAW_PLANS } from './data';
 
 const PLANS: NormalizedPlan[] = normalizePlans(RAW_PLANS);

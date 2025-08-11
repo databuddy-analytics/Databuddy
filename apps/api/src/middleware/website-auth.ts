@@ -16,7 +16,7 @@ function json(status: number, body: unknown) {
 
 export function websiteAuth() {
 	return new Elysia()
-		.onRequest(async ({ request }) => {
+		.onBeforeHandle(async ({ request }) => {
 			if (isPreflight(request)) {
 				return;
 			}
