@@ -9,10 +9,14 @@ import {
 import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
 
+const title = 'Terms of Service — Usage Policies & Legal Agreement | Databuddy';
+
 export const metadata: Metadata = {
-	title: 'Terms of Service | Databuddy',
-	description:
-		"Databuddy's terms of service governing the use of our privacy-first analytics platform. Clear, fair terms that protect both our users and service.",
+	title,
+	openGraph: {
+		title,
+		url: 'https://www.databuddy.cc/terms',
+	},
 };
 
 export default function TermsPage() {

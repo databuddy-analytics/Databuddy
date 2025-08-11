@@ -8,10 +8,18 @@ import {
 import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
 
+const title = 'Privacy Policy — Cookie-less, GDPR by default | Databuddy';
+const description =
+	"Databuddy's comprehensive privacy policy for our privacy-first analytics service. Learn how we protect both customer and end user data with GDPR compliance and no user identification.";
+
 export const metadata: Metadata = {
-	title: 'Privacy Policy | Databuddy',
-	description:
-		"Databuddy's comprehensive privacy policy for our privacy-first analytics service. Learn how we protect both customer and end user data with GDPR compliance and no user identification.",
+	title,
+	description,
+	openGraph: {
+		title,
+		description,
+		url: 'https://www.databuddy.cc/privacy',
+	},
 };
 
 export default function PrivacyPage() {

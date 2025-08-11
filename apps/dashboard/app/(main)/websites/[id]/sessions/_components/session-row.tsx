@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
 	ArrowSquareOutIcon,
@@ -34,76 +34,76 @@ const SessionEventTimeline = lazy(
 );
 
 import {
-  getBrowserIconComponent,
-  getCountryFlag,
-  getDeviceIcon,
-  getOSIconComponent,
-} from "./session-utils";
+	getBrowserIconComponent,
+	getCountryFlag,
+	getDeviceIcon,
+	getOSIconComponent,
+} from './session-utils';
 
 interface SessionRowProps {
-  session: any;
-  index: number;
-  isExpanded: boolean;
-  onToggle: (sessionId: string) => void;
+	session: any;
+	index: number;
+	isExpanded: boolean;
+	onToggle: (sessionId: string) => void;
 }
 
 function getReferrerInfo(session: any) {
-  if (session.referrer_parsed) {
-    return {
-      name:
-        session.referrer_parsed.name ||
-        session.referrer_parsed.domain ||
-        "Unknown",
-      domain: session.referrer_parsed.domain,
-    };
-  }
+	if (session.referrer_parsed) {
+		return {
+			name:
+				session.referrer_parsed.name ||
+				session.referrer_parsed.domain ||
+				'Unknown',
+			domain: session.referrer_parsed.domain,
+		};
+	}
 
-  if (session.referrer) {
-    try {
-      const url = new URL(session.referrer);
-      return {
-        name: url.hostname,
-        domain: url.hostname,
-      };
-    } catch {
-      return {
-        name: "Direct",
-        domain: null,
-      };
-    }
-  }
+	if (session.referrer) {
+		try {
+			const url = new URL(session.referrer);
+			return {
+				name: url.hostname,
+				domain: url.hostname,
+			};
+		} catch {
+			return {
+				name: 'Direct',
+				domain: null,
+			};
+		}
+	}
 
-  return {
-    name: "Direct",
-    domain: null,
-  };
+	return {
+		name: 'Direct',
+		domain: null,
+	};
 }
 
 function SessionRowInternal({
-  session,
-  index,
-  isExpanded,
-  onToggle,
+	session,
+	index,
+	isExpanded,
+	onToggle,
 }: SessionRowProps) {
-  const errorCount =
-    session.events?.filter((event: any) => event.event_name === "error")
-      .length || 0;
-  const customEventCount =
-    session.events?.filter(
-      (event: any) =>
-        ![
-          "screen_view",
-          "page_exit",
-          "error",
-          "web_vitals",
-          "link_out",
-        ].includes(event.event_name),
-    ).length || 0;
-  const referrerInfo = getReferrerInfo(session);
+	const errorCount =
+		session.events?.filter((event: any) => event.event_name === 'error')
+			.length || 0;
+	const customEventCount =
+		session.events?.filter(
+			(event: any) =>
+				![
+					'screen_view',
+					'page_exit',
+					'error',
+					'web_vitals',
+					'link_out',
+				].includes(event.event_name)
+		).length || 0;
+	const referrerInfo = getReferrerInfo(session);
 
-  const handleToggle = useCallback(() => {
-    onToggle(session.session_id);
-  }, [onToggle, session.session_id]);
+	const handleToggle = useCallback(() => {
+		onToggle(session.session_id);
+	}, [onToggle, session.session_id]);
 
 	return (
 		<Collapsible onOpenChange={handleToggle} open={isExpanded}>
@@ -131,27 +131,27 @@ function SessionRowInternal({
 							{getOSIconComponent(session.os || '')}
 						</div>
 
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-base text-foreground">
-                {session.session_name ||
-                  `Session ${session.session_id?.slice(-8)}`}
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <span>
-                  {session.browser || session.browser_name || "Unknown"}
-                </span>
-                <span className="text-muted-foreground/60">•</span>
-                <span>
-                  {session.country_name || session.country || "Unknown"}
-                </span>
-                {session.is_returning_visitor && (
-                  <>
-                    <span className="text-muted-foreground/60">•</span>
-                    <span className="font-medium text-blue-600">Returning</span>
-                  </>
-                )}
-              </div>
-            </div>
+						<div className="min-w-0 flex-1">
+							<div className="truncate font-semibold text-base text-foreground">
+								{session.session_name ||
+									`Session ${session.session_id?.slice(-8)}`}
+							</div>
+							<div className="flex items-center gap-2 text-muted-foreground text-sm">
+								<span>
+									{session.browser || session.browser_name || 'Unknown'}
+								</span>
+								<span className="text-muted-foreground/60">•</span>
+								<span>
+									{session.country_name || session.country || 'Unknown'}
+								</span>
+								{session.is_returning_visitor && (
+									<>
+										<span className="text-muted-foreground/60">•</span>
+										<span className="font-medium text-blue-600">Returning</span>
+									</>
+								)}
+							</div>
+						</div>
 
 						<div className="hidden min-w-[120px] flex-shrink-0 items-center gap-2 lg:flex">
 							<div className="flex items-center gap-2">
@@ -171,41 +171,41 @@ function SessionRowInternal({
 						</div>
 					</div>
 
-          <div className="ml-4 flex flex-shrink-0 items-center gap-4 text-sm">
-            <div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
-              <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                <ClockIcon className="h-3 w-3" />
-                <span>Duration</span>
-              </div>
-              <span className="font-semibold text-foreground text-sm">
-                {session.duration_formatted || "0s"}
-              </span>
-            </div>
+					<div className="ml-4 flex flex-shrink-0 items-center gap-4 text-sm">
+						<div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
+							<div className="flex items-center gap-1 text-muted-foreground text-xs">
+								<ClockIcon className="h-3 w-3" />
+								<span>Duration</span>
+							</div>
+							<span className="font-semibold text-foreground text-sm">
+								{session.duration_formatted || '0s'}
+							</span>
+						</div>
 
-            <div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
-              <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                <EyeIcon className="h-3 w-3" />
-                <span>Pages</span>
-              </div>
-              <span className="font-semibold text-foreground text-sm">
-                {session.page_views || 1}
-              </span>
-            </div>
+						<div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
+							<div className="flex items-center gap-1 text-muted-foreground text-xs">
+								<EyeIcon className="h-3 w-3" />
+								<span>Pages</span>
+							</div>
+							<span className="font-semibold text-foreground text-sm">
+								{session.page_views || 1}
+							</span>
+						</div>
 
-            <div className="flex min-w-[60px] flex-col items-center gap-1">
-              <div className="text-muted-foreground text-xs">Events</div>
-              <div className="flex items-center gap-2">
-                <Badge
-                  className="px-2 py-1 font-semibold text-xs"
-                  variant="outline"
-                >
-                  {session.events?.length || 0}
-                </Badge>
-              </div>
-            </div>
+						<div className="flex min-w-[60px] flex-col items-center gap-1">
+							<div className="text-muted-foreground text-xs">Events</div>
+							<div className="flex items-center gap-2">
+								<Badge
+									className="px-2 py-1 font-semibold text-xs"
+									variant="outline"
+								>
+									{session.events?.length || 0}
+								</Badge>
+							</div>
+						</div>
 
-            <div className="flex items-center gap-2">
-              {/* {customEventCount > 0 && (
+						<div className="flex items-center gap-2">
+							{/* {customEventCount > 0 && (
                 <div className="flex flex-col items-center gap-1">
                   <div className="font-medium text-violet-600 text-xs">Custom</div>
                   <Badge className="border-0 bg-gradient-to-r from-violet-500 to-purple-500 font-semibold text-white text-xs">
@@ -322,12 +322,12 @@ function SessionRowInternal({
 							</div>
 						</div>
 
-            <SessionEventTimeline events={session.events || []} />
-          </div>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
+						<SessionEventTimeline events={session.events || []} />
+					</div>
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
+	);
 }
 
 export const SessionRow = React.memo(SessionRowInternal);
