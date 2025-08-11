@@ -1,0 +1,103 @@
+---
+title: API Keys
+description: Create, use, and manage API keys with scopes and resource access
+---
+
+## TL;DR
+
+- Generate keys in the dashboard Settings → API Keys
+- Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
+- Scopes: `read:data`, `write:data`, `read:experiments`, `track:events`, `admin:apikeys`
+- Access can be global or scoped to a resource like a specific `website`
+- For private websites, include `website_id` and ensure the key has `read:data`
+- Rotate and revoke keys in the dashboard; only the prefix/start should be shared/logged
+
+### What is an API key?
+
+An API key authenticates server-to-server calls to Databuddy. It supports fine-grained scopes and optional resource scoping to enforce least-privilege access.
+
+### Create a key
+
+1. Open the dashboard → Settings → API Keys
+2. Click “Create API Key”
+3. Choose a name, optional organization, scopes, and resource access
+4. Copy the secret immediately (it’s only shown once)
+
+We only display the `prefix` and first characters (`start`) later for identification. Never share the full secret.
+
+### Use your key
+
+You can authenticate with either header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"
+```
+
+```bash
+curl -H "x-api-key: YOUR_API_KEY" \
+  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"
+```
+
+Notes:
+
+- For private websites, include the `website_id` query or path parameter and ensure the key has `read:data` for that site.
+- For public websites, `website_id` may be optional depending on the endpoint semantics.
+
+### Scopes
+
+- **read:data**: Read analytics and reports
+- **write:data**: Write or modify analytics data (server-side ingestion)
+- **read:experiments**: Read A/B tests and feature flags
+- **track:events**: Send tracking events
+- **admin:apikeys**: Create, update, rotate, revoke API keys
+
+Grant only what you need. Prefer resource-scoped access where possible.
+
+### Resource access
+
+Access can be:
+
+- **global**: Applies to all resources
+- **website**: Applies to a specific website (use the `website_id` in requests)
+
+Example: a key with `read:data` on a single website can read analytics only for that website, not others.
+
+### Errors
+
+Authentication/authorization failures return structured errors:
+
+```json
+{
+  "success": false,
+  "error": "Authentication required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+```json
+{
+  "success": false,
+  "error": "Insufficient permissions",
+  "code": "FORBIDDEN"
+}
+```
+
+### Rotation and revocation
+
+- **Rotate** to generate a new secret for the same key (update your servers immediately)
+- **Revoke** to immediately disable a key (cannot be undone; create a new one if needed)
+
+Actions are available in the dashboard under each key’s detail view.
+
+### Rate limits
+
+All API endpoints are rate-limited. See the Rate Limits section in the API Reference. Responses include standard `X-RateLimit-*` headers where applicable.
+
+### Best practices
+
+- Treat API keys like passwords; don’t commit them to source control
+- Use environment variables or secret managers
+- Share only the prefix and `start` snippet for identification
+- Use least-privilege scopes and resource scoping
+- Rotate keys periodically and revoke unused keys

@@ -50,7 +50,17 @@ const getCachedAccessEntries = cacheable(
 export async function getApiKeyFromHeader(
 	headers: Headers
 ): Promise<ApiKeyRow | null> {
-	const secret = headers.get('x-api-key');
+	const xApiKey = headers.get('x-api-key')?.trim();
+	const auth = headers.get('authorization');
+	const bearer = auth?.toLowerCase()?.startsWith('bearer ')
+		? auth.slice(7).trim()
+		: null;
+	const secret =
+		xApiKey && xApiKey.length > 0
+			? xApiKey
+			: bearer && bearer.length > 0
+				? bearer
+				: null;
 	if (!secret) {
 		return null;
 	}
@@ -62,6 +72,15 @@ export async function getApiKeyFromHeader(
 		return null;
 	}
 	return key;
+}
+
+export function isApiKeyPresent(headers: Headers): boolean {
+	const xApiKey = headers.get('x-api-key');
+	if (xApiKey) {
+		return true;
+	}
+	const auth = headers.get('authorization');
+	return auth?.toLowerCase().startsWith('bearer ') ?? false;
 }
 
 export async function resolveEffectiveScopesForWebsite(

@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { KeyIcon, PencilIcon } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -69,8 +68,8 @@ function ApiKeyDetailSkeleton() {
 			<div className="space-y-3">
 				<Skeleton className="h-5 w-24 rounded" />
 				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton className="h-10 w-full rounded" key={i} />
+					{['s1', 's2', 's3', 's4'].map((key) => (
+						<Skeleton className="h-10 w-full rounded" key={key} />
 					))}
 				</div>
 			</div>
@@ -235,7 +234,9 @@ export function ApiKeyDetailDialog({
 	);
 	const rotateMutation = trpc.apikeys.rotate.useMutation({
 		onSuccess: async () => {
-			await utils.apikeys.getById.invalidate({ id: keyId as string });
+			if (keyId) {
+				await utils.apikeys.getById.invalidate({ id: keyId });
+			}
 			await utils.apikeys.list.invalidate();
 		},
 	});
@@ -304,81 +305,73 @@ export function ApiKeyDetailDialog({
 		});
 	});
 
+	// Reset transient state when dialog closes or when a different key is opened
+	useEffect(() => {
+		if (!open) {
+			setShowSecret(null);
+			form.reset({ name: '', enabled: true, expiresAt: undefined });
+		}
+	}, [open, form]);
+
+	// Removed unnecessary dependency-based reset to satisfy linter
+
 	return (
-		<Sheet onOpenChange={onOpenChange} open={open}>
+		<Sheet
+			onOpenChange={(o) => {
+				if (!o) {
+					setShowSecret(null);
+					form.reset({ name: '', enabled: true, expiresAt: undefined });
+				}
+				onOpenChange(o);
+			}}
+			open={open}
+		>
 			<SheetContent
-				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[1200px]"
+				className="w-full overflow-y-auto p-4 sm:w-[480px] sm:max-w-[480px]"
 				side="right"
 			>
-				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
-					<div className="flex items-center gap-3">
-						<div className="rounded border p-3">
-							<KeyIcon
-								className="h-6 w-6 not-dark:text-primary"
-								weight="duotone"
-							/>
-						</div>
-						<div>
-							<SheetTitle className="font-semibold text-foreground text-xl">
-								Manage API Key
-							</SheetTitle>
-							<SheetDescription className="mt-1 text-muted-foreground">
-								View and update key details. Rotate, revoke, or delete when
-								needed.
-							</SheetDescription>
-						</div>
-					</div>
+				<SheetHeader className="space-y-1 pb-3">
+					<SheetTitle className="text-foreground text-lg">
+						Manage API Key
+					</SheetTitle>
+					<SheetDescription className="text-muted-foreground text-xs">
+						View details, update, rotate or revoke
+					</SheetDescription>
 				</SheetHeader>
-				<div className="space-y-8 pt-6">
+				<div className="space-y-5 pt-2">
 					{isLoading || !detail ? (
 						<ApiKeyDetailSkeleton />
 					) : (
 						<>
 							{/* Key Overview */}
-							<div className="rounded border p-4">
-								<div className="flex items-center gap-4">
-									<div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded bg-muted">
-										<KeyIcon
-											className="h-6 w-6 not-dark:text-primary"
-											weight="duotone"
-										/>
+							<div className="space-y-2">
+								<div className="flex items-center justify-between">
+									<div className="font-semibold text-base text-foreground">
+										{detail.name}
 									</div>
-									<div className="flex-1">
-										<div className="font-semibold text-foreground text-lg">
-											{detail.name}
-										</div>
-										<div className="mt-1 flex items-center gap-2 text-muted-foreground text-sm">
-											<code className="rounded bg-muted px-2 py-1 font-mono text-xs">
-												{detail.prefix}_{detail.start}
-											</code>
-											<Badge
-												variant={
-													detail.enabled && !detail.revokedAt
-														? 'default'
-														: 'secondary'
-												}
-											>
-												{effectiveStatus}
-											</Badge>
-										</div>
-									</div>
+									<Badge
+										variant={
+											detail.enabled && !detail.revokedAt
+												? 'default'
+												: 'secondary'
+										}
+									>
+										{effectiveStatus}
+									</Badge>
 								</div>
+								<code className="block rounded bg-muted px-2 py-1 font-mono text-xs">
+									{detail.prefix}_{detail.start}
+								</code>
 							</div>
 							{/* Configuration Form */}
-							<div className="space-y-4">
-								<div className="flex items-center gap-2">
-									<PencilIcon
-										className="h-5 w-5 not-dark:text-primary"
-										weight="duotone"
-									/>
-									<h3 className="font-semibold text-base text-foreground">
-										Configuration
-									</h3>
+							<div className="space-y-3">
+								<div className="font-semibold text-foreground text-sm">
+									Configuration
 								</div>
 
 								<Form {...form}>
 									<form className="space-y-6" onSubmit={onSubmit}>
-										<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+										<div className="grid grid-cols-1 gap-3">
 											<FormField
 												control={form.control}
 												name="name"
@@ -419,15 +412,10 @@ export function ApiKeyDetailDialog({
 											control={form.control}
 											name="enabled"
 											render={({ field }) => (
-												<FormItem className="flex items-center justify-between rounded border p-4">
-													<div className="space-y-1">
-														<FormLabel className="font-medium text-foreground text-sm">
-															Enabled
-														</FormLabel>
-														<div className="text-muted-foreground text-xs">
-															Disable to stop usage without deleting the key.
-														</div>
-													</div>
+												<FormItem className="flex items-center justify-between rounded border p-3">
+													<FormLabel className="font-medium text-foreground text-sm">
+														Enabled
+													</FormLabel>
 													<FormControl>
 														<Switch
 															checked={!!field.value}

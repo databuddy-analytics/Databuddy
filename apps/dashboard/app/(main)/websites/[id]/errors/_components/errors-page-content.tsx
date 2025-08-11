@@ -107,7 +107,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 		}
 
 		const extractData = (queryId: string) => {
-			const result = errorResults.find((r: any) => r.queryId === queryId);
+			const result = errorResults.find((r) => r.queryId === queryId);
 			if (!result) {
 				return [];
 			}

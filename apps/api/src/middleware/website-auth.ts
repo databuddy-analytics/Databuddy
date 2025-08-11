@@ -1,6 +1,10 @@
 import { auth } from '@databuddy/auth';
 import { Elysia } from 'elysia';
-import { getApiKeyFromHeader, hasWebsiteScope } from '../lib/api-key';
+import {
+	getApiKeyFromHeader,
+	hasWebsiteScope,
+	isApiKeyPresent,
+} from '../lib/api-key';
 import { getCachedWebsite, getTimezone } from '../lib/website-utils';
 
 function json(status: number, body: unknown) {
@@ -40,7 +44,10 @@ export function websiteAuth() {
 		.derive(async ({ request }) => {
 			const url = new URL(request.url);
 			const websiteId = url.searchParams.get('website_id');
-			const session = await auth.api.getSession({ headers: request.headers });
+			const apiKeyPresent = isApiKeyPresent(request.headers);
+			const session = apiKeyPresent
+				? null
+				: await auth.api.getSession({ headers: request.headers });
 			const timezone = session?.user
 				? await getTimezone(request, session)
 				: await getTimezone(request, null);

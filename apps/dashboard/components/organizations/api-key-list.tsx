@@ -1,4 +1,5 @@
 import { KeyIcon, PlusIcon } from '@phosphor-icons/react';
+import dayjs from 'dayjs';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -37,10 +38,10 @@ function ApiKeyListSkeleton() {
 						<Skeleton className="h-4 w-20 rounded" />
 					</div>
 				</div>
-				{Array.from({ length: 3 }).map((_, i) => (
+				{['row-a', 'row-b', 'row-c'].map((key) => (
 					<div
 						className="border-border/30 border-b px-6 py-4 last:border-b-0"
-						key={i}
+						key={key}
 					>
 						<div className="flex items-center gap-4">
 							<Skeleton className="h-4 w-32 rounded" />
@@ -63,9 +64,17 @@ export function ApiKeyList({
 	onCreateNew,
 	onSelect,
 }: ApiKeyListProps) {
-	const { data, isLoading, isError } = trpc.apikeys.list.useQuery({
-		organizationId,
-	});
+	const { data, isLoading, isError } = trpc.apikeys.list.useQuery(
+		{
+			organizationId,
+		},
+		{
+			// ensure a refetch when the component mounts/changes organization
+			refetchOnMount: true,
+			refetchOnReconnect: true,
+			staleTime: 0,
+		}
+	);
 
 	if (isLoading) {
 		return <ApiKeyListSkeleton />;
@@ -146,7 +155,7 @@ export function ApiKeyList({
 										</div>
 									</TableCell>
 									<TableCell className="px-6 py-4">
-										<code className="rounded-md bg-muted/50 px-2 py-1 font-mono text-muted-foreground text-xs transition-colors group-hover:bg-muted/70">
+										<code className="rounded bg-muted/50 px-2 py-1 font-mono text-muted-foreground text-xs transition-colors group-hover:bg-muted/70">
 											{k.prefix}_{k.start}
 										</code>
 									</TableCell>
@@ -170,22 +179,14 @@ export function ApiKeyList({
 										)}
 									</TableCell>
 									<TableCell className="px-6 py-4 text-muted-foreground text-xs">
-										{new Date(k.createdAt).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric',
-										})}
+										{dayjs(k.createdAt).format('MMM D, YYYY')}
 									</TableCell>
 									<TableCell className="px-6 py-4 text-muted-foreground text-xs">
-										{new Date(k.updatedAt).toLocaleDateString('en-US', {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric',
-										})}
+										{dayjs(k.updatedAt).format('MMM D, YYYY')}
 									</TableCell>
 									<TableCell className="px-6 py-4 text-right">
 										<Button
-											className="rounded-lg opacity-0 transition-all duration-200 hover:bg-primary/10 hover:text-primary group-hover:opacity-100"
+											className="rounded opacity-0 transition-all duration-200 hover:bg-primary/10 hover:text-primary group-hover:opacity-100"
 											onClick={(e) => {
 												e.stopPropagation();
 												onSelect?.(k.id);

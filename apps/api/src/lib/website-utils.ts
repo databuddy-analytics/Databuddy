@@ -3,7 +3,11 @@ import { db, userPreferences, websites } from '@databuddy/db';
 import { cacheable } from '@databuddy/redis';
 import type { Website } from '@databuddy/shared';
 import { eq } from 'drizzle-orm';
-import { getApiKeyFromHeader, hasWebsiteScope } from './api-key';
+import {
+	getApiKeyFromHeader,
+	hasWebsiteScope,
+	isApiKeyPresent,
+} from './api-key';
 
 export interface WebsiteContext {
 	user: unknown;
@@ -115,8 +119,7 @@ export async function getTimezone(
 }
 
 export async function deriveWebsiteContext({ request }: { request: Request }) {
-	const apiKeyPresent = request.headers.get('x-api-key') != null;
-	if (apiKeyPresent) {
+	if (isApiKeyPresent(request.headers)) {
 		return await deriveWithApiKey(request);
 	}
 	return await deriveWithSession(request);
