@@ -33,10 +33,10 @@ function getValueColor(value: unknown) {
 		return 'text-muted-foreground';
 	}
 	if (typeof value === 'string') {
-		return 'text-emerald-300';
+		return 'text-emerald-500 dark:text-emerald-300';
 	}
 	if (typeof value === 'number' || typeof value === 'boolean') {
-		return 'text-amber-300';
+		return 'text-amber-500 dark:text-amber-300';
 	}
 	return 'text-foreground/90';
 }
@@ -443,7 +443,7 @@ export function QueryDemo() {
 						)}
 					</div>
 
-					<Card className="relative flex-1 border-border/50 bg-black">
+					<Card className="relative flex-1 border-border/50 bg-white dark:bg-black">
 						<CardContent className="h-80 p-0 lg:h-96">
 							<ScrollArea className="h-full">
 								<div className="select-text break-words p-4 font-mono text-[13px] leading-6 tracking-tight sm:text-[13.5px]">
