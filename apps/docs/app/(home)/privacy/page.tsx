@@ -7,10 +7,12 @@ import {
 } from '@phosphor-icons/react/ssr';
 import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
+import { StructuredData } from '@/components/structured-data';
 
 const title = 'Privacy Policy — Cookie-less, GDPR by default | Databuddy';
 const description =
 	"Databuddy's comprehensive privacy policy for our privacy-first analytics service. Learn how we protect both customer and end user data with GDPR compliance and no user identification.";
+const url = 'https://www.databuddy.cc/privacy';
 
 export const metadata: Metadata = {
 	title,
@@ -18,14 +20,24 @@ export const metadata: Metadata = {
 	openGraph: {
 		title,
 		description,
-		url: 'https://www.databuddy.cc/privacy',
+		url,
 	},
 };
 
 export default function PrivacyPage() {
-	const lastUpdated = 'June 3rd, 2025';
+	const lastUpdated = new Date('2025-06-03')
 
 	return (
+		<>
+		<StructuredData 
+				page={{
+					title,
+					description,
+					url,
+					datePublished: new Date('2025-06-03').toISOString(),
+					dateModified: lastUpdated.toISOString(),
+				}}
+			/>
 		<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
 			{/* Header */}
 			<div className="mb-12 text-center">
@@ -35,7 +47,13 @@ export default function PrivacyPage() {
 				<h1 className="mb-4 font-bold text-4xl md:text-5xl">Privacy Policy</h1>
 				<p className="mb-4 text-muted-foreground">
 					Last Updated{' '}
-					<span className="font-medium text-foreground">{lastUpdated}</span>
+					<span className="font-medium text-foreground">
+						{lastUpdated.toLocaleDateString('en-US', {
+							year: 'numeric',
+							month: 'long',
+							day: 'numeric',
+						})}
+					</span>
 				</p>
 				{/* TL;DR */}
 				<div className="mx-auto mb-6 max-w-2xl rounded border border-primary/20 bg-primary/10 p-4 text-left">
@@ -463,5 +481,6 @@ export default function PrivacyPage() {
 				<Footer />
 			</div>
 		</div>
+		</>
 	);
 }

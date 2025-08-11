@@ -8,14 +8,16 @@ import {
 } from '@phosphor-icons/react/ssr';
 import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
+import { StructuredData } from '@/components/structured-data';
 
 const title = 'Terms of Service — Usage Policies & Legal Agreement | Databuddy';
+const url = 'https://www.databuddy.cc/terms'
 
 export const metadata: Metadata = {
 	title,
 	openGraph: {
 		title,
-		url: 'https://www.databuddy.cc/terms',
+		url,
 	},
 };
 
@@ -23,6 +25,15 @@ export default function TermsPage() {
 	const lastUpdated = 'June 23rd, 2025';
 
 	return (
+		<>
+		<StructuredData 
+				page={{
+					title,
+					description:
+						'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
+					url
+				}}
+			/>
 		<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
 			{/* Header */}
 			<div className="mb-12 text-center">
@@ -409,5 +420,6 @@ export default function TermsPage() {
 				</div>
 			</div>
 		</div>
+		</>
 	);
 }

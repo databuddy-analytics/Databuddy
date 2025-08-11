@@ -6,6 +6,7 @@ import Hero from '@/components/landing/hero';
 import Section from '@/components/landing/section';
 import Testimonials from '@/components/landing/testimonials';
 import { TrustedBy } from '@/components/landing/trusted-by';
+import { StructuredData } from '@/components/structured-data';
 
 // async function getGitHubStars() {
 // 	try {
@@ -35,7 +36,16 @@ export default function HomePage() {
 	// const stars = await getGitHubStars();
 
 	return (
-		<div className="overflow-hidden">
+		<>
+			<StructuredData 
+				page={{
+					title: 'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+					description:
+						'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
+					url: 'https://www.databuddy.cc'
+				}}
+			/>
+			<div className="overflow-hidden">
 			{/* Hero Section */}
 			<Section className="overflow-hidden" customPaddings id="hero">
 				<Hero />
@@ -106,5 +116,6 @@ export default function HomePage() {
 				<div className="mx-auto h-px max-w-6xl bg-gradient-to-r from-transparent via-border/30 to-transparent" />
 			</div>
 		</div>
+		</>
 	);
 }
