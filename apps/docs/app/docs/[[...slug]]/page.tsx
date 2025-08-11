@@ -53,19 +53,9 @@ export default async function Page(props: {
 		? new Date(page.data.lastModified)
 		: null;
 
-	
 	return (
 		<>
 			<StructuredData
-				page={{
-					title,
-					description,
-					url,
-					dateModified: lastModified?.toISOString(),
-					datePublished: publishedDate.toISOString(),
-					breadcrumbs,
-					inLanguage: 'en',
-				}}
 				elements={[
 					{
 						type: 'article',
@@ -76,8 +66,16 @@ export default async function Page(props: {
 							dateModified: lastModified?.toISOString(),
 						},
 					},
-
 				]}
+				page={{
+					title,
+					description,
+					url,
+					dateModified: lastModified?.toISOString(),
+					datePublished: publishedDate.toISOString(),
+					breadcrumbs,
+					inLanguage: 'en',
+				}}
 			/>
 			<DocsPage full={page.data.full} toc={page.data.toc}>
 				<DocsTitle>{page.data.title}</DocsTitle>

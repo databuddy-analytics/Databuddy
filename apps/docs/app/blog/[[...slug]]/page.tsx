@@ -44,14 +44,6 @@ export default async function BlogPage(props: {
 	return (
 		<>
 			<StructuredData
-				page={{
-					title,
-					description,
-					url,
-					dateModified: lastModified?.toISOString(),
-					datePublished: publishedDate.toISOString(),
-					inLanguage: 'en',
-				}}
 				elements={[
 					{
 						type: 'article',
@@ -61,8 +53,16 @@ export default async function BlogPage(props: {
 							datePublished: publishedDate.toISOString(),
 							dateModified: lastModified?.toISOString(),
 						},
-					}
+					},
 				]}
+				page={{
+					title,
+					description,
+					url,
+					dateModified: lastModified?.toISOString(),
+					datePublished: publishedDate.toISOString(),
+					inLanguage: 'en',
+				}}
 			/>
 			<DocsPage full={page.data.full} toc={page.data.toc}>
 				{/* Enhanced header with better visual hierarchy */}
