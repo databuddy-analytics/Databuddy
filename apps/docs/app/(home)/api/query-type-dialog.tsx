@@ -195,21 +195,6 @@ export function QueryTypeDialog({
 										</div>
 									</DetailRow>
 								) : null}
-
-								{allowedFilters && allowedFilters.length > 0 ? (
-									<DetailRow label="Allowed filters">
-										<div className="flex flex-wrap gap-1.5">
-											{allowedFilters.map((f) => (
-												<code
-													className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
-													key={f}
-												>
-													{f}
-												</code>
-											))}
-										</div>
-									</DetailRow>
-								) : null}
 							</div>
 
 							<UsageSection typeKey={typeKey} />
