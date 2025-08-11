@@ -1,11 +1,12 @@
 'use client';
 
 import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getQueryTypes } from './actions';
 import {
 	type BatchQueryResponse,
@@ -27,155 +28,182 @@ interface JsonNodeProps {
 	level?: number;
 }
 
-function JsonNode({ data, name, level = 0 }: JsonNodeProps) {
-	const [isExpanded, setIsExpanded] = useState(true); // Open by default
-	const indent = level * 12;
+function getValueColor(value: unknown) {
+	if (value === null) {
+		return 'text-muted-foreground';
+	}
+	if (typeof value === 'string') {
+		return 'text-emerald-300';
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return 'text-amber-300';
+	}
+	return 'text-foreground/90';
+}
 
-	// Simple value renderer
-	const renderValue = (value: unknown, key?: string) => (
-		<div className="flex items-center py-0.5" style={{ paddingLeft: indent }}>
-			{key && <span className="mr-2 text-blue-400">{key}:</span>}
+function formatValue(value: unknown) {
+	if (value === null) {
+		return 'null';
+	}
+	if (typeof value === 'string') {
+		return `"${value}"`;
+	}
+	return String(value);
+}
+
+function PrimitiveNode({
+	value,
+	name,
+	level,
+}: {
+	value: unknown;
+	name?: string;
+	level: number;
+}) {
+	const indent = level * 12;
+	return (
+		<div
+			className="flex items-center rounded px-2 py-1 transition-colors hover:bg-muted/20"
+			style={{ paddingLeft: indent }}
+		>
+			{name && <span className="mr-2 text-primary">{name}:</span>}
 			<span className={getValueColor(value)}>{formatValue(value)}</span>
 		</div>
 	);
+}
 
-	// Get color for different value types
-	const getValueColor = (value: unknown) => {
-		if (value === null) {
-			return 'text-gray-400';
-		}
-		if (typeof value === 'string') {
-			return 'text-green-400';
-		}
-		if (typeof value === 'number' || typeof value === 'boolean') {
-			return 'text-yellow-400';
-		}
-		return 'text-gray-300';
-	};
+function ArrayNode({
+	data,
+	name,
+	level,
+}: {
+	data: unknown[];
+	name?: string;
+	level: number;
+}) {
+	const [isExpanded, setIsExpanded] = useState(true);
+	const indent = level * 12;
+	if (data.length === 0) {
+		return <PrimitiveNode level={level} name={name} value="[]" />;
+	}
+	return (
+		<div>
+			<button
+				aria-expanded={isExpanded}
+				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
+				onClick={() => setIsExpanded(!isExpanded)}
+				style={{ paddingLeft: indent }}
+				type="button"
+			>
+				{isExpanded ? (
+					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+				) : (
+					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+				)}
+				{name && <span className="mr-2 text-primary">{name}:</span>}
+				<span className="font-semibold text-foreground/80">[</span>
+			</button>
+			{isExpanded && (
+				<>
+					{data.map((item, index) => (
+						<JsonNode
+							data={item}
+							key={`${name || 'root'}-${index}`}
+							level={level + 1}
+						/>
+					))}
+					<div
+						className="flex items-center py-1"
+						style={{ paddingLeft: indent }}
+					>
+						<span className="font-semibold text-foreground/80">]</span>
+					</div>
+				</>
+			)}
+			{!isExpanded && (
+				<div className="flex items-center py-1" style={{ paddingLeft: indent }}>
+					<span className="font-semibold text-foreground/80">]</span>
+				</div>
+			)}
+		</div>
+	);
+}
 
-	// Format value for display
-	const formatValue = (value: unknown) => {
-		if (value === null) {
-			return 'null';
-		}
-		if (typeof value === 'string') {
-			return `"${value}"`;
-		}
-		return String(value);
-	};
+function ObjectNode({
+	data,
+	name,
+	level,
+}: {
+	data: Record<string, unknown>;
+	name?: string;
+	level: number;
+}) {
+	const [isExpanded, setIsExpanded] = useState(true);
+	const indent = level * 12;
+	const keys = Object.keys(data);
+	if (keys.length === 0) {
+		return <PrimitiveNode level={level} name={name} value="{}" />;
+	}
+	return (
+		<div>
+			<button
+				aria-expanded={isExpanded}
+				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
+				onClick={() => setIsExpanded(!isExpanded)}
+				style={{ paddingLeft: indent }}
+				type="button"
+			>
+				{isExpanded ? (
+					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+				) : (
+					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+				)}
+				{name && <span className="mr-2 text-primary">{name}:</span>}
+				<span className="font-semibold text-foreground/80">{'{'}</span>
+			</button>
+			{isExpanded && (
+				<>
+					{keys.map((key) => (
+						<JsonNode data={data[key]} key={key} level={level + 1} name={key} />
+					))}
+					<div
+						className="flex items-center py-1"
+						style={{ paddingLeft: indent }}
+					>
+						<span className="font-semibold text-foreground/80">{'}'}</span>
+					</div>
+				</>
+			)}
+			{!isExpanded && (
+				<div className="flex items-center py-1" style={{ paddingLeft: indent }}>
+					<span className="font-semibold text-foreground/80">{'}'}</span>
+				</div>
+			)}
+		</div>
+	);
+}
 
-	// Handle primitive values
+function JsonNode({ data, name, level = 0 }: JsonNodeProps) {
 	if (
 		data === null ||
 		typeof data === 'string' ||
 		typeof data === 'number' ||
 		typeof data === 'boolean'
 	) {
-		return renderValue(data, name);
+		return <PrimitiveNode level={level} name={name} value={data} />;
 	}
-
-	// Handle arrays
 	if (Array.isArray(data)) {
-		if (data.length === 0) {
-			return renderValue('[]', name);
-		}
+		return <ArrayNode data={data} level={level} name={name} />;
+	}
+	if (typeof data === 'object') {
 		return (
-			<div>
-				<button
-					className="flex w-full items-center py-0.5 text-left hover:bg-gray-700/30"
-					onClick={() => setIsExpanded(!isExpanded)}
-					style={{ paddingLeft: indent }}
-					type="button"
-				>
-					{isExpanded ? (
-						<CaretDownIcon className="mr-1 h-3 w-3" />
-					) : (
-						<CaretRightIcon className="mr-1 h-3 w-3" />
-					)}
-					{name && <span className="mr-2 text-blue-400">{name}:</span>}
-					<span className="text-gray-300">[</span>
-				</button>
-				{isExpanded && (
-					<>
-						{data.map((item, index) => (
-							<JsonNode
-								data={item}
-								key={`${name || 'root'}-${index}`}
-								level={level + 1}
-							/>
-						))}
-						<div
-							className="flex items-center py-0.5"
-							style={{ paddingLeft: indent }}
-						>
-							<span className="text-gray-300">]</span>
-						</div>
-					</>
-				)}
-				{!isExpanded && (
-					<div
-						className="flex items-center py-0.5"
-						style={{ paddingLeft: indent }}
-					>
-						<span className="text-gray-300">]</span>
-					</div>
-				)}
-			</div>
+			<ObjectNode
+				data={data as Record<string, unknown>}
+				level={level}
+				name={name}
+			/>
 		);
 	}
-
-	// Handle objects
-	if (typeof data === 'object' && data !== null) {
-		const keys = Object.keys(data as Record<string, unknown>);
-		if (keys.length === 0) {
-			return renderValue('{}', name);
-		}
-		return (
-			<div>
-				<button
-					className="flex w-full items-center py-0.5 text-left hover:bg-gray-700/30"
-					onClick={() => setIsExpanded(!isExpanded)}
-					style={{ paddingLeft: indent }}
-					type="button"
-				>
-					{isExpanded ? (
-						<CaretDownIcon className="mr-1 h-3 w-3" />
-					) : (
-						<CaretRightIcon className="mr-1 h-3 w-3" />
-					)}
-					{name && <span className="mr-2 text-blue-400">{name}:</span>}
-					<span className="text-gray-300">{'{'}</span>
-				</button>
-				{isExpanded && (
-					<>
-						{keys.map((key) => (
-							<JsonNode
-								data={(data as Record<string, unknown>)[key]}
-								key={key}
-								level={level + 1}
-								name={key}
-							/>
-						))}
-						<div
-							className="flex items-center py-0.5"
-							style={{ paddingLeft: indent }}
-						>
-							<span className="text-gray-300">{'}'}</span>
-						</div>
-					</>
-				)}
-				{!isExpanded && (
-					<div
-						className="flex items-center py-0.5"
-						style={{ paddingLeft: indent }}
-					>
-						<span className="text-gray-300">{'}'}</span>
-					</div>
-				)}
-			</div>
-		);
-	}
-
 	return null;
 }
 
@@ -205,38 +233,24 @@ function CornerDecorations() {
 export function QueryDemo() {
 	const [availableTypes, setAvailableTypes] = useState<QueryType[]>([]);
 	const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+	const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [result, setResult] = useState<BatchQueryResponse | null>(null);
 
+	const displayedTypes = useMemo(() => {
+		const selectedSet = new Set(selectedOrder);
+		const selectedTypesOrdered = selectedOrder
+			.map((name) => availableTypes.find((t) => t.name === name))
+			.filter(Boolean) as QueryType[];
+		const unselectedTypes = availableTypes.filter(
+			(t) => !selectedSet.has(t.name)
+		);
+		return [...selectedTypesOrdered, ...unselectedTypes];
+	}, [availableTypes, selectedOrder]);
+
 	// Load available query types on mount
-	useEffect(() => {
-		const loadTypes = async () => {
-			const data = await getQueryTypes();
-			if (data.success) {
-				const types = data.types.map((name) => ({
-					name,
-					defaultLimit: data.configs[name]?.defaultLimit,
-					customizable: data.configs[name]?.customizable,
-					allowedFilters: data.configs[name]?.allowedFilters,
-				}));
-				setAvailableTypes(types);
-			}
-		};
-		loadTypes();
-	}, []);
-
-	const handleTypeToggle = (typeName: string) => {
-		const newSelected = new Set(selectedTypes);
-		if (newSelected.has(typeName)) {
-			newSelected.delete(typeName);
-		} else {
-			newSelected.add(typeName);
-		}
-		setSelectedTypes(newSelected);
-	};
-
-	const handleExecuteQuery = async () => {
-		if (selectedTypes.size === 0) {
+	const runQueries = useCallback(async (parameters: string[]) => {
+		if (parameters.length === 0) {
 			return;
 		}
 
@@ -247,7 +261,7 @@ export function QueryDemo() {
 			const queries: DynamicQueryRequest[] = [
 				{
 					id: 'custom-query',
-					parameters: Array.from(selectedTypes),
+					parameters,
 					limit: 50,
 				},
 			];
@@ -276,8 +290,8 @@ export function QueryDemo() {
 						queryId: 'custom-query',
 						data: [],
 						meta: {
-							parameters: Array.from(selectedTypes),
-							total_parameters: selectedTypes.size,
+							parameters,
+							total_parameters: parameters.length,
 							page: 1,
 							limit: 50,
 							filters_applied: 0,
@@ -288,6 +302,58 @@ export function QueryDemo() {
 		} finally {
 			setIsLoading(false);
 		}
+	}, []);
+
+	useEffect(() => {
+		const loadTypes = async () => {
+			const data = await getQueryTypes();
+			if (data.success) {
+				const types = data.types.map((name) => ({
+					name,
+					defaultLimit: data.configs[name]?.defaultLimit,
+					customizable: data.configs[name]?.customizable,
+					allowedFilters: data.configs[name]?.allowedFilters,
+				}));
+				setAvailableTypes(types);
+
+				const sortedByUtility = [...types].sort((a, b) => {
+					const aScore =
+						(a.customizable ? 1 : 0) * 2 + (a.allowedFilters?.length || 0);
+					const bScore =
+						(b.customizable ? 1 : 0) * 2 + (b.allowedFilters?.length || 0);
+					return bScore - aScore;
+				});
+				const defaultSelectedNames = sortedByUtility
+					.slice(0, Math.min(3, sortedByUtility.length))
+					.map((t) => t.name);
+				if (defaultSelectedNames.length > 0) {
+					setSelectedTypes(new Set(defaultSelectedNames));
+					setSelectedOrder(defaultSelectedNames);
+					runQueries(defaultSelectedNames);
+				}
+			}
+		};
+		loadTypes();
+	}, [runQueries]);
+
+	const handleTypeToggle = (typeName: string) => {
+		const newSelected = new Set(selectedTypes);
+		if (newSelected.has(typeName)) {
+			newSelected.delete(typeName);
+			setSelectedOrder((prev) => prev.filter((n) => n !== typeName));
+		} else {
+			newSelected.add(typeName);
+			setSelectedOrder((prev) => [...prev, typeName]);
+		}
+		setSelectedTypes(newSelected);
+	};
+
+	const handleExecuteQuery = async () => {
+		if (selectedTypes.size === 0) {
+			return;
+		}
+
+		await runQueries([...selectedOrder]);
 	};
 
 	return (
@@ -306,7 +372,7 @@ export function QueryDemo() {
 
 					<ScrollArea className="h-80 lg:h-96">
 						<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
-							{availableTypes.map((type) => (
+							{displayedTypes.map((type) => (
 								<Card
 									className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md ${
 										selectedTypes.has(type.name)
@@ -380,13 +446,22 @@ export function QueryDemo() {
 					<Card className="relative flex-1 border-border/50 bg-black">
 						<CardContent className="h-80 p-0 lg:h-96">
 							<ScrollArea className="h-full">
-								<div className="p-4 font-mono text-xs">
-									{result ? (
+								<div className="select-text break-words p-4 font-mono text-[13px] leading-6 tracking-tight sm:text-[13.5px]">
+									{isLoading ? (
+										<div className="space-y-2">
+											<Skeleton className="h-4 w-5/6" />
+											<Skeleton className="h-4 w-2/3" />
+											<Skeleton className="h-4 w-11/12" />
+											<Skeleton className="h-4 w-3/4" />
+											<Skeleton className="h-4 w-1/2" />
+											<Skeleton className="h-4 w-10/12" />
+											<Skeleton className="h-4 w-8/12" />
+											<Skeleton className="h-4 w-9/12" />
+										</div>
+									) : result ? (
 										<JsonNode data={result} />
 									) : (
-										<div className="text-gray-400">
-											{/* Execute query to see API response */}
-										</div>
+										<div className="text-gray-400" />
 									)}
 								</div>
 							</ScrollArea>
