@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/card';
 import { getQueryTypes } from './actions';
 import { QueryDemo } from './query-demo';
+import { QueryTypesGrid } from './query-types-grid';
 
 export default async function ApiPlaygroundPage() {
 	const queryTypesData = await getQueryTypes();
@@ -58,45 +59,12 @@ export default async function ApiPlaygroundPage() {
 										</div>
 									</div>
 								) : (
-									<div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-										{queryTypesData.types.sort().map((type) => (
-											<div className="rounded border p-4" key={type}>
-												<div className="space-y-3">
-													<div className="flex items-start justify-between">
-														<code className="font-medium font-mono text-sm">
-															{type}
-														</code>
-														{queryTypesData.configs[type]?.customizable && (
-															<span className="rounded bg-blue-100 px-2 py-1 text-blue-800 text-xs">
-																Customizable
-															</span>
-														)}
-													</div>
-
-													{queryTypesData.configs[type] && (
-														<div className="space-y-2">
-															{queryTypesData.configs[type].defaultLimit && (
-																<div className="text-muted-foreground text-xs">
-																	Default limit:{' '}
-																	{queryTypesData.configs[type].defaultLimit}
-																</div>
-															)}
-
-															{queryTypesData.configs[type].allowedFilters
-																?.length > 0 && (
-																<div className="text-muted-foreground text-xs">
-																	<span className="font-medium">Filters:</span>{' '}
-																	{queryTypesData.configs[
-																		type
-																	].allowedFilters.join(', ')}
-																</div>
-															)}
-														</div>
-													)}
-												</div>
-											</div>
-										))}
-									</div>
+									<QueryTypesGrid
+										items={queryTypesData.types.sort().map((name) => ({
+											name,
+											config: queryTypesData.configs[name],
+										}))}
+									/>
 								)
 							) : (
 								<div className="rounded border border-red-200 bg-red-50 p-6 text-center">

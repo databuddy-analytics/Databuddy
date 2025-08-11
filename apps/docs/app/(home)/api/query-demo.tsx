@@ -1,13 +1,21 @@
 'use client';
 
-import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { XIcon } from '@phosphor-icons/react';
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getQueryTypes } from './actions';
+import { JsonNode } from './json-viewer';
 import {
 	type BatchQueryResponse,
 	type DynamicQueryRequest,
@@ -19,192 +27,6 @@ interface QueryType {
 	defaultLimit?: number;
 	customizable?: boolean;
 	allowedFilters?: string[];
-}
-
-// JSON Tree Viewer Component
-interface JsonNodeProps {
-	data: unknown;
-	name?: string;
-	level?: number;
-}
-
-function getValueColor(value: unknown) {
-	if (value === null) {
-		return 'text-muted-foreground';
-	}
-	if (typeof value === 'string') {
-		return 'text-emerald-500 dark:text-emerald-300';
-	}
-	if (typeof value === 'number' || typeof value === 'boolean') {
-		return 'text-amber-500 dark:text-amber-300';
-	}
-	return 'text-foreground/90';
-}
-
-function formatValue(value: unknown) {
-	if (value === null) {
-		return 'null';
-	}
-	if (typeof value === 'string') {
-		return `"${value}"`;
-	}
-	return String(value);
-}
-
-function PrimitiveNode({
-	value,
-	name,
-	level,
-}: {
-	value: unknown;
-	name?: string;
-	level: number;
-}) {
-	const indent = level * 12;
-	return (
-		<div
-			className="flex items-center rounded px-2 py-1 transition-colors hover:bg-muted/20"
-			style={{ paddingLeft: indent }}
-		>
-			{name && <span className="mr-2 text-primary">{name}:</span>}
-			<span className={getValueColor(value)}>{formatValue(value)}</span>
-		</div>
-	);
-}
-
-function ArrayNode({
-	data,
-	name,
-	level,
-}: {
-	data: unknown[];
-	name?: string;
-	level: number;
-}) {
-	const [isExpanded, setIsExpanded] = useState(true);
-	const indent = level * 12;
-	if (data.length === 0) {
-		return <PrimitiveNode level={level} name={name} value="[]" />;
-	}
-	return (
-		<div>
-			<button
-				aria-expanded={isExpanded}
-				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
-				onClick={() => setIsExpanded(!isExpanded)}
-				style={{ paddingLeft: indent }}
-				type="button"
-			>
-				{isExpanded ? (
-					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-				) : (
-					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-				)}
-				{name && <span className="mr-2 text-primary">{name}:</span>}
-				<span className="font-semibold text-foreground/80">[</span>
-			</button>
-			{isExpanded && (
-				<>
-					{data.map((item, index) => (
-						<JsonNode
-							data={item}
-							key={`${name || 'root'}-${index}`}
-							level={level + 1}
-						/>
-					))}
-					<div
-						className="flex items-center py-1"
-						style={{ paddingLeft: indent }}
-					>
-						<span className="font-semibold text-foreground/80">]</span>
-					</div>
-				</>
-			)}
-			{!isExpanded && (
-				<div className="flex items-center py-1" style={{ paddingLeft: indent }}>
-					<span className="font-semibold text-foreground/80">]</span>
-				</div>
-			)}
-		</div>
-	);
-}
-
-function ObjectNode({
-	data,
-	name,
-	level,
-}: {
-	data: Record<string, unknown>;
-	name?: string;
-	level: number;
-}) {
-	const [isExpanded, setIsExpanded] = useState(true);
-	const indent = level * 12;
-	const keys = Object.keys(data);
-	if (keys.length === 0) {
-		return <PrimitiveNode level={level} name={name} value="{}" />;
-	}
-	return (
-		<div>
-			<button
-				aria-expanded={isExpanded}
-				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
-				onClick={() => setIsExpanded(!isExpanded)}
-				style={{ paddingLeft: indent }}
-				type="button"
-			>
-				{isExpanded ? (
-					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-				) : (
-					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-				)}
-				{name && <span className="mr-2 text-primary">{name}:</span>}
-				<span className="font-semibold text-foreground/80">{'{'}</span>
-			</button>
-			{isExpanded && (
-				<>
-					{keys.map((key) => (
-						<JsonNode data={data[key]} key={key} level={level + 1} name={key} />
-					))}
-					<div
-						className="flex items-center py-1"
-						style={{ paddingLeft: indent }}
-					>
-						<span className="font-semibold text-foreground/80">{'}'}</span>
-					</div>
-				</>
-			)}
-			{!isExpanded && (
-				<div className="flex items-center py-1" style={{ paddingLeft: indent }}>
-					<span className="font-semibold text-foreground/80">{'}'}</span>
-				</div>
-			)}
-		</div>
-	);
-}
-
-function JsonNode({ data, name, level = 0 }: JsonNodeProps) {
-	if (
-		data === null ||
-		typeof data === 'string' ||
-		typeof data === 'number' ||
-		typeof data === 'boolean'
-	) {
-		return <PrimitiveNode level={level} name={name} value={data} />;
-	}
-	if (Array.isArray(data)) {
-		return <ArrayNode data={data} level={level} name={name} />;
-	}
-	if (typeof data === 'object') {
-		return (
-			<ObjectNode
-				data={data as Record<string, unknown>}
-				level={level}
-				name={name}
-			/>
-		);
-	}
-	return null;
 }
 
 function CornerDecorations() {
@@ -236,6 +58,19 @@ export function QueryDemo() {
 	const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [result, setResult] = useState<BatchQueryResponse | null>(null);
+	const listContainerRef = useRef<HTMLDivElement | null>(null);
+	const savedScrollTopRef = useRef<number | null>(null);
+	const clearSelection = () => {
+		const viewport = listContainerRef.current?.querySelector(
+			'[data-slot="scroll-area-viewport"]'
+		) as HTMLElement | null;
+		if (viewport) {
+			savedScrollTopRef.current = viewport.scrollTop;
+			viewport.style.setProperty('overflow-anchor', 'none');
+		}
+		setSelectedTypes(new Set());
+		setSelectedOrder([]);
+	};
 
 	const displayedTypes = useMemo(() => {
 		const selectedSet = new Set(selectedOrder);
@@ -337,6 +172,15 @@ export function QueryDemo() {
 	}, [runQueries]);
 
 	const handleTypeToggle = (typeName: string) => {
+		// hack to preserve current scroll position of the scrollarea viewport
+		const viewport = listContainerRef.current?.querySelector(
+			'[data-slot="scroll-area-viewport"]'
+		) as HTMLElement | null;
+		if (viewport) {
+			savedScrollTopRef.current = viewport.scrollTop;
+			// prevent browser scroll anchoring from jumping to the moved item
+			viewport.style.setProperty('overflow-anchor', 'none');
+		}
 		const newSelected = new Set(selectedTypes);
 		if (newSelected.has(typeName)) {
 			newSelected.delete(typeName);
@@ -347,6 +191,20 @@ export function QueryDemo() {
 		}
 		setSelectedTypes(newSelected);
 	};
+
+	// restore the scroll position immediately after the DOM updates from reordering
+	useLayoutEffect(() => {
+		if (savedScrollTopRef.current !== null) {
+			const viewport = listContainerRef.current?.querySelector(
+				'[data-slot="scroll-area-viewport"]'
+			) as HTMLElement | null;
+			if (viewport) {
+				viewport.scrollTop = savedScrollTopRef.current;
+				viewport.style.removeProperty('overflow-anchor');
+			}
+			savedScrollTopRef.current = null;
+		}
+	});
 
 	const handleExecuteQuery = async () => {
 		if (selectedTypes.size === 0) {
@@ -366,58 +224,72 @@ export function QueryDemo() {
 						{selectedTypes.size > 0 && (
 							<Badge className="font-mono text-xs" variant="secondary">
 								{selectedTypes.size} selected
+								<button
+									aria-label="Clear selection"
+									className={`${
+										selectedTypes.size > 5
+											? 'pointer-events-auto ml-1 w-4 scale-100 opacity-100'
+											: 'pointer-events-none ml-0 w-0 scale-95 opacity-0'
+									} inline-flex h-4 items-center justify-center rounded transition-all duration-200 hover:bg-muted/40`}
+									onClick={clearSelection}
+									type="button"
+								>
+									<XIcon className="size-3" weight="duotone" />
+								</button>
 							</Badge>
 						)}
 					</div>
 
-					<ScrollArea className="h-80 lg:h-96">
-						<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
-							{displayedTypes.map((type) => (
-								<Card
-									className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md ${
-										selectedTypes.has(type.name)
-											? 'bg-primary/5 shadow-inner'
-											: 'border-border/50 bg-card/70 hover:border-border'
-									}`}
-									key={type.name}
-									onClick={() => handleTypeToggle(type.name)}
-								>
-									<CardContent className="p-2">
-										<div className="flex items-center justify-between gap-2">
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2">
-													<code className="truncate font-medium font-mono text-xs">
-														{type.name}
-													</code>
-													{type.customizable && (
-														<Badge
-															className="px-1.5 py-0.5 text-[10px] leading-none"
-															variant="outline"
-														>
-															Custom
-														</Badge>
+					<div ref={listContainerRef}>
+						<ScrollArea className="h-80 lg:h-96">
+							<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
+								{displayedTypes.map((type) => (
+									<Card
+										className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md ${
+											selectedTypes.has(type.name)
+												? 'bg-primary/5 shadow-inner'
+												: 'border-border/50 bg-card/70 hover:border-border'
+										}`}
+										key={type.name}
+										onClick={() => handleTypeToggle(type.name)}
+									>
+										<CardContent className="p-2">
+											<div className="flex items-center justify-between gap-2">
+												<div className="min-w-0 flex-1">
+													<div className="flex items-center gap-2">
+														<code className="truncate font-medium font-mono text-xs">
+															{type.name}
+														</code>
+														{type.customizable && (
+															<Badge
+																className="px-1.5 py-0.5 text-[10px] leading-none"
+																variant="outline"
+															>
+																Custom
+															</Badge>
+														)}
+													</div>
+													{type.defaultLimit && (
+														<div className="mt-0.5 text-[10px] text-muted-foreground">
+															Limit: {type.defaultLimit}
+														</div>
 													)}
 												</div>
-												{type.defaultLimit && (
-													<div className="mt-0.5 text-[10px] text-muted-foreground">
-														Limit: {type.defaultLimit}
-													</div>
-												)}
+												<div
+													className={`h-3 w-3 flex-shrink-0 rounded-full border transition-colors ${
+														selectedTypes.has(type.name)
+															? 'border-primary bg-primary'
+															: 'border-muted-foreground/30'
+													}`}
+												/>
 											</div>
-											<div
-												className={`h-3 w-3 flex-shrink-0 rounded-full border transition-colors ${
-													selectedTypes.has(type.name)
-														? 'border-primary bg-primary'
-														: 'border-muted-foreground/30'
-												}`}
-											/>
-										</div>
-									</CardContent>
-									<CornerDecorations />
-								</Card>
-							))}
-						</div>
-					</ScrollArea>
+										</CardContent>
+										<CornerDecorations />
+									</Card>
+								))}
+							</div>
+						</ScrollArea>
+					</div>
 
 					<Button
 						className="w-full"
