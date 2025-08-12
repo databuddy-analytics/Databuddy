@@ -31,7 +31,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { useAutocompleteData } from '@/hooks/use-funnels';
+import {
+	type AutocompleteData,
+	useAutocompleteData,
+} from '@/hooks/use-funnels';
 import { operatorOptions } from '@/hooks/use-filters';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -198,19 +201,19 @@ function FilterSelectionForm({
 function FilterForm({
 	addFilter,
 	setIsDropdownOpen,
+	autocompleteData,
+	isAutocompleteDataLoading,
+	isAutocompleteDataError,
 }: {
 	addFilter: (filter: DynamicQueryFilter) => void;
 	setIsDropdownOpen: (isOpen: boolean) => void;
+	autocompleteData: AutocompleteData | undefined;
+	isAutocompleteDataLoading: boolean;
+	isAutocompleteDataError: boolean;
 }) {
 	const [filterBeingEdited, setFilterBeingEdited] =
 		useState<FilterOption | null>(null);
 
-	const { id } = useParams();
-	const websiteId = id as string;
-
-	// TODO: Refactor this to a "useSuggestions" hook
-	const autocompleteQuery = useAutocompleteData(websiteId);
-	const autocompleteData = autocompleteQuery.data;
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
 			if (!autocompleteData) {
@@ -239,7 +242,7 @@ function FilterForm({
 		[autocompleteData]
 	);
 
-	if (autocompleteQuery.isError) {
+	if (isAutocompleteDataError) {
 		return (
 			<div className="p-4 text-destructive text-sm">
 				Failed to load filter suggestions. Please try again.
@@ -247,7 +250,7 @@ function FilterForm({
 		);
 	}
 
-	if (autocompleteQuery.isLoading) {
+	if (isAutocompleteDataLoading) {
 		const numberOfFilters = filterOptions.length;
 		return (
 			<div className="flex flex-col gap-2">
@@ -288,6 +291,13 @@ export function AddFilterForm({
 	buttonText?: string;
 }) {
 	const [isOpen, setIsOpen] = useState(false);
+
+	const { id } = useParams();
+	const websiteId = id as string;
+
+	const autocompleteQuery = useAutocompleteData(websiteId);
+	const autocompleteData = autocompleteQuery.data;
+
 	return (
 		<DropdownMenu onOpenChange={setIsOpen} open={isOpen}>
 			<DropdownMenuTrigger asChild>
@@ -305,7 +315,13 @@ export function AddFilterForm({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-[300px]" side="bottom">
 				<Suspense fallback={<div>Loading...</div>}>
-					<FilterForm addFilter={addFilter} setIsDropdownOpen={setIsOpen} />
+					<FilterForm
+						addFilter={addFilter}
+						autocompleteData={autocompleteData}
+						isAutocompleteDataError={autocompleteQuery.isError}
+						isAutocompleteDataLoading={autocompleteQuery.isLoading}
+						setIsDropdownOpen={setIsOpen}
+					/>
 				</Suspense>
 			</DropdownMenuContent>
 		</DropdownMenu>
