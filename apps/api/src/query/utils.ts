@@ -277,3 +277,16 @@ function applyUrlNormalization(data: DataRow[]): DataRow[] {
 		}
 	});
 }
+
+const UNSAFE_CLAUSE_REGEX = /;|--|\/\*|\*\//;
+
+export function buildWhereClause(conditions?: string[]): string {
+	if (!conditions?.length) {
+		return '';
+	}
+
+	const safeClauses = conditions.filter(
+		(clause) => !UNSAFE_CLAUSE_REGEX.test(clause)
+	);
+	return `AND (${safeClauses.join(' AND ')})`;
+}

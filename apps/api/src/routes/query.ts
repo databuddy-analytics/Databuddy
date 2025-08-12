@@ -1,6 +1,7 @@
+import { filterOptions } from '@databuddy/shared';
 import { Elysia, t } from 'elysia';
 import { getCachedWebsiteDomain, getWebsiteDomain } from '../lib/website-utils';
-import { createRateLimitMiddleware } from '../middleware/rate-limit';
+// import { createRateLimitMiddleware } from '../middleware/rate-limit';
 import { websiteAuth } from '../middleware/website-auth';
 import { compileQuery, executeQuery } from '../query';
 import { QueryBuilders } from '../query/builders';
@@ -22,7 +23,7 @@ interface QueryParams {
 }
 
 export const query = new Elysia({ prefix: '/v1/query' })
-	.use(createRateLimitMiddleware({ type: 'api' }))
+	// .use(createRateLimitMiddleware({ type: 'api' }))
 	.use(websiteAuth())
 	.get('/types', ({ query: params }: { query: { include_meta?: string } }) => {
 		const includeMeta = params.include_meta === 'true';
@@ -30,7 +31,9 @@ export const query = new Elysia({ prefix: '/v1/query' })
 		const configs = Object.fromEntries(
 			Object.entries(QueryBuilders).map(([key, config]) => {
 				const baseConfig = {
-					allowedFilters: config.allowedFilters || [],
+					allowedFilters:
+						config.allowedFilters ??
+						filterOptions.map((filter) => filter.value),
 					customizable: config.customizable,
 					defaultLimit: config.limit,
 				};

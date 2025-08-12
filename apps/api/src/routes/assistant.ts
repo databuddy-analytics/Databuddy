@@ -8,7 +8,7 @@ import {
 	processAssistantRequest,
 } from '../agent';
 import { validateWebsite } from '../lib/website-utils';
-import { createRateLimitMiddleware } from '../middleware/rate-limit';
+// import { createRateLimitMiddleware } from '../middleware/rate-limit';
 import { websiteAuth } from '../middleware/website-auth';
 import { AssistantRequestSchema, type AssistantRequestType } from '../schemas';
 
@@ -20,7 +20,7 @@ async function* createErrorResponse(
 }
 
 export const assistant = new Elysia({ prefix: '/v1/assistant' })
-	.use(createRateLimitMiddleware({ type: 'expensive' }))
+	// .use(createRateLimitMiddleware({ type: 'expensive' }))
 	.use(websiteAuth())
 	.post(
 		'/stream',

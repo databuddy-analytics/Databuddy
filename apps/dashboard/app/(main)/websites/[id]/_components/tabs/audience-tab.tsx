@@ -158,6 +158,7 @@ export function WebsiteAudienceTab({
 	dateRange,
 	isRefreshing,
 	setIsRefreshing,
+	filters,
 }: FullTabProps) {
 	const batchQueries = useMemo(
 		() => [
@@ -165,6 +166,7 @@ export function WebsiteAudienceTab({
 				id: 'geographic-data',
 				parameters: ['country', 'region', 'city', 'timezone', 'language'],
 				limit: 100,
+				filters,
 			},
 			{
 				id: 'device-data',
@@ -176,14 +178,16 @@ export function WebsiteAudienceTab({
 					'connection_type',
 				],
 				limit: 50,
+				filters,
 			},
 			{
 				id: 'browsers-grouped',
 				parameters: ['browsers_grouped'],
 				limit: 50,
+				filters,
 			},
 		],
-		[]
+		[filters]
 	);
 
 	const {

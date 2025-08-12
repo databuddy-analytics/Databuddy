@@ -22,7 +22,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'total_events DESC',
 		limit: 10_000,
 		timeField: 'time',
-		allowedFilters: ['event_name', 'path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 	custom_event_properties: {
@@ -43,7 +42,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'count DESC',
 		limit: 10_000,
 		timeField: 'time',
-		allowedFilters: ['event_name', 'path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 };

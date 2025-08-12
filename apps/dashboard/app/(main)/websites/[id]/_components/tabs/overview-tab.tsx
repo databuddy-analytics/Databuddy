@@ -335,6 +335,7 @@ export function WebsiteOverviewTab({
 	dateRange,
 	isRefreshing,
 	setIsRefreshing,
+	filters,
 }: FullTabProps) {
 	const queries = [
 		{
@@ -342,30 +343,35 @@ export function WebsiteOverviewTab({
 			parameters: QUERY_CONFIG.parameters.summary,
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
+			filters,
 		},
 		{
 			id: 'overview-pages',
 			parameters: QUERY_CONFIG.parameters.pages,
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
+			filters,
 		},
 		{
 			id: 'overview-traffic',
 			parameters: QUERY_CONFIG.parameters.traffic,
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
+			filters,
 		},
 		{
 			id: 'overview-tech',
 			parameters: QUERY_CONFIG.parameters.tech,
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
+			filters,
 		},
 		{
 			id: 'overview-custom-events',
 			parameters: QUERY_CONFIG.parameters.customEvents,
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
+			filters,
 		},
 	];
 
@@ -1042,7 +1048,6 @@ export function WebsiteOverviewTab({
 	return (
 		<div className="space-y-6">
 			<EventLimitIndicator />
-
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
 				{[
 					{

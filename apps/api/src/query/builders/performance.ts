@@ -16,7 +16,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'"],
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name', 'country'],
 		customizable: true,
 	},
 
@@ -39,7 +38,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 
@@ -62,7 +60,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 
@@ -91,7 +88,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 
@@ -114,7 +110,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
 	},
@@ -138,7 +133,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 
@@ -161,7 +155,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'avg_load_time DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 
@@ -182,7 +175,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['toDate(time)'],
 		orderBy: 'date ASC',
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 	},
 };

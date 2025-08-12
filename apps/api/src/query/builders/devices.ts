@@ -52,7 +52,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'country'],
 		customizable: true,
 	},
 
@@ -106,7 +105,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -152,7 +150,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -198,7 +195,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -270,7 +266,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'visitors DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -319,11 +314,10 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: ["screen_resolution != ''", "event_name = 'screen_view'"],
-		groupBy: ['screen_resolution'],
+		groupBy: ['screen_resolution', 'device_type'],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'browser_name'],
 		customizable: true,
 		plugins: { mapDeviceTypes: true },
 	},
@@ -341,7 +335,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 25,
 		timeField: 'time',
-		allowedFilters: ['browser_name', 'path', 'device_type', 'country'],
 		customizable: true,
 	},
 
@@ -361,7 +354,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -378,7 +370,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -394,7 +385,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 25,
 		timeField: 'time',
-		allowedFilters: ['os_name', 'os_version', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -410,7 +400,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 };
