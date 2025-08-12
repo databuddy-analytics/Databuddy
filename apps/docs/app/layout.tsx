@@ -6,6 +6,7 @@ import Head from 'next/head';
 import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
 import type { ReactNode } from 'react';
+import { SITE_URL } from './util/constants';
 
 const geist = Geist({
 	subsets: ['latin'],
@@ -24,26 +25,14 @@ export const metadata: Metadata = {
 		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 	description:
 		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-	keywords: [
-		'analytics',
-		'web analytics',
-		'privacy',
-		'GDPR compliant',
-		'cookieless',
-		'website tracking',
-		'data ownership',
-		'performance analytics',
-		'AI analytics',
-		'privacy-first',
-	],
 	authors: [{ name: 'Databuddy Team' }],
 	creator: 'Databuddy',
 	publisher: 'Databuddy',
-	metadataBase: new URL('https://www.databuddy.cc'),
+	metadataBase: new URL(SITE_URL),
 	openGraph: {
 		type: 'website',
 		locale: 'en_US',
-		url: 'https://www.databuddy.cc',
+		url: SITE_URL,
 		title:
 			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 		description:
@@ -80,7 +69,10 @@ export const metadata: Metadata = {
 		},
 	},
 	alternates: {
-		canonical: 'https://www.databuddy.cc',
+		canonical: SITE_URL,
+	},
+	pinterest: {
+		richPin: false,
 	},
 };
 

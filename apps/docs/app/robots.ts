@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SITE_URL } from './util/constants';
 
 export default function robots(): MetadataRoute.Robots {
 	return {
@@ -19,7 +20,7 @@ export default function robots(): MetadataRoute.Robots {
 				disallow: '/',
 			},
 		],
-		sitemap: 'https://www.databuddy.cc/sitemap.xml',
-		host: 'https://www.databuddy.cc',
+		sitemap: `${SITE_URL}/sitemap.xml`,
+		host: SITE_URL,
 	};
 }
