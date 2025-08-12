@@ -52,7 +52,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
 	},
@@ -107,7 +106,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['country', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -124,7 +122,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['country', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -141,7 +138,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['country', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -195,7 +191,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['country', 'path', 'device_type'],
 		customizable: true,
 	},
 };

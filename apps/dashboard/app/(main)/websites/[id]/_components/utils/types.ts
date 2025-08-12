@@ -1,4 +1,4 @@
-import type { DateRange as BaseDateRange, Website } from '@databuddy/shared';
+import type { DateRange as BaseDateRange, DynamicQueryFilter, Website } from '@databuddy/shared';
 
 // Extended date range with granularity
 export interface DateRange extends BaseDateRange {
@@ -28,6 +28,7 @@ export interface FullTabProps extends BaseTabProps {
 	websiteData: Website | undefined;
 	isRefreshing: boolean;
 	setIsRefreshing: (value: boolean) => void;
+	filters: DynamicQueryFilter[];
 }
 
 // Common analytics data types

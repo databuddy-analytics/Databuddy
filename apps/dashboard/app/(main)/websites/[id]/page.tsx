@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowClockwiseIcon, WarningIcon } from '@phosphor-icons/react';
+import { filterOptions, type DynamicQueryFilter } from '@databuddy/shared';
+import { ArrowClockwiseIcon, WarningIcon, XIcon } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { format, subDays, subHours } from 'date-fns';
 import { useAtom } from 'jotai';
@@ -24,11 +25,16 @@ import {
 	timeGranularityAtom,
 	timezoneAtom,
 } from '@/stores/jotai/filterAtoms';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import type {
 	FullTabProps,
 	WebsiteDataTabProps,
 } from './_components/utils/types';
 import { EmptyState } from './_components/utils/ui-components';
+import {
+	AddFilterForm,
+	getOperatorShorthand,
+} from './_components/utils/add-filters';
 
 type TabId =
 	| 'overview'
@@ -92,6 +98,13 @@ function WebsiteDetailsPage() {
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
 	const [timezone] = useAtom(timezoneAtom);
 	const queryClient = useQueryClient();
+	const [selectedFilters, setSelectedFilters] = useState<DynamicQueryFilter[]>(
+		[]
+	);
+	const { addFilter, removeFilter } = useFilters({
+		filters: selectedFilters,
+		onFiltersChange: setSelectedFilters,
+	});
 
 	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
 		() => ({
@@ -200,6 +213,7 @@ function WebsiteDetailsPage() {
 				...settingsProps,
 				isRefreshing,
 				setIsRefreshing,
+				filters: selectedFilters,
 			};
 
 			const getTabComponent = () => {
@@ -232,6 +246,7 @@ function WebsiteDetailsPage() {
 			data,
 			isRefreshing,
 			refetchWebsiteData,
+			selectedFilters,
 		]
 	);
 
@@ -363,6 +378,63 @@ function WebsiteDetailsPage() {
 									value={dayPickerSelectedRange}
 								/>
 							</div>
+
+							<div className="ml-2 flex items-center">
+								<AddFilterForm addFilter={addFilter} />
+							</div>
+						</div>
+					</div>
+				)}
+				{selectedFilters.length > 0 && (
+					<div className="mt-3 rounded-lg border bg-muted/30 p-2.5">
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex items-center gap-2 overflow-x-auto">
+								<div className="font-semibold text-sm">Filters</div>
+								<div className="flex flex-wrap items-center gap-2">
+									{selectedFilters.map((filter, index) => {
+										const fieldLabel = filterOptions.find(
+											(o) => o.value === filter.field
+										)?.label;
+										const operatorLabel = operatorOptions.find(
+											(o) => getOperatorShorthand(o.value) === filter.operator
+										)?.label;
+										const valueLabel = Array.isArray(filter.value)
+											? filter.value.join(', ')
+											: filter.value;
+
+										return (
+											<div
+												className="flex items-center gap-0 rounded border bg-background py-1 pr-2 pl-3 shadow-sm"
+												key={`filter-${index}-${filter.field}-${filter.operator}`}
+											>
+												<div className="flex items-center gap-1">
+													<span className="font-medium text-foreground text-sm">
+														{fieldLabel}
+													</span>
+													<span className="text-muted-foreground/70 text-sm">
+														{operatorLabel}
+													</span>
+													<span className="font-medium text-foreground text-sm">
+														{valueLabel}
+													</span>
+												</div>
+												<button
+													aria-label={`Remove filter ${fieldLabel} ${operatorLabel} ${valueLabel}`}
+													className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted/50"
+													onClick={() => removeFilter(index)}
+													type="button"
+												>
+													<XIcon aria-hidden="true" className="h-3 w-3" />
+												</button>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+
+							<Button onClick={() => setSelectedFilters([])} variant="outline">
+								Clear all filters
+							</Button>
 						</div>
 					</div>
 				)}

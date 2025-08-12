@@ -22,7 +22,8 @@ export interface DynamicQueryFilter {
 		| 'in'
 		| 'not_in'
 		| 'contains'
-		| 'starts_with';
+		| 'starts_with'
+		| 'like';
 	value: string | number | (string | number)[];
 }
 
@@ -51,7 +52,7 @@ export interface DynamicQueryResponse {
 export interface GoalFilter {
 	field: string;
 	operator: 'equals' | 'contains' | 'not_equals' | 'in' | 'not_in';
-	value: string | string[];
+	value: DynamicQueryFilter['value'];
 }
 
 export interface BatchQueryResponse {

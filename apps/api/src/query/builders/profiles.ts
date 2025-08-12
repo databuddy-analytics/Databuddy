@@ -1,5 +1,6 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig } from '../types';
+import { buildWhereClause } from '../utils';
 
 export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 	profile_list: {
@@ -10,9 +11,15 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			_filters?: unknown[],
 			_granularity?: unknown,
 			limit?: number,
-			offset?: number
-		) => ({
-			sql: `
+			offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
+			return {
+				sql: `
     WITH visitor_profiles AS (
       SELECT
         anonymous_id as visitor_id,
@@ -33,6 +40,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
+		${combinedWhereClause}
       GROUP BY anonymous_id
       ORDER BY last_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
@@ -73,6 +81,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events e
       INNER JOIN visitor_profiles vp ON e.anonymous_id = vp.visitor_id
       WHERE e.client_id = {websiteId:String}
+		${combinedWhereClause}
       GROUP BY vp.visitor_id, e.session_id
       ORDER BY vp.visitor_id, session_start DESC
     )
@@ -108,23 +117,16 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     LEFT JOIN visitor_sessions vs ON vp.visitor_id = vs.visitor_id
     ORDER BY vp.last_visit DESC, vs.session_start DESC
   `,
-			params: {
-				websiteId,
-				startDate,
-				endDate: `${endDate} 23:59:59`,
-				limit: limit || 25,
-				offset: offset || 0,
-			},
-		}),
-		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
-		customizable: true,
+				params: {
+					websiteId,
+					startDate,
+					endDate: `${endDate} 23:59:59`,
+					limit: limit || 25,
+					offset: offset || 0,
+					...filterParams,
+				},
+			};
+		},
 	},
 
 	profile_metrics: {
@@ -137,13 +139,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'"],
 		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
 		customizable: true,
 	},
 
@@ -165,7 +160,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['duration_range'],
 		orderBy: 'visitors DESC',
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -181,7 +175,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['device_type'],
 		orderBy: 'visitors DESC',
 		timeField: 'time',
-		allowedFilters: ['device_type', 'path', 'referrer'],
 		customizable: true,
 	},
 
@@ -198,7 +191,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'visitors DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['browser_name', 'path', 'device_type'],
+
 		customizable: true,
 	},
 
@@ -214,7 +207,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['toDate(time)'],
 		orderBy: 'date ASC',
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
+
 		customizable: true,
 	},
 
@@ -226,9 +219,15 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			_filters?: unknown[],
 			_granularity?: unknown,
 			limit?: number,
-			offset?: number
-		) => ({
-			sql: `
+			offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
+			return {
+				sql: `
       SELECT
         anonymous_id as visitor_id,
         COUNT(DISTINCT session_id) as session_count,
@@ -241,21 +240,21 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
         AND event_name = 'screen_view'
+		${combinedWhereClause}
       GROUP BY anonymous_id
       HAVING session_count > 1
       ORDER BY session_count DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     `,
-			params: {
-				websiteId,
-				startDate,
-				endDate: `${endDate} 23:59:59`,
-				limit: limit || 100,
-				offset: offset || 0,
-			},
-		}),
-		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
-		customizable: true,
+				params: {
+					websiteId,
+					startDate,
+					endDate: `${endDate} 23:59:59`,
+					limit: limit || 100,
+					offset: offset || 0,
+					...filterParams,
+				},
+			};
+		},
 	},
 };

@@ -1,5 +1,6 @@
 import { Analytics } from '../../types/tables';
 import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import { buildWhereClause } from '../utils';
 
 export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 	summary_metrics: {
@@ -61,9 +62,13 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
-			timezone?: string
+			timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
 		) => {
 			const tz = timezone || 'UTC';
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
 			return {
 				sql: `
             WITH base_events AS (
@@ -78,6 +83,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                 AND time >= parseDateTimeBestEffort({startDate:String})
                 AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                 AND session_id != ''
+                ${combinedWhereClause}
             ),
             session_metrics AS (
               SELECT
@@ -131,17 +137,11 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					startDate,
 					endDate,
 					timezone: tz,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
 		customizable: true,
 	},
 
@@ -192,7 +192,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'", 'toDate(time) = today()'],
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -261,10 +260,13 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_granularity?: unknown,
 			_limit?: number,
 			_offset?: number,
-			timezone?: string
+			timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
 		) => {
 			const tz = timezone || 'UTC';
 			const isHourly = _granularity === 'hour' || _granularity === 'hourly';
+			const combinedWhereClause = buildWhereClause(filterConditions);
 
 			if (isHourly) {
 				return {
@@ -281,6 +283,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                     AND session_id != ''
+                    ${combinedWhereClause}
                 ),
                 hour_range AS (
                   SELECT arrayJoin(arrayMap(
@@ -340,6 +343,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 						startDate,
 						endDate,
 						timezone: tz,
+						...filterParams,
 					},
 				};
 			}
@@ -358,6 +362,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                     AND session_id != ''
+                    ${combinedWhereClause}
                 ),
                 date_range AS (
                   SELECT arrayJoin(arrayMap(
@@ -417,11 +422,11 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					startDate,
 					endDate,
 					timezone: tz,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -450,7 +455,19 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: '1.0',
 		},
-		customSql: (websiteId: string) => {
+		customSql: (
+			websiteId: string,
+			_startDate: string,
+			_endDate: string,
+			_filters?: unknown[],
+			_granularity?: unknown,
+			_limit?: number,
+			_offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
 			return {
 				sql: `
           SELECT
@@ -461,14 +478,15 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
             AND client_id = {websiteId:String}
             AND session_id != ''
             AND time >= now() - INTERVAL 5 MINUTE
+            ${combinedWhereClause}
         `,
 				params: {
 					websiteId,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer'],
 		customizable: true,
 		appendEndOfDayToTo: false,
 	},

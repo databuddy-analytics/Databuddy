@@ -1,5 +1,6 @@
 'use client';
 
+import { filterOptions, type GoalFilter } from '@databuddy/shared';
 import {
 	Eye,
 	MouseMiddleClick,
@@ -28,7 +29,14 @@ import {
 } from '@/components/ui/sheet';
 import type { AutocompleteData } from '@/hooks/use-funnels';
 import type { CreateGoalData, Goal } from '@/hooks/use-goals';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import { AutocompleteInput } from '../../funnels/_components/funnel-components';
+
+const defaultFilter: GoalFilter = {
+	field: 'browser_name',
+	operator: 'equals',
+	value: '',
+} as const;
 
 interface EditGoalDialogProps {
 	isOpen: boolean;
@@ -106,80 +114,15 @@ export function EditGoalDialog({
 		[formData]
 	);
 
-	const addFilter = useCallback(() => {
-		if (!formData) {
-			return;
-		}
-		setFormData((prev) =>
-			prev
-				? {
-						...prev,
-						filters: [
-							...(prev.filters || []),
-							{ field: 'browser_name', operator: 'equals' as const, value: '' },
-						],
-					}
-				: prev
-		);
-	}, [formData]);
+	const handleFiltersChange = useCallback((newFilters: GoalFilter[]) => {
+		setFormData((prev) => (prev ? { ...prev, filters: newFilters } : prev));
+	}, []);
 
-	const removeFilter = useCallback(
-		(index: number) => {
-			if (!formData) {
-				return;
-			}
-			setFormData((prev) =>
-				prev
-					? {
-							...prev,
-							filters: (prev.filters || []).filter((_, i) => i !== index),
-						}
-					: prev
-			);
-		},
-		[formData]
-	);
-
-	const updateFilter = useCallback(
-		(index: number, field: 'field' | 'operator' | 'value', value: string) => {
-			if (!formData) {
-				return;
-			}
-			setFormData((prev) =>
-				prev
-					? {
-							...prev,
-							filters: (prev.filters || []).map((filter, i) =>
-								i === index ? { ...filter, [field]: value } : filter
-							),
-						}
-					: prev
-			);
-		},
-		[formData]
-	);
-
-	const filterOptions = useMemo(
-		() => [
-			{ value: 'browser_name', label: 'Browser' },
-			{ value: 'os_name', label: 'Operating System' },
-			{ value: 'country', label: 'Country' },
-			{ value: 'device_type', label: 'Device Type' },
-			{ value: 'utm_source', label: 'UTM Source' },
-			{ value: 'utm_medium', label: 'UTM Medium' },
-			{ value: 'utm_campaign', label: 'UTM Campaign' },
-		],
-		[]
-	);
-
-	const operatorOptions = useMemo(
-		() => [
-			{ value: 'equals', label: 'equals' },
-			{ value: 'contains', label: 'contains' },
-			{ value: 'not_equals', label: 'does not equal' },
-		],
-		[]
-	);
+	const { addFilter, removeFilter, updateFilter } = useFilters({
+		filters: formData?.filters || [],
+		onFiltersChange: handleFiltersChange,
+		defaultFilter,
+	});
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
@@ -508,7 +451,7 @@ export function EditGoalDialog({
 
 						<Button
 							className="group rounded-lg border-2 border-primary/30 border-dashed transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
-							onClick={addFilter}
+							onClick={() => addFilter()}
 							size="sm"
 							type="button"
 							variant="outline"

@@ -65,7 +65,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 		plugins: { parseReferrers: true },
 	},
@@ -120,7 +119,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
@@ -137,7 +135,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
@@ -191,7 +188,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
@@ -214,7 +210,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 		plugins: { parseReferrers: true },
 	},

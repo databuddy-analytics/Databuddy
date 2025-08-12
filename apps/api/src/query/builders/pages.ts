@@ -1,5 +1,6 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig } from '../types';
+import { buildWhereClause } from '../utils';
 
 export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
@@ -17,7 +18,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['referrer', 'device_type', 'browser_name'],
 		customizable: true,
 		meta: {
 			title: 'Top Pages',
@@ -67,20 +67,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	entry_pages: {
-		table: Analytics.events,
-		fields: [
-			'entry_page as name',
-			'COUNT(*) as pageviews',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
-		],
-		where: ["event_name = 'screen_view'"],
-		groupBy: ['entry_page'],
-		orderBy: 'pageviews DESC',
-		limit: 100,
-		timeField: 'time',
-		allowedFilters: ['referrer', 'device_type'],
-		customizable: true,
 		customSql: (
 			websiteId: string,
 			startDate: string,
@@ -88,9 +74,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			_filters?: unknown[],
 			_granularity?: unknown,
 			limit?: number,
-			offset?: number
-		) => ({
-			sql: `
+			offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
+			return {
+				sql: `
             WITH session_entry AS (
                 SELECT 
                     session_id,
@@ -103,6 +95,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort({endDate:String})
                     AND event_name = 'screen_view'
+                    ${combinedWhereClause}
             )
             SELECT 
                 entry_page as name,
@@ -115,31 +108,19 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             ORDER BY pageviews DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}
             `,
-			params: {
-				websiteId,
-				startDate,
-				endDate,
-				limit: limit || 100,
-				offset: offset || 0,
-			},
-		}),
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					limit: limit || 100,
+					offset: offset || 0,
+					...filterParams,
+				},
+			};
+		},
 	},
 
 	exit_pages: {
-		table: Analytics.events,
-		fields: [
-			'path as name',
-			'COUNT(DISTINCT session_id) as pageviews',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND((COUNT(DISTINCT session_id) / SUM(COUNT(DISTINCT session_id)) OVER()) * 100, 2) as percentage',
-		],
-		where: ["event_name = 'screen_view'"],
-		groupBy: ['path'],
-		orderBy: 'pageviews DESC',
-		limit: 100,
-		timeField: 'time',
-		allowedFilters: ['referrer', 'device_type'],
-		customizable: true,
 		customSql: (
 			websiteId: string,
 			startDate: string,
@@ -147,9 +128,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			_filters?: unknown[],
 			_granularity?: unknown,
 			limit?: number,
-			offset?: number
-		) => ({
-			sql: `
+			offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
+			return {
+				sql: `
             WITH sessions AS (
                 SELECT
                     session_id,
@@ -159,6 +146,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort({endDate:String})
                     AND event_name = 'screen_view'
+					${combinedWhereClause}
                 GROUP BY session_id
             ),
             exit_pages AS (
@@ -172,6 +160,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
                     AND e.time <= parseDateTimeBestEffort({endDate:String})
                     AND e.event_name = 'screen_view'
+					${combinedWhereClause}
             )
             SELECT 
                 path as name,
@@ -183,14 +172,16 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             ORDER BY pageviews DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}
             `,
-			params: {
-				websiteId,
-				startDate,
-				endDate,
-				limit: limit || 100,
-				offset: offset || 0,
-			},
-		}),
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					limit: limit || 100,
+					offset: offset || 0,
+					...filterParams,
+				},
+			};
+		},
 	},
 
 	page_performance: {
@@ -208,7 +199,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['referrer', 'device_type'],
 		customizable: true,
 	},
 };

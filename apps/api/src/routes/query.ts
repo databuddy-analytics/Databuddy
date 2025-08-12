@@ -11,6 +11,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from '../schemas';
+import { filterOptions } from '@databuddy/shared';
 
 interface QueryParams {
 	start_date?: string;
@@ -30,7 +31,9 @@ export const query = new Elysia({ prefix: '/v1/query' })
 		const configs = Object.fromEntries(
 			Object.entries(QueryBuilders).map(([key, config]) => {
 				const baseConfig = {
-					allowedFilters: config.allowedFilters || [],
+					allowedFilters:
+						config.allowedFilters ??
+						filterOptions.map((filter) => filter.value),
 					customizable: config.customizable,
 					defaultLimit: config.limit,
 				};

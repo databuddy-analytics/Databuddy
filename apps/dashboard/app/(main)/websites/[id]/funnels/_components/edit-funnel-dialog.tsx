@@ -6,6 +6,7 @@ import {
 	Droppable,
 	type DropResult,
 } from '@hello-pangea/dnd';
+import { filterOptions } from '@databuddy/shared';
 import {
 	ChartBarIcon,
 	FunnelIcon,
@@ -38,7 +39,14 @@ import type {
 	FunnelFilter,
 	FunnelStep,
 } from '@/hooks/use-funnels';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import { AutocompleteInput, DraggableStep } from './funnel-components';
+
+const defaultFilter: FunnelFilter = {
+	field: 'browser_name',
+	operator: 'equals',
+	value: '',
+} as const;
 
 interface EditFunnelDialogProps {
 	isOpen: boolean;
@@ -216,80 +224,15 @@ export function EditFunnelDialog({
 		[formData]
 	);
 
-	const addFilter = useCallback(() => {
-		if (!formData) {
-			return;
-		}
-		setFormData((prev) =>
-			prev
-				? {
-						...prev,
-						filters: [
-							...(prev.filters || []),
-							{ field: 'browser_name', operator: 'equals' as const, value: '' },
-						],
-					}
-				: prev
-		);
-	}, [formData]);
+	const handleFiltersChange = useCallback((newFilters: FunnelFilter[]) => {
+		setFormData((prev) => (prev ? { ...prev, filters: newFilters } : prev));
+	}, []);
 
-	const removeFilter = useCallback(
-		(index: number) => {
-			if (!formData) {
-				return;
-			}
-			setFormData((prev) =>
-				prev
-					? {
-							...prev,
-							filters: (prev.filters || []).filter((_, i) => i !== index),
-						}
-					: prev
-			);
-		},
-		[formData]
-	);
-
-	const updateFilter = useCallback(
-		(index: number, field: keyof FunnelFilter, value: string) => {
-			if (!formData) {
-				return;
-			}
-			setFormData((prev) =>
-				prev
-					? {
-							...prev,
-							filters: (prev.filters || []).map((filter, i) =>
-								i === index ? { ...filter, [field]: value } : filter
-							),
-						}
-					: prev
-			);
-		},
-		[formData]
-	);
-
-	const filterOptions = useMemo(
-		() => [
-			{ value: 'browser_name', label: 'Browser' },
-			{ value: 'os_name', label: 'Operating System' },
-			{ value: 'country', label: 'Country' },
-			{ value: 'device_type', label: 'Device Type' },
-			{ value: 'utm_source', label: 'UTM Source' },
-			{ value: 'utm_medium', label: 'UTM Medium' },
-			{ value: 'utm_campaign', label: 'UTM Campaign' },
-		],
-		[]
-	);
-
-	const operatorOptions = useMemo(
-		() => [
-			{ value: 'equals', label: 'equals' },
-			{ value: 'contains', label: 'contains' },
-			{ value: 'not_equals', label: 'does not equal' },
-		],
-		[]
-	);
+	const { addFilter, removeFilter, updateFilter } = useFilters({
+		filters: formData?.filters || [],
+		onFiltersChange: handleFiltersChange,
+		defaultFilter,
+	});
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
@@ -591,7 +534,7 @@ export function EditFunnelDialog({
 
 						<Button
 							className="rounded border-2 border-primary/30 border-dashed hover:border-primary/50 hover:bg-primary/5"
-							onClick={addFilter}
+							onClick={() => addFilter()}
 							size="sm"
 							type="button"
 							variant="outline"
