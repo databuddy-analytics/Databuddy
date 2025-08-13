@@ -96,20 +96,20 @@ function validateFormData(data: unknown): { valid: boolean; errors: string[] } {
 
 export async function POST(request: NextRequest) {
 	try {
-		// Bot protection
-		const verification = await checkBotId();
+		// Bot protection - DISABLED
+		// const verification = await checkBotId();
 
-		if (verification.isBot) {
-			await logger.warning(
-				'Ambassador Form Bot Attempt',
-				'Bot detected trying to submit ambassador form',
-				{
-					botScore: verification.isBot,
-					userAgent: request.headers.get('user-agent'),
-				}
-			);
-			return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-		}
+		// if (verification.isBot) {
+		// 	await logger.warning(
+		// 		'Ambassador Form Bot Attempt',
+		// 		'Bot detected trying to submit ambassador form',
+		// 		{
+		// 			botScore: verification.isBot,
+		// 			userAgent: request.headers.get('user-agent'),
+		// 		}
+		// 	);
+		// 	return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+		// }
 
 		// Rate limiting
 		const clientIP = getClientIP(request);
