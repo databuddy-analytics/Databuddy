@@ -91,6 +91,12 @@ const logos = [
 		src: 'https://snowseo.com',
 		style: 'font-semibold',
 	},
+	{
+		id: 16,
+		name: 'inbound',
+		src: 'https://inbound.new/',
+		style: 'font-semibold',
+	},
 ];
 
 import { LogoCarousel } from './logo-carousel';
