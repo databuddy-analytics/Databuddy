@@ -133,22 +133,33 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
                 websiteId,
                 startDate,
                 endDate: `${endDate} 23:59:59`,
-                limit: limit || 25,
-                offset: offset || 0,
+                limit: limit ?? 25,
+                offset: offset ?? 0,
             };
             let idx = 0;
             for (const f of filters) {
                 if (!f || !allowed.has(f.field)) continue;
-                const key = `sf${idx++}`;
                 const op = (f as any).op || (f as any).operator;
+                
                 if (op === 'like') {
-                    clauses.push(`${f.field} LIKE {${key}:String}`);
-                    (params as any)[key] = `%${(f as any).value}%`;
+                    const key = `sf${idx++}`;
+                    if (f.field === 'referrer') {
+                        clauses.push(`lower(referrer) LIKE lower({${key}:String})`);
+                        (params as any)[key] = `%${(f as any).value}%`;
+                    } else {
+                        clauses.push(`${f.field} LIKE {${key}:String}`);
+                        (params as any)[key] = `%${(f as any).value}%`;
+                    }
                 } else {
-                    clauses.push(`${f.field} = {${key}:String}`);
-                    (params as any)[key] = Array.isArray((f as any).value)
-                        ? String((f as any).value[0])
-                        : String((f as any).value);
+                    if (f.field === 'referrer' && (f as any).value === '') {
+                        clauses.push(`(referrer = '' OR referrer IS NULL OR referrer = 'direct')`);
+                    } else {
+                        const key = `sf${idx++}`;
+                        clauses.push(`${f.field} = {${key}:String}`);
+                        (params as any)[key] = Array.isArray((f as any).value)
+                            ? String((f as any).value[0])
+                            : String((f as any).value);
+                    }
                 }
             }
             const whereFilters = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
@@ -162,19 +173,20 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         MAX(time) as last_visit,
         LEAST(dateDiff('second', MIN(time), MAX(time)), 28800) as duration,
         countIf(event_name = 'screen_view') as page_views,
-        any(anonymous_id) as visitor_id,
-        any(user_agent) as user_agent,
-        any(country) as country,
-        any(referrer) as referrer,
-        any(device_type) as device_type,
-        any(browser_name) as browser_name,
-        any(os_name) as os_name
+        argMin(anonymous_id, time) as visitor_id,
+        argMin(user_agent, time) as user_agent,
+        argMin(country, time) as country,
+        argMin(referrer, time) as referrer,
+        argMin(device_type, time) as device_type,
+        argMin(browser_name, time) as browser_name,
+        argMin(os_name, time) as os_name
       FROM analytics.events
       WHERE 
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
-        AND time <= parseDateTimeBestEffort({endDate:String})${whereFilters}
+        AND time <= parseDateTimeBestEffort({endDate:String})
       GROUP BY session_id
+      ${whereFilters ? `HAVING ${clauses.join(' AND ')}` : ''}
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     ),
@@ -200,7 +212,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         ) as events
       FROM analytics.events e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
-      WHERE e.client_id = {websiteId:String}${whereFilters}
+      WHERE e.client_id = {websiteId:String}
       GROUP BY e.session_id
     )
     SELECT

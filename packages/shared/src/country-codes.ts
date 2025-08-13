@@ -315,3 +315,120 @@ export function getCountryName(countryCode: string): string {
 
 	return countryCode;
 }
+
+// Common country aliases and abbreviations for filtering
+export const COUNTRY_ALIASES: Record<string, string> = {
+	// United States variations
+	'us': 'United States',
+	'usa': 'United States',
+	'america': 'United States',
+	'united states of america': 'United States',
+	
+	// United Kingdom variations
+	'uk': 'United Kingdom',
+	'britain': 'United Kingdom',
+	'great britain': 'United Kingdom',
+	'england': 'United Kingdom',
+	
+	// Germany variations
+	'de': 'Germany',
+	'deutschland': 'Germany',
+	
+	// France variations
+	'fr': 'France',
+	'france': 'France',
+	
+	// Canada variations
+	'ca': 'Canada',
+	
+	// Japan variations
+	'jp': 'Japan',
+	
+	// Australia variations
+	'au': 'Australia',
+	'oz': 'Australia',
+	
+	// India variations
+	'in': 'India',
+	
+	// China variations
+	'cn': 'China',
+	'prc': 'China',
+	
+	// Brazil variations
+	'br': 'Brazil',
+	'brasil': 'Brazil',
+	
+	// Russia variations
+	'ru': 'Russia',
+	'russia': 'Russia',
+	'russian federation': 'Russian Federation',
+	
+	// Italy variations
+	'it': 'Italy',
+	'italia': 'Italy',
+	
+	// Spain variations
+	'es': 'Spain',
+	'españa': 'Spain',
+	
+	// Netherlands variations
+	'nl': 'Netherlands',
+	'holland': 'Netherlands',
+	'the netherlands': 'The Netherlands',
+	
+	// Other common variations
+	'south korea': 'Korea, Republic of',
+	'north korea': "Korea, Democratic People's Republic of",
+	'vietnam': 'Viet Nam',
+	'czech republic': 'Czech Republic',
+	'czechia': 'Czechia',
+};
+
+/**
+ * Normalizes country input for filtering by handling common aliases and variations
+ * @param input - The user input country name/code
+ * @returns The normalized country name that matches database storage, or null if not found
+ */
+export function normalizeCountryForFilter(input: string): string | null {
+	if (!input || typeof input !== 'string') {
+		return null;
+	}
+
+	const trimmed = input.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	const lowercase = trimmed.toLowerCase();
+
+	// First check for direct alias match
+	const aliasMatch = COUNTRY_ALIASES[lowercase];
+	if (aliasMatch) {
+		return aliasMatch;
+	}
+
+	// Check if it's already a valid country name (case-insensitive)
+	const exactMatch = COUNTRY_NAME_TO_CODE[trimmed];
+	if (exactMatch) {
+		return trimmed;
+	}
+
+	// Check for case-insensitive match in country names
+	for (const [name] of Object.entries(COUNTRY_NAME_TO_CODE)) {
+		if (name.toLowerCase() === lowercase) {
+			return name;
+		}
+	}
+
+	// Check if it's a country code and convert to name
+	const upperInput = trimmed.toUpperCase();
+	for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
+		if (code === upperInput) {
+			return name;
+		}
+	}
+
+	// If no exact match found, return the original input for partial matching
+	return trimmed;
+}
