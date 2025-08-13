@@ -53,7 +53,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				};
 
 				const assistantContext: AssistantContext = {
-					user: (user ?? null) as unknown as AssistantContext['user'],
+					user: user ?? null,
 					website,
 					debugInfo: {},
 				};
