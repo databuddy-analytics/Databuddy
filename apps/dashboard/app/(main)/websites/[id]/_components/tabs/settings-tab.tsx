@@ -20,7 +20,7 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import { toast } from 'sonner';
@@ -50,10 +50,13 @@ import {
 import { WebsiteDialog } from '@/components/website-dialog';
 import { useDeleteWebsite, useUpdateWebsite } from '@/hooks/use-websites';
 import {
-	generateNpmCode,
-	generateNpmComponentCode,
-	generateScriptTag,
-} from '../utils/code-generators';
+	COPY_SUCCESS_TIMEOUT,
+	INSTALL_COMMANDS,
+	SETTINGS_TABS,
+	type SettingsTab,
+	TOAST_MESSAGES,
+} from '../constants/settings-constants';
+import { generateNpmCode, generateScriptTag } from '../utils/code-generators';
 import { RECOMMENDED_DEFAULTS } from '../utils/tracking-defaults';
 import {
 	enableAllAdvancedTracking,
@@ -64,7 +67,7 @@ import {
 } from '../utils/tracking-helpers';
 import type { TrackingOptions, WebsiteDataTabProps } from '../utils/types';
 
-type Website = typeof websites.$inferSelect;
+type DatabaseWebsite = typeof websites.$inferSelect;
 
 export function WebsiteSettingsTab({
 	websiteId,
@@ -72,74 +75,113 @@ export function WebsiteSettingsTab({
 	onWebsiteUpdated,
 }: WebsiteDataTabProps) {
 	const router = useRouter();
-	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
-	const [installMethod] = useState<'script' | 'npm'>('script');
-	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-	const [showEditDialog, setShowEditDialog] = useState(false);
-	const [isPublic, setIsPublic] = useState(websiteData.isPublic);
 	const updateWebsiteMutation = useUpdateWebsite();
-	const [activeTab, setActiveTab] = useState<
-		'tracking' | 'basic' | 'advanced' | 'optimization' | 'privacy'
-	>('tracking');
-	const [trackingOptions, setTrackingOptions] =
-		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
 	const deleteWebsiteMutation = useDeleteWebsite();
 
-	const handleCopyCode = (code: string, blockId: string, message: string) => {
-		navigator.clipboard.writeText(code);
-		setCopiedBlockId(blockId);
-		toast.success(message);
-		setTimeout(() => setCopiedBlockId(null), 2000);
-	};
+	// UI State
+	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState<SettingsTab>(
+		SETTINGS_TABS.TRACKING
+	);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [showEditDialog, setShowEditDialog] = useState(false);
 
-	const handleTogglePublic = () => {
+	// Settings State
+	const [isPublic, setIsPublic] = useState(websiteData?.isPublic ?? false);
+	const [trackingOptions, setTrackingOptions] =
+		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
+
+	// Event handlers with improved error handling
+	const handleCopyCode = useCallback(
+		async (code: string, blockId: string, message: string) => {
+			try {
+				await navigator.clipboard.writeText(code);
+				setCopiedBlockId(blockId);
+				toast.success(message);
+				setTimeout(() => setCopiedBlockId(null), COPY_SUCCESS_TIMEOUT);
+			} catch {
+				toast.error('Failed to copy to clipboard');
+			}
+		},
+		[]
+	);
+
+	const handleTogglePublic = useCallback(async () => {
+		if (!websiteData) {
+			return;
+		}
+
 		const newIsPublic = !isPublic;
 		setIsPublic(newIsPublic);
-		toast.promise(
-			updateWebsiteMutation.mutateAsync({
-				id: websiteId,
-				isPublic: newIsPublic,
-				name: websiteData.name,
-			}),
-			{
-				loading: 'Updating privacy settings...',
-				success: 'Privacy settings updated!',
-				error: 'Failed to update settings.',
-			}
-		);
-	};
 
-	const handleToggleOption = (option: keyof TrackingOptions) => {
-		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
-	};
-
-	const handleDeleteWebsite = () => {
-		toast.promise(deleteWebsiteMutation.mutateAsync({ id: websiteId }), {
-			loading: 'Deleting website...',
-			success: () => {
-				router.push('/websites');
-				return 'Website deleted successfully!';
-			},
-			error: 'Failed to delete website.',
-		});
-	};
-
-	const handleWebsiteUpdated = () => {
-		setShowEditDialog(false);
-		if (onWebsiteUpdated) {
-			onWebsiteUpdated();
+		try {
+			await toast.promise(
+				updateWebsiteMutation.mutateAsync({
+					id: websiteId,
+					isPublic: newIsPublic,
+					name: websiteData.name ?? '',
+				}),
+				{
+					loading: TOAST_MESSAGES.PRIVACY_UPDATING,
+					success: TOAST_MESSAGES.PRIVACY_UPDATED,
+					error: TOAST_MESSAGES.PRIVACY_ERROR,
+				}
+			);
+		} catch {
+			// Revert state on error
+			setIsPublic(!newIsPublic);
 		}
-	};
+	}, [isPublic, websiteData, websiteId, updateWebsiteMutation]);
 
-	const trackingCode = generateScriptTag(websiteId, trackingOptions);
-	const npmCode = generateNpmCode(websiteId, trackingOptions);
+	const handleToggleOption = useCallback((option: keyof TrackingOptions) => {
+		setTrackingOptions((prev) => toggleTrackingOption(prev, option));
+	}, []);
+
+	const handleDeleteWebsite = useCallback(async () => {
+		try {
+			await toast.promise(
+				deleteWebsiteMutation.mutateAsync({ id: websiteId }),
+				{
+					loading: TOAST_MESSAGES.WEBSITE_DELETING,
+					success: () => {
+						router.push('/websites');
+						return TOAST_MESSAGES.WEBSITE_DELETED;
+					},
+					error: TOAST_MESSAGES.WEBSITE_DELETE_ERROR,
+				}
+			);
+		} catch {
+			// Error is already handled by toast.promise
+		}
+	}, [websiteId, deleteWebsiteMutation, router]);
+
+	const handleWebsiteUpdated = useCallback(() => {
+		setShowEditDialog(false);
+		onWebsiteUpdated?.();
+	}, [onWebsiteUpdated]);
+
+	// Memoized values for performance
+	const trackingCode = useMemo(
+		() => generateScriptTag(websiteId, trackingOptions),
+		[websiteId, trackingOptions]
+	);
+
+	const npmCode = useMemo(
+		() => generateNpmCode(websiteId, trackingOptions),
+		[websiteId, trackingOptions]
+	);
+
+	// Early return if no website data
+	if (!websiteData) {
+		return <div>Loading website data...</div>;
+	}
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<WebsiteHeader
 				onEditClick={() => setShowEditDialog(true)}
-				websiteData={websiteData}
+				websiteData={websiteData as DatabaseWebsite}
 				websiteId={websiteId}
 			/>
 
@@ -195,33 +237,35 @@ export function WebsiteSettingsTab({
 								/>
 							)}
 
-							{activeTab !== 'tracking' && (
+							{activeTab !== SETTINGS_TABS.TRACKING && (
 								<TabActions
-									installMethod={installMethod}
 									onCopyCode={() =>
 										handleCopyCode(
-											installMethod === 'script'
-												? trackingCode
-												: generateNpmComponentCode(websiteId, trackingOptions),
-											installMethod === 'script'
-												? 'script-tag'
-												: 'tracking-code',
-											installMethod === 'script'
-												? 'Script tag copied to clipboard!'
-												: 'Tracking code copied to clipboard!'
+											trackingCode,
+											'script-tag',
+											TOAST_MESSAGES.SCRIPT_COPIED
 										)
 									}
 									onEnableAll={() => {
-										if (activeTab === 'basic') {
-											setTrackingOptions((prev) =>
-												enableAllBasicTracking(prev)
-											);
-										} else if (activeTab === 'advanced') {
-											setTrackingOptions((prev) =>
-												enableAllAdvancedTracking(prev)
-											);
-										} else if (activeTab === 'optimization') {
-											setTrackingOptions((prev) => enableAllOptimization(prev));
+										switch (activeTab) {
+											case SETTINGS_TABS.BASIC:
+												setTrackingOptions((prev) =>
+													enableAllBasicTracking(prev)
+												);
+												break;
+											case SETTINGS_TABS.ADVANCED:
+												setTrackingOptions((prev) =>
+													enableAllAdvancedTracking(prev)
+												);
+												break;
+											case SETTINGS_TABS.OPTIMIZATION:
+												setTrackingOptions((prev) =>
+													enableAllOptimization(prev)
+												);
+												break;
+											default:
+												// No action needed for other tabs
+												break;
 										}
 									}}
 									onResetDefaults={() => setTrackingOptions(resetToDefaults())}
@@ -258,7 +302,7 @@ function WebsiteHeader({
 	websiteId,
 	onEditClick,
 }: {
-	websiteData: Website;
+	websiteData: DatabaseWebsite;
 	websiteId: string;
 	onEditClick: () => void;
 }) {
@@ -480,7 +524,7 @@ function SettingsNavigation({
 								</h3>
 							</div>
 
-							<Link href="https://docs.databuddy.cc/docs" target="_blank">
+							<Link href="https://www.databuddy.cc/docs" target="_blank">
 								<Button
 									className="h-9 w-full justify-start gap-2 transition-all duration-200 hover:bg-muted/50"
 									variant="ghost"
@@ -491,7 +535,7 @@ function SettingsNavigation({
 								</Button>
 							</Link>
 
-							<Link href="https://docs.databuddy.cc/docs/api" target="_blank">
+							<Link href="https://www.databuddy.cc/docs/api" target="_blank">
 								<Button
 									className="h-9 w-full justify-start gap-2 transition-all duration-200 hover:bg-muted/50"
 									variant="ghost"
@@ -530,7 +574,7 @@ function TrackingCodeTab({
 }: {
 	trackingCode: string;
 	npmCode: string;
-	websiteData: Website;
+	websiteData: DatabaseWebsite;
 	websiteId: string;
 	copiedBlockId: string | null;
 	onCopyCode: (code: string, blockId: string, message: string) => void;
@@ -564,7 +608,7 @@ function TrackingCodeTab({
 							onCopyCode(
 								trackingCode,
 								'script-tag',
-								'Script tag copied to clipboard!'
+								TOAST_MESSAGES.SCRIPT_COPIED
 							)
 						}
 					/>
@@ -595,14 +639,14 @@ function TrackingCodeTab({
 
 							<TabsContent className="mt-0" value="npm">
 								<CodeBlock
-									code="npm install @databuddy/sdk"
+									code={INSTALL_COMMANDS.npm}
 									copied={copiedBlockId === 'npm-install'}
 									description=""
 									onCopy={() =>
 										onCopyCode(
-											'npm install @databuddy/sdk',
+											INSTALL_COMMANDS.npm,
 											'npm-install',
-											'Command copied to clipboard!'
+											TOAST_MESSAGES.COMMAND_COPIED
 										)
 									}
 								/>
@@ -610,14 +654,14 @@ function TrackingCodeTab({
 
 							<TabsContent className="mt-0" value="yarn">
 								<CodeBlock
-									code="yarn add @databuddy/sdk"
+									code={INSTALL_COMMANDS.yarn}
 									copied={copiedBlockId === 'yarn-install'}
 									description=""
 									onCopy={() =>
 										onCopyCode(
-											'yarn add @databuddy/sdk',
+											INSTALL_COMMANDS.yarn,
 											'yarn-install',
-											'Command copied to clipboard!'
+											TOAST_MESSAGES.COMMAND_COPIED
 										)
 									}
 								/>
@@ -625,14 +669,14 @@ function TrackingCodeTab({
 
 							<TabsContent className="mt-0" value="pnpm">
 								<CodeBlock
-									code="pnpm add @databuddy/sdk"
+									code={INSTALL_COMMANDS.pnpm}
 									copied={copiedBlockId === 'pnpm-install'}
 									description=""
 									onCopy={() =>
 										onCopyCode(
-											'pnpm add @databuddy/sdk',
+											INSTALL_COMMANDS.pnpm,
 											'pnpm-install',
-											'Command copied to clipboard!'
+											TOAST_MESSAGES.COMMAND_COPIED
 										)
 									}
 								/>
@@ -640,14 +684,14 @@ function TrackingCodeTab({
 
 							<TabsContent className="mt-0" value="bun">
 								<CodeBlock
-									code="bun add @databuddy/sdk"
+									code={INSTALL_COMMANDS.bun}
 									copied={copiedBlockId === 'bun-install'}
 									description=""
 									onCopy={() =>
 										onCopyCode(
-											'bun add @databuddy/sdk',
+											INSTALL_COMMANDS.bun,
 											'bun-install',
-											'Command copied to clipboard!'
+											TOAST_MESSAGES.COMMAND_COPIED
 										)
 									}
 								/>
@@ -662,7 +706,7 @@ function TrackingCodeTab({
 								onCopyCode(
 									npmCode,
 									'tracking-code',
-									'Tracking code copied to clipboard!'
+									TOAST_MESSAGES.TRACKING_COPIED
 								)
 							}
 						/>
@@ -756,7 +800,7 @@ function WebsiteInfoSection({
 	websiteData,
 	websiteId,
 }: {
-	websiteData: Website;
+	websiteData: DatabaseWebsite;
 	websiteId: string;
 }) {
 	return (
@@ -781,7 +825,7 @@ function WebsiteInfoSection({
 								className="h-5 w-5"
 								onClick={() => {
 									navigator.clipboard.writeText(websiteId);
-									toast.success('Website ID copied to clipboard');
+									toast.success(TOAST_MESSAGES.WEBSITE_ID_COPIED);
 								}}
 								size="icon"
 								variant="ghost"
@@ -1392,12 +1436,10 @@ function TabActions({
 	onResetDefaults,
 	onEnableAll,
 	onCopyCode,
-	installMethod,
 }: {
 	onResetDefaults: () => void;
 	onEnableAll: () => void;
 	onCopyCode: () => void;
-	installMethod: 'script' | 'npm';
 }) {
 	return (
 		<div className="mt-8 flex justify-between border-t pt-4">
@@ -1423,7 +1465,7 @@ function TabActions({
 
 				<Button className="h-8 text-xs" onClick={onCopyCode} size="sm">
 					<CodeIcon className="mr-1.5 h-3.5 w-3.5" />
-					Copy {installMethod === 'script' ? 'script' : 'component code'}
+					Copy script
 				</Button>
 			</div>
 		</div>
@@ -1439,7 +1481,7 @@ function DeleteWebsiteDialog({
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	websiteData: Website;
+	websiteData: DatabaseWebsite;
 	isDeleting: boolean;
 	onConfirmDelete: () => void;
 }) {
@@ -1502,7 +1544,7 @@ function PrivacyTab({
 
 	const handleCopyLink = () => {
 		navigator.clipboard.writeText(shareableLink);
-		toast.success('Shareable link copied to clipboard!');
+		toast.success(TOAST_MESSAGES.SHAREABLE_LINK_COPIED);
 	};
 
 	return (

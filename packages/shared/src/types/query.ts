@@ -50,3 +50,10 @@ export interface QueryBuilderCatalogItem {
 	defaultLimit?: number;
 	meta?: QueryBuilderMeta;
 }
+
+export interface ParameterWithDates {
+	name: string;
+	start_date?: string;
+	end_date?: string;
+	granularity?: 'daily' | 'hourly';
+}

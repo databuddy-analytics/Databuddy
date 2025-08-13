@@ -1,50 +1,36 @@
 'use client';
 
 import {
-	ArrowUpIcon,
 	CaretDownIcon,
 	CaretRightIcon,
 	ChartLineIcon,
 	CursorIcon,
-	DesktopIcon,
-	DeviceMobileIcon,
-	DeviceTabletIcon,
 	GlobeIcon,
-	LaptopIcon,
 	LayoutIcon,
-	MonitorIcon,
-	QuestionIcon,
 	TimerIcon,
 	UsersIcon,
-	WarningIcon,
-	WatchIcon,
 } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import { useAtom } from 'jotai';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useBillingData } from '@/app/(main)/billing/data/billing-data';
-import { DataTable } from '@/components/analytics/data-table';
-import { StatCard } from '@/components/analytics/stat-card';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+	DataTable,
+	DeviceTypeCell,
+	EventLimitIndicator,
+	LiveUserIndicator,
+	StatCard,
+	UnauthorizedAccessError,
+} from '@/components/analytics';
 import {
 	ReferrerSourceCell,
 	type ReferrerSourceCellData,
 } from '@/components/atomic/ReferrerSourceCell';
 import { MetricsChart } from '@/components/charts/metrics-chart';
-import { Button } from '@/components/ui/button';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
-import {
-	useBatchDynamicQuery,
-	useRealTimeStats,
-} from '@/hooks/use-dynamic-query';
+
+import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
 import { useTableTabs } from '@/lib/table-tabs';
 import { getUserTimezone } from '@/lib/timezone';
 import {
@@ -150,186 +136,6 @@ const QUERY_CONFIG = {
 	},
 } as const;
 
-function LiveUserIndicator({ websiteId }: { websiteId: string }) {
-	const { activeUsers: count } = useRealTimeStats(websiteId);
-	const prevCountRef = useRef(count);
-	const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-	const [change, setChange] = useState<'up' | 'down' | null>(null);
-
-	useEffect(() => {
-		const prevCount = prevCountRef.current;
-
-		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
-		}
-
-		if (count > prevCount) {
-			setChange('up');
-			timeoutRef.current = setTimeout(() => setChange(null), 1000);
-		} else if (count < prevCount) {
-			setChange('down');
-			timeoutRef.current = setTimeout(() => setChange(null), 1000);
-		}
-
-		prevCountRef.current = count;
-	}, [count]);
-
-	const getChangeColor = () => {
-		if (change === 'up') {
-			return 'text-green-500';
-		}
-		if (change === 'down') {
-			return 'text-red-500';
-		}
-		return 'text-foreground';
-	};
-
-	return (
-		<div className="flex items-center gap-2">
-			<div className="flex items-center gap-2.5 rounded border bg-card px-3.5 py-2 font-medium text-sm shadow-sm">
-				<span className="relative flex h-2.5 w-2.5">
-					<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-					<span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-				</span>
-				<span className={getChangeColor()}>
-					{count} {count === 1 ? 'user' : 'users'} live
-				</span>
-			</div>
-		</div>
-	);
-}
-
-function UnauthorizedAccessError() {
-	const router = useRouter();
-
-	return (
-		<Card className="mx-auto my-8 w-full max-w-lg border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/20">
-			<CardHeader className="pb-3">
-				<div className="flex items-center gap-3">
-					<div className="rounded-full bg-red-100 p-2.5 dark:bg-red-900/30">
-						<WarningIcon
-							className="h-6 w-6 text-red-600 dark:text-red-400"
-							size={24}
-							weight="fill"
-						/>
-					</div>
-					<div>
-						<CardTitle className="text-lg">Access Denied</CardTitle>
-						<CardDescription className="mt-1">
-							You don't have permission to view this website's analytics.
-						</CardDescription>
-					</div>
-				</div>
-			</CardHeader>
-			<CardContent className="pt-0">
-				<p className="mb-5 text-muted-foreground text-sm">
-					Contact the website owner if you think this is an error.
-				</p>
-				<Button
-					className="w-full sm:w-auto"
-					onClick={() => router.push('/websites')}
-					variant="destructive"
-				>
-					Back to Websites
-				</Button>
-			</CardContent>
-		</Card>
-	);
-}
-
-const deviceTypeIconMap: Record<string, React.ElementType> = {
-	mobile: DeviceMobileIcon,
-	tablet: DeviceTabletIcon,
-	laptop: LaptopIcon,
-	desktop: DesktopIcon,
-	ultrawide: MonitorIcon,
-	watch: WatchIcon,
-	unknown: QuestionIcon,
-};
-
-const deviceTypeColorMap: Record<string, string> = {
-	mobile: 'text-blue-500',
-	tablet: 'text-teal-500',
-	laptop: 'text-purple-500',
-	desktop: 'text-green-500',
-	ultrawide: 'text-pink-500',
-	watch: 'text-yellow-500',
-	unknown: 'text-gray-400',
-};
-
-function DeviceTypeCell({ device_type }: { device_type: string }) {
-	const Icon = deviceTypeIconMap[device_type] || QuestionIcon;
-	const colorClass =
-		deviceTypeColorMap[device_type] || deviceTypeColorMap.unknown;
-	return (
-		<div className="flex items-center gap-3">
-			<Icon
-				className={colorClass}
-				size={20}
-				style={{ minWidth: 20, minHeight: 20 }}
-				weight="duotone"
-			/>
-			<span className="font-medium">
-				{device_type.charAt(0).toUpperCase() + device_type.slice(1)}
-			</span>
-		</div>
-	);
-}
-
-function EventLimitIndicator() {
-	const { usage } = useBillingData();
-	const router = useRouter();
-
-	const eventsUsage = usage?.features?.find((f) => f.id === 'events');
-
-	if (!eventsUsage) {
-		return null;
-	}
-
-	if (eventsUsage.unlimited) {
-		return null;
-	}
-
-	const usagePercentage = (eventsUsage.used / eventsUsage.limit) * 100;
-	const isNearLimit = usagePercentage >= 80;
-	const isAtLimit = usagePercentage >= 100;
-
-	if (!(isNearLimit || isAtLimit)) {
-		return null;
-	}
-
-	const isDestructive = isAtLimit || usagePercentage >= 95;
-
-	return (
-		<div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/20">
-			<div className="flex items-center gap-2">
-				<WarningIcon
-					className={`h-4 w-4 ${isDestructive ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}
-					weight="fill"
-				/>
-				<span className="text-muted-foreground">
-					{eventsUsage.used.toLocaleString()}/
-					{eventsUsage.limit.toLocaleString()} events
-				</span>
-				<span
-					className={`font-medium ${isDestructive ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}
-				>
-					({usagePercentage.toFixed(1)}%)
-				</span>
-			</div>
-			<Button
-				className="h-6 cursor-pointer px-2 text-xs"
-				onClick={() => router.push('/billing?tab=plans')}
-				size="sm"
-				variant="ghost"
-			>
-				<ArrowUpIcon size={12} />
-				Upgrade
-			</Button>
-		</div>
-	);
-}
-
 export function WebsiteOverviewTab({
 	websiteId,
 	dateRange,
@@ -337,10 +143,49 @@ export function WebsiteOverviewTab({
 	setIsRefreshing,
 	filters,
 }: FullTabProps) {
+	const calculatePreviousPeriod = useCallback(
+		(currentRange: typeof dateRange) => {
+			const startDate = dayjs(currentRange.start_date);
+			const daysDiff = dayjs(currentRange.end_date).diff(startDate, 'day');
+
+			return {
+				start_date: startDate
+					.subtract(daysDiff + 1, 'day')
+					.format('YYYY-MM-DD'),
+				end_date: startDate.subtract(1, 'day').format('YYYY-MM-DD'),
+				granularity: currentRange.granularity,
+			};
+		},
+		[]
+	);
+
+	const previousPeriodRange = useMemo(
+		() => calculatePreviousPeriod(dateRange),
+		[dateRange, calculatePreviousPeriod]
+	);
+
 	const queries = [
 		{
 			id: 'overview-summary',
-			parameters: QUERY_CONFIG.parameters.summary,
+			parameters: [
+				'summary_metrics',
+				'today_metrics',
+				'events_by_date',
+				{
+					name: 'summary_metrics',
+					start_date: previousPeriodRange.start_date,
+					end_date: previousPeriodRange.end_date,
+					granularity: previousPeriodRange.granularity,
+					id: 'previous_summary_metrics',
+				},
+				{
+					name: 'events_by_date',
+					start_date: previousPeriodRange.start_date,
+					end_date: previousPeriodRange.end_date,
+					granularity: previousPeriodRange.granularity,
+					id: 'previous_events_by_date',
+				},
+			],
 			limit: QUERY_CONFIG.limit,
 			granularity: dateRange.granularity,
 			filters,
@@ -910,69 +755,41 @@ export function WebsiteOverviewTab({
 	const todayPageviews = todayEvent?.pageviews ?? 0;
 
 	const calculateTrends = (() => {
-		if (
-			!analytics.events_by_date?.length ||
-			analytics.events_by_date.length < 2
-		) {
+		const currentSummary = analytics.summary;
+		const previousSummary = getDataForQuery(
+			'overview-summary',
+			'previous_summary_metrics'
+		)?.[0];
+
+		if (!(currentSummary && previousSummary)) {
 			return {};
 		}
-		const events = [...analytics.events_by_date].sort(
-			(a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-		);
-		const midpoint = Math.floor(events.length / 2);
-		const previousPeriodData = events.slice(0, midpoint);
-		const currentPeriodData = events.slice(midpoint);
-		if (previousPeriodData.length === 0 || currentPeriodData.length === 0) {
-			return {};
-		}
-		const sumCountMetric = (
-			period: MetricPoint[],
-			field: keyof Pick<MetricPoint, 'pageviews' | 'visitors' | 'sessions'>
-		) => period.reduce((acc, item) => acc + (Number(item[field]) || 0), 0);
-		const currentSumVisitors = sumCountMetric(currentPeriodData, 'visitors');
-		const currentSumSessions = sumCountMetric(currentPeriodData, 'sessions');
-		const currentSumPageviews = sumCountMetric(currentPeriodData, 'pageviews');
-		const currentPagesPerSession =
-			currentSumSessions > 0 ? currentSumPageviews / currentSumSessions : 0;
-		const previousSumVisitors = sumCountMetric(previousPeriodData, 'visitors');
-		const previousSumSessions = sumCountMetric(previousPeriodData, 'sessions');
-		const previousSumPageviews = sumCountMetric(
-			previousPeriodData,
-			'pageviews'
-		);
-		const previousPagesPerSession =
-			previousSumSessions > 0 ? previousSumPageviews / previousSumSessions : 0;
-		const averageRateMetric = (
-			period: MetricPoint[],
-			field: keyof Pick<MetricPoint, 'bounce_rate' | 'avg_session_duration'>
-		) => {
-			const validEntries = period
-				.map((item) => Number(item[field]))
-				.filter((value) => !Number.isNaN(value) && value > 0);
-			if (validEntries.length === 0) {
-				return 0;
-			}
-			return (
-				validEntries.reduce((acc, value) => acc + value, 0) /
-				validEntries.length
-			);
+
+		const currentMetrics = {
+			visitors: currentSummary.unique_visitors || 0,
+			sessions: currentSummary.sessions || 0,
+			pageviews: currentSummary.pageviews || 0,
+			bounceRate: currentSummary.bounce_rate || 0,
+			sessionDuration: currentSummary.avg_session_duration || 0,
+			pagesPerSession: 0,
 		};
-		const currentBounceRateAvg = averageRateMetric(
-			currentPeriodData,
-			'bounce_rate'
-		);
-		const previousBounceRateAvg = averageRateMetric(
-			previousPeriodData,
-			'bounce_rate'
-		);
-		const currentSessionDurationAvg = averageRateMetric(
-			currentPeriodData,
-			'avg_session_duration'
-		);
-		const previousSessionDurationAvg = averageRateMetric(
-			previousPeriodData,
-			'avg_session_duration'
-		);
+		currentMetrics.pagesPerSession =
+			currentMetrics.sessions > 0
+				? currentMetrics.pageviews / currentMetrics.sessions
+				: 0;
+
+		const previousMetrics = {
+			visitors: previousSummary.unique_visitors || 0,
+			sessions: previousSummary.sessions || 0,
+			pageviews: previousSummary.pageviews || 0,
+			bounceRate: previousSummary.bounce_rate || 0,
+			sessionDuration: previousSummary.avg_session_duration || 0,
+			pagesPerSession: 0,
+		};
+		previousMetrics.pagesPerSession =
+			previousMetrics.sessions > 0
+				? previousMetrics.pageviews / previousMetrics.sessions
+				: 0;
 		const calculateTrendPercentage = (
 			current: number,
 			previous: number,
@@ -988,54 +805,66 @@ export function WebsiteOverviewTab({
 			return Math.max(-100, Math.min(1000, Math.round(change)));
 		};
 		const canShowSessionBasedTrend =
-			previousSumSessions >= MIN_PREVIOUS_SESSIONS_FOR_TREND;
-		const previousPeriodStart = previousPeriodData[0]?.date;
-		const previousPeriodEnd = previousPeriodData.at(-1)?.date;
-		const currentPeriodStart = currentPeriodData[0]?.date;
-		const currentPeriodEnd = currentPeriodData.at(-1)?.date;
+			previousMetrics.sessions >= MIN_PREVIOUS_SESSIONS_FOR_TREND;
+
 		const createDetailedTrend = (
-			current: number,
-			previous: number,
+			currentVal: number,
+			previousVal: number,
 			minimumBase = 0
 		) => {
-			const change = calculateTrendPercentage(current, previous, minimumBase);
+			const change = calculateTrendPercentage(
+				currentVal,
+				previousVal,
+				minimumBase
+			);
 			if (change === undefined) {
 				return change;
 			}
+
 			return {
 				change,
-				current,
-				previous,
-				currentPeriod: { start: currentPeriodStart, end: currentPeriodEnd },
-				previousPeriod: { start: previousPeriodStart, end: previousPeriodEnd },
+				current: currentVal,
+				previous: previousVal,
+				currentPeriod: { start: dateRange.start_date, end: dateRange.end_date },
+				previousPeriod: {
+					start: previousPeriodRange.start_date,
+					end: previousPeriodRange.end_date,
+				},
 			};
 		};
+
 		return {
 			visitors: createDetailedTrend(
-				currentSumVisitors,
-				previousSumVisitors,
+				currentMetrics.visitors,
+				previousMetrics.visitors,
 				MIN_PREVIOUS_VISITORS_FOR_TREND
 			),
 			sessions: createDetailedTrend(
-				currentSumSessions,
-				previousSumSessions,
+				currentMetrics.sessions,
+				previousMetrics.sessions,
 				MIN_PREVIOUS_SESSIONS_FOR_TREND
 			),
 			pageviews: createDetailedTrend(
-				currentSumPageviews,
-				previousSumPageviews,
+				currentMetrics.pageviews,
+				previousMetrics.pageviews,
 				MIN_PREVIOUS_PAGEVIEWS_FOR_TREND
 			),
 			pages_per_session: canShowSessionBasedTrend
-				? createDetailedTrend(currentPagesPerSession, previousPagesPerSession)
+				? createDetailedTrend(
+						currentMetrics.pagesPerSession,
+						previousMetrics.pagesPerSession
+					)
 				: undefined,
 			bounce_rate: canShowSessionBasedTrend
-				? createDetailedTrend(currentBounceRateAvg, previousBounceRateAvg)
+				? createDetailedTrend(
+						currentMetrics.bounceRate,
+						previousMetrics.bounceRate
+					)
 				: undefined,
 			session_duration: canShowSessionBasedTrend
 				? createDetailedTrend(
-						currentSessionDurationAvg,
-						previousSessionDurationAvg
+						currentMetrics.sessionDuration,
+						previousMetrics.sessionDuration
 					)
 				: undefined,
 		};

@@ -1,8 +1,14 @@
-// API request and response types
+export interface ParameterWithDates {
+	name: string;
+	start_date?: string;
+	end_date?: string;
+	granularity?: 'hourly' | 'daily';
+	id?: string;
+}
 
 export interface DynamicQueryRequest {
 	id?: string;
-	parameters: string[];
+	parameters: (string | ParameterWithDates)[];
 	limit?: number;
 	page?: number;
 	filters?: DynamicQueryFilter[];
@@ -29,7 +35,7 @@ export interface DynamicQueryFilter {
 
 export interface DynamicQueryResult {
 	parameter: string;
-	data: any[];
+	data: Record<string, unknown>[];
 	success: boolean;
 	error?: string;
 }
@@ -46,7 +52,7 @@ export interface DynamicQueryResponse {
 		filters_applied: number;
 	};
 	error?: string;
-	date_range?: any;
+	date_range?: { start: string; end: string };
 }
 
 export interface GoalFilter {

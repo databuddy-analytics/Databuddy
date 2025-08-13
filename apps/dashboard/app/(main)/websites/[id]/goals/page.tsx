@@ -23,8 +23,8 @@ import {
 	useBulkGoalAnalytics,
 	useGoals,
 } from '@/hooks/use-goals';
+import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
-import { trpc } from '@/lib/trpc';
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
@@ -105,18 +105,7 @@ export default function GoalsPage() {
 	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
 
-	const { data: trackingSetupData, isLoading: isTrackingSetupLoading } =
-		trpc.websites.isTrackingSetup.useQuery(
-			{ websiteId },
-			{ enabled: !!websiteId }
-		);
-
-	const isTrackingSetup = useMemo(() => {
-		if (isTrackingSetupLoading) {
-			return null;
-		}
-		return trackingSetupData?.tracking_setup ?? false;
-	}, [isTrackingSetupLoading, trackingSetupData?.tracking_setup]);
+	const { isTrackingSetup } = useTrackingSetup(websiteId);
 
 	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
 		() => ({

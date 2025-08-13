@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { operatorOptions, useFilters } from '@/hooks/use-filters';
+import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
-import { trpc } from '@/lib/trpc';
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
@@ -165,17 +165,7 @@ function WebsiteDetailsPage() {
 		refetch: refetchWebsiteData,
 	} = useWebsite(id as string);
 
-	const { data: trackingSetupData, isLoading: isTrackingSetupLoading } =
-		trpc.websites.isTrackingSetup.useQuery(
-			{ websiteId: id as string },
-			{ enabled: !!id }
-		);
-	const isTrackingSetup = useMemo(() => {
-		if (!data || isTrackingSetupLoading) {
-			return null;
-		}
-		return trackingSetupData?.tracking_setup ?? false;
-	}, [data, isTrackingSetupLoading, trackingSetupData?.tracking_setup]);
+	const { isTrackingSetup } = useTrackingSetup(id as string);
 
 	useEffect(() => {
 		if (isTrackingSetup === false && activeTab === 'overview') {

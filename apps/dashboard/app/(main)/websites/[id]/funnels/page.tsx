@@ -17,7 +17,7 @@ import {
 	useFunnelAnalyticsByReferrer,
 	useFunnels,
 } from '@/hooks/use-funnels';
-import { trpc } from '@/lib/trpc';
+import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
@@ -106,19 +106,7 @@ export default function FunnelsPage() {
 	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
 
-	// Check tracking setup
-	const { data: trackingSetupData, isLoading: isTrackingSetupLoading } =
-		trpc.websites.isTrackingSetup.useQuery(
-			{ websiteId },
-			{ enabled: !!websiteId }
-		);
-
-	const isTrackingSetup = useMemo(() => {
-		if (isTrackingSetupLoading) {
-			return null;
-		}
-		return trackingSetupData?.tracking_setup ?? false;
-	}, [isTrackingSetupLoading, trackingSetupData?.tracking_setup]);
+	const { isTrackingSetup, refetchTrackingSetup } = useTrackingSetup(websiteId);
 
 	// Date picker helpers
 	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
@@ -212,6 +200,7 @@ export default function FunnelsPage() {
 			const promises: Promise<unknown>[] = [
 				refetchFunnels(),
 				autocompleteQuery.refetch(),
+				refetchTrackingSetup(),
 			];
 			if (expandedFunnelId) {
 				promises.push(refetchAnalytics(), refetchReferrerAnalytics());
@@ -227,6 +216,7 @@ export default function FunnelsPage() {
 		refetchAnalytics,
 		refetchReferrerAnalytics,
 		autocompleteQuery.refetch,
+		refetchTrackingSetup,
 		expandedFunnelId,
 	]);
 

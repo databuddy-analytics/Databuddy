@@ -91,6 +91,16 @@ const testimonials = [
 			"Databuddy is the only analytics platform I've used that I can genuinely say is actually GDPR compliant, and an absolute beast of a product.  Worth a try!",
 		avatar: 'ping.jpg',
 	},
+	{
+		name: 'Fynn',
+		profession: 'Founder, Studiis',
+		description:
+			'it’s actually such a upgrade to switch from posthog to @trydatabuddy',
+		link: 'https://x.com/_fqnn_/status/1955577969189306785',
+		social: null,
+		avatar:
+			'https://pbs.twimg.com/profile_images/1419542734482903041/q7f5jbPq_400x400.jpg',
+	},
 ];
 
 function getNameInitial(name: string): string {

@@ -13,7 +13,7 @@
     "@faker-js/faker": "^9.9.0",
     "@types/sqlstring": "^2.3.2",
     "dotenv": "^17.2.1",
-    "drizzle-orm": "^0.44.3",
+    "drizzle-orm": "^0.44.4",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"
   },

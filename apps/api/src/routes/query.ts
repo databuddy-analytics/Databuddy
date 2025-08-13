@@ -99,7 +99,13 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			try {
 				if (Array.isArray(body)) {
 					const uniqueWebsiteIds = [
-						...new Set(body.flatMap((req) => req.parameters)),
+						...new Set(
+							body.flatMap((req) =>
+								req.parameters.map((param) =>
+									typeof param === 'string' ? param : param.name
+								)
+							)
+						),
 					];
 					const domainCache = await getCachedWebsiteDomain(uniqueWebsiteIds);
 
@@ -201,18 +207,48 @@ async function executeDynamicQuery(
 	}
 
 	async function processParameter(
-		parameter: string,
+		parameterInput:
+			| string
+			| {
+					name: string;
+					start_date?: string;
+					end_date?: string;
+					granularity?: string;
+					id?: string;
+			  },
 		dynamicRequest: DynamicQueryRequestType,
 		params: QueryParams,
 		siteId: string | undefined,
-		start: string | undefined,
-		end: string | undefined,
+		defaultStart: string | undefined,
+		defaultEnd: string | undefined,
 		domain: string | null
 	) {
-		const validation = validateParameterRequest(parameter, siteId, start, end);
+		const isObject = typeof parameterInput === 'object';
+		const parameterName = isObject ? parameterInput.name : parameterInput;
+		const customId =
+			isObject && parameterInput.id ? parameterInput.id : parameterName;
+		const paramStart =
+			isObject && parameterInput.start_date
+				? parameterInput.start_date
+				: defaultStart;
+		const paramEnd =
+			isObject && parameterInput.end_date
+				? parameterInput.end_date
+				: defaultEnd;
+		const paramGranularity =
+			isObject && parameterInput.granularity
+				? parameterInput.granularity
+				: dynamicRequest.granularity;
+
+		const validation = validateParameterRequest(
+			parameterName,
+			siteId,
+			paramStart,
+			paramEnd
+		);
 		if (!validation.success) {
 			return {
-				parameter,
+				parameter: customId,
 				success: false,
 				error: validation.error,
 				data: [],
@@ -222,10 +258,10 @@ async function executeDynamicQuery(
 		try {
 			const queryRequest = {
 				projectId: validation.siteId,
-				type: parameter,
+				type: parameterName,
 				from: validation.start,
 				to: validation.end,
-				timeUnit: getTimeUnit(dynamicRequest.granularity),
+				timeUnit: getTimeUnit(paramGranularity),
 				filters: dynamicRequest.filters || [],
 				limit: dynamicRequest.limit || 100,
 				offset: dynamicRequest.page
@@ -237,13 +273,13 @@ async function executeDynamicQuery(
 			const data = await executeQuery(queryRequest, domain, params.timezone);
 
 			return {
-				parameter,
+				parameter: customId,
 				success: true,
 				data: data || [],
 			};
 		} catch (error) {
 			return {
-				parameter,
+				parameter: customId,
 				success: false,
 				error: error instanceof Error ? error.message : 'Query failed',
 				data: [],
@@ -252,7 +288,7 @@ async function executeDynamicQuery(
 	}
 
 	const parameterResults = await Promise.all(
-		request.parameters.map((param: string) => {
+		request.parameters.map((param) => {
 			return processParameter(
 				param,
 				request,
