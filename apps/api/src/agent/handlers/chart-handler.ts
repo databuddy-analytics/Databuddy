@@ -72,7 +72,7 @@ export async function* handleChartResponse(
 					: getRandomMessage(noDataMessages),
 			data: {
 				hasVisualization: queryResult.data.length > 0,
-				chartType: parsedAiJson.chart_type || undefined,
+				chartType: parsedAiJson.chart_type,
 				data: queryResult.data,
 				responseType: 'chart',
 			},
