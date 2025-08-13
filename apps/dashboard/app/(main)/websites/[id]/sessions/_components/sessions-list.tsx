@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionsData } from '@/hooks/use-dynamic-query';
+import { useAutocompleteData } from '@/hooks/use-funnels';
 import SessionsFilters, { buildSessionFilters, type FilterItem } from './sessions-filters';
 import { WebsitePageHeader } from '../../_components/website-page-header';
 import { getDefaultDateRange } from './session-utils';
@@ -72,6 +73,8 @@ export function SessionsList({ websiteId }: SessionsListProps) {
       filters: buildSessionFilters(filterItems),
     }
 	);
+
+  const { data: autocompleteData } = useAutocompleteData(websiteId);
 
 	const toggleSession = useCallback((sessionId: string) => {
 		setExpandedSessionId((currentId) =>
@@ -226,6 +229,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
             onChange={setFilterItems}
             browserOptions={Array.from(new Set(allSessions.map((s:any)=> s.browser || s.browser_name).filter(Boolean)))}
             osOptions={Array.from(new Set(allSessions.map((s:any)=> s.os || s.os_name).filter(Boolean)))}
+            autocompleteData={autocompleteData}
           />
         </CardContent>
       </Card>

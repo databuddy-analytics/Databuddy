@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select';
 import type { DynamicQueryFilter } from '@databuddy/shared';
 import { normalizeCountryForFilter } from '@databuddy/shared';
+import type { AutocompleteData } from '@/hooks/use-funnels';
+import { AutocompleteInput } from '../../funnels/_components/funnel-components';
 import { getBrowserIcon, getOSIcon } from '../../_components/utils/technology-helpers';
 
 export type FilterField = 'path' | 'referrer' | 'country' | 'browser_name' | 'os_name';
@@ -27,6 +29,7 @@ type Props = {
   onChange: (next: FilterItem[]) => void;
   browserOptions?: string[];
   osOptions?: string[];
+  autocompleteData?: AutocompleteData;
 };
 
 const FIELD_LABELS: Record<FilterField, string> = {
@@ -111,7 +114,7 @@ export function buildSessionFilters(items: FilterItem[]): DynamicQueryFilter[] {
   return filters;
 }
 
-export default function SessionsFilters({ filters, onChange, browserOptions = [], osOptions = [] }: Props) {
+export default function SessionsFilters({ filters, onChange, browserOptions = [], osOptions = [], autocompleteData }: Props) {
   const [localInputValues, setLocalInputValues] = useState<Record<string, string>>({});
   const [openSelectId, setOpenSelectId] = useState<string | null>(null);
 
@@ -123,6 +126,10 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
     () => Array.from(new Set(osOptions.filter(Boolean))).sort(),
     [osOptions]
   );
+
+  const getPathSuggestions = useMemo(() => {
+    return autocompleteData?.pagePaths || [];
+  }, [autocompleteData]);
 
   // Debounced effect to apply input changes after user stops typing
   useEffect(() => {
@@ -310,18 +317,24 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
                   ))}
                 </SelectContent>
               </Select>
+            ) : f.field === 'path' ? (
+              <AutocompleteInput
+                value={getDisplayValue(i, f.field)}
+                onValueChange={(value) => handleInputChange(i, f.field, value)}
+                suggestions={getPathSuggestions}
+                placeholder="e.g. /about, /docs"
+                className="h-8 w-[220px]"
+              />
             ) : (
               <Input
                 value={getDisplayValue(i, f.field)}
                 onChange={(e) => handleInputChange(i, f.field, e.target.value)}
                 placeholder={
-                  f.field === 'path'
-                    ? 'e.g. /about, /docs'
-                    : f.field === 'referrer'
-                      ? 'e.g. direct, google, facebook, twitter'
-                      : f.field === 'country'
-                        ? 'e.g. United States, US, UK, Canada, Germany'
-                        : 'Enter value'
+                  f.field === 'referrer'
+                    ? 'e.g. direct, google, facebook, twitter'
+                    : f.field === 'country'
+                      ? 'e.g. United States, US, UK, Canada, Germany'
+                      : 'Enter value'
                 }
                 className="h-8 w-[220px]"
               />

@@ -403,13 +403,17 @@ export function normalizeCountryForFilter(input: string): string | null {
 	const lowercase = trimmed.toLowerCase();
 
 	// First check for direct alias match
-	const aliasMatch = COUNTRY_ALIASES[lowercase];
+	const aliasMatch = COUNTRY_ALIASES instanceof Map 
+		? COUNTRY_ALIASES.get(lowercase) 
+		: COUNTRY_ALIASES[lowercase];
 	if (aliasMatch) {
 		return aliasMatch;
 	}
 
 	// Check if it's already a valid country name (case-insensitive)
-	const exactMatch = COUNTRY_NAME_TO_CODE[trimmed];
+	const exactMatch = COUNTRY_NAME_TO_CODE instanceof Map 
+		? COUNTRY_NAME_TO_CODE.get(trimmed) 
+		: COUNTRY_NAME_TO_CODE[trimmed];
 	if (exactMatch) {
 		return trimmed;
 	}
@@ -429,6 +433,6 @@ export function normalizeCountryForFilter(input: string): string | null {
 		}
 	}
 
-	// If no exact match found, return the original input for partial matching
-	return trimmed;
+	// If no exact match found, return null since no valid normalization was found
+	return null;
 }
