@@ -210,7 +210,7 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
    See [Prerequisites](#prerequisites).
 
 2. **How do I deploy?**
-   See the deployment documentation in our [docs](https://docs.databuddy.cc).
+   See the deployment documentation in our [docs](https://databuddy.cc/docs).
 
 3. **How do I contribute?**
    See [Contributing](#contributing).
