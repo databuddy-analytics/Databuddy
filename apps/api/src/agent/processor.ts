@@ -10,7 +10,8 @@ import { generateThinkingSteps } from './utils/stream-utils';
 
 // Simple message variation helpers
 const getRandomMessage = (messages: string[]): string =>
-	messages[Math.floor(Math.random() * messages.length)] || 'An error occurred while processing your request.';
+	messages[Math.floor(Math.random() * messages.length)] ||
+	'An error occurred while processing your request.';
 
 const parseErrorMessages = [
 	"I'm having trouble understanding that request. Could you try asking in a different way?",
@@ -70,9 +71,9 @@ export async function* processAssistantRequest(
 			request.website_id,
 			request.website_hostname,
 			'execute_chat',
-			request.context?.previousMessages?.map(msg => ({
+			request.context?.previousMessages?.map((msg) => ({
 				role: msg.role || 'user',
-				content: msg.content
+				content: msg.content,
 			})),
 			undefined,
 			request.model

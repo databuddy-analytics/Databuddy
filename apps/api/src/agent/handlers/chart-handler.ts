@@ -7,7 +7,8 @@ import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
 const getRandomMessage = (messages: string[]): string =>
-	messages[Math.floor(Math.random() * messages.length)] || 'An error occurred while processing your request.';
+	messages[Math.floor(Math.random() * messages.length)] ||
+	'An error occurred while processing your request.';
 
 const queryFailedMessages = [
 	'I ran into an issue getting that data. The information might not be available right now.',

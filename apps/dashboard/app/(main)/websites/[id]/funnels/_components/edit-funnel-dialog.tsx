@@ -1,12 +1,12 @@
 'use client';
 
+import { filterOptions } from '@databuddy/shared';
 import {
 	DragDropContext,
 	Draggable,
 	Droppable,
 	type DropResult,
 } from '@hello-pangea/dnd';
-import { filterOptions } from '@databuddy/shared';
 import {
 	ChartBarIcon,
 	FunnelIcon,
@@ -32,6 +32,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from '@/components/ui/sheet';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import type {
 	AutocompleteData,
 	CreateFunnelData,
@@ -39,7 +40,6 @@ import type {
 	FunnelFilter,
 	FunnelStep,
 } from '@/hooks/use-funnels';
-import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import { AutocompleteInput, DraggableStep } from './funnel-components';
 
 const defaultFilter: FunnelFilter = {

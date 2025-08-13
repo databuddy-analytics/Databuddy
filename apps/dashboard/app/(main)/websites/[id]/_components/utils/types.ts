@@ -1,4 +1,8 @@
-import type { DateRange as BaseDateRange, DynamicQueryFilter, Website } from '@databuddy/shared';
+import type {
+	DateRange as BaseDateRange,
+	DynamicQueryFilter,
+	Website,
+} from '@databuddy/shared';
 
 // Extended date range with granularity
 export interface DateRange extends BaseDateRange {

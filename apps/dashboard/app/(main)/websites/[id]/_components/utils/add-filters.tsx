@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { type DynamicQueryFilter, filterOptions } from '@databuddy/shared';
 import { FunnelIcon } from '@phosphor-icons/react';
-import { filterOptions, type DynamicQueryFilter } from '@databuddy/shared';
+import { useParams } from 'next/navigation';
+import { Suspense, useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
 	Command,
@@ -31,12 +31,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { operatorOptions } from '@/hooks/use-filters';
 import {
 	type AutocompleteData,
 	useAutocompleteData,
 } from '@/hooks/use-funnels';
-import { operatorOptions } from '@/hooks/use-filters';
-import { Skeleton } from '@/components/ui/skeleton';
 
 type OperatorOption = (typeof operatorOptions)[number];
 type FilterOption = (typeof filterOptions)[number];
@@ -256,7 +256,7 @@ function FilterForm({
 			<div className="flex flex-col gap-2">
 				{Array.from({ length: Math.min(numberOfFilters, 5) }).map(
 					(_, index) => (
-						<Skeleton key={`filter-skeleton-${index}`} className="h-8 w-full" />
+						<Skeleton className="h-8 w-full" key={`filter-skeleton-${index}`} />
 					)
 				)}
 			</div>

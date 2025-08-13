@@ -27,9 +27,9 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from '@/components/ui/sheet';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import type { AutocompleteData } from '@/hooks/use-funnels';
 import type { CreateGoalData, Goal } from '@/hooks/use-goals';
-import { operatorOptions, useFilters } from '@/hooks/use-filters';
 import { AutocompleteInput } from '../../funnels/_components/funnel-components';
 
 const defaultFilter: GoalFilter = {
