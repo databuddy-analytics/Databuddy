@@ -390,14 +390,14 @@ export const COUNTRY_ALIASES: Record<string, string> = {
  * @param input - The user input country name/code
  * @returns The normalized country name that matches database storage, or the original trimmed input if not found
  */
-export function normalizeCountryForFilter(input: string): string | null {
+export function normalizeCountryForFilter(input: string): string {
 	if (!input || typeof input !== 'string') {
-		return null;
+		return '';
 	}
 
 	const trimmed = input.trim();
 	if (!trimmed) {
-		return null;
+		return '';
 	}
 
 	const lowercase = trimmed.toLowerCase();

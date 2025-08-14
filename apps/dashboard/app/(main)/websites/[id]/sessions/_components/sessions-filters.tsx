@@ -21,6 +21,7 @@ import Image from 'next/image';
 export type FilterField = 'path' | 'referrer' | 'country' | 'browser_name' | 'os_name';
 
 export type FilterItem = {
+  id?: string;
   field: FilterField;
   value: string;
 };
@@ -95,7 +96,7 @@ export function buildSessionFilters(items: FilterItem[]): DynamicQueryFilter[] {
       const normalizedCountry = normalizeCountryForFilter(item.value);
       const trimmedInput = item.value.trim();
       
-      // Skip if normalization returns null (invalid input)
+      // Skip if normalization returns empty string (invalid input)
       if (!normalizedCountry) {
         continue;
       }
@@ -135,6 +136,17 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
   const getPathSuggestions = useMemo(() => {
     return autocompleteData?.pagePaths || [];
   }, [autocompleteData]);
+
+  // Migrate filters to have stable IDs if they don't already have them
+  useEffect(() => {
+    const hasFiltersWithoutIds = filters.some(filter => !filter.id);
+    if (hasFiltersWithoutIds) {
+      const filtersWithIds = filters.map(filter => 
+        filter.id ? filter : { ...filter, id: crypto.randomUUID() }
+      );
+      onChange(filtersWithIds);
+    }
+  }, [filters, onChange]);
 
   // Debounced effect to apply input changes after user stops typing
   useEffect(() => {
@@ -220,7 +232,7 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
   }, []);
 
   const addFilter = (field: FilterField) => {
-    onChange([...filters, { field, value: '' }]);
+    onChange([...filters, { id: crypto.randomUUID(), field, value: '' }]);
   };
 
   const removeFilter = (index: number) => {
@@ -228,13 +240,6 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
     next.splice(index, 1);
     cleanupLocalState(index);
     onChange(next);
-  };
-
-  const updateFilter = (index: number, patch: Partial<FilterItem>) => {
-    // For value changes only (field changes are handled directly in the Select)
-    if (patch.value && filters[index]?.field !== 'path' && filters[index]?.field !== 'referrer' && filters[index]?.field !== 'country') {
-      updateFilterImmediate(index, patch);
-    }
   };
 
   return (
@@ -306,7 +311,7 @@ export default function SessionsFilters({ filters, onChange, browserOptions = []
         <div className="space-y-3">
           {filters.map((f, i) => (
             <div 
-              key={`filter-row-${i}-${f.field}`} 
+              key={f.id || `filter-${i}-${f.field}`} 
               className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center"
             >
               {/* Field Type Section */}

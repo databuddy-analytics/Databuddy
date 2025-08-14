@@ -4,6 +4,7 @@ import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import z from 'zod/v4';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionsData } from '@/hooks/use-dynamic-query';
@@ -25,6 +26,21 @@ const SessionRow = dynamic(
 
 interface SessionsListProps {
 	websiteId: string;
+}
+
+// Zod schema for validating FilterItem arrays from URL params
+const FilterItemSchema = z.object({
+	id: z.string().optional(), // Optional for backward compatibility with URL params
+	field: z.enum(['path', 'referrer', 'country', 'browser_name', 'os_name']),
+	value: z.string(),
+});
+
+const FilterItemArraySchema = z.array(FilterItemSchema);
+
+// Type guard function to validate FilterItem array
+function isValidFilterItemArray(value: unknown): value is FilterItem[] {
+	const result = FilterItemArraySchema.safeParse(value);
+	return result.success;
 }
 
 // Type for the transformed session data structure
@@ -67,13 +83,20 @@ export function SessionsList({ websiteId }: SessionsListProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  // Initialize filters from URL
+  // Initialize filters from URL with validation
   const [filterItems, setFilterItems] = useState<FilterItem[]>(() => {
     const filtersParam = searchParams.get('filters');
     if (filtersParam) {
       try {
-        return JSON.parse(decodeURIComponent(filtersParam));
+        const parsed = JSON.parse(decodeURIComponent(filtersParam));
+        // Validate the parsed data matches FilterItem[] shape
+        if (isValidFilterItemArray(parsed)) {
+          return parsed;
+        }
+        // Invalid data structure, fall back to empty array
+        return [];
       } catch {
+        // JSON parsing failed, fall back to empty array
         return [];
       }
     }
@@ -101,7 +124,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 
   // Memoize browser and OS options to avoid recalculation
   const browserOptions = useMemo(() => 
-    Array.from(new Set(unfilteredSessions.map((s:any)=> s.browser || s.browser_name).filter(Boolean))),
+    Array.from(new Set(unfilteredSessions.map((s:SessionData)=> s.browser).filter(Boolean))),
     [unfilteredSessions]
   );
   
