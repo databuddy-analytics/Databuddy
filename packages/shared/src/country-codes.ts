@@ -388,7 +388,7 @@ export const COUNTRY_ALIASES: Record<string, string> = {
 /**
  * Normalizes country input for filtering by handling common aliases and variations
  * @param input - The user input country name/code
- * @returns The normalized country name that matches database storage, or null if not found
+ * @returns The normalized country name that matches database storage, or the original trimmed input if not found
  */
 export function normalizeCountryForFilter(input: string): string | null {
 	if (!input || typeof input !== 'string') {
@@ -403,17 +403,14 @@ export function normalizeCountryForFilter(input: string): string | null {
 	const lowercase = trimmed.toLowerCase();
 
 	// First check for direct alias match
-	const aliasMatch = COUNTRY_ALIASES instanceof Map 
-		? COUNTRY_ALIASES.get(lowercase) 
-		: COUNTRY_ALIASES[lowercase];
+	const aliasMatch = COUNTRY_ALIASES[lowercase];
 	if (aliasMatch) {
 		return aliasMatch;
 	}
 
 	// Check if it's already a valid country name (case-insensitive)
-	const exactMatch = COUNTRY_NAME_TO_CODE instanceof Map 
-		? COUNTRY_NAME_TO_CODE.get(trimmed) 
-		: COUNTRY_NAME_TO_CODE[trimmed];
+	const exactMatch = COUNTRY_NAME_TO_CODE[trimmed];
+	
 	if (exactMatch) {
 		return trimmed;
 	}
@@ -433,6 +430,6 @@ export function normalizeCountryForFilter(input: string): string | null {
 		}
 	}
 
-	// If no exact match found, return null since no valid normalization was found
-	return null;
+	// Return the original fallback behavior - trimmed input when no normalization match is found
+	return trimmed;
 }

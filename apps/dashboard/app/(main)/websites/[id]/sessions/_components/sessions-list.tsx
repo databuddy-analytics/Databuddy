@@ -2,7 +2,8 @@
 
 import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionsData } from '@/hooks/use-dynamic-query';
@@ -62,7 +63,22 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 	const [allSessions, setAllSessions] = useState<SessionData[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [filterItems, setFilterItems] = useState<FilterItem[]>([]);
+  
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Initialize filters from URL
+  const [filterItems, setFilterItems] = useState<FilterItem[]>(() => {
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      try {
+        return JSON.parse(decodeURIComponent(filtersParam));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
 
   const { sessions, pagination, isLoading, isError, error } = useSessionsData(
 		websiteId,
@@ -74,7 +90,43 @@ export function SessionsList({ websiteId }: SessionsListProps) {
     }
 	);
 
+  // Fetch unfiltered sessions data ONLY for getting browser/OS options
+  const { sessions: unfilteredSessions } = useSessionsData(
+    websiteId,
+    dateRange,
+    500, // Reasonable limit to capture browser/OS variety without overloading
+    1,
+    {} // No filters - get unfiltered data for metadata
+  );
+
+  // Memoize browser and OS options to avoid recalculation
+  const browserOptions = useMemo(() => 
+    Array.from(new Set(unfilteredSessions.map((s:any)=> s.browser || s.browser_name).filter(Boolean))),
+    [unfilteredSessions]
+  );
+  
+  const osOptions = useMemo(() => 
+    Array.from(new Set(unfilteredSessions.map((s:any)=> s.os || s.os_name).filter(Boolean))),
+    [unfilteredSessions]
+  );
+
   const { data: autocompleteData } = useAutocompleteData(websiteId);
+
+  // Handle filter changes with URL persistence
+  const handleFilterChange = useCallback((newFilters: FilterItem[]) => {
+    setFilterItems(newFilters);
+    
+    // Update URL to persist filters
+    const params = new URLSearchParams(searchParams.toString());
+    if (newFilters.length > 0) {
+      params.set('filters', encodeURIComponent(JSON.stringify(newFilters)));
+    } else {
+      params.delete('filters');
+    }
+    
+    // Use replace to avoid cluttering browser history
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
 	const toggleSession = useCallback((sessionId: string) => {
 		setExpandedSessionId((currentId) =>
@@ -136,10 +188,11 @@ export function SessionsList({ websiteId }: SessionsListProps) {
     setPage(1);
     setAllSessions([]);
     setExpandedSessionId(null);
-    setIsInitialLoad(true);
+    // Don't set isInitialLoad to true to prevent full page reload appearance
   }, [JSON.stringify(buildSessionFilters(filterItems))]);
 
-  if (isLoading && (isInitialLoad || allSessions.length === 0)) {
+  // Only show full loading state on the very first load
+  if (isLoading && isInitialLoad) {
 		return (
 			<div className="space-y-6">
 				<WebsitePageHeader
@@ -187,30 +240,34 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		);
 	}
 
-  if (!allSessions.length && !isLoading) {
-		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-				<Card>
-					<CardContent className="flex items-center justify-center">
-						<div className="flex flex-col items-center py-12 text-center text-muted-foreground">
-							<UserIcon className="mb-4 h-12 w-12 opacity-50" />
-							<p className="mb-2 font-medium text-lg">No sessions found</p>
-							<p className="text-sm">
-								Sessions will appear here once users visit your website
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
+  // Show the layout with filters even when no sessions are found
+  const hasNoSessions = !allSessions.length && !isLoading;
+  const showEmptyState = hasNoSessions && filterItems.length === 0; // Only show generic empty state when no filters applied
+
+  if (showEmptyState) {
+    return (
+      <div className="space-y-6">
+        <WebsitePageHeader
+          description="User sessions with event timelines and custom event properties"
+          icon={<UserIcon className="h-6 w-6 text-primary" />}
+          title="Recent Sessions"
+          variant="minimal"
+          websiteId={websiteId}
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center">
+            <div className="flex flex-col items-center py-12 text-center text-muted-foreground">
+              <UserIcon className="mb-4 h-12 w-12 opacity-50" />
+              <p className="mb-2 font-medium text-lg">No sessions found</p>
+              <p className="text-sm">
+                Sessions will appear here once users visit your website
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
 	return (
 		<div className="space-y-6">
@@ -226,53 +283,80 @@ export function SessionsList({ websiteId }: SessionsListProps) {
         <CardContent className="p-0">
           <SessionsFilters
             filters={filterItems}
-            onChange={setFilterItems}
-            browserOptions={Array.from(new Set(allSessions.map((s:any)=> s.browser || s.browser_name).filter(Boolean)))}
-            osOptions={Array.from(new Set(allSessions.map((s:any)=> s.os || s.os_name).filter(Boolean)))}
+            onChange={handleFilterChange}
+            browserOptions={browserOptions}
+            osOptions={osOptions}
             autocompleteData={autocompleteData}
           />
         </CardContent>
       </Card>
 			<Card>
 				<CardContent className="p-0">
-					<div className="divide-y divide-border">
-						{allSessions.map((session: SessionData, index: number) => (
-							<SessionRow
-								index={index}
-								isExpanded={expandedSessionId === session.session_id}
-								key={session.session_id || index}
-								onToggle={toggleSession}
-								session={session}
-							/>
-						))}
-					</div>
+          {hasNoSessions ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center text-center text-muted-foreground">
+                <UserIcon className="mb-4 h-8 w-8 opacity-50" />
+                <p className="mb-1 font-medium">No sessions match your filters</p>
+                <p className="text-sm">Try adjusting your filter criteria</p>
+              </div>
+            </div>
+          ) : isLoading && allSessions.length === 0 ? (
+            <div className="space-y-3 p-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  className="h-16 animate-pulse rounded bg-muted/20"
+                  key={`skeleton-${i}`}
+                />
+              ))}
+              <div className="flex items-center justify-center pt-2">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <SpinnerIcon className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Loading sessions...</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="divide-y divide-border">
+                {allSessions.map((session: SessionData, index: number) => (
+                  <SessionRow
+                    index={index}
+                    isExpanded={expandedSessionId === session.session_id}
+                    key={session.session_id || index}
+                    onToggle={toggleSession}
+                    session={session}
+                  />
+                ))}
+              </div>
 
-					<div className="border-t p-4" ref={setLoadMoreRef}>
-						{pagination.hasNext ? (
-							<div className="flex justify-center">
-								{isLoading ? (
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<SpinnerIcon className="h-4 w-4 animate-spin" />
-										<span className="text-sm">Loading more sessions...</span>
-									</div>
-								) : (
-									<Button
-										className="w-full"
-										onClick={() => setPage((prev) => prev + 1)}
-										variant="outline"
-									>
-										Load More Sessions
-									</Button>
-								)}
-							</div>
-						) : (
-							<div className="text-center text-muted-foreground text-sm">
-								{allSessions.length > 0
-									? 'All sessions loaded'
-									: 'No more sessions'}
-							</div>
-						)}
-					</div>
+              <div className="border-t p-4" ref={setLoadMoreRef}>
+                {pagination.hasNext ? (
+                  <div className="flex justify-center">
+                    {isLoading ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <SpinnerIcon className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Loading more sessions...</span>
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        onClick={() => setPage((prev) => prev + 1)}
+                        variant="outline"
+                      >
+                        Load More Sessions
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground text-sm">
+                    {allSessions.length > 0
+                      ? 'All sessions loaded'
+                      : 'No more sessions'}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 				</CardContent>
 			</Card>
 		</div>

@@ -128,7 +128,8 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
                 'country',
             ]);
             const filters = Array.isArray(_filters) ? (_filters as any[]) : [];
-            const clauses: string[] = [];
+            const eventLevelClauses: string[] = [];
+            const sessionLevelClauses: string[] = [];
             const params: Record<string, unknown> = {
                 websiteId,
                 startDate,
@@ -137,32 +138,48 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
                 offset: offset ?? 0,
             };
             let idx = 0;
+            
             for (const f of filters) {
                 if (!f || !allowed.has(f.field)) continue;
                 const op = (f as any).op || (f as any).operator;
                 
-                if (op === 'like') {
+                // Path filters need to be applied at event level before grouping
+                if (f.field === 'path') {
                     const key = `sf${idx++}`;
-                    if (f.field === 'referrer') {
-                        clauses.push(`lower(referrer) LIKE lower({${key}:String})`);
+                    if (op === 'like') {
+                        eventLevelClauses.push(`path LIKE {${key}:String}`);
                         (params as any)[key] = `%${(f as any).value}%`;
                     } else {
-                        clauses.push(`${f.field} LIKE {${key}:String}`);
-                        (params as any)[key] = `%${(f as any).value}%`;
+                        eventLevelClauses.push(`path = {${key}:String}`);
+                        (params as any)[key] = String((f as any).value);
                     }
                 } else {
-                    if (f.field === 'referrer' && (f as any).value === '') {
-                        clauses.push(`(referrer = '' OR referrer IS NULL OR referrer = 'direct')`);
-                    } else {
+                    // Other filters can be applied at session level after grouping
+                    if (op === 'like') {
                         const key = `sf${idx++}`;
-                        clauses.push(`${f.field} = {${key}:String}`);
-                        (params as any)[key] = Array.isArray((f as any).value)
-                            ? String((f as any).value[0])
-                            : String((f as any).value);
+                        if (f.field === 'referrer') {
+                            sessionLevelClauses.push(`lower(referrer) LIKE lower({${key}:String})`);
+                            (params as any)[key] = `%${(f as any).value}%`;
+                        } else {
+                            sessionLevelClauses.push(`${f.field} LIKE {${key}:String}`);
+                            (params as any)[key] = `%${(f as any).value}%`;
+                        }
+                    } else {
+                        if (f.field === 'referrer' && (f as any).value === '') {
+                            sessionLevelClauses.push(`(referrer = '' OR referrer IS NULL OR referrer = 'direct')`);
+                        } else {
+                            const key = `sf${idx++}`;
+                            sessionLevelClauses.push(`${f.field} = {${key}:String}`);
+                            (params as any)[key] = Array.isArray((f as any).value)
+                                ? String((f as any).value[0])
+                                : String((f as any).value);
+                        }
                     }
                 }
             }
-            const whereFilters = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
+            
+            const eventWhereFilters = eventLevelClauses.length ? ` AND ${eventLevelClauses.join(' AND ')}` : '';
+            const sessionHavingFilters = sessionLevelClauses.length ? ` HAVING ${sessionLevelClauses.join(' AND ')}` : '';
 
             return {
                 sql: `
@@ -185,8 +202,9 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
+        ${eventWhereFilters}
       GROUP BY session_id
-      ${whereFilters ? `HAVING ${clauses.join(' AND ')}` : ''}
+      ${sessionHavingFilters}
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     ),
