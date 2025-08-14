@@ -68,9 +68,8 @@ export function ModelSelector({
 							config.isEnabled
 								? 'cursor-pointer hover:bg-muted/60 hover:text-foreground'
 								: 'cursor-not-allowed opacity-50',
-							selectedModel === config.id
-								? 'border border-primary bg-accent/80 text-accent-foreground'
-								: ''
+							selectedModel === config.id &&
+								'border border-primary bg-accent/80 text-accent-foreground'
 						)}
 						disabled={!config.isEnabled}
 						key={config.id}
