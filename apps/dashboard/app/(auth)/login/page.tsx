@@ -27,7 +27,8 @@ function LoginPage() {
 		setIsLoading(true);
 		signIn.social({
 			provider: 'google',
-			callbackURL: '/home',
+			callbackURL: '/websites',
+			newUserCallbackURL: '/onboarding',
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'google');
@@ -44,7 +45,8 @@ function LoginPage() {
 		setIsLoading(true);
 		signIn.social({
 			provider: 'github',
-			callbackURL: '/home',
+			callbackURL: '/websites',
+			newUserCallbackURL: '/onboarding',
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'github');
@@ -69,7 +71,7 @@ function LoginPage() {
 			await signIn.email({
 				email,
 				password,
-				callbackURL: '/home',
+				callbackURL: '/websites',
 				fetchOptions: {
 					onSuccess: () => {
 						localStorage.setItem('lastUsedLogin', 'email');

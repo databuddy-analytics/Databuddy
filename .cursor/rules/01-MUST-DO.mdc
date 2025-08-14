@@ -1,8 +1,9 @@
 ---
 description: Basic guidelines for the project so vibe coders don't fuck it up
-globs: 
+globs:
 alwaysApply: true
 ---
+
 Always ensure type-safety, don't use type: any unless needed, when creating APIs, responses, or components, create proper interfaces and make them in the shared types folders where it fits best, not in the same file
 
 When working on anything, try to split off components, utils, anything reusable to ensure better loading speed and less complexity
@@ -38,8 +39,6 @@ ALWAYS use error boundaries properly
 use console properly, like console.error, console.time, console.json, console.table, etc
 
 Use Dayjs NEVER date-fns, and Tanstack query for hooks, NEVER SWR
-
-Use ONLY Zod V4 from zod/v4 never zod 3 from zod
 
 use Icon at the end of phosphor react icons, like CaretIcon not Caret
 

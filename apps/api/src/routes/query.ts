@@ -1,10 +1,8 @@
+import { filterOptions } from '@databuddy/shared';
 import { Elysia, t } from 'elysia';
-import {
-	deriveWebsiteContext,
-	getCachedWebsiteDomain,
-	getWebsiteDomain,
-} from '../lib/website-utils';
-import { createRateLimitMiddleware } from '../middleware/rate-limit';
+import { getCachedWebsiteDomain, getWebsiteDomain } from '../lib/website-utils';
+// import { createRateLimitMiddleware } from '../middleware/rate-limit';
+import { websiteAuth } from '../middleware/website-auth';
 import { compileQuery, executeQuery } from '../query';
 import { QueryBuilders } from '../query/builders';
 import type { QueryRequest } from '../query/types';
@@ -25,22 +23,35 @@ interface QueryParams {
 }
 
 export const query = new Elysia({ prefix: '/v1/query' })
-	.use(createRateLimitMiddleware({ type: 'api' }))
-	.derive(deriveWebsiteContext)
-	.get('/types', () => ({
-		success: true,
-		types: Object.keys(QueryBuilders),
-		configs: Object.fromEntries(
-			Object.entries(QueryBuilders).map(([key, config]) => [
-				key,
-				{
-					allowedFilters: config.allowedFilters || [],
+	// .use(createRateLimitMiddleware({ type: 'api' }))
+	.use(websiteAuth())
+	.get('/types', ({ query: params }: { query: { include_meta?: string } }) => {
+		const includeMeta = params.include_meta === 'true';
+
+		const configs = Object.fromEntries(
+			Object.entries(QueryBuilders).map(([key, config]) => {
+				const baseConfig = {
+					allowedFilters:
+						config.allowedFilters ??
+						filterOptions.map((filter) => filter.value),
 					customizable: config.customizable,
 					defaultLimit: config.limit,
-				},
-			])
-		),
-	}))
+				};
+
+				if (includeMeta) {
+					return [key, { ...baseConfig, meta: config.meta }];
+				}
+
+				return [key, baseConfig];
+			})
+		);
+
+		return {
+			success: true,
+			types: Object.keys(QueryBuilders),
+			configs,
+		};
+	})
 
 	.post(
 		'/compile',
@@ -88,7 +99,13 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			try {
 				if (Array.isArray(body)) {
 					const uniqueWebsiteIds = [
-						...new Set(body.flatMap((req) => req.parameters)),
+						...new Set(
+							body.flatMap((req) =>
+								req.parameters.map((param) =>
+									typeof param === 'string' ? param : param.name
+								)
+							)
+						),
 					];
 					const domainCache = await getCachedWebsiteDomain(uniqueWebsiteIds);
 
@@ -190,18 +207,48 @@ async function executeDynamicQuery(
 	}
 
 	async function processParameter(
-		parameter: string,
+		parameterInput:
+			| string
+			| {
+					name: string;
+					start_date?: string;
+					end_date?: string;
+					granularity?: string;
+					id?: string;
+			  },
 		dynamicRequest: DynamicQueryRequestType,
 		params: QueryParams,
 		siteId: string | undefined,
-		start: string | undefined,
-		end: string | undefined,
+		defaultStart: string | undefined,
+		defaultEnd: string | undefined,
 		domain: string | null
 	) {
-		const validation = validateParameterRequest(parameter, siteId, start, end);
+		const isObject = typeof parameterInput === 'object';
+		const parameterName = isObject ? parameterInput.name : parameterInput;
+		const customId =
+			isObject && parameterInput.id ? parameterInput.id : parameterName;
+		const paramStart =
+			isObject && parameterInput.start_date
+				? parameterInput.start_date
+				: defaultStart;
+		const paramEnd =
+			isObject && parameterInput.end_date
+				? parameterInput.end_date
+				: defaultEnd;
+		const paramGranularity =
+			isObject && parameterInput.granularity
+				? parameterInput.granularity
+				: dynamicRequest.granularity;
+
+		const validation = validateParameterRequest(
+			parameterName,
+			siteId,
+			paramStart,
+			paramEnd
+		);
 		if (!validation.success) {
 			return {
-				parameter,
+				parameter: customId,
 				success: false,
 				error: validation.error,
 				data: [],
@@ -211,10 +258,10 @@ async function executeDynamicQuery(
 		try {
 			const queryRequest = {
 				projectId: validation.siteId,
-				type: parameter,
+				type: parameterName,
 				from: validation.start,
 				to: validation.end,
-				timeUnit: getTimeUnit(dynamicRequest.granularity),
+				timeUnit: getTimeUnit(paramGranularity),
 				filters: dynamicRequest.filters || [],
 				limit: dynamicRequest.limit || 100,
 				offset: dynamicRequest.page
@@ -226,13 +273,13 @@ async function executeDynamicQuery(
 			const data = await executeQuery(queryRequest, domain, params.timezone);
 
 			return {
-				parameter,
+				parameter: customId,
 				success: true,
 				data: data || [],
 			};
 		} catch (error) {
 			return {
-				parameter,
+				parameter: customId,
 				success: false,
 				error: error instanceof Error ? error.message : 'Query failed',
 				data: [],
@@ -241,7 +288,7 @@ async function executeDynamicQuery(
 	}
 
 	const parameterResults = await Promise.all(
-		request.parameters.map((param: string) => {
+		request.parameters.map((param) => {
 			return processParameter(
 				param,
 				request,

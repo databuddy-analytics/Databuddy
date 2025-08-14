@@ -89,6 +89,11 @@ export const account = pgTable(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
 		),
+		uniqueIndex('accounts_provider_account_unique').using(
+			'btree',
+			table.providerId.asc().nullsLast().op('text_ops'),
+			table.accountId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -120,6 +125,10 @@ export const session = pgTable(
 		index('sessions_userId_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
+		),
+		index('sessions_expiresAt_idx').using(
+			'btree',
+			table.expiresAt.asc().nullsLast()
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -211,6 +220,10 @@ export const verification = pgTable(
 		index('verifications_identifier_idx').using(
 			'btree',
 			table.identifier.asc().nullsLast().op('text_ops')
+		),
+		index('verifications_expiresAt_idx').using(
+			'btree',
+			table.expiresAt.asc().nullsLast()
 		),
 	]
 );
@@ -305,13 +318,6 @@ export const websites = pgTable(
 			foreignColumns: [organization.id],
 			name: 'websites_organization_id_organization_id_fk',
 		}).onDelete('cascade'),
-		foreignKey({
-			columns: [table.organizationId],
-			foreignColumns: [organization.id],
-			name: 'websites_organizationId_fkey',
-		})
-			.onUpdate('cascade')
-			.onDelete('cascade'),
 	]
 );
 
@@ -332,13 +338,7 @@ export const user = pgTable(
 		role: role().default('USER').notNull(),
 		twoFactorEnabled: boolean('two_factor_enabled'),
 	},
-	(table) => [
-		unique('users_email_unique').on(table.email),
-		index('users_email_idx').using(
-			'btree',
-			table.email.asc().nullsLast().op('text_ops')
-		),
-	]
+	(table) => [unique('users_email_unique').on(table.email)]
 );
 
 export const userStripeConfig = pgTable(
@@ -535,6 +535,14 @@ export const apiScope = pgEnum('api_scope', [
 	'admin:apikeys',
 ]);
 
+// Resource type for flexible, future-proof per-resource access control
+export const apiResourceType = pgEnum('api_resource_type', [
+	'global',
+	'website',
+	'ab_experiment',
+	'feature_flag',
+]);
+
 export const apikey = pgTable(
 	'apikey',
 	{
@@ -543,11 +551,15 @@ export const apikey = pgTable(
 		prefix: text().notNull(),
 		start: text().notNull(),
 		key: text().notNull(),
+		// New: store hash of the secret at rest; keep plaintext `key` during migration/backfill
+		keyHash: text('key_hash'),
 		userId: text('user_id'),
 		organizationId: text('organization_id'),
 		type: apiKeyType('type').notNull().default('user'),
 		scopes: apiScope('scopes').array().notNull().default([]),
 		enabled: boolean('enabled').notNull().default(true),
+		// Optional lifecycle field to complement `enabled`
+		revokedAt: timestamp('revoked_at', { mode: 'string' }),
 		rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(true),
 		rateLimitTimeWindow: integer('rate_limit_time_window'),
 		rateLimitMax: integer('rate_limit_max'),
@@ -577,6 +589,10 @@ export const apikey = pgTable(
 			foreignColumns: [organization.id],
 			name: 'apikey_organization_id_organization_id_fk',
 		}).onDelete('cascade'),
+		uniqueIndex('apikey_key_unique').using(
+			'btree',
+			table.key.asc().nullsLast().op('text_ops')
+		),
 		index('apikey_user_id_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
@@ -589,7 +605,52 @@ export const apikey = pgTable(
 			'btree',
 			table.prefix.asc().nullsLast().op('text_ops')
 		),
+		index('apikey_key_hash_idx').using(
+			'btree',
+			table.keyHash.asc().nullsLast().op('text_ops')
+		),
 		index('apikey_enabled_idx').using('btree', table.enabled.asc().nullsLast()),
+	]
+);
+
+// Mapping table for per-resource access and granular scopes
+export const apikeyAccess = pgTable(
+	'apikey_access',
+	{
+		id: text().primaryKey().notNull(),
+		apikeyId: text('apikey_id').notNull(),
+		resourceType: apiResourceType('resource_type').notNull().default('global'),
+		// Nullable when resourceType = 'global'
+		resourceId: text('resource_id'),
+		scopes: apiScope('scopes').array().notNull().default([]),
+		createdAt: timestamp('created_at', { mode: 'string' })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+		updatedAt: timestamp('updated_at', { mode: 'string' })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.apikeyId],
+			foreignColumns: [apikey.id],
+			name: 'apikey_access_apikey_id_fkey',
+		}).onDelete('cascade'),
+		index('apikey_access_apikey_id_idx').using(
+			'btree',
+			table.apikeyId.asc().nullsLast().op('text_ops')
+		),
+		index('apikey_access_resource_idx').using(
+			'btree',
+			table.resourceType.asc().nullsLast(),
+			table.resourceId.asc().nullsLast().op('text_ops')
+		),
+		uniqueIndex('apikey_access_unique').using(
+			'btree',
+			table.apikeyId.asc().nullsLast().op('text_ops'),
+			table.resourceType.asc().nullsLast(),
+			table.resourceId.asc().nullsLast().op('text_ops')
+		),
 	]
 );
 export const organization = pgTable(

@@ -3,7 +3,6 @@
 import {
 	ActivityIcon,
 	ArrowClockwiseIcon,
-	ArrowSquareOutIcon,
 	BookOpenIcon,
 	ChatCircleIcon,
 	CheckIcon,

@@ -1,11 +1,12 @@
 import './global.css';
 import { RootProvider } from 'fumadocs-ui/provider';
 import type { Metadata, Viewport } from 'next';
-import { Geist } from 'next/font/google';
+import { Geist, Manrope } from 'next/font/google';
+import Head from 'next/head';
 import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
 import type { ReactNode } from 'react';
-import { Footer } from '@/components/footer';
+import { SITE_URL } from './util/constants';
 
 const geist = Geist({
 	subsets: ['latin'],
@@ -13,31 +14,27 @@ const geist = Geist({
 	variable: '--font-geist',
 });
 
+const manrope = Manrope({
+	subsets: ['latin'],
+	weight: ['400', '500', '600', '700'],
+	variable: '--font-manrope',
+});
+
 export const metadata: Metadata = {
-	title: 'Databuddy - Privacy-First Web Analytics',
+	title:
+		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 	description:
 		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-	keywords: [
-		'analytics',
-		'web analytics',
-		'privacy',
-		'GDPR compliant',
-		'cookieless',
-		'website tracking',
-		'data ownership',
-		'performance analytics',
-		'AI analytics',
-		'privacy-first',
-	],
 	authors: [{ name: 'Databuddy Team' }],
 	creator: 'Databuddy',
 	publisher: 'Databuddy',
-	metadataBase: new URL('https://www.databuddy.cc'),
+	metadataBase: new URL(SITE_URL),
 	openGraph: {
 		type: 'website',
 		locale: 'en_US',
-		url: 'https://www.databuddy.cc',
-		title: 'Databuddy - Privacy-First Web Analytics',
+		url: SITE_URL,
+		title:
+			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 		description:
 			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
 		siteName: 'Databuddy',
@@ -52,7 +49,8 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: 'summary_large_image',
-		title: 'Databuddy - Privacy-First Web Analytics',
+		title:
+			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
 		description:
 			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
 		images: ['og.webp'],
@@ -71,7 +69,10 @@ export const metadata: Metadata = {
 		},
 	},
 	alternates: {
-		canonical: 'https://www.databuddy.cc',
+		canonical: SITE_URL,
+	},
+	pinterest: {
+		richPin: false,
 	},
 };
 
@@ -87,7 +88,11 @@ export const viewport: Viewport = {
 
 export default function Layout({ children }: { children: ReactNode }) {
 	return (
-		<html className={geist.className} lang="en" suppressHydrationWarning>
+		<html
+			className={`${geist.className} ${manrope.className}`}
+			lang="en"
+			suppressHydrationWarning
+		>
 			<Script
 				async
 				data-client-id="OXmNQsViBT-FOS_wZCTHc"
@@ -98,13 +103,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 				src="https://cdn.databuddy.cc/databuddy.js"
 				strategy="afterInteractive"
 			/>
-			<body className="flex min-h-screen flex-col">
+			<Head>
+				<link href="https://icons.duckduckgo.com" rel="preconnect" />
+				<link href="https://icons.duckduckgo.com" rel="dns-prefetch" />
+			</Head>
+			<body>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 					<RootProvider>
-						<div className="flex min-h-screen flex-col">
-							<main className="flex-1">{children}</main>
-							<Footer />
-						</div>
+						<main>{children}</main>
 					</RootProvider>
 				</ThemeProvider>
 			</body>

@@ -185,10 +185,7 @@ class ChatDatabase {
 	}
 
 	// Utility methods
-	async exportChat(websiteId: string): Promise<{
-		chat: any;
-		messages: Message[];
-	}> {
+	async exportChat(websiteId: string) {
 		const chat = await this.getChat(websiteId);
 		const messages = await this.getMessages(websiteId);
 		return { chat, messages };

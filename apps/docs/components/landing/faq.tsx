@@ -1,4 +1,9 @@
-import { HelpCircle } from 'lucide-react';
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from '@/components/ui/accordion';
 
 const faqs = [
 	{
@@ -14,7 +19,7 @@ const faqs = [
 	{
 		question: "What's included in the free plan?",
 		answer:
-			"Our free plan includes up to 50,000 monthly pageviews, real-time analytics, basic event tracking, and 30-day data retention. It's perfect for small websites, personal projects, or to test Databuddy before upgrading.",
+			"Our free plan includes up to 10,000 monthly events, real-time analytics, basic event tracking, It's perfect for small websites, personal projects, or to test Databuddy before upgrading.",
 	},
 	{
 		question: 'How easy is it to implement Databuddy?',
@@ -25,51 +30,33 @@ const faqs = [
 
 export default function FAQ() {
 	return (
-		<div className="-pr-2 relative mx-auto rounded-none border-border bg-background/95 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
-			<div className="w-full md:mx-0">
-				{/* FAQ Header */}
-				<div className="border-border border-t-[1.2px] border-l-[1.2px] p-10 pb-2 md:border-t-0">
-					<div className="my-1 flex items-center gap-2">
-						<HelpCircle className="h-4 w-4 text-muted-foreground" />
-						<p className="text-muted-foreground">Frequently Asked Questions</p>
-					</div>
-					<div className="mt-2">
-						<div className="max-w-full">
-							<div className="flex gap-3">
-								<p className="max-w-lg font-normal text-foreground text-xl tracking-tighter md:text-2xl">
-									Everything you need to know about Databuddy
-								</p>
-							</div>
-						</div>
-						<p className="mt-2 text-left text-muted-foreground text-sm">
-							Can't find the answer you're looking for? Reach out to our team
-							and we'll get back to you within 24 hours.
-						</p>
-					</div>
+		<div className="mx-auto w-full max-w-5xl">
+			<div className="space-y-8 lg:space-y-12">
+				{/* Header Section */}
+				<div className="text-center lg:text-left">
+					<h2 className="mx-auto max-w-2xl font-medium text-2xl leading-tight sm:text-3xl lg:mx-0 lg:text-4xl xl:text-5xl">
+						Questions we think you might like answers to
+					</h2>
 				</div>
 
-				{/* FAQ Grid */}
-				<div className="grid grid-cols-1 border-border border-b-[1.2px] md:grid-cols-2">
-					{faqs.map((faq, index) => (
-						<div
-							className="group border-border border-t-[1.2px] border-l-[1.2px] p-8 transition-colors hover:bg-muted/30"
-							key={faq.question}
-						>
-							<div className="mb-4">
-								<h3 className="font-medium text-base text-foreground leading-tight transition-colors group-hover:text-primary">
+				{/* FAQ Accordion */}
+				<div className="w-full">
+					<Accordion className="w-full space-y-4" collapsible type="single">
+						{faqs.map((faq) => (
+							<AccordionItem
+								className="bg-background/50 transition-colors duration-200 hover:bg-background/80"
+								key={faq.question}
+								value={faq.question}
+							>
+								<AccordionTrigger className="py-4 text-left font-medium text-base hover:no-underline sm:py-6 sm:text-lg lg:text-xl">
 									{faq.question}
-								</h3>
-							</div>
-							<p className="text-muted-foreground text-sm leading-relaxed">
-								{faq.answer}
-							</p>
-							<div className="mt-4 border-border/50 border-t pt-4">
-								<span className="text-muted-foreground text-xs">
-									Question {index + 1} of {faqs.length}
-								</span>
-							</div>
-						</div>
-					))}
+								</AccordionTrigger>
+								<AccordionContent className="pb-4 text-muted-foreground text-sm leading-relaxed sm:pb-6 sm:text-base">
+									{faq.answer}
+								</AccordionContent>
+							</AccordionItem>
+						))}
+					</Accordion>
 				</div>
 			</div>
 		</div>

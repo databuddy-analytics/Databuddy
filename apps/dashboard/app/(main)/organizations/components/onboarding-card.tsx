@@ -44,7 +44,7 @@ export function OnboardingCard({ onCreateOrganization }: OnboardingCardProps) {
 			<CardHeader className="text-center">
 				<div className="mx-auto mb-4 w-fit rounded-full border border-primary/20 bg-primary/10 p-4">
 					<BuildingsIcon
-						className="h-8 w-8 text-primary"
+						className="h-8 w-8 not-dark:text-primary text-primary"
 						size={32}
 						weight="duotone"
 					/>
@@ -60,7 +60,7 @@ export function OnboardingCard({ onCreateOrganization }: OnboardingCardProps) {
 						<div className="text-center" key={feature.title}>
 							<div className="mx-auto mb-2 w-fit rounded-full bg-muted/50 p-2">
 								<feature.icon
-									className="h-5 w-5 text-primary"
+									className="h-5 w-5 not-dark:text-primary text-primary"
 									size={20}
 									weight="duotone"
 								/>
@@ -75,7 +75,10 @@ export function OnboardingCard({ onCreateOrganization }: OnboardingCardProps) {
 
 				<div className="flex justify-center">
 					<Button className="rounded" onClick={onCreateOrganization} size="lg">
-						<BuildingsIcon className="mr-2 h-5 w-5" size={20} />
+						<BuildingsIcon
+							className="mr-2 h-5 w-5 not-dark:text-primary"
+							size={20}
+						/>
 						Create Organization
 					</Button>
 				</div>

@@ -134,7 +134,10 @@ function OrganizationNotFound() {
 				</p>
 				<Button asChild className="rounded">
 					<Link href="/organizations">
-						<CaretLeftIcon className="mr-2 h-4 w-4" size={16} />
+						<CaretLeftIcon
+							className="mr-2 h-4 w-4 not-dark:text-primary"
+							size={16}
+						/>
 						Back to Organizations
 					</Link>
 				</Button>
@@ -261,7 +264,10 @@ export default function OrganizationPage() {
 							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
 							value="overview"
 						>
-							<ChartBarIcon className="mr-1 h-3 w-3" size={16} />
+							<ChartBarIcon
+								className="mr-1 h-3 w-3 not-dark:text-primary"
+								size={16}
+							/>
 							<span className="hidden sm:inline">Overview</span>
 							{activeTab === 'overview' && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full rounded bg-primary" />
@@ -271,7 +277,10 @@ export default function OrganizationPage() {
 							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
 							value="teams"
 						>
-							<UsersIcon className="mr-1 h-3 w-3" size={16} />
+							<UsersIcon
+								className="mr-1 h-3 w-3 not-dark:text-primary"
+								size={16}
+							/>
 							<span className="hidden sm:inline">Teams</span>
 							{activeTab === 'teams' && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full rounded bg-primary" />
@@ -281,7 +290,10 @@ export default function OrganizationPage() {
 							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
 							value="settings"
 						>
-							<GearIcon className="mr-1 h-3 w-3" size={16} />
+							<GearIcon
+								className="mr-1 h-3 w-3 not-dark:text-primary"
+								size={16}
+							/>
 							<span className="hidden sm:inline">Settings</span>
 							{activeTab === 'settings' && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full rounded bg-primary" />

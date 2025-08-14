@@ -1,5 +1,6 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig } from '../types';
+import { buildWhereClause } from '../utils';
 
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
@@ -12,13 +13,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'"],
 		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
 		customizable: true,
 	},
 
@@ -40,7 +34,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['duration_range'],
 		orderBy: 'sessions DESC',
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -56,7 +49,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['device_type'],
 		orderBy: 'sessions DESC',
 		timeField: 'time',
-		allowedFilters: ['device_type', 'path', 'referrer'],
 		customizable: true,
 	},
 
@@ -73,7 +65,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'sessions DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['browser_name', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -89,7 +80,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['toDate(time)'],
 		orderBy: 'date ASC',
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -105,7 +95,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'sessions DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -231,6 +220,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
       WHERE e.client_id = {websiteId:String}
+		${combinedWhereClause}
       GROUP BY e.session_id
     )
     SELECT
@@ -285,7 +275,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		where: ['session_id = ?'],
 		orderBy: 'time ASC',
 		timeField: 'time',
-		allowedFilters: ['event_name', 'path', 'error_type'],
 		customizable: true,
 	},
 };

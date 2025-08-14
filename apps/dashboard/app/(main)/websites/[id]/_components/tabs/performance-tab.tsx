@@ -303,6 +303,7 @@ export function WebsitePerformanceTab({
 	dateRange,
 	isRefreshing,
 	setIsRefreshing,
+	filters,
 }: FullTabProps) {
 	const [activeFilter, setActiveFilter] = useState<'fast' | 'slow' | null>(
 		null
@@ -313,7 +314,7 @@ export function WebsitePerformanceTab({
 		isLoading,
 		refetch,
 		error,
-	} = useEnhancedPerformanceData(websiteId, dateRange);
+	} = useEnhancedPerformanceData(websiteId, dateRange, filters);
 
 	const handleRefresh = useCallback(async () => {
 		if (isRefreshing) {
@@ -550,7 +551,7 @@ export function WebsitePerformanceTab({
 							Performance Overview
 						</p>
 						<p className="text-muted-foreground text-xs">
-							Core Web Vitals and performance metrics.
+							Core Web Vitals and performance metrics.{' '}
 							<span className="font-medium text-green-600">Good</span>,
 							<span className="ml-1 font-medium text-yellow-600">
 								Needs Improvement

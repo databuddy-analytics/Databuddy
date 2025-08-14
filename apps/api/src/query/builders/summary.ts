@@ -1,8 +1,59 @@
 import { Analytics } from '../../types/tables';
 import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import { buildWhereClause } from '../utils';
 
 export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 	summary_metrics: {
+		meta: {
+			title: 'Summary Metrics',
+			description:
+				'Overview of key website metrics including pageviews, visitors, sessions, bounce rate, and session duration.',
+			category: 'Analytics',
+			tags: ['overview', 'metrics', 'summary', 'kpi'],
+			output_fields: [
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews',
+					description: 'Total number of page views',
+				},
+				{
+					name: 'unique_visitors',
+					type: 'number',
+					label: 'Unique Visitors',
+					description: 'Number of unique visitors',
+				},
+				{
+					name: 'sessions',
+					type: 'number',
+					label: 'Sessions',
+					description: 'Total number of sessions',
+				},
+				{
+					name: 'bounce_rate',
+					type: 'number',
+					label: 'Bounce Rate',
+					description: 'Percentage of single-page sessions',
+					unit: '%',
+				},
+				{
+					name: 'avg_session_duration',
+					type: 'number',
+					label: 'Avg Session Duration',
+					description: 'Average session duration in seconds',
+					unit: 'seconds',
+				},
+				{
+					name: 'total_events',
+					type: 'number',
+					label: 'Total Events',
+					description: 'Total number of events tracked',
+				},
+			],
+			default_visualization: 'metric',
+			supports_granularity: ['day'],
+			version: '1.0',
+		},
 		customSql: (
 			websiteId: string,
 			startDate: string,
@@ -11,9 +62,13 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
-			timezone?: string
+			timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
 		) => {
 			const tz = timezone || 'UTC';
+			const combinedWhereClause = buildWhereClause(filterConditions);
+
 			return {
 				sql: `
             WITH base_events AS (
@@ -28,6 +83,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                 AND time >= parseDateTimeBestEffort({startDate:String})
                 AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                 AND session_id != ''
+                ${combinedWhereClause}
             ),
             session_metrics AS (
               SELECT
@@ -81,21 +137,52 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					startDate,
 					endDate,
 					timezone: tz,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: [
-			'path',
-			'referrer',
-			'device_type',
-			'browser_name',
-			'country',
-		],
 		customizable: true,
 	},
 
 	today_metrics: {
+		meta: {
+			title: "Today's Metrics",
+			description:
+				'Real-time metrics for today including pageviews, visitors, sessions, and bounce rate.',
+			category: 'Analytics',
+			tags: ['today', 'realtime', 'current', 'daily'],
+			output_fields: [
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews Today',
+					description: 'Total page views for today',
+				},
+				{
+					name: 'visitors',
+					type: 'number',
+					label: 'Visitors Today',
+					description: 'Unique visitors for today',
+				},
+				{
+					name: 'sessions',
+					type: 'number',
+					label: 'Sessions Today',
+					description: 'Total sessions for today',
+				},
+				{
+					name: 'bounce_rate',
+					type: 'number',
+					label: 'Bounce Rate',
+					description: 'Bounce rate percentage for today',
+					unit: '%',
+				},
+			],
+			default_visualization: 'metric',
+			supports_granularity: [],
+			version: '1.0',
+		},
 		table: Analytics.events,
 		fields: [
 			'COUNT(*) as pageviews',
@@ -105,11 +192,66 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'", 'toDate(time) = today()'],
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
 	events_by_date: {
+		meta: {
+			title: 'Events by Date',
+			description:
+				'Daily or hourly breakdown of website events showing pageviews, visitors, sessions, and engagement metrics.',
+			category: 'Analytics',
+			tags: ['timeseries', 'events', 'trends', 'daily', 'hourly'],
+			output_fields: [
+				{
+					name: 'date',
+					type: 'datetime',
+					label: 'Date',
+					description: 'Date or datetime of the data point',
+				},
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews',
+					description: 'Total page views for the period',
+				},
+				{
+					name: 'visitors',
+					type: 'number',
+					label: 'Visitors',
+					description: 'Unique visitors for the period',
+				},
+				{
+					name: 'sessions',
+					type: 'number',
+					label: 'Sessions',
+					description: 'Total sessions for the period',
+				},
+				{
+					name: 'bounce_rate',
+					type: 'number',
+					label: 'Bounce Rate',
+					description: 'Bounce rate for the period',
+					unit: '%',
+				},
+				{
+					name: 'avg_session_duration',
+					type: 'number',
+					label: 'Avg Session Duration',
+					description: 'Average session duration',
+					unit: 'seconds',
+				},
+				{
+					name: 'pages_per_session',
+					type: 'number',
+					label: 'Pages per Session',
+					description: 'Average pages viewed per session',
+				},
+			],
+			default_visualization: 'timeseries',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
 		customSql: (
 			websiteId: string,
 			startDate: string,
@@ -118,10 +260,13 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_granularity?: unknown,
 			_limit?: number,
 			_offset?: number,
-			timezone?: string
+			timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
 		) => {
 			const tz = timezone || 'UTC';
 			const isHourly = _granularity === 'hour' || _granularity === 'hourly';
+			const combinedWhereClause = buildWhereClause(filterConditions);
 
 			if (isHourly) {
 				return {
@@ -138,6 +283,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                     AND session_id != ''
+                    ${combinedWhereClause}
                 ),
                 hour_range AS (
                   SELECT arrayJoin(arrayMap(
@@ -197,6 +343,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 						startDate,
 						endDate,
 						timezone: tz,
+						...filterParams,
 					},
 				};
 			}
@@ -215,6 +362,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     AND time >= parseDateTimeBestEffort({startDate:String})
                     AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
                     AND session_id != ''
+                    ${combinedWhereClause}
                 ),
                 date_range AS (
                   SELECT arrayJoin(arrayMap(
@@ -274,16 +422,52 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					startDate,
 					endDate,
 					timezone: tz,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
 	active_stats: {
-		customSql: (websiteId: string) => {
+		meta: {
+			title: 'Active Users',
+			description:
+				'Real-time count of active users and sessions currently on your website (last 5 minutes).',
+			category: 'Realtime',
+			tags: ['realtime', 'active', 'current', 'live'],
+			output_fields: [
+				{
+					name: 'active_users',
+					type: 'number',
+					label: 'Active Users',
+					description: 'Number of users active in the last 5 minutes',
+				},
+				{
+					name: 'active_sessions',
+					type: 'number',
+					label: 'Active Sessions',
+					description: 'Number of sessions active in the last 5 minutes',
+				},
+			],
+			default_visualization: 'metric',
+			supports_granularity: [],
+			version: '1.0',
+		},
+		customSql: (
+			websiteId: string,
+			_startDate: string,
+			_endDate: string,
+			_filters?: unknown[],
+			_granularity?: unknown,
+			_limit?: number,
+			_offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter['value']>
+		) => {
+			const combinedWhereClause = buildWhereClause(filterConditions);
 			return {
 				sql: `
           SELECT
@@ -294,14 +478,15 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
             AND client_id = {websiteId:String}
             AND session_id != ''
             AND time >= now() - INTERVAL 5 MINUTE
+            ${combinedWhereClause}
         `,
 				params: {
 					websiteId,
+					...filterParams,
 				},
 			};
 		},
 		timeField: 'time',
-		allowedFilters: ['path', 'referrer'],
 		customizable: true,
 		appendEndOfDayToTo: false,
 	},

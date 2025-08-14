@@ -1,8 +1,9 @@
 'use client';
 
-import { ArrowClockwiseIcon, WarningIcon } from '@phosphor-icons/react';
+import { type DynamicQueryFilter, filterOptions } from '@databuddy/shared';
+import { ArrowClockwiseIcon, WarningIcon, XIcon } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { format, subDays, subHours } from 'date-fns';
+import dayjs from 'dayjs';
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -15,8 +16,9 @@ import { DateRangePicker } from '@/components/date-range-picker';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { operatorOptions, useFilters } from '@/hooks/use-filters';
+import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
-import { trpc } from '@/lib/trpc';
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
@@ -24,6 +26,10 @@ import {
 	timeGranularityAtom,
 	timezoneAtom,
 } from '@/stores/jotai/filterAtoms';
+import {
+	AddFilterForm,
+	getOperatorShorthand,
+} from './_components/utils/add-filters';
 import type {
 	FullTabProps,
 	WebsiteDataTabProps,
@@ -92,6 +98,13 @@ function WebsiteDetailsPage() {
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
 	const [timezone] = useAtom(timezoneAtom);
 	const queryClient = useQueryClient();
+	const [selectedFilters, setSelectedFilters] = useState<DynamicQueryFilter[]>(
+		[]
+	);
+	const { addFilter, removeFilter } = useFilters({
+		filters: selectedFilters,
+		onFiltersChange: setSelectedFilters,
+	});
 
 	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
 		() => ({
@@ -117,8 +130,10 @@ function WebsiteDetailsPage() {
 		(range: (typeof quickRanges)[0]) => {
 			const now = new Date();
 			const start = range.hours
-				? subHours(now, range.hours)
-				: subDays(now, range.days || 7);
+				? dayjs(now).subtract(range.hours, 'hour').toDate()
+				: dayjs(now)
+						.subtract(range.days || 7, 'day')
+						.toDate();
 			setDateRangeAction({ startDate: start, endDate: now });
 		},
 		[setDateRangeAction]
@@ -150,17 +165,7 @@ function WebsiteDetailsPage() {
 		refetch: refetchWebsiteData,
 	} = useWebsite(id as string);
 
-	const { data: trackingSetupData, isLoading: isTrackingSetupLoading } =
-		trpc.websites.isTrackingSetup.useQuery(
-			{ websiteId: id as string },
-			{ enabled: !!id }
-		);
-	const isTrackingSetup = useMemo(() => {
-		if (!data || isTrackingSetupLoading) {
-			return null;
-		}
-		return trackingSetupData?.tracking_setup ?? false;
-	}, [data, isTrackingSetupLoading, trackingSetupData?.tracking_setup]);
+	const { isTrackingSetup } = useTrackingSetup(id as string);
 
 	useEffect(() => {
 		if (isTrackingSetup === false && activeTab === 'overview') {
@@ -200,6 +205,7 @@ function WebsiteDetailsPage() {
 				...settingsProps,
 				isRefreshing,
 				setIsRefreshing,
+				filters: selectedFilters,
 			};
 
 			const getTabComponent = () => {
@@ -232,6 +238,7 @@ function WebsiteDetailsPage() {
 			data,
 			isRefreshing,
 			refetchWebsiteData,
+			selectedFilters,
 		]
 	);
 
@@ -321,16 +328,18 @@ function WebsiteDetailsPage() {
 							{quickRanges.map((range) => {
 								const now = new Date();
 								const start = range.hours
-									? subHours(now, range.hours)
-									: subDays(now, range.days || 7);
+									? dayjs(now).subtract(range.hours, 'hour').toDate()
+									: dayjs(now)
+											.subtract(range.days || 7, 'day')
+											.toDate();
 								const dayPickerCurrentRange = dayPickerSelectedRange;
 								const isActive =
 									dayPickerCurrentRange?.from &&
 									dayPickerCurrentRange?.to &&
-									format(dayPickerCurrentRange.from, 'yyyy-MM-dd') ===
-										format(start, 'yyyy-MM-dd') &&
-									format(dayPickerCurrentRange.to, 'yyyy-MM-dd') ===
-										format(now, 'yyyy-MM-dd');
+									dayjs(dayPickerCurrentRange.from).format('YYYY-MM-DD') ===
+										dayjs(start).format('YYYY-MM-DD') &&
+									dayjs(dayPickerCurrentRange.to).format('YYYY-MM-DD') ===
+										dayjs(now).format('YYYY-MM-DD');
 
 								return (
 									<Button
@@ -363,6 +372,63 @@ function WebsiteDetailsPage() {
 									value={dayPickerSelectedRange}
 								/>
 							</div>
+
+							<div className="ml-2 flex items-center">
+								<AddFilterForm addFilter={addFilter} />
+							</div>
+						</div>
+					</div>
+				)}
+				{selectedFilters.length > 0 && (
+					<div className="mt-3 rounded-lg border bg-muted/30 p-2.5">
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex items-center gap-2 overflow-x-auto">
+								<div className="font-semibold text-sm">Filters</div>
+								<div className="flex flex-wrap items-center gap-2">
+									{selectedFilters.map((filter, index) => {
+										const fieldLabel = filterOptions.find(
+											(o) => o.value === filter.field
+										)?.label;
+										const operatorLabel = operatorOptions.find(
+											(o) => getOperatorShorthand(o.value) === filter.operator
+										)?.label;
+										const valueLabel = Array.isArray(filter.value)
+											? filter.value.join(', ')
+											: filter.value;
+
+										return (
+											<div
+												className="flex items-center gap-0 rounded border bg-background py-1 pr-2 pl-3 shadow-sm"
+												key={`filter-${index}-${filter.field}-${filter.operator}`}
+											>
+												<div className="flex items-center gap-1">
+													<span className="font-medium text-foreground text-sm">
+														{fieldLabel}
+													</span>
+													<span className="text-muted-foreground/70 text-sm">
+														{operatorLabel}
+													</span>
+													<span className="font-medium text-foreground text-sm">
+														{valueLabel}
+													</span>
+												</div>
+												<button
+													aria-label={`Remove filter ${fieldLabel} ${operatorLabel} ${valueLabel}`}
+													className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted/50"
+													onClick={() => removeFilter(index)}
+													type="button"
+												>
+													<XIcon aria-hidden="true" className="h-3 w-3" />
+												</button>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+
+							<Button onClick={() => setSelectedFilters([])} variant="outline">
+								Clear all filters
+							</Button>
 						</div>
 					</div>
 				)}

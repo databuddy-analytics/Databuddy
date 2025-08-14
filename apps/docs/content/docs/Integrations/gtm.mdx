@@ -7,6 +7,8 @@ description: Add Databuddy analytics through Google Tag Manager
 
 Integrate Databuddy with Google Tag Manager for centralized tag management while maintaining privacy-first analytics. Perfect for teams managing multiple tracking tools.
 
+> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable desired flags (e.g., `data-track-screen-views`, `data-track-attributes`, `data-track-errors`). Trigger on All Pages and publish.
+
 ## Why Use GTM with Databuddy?
 
 - **Centralized Management**: Manage Databuddy alongside other marketing tools
@@ -27,13 +29,14 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
 
 ```html
 <script>
-  (function() {
+  (function () {
     var el = document.createElement("script");
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
-    el.setAttribute("data-client-id", "Databuddy Site ID");
+    el.setAttribute("data-client-id", "Databuddy Client ID");
     el.setAttribute("data-track-screen-views", "true");
     el.setAttribute("data-track-attributes", "true");
+    el.setAttribute("data-track-errors", "true");
     document.head.appendChild(el);
   })();
 </script>
@@ -43,12 +46,12 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
 
 ### Step 2: Create Variables
 
-Create a **Constant** variable for your Site ID:
+Create a **Constant** variable for your Client ID:
 
 1. Go to **Variables** > **User-Defined Variables**
 2. Click **New** > **Constant**
-3. Name: "Databuddy Site ID"
-4. Value: Your actual Site ID from Databuddy dashboard
+3. Name: "Databuddy Client ID"
+4. Value: Your actual Client ID from Databuddy dashboard
 
 ### Step 3: Set Trigger
 
@@ -72,14 +75,15 @@ Load different Databuddy configurations based on environment:
 <script>
   (function() {
     var isProduction = {{Page Hostname}} === 'yourdomain.com';
-    var siteId = isProduction ? '{{Databuddy Prod Site ID}}' : '{{Databuddy Dev Site ID}}';
-    
+    var clientId = isProduction ? '{{Databuddy Prod Client ID}}' : '{{Databuddy Dev Client ID}}';
+
     var el = document.createElement("script");
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
-    el.setAttribute("data-client-id", siteId);
+    el.setAttribute("data-client-id", clientId);
     el.setAttribute("data-track-screen-views", "true");
     el.setAttribute("data-track-attributes", "true");
+    el.setAttribute("data-track-errors", "true");
     el.setAttribute("data-debug", isProduction ? "false" : "true");
     document.head.appendChild(el);
   })();
@@ -98,8 +102,10 @@ Load Databuddy only for specific conditions:
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
-      el.setAttribute("data-client-id", "{{Databuddy Site ID}}");
+      el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
       el.setAttribute("data-track-screen-views", "true");
+      el.setAttribute("data-track-attributes", "true");
+      el.setAttribute("data-track-errors", "true");
       document.head.appendChild(el);
     }
   })();
@@ -117,7 +123,7 @@ Create tags for specific events:
 ```html
 <script>
   window.dataLayer = window.dataLayer || [];
-  
+
   if (window.databuddy && {{ecommerce.purchase}}) {
     databuddy.track('purchase', {
       transaction_id: {{Transaction ID}},
@@ -274,13 +280,15 @@ Respect user privacy choices:
   (function() {
     // Check consent status
     var hasConsent = {{Cookie Consent Status}} === 'granted';
-    
+
     if (hasConsent) {
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
-      el.setAttribute("data-client-id", "{{Databuddy Site ID}}");
+      el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
       el.setAttribute("data-track-screen-views", "true");
+      el.setAttribute("data-track-attributes", "true");
+      el.setAttribute("data-track-errors", "true");
       document.head.appendChild(el);
     }
   })();
@@ -293,21 +301,21 @@ Integrate with Google Consent Mode:
 
 ```html
 <script>
-  gtag('consent', 'default', {
-    'analytics_storage': 'denied',
-    'ad_storage': 'denied'
+  gtag("consent", "default", {
+    analytics_storage: "denied",
+    ad_storage: "denied",
   });
-  
+
   // When user grants consent
-  gtag('consent', 'update', {
-    'analytics_storage': 'granted'
+  gtag("consent", "update", {
+    analytics_storage: "granted",
   });
-  
+
   // Initialize Databuddy after consent
   if (window.databuddy) {
-    databuddy.track('consent_granted', {
-      consent_type: 'analytics',
-      timestamp: new Date().toISOString()
+    databuddy.track("consent_granted", {
+      consent_type: "analytics",
+      timestamp: new Date().toISOString(),
     });
   }
 </script>
@@ -322,7 +330,7 @@ Enable debug mode for testing:
 ```html
 <script>
   var isDebugMode = {{Debug Mode}} === 'true';
-  
+
   if (window.databuddy && isDebugMode) {
     console.log('Databuddy Debug Mode Enabled');
     databuddy.track('debug_event', {
@@ -368,13 +376,13 @@ function() {
 
 ```html
 <script>
-  (function() {
+  (function () {
     try {
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
       el.setAttribute("data-client-id", "{{Databuddy Site ID}}");
-      el.onerror = function() {
+      el.onerror = function () {
         console.warn("Databuddy script failed to load");
       };
       document.head.appendChild(el);
@@ -413,28 +421,31 @@ function() {
 
 Map GA4 events to Databuddy equivalents:
 
-| GA4 Event | Databuddy Event | Notes |
-|-----------|-----------------|-------|
-| page_view | screen_view | Automatic with trackScreenViews |
-| purchase | purchase | Enhanced with privacy features |
-| add_to_cart | add_to_cart | Same structure |
-| scroll | scroll_depth | Custom implementation |
+| GA4 Event   | Databuddy Event | Notes                           |
+| ----------- | --------------- | ------------------------------- |
+| page_view   | screen_view     | Automatic with trackScreenViews |
+| purchase    | purchase        | Enhanced with privacy features  |
+| add_to_cart | add_to_cart     | Same structure                  |
+| scroll      | scroll_depth    | Custom implementation           |
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Tag Not Firing:**
+
 - Check trigger conditions
 - Verify variable values in preview mode
 - Ensure GTM code is properly installed
 
 **Events Not Tracking:**
+
 - Verify Databuddy script loads successfully
 - Check browser console for errors
-- Confirm Site ID is correct
+- Confirm Client ID is correct
 
 **Performance Issues:**
+
 - Ensure scripts load asynchronously
 - Check for blocking JavaScript errors
 - Monitor Core Web Vitals impact
@@ -448,4 +459,4 @@ Map GA4 events to Databuddy equivalents:
 5. ✅ Events appear in Databuddy dashboard
 6. ✅ Privacy settings respected
 
-Need help with your GTM integration? Contact us at [help@databuddy.cc](mailto:help@databuddy.cc). 
+Need help with your GTM integration? Contact us at [help@databuddy.cc](mailto:help@databuddy.cc).

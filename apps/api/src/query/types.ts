@@ -1,3 +1,5 @@
+import type { QueryBuilderMeta } from '@databuddy/shared';
+
 export const FilterOperators = {
 	eq: '=',
 	ne: '!=',
@@ -38,7 +40,9 @@ export interface SimpleQueryConfig {
 	plugins?: {
 		parseReferrers?: boolean;
 		normalizeUrls?: boolean;
-		[key: string]: unknown;
+		normalizeGeo?: boolean;
+		deduplicateGeo?: boolean;
+		mapDeviceTypes?: boolean;
 	};
 	customSql?: (
 		websiteId: string,
@@ -48,9 +52,12 @@ export interface SimpleQueryConfig {
 		granularity?: TimeUnit,
 		limit?: number,
 		offset?: number,
-		timezone?: string
+		timezone?: string,
+		filterConditions?: string[],
+		filterParams?: Record<string, Filter['value']>
 	) => string | { sql: string; params: Record<string, unknown> };
 	appendEndOfDayToTo?: boolean; // If true (default), append ' 23:59:59' to 'to' value. If false, use 'to' as-is.
+	meta?: QueryBuilderMeta;
 }
 
 export interface QueryRequest {

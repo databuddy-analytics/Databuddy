@@ -13,6 +13,8 @@ export const TABLE_NAMES = {
 	stripe_payment_intents: 'analytics.stripe_payment_intents',
 	stripe_charges: 'analytics.stripe_charges',
 	stripe_refunds: 'analytics.stripe_refunds',
+	blocked_traffic: 'analytics.blocked_traffic',
+	email_events: 'analytics.email_events',
 };
 
 const logger = console;

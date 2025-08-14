@@ -22,12 +22,12 @@ export function LogoContent() {
 				/>
 			</div>
 			<div className="flex items-center">
-				<h1
+				<span
 					className={`
           ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider transition-colors duration-200 `}
 				>
 					DATABUDDY
-				</h1>
+				</span>
 			</div>
 		</div>
 	);
@@ -40,7 +40,7 @@ export function Logo() {
 			<div className="relative flex-shrink-0">
 				<Image
 					alt="DataBuddy Logo"
-					className="drop-shadow-sm"
+					className="drop-shadow-sm invert dark:invert-0"
 					height={32}
 					priority
 					src="/logo.svg"
@@ -48,9 +48,9 @@ export function Logo() {
 				/>
 			</div>
 			<div className="flex items-center">
-				<h1 className="select-none font-mono font-semibold text-lg leading-none tracking-wider transition-colors duration-200 ">
+				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider transition-colors duration-200 ">
 					DATABUDDY
-				</h1>
+				</span>
 			</div>
 		</Link>
 	);

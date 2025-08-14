@@ -23,9 +23,24 @@ export const FilterSchema = t.Object({
 	]),
 });
 
+export const ParameterWithDatesSchema = t.Object({
+	name: t.String(),
+	start_date: t.Optional(t.String()),
+	end_date: t.Optional(t.String()),
+	granularity: t.Optional(
+		t.Union([
+			t.Literal('hourly'),
+			t.Literal('daily'),
+			t.Literal('hour'),
+			t.Literal('day'),
+		])
+	),
+	id: t.Optional(t.String()),
+});
+
 export const DynamicQueryRequestSchema = t.Object({
 	id: t.Optional(t.String()),
-	parameters: t.Array(t.String()),
+	parameters: t.Array(t.Union([t.String(), ParameterWithDatesSchema])),
 	limit: t.Optional(t.Number()),
 	page: t.Optional(t.Number()),
 	filters: t.Optional(t.Array(FilterSchema)),
@@ -70,9 +85,17 @@ export type FilterType = {
 	value: string | number | Array<string | number>;
 };
 
+export type ParameterWithDatesType = {
+	name: string;
+	start_date?: string;
+	end_date?: string;
+	granularity?: 'hourly' | 'daily' | 'hour' | 'day';
+	id?: string;
+};
+
 export type DynamicQueryRequestType = {
 	id?: string;
-	parameters: string[];
+	parameters: (string | ParameterWithDatesType)[];
 	limit?: number;
 	page?: number;
 	filters?: FilterType[];

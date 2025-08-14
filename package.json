@@ -52,6 +52,7 @@
       "vitest": "^3.2.4",
       "@phosphor-icons/react": "^2.1.10",
       "@radix-ui/react-dialog": "^1.1.14",
+      "@radix-ui/react-popover": "^1.1.14",
       "@radix-ui/react-slot": "^1.2.3",
       "@radix-ui/react-switch": "^1.2.5",
       "class-variance-authority": "^0.7.1",

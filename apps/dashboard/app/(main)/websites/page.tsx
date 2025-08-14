@@ -154,7 +154,8 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 export default function WebsitesPage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const { websites, chartData, isLoading, isError, refetch } = useWebsites();
+	const { websites, chartData, isLoading, isError, isFetching, refetch } =
+		useWebsites();
 
 	const handleRetry = () => {
 		refetch();
@@ -188,13 +189,14 @@ export default function WebsitesPage() {
 					<div className="flex items-center gap-2">
 						<Button
 							aria-label="Refresh websites"
-							disabled={isLoading}
+							disabled={isLoading || isFetching}
 							onClick={() => refetch()}
 							size="icon"
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+								aria-hidden
+								className={`h-4 w-4 ${isLoading || isFetching ? 'animate-spin' : ''}`}
 							/>
 						</Button>
 						<Button
@@ -218,7 +220,10 @@ export default function WebsitesPage() {
 			</div>
 
 			{/* Content area */}
-			<div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
+			<div
+				aria-busy={isFetching}
+				className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"
+			>
 				{/* Website count indicator */}
 				{!isLoading && websites && websites.length > 0 && (
 					<div className="mb-6">
@@ -253,11 +258,16 @@ export default function WebsitesPage() {
 
 				{/* Show website grid */}
 				{!(isLoading || isError) && websites && websites.length > 0 && (
-					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					<div
+						aria-label="Websites list"
+						aria-live="polite"
+						className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+						role="region"
+					>
 						{websites.map((website) => (
 							<WebsiteCard
 								chartData={chartData?.[website.id]}
-								isLoadingChart={isLoading}
+								isLoadingChart={isLoading || isFetching}
 								key={website.id}
 								website={website}
 							/>

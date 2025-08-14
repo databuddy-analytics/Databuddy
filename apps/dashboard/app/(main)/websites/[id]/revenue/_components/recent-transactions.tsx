@@ -1,7 +1,7 @@
 'use client';
 
 import { CalendarIcon, CreditCardIcon } from '@phosphor-icons/react';
-import { format } from 'date-fns';
+import dayjs from 'dayjs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/formatters';
@@ -83,7 +83,7 @@ export function RecentTransactions({
 
 	const formatDate = (dateString: string) => {
 		try {
-			return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
+			return dayjs(new Date(dateString)).format('MMM dd, yyyy HH:mm');
 		} catch {
 			return dateString;
 		}

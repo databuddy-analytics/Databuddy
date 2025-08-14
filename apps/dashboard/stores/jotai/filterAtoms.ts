@@ -1,4 +1,4 @@
-import { differenceInDays, format, isValid, subDays } from 'date-fns';
+import dayjs from 'dayjs';
 import { atom } from 'jotai';
 // Consider adding nanoid for unique ID generation for complex filters
 // import { nanoid } from 'nanoid';
@@ -9,7 +9,7 @@ export interface DateRangeState {
 	endDate: Date;
 }
 
-const initialStartDate = subDays(new Date(), 30);
+const initialStartDate = dayjs().subtract(30, 'day').toDate();
 const initialEndDate = new Date();
 
 export const dateRangeAtom = atom<DateRangeState>({
@@ -24,8 +24,12 @@ export const dateRangeAtom = atom<DateRangeState>({
 export const formattedDateRangeAtom = atom((get) => {
 	const { startDate, endDate } = get(dateRangeAtom);
 	return {
-		startDate: isValid(startDate) ? format(startDate, 'yyyy-MM-dd') : '',
-		endDate: isValid(endDate) ? format(endDate, 'yyyy-MM-dd') : '',
+		startDate: dayjs(startDate).isValid()
+			? dayjs(startDate).format('YYYY-MM-DD')
+			: '',
+		endDate: dayjs(endDate).isValid()
+			? dayjs(endDate).format('YYYY-MM-DD')
+			: '',
 	};
 });
 
@@ -42,7 +46,10 @@ export const setDateRangeAndAdjustGranularityAtom = atom(
 	null,
 	(_get, set, newRange: DateRangeState) => {
 		set(dateRangeAtom, newRange);
-		const diffDays = differenceInDays(newRange.endDate, newRange.startDate);
+		const diffDays = dayjs(newRange.endDate).diff(
+			dayjs(newRange.startDate),
+			'day'
+		);
 		if (diffDays <= 2) {
 			// If 2 days or less, set to hourly
 			set(timeGranularityAtom, 'hourly');

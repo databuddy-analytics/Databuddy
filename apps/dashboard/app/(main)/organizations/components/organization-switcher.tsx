@@ -72,7 +72,10 @@ export function OrganizationSwitcher({
 					<span className="max-w-[120px] truncate">
 						{activeOrganization?.name || 'Personal'}
 					</span>
-					<ArrowRightIcon className="ml-auto h-3 w-3 opacity-50" size={16} />
+					<ArrowRightIcon
+						className="ml-auto h-3 w-3 not-dark:text-primary opacity-50"
+						size={16}
+					/>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-56">

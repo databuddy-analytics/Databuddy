@@ -25,7 +25,7 @@ function WebsiteCard({
 			type="button"
 		>
 			<div className="flex-shrink-0 rounded bg-primary/10 p-1.5">
-				<GlobeIcon className="h-3.5 w-3.5 text-primary" size={14} />
+				<GlobeIcon className="h-3.5 w-3.5 not-dark:text-primary" size={14} />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-foreground text-sm">
@@ -66,7 +66,7 @@ export function WebsiteSelector({
 			) : (
 				<div className="py-8 text-center">
 					<GlobeIcon
-						className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+						className="mx-auto mb-2 h-8 w-8 not-dark:text-primary"
 						size={32}
 						weight="duotone"
 					/>

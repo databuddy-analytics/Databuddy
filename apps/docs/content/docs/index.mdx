@@ -1,123 +1,130 @@
 ---
 title: What is Databuddy
-description: Privacy-first web analytics. 247x faster than Google Analytics, GDPR compliant by default, no cookies required.
+description: Privacy-first web analytics. 65x faster than Google Analytics, GDPR compliant by default, no cookies required.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card';
-import { Callout } from 'fumadocs-ui/components/callout';
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+import { SciFiButton } from "@/components/landing/scifi-btn";
 
 Databuddy provides powerful website analytics while respecting user privacy. Get comprehensive insights without cookies, consent banners, or GDPR headaches.
 
 <Callout type="info">
-**247x faster** than Google Analytics • **No cookies required** • **GDPR compliant by default**
+  <strong>TL;DR</strong> — **65x faster**, **no cookies**, **GDPR by default**,
+  anonymous & aggregated only.
 </Callout>
 
 ## Why Choose Databuddy?
 
 <Cards>
-  <Card title="⚡ Lightning Fast" href="/docs/getting-started">
-    Only 3KB script size. Improve your Core Web Vitals and SEO rankings instantly.
+  <Card title="Lightning Fast" href="/docs/getting-started">
+    ~3KB script. Improve Core Web Vitals and SEO instantly.
   </Card>
-  
-  <Card title="🔒 Privacy-First" href="/docs/security">
-    Anonymous analytics with no personal data collection. No consent banners needed.
+  <Card title="Privacy-First" href="/docs/security">
+    Anonymous, aggregated analytics. No consent banners.
   </Card>
-  
-  <Card title="📊 Real-time Data" href="/docs/dashboard">
-    Live dashboards with 100% accurate data. No sampling, no delays.
+  <Card title="Real-Time Data" href="/docs/dashboard">
+    Live dashboards with accurate, unsampled data.
   </Card>
-  
-  <Card title="⚙️ Easy Setup" href="/docs/Integrations">
-    Works with React, Next.js, WordPress, Shopify. Install in minutes.
+  <Card title="Easy Setup" href="/docs/integrations">
+    Next.js, React, WordPress, Shopify. Install in minutes.
   </Card>
 </Cards>
 
 ## Analytics Features
 
 **Essential Tracking**
+
 - Page views with automatic SPA routing
-- Anonymous user sessions  
+- Anonymous user sessions
 - Traffic sources and referrers
 - Real-time visitor monitoring
 
 **Performance Monitoring**
+
 - Core Web Vitals (LCP, FID, CLS)
 - Page load timing metrics
 - JavaScript error tracking
 - Custom business events
 
 **E-commerce Analytics**
+
 - Purchase tracking and revenue
 - Shopping cart behavior
 - Product performance metrics
 - Conversion funnel analysis
 
-## Quick Start Guide
+## Quick Start
 
 <Cards>
   <Card title="Create Account" href="https://app.databuddy.cc">
-    Sign up free and verify your domain
+    Sign up free and verify your domain.
   </Card>
-  
   <Card title="Install SDK" href="/docs/getting-started">
-    Add script tag or install React package
+    Add a script tag or install the React package.
   </Card>
-  
+  <Card title="Try API Playground" href="/api">
+    Explore endpoints interactively with real data.
+  </Card>
   <Card title="View Analytics" href="/docs/dashboard">
-    Watch real-time data in your dashboard
+    Watch real-time data in your dashboard.
   </Card>
 </Cards>
 
 ## Platform Integrations
 
 <Cards>
-  <Card title="React" href="/docs/Integrations/react" icon="⚛️">
-    TypeScript support with React hooks and components
+  <Card title="React" href="/docs/integrations/react">
+    TypeScript support with React hooks and components.
   </Card>
-  
-  <Card title="Next.js" href="/docs/Integrations/nextjs" icon="🚀">
-    App Router and Pages Router with automatic route tracking
+  <Card title="Next.js" href="/docs/integrations/nextjs">
+    App Router and Pages Router with automatic route tracking.
   </Card>
-  
-  <Card title="WordPress" href="/docs/Integrations/wordpress" icon="📝">
-    Plugin installation and manual setup options
+  <Card title="WordPress" href="/docs/integrations/wordpress">
+    Plugin installation and manual setup options.
   </Card>
-  
-  <Card title="Shopify" href="/docs/Integrations/shopify" icon="🛒">
-    E-commerce tracking with purchase analytics
+  <Card title="Shopify" href="/docs/integrations/shopify">
+    E‑commerce tracking with purchase analytics.
   </Card>
 </Cards>
 
 ## Key Benefits
 
-**No Cookies Required**  
-Uses localStorage for anonymous session tracking only. No cookie banners needed.
+**No Cookies Required**
+Anonymous session tracking only. No cookie banners needed.
 
-**GDPR Compliant by Default**  
-Anonymous data collection means automatic compliance. No consent management required.
+**GDPR Compliant by Default**
+Anonymous collection and immediate IP anonymization. No consent management.
 
-**Developer-Friendly**  
-TypeScript support, React components, comprehensive API, detailed documentation.
+**Developer‑Friendly**
+TypeScript, React components, comprehensive API with interactive playground, and detailed docs.
 
-**Cross-Platform**  
-Works on websites, web apps, mobile apps, any JavaScript environment.
+**Cross‑Platform**
+Websites, web apps, mobile apps—any JavaScript environment.
 
 ## Pricing
 
 <Callout type="success">
-**Free tier: 10,000 monthly page views** - Perfect for personal projects and small websites
+  **Free tier: 10,000 monthly events** — perfect for personal projects and small
+  websites.
 </Callout>
 
-<Callout type="success">
-**Early adopters get 3 months free, unlimited websites and page views**
-</Callout>
+Looking for plan details? See the full breakdown on the [pricing page](/pricing).
 
 ## Get Support
 
-- [Complete Documentation](/docs/getting-started) - Guides and API reference
-- [Email Support](mailto:help@databuddy.cc) - Direct help from our team  
-- [GitHub Issues](https://github.com/databuddy/issues) - Bug reports and features
+- [Documentation](/docs/getting-started) — guides and API reference
+- [API Playground](/api) — test endpoints interactively
+- [Email support](mailto:help@databuddy.cc) — direct help from our team
+- [GitHub issues](https://github.com/databuddy-analytics/databuddy/issues) — bug reports and features
 
 ---
 
-Ready to get started? [Create your free account](https://app.databuddy.cc) or [read the documentation](/docs/getting-started). 
+<div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+  <SciFiButton asChild>
+    <a href="https://app.databuddy.cc" target="_blank" rel="noopener">
+      GET STARTED
+    </a>
+  </SciFiButton>
+  <a href="/docs/getting-started">Read the documentation →</a>
+</div>

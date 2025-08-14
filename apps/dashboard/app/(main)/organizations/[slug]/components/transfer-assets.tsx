@@ -85,7 +85,11 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 					<Card>
 						<CardHeader className="pb-4">
 							<CardTitle className="flex items-center gap-2 text-base">
-								<UserIcon size={18} weight="duotone" />
+								<UserIcon
+									className="not-dark:text-primary"
+									size={18}
+									weight="duotone"
+								/>
 								Your Personal Websites
 							</CardTitle>
 							<CardDescription>
@@ -118,7 +122,11 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 					<Card>
 						<CardHeader className="pb-4">
 							<CardTitle className="flex items-center gap-2 text-base">
-								<BuildingsIcon size={18} weight="duotone" />
+								<BuildingsIcon
+									className="not-dark:text-primary"
+									size={18}
+									weight="duotone"
+								/>
 								Organization Websites
 							</CardTitle>
 							<CardDescription>
@@ -162,7 +170,10 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 							}`}
 						>
 							<div className="rounded bg-primary/20 p-1.5">
-								<UserIcon className="h-3.5 w-3.5 text-primary" size={14} />
+								<UserIcon
+									className="h-3.5 w-3.5 not-dark:text-primary"
+									size={14}
+								/>
 							</div>
 							<div className="min-w-0">
 								<p className="truncate font-medium text-foreground text-sm">
@@ -178,7 +189,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 						<div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2">
 							<div className="flex items-center gap-2 rounded-full bg-primary/20 px-4 py-2 shadow-lg">
 								<ArrowRightIcon
-									className={`text-primary transition-transform duration-1000 ${
+									className={`not-dark:text-primary transition-transform duration-1000 ${
 										transferringWebsite.fromSide === 'organization'
 											? 'rotate-180'
 											: ''
@@ -199,7 +210,11 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 				<Card>
 					<CardHeader className="pb-4">
 						<CardTitle className="flex items-center gap-2 text-base">
-							<UserIcon size={18} weight="duotone" />
+							<UserIcon
+								className="not-dark:text-primary"
+								size={18}
+								weight="duotone"
+							/>
 							Your Personal Websites
 						</CardTitle>
 						<CardDescription>
@@ -240,7 +255,11 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 				<Card>
 					<CardHeader className="pb-4">
 						<CardTitle className="flex items-center gap-2 text-base">
-							<BuildingsIcon size={18} weight="duotone" />
+							<BuildingsIcon
+								className="not-dark:text-primary"
+								size={18}
+								weight="duotone"
+							/>
 							Organization Websites
 						</CardTitle>
 						<CardDescription>

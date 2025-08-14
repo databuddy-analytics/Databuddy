@@ -49,7 +49,11 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
-							<BuildingsIcon className="h-5 w-5" size={16} weight="duotone" />
+							<BuildingsIcon
+								className="h-5 w-5 not-dark:text-primary"
+								size={16}
+								weight="duotone"
+							/>
 							Organization Details
 						</CardTitle>
 						<CardDescription>
@@ -60,7 +64,7 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 						<div className="flex items-center gap-3">
 							<div className="flex-shrink-0">
 								<CalendarIcon
-									className="h-4 w-4 text-muted-foreground"
+									className="h-4 w-4 not-dark:text-primary text-muted-foreground"
 									size={16}
 								/>
 							</div>
@@ -77,7 +81,7 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 						<div className="flex items-center gap-3">
 							<div className="flex-shrink-0">
 								<GlobeIcon
-									className="h-4 w-4 text-muted-foreground"
+									className="h-4 w-4 not-dark:text-primary text-muted-foreground"
 									size={16}
 								/>
 							</div>
@@ -94,7 +98,7 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 							<div className="flex items-center gap-3">
 								<div className="flex-shrink-0">
 									<UsersIcon
-										className="h-4 w-4 text-muted-foreground"
+										className="h-4 w-4 not-dark:text-primary text-muted-foreground"
 										size={16}
 									/>
 								</div>
@@ -112,7 +116,11 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
-							<ChartBarIcon className="h-5 w-5" size={16} weight="duotone" />
+							<ChartBarIcon
+								className="h-5 w-5 not-dark:text-primary"
+								size={16}
+								weight="duotone"
+							/>
 							Quick Stats
 						</CardTitle>
 						<CardDescription>
@@ -163,7 +171,11 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 				<CardHeader>
 					<div className="flex items-center justify-between">
 						<CardTitle className="flex items-center gap-2">
-							<UsersIcon className="h-5 w-5" size={16} weight="duotone" />
+							<UsersIcon
+								className="h-5 w-5 not-dark:text-primary"
+								size={16}
+								weight="duotone"
+							/>
 							Recent Team Members
 						</CardTitle>
 						<Button
@@ -232,7 +244,10 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 											{member.role}
 										</Badge>
 										<div className="flex items-center gap-1 text-muted-foreground text-xs">
-											<ClockIcon className="h-3 w-3" size={16} />
+											<ClockIcon
+												className="h-3 w-3 not-dark:text-primary"
+												size={16}
+											/>
 											{dayjs(member.createdAt).fromNow()}
 										</div>
 									</div>
@@ -242,7 +257,7 @@ export function OverviewTab({ organization }: OverviewTabProps) {
 					) : (
 						<div className="py-8 text-center">
 							<UsersIcon
-								className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+								className="mx-auto mb-2 h-8 w-8 not-dark:text-primary text-muted-foreground"
 								size={32}
 								weight="duotone"
 							/>

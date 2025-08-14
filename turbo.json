@@ -59,6 +59,7 @@
       "persistent": false
     },
     "dev": {
+      "dependsOn": ["@databuddy/sdk#build"],
       "cache": false,
       "persistent": true
     }

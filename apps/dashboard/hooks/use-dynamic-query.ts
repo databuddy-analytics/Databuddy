@@ -102,6 +102,14 @@ function useUserTimezone(): string {
 		: preferences.timezone;
 }
 
+function transformFilters(filters?: DynamicQueryRequest['filters']) {
+	return filters?.map(({ field, operator, value }) => ({
+		field,
+		op: operator,
+		value,
+	}));
+}
+
 // Dynamic query specific fetcher - POST request (supports both single and batch)
 async function fetchDynamicQuery(
 	websiteId: string,
@@ -415,6 +423,7 @@ export function useQueryOptions(
 export function useEnhancedPerformanceData(
 	websiteId: string,
 	dateRange: DateRange,
+	filters: DynamicQueryFilter[],
 	options?: Partial<UseQueryOptions<BatchQueryResponse>>
 ) {
 	const queries: DynamicQueryRequest[] = [
@@ -422,31 +431,37 @@ export function useEnhancedPerformanceData(
 			id: 'pages',
 			parameters: ['slow_pages'],
 			limit: 100,
+			filters,
 		},
 		{
 			id: 'countries',
 			parameters: ['performance_by_country'],
 			limit: 100,
+			filters,
 		},
 		{
 			id: 'devices',
 			parameters: ['performance_by_device'],
 			limit: 100,
+			filters,
 		},
 		{
 			id: 'browsers',
 			parameters: ['performance_by_browser'],
 			limit: 100,
+			filters,
 		},
 		{
 			id: 'operating_systems',
 			parameters: ['performance_by_os'],
 			limit: 100,
+			filters,
 		},
 		{
 			id: 'regions',
 			parameters: ['performance_by_region'],
 			limit: 100,
+			filters,
 		},
 	];
 

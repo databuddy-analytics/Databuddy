@@ -3,6 +3,7 @@
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
 import basketRouter from './routes/basket';
+import emailRouter from './routes/email';
 import stripeRouter from './routes/stripe';
 import './polyfills/compression';
 // import { checkBotId } from "botid/server";
@@ -34,6 +35,7 @@ const app = new Elysia()
 	.options('*', () => new Response(null, { status: 204 }))
 	.use(basketRouter)
 	.use(stripeRouter)
+	.use(emailRouter)
 	.get('/health', () => ({ status: 'ok', version: '1.0.0' }));
 
 export default {

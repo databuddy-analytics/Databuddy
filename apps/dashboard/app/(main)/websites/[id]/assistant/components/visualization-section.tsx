@@ -5,6 +5,7 @@ import {
 	ChartLineIcon,
 	ChartPieIcon,
 	CompassIcon,
+	DatabaseIcon,
 	DotsThreeOutlineVerticalIcon,
 	FunnelIcon,
 	GaugeIcon,

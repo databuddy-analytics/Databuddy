@@ -1,5 +1,5 @@
 # Build stage
-FROM oven/bun:1-slim AS builder
+FROM oven/bun:1.2.20-slim AS builder
 
 WORKDIR /app
 
@@ -14,8 +14,7 @@ RUN bun install
 # Copy source code
 COPY apps/api/ ./apps/api/
 
-# Production stage
-FROM oven/bun:1-slim
+FROM oven/bun:1.2.20-slim
 
 WORKDIR /app
 

@@ -2,14 +2,12 @@ import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { FaDiscord, FaGithub, FaXTwitter } from 'react-icons/fa6';
 import { MdSpaceDashboard } from 'react-icons/md';
 import { LogoContent } from '@/components/logo';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 export const baseOptions: BaseLayoutProps = {
 	nav: {
 		enabled: false,
 		title: <LogoContent />,
 		transparentMode: 'top',
-		children: <ThemeToggle />,
 	},
 	links: [
 		{

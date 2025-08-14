@@ -9,8 +9,9 @@ import type { StreamingUpdate } from './utils/stream-utils';
 import { generateThinkingSteps } from './utils/stream-utils';
 
 // Simple message variation helpers
-const getRandomMessage = (messages: string[]) =>
-	messages[Math.floor(Math.random() * messages.length)];
+const getRandomMessage = (messages: string[]): string =>
+	messages[Math.floor(Math.random() * messages.length)] ||
+	'An error occurred while processing your request.';
 
 const parseErrorMessages = [
 	"I'm having trouble understanding that request. Could you try asking in a different way?",
@@ -38,7 +39,7 @@ export interface AssistantRequest {
 }
 
 export interface AssistantContext {
-	user: User;
+	user?: User | null;
 	website: Website;
 	debugInfo: Record<string, unknown>;
 }
@@ -56,7 +57,7 @@ export async function* processAssistantRequest(
 			website_hostname: request.website_hostname,
 		});
 
-		if (context.user.role === 'ADMIN') {
+		if (context.user?.role === 'ADMIN') {
 			context.debugInfo.validatedInput = {
 				message: request.message,
 				website_id: request.website_id,
@@ -70,7 +71,10 @@ export async function* processAssistantRequest(
 			request.website_id,
 			request.website_hostname,
 			'execute_chat',
-			request.context?.previousMessages,
+			request.context?.previousMessages?.map((msg) => ({
+				role: msg.role || 'user',
+				content: msg.content,
+			})),
 			undefined,
 			request.model
 		);
@@ -90,7 +94,7 @@ export async function* processAssistantRequest(
 				type: 'error',
 				content: getRandomMessage(parseErrorMessages),
 				debugInfo:
-					context.user.role === 'ADMIN'
+					context.user?.role === 'ADMIN'
 						? {
 								...context.debugInfo,
 								parseError: parsedResponse.error,
@@ -107,7 +111,7 @@ export async function* processAssistantRequest(
 				type: 'error',
 				content: getRandomMessage(parseErrorMessages),
 				debugInfo:
-					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+					context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 			};
 			return;
 		}
@@ -131,7 +135,7 @@ export async function* processAssistantRequest(
 						aiJson.text_response || "Here's the answer to your question.",
 					data: { hasVisualization: false, responseType: 'text' },
 					debugInfo:
-						context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+						context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 				};
 				break;
 
@@ -151,7 +155,7 @@ export async function* processAssistantRequest(
 						type: 'error',
 						content: 'Invalid chart configuration.',
 						debugInfo:
-							context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+							context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 					};
 				}
 				break;
@@ -161,7 +165,7 @@ export async function* processAssistantRequest(
 					type: 'error',
 					content: 'Invalid response format from AI.',
 					debugInfo:
-						context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+						context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 				};
 		}
 	} catch (error: unknown) {
@@ -175,7 +179,7 @@ export async function* processAssistantRequest(
 			type: 'error',
 			content: getRandomMessage(unexpectedErrorMessages),
 			debugInfo:
-				context.user.role === 'ADMIN' ? { error: errorMessage } : undefined,
+				context.user?.role === 'ADMIN' ? { error: errorMessage } : undefined,
 		};
 	}
 }

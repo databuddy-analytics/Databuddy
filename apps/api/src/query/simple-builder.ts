@@ -23,10 +23,7 @@ export class SimpleQueryBuilder {
 		this.websiteDomain = websiteDomain;
 	}
 
-	private buildFilter(
-		filter: Filter,
-		index: number
-	): { clause: string; params: Record<string, unknown> } {
+	private buildFilter(filter: Filter, index: number) {
 		if (
 			this.config.allowedFilters &&
 			!this.config.allowedFilters.includes(filter.field)
@@ -82,6 +79,8 @@ export class SimpleQueryBuilder {
 
 	compile(): CompiledQuery {
 		if (this.config.customSql) {
+			const whereClauseParams: Record<string, Filter['value']> = {};
+			const whereClause = this.buildWhereClauseFromFilters(whereClauseParams);
 			const result = this.config.customSql(
 				this.request.projectId,
 				this.formatDateTime(this.request.from),
@@ -90,7 +89,9 @@ export class SimpleQueryBuilder {
 				this.request.timeUnit,
 				this.request.limit,
 				this.request.offset,
-				this.request.timezone
+				this.request.timezone,
+				whereClause,
+				whereClauseParams
 			);
 
 			if (typeof result === 'string') {
@@ -103,7 +104,7 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildStandardQuery(): CompiledQuery {
-		const params: Record<string, unknown> = {
+		const params = {
 			websiteId: this.request.projectId,
 			from: this.formatDateTime(this.request.from),
 			to: this.formatDateTime(this.request.to),
@@ -122,7 +123,7 @@ export class SimpleQueryBuilder {
 		return { sql, params };
 	}
 
-	private buildWhereClause(params: Record<string, unknown>): string[] {
+	private buildWhereClause(params: Record<string, Filter['value']>): string[] {
 		const whereClause: string[] = [];
 
 		if (this.config.where) {
@@ -142,6 +143,18 @@ export class SimpleQueryBuilder {
 		} else {
 			whereClause.push(`${timeField} <= parseDateTimeBestEffort({to:String})`);
 		}
+
+		if (this.request.filters) {
+			whereClause.push(...this.buildWhereClauseFromFilters(params));
+		}
+
+		return whereClause;
+	}
+
+	private buildWhereClauseFromFilters(
+		params: Record<string, Filter['value']>
+	): string[] {
+		const whereClause: string[] = [];
 
 		if (this.request.filters) {
 			for (let i = 0; i < this.request.filters.length; i++) {

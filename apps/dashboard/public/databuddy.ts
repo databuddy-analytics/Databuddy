@@ -7,7 +7,6 @@
 	const MAX_COUNT_VALUE = 10_000;
 	const MAX_TIME_ON_PAGE = 86_400; // 24 hours in seconds
 
-	
 	// Config validation constants
 	const MIN_RETRY_DELAY = 50;
 	const MAX_RETRY_DELAY = 10_000;
@@ -20,9 +19,9 @@
 	const clampValue = (v) =>
 		typeof v === 'number' ? Math.min(MAX_CLAMP_VALUE, Math.max(0, v)) : v;
 	const noop = () => {};
-	
+
 	const validateUrl = (url) => {
- 		if (typeof url !== 'string' || !url) {
+		if (typeof url !== 'string' || !url) {
 			return null;
 		}
 		try {
@@ -40,10 +39,21 @@
 
 		try {
 			const urlObj = new URL(url);
-			const sensitiveParams = ['token', 'api_key', 'session', 'auth', 'password', 'secret', 'key', 'access_token', 'refresh_token', 'id_token'];
-			
+			const sensitiveParams = [
+				'token',
+				'api_key',
+				'session',
+				'auth',
+				'password',
+				'secret',
+				'key',
+				'access_token',
+				'refresh_token',
+				'id_token',
+			];
+
 			// Remove sensitive query parameters
-			sensitiveParams.forEach(param => {
+			sensitiveParams.forEach((param) => {
 				urlObj.searchParams.delete(param);
 			});
 
@@ -53,7 +63,7 @@
 			return url;
 		}
 	};
-	
+
 	const validateDimensions = (width, height) => {
 		if (
 			typeof width !== 'number' ||
@@ -67,20 +77,23 @@
 		}
 		return { width, height };
 	};
-	
+
 	const validateConfigRange = (value, min, max) => {
 		if (value === undefined) return value;
 		return Math.min(max, Math.max(min, value));
 	};
 
 	function generateUUIDv4() {
+		// Use crypto.randomUUID() if available (modern browsers)
+		if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+			return crypto.randomUUID();
+		}
 		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-			const r = (Math.random() * 16) | 0;
+			const r = Math.floor(Math.random() * 16);
 			const v = c === 'x' ? r : (r & 0x3) | 0x8;
 			return v.toString(16);
 		});
 	}
-
 	// HTTP Client
 	const HttpClient = class {
 		constructor(config) {
@@ -242,7 +255,6 @@
 			this.pageEngagementStart = Date.now();
 			this.utmParams = this.getUtmParams();
 
-
 			this.isLikelyBot = this.detectBot();
 			this.hasInteracted = false;
 
@@ -280,7 +292,10 @@
 			if (storedId && sessionTimestamp) {
 				const sessionAge = Date.now() - Number.parseInt(sessionTimestamp, 10);
 				if (sessionAge < SESSION_TIMEOUT) {
-					sessionStorage.setItem('did_session_timestamp', Date.now().toString());
+					sessionStorage.setItem(
+						'did_session_timestamp',
+						Date.now().toString()
+					);
 					return storedId;
 				}
 				sessionStorage.removeItem('did_session');
@@ -300,10 +315,10 @@
 
 		getSessionStartTime() {
 			if (this.isServer()) return Date.now();
-			
+
 			const storedTime = sessionStorage.getItem('did_session_start');
 			if (storedTime) return Number.parseInt(storedTime, 10);
-			
+
 			const now = Date.now();
 			sessionStorage.setItem('did_session_start', now.toString());
 			return now;
@@ -323,9 +338,17 @@
 				this.anonymousId = this.getOrCreateAnonymousId();
 			}
 
-			const interactionEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click', 'keypress', 'mousemove'];
+			const interactionEvents = [
+				'mousedown',
+				'keydown',
+				'scroll',
+				'touchstart',
+				'click',
+				'keypress',
+				'mousemove',
+			];
 			const handler = () => this.interactionCount++;
-			
+
 			if (this.options.trackInteractions) {
 				for (const eventType of interactionEvents) {
 					window.addEventListener(eventType, handler, { passive: true });
@@ -373,10 +396,14 @@
 
 		trackScrollDepth() {
 			if (this.isServer()) return;
-			
-			const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+
+			const scrollHeight =
+				document.documentElement.scrollHeight - window.innerHeight;
 			const currentScroll = window.scrollY;
-			const scrollPercent = Math.min(100, Math.round((currentScroll / scrollHeight) * 100));
+			const scrollPercent = Math.min(
+				100,
+				Math.round((currentScroll / scrollHeight) * 100)
+			);
 			this.maxScrollDepth = Math.max(this.maxScrollDepth, scrollPercent);
 		}
 
@@ -632,23 +659,36 @@
 		}
 
 		isServer() {
-			return typeof document === 'undefined' || typeof window === 'undefined' || typeof localStorage === 'undefined';
+			return (
+				typeof document === 'undefined' ||
+				typeof window === 'undefined' ||
+				typeof localStorage === 'undefined'
+			);
 		}
 
 		collectNavigationTiming() {
 			if (this.isServer() || !this.options.trackPerformance) return {};
-			
+
 			try {
 				const navEntry = window.performance?.getEntriesByType('navigation')[0];
 				if (!navEntry) return {};
-				
+
 				return {
 					load_time: clampValue(Math.round(navEntry.loadEventEnd)),
-					dom_ready_time: clampValue(Math.round(navEntry.domContentLoadedEventEnd)),
+					dom_ready_time: clampValue(
+						Math.round(navEntry.domContentLoadedEventEnd)
+					),
 					dom_interactive: clampValue(Math.round(navEntry.domInteractive)),
-					ttfb: clampValue(Math.round(navEntry.responseStart - navEntry.requestStart)),
-					request_time: clampValue(Math.round(navEntry.responseEnd - navEntry.requestStart)),
-					render_time: Math.max(0, Math.round(navEntry.domComplete - navEntry.domContentLoadedEventEnd)),
+					ttfb: clampValue(
+						Math.round(navEntry.responseStart - navEntry.requestStart)
+					),
+					request_time: clampValue(
+						Math.round(navEntry.responseEnd - navEntry.requestStart)
+					),
+					render_time: Math.max(
+						0,
+						Math.round(navEntry.domComplete - navEntry.domContentLoadedEventEnd)
+					),
 				};
 			} catch (_e) {
 				return {};
@@ -657,7 +697,7 @@
 
 		getUtmParams() {
 			if (typeof window === 'undefined') return {};
-			
+
 			const urlParams = new URLSearchParams(window.location.search);
 			return {
 				utm_source: urlParams.get('utm_source'),
@@ -670,13 +710,17 @@
 
 		detectBot() {
 			if (typeof window === 'undefined') return false;
-			return navigator.webdriver || !navigator.plugins.length || !navigator.languages.length;
+			return (
+				navigator.webdriver ||
+				!navigator.plugins.length ||
+				!navigator.languages.length
+			);
 		}
 
 		setupBotDetection() {
 			if (typeof window === 'undefined') return;
-			
-			const handler = () => this.hasInteracted = true;
+
+			const handler = () => (this.hasInteracted = true);
 			for (const event of ['mousemove', 'scroll', 'keydown']) {
 				window.addEventListener(event, handler, { once: true, passive: true });
 			}
@@ -753,7 +797,10 @@
 			const exitEventId = `exit_${this.sessionId}_${btoa(window.location.pathname)}_${this.pageEngagementStart}`;
 
 			const page_count = Math.min(MAX_COUNT_VALUE, this.pageCount);
-			const interaction_count = Math.min(MAX_COUNT_VALUE, this.interactionCount);
+			const interaction_count = Math.min(
+				MAX_COUNT_VALUE,
+				this.interactionCount
+			);
 			const time_on_page = Math.min(
 				MAX_TIME_ON_PAGE,
 				Math.round((Date.now() - this.pageEngagementStart) / 1000)
@@ -796,22 +843,23 @@
 			}
 		}
 
-
-
-			getConnectionInfo() {
-		if (typeof navigator === 'undefined') {
-			return { connection_type: null, rtt: null, downlink: null };
+		getConnectionInfo() {
+			if (typeof navigator === 'undefined') {
+				return { connection_type: null, rtt: null, downlink: null };
+			}
+			const connection =
+				navigator.connection ||
+				navigator.mozConnection ||
+				navigator.webkitConnection;
+			if (!connection) {
+				return { connection_type: null, rtt: null, downlink: null };
+			}
+			return {
+				connection_type: connection.effectiveType || connection.type || null,
+				rtt: connection.rtt || null,
+				downlink: connection.downlink || null,
+			};
 		}
-		const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-		if (!connection) {
-			return { connection_type: null, rtt: null, downlink: null };
-		}
-		return {
-			connection_type: connection.effectiveType || connection.type || null,
-			rtt: connection.rtt || null,
-			downlink: connection.downlink || null,
-		};
-	}
 
 		getBaseContext() {
 			if (this.isServer()) {
@@ -821,14 +869,22 @@
 			const utmParams = this.getUtmParams();
 			const connectionInfo = this.getConnectionInfo();
 
-			const { width, height } = validateDimensions(window.innerWidth, window.innerHeight);
+			const { width, height } = validateDimensions(
+				window.innerWidth,
+				window.innerHeight
+			);
 			const viewport_size = width && height ? `${width}x${height}` : null;
 
-			const { width: screenWidth, height: screenHeight } = validateDimensions(window.screen.width, window.screen.height);
+			const { width: screenWidth, height: screenHeight } = validateDimensions(
+				window.screen.width,
+				window.screen.height
+			);
 			const screen_resolution =
 				screenWidth && screenHeight ? `${screenWidth}x${screenHeight}` : null;
 
-			const referrer = validateUrl(sanitizeUrl(this.global?.referrer || document.referrer || 'direct'));
+			const referrer = validateUrl(
+				sanitizeUrl(this.global?.referrer || document.referrer || 'direct')
+			);
 			const path = validateUrl(sanitizeUrl(window.location.href));
 
 			return {
@@ -885,8 +941,6 @@
 
 			return this.send(errorEvent);
 		}
-
-
 	};
 
 	function h(a) {
@@ -981,7 +1035,8 @@
 
 			const i = () =>
 				this.debounce(() => {
-					const previous_path = this.lastPath || sanitizeUrl(window.location.href);
+					const previous_path =
+						this.lastPath || sanitizeUrl(window.location.href);
 					this.setGlobalProperties({
 						referrer: previous_path,
 					});
@@ -1045,7 +1100,6 @@
 			}
 
 			if (this.lastPath !== i) {
-
 				this.lastPath = i;
 				this.pageCount++;
 
@@ -1174,9 +1228,21 @@
 				config.maxRetries = 0;
 			}
 
-			config.initialRetryDelay = validateConfigRange(config.initialRetryDelay, MIN_RETRY_DELAY, MAX_RETRY_DELAY);
-			config.batchSize = validateConfigRange(config.batchSize, MIN_BATCH_SIZE, MAX_BATCH_SIZE);
-			config.batchTimeout = validateConfigRange(config.batchTimeout, MIN_BATCH_TIMEOUT, MAX_BATCH_TIMEOUT);
+			config.initialRetryDelay = validateConfigRange(
+				config.initialRetryDelay,
+				MIN_RETRY_DELAY,
+				MAX_RETRY_DELAY
+			);
+			config.batchSize = validateConfigRange(
+				config.batchSize,
+				MIN_BATCH_SIZE,
+				MAX_BATCH_SIZE
+			);
+			config.batchTimeout = validateConfigRange(
+				config.batchTimeout,
+				MIN_BATCH_TIMEOUT,
+				MAX_BATCH_TIMEOUT
+			);
 
 			if (config.apiUrl) {
 				try {

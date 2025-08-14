@@ -1,11 +1,14 @@
+import type { User } from '@databuddy/auth';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
-const getRandomMessage = (messages: string[]) =>
-	messages[Math.floor(Math.random() * messages.length)];
+const getRandomMessage = (messages: string[]): string =>
+	messages[Math.floor(Math.random() * messages.length)] ||
+	'An error occurred while processing your request.';
 
 const queryFailedMessages = [
 	'I ran into an issue getting that data. The information might not be available right now.',
@@ -20,8 +23,8 @@ const noDataMessages = [
 ];
 
 export interface ChartHandlerContext {
-	user: any;
-	website: any;
+	user?: User | null;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 	startTime: number;
 	aiTime: number;
@@ -35,7 +38,7 @@ export async function* handleChartResponse(
 		yield {
 			type: 'error',
 			content: 'AI did not provide a query for the chart.',
-			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 		return;
 	}
@@ -44,7 +47,7 @@ export async function* handleChartResponse(
 		yield {
 			type: 'error',
 			content: 'Generated query failed security validation.',
-			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 		return;
 	}
@@ -53,7 +56,7 @@ export async function* handleChartResponse(
 		const queryResult = await executeQuery(parsedAiJson.sql);
 		const totalTime = Date.now() - context.startTime;
 
-		if (context.user.role === 'ADMIN') {
+		if (context.user?.role === 'ADMIN') {
 			context.debugInfo.processing = {
 				aiTime: context.aiTime,
 				queryTime: Date.now() - context.startTime - context.aiTime,
@@ -65,7 +68,7 @@ export async function* handleChartResponse(
 			type: 'complete',
 			content:
 				queryResult.data.length > 0
-					? `Found ${queryResult.data.length} data points. Displaying as a ${parsedAiJson.chart_type?.replace(/_/g, ' ') || 'chart'}.`
+					? `Found ${queryResult.data.length} data points. Displaying as a ${parsedAiJson.chart_type ? parsedAiJson.chart_type.replace(/_/g, ' ') : 'chart'}.`
 					: getRandomMessage(noDataMessages),
 			data: {
 				hasVisualization: queryResult.data.length > 0,
@@ -73,7 +76,7 @@ export async function* handleChartResponse(
 				data: queryResult.data,
 				responseType: 'chart',
 			},
-			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 	} catch (queryError: unknown) {
 		console.error('❌ SQL execution error', {
@@ -83,7 +86,7 @@ export async function* handleChartResponse(
 		yield {
 			type: 'error',
 			content: getRandomMessage(queryFailedMessages),
-			debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
 	}
 }

@@ -7,6 +7,8 @@ description: Add privacy-first analytics to your Framer site
 
 Databuddy enables you to gather privacy-first analytics on user behavior, capture custom events, track performance metrics, and more within your Framer site - all while maintaining GDPR compliance without cookies.
 
+> TL;DR: Paste the inline loader below into Framer → Site Settings → General → Custom Code (Start of &lt;head&gt; tag). Replace `YOUR_CLIENT_ID` with your client ID. Publish, then check the dashboard.
+
 ## How to Add Databuddy to Framer
 
 ### 1. Get Your Tracking Script
@@ -14,11 +16,18 @@ Databuddy enables you to gather privacy-first analytics on user behavior, captur
 Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your tracking code snippet:
 
 ```html
-<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-site-id="YOUR_SITE_ID"
-  async
-></script>
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.async = true;
+    script.src = "https://cdn.databuddy.cc/databuddy.js";
+    script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
+    script.setAttribute("data-track-screen-views", "true");
+    script.setAttribute("data-track-attributes", "true");
+    script.setAttribute("data-track-errors", "true");
+    document.head.appendChild(script);
+  })();
+</script>
 ```
 
 ### 2. Add the Script to Your Framer Project
@@ -46,9 +55,7 @@ Track custom interactions in your Framer components using data attributes:
 
 ```html
 <!-- Track button clicks -->
-<button data-track="cta_clicked" data-button-type="primary">
-  Get Started
-</button>
+<button data-track="cta_clicked" data-button-type="primary">Get Started</button>
 
 <!-- Track form submissions -->
 <form data-track="newsletter_signup" data-form-location="header">
@@ -61,13 +68,19 @@ Track custom interactions in your Framer components using data attributes:
 Enable performance tracking by updating your script configuration:
 
 ```html
-<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-site-id="YOUR_SITE_ID"
-  data-track-performance="true"
-  data-track-web-vitals="true"
-  async
-></script>
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.async = true;
+    script.src = "https://cdn.databuddy.cc/databuddy.js";
+    script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
+    script.setAttribute("data-track-screen-views", "true");
+    script.setAttribute("data-track-performance", "true");
+    script.setAttribute("data-track-web-vitals", "true");
+    script.setAttribute("data-track-errors", "true");
+    document.head.appendChild(script);
+  })();
+</script>
 ```
 
 ## Benefits for Framer Sites
@@ -85,7 +98,7 @@ Enable performance tracking by updating your script configuration:
 If Databuddy isn't working:
 
 1. Ensure the script is in the **Start of &lt;head&gt; tag** section
-2. Check that your Site ID is correct
+2. Check that your Client ID is correct
 3. Verify your site is published (not just preview mode)
 4. Check browser console for any error messages
 
@@ -98,4 +111,4 @@ If analytics data isn't showing:
 3. Ensure you're viewing the correct date range
 4. Try visiting your site in an incognito window
 
-Need help? Contact our support team at [help@databuddy.cc](mailto:help@databuddy.cc). 
+Need help? Contact our support team at [help@databuddy.cc](mailto:help@databuddy.cc).

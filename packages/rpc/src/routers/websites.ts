@@ -17,10 +17,7 @@ import {
 	getBillingCustomerId,
 	trackWebsiteUsage,
 } from '../utils/billing';
-import {
-	invalidateBasicWebsiteCaches,
-	invalidateWebsiteCaches,
-} from '../utils/cache-invalidation';
+import { invalidateWebsiteCaches } from '../utils/cache-invalidation';
 
 const websiteCache = createDrizzleCache({ redis, namespace: 'websites' });
 const CACHE_DURATION = 60; // seconds
@@ -32,8 +29,11 @@ interface ChartDataPoint {
 	value: number;
 }
 
-const buildFullDomain = (domain: string, subdomain?: string) =>
-	subdomain ? `${subdomain}.${domain}` : domain;
+const buildFullDomain = (rawDomain: string, rawSubdomain?: string) => {
+	const domain = rawDomain.trim().toLowerCase();
+	const subdomain = rawSubdomain?.trim().toLowerCase();
+	return subdomain ? `${subdomain}.${domain}` : domain;
+};
 
 const buildWebsiteFilter = (userId: string, organizationId?: string) =>
 	organizationId
@@ -46,7 +46,7 @@ const calculateAverage = (values: { value: number }[]) =>
 		: 0;
 
 const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
-	if (!dataPoints?.length) {
+	if (!dataPoints?.length || dataPoints.length < 4) {
 		return null;
 	}
 
@@ -158,7 +158,19 @@ export const websitesRouter = createTRPCRouter({
 				key: listCacheKey,
 				ttl: CACHE_DURATION,
 				tables: ['websites'],
-				queryFn: () => {
+				queryFn: async () => {
+					if (input.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: ctx.headers,
+							body: { permissions: { website: ['read'] } },
+						});
+						if (!success) {
+							throw new TRPCError({
+								code: 'FORBIDDEN',
+								message: 'Missing organization permissions.',
+							});
+						}
+					}
 					const whereClause = buildWebsiteFilter(
 						ctx.user.id,
 						input.organizationId
@@ -179,8 +191,20 @@ export const websitesRouter = createTRPCRouter({
 			return websiteCache.withCache({
 				key: chartsListCacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['websites', 'member'],
+				tables: ['websites'],
 				queryFn: async () => {
+					if (input.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: ctx.headers,
+							body: { permissions: { website: ['read'] } },
+						});
+						if (!success) {
+							throw new TRPCError({
+								code: 'FORBIDDEN',
+								message: 'Missing organization permissions.',
+							});
+						}
+					}
 					const whereClause = buildWebsiteFilter(
 						ctx.user.id,
 						input.organizationId
@@ -292,7 +316,11 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await invalidateBasicWebsiteCaches(createdWebsite.id, websiteCache);
+			await invalidateWebsiteCaches(
+				createdWebsite.id,
+				ctx.user.id,
+				'website created'
+			);
 
 			return createdWebsite;
 		}),
@@ -334,18 +362,10 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await invalidateBasicWebsiteCaches(input.id, websiteCache);
-
 			if (
 				input.isPublic !== undefined &&
 				input.isPublic !== websiteToUpdate.isPublic
 			) {
-				await invalidateWebsiteCaches(
-					input.id,
-					ctx.user.id,
-					`public status changed to ${input.isPublic}`
-				);
-
 				logger.info(
 					'Public status changed - caches invalidated',
 					`Website ${input.id} public status changed to ${input.isPublic}`,
@@ -357,6 +377,8 @@ export const websitesRouter = createTRPCRouter({
 					}
 				);
 			}
+
+			await invalidateWebsiteCaches(input.id, ctx.user.id, 'website updated');
 
 			return updatedWebsite;
 		}),
@@ -392,7 +414,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await invalidateBasicWebsiteCaches(input.id, websiteCache);
+			await invalidateWebsiteCaches(input.id, ctx.user.id, 'website deleted');
 
 			return { success: true };
 		}),
@@ -438,7 +460,11 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			await invalidateBasicWebsiteCaches(input.websiteId, websiteCache);
+			await invalidateWebsiteCaches(
+				input.websiteId,
+				ctx.user.id,
+				'website transferred'
+			);
 
 			return transferredWebsite;
 		}),

@@ -3,6 +3,43 @@ import type { SimpleQueryConfig } from '../types';
 
 export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 	top_referrers: {
+		meta: {
+			title: 'Top Referrers',
+			description:
+				'Top external websites and domains that drive traffic to your site, excluding direct visits.',
+			category: 'Acquisition',
+			tags: ['referrers', 'traffic sources', 'external', 'backlinks'],
+			output_fields: [
+				{
+					name: 'name',
+					type: 'string',
+					label: 'Referrer Domain',
+					description: 'The referring domain or website',
+				},
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews',
+					description: 'Total pageviews from this referrer',
+				},
+				{
+					name: 'visitors',
+					type: 'number',
+					label: 'Visitors',
+					description: 'Unique visitors from this referrer',
+				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Traffic %',
+					description: 'Percentage of total referral traffic',
+					unit: '%',
+				},
+			],
+			default_visualization: 'table',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
 		table: Analytics.events,
 		fields: [
 			'CASE ' +
@@ -28,12 +65,48 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type', 'browser_name'],
 		customizable: true,
 		plugins: { parseReferrers: true },
 	},
 
 	utm_sources: {
+		meta: {
+			title: 'UTM Sources',
+			description:
+				'Traffic breakdown by UTM source parameters from your marketing campaigns and tracked links.',
+			category: 'Acquisition',
+			tags: ['utm', 'campaigns', 'marketing', 'sources'],
+			output_fields: [
+				{
+					name: 'name',
+					type: 'string',
+					label: 'UTM Source',
+					description: 'The UTM source parameter value',
+				},
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews',
+					description: 'Total pageviews from this source',
+				},
+				{
+					name: 'visitors',
+					type: 'number',
+					label: 'Visitors',
+					description: 'Unique visitors from this source',
+				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Traffic %',
+					description: 'Percentage of total UTM traffic',
+					unit: '%',
+				},
+			],
+			default_visualization: 'table',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
 		table: Analytics.events,
 		fields: [
 			'utm_source as name',
@@ -46,7 +119,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
@@ -63,11 +135,47 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
 	utm_campaigns: {
+		meta: {
+			title: 'UTM Campaigns',
+			description:
+				'Performance breakdown by UTM campaign parameters to track individual marketing campaign effectiveness.',
+			category: 'Acquisition',
+			tags: ['utm', 'campaigns', 'marketing', 'performance'],
+			output_fields: [
+				{
+					name: 'name',
+					type: 'string',
+					label: 'Campaign Name',
+					description: 'The UTM campaign parameter value',
+				},
+				{
+					name: 'pageviews',
+					type: 'number',
+					label: 'Pageviews',
+					description: 'Total pageviews from this campaign',
+				},
+				{
+					name: 'visitors',
+					type: 'number',
+					label: 'Visitors',
+					description: 'Unique visitors from this campaign',
+				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Traffic %',
+					description: 'Percentage of total campaign traffic',
+					unit: '%',
+				},
+			],
+			default_visualization: 'table',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
 		table: Analytics.events,
 		fields: [
 			'utm_campaign as name',
@@ -80,7 +188,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 	},
 
@@ -103,7 +210,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'device_type'],
 		customizable: true,
 		plugins: { parseReferrers: true },
 	},

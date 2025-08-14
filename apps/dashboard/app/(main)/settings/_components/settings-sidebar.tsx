@@ -25,7 +25,7 @@ export function SettingsSidebar({
 	className,
 }: SettingsSidebarProps) {
 	return (
-		<nav className={cn('flex flex-col space-y-1', className)}>
+		<nav className={cn('flex flex-col gap-1', className)}>
 			{items.map((item) => (
 				<Button
 					className="w-full justify-start"

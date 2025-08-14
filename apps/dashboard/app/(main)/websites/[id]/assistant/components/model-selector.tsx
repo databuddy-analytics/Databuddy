@@ -64,13 +64,16 @@ export function ModelSelector({
 				{Object.values(MODEL_CONFIGS).map((config) => (
 					<DropdownMenuItem
 						className={cn(
-							'group flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors',
-							selectedModel === config.id
-								? 'border border-primary bg-accent/80 text-accent-foreground'
-								: 'hover:bg-muted/60 hover:text-foreground'
+							'group flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
+							config.isEnabled
+								? 'cursor-pointer hover:bg-muted/60 hover:text-foreground'
+								: 'cursor-not-allowed opacity-50',
+							selectedModel === config.id &&
+								'border border-primary bg-accent/80 text-accent-foreground'
 						)}
+						disabled={!config.isEnabled}
 						key={config.id}
-						onClick={() => onModelChange(config.id)}
+						onClick={() => !config.isEnabled && onModelChange(config.id)}
 					>
 						<div className="flex min-w-[28px] items-center gap-2">
 							{modelIcons[config.id]}
@@ -79,7 +82,7 @@ export function ModelSelector({
 							<div className="truncate font-semibold text-sm">
 								{config.name}
 							</div>
-							<div className="truncate text-muted-foreground text-xs">
+							<div className="text-muted-foreground text-xs leading-tight">
 								{config.description}
 							</div>
 						</div>

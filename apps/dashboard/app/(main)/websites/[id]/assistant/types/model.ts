@@ -6,6 +6,7 @@ export interface ModelConfig {
 	description: string;
 	icon: string;
 	features: string[];
+	isEnabled: boolean;
 }
 
 export const MODEL_CONFIGS: Record<AssistantModel, ModelConfig> = {
@@ -15,6 +16,7 @@ export const MODEL_CONFIGS: Record<AssistantModel, ModelConfig> = {
 		description: 'Quick answers and simple queries',
 		icon: 'Chat',
 		features: ['Fast responses', 'Simple queries', 'Basic insights'],
+		isEnabled: true,
 	},
 	agent: {
 		id: 'agent',
@@ -26,6 +28,7 @@ export const MODEL_CONFIGS: Record<AssistantModel, ModelConfig> = {
 			'Complex queries',
 			'Detailed analysis',
 		],
+		isEnabled: false,
 	},
 	'agent-max': {
 		id: 'agent-max',
@@ -33,5 +36,6 @@ export const MODEL_CONFIGS: Record<AssistantModel, ModelConfig> = {
 		description: 'Maximum intelligence for complex analytics',
 		icon: 'Agent Max',
 		features: ['Maximum intelligence', 'Complex analytics', 'Deep insights'],
+		isEnabled: false,
 	},
 };

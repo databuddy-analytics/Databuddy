@@ -77,7 +77,6 @@ function RoleSelector({
 
 	return (
 		<Select
-			defaultValue={member.role}
 			disabled={isUpdatingMember}
 			onValueChange={(newRole) =>
 				onUpdateRole({
@@ -86,6 +85,7 @@ function RoleSelector({
 					organizationId,
 				})
 			}
+			value={member.role}
 		>
 			<SelectTrigger className="w-32 rounded">
 				<SelectValue placeholder="Select a role" />

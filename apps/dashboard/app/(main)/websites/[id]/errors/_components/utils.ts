@@ -1,4 +1,4 @@
-import { format, isValid, parseISO } from 'date-fns';
+import dayjs from 'dayjs';
 
 // Helper function to safely parse dates
 export const safeDateParse = (dateString: string): Date => {
@@ -6,20 +6,20 @@ export const safeDateParse = (dateString: string): Date => {
 		return new Date();
 	}
 
-	let date = parseISO(dateString);
-	if (isValid(date)) {
-		return date;
+	let dayjsDate = dayjs(dateString);
+	if (dayjsDate.isValid()) {
+		return dayjsDate.toDate();
 	}
 
 	const isoString = dateString.replace(' ', 'T');
-	date = parseISO(isoString);
-	if (isValid(date)) {
-		return date;
+	dayjsDate = dayjs(isoString);
+	if (dayjsDate.isValid()) {
+		return dayjsDate.toDate();
 	}
 
-	date = new Date(dateString);
-	if (isValid(date)) {
-		return date;
+	dayjsDate = dayjs(new Date(dateString));
+	if (dayjsDate.isValid()) {
+		return dayjsDate.toDate();
 	}
 
 	console.warn('Failed to parse date:', dateString);
@@ -32,7 +32,7 @@ export const safeFormatDate = (
 ): string => {
 	try {
 		const date = safeDateParse(dateString);
-		return format(date, formatString);
+		return dayjs(date).format(formatString);
 	} catch (error) {
 		console.warn('Failed to format date:', dateString, error);
 		return dateString;

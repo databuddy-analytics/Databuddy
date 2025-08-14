@@ -6,8 +6,6 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { cache } from 'react';
 import { z } from 'zod';
-// import { uploadOptimizedImage } from "@/lib/supabase";
-// import type { CropData, ImageEditOptions } from "@/types/image";
 import { logger } from '@/lib/discord-webhook';
 
 // Helper to get authenticated user
@@ -33,68 +31,6 @@ const profileUpdateSchema = z.object({
 		.max(50, 'Last name cannot exceed 50 characters'),
 	image: z.string().url('Please enter a valid image URL').optional(),
 });
-
-/**
- * Uploads a profile image to Supabase storage with optional cropping and editing
- */
-// export async function uploadProfileImage(formData: FormData) {
-//   const user = await getUser();
-//   if (!user) return { error: "Unauthorized" };
-
-//   try {
-//     const file = formData.get("file") as File;
-//     if (!file) {
-//       return { error: "No file provided" };
-//     }
-
-//     // Validate file type
-//     if (!file.type.startsWith("image/")) {
-//       return { error: "Please upload an image file" };
-//     }
-
-//     // Validate file size (max 5MB)
-//     if (file.size > 5 * 1024 * 1024) {
-//       return { error: "Image size must be less than 5MB" };
-//     }
-
-//     // Get crop data if provided
-//     // let cropData: CropData | undefined;
-//     const cropDataStr = formData.get("cropData");
-//     if (cropDataStr && typeof cropDataStr === "string") {
-//       try {
-//         cropData = JSON.parse(cropDataStr);
-//       } catch (e) {
-//         console.error("Failed to parse crop data", e);
-//       }
-//     }
-
-//     // Get edit options if provided
-//     let edits: ImageEditOptions | undefined;
-//     const editsStr = formData.get("edits");
-//     if (editsStr && typeof editsStr === "string") {
-//       try {
-//         edits = JSON.parse(editsStr);
-//       } catch (e) {
-//         console.error("Failed to parse edit options", e);
-//       }
-//     }
-
-//     // Upload to Supabase using the server-side function
-//     const result = await uploadOptimizedImage(
-//       file,
-//       ["medium"],
-//       "profile-images",
-//       user.id,
-//       cropData,
-//       edits
-//     );
-
-//     return { url: result.medium };
-//   } catch (error) {
-//     console.error("Profile image upload error:", error);
-//     return { error: "Failed to upload image" };
-//   }
-// }
 
 /**
  * Updates the user's profile information

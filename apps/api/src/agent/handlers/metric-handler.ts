@@ -1,3 +1,5 @@
+import type { User } from '@databuddy/auth';
+import type { Website } from '@databuddy/shared';
 import type { z } from 'zod';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
@@ -5,8 +7,8 @@ import { validateSQL } from '../utils/sql-validator';
 import type { StreamingUpdate } from '../utils/stream-utils';
 
 export interface MetricHandlerContext {
-	user: any;
-	website: any;
+	user?: User | null;
+	website: Website;
 	debugInfo: Record<string, unknown>;
 }
 
@@ -20,7 +22,7 @@ export async function* handleMetricResponse(
 				type: 'error',
 				content: 'Generated query failed security validation.',
 				debugInfo:
-					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+					context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 			};
 			return;
 		}
@@ -86,6 +88,6 @@ async function* sendMetricResponse(
 			metricValue,
 			metricLabel: parsedAiJson.metric_label,
 		},
-		debugInfo: context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+		debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 	};
 }

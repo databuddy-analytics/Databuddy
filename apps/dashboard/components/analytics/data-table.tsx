@@ -675,19 +675,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	});
 
 	const displayData = table.getRowModel().rows;
-
-	const getFieldFromTabId = (tabId: string): string => {
-		const mapping: Record<string, string> = {
-			errors_by_page: 'path',
-			errors_by_browser: 'browser_name',
-			errors_by_os: 'os_name',
-			errors_by_country: 'country',
-			errors_by_device: 'device_type',
-			error_types: 'error_message',
-		};
-		return mapping[tabId] || 'name';
-	};
-
 	const toggleRowExpansion = useCallback((rowId: string) => {
 		setExpandedRow((prev) => (prev === rowId ? null : rowId));
 	}, []);
@@ -747,7 +734,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		return (
 			<div
 				className={cn(
-					'w-full overflow-hidden border bg-card/50 shadow-sm backdrop-blur-sm rounded',
+					'w-full overflow-hidden rounded border bg-card/50 shadow-sm backdrop-blur-sm',
 					className
 				)}
 			>
@@ -1203,7 +1190,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 						{/* Backdrop */}
 						<div className="absolute inset-0 animate-fadein bg-black/70 backdrop-blur-[3px] transition-opacity" />
 						{/* Modal */}
-						<div className="relative flex h-[92vh] w-[92vw] scale-100 animate-scalein flex-col overflow-hidden rounded-2xl border border-[1px] border-border bg-background shadow-2xl">
+						<div className="relative flex h-[92vh] w-[92vw] scale-100 animate-scalein flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
 							<FullScreenTable
 								activeTab={activeTab}
 								columns={tableColumns}
@@ -1228,24 +1215,3 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		</>
 	);
 }
-
-// Custom scrollbar styles
-// You can move this to a CSS/SCSS file if preferred
-<style global jsx>{`
-  .custom-scrollbar::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #e5e7eb;
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #d1d5db;
-  }
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: #e5e7eb transparent;
-  }
-`}</style>;

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { blogSource } from '@/lib/blog-source';
+import { SITE_URL } from '@/app/util/constants';
+import { getPosts } from '@/lib/blog-query';
 import { source } from '@/lib/source';
 
 // Regex pattern for matching integration pages
@@ -18,6 +19,9 @@ const priorityMap: Record<string, number> = {
 	'/docs/security': 0.8,
 	'/docs/Integrations': 0.8,
 	'/docs/api': 0.7,
+	'/blog': 0.8,
+	'/api': 0.7,
+	'/contributors': 0.8,
 	'/privacy': 0.5,
 	'/demo': 0.6,
 	'/llms.txt': 0.4,
@@ -36,6 +40,9 @@ const changeFrequencyMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {
 	'/docs/security': 'monthly',
 	'/docs/Integrations': 'weekly',
 	'/docs/api': 'monthly',
+	'/blog': 'monthly',
+	'/api': 'monthly',
+	'/contributors': 'monthly',
 	'/privacy': 'yearly',
 	'/demo': 'monthly',
 	'/llms.txt': 'weekly',
@@ -86,16 +93,6 @@ function processSourcePages(
 	);
 }
 
-function processBlogPages(
-	pages: Array<{ url: string }>,
-	baseUrl: string,
-	lastModified: Date
-): MetadataRoute.Sitemap {
-	return pages.map((page) =>
-		createSitemapEntry(page.url, baseUrl, lastModified, 0.5, 'weekly')
-	);
-}
-
 function processNonDocPages(
 	pages: string[],
 	baseUrl: string,
@@ -104,6 +101,26 @@ function processNonDocPages(
 	return pages.map((page) =>
 		createSitemapEntry(page, baseUrl, lastModified, 0.5, 'yearly')
 	);
+}
+
+function processBlogPages(baseUrl: string): Promise<MetadataRoute.Sitemap> {
+	return getPosts()
+		.then((data) => {
+			if ('error' in data || !data?.posts) {
+				return [];
+			}
+
+			return data.posts.map((post) => ({
+				url: `${baseUrl}/blog/${post.slug}`,
+				lastModified: new Date(post.publishedAt),
+				changeFrequency: 'monthly' as const,
+				priority: 0.8,
+			}));
+		})
+		.catch((error) => {
+			console.warn('Failed to fetch blog posts for sitemap:', error);
+			return [];
+		});
 }
 
 function getFallbackEntries(): Array<{
@@ -177,23 +194,52 @@ function processFallbackEntries(
 	);
 }
 
-export function generateSitemapEntries(): MetadataRoute.Sitemap {
-	const baseUrl = 'https://www.databuddy.cc';
+export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 	const lastModified = new Date();
 	const entries: MetadataRoute.Sitemap = [];
 
 	try {
 		const pages = source.getPages();
-		const blogPages = blogSource.getPages();
-		const nonDocPages = ['/privacy', '/demo', '/llms.txt'];
+		const nonDocPages = [
+			'/privacy',
+			'/demo',
+			'/llms.txt',
+			'/contributors',
+			'/api',
+		];
 
-		entries.push(...processSourcePages(pages, baseUrl, lastModified));
-		entries.push(...processBlogPages(blogPages, baseUrl, lastModified));
-		entries.push(...processNonDocPages(nonDocPages, baseUrl, lastModified));
+		entries.push(...processSourcePages(pages, SITE_URL, lastModified));
+		entries.push(...processNonDocPages(nonDocPages, SITE_URL, lastModified));
+
+		const blogEntries = await processBlogPages(SITE_URL);
+		entries.push(...blogEntries);
+
+		// Add the blog index page with lastModified set to latest blog post
+		const latestBlogModified = blogEntries.length
+			? new Date(
+					Math.max(
+						...blogEntries
+							.map((e) =>
+								e.lastModified ? new Date(e.lastModified).getTime() : 0
+							)
+							.filter((t) => Number.isFinite(t) && t > 0)
+					)
+				)
+			: lastModified;
+		entries.push(
+			createSitemapEntry(
+				'/blog',
+				SITE_URL,
+				latestBlogModified,
+				priorityMap['/blog'],
+				changeFrequencyMap['/blog']
+			)
+		);
+
 		processIntegrationPages(entries);
 	} catch (error) {
 		console.warn('Failed to generate dynamic sitemap, using fallback:', error);
-		entries.push(...processFallbackEntries(baseUrl, lastModified));
+		entries.push(...processFallbackEntries(SITE_URL, lastModified));
 	}
 
 	return entries;
@@ -204,13 +250,5 @@ export function getSitemapMetadata() {
 		title: 'Databuddy Documentation Sitemap',
 		description:
 			'Dynamically generated sitemap of Databuddy documentation including all guides, integrations, and API references.',
-		keywords: [
-			'databuddy',
-			'analytics',
-			'documentation',
-			'sitemap',
-			'privacy-first',
-			'web analytics',
-		],
 	};
 }

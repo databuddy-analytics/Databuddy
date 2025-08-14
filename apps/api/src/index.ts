@@ -1,7 +1,9 @@
 import './polyfills/compression';
+import { auth } from '@databuddy/auth';
 import { appRouter, createTRPCContext } from '@databuddy/rpc';
 import cors from '@elysiajs/cors';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { autumnHandler } from 'autumn-js/elysia';
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
 import { assistant } from './routes/assistant';
@@ -20,10 +22,26 @@ const app = new Elysia()
 			],
 		})
 	)
+	.use(health)
+	.use(
+		autumnHandler({
+			identify: async ({ request }) => {
+				const session = await auth.api.getSession({
+					headers: request.headers,
+				});
 
+				return {
+					customerId: session?.user.id,
+					customerData: {
+						name: session?.user.name,
+						email: session?.user.email,
+					},
+				};
+			},
+		})
+	)
 	.use(query)
 	.use(assistant)
-	.use(health)
 	.all('/trpc/*', ({ request }) => {
 		return fetchRequestHandler({
 			endpoint: '/trpc',
@@ -36,21 +54,14 @@ const app = new Elysia()
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		logger.error(errorMessage, { error });
 
-		if (error instanceof Error && error.message === 'Unauthorized') {
-			return new Response(
-				JSON.stringify({
-					success: false,
-					error: 'Authentication required',
-					code: 'AUTH_REQUIRED',
-				}),
-				{
-					status: 401,
-					headers: { 'Content-Type': 'application/json' },
-				}
-			);
-		}
-
-		return { success: false, code };
+		return new Response(
+			JSON.stringify({
+				success: false,
+				error: errorMessage,
+				code: code ?? 'INTERNAL_SERVER_ERROR',
+			}),
+			{ status: 500, headers: { 'Content-Type': 'application/json' } }
+		);
 	});
 
 export default {

@@ -1,7 +1,7 @@
 'use client';
 
 import { CalendarDotsIcon } from '@phosphor-icons/react';
-import { format } from 'date-fns';
+import dayjs from 'dayjs';
 import { useCallback, useEffect, useState } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
@@ -71,19 +71,19 @@ export function DateRangePicker({
 		}
 
 		if (appliedRange.from && !appliedRange.to) {
-			return format(appliedRange.from, 'MMM d, yyyy');
+			return dayjs(appliedRange.from).format('MMM D, YYYY');
 		}
 
 		if (appliedRange.from && appliedRange.to) {
 			if (appliedRange.from.getTime() === appliedRange.to.getTime()) {
-				return format(appliedRange.from, 'MMM d, yyyy');
+				return dayjs(appliedRange.from).format('MMM D, YYYY');
 			}
 
 			if (appliedRange.from.getFullYear() !== appliedRange.to.getFullYear()) {
-				return `${format(appliedRange.from, 'MMM d, yyyy')} - ${format(appliedRange.to, 'MMM d, yyyy')}`;
+				return `${dayjs(appliedRange.from).format('MMM D, YYYY')} - ${dayjs(appliedRange.to).format('MMM D, YYYY')}`;
 			}
 
-			return `${format(appliedRange.from, 'MMM d')} - ${format(appliedRange.to, 'MMM d, yyyy')}`;
+			return `${dayjs(appliedRange.from).format('MMM D')} - ${dayjs(appliedRange.to).format('MMM D, YYYY')}`;
 		}
 
 		return 'Select dates';
@@ -119,13 +119,13 @@ export function DateRangePicker({
 						<div className="text-muted-foreground text-sm">
 							{tempRange?.from && tempRange?.to ? (
 								<span className="font-medium text-foreground">
-									{format(tempRange.from, 'MMM d')} -{' '}
-									{format(tempRange.to, 'MMM d, yyyy')}
+									{dayjs(tempRange.from).format('MMM D')} -{' '}
+									{dayjs(tempRange.to).format('MMM D, YYYY')}
 								</span>
 							) : tempRange?.from ? (
 								<span>
 									<span className="font-medium text-foreground">
-										{format(tempRange.from, 'MMM d')}
+										{dayjs(tempRange.from).format('MMM D')}
 									</span>
 									<span className="text-muted-foreground">
 										{' '}

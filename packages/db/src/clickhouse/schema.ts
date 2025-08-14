@@ -300,6 +300,23 @@ TTL toDateTime(timestamp) + INTERVAL 6 MONTH
 SETTINGS index_granularity = 8192
 `;
 
+// Email events table for tracking email processing and labeling
+const CREATE_EMAIL_EVENTS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.email_events (
+    event_id UUID DEFAULT generateUUIDv4(),
+    email_hash String,
+    domain String,
+    labels Array(LowCardinality(String)),
+    event_time DateTime,
+    received_at DateTime,
+    ingestion_time DateTime DEFAULT now(),
+    metadata_json JSON
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(event_time)
+ORDER BY (domain, event_time)
+SETTINGS index_granularity = 8192
+`;
+
 export interface ErrorEvent {
 	id: string;
 	client_id: string;
@@ -363,7 +380,7 @@ export interface StripePaymentIntent {
 	amount_received: number;
 	amount_capturable: number;
 	livemode: number;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	payment_method_types: string[];
 	failure_reason?: string;
 	canceled_at?: number;
@@ -407,7 +424,7 @@ export interface StripeRefund {
 	currency: string;
 	charge_id: string;
 	payment_intent_id?: string;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	session_id?: string;
 }
 
@@ -437,6 +454,17 @@ export interface BlockedTraffic {
 	device_type?: string;
 	payload_size?: number;
 	created_at: number;
+}
+
+export interface EmailEvent {
+	event_id: string;
+	email_hash: string;
+	domain: string;
+	labels: string[];
+	event_time: number;
+	received_at: number;
+	ingestion_time: number;
+	metadata_json: Record<string, unknown>;
 }
 
 // TypeScript interface that matches the ClickHouse schema
@@ -568,14 +596,17 @@ export async function initClickHouseSchema() {
 			{ name: 'stripe_charges', query: CREATE_STRIPE_CHARGES_TABLE },
 			{ name: 'stripe_refunds', query: CREATE_STRIPE_REFUNDS_TABLE },
 			{ name: 'blocked_traffic', query: CREATE_BLOCKED_TRAFFIC_TABLE },
+			{ name: 'email_events', query: CREATE_EMAIL_EVENTS_TABLE },
 		];
 
-		for (const table of tables) {
-			await clickHouse.command({
-				query: table.query,
-			});
-			console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
-		}
+		await Promise.all(
+			tables.map(async (table) => {
+				await clickHouse.command({
+					query: table.query,
+				});
+				console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
+			})
+		);
 
 		console.info('ClickHouse schema initialization completed successfully');
 		return {
