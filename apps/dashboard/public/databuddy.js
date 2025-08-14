@@ -340,12 +340,13 @@
 			this.maxScrollDepth = Math.max(this.maxScrollDepth, scrollPercent);
 		}
 
-		async send(event) {
+		send(event) {
 			const eventData =
 				event.type === 'track' && event.payload ? event.payload : event;
 
 			if (
 				this.options.disabled ||
+				!this.options.clientId ||
 				(this.options.filter && !this.options.filter(eventData))
 			) {
 				return Promise.resolve();
@@ -419,14 +420,15 @@
 						this.send(originalEvent);
 					}
 				} else {
+					//
 				}
 
 				return null;
 			}
 		}
 
-		async sendBatchBeacon(events) {
-			if (this.isServer() || !navigator.sendBeacon) {
+		sendBatchBeacon(events) {
+			if (this.isServer() || !navigator.sendBeacon || !this.options.clientId) {
 				return null;
 			}
 
@@ -445,7 +447,9 @@
 				if (success) {
 					return { success: true };
 				}
-			} catch (_e) {}
+			} catch (_e) {
+				//
+			}
 
 			return null;
 		}
@@ -525,7 +529,7 @@
 			return this.send(payload);
 		}
 
-		async sendBeacon(event) {
+		sendBeacon(event) {
 			if (this.isServer()) {
 				return null;
 			}
@@ -536,6 +540,7 @@
 
 				if (
 					this.options.disabled ||
+					!this.options.clientId ||
 					(this.options.filter && !this.options.filter(eventData))
 				) {
 					return null;
@@ -565,7 +570,9 @@
 						if (success) {
 							return { success: true };
 						}
-					} catch (_e) {}
+					} catch (_e) {
+						//
+					}
 				}
 
 				return null;
@@ -720,7 +727,9 @@
 						if (linkUrl.origin === window.location.origin) {
 							this.isInternalNavigation = true;
 						}
-					} catch (_err) {}
+					} catch (_err) {
+						//
+					}
 				}
 			});
 
@@ -873,7 +882,9 @@
 							observer.observe({ type, buffered: true });
 							this.webVitalObservers.push(observer);
 						}
-					} catch (_e) {}
+					} catch (_e) {
+						//
+					}
 				};
 
 				observe('paint', (entries) => {
@@ -933,7 +944,9 @@
 				});
 
 				this.webVitalsReportTimeoutId = setTimeout(report, 10_000);
-			} catch (_e) {}
+			} catch (_e) {
+				//
+			}
 		}
 
 		getConnectionInfo() {
@@ -1086,7 +1099,9 @@
 				if (beaconResult) {
 					return beaconResult;
 				}
-			} catch (_e) {}
+			} catch (_e) {
+				//
+			}
 
 			return this.send(errorEvent);
 		}
@@ -1125,7 +1140,9 @@
 				if (beaconResult) {
 					return beaconResult;
 				}
-			} catch (_e) {}
+			} catch (_e) {
+				//
+			}
 
 			return this.send(webVitalsEvent);
 		}
@@ -1189,7 +1206,9 @@
 											r.getAttribute('alt'),
 									});
 								}
-							} catch (_e) {}
+							} catch (_e) {
+								//
+							}
 						}
 					}
 				});
@@ -1349,8 +1368,7 @@
 			document.currentScript ||
 			(() => {
 				const scripts = document.getElementsByTagName('script');
-				// biome-ignore lint/style/useAt: not supported in all target browsers
-				return scripts[scripts.length - 1];
+				return scripts.at(-1);
 			})();
 
 		function getConfig() {
@@ -1397,7 +1415,9 @@
 						urlParams[key] = value;
 					}
 				});
-			} catch (_e) {}
+			} catch (_e) {
+				//
+			}
 
 			const config = {
 				...globalConfig,
