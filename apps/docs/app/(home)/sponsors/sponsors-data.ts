@@ -8,6 +8,19 @@ export interface Sponsor {
 	disabled?: boolean;
 }
 
+export interface HonorableMention {
+	id: string;
+	name: string;
+	logo: string;
+	website: string;
+	description: string;
+	supportType:
+		| 'Free Plan'
+		| 'Open Source'
+		| 'Community Support'
+		| 'Educational';
+}
+
 // Sample sponsors data - replace with real data
 export const sponsors: Sponsor[] = [
 	{
@@ -26,6 +39,17 @@ export const sponsors: Sponsor[] = [
 		tier: 'silver',
 		description: 'Modern Serverless Data Platform for Developers',
 		disabled: true,
+	},
+];
+
+export const honorableMentions: HonorableMention[] = [
+	{
+		id: 'coderabbit',
+		name: 'CodeRabbit',
+		logo: 'coderabbit.svg',
+		website: 'https://coderabbit.ai',
+		description: 'AI-powered code reviews with comprehensive OSS plan',
+		supportType: 'Free Plan',
 	},
 ];
 

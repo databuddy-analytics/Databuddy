@@ -43,7 +43,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 					<div className="mb-6 flex h-24 w-full items-center justify-center">
 						<Image
 							alt={`${sponsor.name} logo`}
-							className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+							className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105 dark:brightness-0 dark:invert"
 							height={96}
 							src={sponsor.logo}
 							width={200}

@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
 import Section from '@/components/landing/section';
 import { Spotlight } from '@/components/landing/spotlight';
-import { sponsorStats, sponsors } from './sponsors-data';
+import HonorableMentions from './honorable-mentions';
+import { honorableMentions, sponsorStats, sponsors } from './sponsors-data';
 import SponsorsGrid from './sponsors-grid';
 import SponsorsHero from './sponsors-hero';
 
@@ -32,6 +33,16 @@ export default function SponsorsPage() {
 			>
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<SponsorsGrid sponsors={sponsors} />
+				</div>
+			</Section>
+
+			{/* Honorable Mentions Section */}
+			<Section
+				className="border-border border-b bg-background/30"
+				id="honorable-mentions"
+			>
+				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+					<HonorableMentions mentions={honorableMentions} />
 				</div>
 			</Section>
 
