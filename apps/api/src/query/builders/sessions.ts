@@ -1,6 +1,96 @@
+import type { DynamicQueryFilter } from '@databuddy/shared';
 import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig } from '../types';
-import { buildWhereClause } from '../utils';
+import type { SimpleQueryConfig } from '../types';
+
+interface SessionFilter extends Pick<DynamicQueryFilter, 'field' | 'value'> {
+	op?: string;
+	operator?: DynamicQueryFilter['operator'];
+}
+
+interface FilterProcessingResult {
+	eventLevelClauses: string[];
+	sessionLevelClauses: string[];
+	params: Record<string, unknown>;
+}
+
+// Helper function to process path filters
+function processPathFilter(
+	filter: SessionFilter,
+	idx: number,
+	params: Record<string, unknown>
+): { clause: string; key: string } {
+	const key = `sf${idx}`;
+	const op = filter.op || filter.operator;
+	const value = Array.isArray(filter.value) ? filter.value[0] : filter.value;
+
+	if (op === 'like') {
+		params[key] = `%${String(value)}%`;
+		return { clause: `path LIKE {${key}:String}`, key };
+	}
+
+	params[key] = String(value);
+	return { clause: `path = {${key}:String}`, key };
+}
+
+// Helper function to process session-level filters
+function processSessionFilter(
+	filter: SessionFilter,
+	idx: number,
+	params: Record<string, unknown>
+): { clause: string; key?: string } {
+	const op = filter.op || filter.operator;
+	const value = Array.isArray(filter.value) ? filter.value[0] : filter.value;
+
+	if (op === 'like') {
+		const key = `sf${idx}`;
+		if (filter.field === 'referrer') {
+			params[key] = `%${String(value)}%`;
+			return { clause: `lower(referrer) LIKE lower({${key}:String})`, key };
+		}
+		params[key] = `%${String(value)}%`;
+		return { clause: `${filter.field} LIKE {${key}:String}`, key };
+	}
+
+	if (filter.field === 'referrer' && value === '') {
+		return {
+			clause: `(referrer = '' OR referrer IS NULL OR referrer = 'direct')`,
+		};
+	}
+
+	const key = `sf${idx}`;
+	params[key] = String(value);
+	return { clause: `${filter.field} = {${key}:String}`, key };
+}
+
+// Helper function to process all filters
+function processFilters(
+	filters: SessionFilter[],
+	allowedFields: Set<string>
+): FilterProcessingResult {
+	const eventLevelClauses: string[] = [];
+	const sessionLevelClauses: string[] = [];
+	const params: Record<string, unknown> = {};
+	let idx = 0;
+
+	for (const filter of filters) {
+		if (!(filter && allowedFields.has(filter.field))) {
+			continue;
+		}
+
+		if (filter.field === 'path') {
+			const { clause } = processPathFilter(filter, idx++, params);
+			eventLevelClauses.push(clause);
+		} else {
+			const { clause, key } = processSessionFilter(filter, idx, params);
+			sessionLevelClauses.push(clause);
+			if (key) {
+				idx++;
+			}
+		}
+	}
+
+	return { eventLevelClauses, sessionLevelClauses, params };
+}
 
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
@@ -13,6 +103,13 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		],
 		where: ["event_name = 'screen_view'"],
 		timeField: 'time',
+		allowedFilters: [
+			'path',
+			'referrer',
+			'device_type',
+			'browser_name',
+			'country',
+		],
 		customizable: true,
 	},
 
@@ -34,6 +131,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['duration_range'],
 		orderBy: 'sessions DESC',
 		timeField: 'time',
+		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -49,6 +147,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['device_type'],
 		orderBy: 'sessions DESC',
 		timeField: 'time',
+		allowedFilters: ['device_type', 'path', 'referrer'],
 		customizable: true,
 	},
 
@@ -65,6 +164,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'sessions DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['browser_name', 'path', 'device_type'],
 		customizable: true,
 	},
 
@@ -80,6 +180,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ['toDate(time)'],
 		orderBy: 'date ASC',
 		timeField: 'time',
+		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
@@ -95,83 +196,56 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'sessions DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['path', 'referrer', 'device_type'],
 		customizable: true,
 	},
 
-    session_list: {
-        customSql: (
-            websiteId: string,
-            startDate: string,
-            endDate: string,
-            _filters?: unknown[],
-            _granularity?: unknown,
-            limit?: number,
-            offset?: number
-        ) => {
-            const allowed = new Set([
-                'path',
-                'referrer',
-                'device_type',
-                'browser_name',
-                'os_name',
-                'country',
-            ]);
-            const filters = Array.isArray(_filters) ? (_filters as any[]) : [];
-            const eventLevelClauses: string[] = [];
-            const sessionLevelClauses: string[] = [];
-            const params: Record<string, unknown> = {
-                websiteId,
-                startDate,
-                endDate: `${endDate} 23:59:59`,
-                limit: limit ?? 25,
-                offset: offset ?? 0,
-            };
-            let idx = 0;
-            
-            for (const f of filters) {
-                if (!f || !allowed.has(f.field)) continue;
-                const op = (f as any).op || (f as any).operator;
-                
-                // Path filters need to be applied at event level before grouping
-                if (f.field === 'path') {
-                    const key = `sf${idx++}`;
-                    if (op === 'like') {
-                        eventLevelClauses.push(`path LIKE {${key}:String}`);
-                        (params as any)[key] = `%${(f as any).value}%`;
-                    } else {
-                        eventLevelClauses.push(`path = {${key}:String}`);
-                        (params as any)[key] = String((f as any).value);
-                    }
-                } else {
-                    // Other filters can be applied at session level after grouping
-                    if (op === 'like') {
-                        const key = `sf${idx++}`;
-                        if (f.field === 'referrer') {
-                            sessionLevelClauses.push(`lower(referrer) LIKE lower({${key}:String})`);
-                            (params as any)[key] = `%${(f as any).value}%`;
-                        } else {
-                            sessionLevelClauses.push(`${f.field} LIKE {${key}:String}`);
-                            (params as any)[key] = `%${(f as any).value}%`;
-                        }
-                    } else {
-                        if (f.field === 'referrer' && (f as any).value === '') {
-                            sessionLevelClauses.push(`(referrer = '' OR referrer IS NULL OR referrer = 'direct')`);
-                        } else {
-                            const key = `sf${idx++}`;
-                            sessionLevelClauses.push(`${f.field} = {${key}:String}`);
-                            (params as any)[key] = Array.isArray((f as any).value)
-                                ? String((f as any).value[0])
-                                : String((f as any).value);
-                        }
-                    }
-                }
-            }
-            
-            const eventWhereFilters = eventLevelClauses.length ? ` AND ${eventLevelClauses.join(' AND ')}` : '';
-            const sessionHavingFilters = sessionLevelClauses.length ? ` HAVING ${sessionLevelClauses.join(' AND ')}` : '';
+	session_list: {
+		customSql: (
+			websiteId: string,
+			startDate: string,
+			endDate: string,
+			_filters?: unknown[],
+			_granularity?: unknown,
+			limit?: number,
+			offset?: number
+		) => {
+			const allowedFields = new Set([
+				'path',
+				'referrer',
+				'device_type',
+				'browser_name',
+				'os_name',
+				'country',
+			]);
 
-            return {
-                sql: `
+			const filters = Array.isArray(_filters)
+				? (_filters as SessionFilter[])
+				: [];
+			const {
+				eventLevelClauses,
+				sessionLevelClauses,
+				params: filterParams,
+			} = processFilters(filters, allowedFields);
+
+			const params: Record<string, unknown> = {
+				websiteId,
+				startDate,
+				endDate: `${endDate} 23:59:59`,
+				limit: limit ?? 25,
+				offset: offset ?? 0,
+				...filterParams,
+			};
+
+			const eventWhereFilters = eventLevelClauses.length
+				? ` AND ${eventLevelClauses.join(' AND ')}`
+				: '';
+			const sessionHavingFilters = sessionLevelClauses.length
+				? ` HAVING ${sessionLevelClauses.join(' AND ')}`
+				: '';
+
+			return {
+				sql: `
     WITH session_list AS (
       SELECT
         session_id,
@@ -220,7 +294,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
       WHERE e.client_id = {websiteId:String}
-		${combinedWhereClause}
       GROUP BY e.session_id
     )
     SELECT
@@ -240,19 +313,19 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
     ORDER BY sl.first_visit DESC
-  `,
-                params,
-            };
-        },
+      `,
+				params,
+			};
+		},
 		timeField: 'time',
-			allowedFilters: [
-				'path',
-				'referrer',
-				'device_type',
-				'browser_name',
-				'os_name',
-				'country',
-			],
+		allowedFilters: [
+			'path',
+			'referrer',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'country',
+		],
 		customizable: true,
 	},
 
@@ -275,6 +348,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		where: ['session_id = ?'],
 		orderBy: 'time ASC',
 		timeField: 'time',
+		allowedFilters: ['event_name', 'path', 'error_type'],
 		customizable: true,
 	},
 };

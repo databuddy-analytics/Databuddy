@@ -76,7 +76,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		null
 	);
 	const [page, setPage] = useState(1);
-	const [allSessions, setAllSessions] = useState<SessionData[]>([]);
+	const [allSessions, setAllSessions] = useState<any[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
   
@@ -124,12 +124,12 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 
   // Memoize browser and OS options to avoid recalculation
   const browserOptions = useMemo(() => 
-    Array.from(new Set(unfilteredSessions.map((s:SessionData)=> s.browser).filter(Boolean))),
+    Array.from(new Set(unfilteredSessions.map((s)=> s.browser).filter(Boolean))),
     [unfilteredSessions]
   );
   
   const osOptions = useMemo(() => 
-    Array.from(new Set(unfilteredSessions.map((s:any)=> s.os || s.os_name).filter(Boolean))),
+    Array.from(new Set(unfilteredSessions.map((s)=> s.os).filter(Boolean))),
     [unfilteredSessions]
   );
 
@@ -341,7 +341,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
           ) : (
             <>
               <div className="divide-y divide-border">
-                {allSessions.map((session: SessionData, index: number) => (
+                {allSessions.map((session, index: number) => (
                   <SessionRow
                     index={index}
                     isExpanded={expandedSessionId === session.session_id}

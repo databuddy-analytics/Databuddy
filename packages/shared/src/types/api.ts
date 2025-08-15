@@ -1,14 +1,10 @@
-export interface ParameterWithDates {
-	name: string;
-	start_date?: string;
-	end_date?: string;
-	granularity?: 'hourly' | 'daily';
-	id?: string;
-}
+// API request and response types
+
+import type { DateRange } from './analytics';
 
 export interface DynamicQueryRequest {
 	id?: string;
-	parameters: (string | ParameterWithDates)[];
+	parameters: string[];
 	limit?: number;
 	page?: number;
 	filters?: DynamicQueryFilter[];
@@ -19,17 +15,17 @@ export interface DynamicQueryRequest {
 export interface DynamicQueryFilter {
 	field: string;
 	operator:
-    | 'eq'
-    | 'ne'
-    | 'gt'
-    | 'gte'
-    | 'lt'
-    | 'lte'
-    | 'in'
-    | 'not_in'
-    | 'contains'
-    | 'starts_with'
-    | 'like';
+		| 'eq'
+		| 'ne'
+		| 'gt'
+		| 'gte'
+		| 'lt'
+		| 'lte'
+		| 'in'
+		| 'not_in'
+		| 'contains'
+		| 'starts_with'
+		| 'like';
 	value: string | number | (string | number)[];
 }
 
@@ -52,13 +48,13 @@ export interface DynamicQueryResponse {
 		filters_applied: number;
 	};
 	error?: string;
-	date_range?: { start: string; end: string };
+	date_range?: DateRange;
 }
 
 export interface GoalFilter {
 	field: string;
 	operator: 'equals' | 'contains' | 'not_equals' | 'in' | 'not_in';
-	value: DynamicQueryFilter['value'];
+	value: string | string[];
 }
 
 export interface BatchQueryResponse {

@@ -5,18 +5,8 @@ import type {
 	DynamicQueryRequest,
 	DynamicQueryResponse,
 	ExtractDataTypes,
-	JourneyDropoff,
-	JourneyEntryPoint,
-	JourneyPath,
-	JourneyTransition,
 	ParameterDataMap,
-	ProfileData,
 	QueryOptionsResponse,
-	RecentRefundData,
-	RecentTransactionData,
-	RevenueBreakdownData,
-	RevenueSummaryData,
-	RevenueTrendData,
 } from '@databuddy/shared';
 import { getCountryCode, getCountryName } from '@databuddy/shared';
 import {
@@ -28,6 +18,156 @@ import {
 import { useCallback, useMemo } from 'react';
 import { formatDuration } from '@/app/(main)/websites/[id]/profiles/_components/profile-utils';
 import { usePreferences } from './use-preferences';
+
+// Additional types for this hook
+interface ParameterResult {
+	success: boolean;
+	parameter: string;
+	data?: Record<string, unknown>[];
+	error?: string;
+}
+
+interface ProcessedBatchResult {
+	queryId?: string;
+	success: boolean;
+	data: Record<string, Record<string, unknown>[]>;
+	errors: Array<{ parameter: string; error?: string }>;
+	meta?: Record<string, unknown>;
+	rawResult?: DynamicQueryResponse;
+}
+
+interface FilterCompat {
+	op?: string;
+	operator?: string;
+	field: string;
+	value: string | number | (string | number)[];
+}
+
+interface EventTuple {
+	0: string; // id
+	1: string; // time
+	2: string; // event_name
+	3: string; // path
+	4: string; // error_message
+	5: string; // error_type
+	6: string; // properties (JSON string)
+}
+
+interface EventData {
+	event_id: string;
+	time: string;
+	event_name: string;
+	path: string;
+	error_message: string;
+	error_type: string;
+	properties: Record<string, unknown>;
+}
+
+interface ReferrerParsed {
+	type: 'internal' | 'external' | 'direct';
+	name: string;
+	domain: string | null;
+}
+
+interface RawSessionData {
+	session_id: string;
+	visitor_id: string;
+	first_visit: string;
+	last_visit: string;
+	duration: number;
+	page_views: number;
+	unique_pages: number;
+	path: string;
+	referrer?: string;
+	device_type: string;
+	browser_name: string;
+	os_name: string;
+	country?: string;
+	user_agent: string;
+	event_types?: string[];
+	page_sequence?: string[];
+	events?: EventTuple[];
+	// Additional profile-specific fields
+	session_count?: number;
+	total_events?: number;
+	region?: string;
+	session_start?: string;
+	session_end?: string;
+	session_unique_pages?: number;
+	session_device_type?: string;
+	session_browser_name?: string;
+	session_os_name?: string;
+	session_country?: string;
+	session_region?: string;
+	session_referrer?: string;
+}
+
+interface TransformedSessionData {
+	session_id: string;
+	session_name: string;
+	anonymous_id: string;
+	session_start: string;
+	path: string;
+	referrer?: string;
+	device_type: string;
+	browser_name: string;
+	country: string;
+	country_name: string;
+	user_agent: string;
+	duration: number;
+	duration_formatted: string;
+	page_views: number;
+	unique_pages: number;
+	first_event_time: string;
+	last_event_time: string;
+	event_types?: string[];
+	page_sequence?: string[];
+	visitor_total_sessions: number;
+	is_returning_visitor: boolean;
+	visitor_session_count: number;
+	referrer_parsed: ReferrerParsed | null;
+	events: EventData[];
+	device: string;
+	browser: string;
+	os: string;
+}
+
+interface SessionDataWithEvents {
+	session_id: string;
+	session_name: string;
+	first_visit: string;
+	last_visit: string;
+	duration: number;
+	duration_formatted: string;
+	page_views: number;
+	unique_pages: number;
+	device: string;
+	browser: string;
+	os: string;
+	country: string;
+	country_name: string;
+	region?: string;
+	referrer?: string;
+	events: EventData[];
+}
+
+// Local ProfileData type that matches our implementation
+interface LocalProfileData {
+	visitor_id: string;
+	first_visit: string;
+	last_visit: string;
+	total_sessions: number;
+	total_pageviews: number;
+	total_duration: number;
+	total_duration_formatted: string;
+	device: string;
+	browser: string;
+	os: string;
+	country: string;
+	country_name: string;
+	region: string;
+	sessions: SessionDataWithEvents[];
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -102,14 +242,6 @@ function useUserTimezone(): string {
 		: preferences.timezone;
 }
 
-function transformFilters(filters?: DynamicQueryRequest['filters']) {
-	return filters?.map(({ field, operator, value }) => ({
-		field,
-		op: operator,
-		value,
-	}));
-}
-
 // Dynamic query specific fetcher - POST request (supports both single and batch)
 async function fetchDynamicQuery(
 	websiteId: string,
@@ -122,38 +254,38 @@ async function fetchDynamicQuery(
 	const params = buildParams(websiteId, dateRange, { timezone });
 	const url = `${API_BASE_URL}/v1/query?${params}`;
 
-  const toApiFilters = (filters?: any[]) =>
-    (filters || []).map((f) =>
-      'op' in f
-        ? f
-        : 'operator' in f
-          ? { field: f.field, op: f.operator, value: f.value }
-          : f
-    );
+	const toApiFilters = (filters?: FilterCompat[]) =>
+		(filters || []).map((f) =>
+			'op' in f
+				? f
+				: 'operator' in f
+					? { field: f.field, op: f.operator, value: f.value }
+					: f
+		);
 
-  const requestBody = Array.isArray(queryData)
-    ? queryData.map((query) => ({
-        ...query,
-        startDate: dateRange.start_date,
-        endDate: dateRange.end_date,
-        timeZone: timezone,
-        limit: query.limit || 100,
-        page: query.page || 1,
-        filters: toApiFilters(query.filters),
-        granularity: query.granularity || dateRange.granularity || 'daily',
-        groupBy: query.groupBy,
-      }))
-    : {
-        ...queryData,
-        startDate: dateRange.start_date,
-        endDate: dateRange.end_date,
-        timeZone: timezone,
-        limit: queryData.limit || 100,
-        page: queryData.page || 1,
-        filters: toApiFilters(queryData.filters),
-        granularity: queryData.granularity || dateRange.granularity || 'daily',
-        groupBy: queryData.groupBy,
-      };
+	const requestBody = Array.isArray(queryData)
+		? queryData.map((query) => ({
+				...query,
+				startDate: dateRange.start_date,
+				endDate: dateRange.end_date,
+				timeZone: timezone,
+				limit: query.limit || 100,
+				page: query.page || 1,
+				filters: toApiFilters(query.filters),
+				granularity: query.granularity || dateRange.granularity || 'daily',
+				groupBy: query.groupBy,
+			}))
+		: {
+				...queryData,
+				startDate: dateRange.start_date,
+				endDate: dateRange.end_date,
+				timeZone: timezone,
+				limit: queryData.limit || 100,
+				page: queryData.page || 1,
+				filters: toApiFilters(queryData.filters),
+				granularity: queryData.granularity || dateRange.granularity || 'daily',
+				groupBy: queryData.groupBy,
+			};
 
 	const response = await fetch(url, {
 		method: 'POST',
@@ -227,7 +359,7 @@ export function useDynamicQuery<T extends (keyof ParameterDataMap)[]>(
 					}
 					return acc;
 				},
-				{} as Record<string, any>
+				{} as Record<string, Record<string, unknown>[]>
 			) || {}
 		);
 	}, [query.data]);
@@ -298,35 +430,41 @@ export function useBatchDynamicQuery(
 		enabled: options?.enabled !== false && !!websiteId && queries.length > 0,
 	});
 
-	// Enhanced processing with better debugging and clearer structure
-	const processedResults = useMemo(() => {
-		if (!query.data?.results) {
-			return [];
-		}
+	// Helper function to process parameter results
+	const processParameterResults = useCallback(
+		(
+			paramResults: ParameterResult[],
+			processedResult: ProcessedBatchResult
+		) => {
+			for (const paramResult of paramResults) {
+				if (paramResult.success && paramResult.data) {
+					processedResult.data[paramResult.parameter] = paramResult.data;
+					processedResult.success = true;
+				} else {
+					processedResult.errors.push({
+						parameter: paramResult.parameter,
+						error: paramResult.error,
+					});
+				}
+			}
+		},
+		[]
+	);
 
-		return query.data.results.map((result, _index) => {
-			const processedResult = {
+	// Helper function to process individual batch result
+	const processBatchResult = useCallback(
+		(result: DynamicQueryResponse) => {
+			const processedResult: ProcessedBatchResult = {
 				queryId: result.queryId,
-				success: false, // Will be set based on parameter results
-				data: {} as Record<string, any>,
+				success: false,
+				data: {} as Record<string, Record<string, unknown>[]>,
 				errors: [] as Array<{ parameter: string; error?: string }>,
 				meta: result.meta,
-				rawResult: result, // Keep raw result for debugging
+				rawResult: result,
 			};
 
 			if (result.data && Array.isArray(result.data)) {
-				// Process each parameter result
-				for (const paramResult of result.data) {
-					if (paramResult.success && paramResult.data) {
-						processedResult.data[paramResult.parameter] = paramResult.data;
-						processedResult.success = true; // At least one parameter succeeded
-					} else {
-						processedResult.errors.push({
-							parameter: paramResult.parameter,
-							error: paramResult.error,
-						});
-					}
-				}
+				processParameterResults(result.data, processedResult);
 			} else {
 				processedResult.errors.push({
 					parameter: 'query',
@@ -335,8 +473,18 @@ export function useBatchDynamicQuery(
 			}
 
 			return processedResult;
-		});
-	}, [query.data]);
+		},
+		[processParameterResults]
+	);
+
+	// Enhanced processing with better debugging and clearer structure
+	const processedResults = useMemo(() => {
+		if (!query.data?.results) {
+			return [];
+		}
+
+		return query.data.results.map(processBatchResult);
+	}, [query.data, processBatchResult]);
 
 	// Helper functions for easier data access
 	const getDataForQuery = useCallback(
@@ -423,7 +571,6 @@ export function useQueryOptions(
 export function useEnhancedPerformanceData(
 	websiteId: string,
 	dateRange: DateRange,
-	filters: DynamicQueryFilter[],
 	options?: Partial<UseQueryOptions<BatchQueryResponse>>
 ) {
 	const queries: DynamicQueryRequest[] = [
@@ -431,37 +578,31 @@ export function useEnhancedPerformanceData(
 			id: 'pages',
 			parameters: ['slow_pages'],
 			limit: 100,
-			filters,
 		},
 		{
 			id: 'countries',
 			parameters: ['performance_by_country'],
 			limit: 100,
-			filters,
 		},
 		{
 			id: 'devices',
 			parameters: ['performance_by_device'],
 			limit: 100,
-			filters,
 		},
 		{
 			id: 'browsers',
 			parameters: ['performance_by_browser'],
 			limit: 100,
-			filters,
 		},
 		{
 			id: 'operating_systems',
 			parameters: ['performance_by_os'],
 			limit: 100,
-			filters,
 		},
 		{
 			id: 'regions',
 			parameters: ['performance_by_region'],
 			limit: 100,
-			filters,
 		},
 	];
 
@@ -600,7 +741,10 @@ export function useInfiniteSessionsData(
 		gcTime: 10 * 60 * 1000, // 10 minutes
 		initialPageParam: 1,
 		getNextPageParam: (lastPage) => {
-			const sessions = (lastPage.data as any)?.session_list || [];
+			const sessionData = lastPage.data.find(
+				(result) => result.parameter === 'session_list'
+			);
+			const sessions = (sessionData?.data as unknown[]) || [];
 			return sessions.length === limit ? lastPage.meta.page + 1 : undefined;
 		},
 		getPreviousPageParam: (firstPage) => {
@@ -611,50 +755,82 @@ export function useInfiniteSessionsData(
 }
 
 /**
+ * Parse event tuple into EventData object
+ */
+function parseEventTuple(eventTuple: EventTuple): EventData | null {
+	if (!Array.isArray(eventTuple) || eventTuple.length < 7) {
+		return null;
+	}
+
+	const [id, time, event_name, path, error_message, error_type, properties] =
+		eventTuple;
+
+	let propertiesObj: Record<string, unknown> = {};
+	if (properties) {
+		try {
+			propertiesObj = JSON.parse(properties);
+		} catch {
+			// If parsing fails, keep empty object
+		}
+	}
+
+	return {
+		event_id: id,
+		time,
+		event_name,
+		path,
+		error_message: error_message || '',
+		error_type: error_type || '',
+		properties: propertiesObj,
+	};
+}
+
+/**
+ * Parse events array from tuples to EventData objects
+ */
+function parseEventsArray(events?: EventTuple[]): EventData[] {
+	if (!(events && Array.isArray(events))) {
+		return [];
+	}
+
+	return events
+		.map(parseEventTuple)
+		.filter((event): event is EventData => event !== null);
+}
+
+/**
+ * Parse referrer URL into structured format
+ */
+function parseReferrer(referrer?: string): ReferrerParsed | null {
+	if (!referrer) {
+		return null;
+	}
+
+	try {
+		const url = new URL(referrer);
+		return {
+			type: url.hostname === window.location.hostname ? 'internal' : 'external',
+			name: url.hostname,
+			domain: url.hostname,
+		};
+	} catch {
+		return {
+			type: 'direct',
+			name: 'Direct',
+			domain: null,
+		};
+	}
+}
+
+/**
  * Transform sessions data from API2 format to frontend format
  */
-function transformSessionsData(sessions: any[]): any[] {
+function transformSessionsData(
+	sessions: RawSessionData[]
+): TransformedSessionData[] {
 	return sessions.map((session) => {
-		// Parse events from tuples to objects
-		let events: any[] = [];
-		if (session.events && Array.isArray(session.events)) {
-			events = session.events
-				.map((eventTuple: any) => {
-					// Handle tuple format: [id, time, event_name, path, error_message, error_type, properties]
-					if (Array.isArray(eventTuple) && eventTuple.length >= 7) {
-						const [
-							id,
-							time,
-							event_name,
-							path,
-							error_message,
-							error_type,
-							properties,
-						] = eventTuple;
-
-						let propertiesObj: Record<string, any> = {};
-						if (properties) {
-							try {
-								propertiesObj = JSON.parse(properties);
-							} catch {
-								// If parsing fails, keep empty object
-							}
-						}
-
-						return {
-							event_id: id,
-							time,
-							event_name,
-							path,
-							error_message,
-							error_type,
-							properties: propertiesObj,
-						};
-					}
-					return null;
-				})
-				.filter(Boolean);
-		}
+		// Parse events using helper function
+		const events = parseEventsArray(session.events);
 
 		// Calculate visitor session count - for now default to 1 since we don't have this data
 		const visitorSessionCount = 1;
@@ -668,25 +844,8 @@ function transformSessionsData(sessions: any[]): any[] {
 		// Format duration
 		const durationFormatted = formatDuration(session.duration || 0);
 
-		// Parse referrer
-		let referrerParsed = null;
-		if (session.referrer) {
-			try {
-				const url = new URL(session.referrer);
-				referrerParsed = {
-					type:
-						url.hostname === window.location.hostname ? 'internal' : 'external',
-					name: url.hostname,
-					domain: url.hostname,
-				};
-			} catch {
-				referrerParsed = {
-					type: 'direct',
-					name: 'Direct',
-					domain: null,
-				};
-			}
-		}
+		// Parse referrer using helper function
+		const referrerParsed = parseReferrer(session.referrer);
 
 		// Map country code and preserve original name
 		const countryCode = getCountryCode(session.country || '');
@@ -729,24 +888,24 @@ function transformSessionsData(sessions: any[]): any[] {
  * Hook for sessions with pagination support
  */
 export function useSessionsData(
-    websiteId: string,
-    dateRange: DateRange,
-    limit = 50,
-    page = 1,
-    options?: Partial<UseQueryOptions<DynamicQueryResponse>> & {
-        filters?: DynamicQueryFilter[];
-    }
+	websiteId: string,
+	dateRange: DateRange,
+	limit = 50,
+	page = 1,
+	options?: Partial<UseQueryOptions<DynamicQueryResponse>> & {
+		filters?: DynamicQueryFilter[];
+	}
 ) {
 	const queryResult = useDynamicQuery(
 		websiteId,
 		dateRange,
-        {
+		{
 			id: 'sessions-list',
 			parameters: ['session_list'],
 			limit,
 			page,
-            filters: options?.filters || [],
-        },
+			filters: options?.filters || [],
+		},
 		{
 			...options,
 			staleTime: 5 * 60 * 1000, // 5 minutes
@@ -755,7 +914,9 @@ export function useSessionsData(
 	);
 
 	const sessions = useMemo(() => {
-		const rawSessions = (queryResult.data as any)?.session_list || [];
+		const rawSessions =
+			((queryResult.data as Record<string, unknown>)
+				?.session_list as RawSessionData[]) || [];
 		return transformSessionsData(rawSessions);
 	}, [queryResult.data]);
 
@@ -780,105 +941,80 @@ export function useSessionsData(
 }
 
 /**
+ * Create session data object from profile data
+ */
+function createSessionDataFromProfile(
+	profile: RawSessionData
+): SessionDataWithEvents {
+	return {
+		session_id: profile.session_id,
+		session_name: `Session ${profile.session_id.slice(-8)}`,
+		first_visit: profile.session_start || profile.first_visit,
+		last_visit: profile.session_end || profile.last_visit,
+		duration: profile.duration || 0,
+		duration_formatted: formatDuration(profile.duration || 0),
+		page_views: profile.page_views || 0,
+		unique_pages: profile.session_unique_pages || 0,
+		device: profile.session_device_type || profile.device_type,
+		browser: profile.session_browser_name || profile.browser_name,
+		os: profile.session_os_name || profile.os_name,
+		country: getCountryCode(profile.session_country || profile.country || ''),
+		country_name: getCountryName(
+			profile.session_country || profile.country || ''
+		),
+		region: profile.session_region || profile.region,
+		referrer: profile.session_referrer || profile.referrer,
+		events: parseEventsArray(profile.events),
+	};
+}
+
+/**
+ * Initialize profile data structure
+ */
+function initializeProfileData(profile: RawSessionData): LocalProfileData {
+	return {
+		visitor_id: profile.visitor_id,
+		first_visit: profile.first_visit,
+		last_visit: profile.last_visit,
+		total_sessions: profile.session_count || 0,
+		total_pageviews: profile.total_events || 0,
+		total_duration: 0,
+		total_duration_formatted: '0s',
+		device: profile.device_type,
+		browser: profile.browser_name,
+		os: profile.os_name,
+		country: getCountryCode(profile.country || ''),
+		country_name: getCountryName(profile.country || ''),
+		region: profile.region || '',
+		sessions: [],
+	};
+}
+
+/**
  * Transform profiles data from API2 format to frontend format
  */
-function transformProfilesData(profiles: any[]): ProfileData[] {
-	const profilesByVisitor = new Map();
+function transformProfilesData(profiles: RawSessionData[]): LocalProfileData[] {
+	const profilesByVisitor = new Map<string, LocalProfileData>();
 
 	for (const profile of profiles) {
+		// Initialize profile if not exists
 		if (!profilesByVisitor.has(profile.visitor_id)) {
-			// Initialize profile data
-			profilesByVisitor.set(profile.visitor_id, {
-				visitor_id: profile.visitor_id,
-				first_visit: profile.first_visit,
-				last_visit: profile.last_visit,
-				total_sessions: profile.session_count,
-				total_pageviews: profile.total_events,
-				total_duration: 0,
-				total_duration_formatted: '0s',
-				device: profile.device_type,
-				browser: profile.browser_name,
-				os: profile.os_name,
-				country: getCountryCode(profile.country || ''),
-				country_name: getCountryName(profile.country || ''),
-				region: profile.region,
-				sessions: [],
-			});
+			profilesByVisitor.set(profile.visitor_id, initializeProfileData(profile));
 		}
 
 		// Add session data if available
 		if (profile.session_id) {
-			const sessionData = {
-				session_id: profile.session_id,
-				session_name: `Session ${profile.session_id.slice(-8)}`,
-				first_visit: profile.session_start,
-				last_visit: profile.session_end,
-				duration: profile.duration || 0,
-				duration_formatted: formatDuration(profile.duration || 0),
-				page_views: profile.page_views || 0,
-				unique_pages: profile.session_unique_pages || 0,
-				device: profile.session_device_type || profile.device_type,
-				browser: profile.session_browser_name || profile.browser_name,
-				os: profile.session_os_name || profile.os_name,
-				country: getCountryCode(
-					profile.session_country || profile.country || ''
-				),
-				country_name: getCountryName(
-					profile.session_country || profile.country || ''
-				),
-				region: profile.session_region || profile.region,
-				referrer: profile.session_referrer || profile.referrer,
-				events: [],
-			};
-
-			// Parse events if available
-			if (profile.events && Array.isArray(profile.events)) {
-				sessionData.events = profile.events
-					.map((eventTuple: any) => {
-						if (Array.isArray(eventTuple) && eventTuple.length >= 7) {
-							const [
-								id,
-								time,
-								event_name,
-								path,
-								error_message,
-								error_type,
-								properties,
-							] = eventTuple;
-
-							let propertiesObj: Record<string, any> = {};
-							if (properties) {
-								try {
-									propertiesObj = JSON.parse(properties);
-								} catch {
-									// If parsing fails, keep empty object
-								}
-							}
-
-							return {
-								event_id: id,
-								time,
-								event_name,
-								path,
-								error_message,
-								error_type,
-								properties: propertiesObj,
-							};
-						}
-						return null;
-					})
-					.filter(Boolean);
-			}
-
-			profilesByVisitor.get(profile.visitor_id).sessions.push(sessionData);
+			const sessionData = createSessionDataFromProfile(profile);
+			profilesByVisitor.get(profile.visitor_id)?.sessions.push(sessionData);
 		}
 	}
 
 	// Convert to array and sort sessions by start time
+	// Convert to array and sort sessions by start time
 	return Array.from(profilesByVisitor.values()).map((profile) => ({
 		...profile,
 		sessions: profile.sessions.sort(
-			(a: any, b: any) =>
+			(a, b) =>
 				new Date(b.first_visit).getTime() - new Date(a.first_visit).getTime()
 		),
 	}));
@@ -911,7 +1047,9 @@ export function useProfilesData(
 	);
 
 	const profiles = useMemo(() => {
-		const rawProfiles = (queryResult.data as any)?.profile_list || [];
+		const rawProfiles =
+			((queryResult.data as Record<string, unknown>)
+				?.profile_list as RawSessionData[]) || [];
 		return transformProfilesData(rawProfiles);
 	}, [queryResult.data]);
 
@@ -969,8 +1107,11 @@ export function useRealTimeStats(
 	);
 
 	const activeUsers = useMemo(() => {
-		const data = (queryResult.data as any)?.active_stats?.[0];
-		return data?.active_users || 0;
+		const data = (queryResult.data as Record<string, unknown>)?.active_stats as
+			| Array<{ active_users: number }>
+			| undefined;
+		const firstActiveStatsItem = data?.[0];
+		return firstActiveStatsItem?.active_users || 0;
 	}, [queryResult.data]);
 
 	return { ...queryResult, activeUsers };

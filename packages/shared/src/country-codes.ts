@@ -319,70 +319,70 @@ export function getCountryName(countryCode: string): string {
 // Common country aliases and abbreviations for filtering
 export const COUNTRY_ALIASES: Record<string, string> = {
 	// United States variations
-	'us': 'United States',
-	'usa': 'United States',
-	'america': 'United States',
+	us: 'United States',
+	usa: 'United States',
+	america: 'United States',
 	'united states of america': 'United States',
-	
+
 	// United Kingdom variations
-	'uk': 'United Kingdom',
-	'britain': 'United Kingdom',
+	uk: 'United Kingdom',
+	britain: 'United Kingdom',
 	'great britain': 'United Kingdom',
-	'england': 'United Kingdom',
-	
+	england: 'United Kingdom',
+
 	// Germany variations
-	'de': 'Germany',
-	'deutschland': 'Germany',
-	
+	de: 'Germany',
+	deutschland: 'Germany',
+
 	// France variations
-	'fr': 'France',
-	'france': 'France',
-	
+	fr: 'France',
+	france: 'France',
+
 	// Canada variations
-	'ca': 'Canada',
-	
+	ca: 'Canada',
+
 	// Japan variations
-	'jp': 'Japan',
-	
+	jp: 'Japan',
+
 	// Australia variations
-	'au': 'Australia',
-	'oz': 'Australia',
-	
+	au: 'Australia',
+	oz: 'Australia',
+
 	// India variations
-	'in': 'India',
-	
+	in: 'India',
+
 	// China variations
-	'cn': 'China',
-	'prc': 'China',
-	
+	cn: 'China',
+	prc: 'China',
+
 	// Brazil variations
-	'br': 'Brazil',
-	'brasil': 'Brazil',
-	
+	br: 'Brazil',
+	brasil: 'Brazil',
+
 	// Russia variations
-	'ru': 'Russia',
-	'russia': 'Russia',
+	ru: 'Russia',
+	russia: 'Russia',
 	'russian federation': 'Russian Federation',
-	
+
 	// Italy variations
-	'it': 'Italy',
-	'italia': 'Italy',
-	
+	it: 'Italy',
+	italia: 'Italy',
+
 	// Spain variations
-	'es': 'Spain',
-	'españa': 'Spain',
-	
+	es: 'Spain',
+	españa: 'Spain',
+
 	// Netherlands variations
-	'nl': 'Netherlands',
-	'holland': 'Netherlands',
+	nl: 'Netherlands',
+	holland: 'Netherlands',
 	'the netherlands': 'The Netherlands',
-	
+
 	// Other common variations
 	'south korea': 'Korea, Republic of',
 	'north korea': "Korea, Democratic People's Republic of",
-	'vietnam': 'Viet Nam',
+	vietnam: 'Viet Nam',
 	'czech republic': 'Czech Republic',
-	'czechia': 'Czechia',
+	czechia: 'Czechia',
 };
 
 /**
@@ -410,7 +410,7 @@ export function normalizeCountryForFilter(input: string): string {
 
 	// Check if it's already a valid country name (case-insensitive)
 	const exactMatch = COUNTRY_NAME_TO_CODE[trimmed];
-	
+
 	if (exactMatch) {
 		return trimmed;
 	}
