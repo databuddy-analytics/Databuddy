@@ -312,7 +312,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       COALESCE(se.events, []) as events
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
-    ${combinedWhereClause ? `WHERE ${combinedWhereClause.replace('AND ', '')}` : ''}
     ORDER BY sl.first_visit DESC
       `,
 				params,

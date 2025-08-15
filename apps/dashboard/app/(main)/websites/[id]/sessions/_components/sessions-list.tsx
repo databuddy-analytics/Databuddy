@@ -2,8 +2,9 @@
 
 import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useAtom } from 'jotai';
 import z from 'zod/v4';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { useAutocompleteData } from '@/hooks/use-funnels';
 import SessionsFilters, { buildSessionFilters, type FilterItem } from './sessions-filters';
 import { WebsitePageHeader } from '../../_components/website-page-header';
 import { getDefaultDateRange } from './session-utils';
+import { getSessionPageAtom } from '@/stores/jotai/sessionAtoms';
 
 const SessionRow = dynamic(
 	() => import('./session-row').then((mod) => ({ default: mod.SessionRow })),
@@ -75,9 +77,6 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 	const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
 		null
 	);
-	const [page, setPage] = useState(1);
-	const [allSessions, setAllSessions] = useState<any[]>([]);
-	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const searchParams = useSearchParams();
@@ -103,6 +102,8 @@ export function SessionsList({ websiteId }: SessionsListProps) {
     return [];
   });
 
+  const [page, setPage] = useAtom(getSessionPageAtom(websiteId));
+  
   const { sessions, pagination, isLoading, isError, error } = useSessionsData(
 		websiteId,
 		dateRange,
@@ -112,7 +113,6 @@ export function SessionsList({ websiteId }: SessionsListProps) {
       filters: buildSessionFilters(filterItems),
     }
 	);
-	const [page, setPage] = useAtom(getSessionPageAtom(websiteId));
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Fetch unfiltered sessions data ONLY for getting browser/OS options
@@ -159,37 +159,21 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		);
 	}, []);
 
-	const { data, isLoading, isError, error } = useDynamicQuery(
-		websiteId,
-		dateRange,
-		{
-			id: 'sessions-list',
-			parameters: ['session_list'],
-			limit: 50,
-			page,
-			filters: filters.length > 0 ? filters : undefined,
-		},
-		{
-			staleTime: 5 * 60 * 1000,
-			gcTime: 10 * 60 * 1000,
-		}
-	);
-
 	// State to accumulate sessions across pages
 	const [allSessions, setAllSessions] = useState<Record<string, unknown>[]>([]);
 
 	// Transform and accumulate sessions
 	useEffect(() => {
-		if (!data?.session_list) {
+		if (!sessions?.length) {
 			return;
 		}
 
-		const rawSessions = (data.session_list as unknown[]) || [];
+		const rawSessions = sessions || [];
 		const transformedSessions = rawSessions.map((session: unknown) => {
 			const sessionData = session as Record<string, unknown>;
-			// Transform ClickHouse tuple events to objects
+			// Events should already be in the correct format
 			const events = Array.isArray(sessionData.events)
-				? transformSessionEvents(sessionData.events)
+				? sessionData.events
 				: [];
 
 			return {
@@ -217,12 +201,11 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 				return [...prev, ...newSessions];
 			});
 		}
-	}, [data, page]);
+	}, [sessions, page]);
 
 	const hasNextPage = useMemo(() => {
-		const currentPageData = (data?.session_list as unknown[]) || [];
-		return currentPageData.length === 50;
-	}, [data]);
+		return pagination.hasNext;
+	}, [pagination.hasNext]);
 
 	useEffect(() => {
 		const observer = new IntersectionObserver(
@@ -370,15 +353,15 @@ export function SessionsList({ websiteId }: SessionsListProps) {
                 {allSessions.map((session, index: number) => (
                   <SessionRow
                     index={index}
-                    isExpanded={expandedSessionId === session.session_id}
-                    key={session.session_id || index}
+                    isExpanded={expandedSessionId === (session as any).session_id}
+                    key={(session as any).session_id || index}
                     onToggle={toggleSession}
                     session={session}
                   />
                 ))}
               </div>
 
-              <div className="border-t p-4" ref={setLoadMoreRef}>
+              <div className="border-t p-4" ref={loadMoreRef}>
                 {pagination.hasNext ? (
                   <div className="flex justify-center">
                     {isLoading ? (
@@ -389,7 +372,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
                     ) : (
                       <Button
                         className="w-full"
-                        onClick={() => setPage((prev) => prev + 1)}
+                        onClick={() => setPage(page + 1)}
                         variant="outline"
                       >
                         Load More Sessions
