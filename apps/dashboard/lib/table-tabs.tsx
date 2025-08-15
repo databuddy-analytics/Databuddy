@@ -19,6 +19,7 @@ export interface TabConfig<T extends BaseTabItem> {
 	primaryField: keyof T;
 	primaryHeader: string;
 	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
+	getFilter?: (row: T) => { field: string; value: string };
 }
 
 // Generic function to add percentages to data
@@ -103,6 +104,7 @@ export interface SimpleTabConfig<T extends BaseTabItem> {
 	primaryField: string;
 	primaryHeader: string;
 	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
+	getFilter?: (row: T) => { field: string; value: string };
 }
 
 // Hook to create tabs from simple data configuration
@@ -117,6 +119,7 @@ export function useTableTabs(tabsData: Record<string, SimpleTabConfig<any>>) {
 				config.primaryHeader,
 				config.customCell
 			),
+			getFilter: config.getFilter,
 		}));
 	}, [tabsData]);
 }

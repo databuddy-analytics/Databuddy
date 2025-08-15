@@ -42,6 +42,7 @@ interface TabConfig<TData> {
 	label: string;
 	data: TData[];
 	columns: ColumnDef<TData, unknown>[];
+	getFilter?: (row: TData) => { field: string; value: string };
 }
 
 interface DataTableProps<TData extends { name: string | number }, TValue> {
@@ -55,6 +56,7 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 	emptyMessage?: string;
 	className?: string;
 	onRowClick?: (field: string, value: string | number) => void;
+	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
 	minHeight?: string | number;
 	showSearch?: boolean;
 	getSubRows?: (row: TData) => TData[] | undefined;
@@ -167,6 +169,7 @@ function FullScreenTable<TData extends { name: string | number }, TValue>({
 	description,
 	isTransitioning = false,
 	showSearch = true,
+	onAddFilter,
 }: {
 	data: TData[];
 	columns: any[];
@@ -187,6 +190,7 @@ function FullScreenTable<TData extends { name: string | number }, TValue>({
 	description?: string;
 	isTransitioning?: boolean;
 	showSearch?: boolean;
+	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
 }) {
 	const [globalFilter, setGlobalFilter] = useState(search);
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -450,6 +454,8 @@ function FullScreenTable<TData extends { name: string | number }, TValue>({
 											onClick={() => {
 												if (hasSubRows) {
 													toggleRowExpansion(row.id);
+												} else if (onAddFilter && row.original.name) {
+													onAddFilter('name', String(row.original.name), title);
 												}
 											}}
 										>
@@ -586,6 +592,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	renderSubRow,
 	expandable = false,
 	renderTooltipContent,
+	onAddFilter,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [globalFilter, setGlobalFilter] = useState('');
@@ -996,7 +1003,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 												<TableRow
 													className={cn(
 														'relative h-11 border-border/20 pl-3 transition-all duration-300 ease-in-out',
-														(onRowClick && !hasSubRows) || hasSubRows
+														(onRowClick && !hasSubRows) || hasSubRows || onAddFilter
 															? 'cursor-pointer'
 															: '',
 														hoveredRow && hoveredRow !== row.id
@@ -1010,6 +1017,18 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 													onClick={() => {
 														if (hasSubRows) {
 															toggleRowExpansion(row.id);
+																											} else if (onAddFilter && row.original.name) {
+														// Determine the appropriate field and value based on table context
+														const activeTabConfig = tabs?.find(tab => tab.id === activeTab);
+														const filterFunc = activeTabConfig?.getFilter;
+														if (!filterFunc) {
+															return;
+														}
+
+														const { field, value } = filterFunc(row.original);
+														onAddFilter(field, value, title);
+													} else if (onRowClick) {
+															onRowClick('name', row.original.name);
 														}
 													}}
 													onMouseEnter={() =>
@@ -1207,6 +1226,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 								showSearch={showSearch}
 								tabs={tabs}
 								title={title}
+								onAddFilter={onAddFilter}
 							/>
 						</div>
 					</div>,

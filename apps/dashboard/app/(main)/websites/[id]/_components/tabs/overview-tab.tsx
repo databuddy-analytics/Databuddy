@@ -34,6 +34,7 @@ import { MetricsChart } from '@/components/charts/metrics-chart';
 import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
 import { useTableTabs } from '@/lib/table-tabs';
 import { getUserTimezone } from '@/lib/timezone';
+
 import {
 	metricVisibilityAtom,
 	toggleMetricAtom,
@@ -143,6 +144,7 @@ export function WebsiteOverviewTab({
 	isRefreshing,
 	setIsRefreshing,
 	filters,
+	addFilter,
 }: FullTabProps) {
 	const calculatePreviousPeriod = useCallback(
 		(currentRange: typeof dateRange) => {
@@ -313,24 +315,43 @@ export function WebsiteOverviewTab({
 			primaryField: 'name',
 			primaryHeader: 'Source',
 			customCell: referrerCustomCell,
+			getFilter: (row: any) => {
+				// For referrers, use the referrer field and get the actual referrer URL
+				return {
+					field: 'referrer',
+					value: row.referrer
+				};
+			},
 		},
 		utm_sources: {
 			data: analytics.utm_sources || [],
 			label: 'UTM Sources',
 			primaryField: 'name',
 			primaryHeader: 'Source',
+			getFilter: (row: any) => ({
+				field: 'utm_source',
+				value: row.name
+			}),
 		},
 		utm_mediums: {
 			data: analytics.utm_mediums || [],
 			label: 'UTM Mediums',
 			primaryField: 'name',
 			primaryHeader: 'Medium',
+			getFilter: (row: any) => ({
+				field: 'utm_medium',
+				value: row.name
+			}),
 		},
 		utm_campaigns: {
 			data: analytics.utm_campaigns || [],
 			label: 'UTM Campaigns',
 			primaryField: 'name',
 			primaryHeader: 'Campaign',
+			getFilter: (row: any) => ({
+				field: 'utm_campaign',
+				value: row.name
+			}),
 		},
 	});
 
@@ -343,6 +364,10 @@ export function WebsiteOverviewTab({
 			label: 'Top Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
+			getFilter: (row: any) => ({
+				field: 'path',
+				value: row.name
+			}),
 		},
 		entry_pages: {
 			data: (analytics.entry_pages || []).map((page: PageData) => ({
@@ -352,6 +377,10 @@ export function WebsiteOverviewTab({
 			label: 'Entry Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
+			getFilter: (row: any) => ({
+				field: 'path',
+				value: row.name
+			}),
 		},
 		exit_pages: {
 			data: (analytics.exit_pages || []).map((page: PageData) => ({
@@ -361,6 +390,10 @@ export function WebsiteOverviewTab({
 			label: 'Exit Pages',
 			primaryField: 'name',
 			primaryHeader: 'Page',
+			getFilter: (row: any) => ({
+				field: 'path',
+				value: row.name
+			}),
 		},
 	});
 
@@ -875,6 +908,17 @@ export function WebsiteOverviewTab({
 		return <UnauthorizedAccessError />;
 	}
 
+	const onAddFilter = useCallback((field: string, value: string, tableTitle?: string) => {
+		// The field parameter now contains the correct filter field from the tab configuration
+		const filter = {
+			field,
+			operator: 'eq' as const,
+			value
+		};
+		
+		addFilter(filter);
+	}, [addFilter]);
+
 	return (
 		<div className="space-y-6">
 			<EventLimitIndicator />
@@ -1059,6 +1103,7 @@ export function WebsiteOverviewTab({
 					description="Referrers and campaign data"
 					isLoading={isLoading}
 					minHeight={350}
+					onAddFilter={onAddFilter}
 					tabs={referrerTabs}
 					title="Traffic Sources"
 				/>
@@ -1067,25 +1112,27 @@ export function WebsiteOverviewTab({
 					description="Top pages and entry/exit points"
 					isLoading={isLoading}
 					minHeight={350}
+					onAddFilter={onAddFilter}
 					tabs={pagesTabs}
 					title="Pages"
 				/>
 			</div>
 
 			{/* Custom Events Table */}
-			<DataTable
-				columns={customEventsColumns}
-				data={processedCustomEventsData}
-				description="User-defined events and interactions with property breakdowns"
-				emptyMessage="No custom events tracked yet"
-				expandable={true}
-				getSubRows={(row: CustomEventData) =>
-					row.propertyCategories as unknown as CustomEventData[]
-				}
-				initialPageSize={8}
-				isLoading={isLoading}
-				minHeight={350}
-				renderSubRow={(subRow: CustomEventData, parentRow: CustomEventData) => {
+							<DataTable
+					columns={customEventsColumns}
+					data={processedCustomEventsData}
+					description="User-defined events and interactions with property breakdowns"
+					emptyMessage="No custom events tracked yet"
+					expandable={true}
+					getSubRows={(row: CustomEventData) =>
+						row.propertyCategories as unknown as CustomEventData[]
+					}
+					initialPageSize={8}
+					isLoading={isLoading}
+					minHeight={350}
+					onAddFilter={onAddFilter}
+					renderSubRow={(subRow: CustomEventData, parentRow: CustomEventData) => {
 					const typedSubRow = subRow as unknown as PropertyCategory;
 					const propertyKey = typedSubRow.key;
 					const propertyTotal = typedSubRow.total;
@@ -1171,8 +1218,29 @@ export function WebsiteOverviewTab({
 					initialPageSize={8}
 					isLoading={isLoading}
 					minHeight={350}
+					onAddFilter={onAddFilter}
 					showSearch={false}
 					title="Devices"
+					tabs={[
+						{
+							id: 'devices',
+							label: 'Devices',
+							data: processedDeviceData,
+							columns: deviceColumns,
+							getFilter: (row: any) => {
+								// Map display device names to filter values
+								const deviceDisplayToFilterMap: Record<string, string> = {
+									'laptop': 'mobile',
+									'tablet': 'tablet', 
+									'desktop': 'desktop',
+								};
+								return {
+									field: 'device_type',
+									value: deviceDisplayToFilterMap[row.name] || row.name
+								};
+							}
+						}
+					]}
 				/>
 
 				<DataTable
@@ -1182,8 +1250,21 @@ export function WebsiteOverviewTab({
 					initialPageSize={8}
 					isLoading={isLoading}
 					minHeight={350}
+					onAddFilter={onAddFilter}
 					showSearch={false}
 					title="Browsers"
+					tabs={[
+						{
+							id: 'browsers',
+							label: 'Browsers',
+							data: processedBrowserData,
+							columns: browserColumns,
+							getFilter: (row: any) => ({
+								field: 'browser_name',
+								value: row.name
+							}),
+						}
+					]}
 				/>
 
 				<DataTable
@@ -1193,8 +1274,21 @@ export function WebsiteOverviewTab({
 					initialPageSize={8}
 					isLoading={isLoading}
 					minHeight={350}
+					onAddFilter={onAddFilter}
 					showSearch={false}
 					title="Operating Systems"
+					tabs={[
+						{
+							id: 'operating_systems',
+							label: 'Operating Systems',
+							data: processedOSData,
+							columns: osColumns,
+							getFilter: (row: any) => ({
+								field: 'os_name',
+								value: row.name
+							}),
+						}
+					]}
 				/>
 			</div>
 		</div>

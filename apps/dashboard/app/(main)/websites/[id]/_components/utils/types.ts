@@ -33,6 +33,7 @@ export interface FullTabProps extends BaseTabProps {
 	isRefreshing: boolean;
 	setIsRefreshing: (value: boolean) => void;
 	filters: DynamicQueryFilter[];
+	addFilter: (filter: DynamicQueryFilter) => void;
 }
 
 // Common analytics data types

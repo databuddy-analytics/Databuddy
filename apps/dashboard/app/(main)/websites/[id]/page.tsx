@@ -206,6 +206,7 @@ function WebsiteDetailsPage() {
 				isRefreshing,
 				setIsRefreshing,
 				filters: selectedFilters,
+				addFilter,
 			};
 
 			const getTabComponent = () => {
@@ -239,6 +240,7 @@ function WebsiteDetailsPage() {
 			isRefreshing,
 			refetchWebsiteData,
 			selectedFilters,
+			addFilter,
 		]
 	);
 
