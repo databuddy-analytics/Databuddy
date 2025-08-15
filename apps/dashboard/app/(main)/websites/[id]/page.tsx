@@ -1,27 +1,24 @@
 'use client';
 
+import type { DynamicQueryFilter } from '@databuddy/shared';
 import { WarningIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQueryState } from 'nuqs';
-import { Suspense, useCallback, useEffect, useMemo } from 'react';
+import { Suspense, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
-	formattedDateRangeAtom,
 	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
-	timezoneAtom,
 } from '@/stores/jotai/filterAtoms';
-
-import type { DynamicQueryFilter } from '@databuddy/shared';
 import type {
 	FullTabProps,
 	WebsiteDataTabProps,
@@ -82,22 +79,11 @@ function WebsiteDetailsPage() {
 		defaultValue: 'overview' as TabId,
 	});
 	const { id } = useParams();
-	const [currentGranularity] = useAtom(timeGranularityAtom);
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-	const [timezone] = useAtom(timezoneAtom);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 	const [selectedFilters] = useAtom(dynamicQueryFiltersAtom);
 	const [, addFilterAction] = useAtom(addDynamicFilterAtom);
 
-	const memoizedDateRangeForTabs = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-			timezone,
-		}),
-		[formattedDateRangeState, currentGranularity, timezone]
-	);
+	const { dateRange } = useDateFilters();
 
 	const {
 		data,
@@ -132,7 +118,7 @@ function WebsiteDetailsPage() {
 			const key = `${tabId}-${id as string}`;
 			const settingsProps: WebsiteDataTabProps = {
 				websiteId: id as string,
-				dateRange: memoizedDateRangeForTabs,
+				dateRange,
 				websiteData: data,
 				onWebsiteUpdated: refetchWebsiteData,
 			};
@@ -171,7 +157,7 @@ function WebsiteDetailsPage() {
 		[
 			activeTab,
 			id,
-			memoizedDateRangeForTabs,
+			dateRange,
 			data,
 			isRefreshing,
 			setIsRefreshing,

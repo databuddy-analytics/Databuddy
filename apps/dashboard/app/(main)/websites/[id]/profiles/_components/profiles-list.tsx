@@ -3,14 +3,11 @@
 import { SpinnerIcon, UsersIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useProfilesData } from '@/hooks/use-dynamic-query';
-import {
-	dynamicQueryFiltersAtom,
-	formattedDateRangeAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
 
 // Type adapter for the new profile data structure
 type ProfileData = {
@@ -53,8 +50,6 @@ type ProfileData = {
 	}>;
 };
 
-
-
 const ProfileRow = dynamic(
 	() => import('./profile-row').then((mod) => ({ default: mod.ProfileRow })),
 	{
@@ -72,18 +67,8 @@ interface ProfilesListProps {
 
 export function ProfilesList({ websiteId }: ProfilesListProps) {
 	// Use shared state atoms for consistency
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-	const [currentGranularity] = useAtom(timeGranularityAtom);
+	const { dateRange } = useDateFilters();
 	const [filters] = useAtom(dynamicQueryFiltersAtom);
-
-	const dateRange = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
 
 	const [expandedProfileId, setExpandedProfileId] = useState<string | null>(
 		null
@@ -107,7 +92,12 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 		setPage(1);
 		setAllProfiles([]);
 		setIsInitialLoad(true);
-	}, [dateRange.start_date, dateRange.end_date, dateRange.granularity, JSON.stringify(filters)]);
+	}, [
+		dateRange.start_date,
+		dateRange.end_date,
+		dateRange.granularity,
+		JSON.stringify(filters),
+	]);
 
 	const toggleProfile = useCallback((profileId: string) => {
 		setExpandedProfileId((currentId) =>
@@ -174,10 +164,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 				<CardContent>
 					<div className="space-y-3">
 						{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-							<div
-								className="h-16 animate-pulse rounded bg-muted/20"
-								key={i}
-							/>
+							<div className="h-16 animate-pulse rounded bg-muted/20" key={i} />
 						))}
 					</div>
 					<div className="flex items-center justify-center pt-4">

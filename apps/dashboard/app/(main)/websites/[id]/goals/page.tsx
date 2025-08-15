@@ -12,6 +12,7 @@ import {
 	useState,
 } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useAutocompleteData } from '@/hooks/use-funnels';
 import {
 	type CreateGoalData,
@@ -19,13 +20,8 @@ import {
 	useBulkGoalAnalytics,
 	useGoals,
 } from '@/hooks/use-goals';
-import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
-import {
-	formattedDateRangeAtom,
-	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../_components/website-page-header';
 import { DeleteGoalDialog } from './_components/delete-goal-dialog';
 import { EditGoalDialog } from './_components/edit-goal-dialog';
@@ -95,17 +91,7 @@ export default function GoalsPage() {
 		return () => observer.disconnect();
 	}, []);
 
-	const [currentGranularity] = useAtom(timeGranularityAtom);
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-
-	const memoizedDateRangeForTabs = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
+	const { dateRange } = useDateFilters();
 
 	const { data: websiteData } = useWebsite(websiteId);
 
@@ -127,7 +113,7 @@ export default function GoalsPage() {
 		data: goalAnalytics,
 		isLoading: analyticsLoading,
 		refetch: refetchAnalytics,
-	} = useBulkGoalAnalytics(websiteId, goalIds, memoizedDateRangeForTabs);
+	} = useBulkGoalAnalytics(websiteId, goalIds, dateRange);
 
 	const autocompleteQuery = useAutocompleteData(websiteId);
 
@@ -210,10 +196,7 @@ export default function GoalsPage() {
 	}
 
 	return (
-		<div
-			className="mx-auto max-w-[1600px] space-y-4 mt-6"
-			ref={pageRef}
-		>
+		<div className="mx-auto max-w-[1600px] space-y-4 mt-6" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Goal"
 				description="Track key conversions and measure success"
@@ -241,8 +224,6 @@ export default function GoalsPage() {
 				websiteId={websiteId}
 				websiteName={websiteData?.name || undefined}
 			/>
-
-
 
 			{isVisible && (
 				<Suspense fallback={<GoalsListSkeleton />}>

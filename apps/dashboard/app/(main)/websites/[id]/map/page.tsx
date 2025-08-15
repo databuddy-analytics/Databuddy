@@ -11,13 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useMapLocationData } from '@/hooks/use-dynamic-query';
 import { cn } from '@/lib/utils';
 import {
 	dynamicQueryFiltersAtom,
-	formattedDateRangeAtom,
 	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
 } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../_components/website-page-header';
 
@@ -46,20 +45,9 @@ function WebsiteMapPage() {
 	const [mode, setMode] = useState<'total' | 'perCapita'>('total');
 	const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
-	// Use shared state atoms for consistency
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-	const [currentGranularity] = useAtom(timeGranularityAtom);
+	const { dateRange } = useDateFilters();
 	const [filters] = useAtom(dynamicQueryFiltersAtom);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
-
-	const dateRange = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
 
 	const handleModeChange = useCallback((value: string) => {
 		setMode(value as 'total' | 'perCapita');
@@ -69,8 +57,11 @@ function WebsiteMapPage() {
 		setSelectedCountry(countryCode);
 	}, []);
 
-
-	const { isLoading, getDataForQuery } = useMapLocationData(id, dateRange, filters);
+	const { isLoading, getDataForQuery } = useMapLocationData(
+		id,
+		dateRange,
+		filters
+	);
 
 	const countriesFromQuery = getDataForQuery('map-countries', 'country');
 	const regionsFromQuery = getDataForQuery('map-regions', 'region');

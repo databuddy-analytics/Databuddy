@@ -1,6 +1,6 @@
 'use client';
 
-import type { DateRange, DynamicQueryFilter } from '@databuddy/shared';
+import type { DynamicQueryFilter } from '@databuddy/shared';
 import { ArrowClockwiseIcon, BugIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
@@ -8,12 +8,9 @@ import { toast } from 'sonner';
 import { AnimatedLoading } from '@/components/analytics/animated-loading';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useEnhancedErrorData } from '@/hooks/use-dynamic-query';
-import {
-	formattedDateRangeAtom,
-	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../../_components/website-page-header';
 import { ErrorDataTable } from './error-data-table';
 // Import our separated components
@@ -32,18 +29,10 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	const websiteId = resolvedParams.id;
 
 	// Use shared date range and refresh state
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-	const [currentGranularity] = useAtom(timeGranularityAtom);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 
-	const dateRange: DateRange = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
+	const { dateRange } = useDateFilters();
+
 	const [loadingProgress, setLoadingProgress] = useState<number>(0);
 
 	// Filters state
@@ -314,7 +303,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	}
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 mt-6">
+		<div className="mx-auto mt-6 max-w-[1600px] space-y-6">
 			<WebsitePageHeader
 				description="Monitor and analyze application errors to improve user experience"
 				icon={

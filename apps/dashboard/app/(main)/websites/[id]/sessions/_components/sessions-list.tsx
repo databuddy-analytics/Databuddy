@@ -4,12 +4,9 @@ import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useDynamicQuery } from '@/hooks/use-dynamic-query';
-import {
-	dynamicQueryFiltersAtom,
-	formattedDateRangeAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
 import {
 	expandedSessionIdAtom,
 	getSessionPageAtom,
@@ -61,8 +58,7 @@ interface SessionsListProps {
 }
 
 export function SessionsList({ websiteId }: SessionsListProps) {
-	const [formattedDateRange] = useAtom(formattedDateRangeAtom);
-	const [granularity] = useAtom(timeGranularityAtom);
+	const { dateRange } = useDateFilters();
 	const [filters] = useAtom(dynamicQueryFiltersAtom);
 
 	const [expandedSessionId, setExpandedSessionId] = useAtom(
@@ -70,15 +66,6 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 	);
 	const [page, setPage] = useAtom(getSessionPageAtom(websiteId));
 	const loadMoreRef = useRef<HTMLDivElement>(null);
-
-	const dateRange = useMemo(
-		() => ({
-			start_date: formattedDateRange.startDate,
-			end_date: formattedDateRange.endDate,
-			granularity,
-		}),
-		[formattedDateRange, granularity]
-	);
 
 	const { data, isLoading, isError, error } = useDynamicQuery(
 		websiteId,

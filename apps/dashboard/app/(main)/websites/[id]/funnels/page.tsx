@@ -1,11 +1,11 @@
 'use client';
 
 import { FunnelIcon, TrendDownIcon } from '@phosphor-icons/react';
-
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import {
 	type CreateFunnelData,
 	type Funnel,
@@ -15,11 +15,7 @@ import {
 	useFunnels,
 } from '@/hooks/use-funnels';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
-import {
-	formattedDateRangeAtom,
-	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../_components/website-page-header';
 
 // Removed PageHeader import - using shared WebsitePageHeader
@@ -96,22 +92,9 @@ export default function FunnelsPage() {
 	// Intersection observer for lazy loading
 	const pageRef = useRef<HTMLDivElement>(null);
 
-	// Date range state
-	const [currentGranularity] = useAtom(timeGranularityAtom);
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-
 	const { isTrackingSetup, refetchTrackingSetup } = useTrackingSetup(websiteId);
 
-
-
-	const memoizedDateRangeForTabs = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
+	const { formattedDateRangeState, dateRange } = useDateFilters();
 
 	const {
 		data: funnels,
@@ -130,14 +113,9 @@ export default function FunnelsPage() {
 		isLoading: analyticsLoading,
 		error: analyticsError,
 		refetch: refetchAnalytics,
-	} = useFunnelAnalytics(
-		websiteId,
-		expandedFunnelId || '',
-		memoizedDateRangeForTabs,
-		{
-			enabled: !!expandedFunnelId,
-		}
-	);
+	} = useFunnelAnalytics(websiteId, expandedFunnelId || '', dateRange, {
+		enabled: !!expandedFunnelId,
+	});
 
 	const {
 		data: referrerAnalyticsData,
@@ -256,10 +234,7 @@ export default function FunnelsPage() {
 	}
 
 	return (
-		<div
-			className="mx-auto max-w-[1600px] space-y-4 mt-6"
-			ref={pageRef}
-		>
+		<div className="mx-auto mt-6 max-w-[1600px] space-y-4" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Funnel"
 				description="Track user journeys and optimize conversion drop-off points"
@@ -286,8 +261,6 @@ export default function FunnelsPage() {
 				title="Conversion Funnels"
 				websiteId={websiteId}
 			/>
-
-
 
 			<Suspense fallback={<FunnelsListSkeleton />}>
 				<FunnelsList

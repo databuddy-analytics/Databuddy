@@ -8,16 +8,13 @@ import {
 } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { useRevenueConfig } from '@/app/(main)/revenue/hooks/use-revenue-config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { useWebsite } from '@/hooks/use-websites';
-import {
-	formattedDateRangeAtom,
-	isAnalyticsRefreshingAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../_components/website-page-header';
 import { useWebsiteRevenue } from './hooks/use-website-revenue';
 
@@ -116,17 +113,7 @@ export default function WebsiteRevenuePage() {
 	const [activeTab, setActiveTab] = useState('overview');
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 
-	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
-	const [currentGranularity] = useAtom(timeGranularityAtom);
-
-	const dateRange = useMemo(
-		() => ({
-			start_date: formattedDateRangeState.startDate,
-			end_date: formattedDateRangeState.endDate,
-			granularity: currentGranularity,
-		}),
-		[formattedDateRangeState, currentGranularity]
-	);
+	const { dateRange } = useDateFilters();
 
 	const { data: websiteData } = useWebsite(websiteId);
 	const revenueConfig = useRevenueConfig();

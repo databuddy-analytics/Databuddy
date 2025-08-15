@@ -3,17 +3,12 @@
 import { type DynamicQueryFilter, filterOptions } from '@databuddy/shared';
 import { ArrowClockwiseIcon, XIcon } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
-import { useAtom } from 'jotai';
 import { useCallback, useMemo } from 'react';
 import type { DateRange as DayPickerRange } from 'react-day-picker';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { Button } from '@/components/ui/button';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import { operatorOptions, useFilters } from '@/hooks/use-filters';
-import {
-	dateRangeAtom,
-	setDateRangeAndAdjustGranularityAtom,
-	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
 import { AddFilterForm, getOperatorShorthand } from './utils/add-filters';
 
 interface AnalyticsToolbarProps {
@@ -29,15 +24,17 @@ export function AnalyticsToolbar({
 	selectedFilters,
 	onFiltersChange,
 }: AnalyticsToolbarProps) {
-	const [currentDateRange] = useAtom(dateRangeAtom);
-	const [currentGranularity, setCurrentGranularityAtomState] =
-		useAtom(timeGranularityAtom);
-	const [, setDateRangeAction] = useAtom(setDateRangeAndAdjustGranularityAtom);
-
 	const { addFilter, removeFilter } = useFilters({
 		filters: selectedFilters,
 		onFiltersChange,
 	});
+
+	const {
+		currentDateRange,
+		currentGranularity,
+		setCurrentGranularityAtomState,
+		setDateRangeAction,
+	} = useDateFilters();
 
 	const dayPickerSelectedRange: DayPickerRange | undefined = useMemo(
 		() => ({
