@@ -21,7 +21,7 @@ export const tableFilterMapping: Record<string, string> = {
 
 // Map display device names back to filter values
 export const deviceDisplayToFilterMap: Record<string, string> = {
-	'laptop': 'mobile',
+	'laptop': 'laptop',
 	'tablet': 'tablet', 
 	'desktop': 'desktop',
 };
