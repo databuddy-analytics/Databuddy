@@ -33,6 +33,67 @@ export class SimpleQueryBuilder {
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
 
+		// Special handling for path filters - apply same normalization as used in queries
+		if (filter.field === 'path') {
+			const normalizedPathExpression = "CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
+			
+			if (filter.op === 'like') {
+				return {
+					clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
+					params: { [key]: `%${filter.value}%` },
+				};
+			}
+
+			if (filter.op === 'in' || filter.op === 'notIn') {
+				const values = Array.isArray(filter.value)
+					? filter.value
+					: [filter.value];
+				return {
+					clause: `${normalizedPathExpression} ${operator} {${key}:Array(String)}`,
+					params: { [key]: values },
+				};
+			}
+
+			return {
+				clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
+				params: { [key]: filter.value },
+			};
+		}
+
+		// Special handling for referrer filters - apply same normalization as used in queries
+		if (filter.field === 'referrer') {
+			const normalizedReferrerExpression = 
+				'CASE ' +
+				"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
+				"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
+				"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
+				"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
+				"ELSE concat('https://', domain(referrer)) " +
+				'END';
+			
+			if (filter.op === 'like') {
+				return {
+					clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
+					params: { [key]: `%${filter.value}%` },
+				};
+			}
+
+			if (filter.op === 'in' || filter.op === 'notIn') {
+				const values = Array.isArray(filter.value)
+					? filter.value
+					: [filter.value];
+				return {
+					clause: `${normalizedReferrerExpression} ${operator} {${key}:Array(String)}`,
+					params: { [key]: values },
+				};
+			}
+
+			return {
+				clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
+				params: { [key]: filter.value },
+			};
+		}
+
 		if (filter.op === 'like') {
 			return {
 				clause: `${filter.field} ${operator} {${key}:String}`,

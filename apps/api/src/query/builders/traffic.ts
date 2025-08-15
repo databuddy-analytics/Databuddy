@@ -65,6 +65,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
 		customizable: true,
 		plugins: { parseReferrers: true },
 	},
@@ -119,6 +120,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
 		customizable: true,
 	},
 
@@ -135,6 +137,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
 		customizable: true,
 	},
 
@@ -188,6 +191,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
+		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
 		customizable: true,
 	},
 

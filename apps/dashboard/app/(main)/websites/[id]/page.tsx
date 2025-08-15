@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import { useWebsite } from '@/hooks/use-websites';
 import {
+	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 	formattedDateRangeAtom,
 	isAnalyticsRefreshingAtom,
@@ -20,6 +21,7 @@ import {
 	timezoneAtom,
 } from '@/stores/jotai/filterAtoms';
 
+import type { DynamicQueryFilter } from '@databuddy/shared';
 import type {
 	FullTabProps,
 	WebsiteDataTabProps,
@@ -85,6 +87,7 @@ function WebsiteDetailsPage() {
 	const [timezone] = useAtom(timezoneAtom);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 	const [selectedFilters] = useAtom(dynamicQueryFiltersAtom);
+	const [, addFilterAction] = useAtom(addDynamicFilterAtom);
 
 	const memoizedDateRangeForTabs = useMemo(
 		() => ({
@@ -104,6 +107,13 @@ function WebsiteDetailsPage() {
 	} = useWebsite(id as string);
 
 	const { isTrackingSetup } = useTrackingSetup(id as string);
+
+	const addFilter = useCallback(
+		(filter: DynamicQueryFilter) => {
+			addFilterAction(filter);
+		},
+		[addFilterAction]
+	);
 
 	useEffect(() => {
 		if (isTrackingSetup === false && activeTab === 'overview') {
