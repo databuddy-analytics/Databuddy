@@ -312,7 +312,6 @@ export default function ChatSection() {
 								'h-11 w-11 flex-shrink-0 rounded-xl',
 								'bg-gradient-to-r from-primary to-primary/80',
 								'hover:from-primary/90 hover:to-primary/70',
-								'disabled:from-muted disabled:to-muted',
 								'shadow-lg transition-all duration-200',
 								(!inputValue.trim() || isRateLimited) &&
 									!isLoading &&
