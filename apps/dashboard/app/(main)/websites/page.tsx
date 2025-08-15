@@ -15,7 +15,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { WebsiteDialog } from '@/components/website-dialog';
 import { useWebsites } from '@/hooks/use-websites';
 
-import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import { WebsiteCard } from './_components/website-card';
 
@@ -259,10 +258,8 @@ export default function WebsitesPage() {
 				{/* Show website grid */}
 				{!(isLoading || isError) && websites && websites.length > 0 && (
 					<div
-						aria-label="Websites list"
 						aria-live="polite"
 						className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-						role="region"
 					>
 						{websites.map((website) => (
 							<WebsiteCard

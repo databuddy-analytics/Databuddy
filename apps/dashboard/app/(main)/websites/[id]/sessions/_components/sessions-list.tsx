@@ -112,6 +112,8 @@ export function SessionsList({ websiteId }: SessionsListProps) {
       filters: buildSessionFilters(filterItems),
     }
 	);
+	const [page, setPage] = useAtom(getSessionPageAtom(websiteId));
+	const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Fetch unfiltered sessions data ONLY for getting browser/OS options
   const { sessions: unfilteredSessions } = useSessionsData(
@@ -157,53 +159,85 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		);
 	}, []);
 
-	const handleIntersection = useCallback(
-		(entries: IntersectionObserverEntry[]) => {
-			const [entry] = entries;
-			if (entry.isIntersecting && pagination.hasNext && !isLoading) {
-				setPage((prev) => prev + 1);
-			}
+	const { data, isLoading, isError, error } = useDynamicQuery(
+		websiteId,
+		dateRange,
+		{
+			id: 'sessions-list',
+			parameters: ['session_list'],
+			limit: 50,
+			page,
+			filters: filters.length > 0 ? filters : undefined,
 		},
-		[pagination.hasNext, isLoading]
+		{
+			staleTime: 5 * 60 * 1000,
+			gcTime: 10 * 60 * 1000,
+		}
 	);
 
+	// State to accumulate sessions across pages
+	const [allSessions, setAllSessions] = useState<Record<string, unknown>[]>([]);
+
+	// Transform and accumulate sessions
 	useEffect(() => {
-		if (!loadMoreRef) {
+		if (!data?.session_list) {
 			return;
 		}
 
-		const observer = new IntersectionObserver(handleIntersection, {
-			threshold: 0.1,
-			rootMargin: '300px',
+		const rawSessions = (data.session_list as unknown[]) || [];
+		const transformedSessions = rawSessions.map((session: unknown) => {
+			const sessionData = session as Record<string, unknown>;
+			// Transform ClickHouse tuple events to objects
+			const events = Array.isArray(sessionData.events)
+				? transformSessionEvents(sessionData.events)
+				: [];
+
+			return {
+				...sessionData,
+				events,
+				session_name: sessionData.session_id
+					? `Session ${String(sessionData.session_id).slice(-8)}`
+					: 'Unknown Session',
+			};
 		});
 
-		observer.observe(loadMoreRef);
+		if (page === 1) {
+			// First page - replace all sessions
+			setAllSessions(transformedSessions);
+		} else {
+			// Subsequent pages - append new sessions (deduplicate by session_id)
+			setAllSessions((prev) => {
+				const existingIds = new Set(
+					prev.map((s) => (s as Record<string, unknown>).session_id)
+				);
+				const newSessions = transformedSessions.filter(
+					(session) =>
+						!existingIds.has((session as Record<string, unknown>).session_id)
+				);
+				return [...prev, ...newSessions];
+			});
+		}
+	}, [data, page]);
 
-		return () => {
-			observer.disconnect();
-		};
-	}, [loadMoreRef, handleIntersection]);
+	const hasNextPage = useMemo(() => {
+		const currentPageData = (data?.session_list as unknown[]) || [];
+		return currentPageData.length === 50;
+	}, [data]);
 
 	useEffect(() => {
-		if (sessions?.length) {
-			setAllSessions((prev) => {
-				const existingSessions = new Map(prev.map((s) => [s.session_id, s]));
-				let hasNewSessions = false;
-
-				for (const session of sessions) {
-					if (!existingSessions.has(session.session_id)) {
-						existingSessions.set(session.session_id, session);
-						hasNewSessions = true;
-					}
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[0];
+				if (entry?.isIntersecting && hasNextPage && !isLoading) {
+					setPage(page + 1);
 				}
+			},
+			{ threshold: 0.1 }
+		);
 
-				if (hasNewSessions) {
-					return Array.from(existingSessions.values());
-				}
-
-				return prev;
-			});
-			setIsInitialLoad(false);
+		const currentRef = loadMoreRef.current;
+		if (currentRef) {
+			observer.observe(currentRef);
 		}
   }, [sessions]);
 
@@ -217,49 +251,41 @@ export function SessionsList({ websiteId }: SessionsListProps) {
   // Only show full loading state on the very first load
   if (isLoading && isInitialLoad) {
 		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-				<Card className="py-0">
-					<CardContent>
-						<div className="space-y-3">
-							{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-								<div
-									className="h-16 animate-pulse rounded bg-muted/20"
-									key={`skeleton-${i}`}
-								/>
-							))}
+			<Card>
+				<CardContent className="p-6">
+					<div className="space-y-4">
+						{Array.from({ length: 6 }, (_, i) => (
+							<div
+								className="h-16 animate-pulse rounded bg-muted/20"
+								key={`skeleton-${i.toString()}`}
+							/>
+						))}
+					</div>
+					<div className="flex items-center justify-center pt-6">
+						<div className="flex items-center gap-2 text-muted-foreground">
+							<SpinnerIcon className="h-4 w-4 animate-spin" />
+							<span className="text-sm">Loading sessions...</span>
 						</div>
-						<div className="flex items-center justify-center pt-4">
-							<div className="flex items-center gap-2 text-muted-foreground">
-								<SpinnerIcon className="h-4 w-4 animate-spin" />
-								<span className="text-sm">Loading sessions...</span>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
+					</div>
+				</CardContent>
+			</Card>
 		);
 	}
 
+	// Error state
 	if (isError) {
 		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					errorMessage={error?.message || 'Failed to load sessions'}
-					hasError={true}
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-			</div>
+			<Card>
+				<CardContent className="flex items-center justify-center p-12">
+					<div className="text-center text-muted-foreground">
+						<UserIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
+						<p className="mb-2 font-medium text-lg">Failed to load sessions</p>
+						<p className="text-sm">
+							{error?.message || 'Please try again later'}
+						</p>
+					</div>
+				</CardContent>
+			</Card>
 		);
 	}
 

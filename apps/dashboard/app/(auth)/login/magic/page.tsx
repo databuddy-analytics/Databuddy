@@ -22,26 +22,24 @@ export default function MagicLinkPage() {
 			return;
 		}
 		setIsLoading(true);
-		try {
-			await signIn.magicLink({
-				email,
-				callbackURL: '/home',
-				fetchOptions: {
-					onSuccess: () => {
-						setIsLoading(false);
-						toast.success('Magic link sent! Please check your email.');
-						router.push(`/login/magic-sent?email=${encodeURIComponent(email)}`);
-					},
-					onError: () => {
-						setIsLoading(false);
-						toast.error('Failed to send magic link. Please try again.');
-					},
+
+		await signIn.magicLink({
+			email,
+			callbackURL: '/home',
+			fetchOptions: {
+				onSuccess: () => {
+					setIsLoading(false);
+					toast.success('Magic link sent! Please check your email.');
+					router.push(`/login/magic-sent?email=${encodeURIComponent(email)}`);
 				},
-			});
-		} catch (_error) {
-			setIsLoading(false);
-			toast.error('Failed to send magic link. Please try again.');
-		}
+				onError: () => {
+					setIsLoading(false);
+					toast.error('Failed to send magic link. Please try again.');
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	return (

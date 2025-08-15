@@ -123,7 +123,7 @@ function SessionRowInternal({
 							</div>
 						</div>
 						<div className="flex flex-shrink-0 items-center gap-2">
-							{getCountryFlag(session.country || '')}
+							{getCountryFlag(session.country_code || session.country || '')}
 							{getDeviceIcon(session.device || session.device_type || '')}
 							{getBrowserIconComponent(
 								session.browser || session.browser_name || ''

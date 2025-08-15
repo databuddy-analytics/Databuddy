@@ -20,24 +20,22 @@ export default function ForgotPasswordPage() {
 			return;
 		}
 		setIsLoading(true);
-		try {
-			await authClient.forgetPassword({
-				email,
-				fetchOptions: {
-					onSuccess: () => {
-						setIsLoading(false);
-						toast.success('Password reset instructions sent to your email.');
-					},
-					onError: () => {
-						setIsLoading(false);
-						toast.error('Failed to send reset instructions. Please try again.');
-					},
+
+		await authClient.forgetPassword({
+			email,
+			fetchOptions: {
+				onSuccess: () => {
+					setIsLoading(false);
+					toast.success('Password reset instructions sent to your email.');
 				},
-			});
-		} catch (_error) {
-			setIsLoading(false);
-			toast.error('An error occurred. Please try again later.');
-		}
+				onError: () => {
+					setIsLoading(false);
+					toast.error('Failed to send reset instructions. Please try again.');
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	return (

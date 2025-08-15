@@ -33,12 +33,10 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
 	return (
 		<HomeLayout {...baseOptions}>
-			<div className="overflow-hidden">
-				<Navbar stars={stars} />
-				<main className="flex min-h-screen flex-col font-manrope">
-					{children}
-				</main>
-			</div>
+			<Navbar stars={stars} />
+			<main className="flex min-h-screen flex-col font-manrope">
+				{children}
+			</main>
 		</HomeLayout>
 	);
 }

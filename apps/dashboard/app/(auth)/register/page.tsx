@@ -7,7 +7,7 @@ import {
 	ChevronLeft,
 	Eye,
 	EyeOff,
-	Github,
+	GithubIcon,
 	Info,
 	Loader2,
 	Mail,
@@ -71,85 +71,74 @@ function RegisterPageContent() {
 
 		setIsLoading(true);
 
-		try {
-			const result = await authClient.signUp.email({
-				email: formData.email,
-				password: formData.password,
-				name: formData.name,
-				fetchOptions: {
-					onSuccess: (ctx) => {
-						const authToken = ctx.response.headers.get('set-auth-token');
-						if (authToken) {
-							localStorage.setItem('authToken', authToken);
-						}
-						toast.success(
-							'Account created! Please check your email to verify your account.'
-						);
-						setRegistrationStep('verification-needed');
-						// router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
-					},
+		const { error } = await authClient.signUp.email({
+			email: formData.email,
+			password: formData.password,
+			name: formData.name,
+			fetchOptions: {
+				onSuccess: (ctx) => {
+					const authToken = ctx.response.headers.get('set-auth-token');
+					if (authToken) {
+						localStorage.setItem('authToken', authToken);
+					}
+					toast.success(
+						'Account created! Please check your email to verify your account.'
+					);
+					setRegistrationStep('verification-needed');
+					// router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
 				},
-			});
+			},
+		});
 
-			if (result?.error) {
-				toast.error(result.error.message || 'Failed to create account');
-			}
-		} catch (error) {
-			console.error('Error creating account:', error);
-			toast.error('Something went wrong');
-		} finally {
-			setIsLoading(false);
+		if (error) {
+			toast.error(error.message || 'Failed to create account');
 		}
+
+		setIsLoading(false);
 	};
 
 	const resendVerificationEmail = async () => {
 		setIsLoading(true);
-		try {
-			await authClient.sendVerificationEmail({
-				email: formData.email,
-				callbackURL: '/onboarding',
-				fetchOptions: {
-					onSuccess: () => {
-						toast.success('Verification email sent!');
-					},
-					onError: () => {
-						toast.error(
-							'Failed to send verification email. Please try again later.'
-						);
-					},
+
+		await authClient.sendVerificationEmail({
+			email: formData.email,
+			callbackURL: '/onboarding',
+			fetchOptions: {
+				onSuccess: () => {
+					toast.success('Verification email sent!');
 				},
-			});
-		} catch (_error) {
-			toast.error('Failed to send verification email. Please try again later.');
-		} finally {
-			setIsLoading(false);
-		}
+				onError: () => {
+					toast.error(
+						'Failed to send verification email. Please try again later.'
+					);
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	const handleSocialLogin = async (provider: 'github' | 'google') => {
 		setIsLoading(true);
-		try {
-			await authClient.signIn.social({
-				provider,
-				fetchOptions: {
-					onSuccess: (ctx) => {
-						const authToken = ctx.response.headers.get('set-auth-token');
-						if (authToken) {
-							localStorage.setItem('authToken', authToken);
-						}
-						toast.success('Login successful!');
-						router.push('/home');
-					},
-					onError: () => {
-						toast.error('Login failed. Please try again.');
-					},
+
+		await authClient.signIn.social({
+			provider,
+			fetchOptions: {
+				onSuccess: (ctx) => {
+					const authToken = ctx.response.headers.get('set-auth-token');
+					if (authToken) {
+						localStorage.setItem('authToken', authToken);
+					}
+					toast.success('Login successful!');
+					router.push('/home');
 				},
-			});
-		} catch (_error) {
-			toast.error('Something went wrong');
-		} finally {
-			setIsLoading(false);
-		}
+				onError: () => {
+					toast.error('Login failed. Please try again.');
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	// Render header content based on current registration step
@@ -273,7 +262,7 @@ function RegisterPageContent() {
 					type="button"
 					variant="outline"
 				>
-					<Github className="mr-2 h-5 w-5" />
+					<GithubIcon className="mr-2 h-5 w-5" />
 					Sign up with GitHub
 				</Button>
 

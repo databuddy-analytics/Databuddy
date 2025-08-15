@@ -12,6 +12,7 @@ export interface BaseSessionData {
 	session_id: string;
 	country: string;
 	country_name: string;
+	country_code: string;
 }
 
 export interface ProfileData {
@@ -27,6 +28,7 @@ export interface ProfileData {
 	os: string;
 	country: string;
 	country_name: string;
+	country_code: string;
 	region: string;
 	sessions: ProfileSessionData[];
 }
@@ -37,7 +39,7 @@ export interface ProfileSessionData extends BaseSessionData {
 	path: string;
 	error_message?: string;
 	error_type?: string;
-	properties: Record<string, any>;
+	properties: Record<string, unknown>;
 }
 
 export interface SessionData extends BaseSessionData {
