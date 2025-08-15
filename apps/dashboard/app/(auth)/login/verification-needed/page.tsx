@@ -15,27 +15,25 @@ export default function VerificationNeededPage() {
 
 	const sendVerificationEmail = async () => {
 		setIsLoading(true);
-		try {
-			await authClient.sendVerificationEmail({
-				email,
-				callbackURL: '/home',
-				fetchOptions: {
-					onSuccess: () => {
-						toast.success('Verification email sent!');
-						setIsLoading(false);
-					},
-					onError: () => {
-						setIsLoading(false);
-						toast.error(
-							'Failed to send verification email. Please try again later.'
-						);
-					},
+
+		await authClient.sendVerificationEmail({
+			email,
+			callbackURL: '/home',
+			fetchOptions: {
+				onSuccess: () => {
+					toast.success('Verification email sent!');
+					setIsLoading(false);
 				},
-			});
-		} catch (_error) {
-			setIsLoading(false);
-			toast.error('Failed to send verification email. Please try again later.');
-		}
+				onError: () => {
+					setIsLoading(false);
+					toast.error(
+						'Failed to send verification email. Please try again later.'
+					);
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	return (

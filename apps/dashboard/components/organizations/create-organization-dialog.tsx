@@ -6,7 +6,7 @@ import {
 	UsersIcon,
 } from '@phosphor-icons/react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactCrop, {
 	type Crop,
@@ -63,7 +63,7 @@ export function CreateOrganizationDialog({
 }: CreateOrganizationDialogProps) {
 	const { createOrganizationAsync, isCreatingOrganization } =
 		useOrganizations();
-	const router = useRouter();
+	// const router = useRouter();
 
 	// Form state
 	const [formData, setFormData] = useState<CreateOrganizationData>({
@@ -218,7 +218,7 @@ export function CreateOrganizationDialog({
 		try {
 			await createOrganizationAsync(formData);
 			handleClose();
-			router.push('/organizations');
+			// router.push('/organizations');
 		} catch {
 			// handled by mutation toast
 		}

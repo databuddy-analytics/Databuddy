@@ -1,254 +1,271 @@
 'use client';
 
 import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
-import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useAtom } from 'jotai';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useSessionsData } from '@/hooks/use-dynamic-query';
-import { WebsitePageHeader } from '../../_components/website-page-header';
-import { getDefaultDateRange } from './session-utils';
+import { useDynamicQuery } from '@/hooks/use-dynamic-query';
+import {
+	dynamicQueryFiltersAtom,
+	formattedDateRangeAtom,
+	timeGranularityAtom,
+} from '@/stores/jotai/filterAtoms';
+import {
+	expandedSessionIdAtom,
+	getSessionPageAtom,
+} from '@/stores/jotai/sessionAtoms';
+import { SessionRow } from './session-row';
 
-const SessionRow = dynamic(
-	() => import('./session-row').then((mod) => ({ default: mod.SessionRow })),
-	{
-		loading: () => (
-			<div className="flex items-center justify-center p-4">
-				<SpinnerIcon className="h-4 w-4 animate-spin" />
-			</div>
-		),
-	}
-);
+// Transform ClickHouse tuple events to objects
+function transformSessionEvents(events: unknown[]): Record<string, unknown>[] {
+	return events
+		.map((tuple: unknown) => {
+			if (!Array.isArray(tuple) || tuple.length < 7) {
+				return null;
+			}
+
+			const [
+				id,
+				time,
+				event_name,
+				path,
+				error_message,
+				error_type,
+				properties,
+			] = tuple;
+
+			let propertiesObj = {};
+			if (properties) {
+				try {
+					propertiesObj = JSON.parse(properties as string);
+				} catch {
+					// Keep empty object if parsing fails
+				}
+			}
+
+			return {
+				event_id: id,
+				time,
+				event_name,
+				path,
+				error_message,
+				error_type,
+				properties: propertiesObj,
+			};
+		})
+		.filter(Boolean) as Record<string, unknown>[];
+}
 
 interface SessionsListProps {
 	websiteId: string;
 }
 
-// Type for the transformed session data structure
-type SessionData = {
-	session_id: string;
-	session_name: string;
-	first_visit: string;
-	last_visit: string;
-	duration: number;
-	duration_formatted: string;
-	page_views: number;
-	unique_pages: number;
-	device: string;
-	browser: string;
-	os: string;
-	country: string;
-	region: string;
-	referrer: string;
-	events: Array<{
-		event_id: string;
-		time: string;
-		event_name: string;
-		path: string;
-		error_message?: string;
-		error_type?: string;
-		properties: Record<string, unknown>;
-	}>;
-};
-
 export function SessionsList({ websiteId }: SessionsListProps) {
-	const [dateRange] = useState(() => getDefaultDateRange());
-	const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
-		null
-	);
-	const [page, setPage] = useState(1);
-	const [allSessions, setAllSessions] = useState<SessionData[]>([]);
-	const [loadMoreRef, setLoadMoreRef] = useState<HTMLDivElement | null>(null);
-	const [isInitialLoad, setIsInitialLoad] = useState(true);
+	const [formattedDateRange] = useAtom(formattedDateRangeAtom);
+	const [granularity] = useAtom(timeGranularityAtom);
+	const [filters] = useAtom(dynamicQueryFiltersAtom);
 
-	const { sessions, pagination, isLoading, isError, error } = useSessionsData(
+	const [expandedSessionId, setExpandedSessionId] = useAtom(
+		expandedSessionIdAtom
+	);
+	const [page, setPage] = useAtom(getSessionPageAtom(websiteId));
+	const loadMoreRef = useRef<HTMLDivElement>(null);
+
+	const dateRange = useMemo(
+		() => ({
+			start_date: formattedDateRange.startDate,
+			end_date: formattedDateRange.endDate,
+			granularity,
+		}),
+		[formattedDateRange, granularity]
+	);
+
+	const { data, isLoading, isError, error } = useDynamicQuery(
 		websiteId,
 		dateRange,
-		50,
-		page
-	);
-
-	const toggleSession = useCallback((sessionId: string) => {
-		setExpandedSessionId((currentId) =>
-			currentId === sessionId ? null : sessionId
-		);
-	}, []);
-
-	const handleIntersection = useCallback(
-		(entries: IntersectionObserverEntry[]) => {
-			const [entry] = entries;
-			if (entry.isIntersecting && pagination.hasNext && !isLoading) {
-				setPage((prev) => prev + 1);
-			}
+		{
+			id: 'sessions-list',
+			parameters: ['session_list'],
+			limit: 50,
+			page,
+			filters: filters.length > 0 ? filters : undefined,
 		},
-		[pagination.hasNext, isLoading]
+		{
+			staleTime: 5 * 60 * 1000,
+			gcTime: 10 * 60 * 1000,
+		}
 	);
 
+	// State to accumulate sessions across pages
+	const [allSessions, setAllSessions] = useState<Record<string, unknown>[]>([]);
+
+	// Transform and accumulate sessions
 	useEffect(() => {
-		if (!loadMoreRef) {
+		if (!data?.session_list) {
 			return;
 		}
 
-		const observer = new IntersectionObserver(handleIntersection, {
-			threshold: 0.1,
-			rootMargin: '300px',
+		const rawSessions = (data.session_list as unknown[]) || [];
+		const transformedSessions = rawSessions.map((session: unknown) => {
+			const sessionData = session as Record<string, unknown>;
+			const events = Array.isArray(sessionData.events)
+				? transformSessionEvents(sessionData.events)
+				: [];
+
+			return {
+				...sessionData,
+				events,
+				session_name: sessionData.session_id
+					? `Session ${String(sessionData.session_id).slice(-8)}`
+					: 'Unknown Session',
+			};
 		});
 
-		observer.observe(loadMoreRef);
+		if (page === 1) {
+			setAllSessions(transformedSessions);
+		} else {
+			setAllSessions((prev) => {
+				const existingIds = new Set(
+					prev.map((s) => (s as Record<string, unknown>).session_id)
+				);
+				const newSessions = transformedSessions.filter(
+					(session) =>
+						!existingIds.has((session as Record<string, unknown>).session_id)
+				);
+				return [...prev, ...newSessions];
+			});
+		}
+	}, [data, page]);
 
-		return () => {
-			observer.disconnect();
-		};
-	}, [loadMoreRef, handleIntersection]);
+	const hasNextPage = useMemo(() => {
+		const currentPageData = (data?.session_list as unknown[]) || [];
+		return currentPageData.length === 50;
+	}, [data]);
 
 	useEffect(() => {
-		if (sessions?.length) {
-			setAllSessions((prev) => {
-				const existingSessions = new Map(prev.map((s) => [s.session_id, s]));
-				let hasNewSessions = false;
-
-				for (const session of sessions) {
-					if (!existingSessions.has(session.session_id)) {
-						existingSessions.set(session.session_id, session);
-						hasNewSessions = true;
-					}
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[0];
+				if (entry?.isIntersecting && hasNextPage && !isLoading) {
+					setPage(page + 1);
 				}
+			},
+			{ threshold: 0.1 }
+		);
 
-				if (hasNewSessions) {
-					return Array.from(existingSessions.values());
-				}
-
-				return prev;
-			});
-			setIsInitialLoad(false);
+		const currentRef = loadMoreRef.current;
+		if (currentRef) {
+			observer.observe(currentRef);
 		}
-	}, [sessions]);
 
-	if (isLoading && isInitialLoad) {
+		return () => {
+			if (currentRef) {
+				observer.unobserve(currentRef);
+			}
+		};
+	}, [hasNextPage, isLoading, setPage, page]);
+
+	const toggleSession = useCallback(
+		(sessionId: string) => {
+			setExpandedSessionId((currentId) =>
+				currentId === sessionId ? null : sessionId
+			);
+		},
+		[setExpandedSessionId]
+	);
+
+	// Loading state for first page
+	if (isLoading && page === 1 && allSessions.length === 0) {
 		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-				<Card className="py-0">
-					<CardContent>
-						<div className="space-y-3">
-							{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-								<div
-									className="h-16 animate-pulse rounded bg-muted/20"
-									key={`skeleton-${i}`}
-								/>
-							))}
+			<Card>
+				<CardContent className="p-6">
+					<div className="space-y-4">
+						{Array.from({ length: 6 }, (_, i) => (
+							<div
+								className="h-16 animate-pulse rounded bg-muted/20"
+								key={`skeleton-${i.toString()}`}
+							/>
+						))}
+					</div>
+					<div className="flex items-center justify-center pt-6">
+						<div className="flex items-center gap-2 text-muted-foreground">
+							<SpinnerIcon className="h-4 w-4 animate-spin" />
+							<span className="text-sm">Loading sessions...</span>
 						</div>
-						<div className="flex items-center justify-center pt-4">
-							<div className="flex items-center gap-2 text-muted-foreground">
-								<SpinnerIcon className="h-4 w-4 animate-spin" />
-								<span className="text-sm">Loading sessions...</span>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
+					</div>
+				</CardContent>
+			</Card>
 		);
 	}
 
+	// Error state
 	if (isError) {
 		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					errorMessage={error?.message || 'Failed to load sessions'}
-					hasError={true}
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-			</div>
+			<Card>
+				<CardContent className="flex items-center justify-center p-12">
+					<div className="text-center text-muted-foreground">
+						<UserIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
+						<p className="mb-2 font-medium text-lg">Failed to load sessions</p>
+						<p className="text-sm">
+							{error?.message || 'Please try again later'}
+						</p>
+					</div>
+				</CardContent>
+			</Card>
 		);
 	}
 
-	if (!allSessions.length) {
+	// Empty state
+	if (!(allSessions.length || isLoading)) {
 		return (
-			<div className="space-y-6">
-				<WebsitePageHeader
-					description="User sessions with event timelines and custom event properties"
-					icon={<UserIcon className="h-6 w-6 text-primary" />}
-					title="Recent Sessions"
-					variant="minimal"
-					websiteId={websiteId}
-				/>
-				<Card>
-					<CardContent className="flex items-center justify-center">
-						<div className="flex flex-col items-center py-12 text-center text-muted-foreground">
-							<UserIcon className="mb-4 h-12 w-12 opacity-50" />
-							<p className="mb-2 font-medium text-lg">No sessions found</p>
-							<p className="text-sm">
-								Sessions will appear here once users visit your website
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
+			<Card>
+				<CardContent className="flex items-center justify-center p-12">
+					<div className="text-center text-muted-foreground">
+						<UserIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
+						<p className="mb-2 font-medium text-lg">No sessions found</p>
+						<p className="text-sm">
+							Sessions will appear here once users visit your website
+						</p>
+					</div>
+				</CardContent>
+			</Card>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<WebsitePageHeader
-				description="User sessions with event timelines and custom event properties"
-				icon={<UserIcon className="h-6 w-6 text-primary" />}
-				subtitle={`${allSessions.length} loaded`}
-				title="Recent Sessions"
-				variant="minimal"
-				websiteId={websiteId}
-			/>
-			<Card>
-				<CardContent className="p-0">
-					<div className="divide-y divide-border">
-						{allSessions.map((session: SessionData, index: number) => (
+		<Card>
+			<CardContent className="p-0">
+				<div className="divide-y divide-border">
+					{allSessions.map((session, index) => {
+						const sessionData = session as Record<string, unknown>;
+						return (
 							<SessionRow
 								index={index}
-								isExpanded={expandedSessionId === session.session_id}
-								key={session.session_id || index}
+								isExpanded={expandedSessionId === sessionData.session_id}
+								key={sessionData.session_id as string}
 								onToggle={toggleSession}
 								session={session}
 							/>
-						))}
-					</div>
+						);
+					})}
+				</div>
 
-					<div className="border-t p-4" ref={setLoadMoreRef}>
-						{pagination.hasNext ? (
-							<div className="flex justify-center">
-								{isLoading ? (
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<SpinnerIcon className="h-4 w-4 animate-spin" />
-										<span className="text-sm">Loading more sessions...</span>
-									</div>
-								) : (
-									<Button
-										className="w-full"
-										onClick={() => setPage((prev) => prev + 1)}
-										variant="outline"
-									>
-										Load More Sessions
-									</Button>
-								)}
-							</div>
-						) : (
-							<div className="text-center text-muted-foreground text-sm">
-								{allSessions.length > 0
-									? 'All sessions loaded'
-									: 'No more sessions'}
-							</div>
-						)}
+				{/* Infinite scroll trigger */}
+				{hasNextPage && (
+					<div className="border-t p-4" ref={loadMoreRef}>
+						<div className="flex items-center justify-center gap-2 text-muted-foreground">
+							<SpinnerIcon className="h-4 w-4 animate-spin" />
+							<span className="text-sm">Loading more sessions...</span>
+						</div>
 					</div>
-				</CardContent>
-			</Card>
-		</div>
+				)}
+
+				{!hasNextPage && allSessions.length > 0 && (
+					<div className="border-t p-4 text-center text-muted-foreground text-sm">
+						All sessions loaded
+					</div>
+				)}
+			</CardContent>
+		</Card>
 	);
 }

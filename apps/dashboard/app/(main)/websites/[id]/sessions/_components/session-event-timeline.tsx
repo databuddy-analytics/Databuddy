@@ -16,7 +16,7 @@ interface SessionEvent {
 	path?: string;
 	error_message?: string;
 	error_type?: string;
-	properties?: Record<string, any>;
+	properties?: Record<string, unknown>;
 }
 
 interface SessionEventTimelineProps {

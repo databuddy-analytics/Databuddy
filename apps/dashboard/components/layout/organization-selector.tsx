@@ -63,11 +63,31 @@ export function OrganizationSelector() {
 		setActiveOrganization,
 		isSettingActiveOrganization,
 		hasError,
+		activeOrganizationError,
 	} = useOrganizations();
 	const router = useRouter();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState('');
+
+	// Handle case where active organization is not found (deleted)
+	const [hasHandledMissingOrg, setHasHandledMissingOrg] = useState(false);
+
+	// Check if the error indicates the organization was not found
+	const isActiveOrgNotFound =
+		activeOrganizationError?.message?.includes('ORGANIZATION_NOT_FOUND') ||
+		activeOrganizationError?.message?.includes('Organization not found');
+
+	// Auto-recover from deleted active organization
+	if (
+		isActiveOrgNotFound &&
+		!hasHandledMissingOrg &&
+		!isSettingActiveOrganization
+	) {
+		setHasHandledMissingOrg(true);
+		// Clear the active organization to fall back to personal workspace
+		setActiveOrganization(null);
+	}
 
 	const handleSelectOrganization = useCallback(
 		(organizationId: string | null) => {
@@ -109,7 +129,7 @@ export function OrganizationSelector() {
 		);
 	}
 
-	if (hasError) {
+	if (hasError && !isActiveOrgNotFound) {
 		return (
 			<div className="rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive">
 				<div className="flex items-center gap-2 text-sm">

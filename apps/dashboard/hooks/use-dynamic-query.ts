@@ -192,7 +192,6 @@ export function useDynamicQuery<T extends (keyof ParameterDataMap)[]>(
 				signal,
 				userTimezone
 			);
-			// Ensure we return a single query response (not batch)
 			return result as DynamicQueryResponse;
 		},
 		[websiteId, dateRange, queryData, userTimezone]

@@ -190,7 +190,7 @@ function applyReferrerParsing(
 
 function applyGeoNormalization(data: DataRow[]): DataRow[] {
 	return data.map((row) => {
-		const currentName = getString(row.name);
+		const currentName = getString(row.name) || getString(row.country);
 		if (!currentName) {
 			return row;
 		}

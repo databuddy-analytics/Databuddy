@@ -5,7 +5,10 @@ import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 
 const SessionsList = dynamic(
-	() => import('./_components').then((mod) => ({ default: mod.SessionsList })),
+	() =>
+		import('./_components/sessions-list').then((mod) => ({
+			default: mod.SessionsList,
+		})),
 	{
 		loading: () => (
 			<div className="flex items-center justify-center p-8">
@@ -20,7 +23,7 @@ export default function SessionsPage() {
 	const { id: websiteId } = useParams();
 
 	return (
-		<div className="p-3 sm:p-4 lg:p-6">
+		<div className="mt-6">
 			<SessionsList websiteId={websiteId as string} />
 		</div>
 	);

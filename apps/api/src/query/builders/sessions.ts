@@ -134,7 +134,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
-		${combinedWhereClause}
       GROUP BY session_id
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
@@ -181,6 +180,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       COALESCE(se.events, []) as events
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
+    ${combinedWhereClause ? `WHERE ${combinedWhereClause.replace('AND ', '')}` : ''}
     ORDER BY sl.first_visit DESC
   `,
 				params: {
@@ -192,6 +192,9 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 					...filterParams,
 				},
 			};
+		},
+		plugins: {
+			normalizeGeo: true,
 		},
 	},
 

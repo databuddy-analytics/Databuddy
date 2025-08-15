@@ -1,7 +1,7 @@
 'use client';
 
 import { signIn } from '@databuddy/auth/client';
-import { Eye, EyeOff, Github, Loader2, Mail, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, GithubIcon, Loader2, Mail, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -27,7 +27,8 @@ function LoginPage() {
 		setIsLoading(true);
 		signIn.social({
 			provider: 'google',
-			callbackURL: '/home',
+			callbackURL: '/websites',
+			newUserCallbackURL: '/onboarding',
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'google');
@@ -44,7 +45,8 @@ function LoginPage() {
 		setIsLoading(true);
 		signIn.social({
 			provider: 'github',
-			callbackURL: '/home',
+			callbackURL: '/websites',
+			newUserCallbackURL: '/onboarding',
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem('lastUsedLogin', 'github');
@@ -65,38 +67,35 @@ function LoginPage() {
 		}
 
 		setIsLoading(true);
-		try {
-			await signIn.email({
-				email,
-				password,
-				callbackURL: '/home',
-				fetchOptions: {
-					onSuccess: () => {
-						localStorage.setItem('lastUsedLogin', 'email');
-					},
-					onError: (error) => {
-						setIsLoading(false);
-						if (
-							error?.error?.code === 'EMAIL_NOT_VERIFIED' ||
-							error?.error?.message?.toLowerCase().includes('not verified')
-						) {
-							router.push(
-								`/login/verification-needed?email=${encodeURIComponent(email)}`
-							);
-						} else {
-							toast.error(
-								error?.error?.message ||
-									'Login failed. Please check your credentials and try again.'
-							);
-						}
-					},
+
+		await signIn.email({
+			email,
+			password,
+			callbackURL: '/websites',
+			fetchOptions: {
+				onSuccess: () => {
+					localStorage.setItem('lastUsedLogin', 'email');
 				},
-			});
-		} catch (_error) {
-			toast.error('Something went wrong');
-		} finally {
-			setIsLoading(false);
-		}
+				onError: (error) => {
+					setIsLoading(false);
+					if (
+						error?.error?.code === 'EMAIL_NOT_VERIFIED' ||
+						error?.error?.message?.toLowerCase().includes('not verified')
+					) {
+						router.push(
+							`/login/verification-needed?email=${encodeURIComponent(email)}`
+						);
+					} else {
+						toast.error(
+							error?.error?.message ||
+								'Login failed. Please check your credentials and try again.'
+						);
+					}
+				},
+			},
+		});
+
+		setIsLoading(false);
 	};
 
 	return (
@@ -120,7 +119,7 @@ function LoginPage() {
 								type="button"
 								variant="outline"
 							>
-								<Github className="mr-2 h-5 w-5" />
+								<GithubIcon className="mr-2 h-5 w-5" />
 								<span className="flex items-center gap-2">
 									Sign in with GitHub
 									{lastUsed === 'github' && (

@@ -214,7 +214,15 @@ export function useOrganizations() {
 			toast.success('Workspace updated');
 		},
 		onError: (error: Error) => {
-			toast.error(error.message || 'Failed to update workspace');
+			// Don't show error toast for organization not found - we handle this gracefully
+			if (
+				!(
+					error.message?.includes('ORGANIZATION_NOT_FOUND') ||
+					error.message?.includes('Organization not found')
+				)
+			) {
+				toast.error(error.message || 'Failed to update workspace');
+			}
 		},
 	});
 
