@@ -75,20 +75,23 @@ function FilterEditorForm({
 		suggestions.slice(0, MAX_SUGGESTIONS)
 	);
 
-	const handleInputChange = (newValue: string) => {
-		setSearchValue(newValue);
-		setValue(newValue);
+	const handleInputChange = useCallback(
+		(newValue: string) => {
+			setSearchValue(newValue);
+			setValue(newValue);
 
-		if (newValue.trim()) {
-			const filtered = suggestions
-				.filter((s) => s.toLowerCase().includes(newValue.toLowerCase()))
-				.slice(0, MAX_SUGGESTIONS);
-			setFilteredSuggestions(filtered);
-			setIsOpen(filtered.length > 0);
-		} else {
-			setFilteredSuggestions(suggestions.slice(0, MAX_SUGGESTIONS));
-		}
-	};
+			if (newValue.trim()) {
+				const filtered = suggestions
+					.filter((s) => s.toLowerCase().includes(newValue.toLowerCase()))
+					.slice(0, MAX_SUGGESTIONS);
+				setFilteredSuggestions(filtered);
+				// Keep popover open even if no results - don't auto-close
+			} else {
+				setFilteredSuggestions(suggestions.slice(0, MAX_SUGGESTIONS));
+			}
+		},
+		[suggestions]
+	);
 
 	const handleSelect = (suggestion: string) => {
 		setIsOpen(false);
@@ -125,7 +128,7 @@ function FilterEditorForm({
 						<Button
 							aria-expanded={isOpen}
 							className="w-full flex-1 justify-between overflow-x-auto overflow-y-hidden bg-transparent px-3"
-							role="combobox"
+							onClick={() => setIsOpen(true)}
 							variant="outline"
 						>
 							{value === '' ? 'Select a value' : value}
@@ -235,6 +238,8 @@ function FilterForm({
 					return autocompleteData.utmMediums || [];
 				case 'utm_campaign':
 					return autocompleteData.utmCampaigns || [];
+				case 'path':
+					return autocompleteData.pagePaths || [];
 				default:
 					return [];
 			}
@@ -254,11 +259,12 @@ function FilterForm({
 		const numberOfFilters = filterOptions.length;
 		return (
 			<div className="flex flex-col gap-2">
-				{Array.from({ length: Math.min(numberOfFilters, 5) }).map(
-					(_, index) => (
-						<Skeleton className="h-8 w-full" key={`filter-skeleton-${index}`} />
-					)
-				)}
+				{Array.from({ length: Math.min(numberOfFilters, 5) }, (_, index) => (
+					<Skeleton
+						className="h-8 w-full"
+						key={`filter-skeleton-${index}-${numberOfFilters}`}
+					/>
+				))}
 			</div>
 		);
 	}
