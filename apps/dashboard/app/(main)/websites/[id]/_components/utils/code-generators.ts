@@ -39,7 +39,7 @@ export function generateScriptTag(
 	return `<script
     src="${scriptUrl}"
     data-client-id="${websiteId}"
-${optionsLine}    crossOrigin="anonymous"
+${optionsLine}    crossorigin="anonymous"
     async
   ></script>`;
 }
