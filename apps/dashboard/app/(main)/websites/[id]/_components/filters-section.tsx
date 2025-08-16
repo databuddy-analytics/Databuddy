@@ -36,7 +36,7 @@ export function FiltersSection({
 
 	return (
 		<div className="rounded border bg-card shadow-sm">
-			<div className="flex min-h-[44px] flex-wrap items-center gap-2 p-2">
+			<div className="flex min-h-[44px] flex-wrap items-center gap-2 p-2 px-4">
 				<div className="flex items-center gap-2">
 					<FunnelIcon
 						className="h-4 w-4 text-muted-foreground"
