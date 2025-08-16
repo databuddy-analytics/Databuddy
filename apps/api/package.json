@@ -17,11 +17,12 @@
     "@elysiajs/cors": "^1.3.3",
     "@elysiajs/trpc": "^1.1.0",
     "@logtail/edge": "^0.5.5",
+    "@openrouter/ai-sdk-provider": "^1.1.2",
     "@trpc/server": "^11.4.3",
+    "ai": "^5.0.11",
     "autumn-js": "^0.1.10",
     "dayjs": "^1.11.13",
     "elysia": "^1.3.6",
     "jszip": "^3.10.1",
-    "openai": "^5.9.0"
   }
 }
