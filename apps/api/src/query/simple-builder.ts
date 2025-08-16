@@ -1,4 +1,5 @@
 import { chQuery } from '@databuddy/db';
+import type { DeviceType } from './screen-resolution-to-device-type';
 import type {
 	CompiledQuery,
 	Filter,
@@ -7,7 +8,6 @@ import type {
 } from './types';
 import { FilterOperators } from './types';
 import { applyPlugins } from './utils';
-import { mapScreenResolutionToDeviceType, type DeviceType } from './screen-resolution-to-device-type';
 
 // Constants for special filter fields to prevent typos
 const SPECIAL_FILTER_FIELDS = {
@@ -15,6 +15,48 @@ const SPECIAL_FILTER_FIELDS = {
 	REFERRER: 'referrer',
 	DEVICE_TYPE: 'device_type',
 } as const;
+
+// Helper function to normalize user input for referrer filters
+function normalizeReferrerFilterValue(value: string): string {
+	const lowerValue = value.toLowerCase();
+
+	// Map common user inputs to normalized referrer values
+	const referrerMappings: Record<string, string> = {
+		direct: 'direct',
+		google: 'https://google.com',
+		'google.com': 'https://google.com',
+		'www.google.com': 'https://google.com',
+		facebook: 'https://facebook.com',
+		'facebook.com': 'https://facebook.com',
+		'www.facebook.com': 'https://facebook.com',
+		twitter: 'https://twitter.com',
+		'twitter.com': 'https://twitter.com',
+		'www.twitter.com': 'https://twitter.com',
+		't.co': 'https://twitter.com',
+		instagram: 'https://instagram.com',
+		'instagram.com': 'https://instagram.com',
+		'www.instagram.com': 'https://instagram.com',
+		'l.instagram.com': 'https://instagram.com',
+	};
+
+	// Check if the input matches any known mapping
+	if (referrerMappings[lowerValue]) {
+		return referrerMappings[lowerValue];
+	}
+
+	// If the value already looks like a URL, return as-is
+	if (value.startsWith('http://') || value.startsWith('https://')) {
+		return value;
+	}
+
+	// For other domains, add https:// prefix if it looks like a domain
+	if (value.includes('.') && !value.includes(' ')) {
+		return `https://${value}`;
+	}
+
+	// Return original value if no transformation is needed
+	return value;
+}
 
 export class SimpleQueryBuilder {
 	private config: SimpleQueryConfig;
@@ -34,15 +76,32 @@ export class SimpleQueryBuilder {
 	private getDeviceTypeFilterCondition(deviceType: DeviceType): string {
 		// Create SQL condition that matches the same logic as mapScreenResolutionToDeviceType
 		// This replicates the heuristics from screen-resolution-to-device-type.ts in SQL
-		
+
 		// First, get common/known resolutions for exact matches
 		const commonResolutions: Record<string, DeviceType> = {
-			'896x414': 'mobile', '844x390': 'mobile', '932x430': 'mobile', '800x360': 'mobile',
-			'780x360': 'mobile', '736x414': 'mobile', '667x375': 'mobile', '640x360': 'mobile', '568x320': 'mobile',
-			'1366x1024': 'tablet', '1280x800': 'tablet', '1180x820': 'tablet', '1024x768': 'tablet', '1280x720': 'tablet',
-			'1366x768': 'laptop', '1440x900': 'laptop', '1536x864': 'laptop',
-			'1920x1080': 'desktop', '2560x1440': 'desktop', '3840x2160': 'desktop',
-			'3440x1440': 'ultrawide', '3840x1600': 'ultrawide', '5120x1440': 'ultrawide',
+			'896x414': 'mobile',
+			'844x390': 'mobile',
+			'932x430': 'mobile',
+			'800x360': 'mobile',
+			'780x360': 'mobile',
+			'736x414': 'mobile',
+			'667x375': 'mobile',
+			'640x360': 'mobile',
+			'568x320': 'mobile',
+			'1366x1024': 'tablet',
+			'1280x800': 'tablet',
+			'1180x820': 'tablet',
+			'1024x768': 'tablet',
+			'1280x720': 'tablet',
+			'1366x768': 'laptop',
+			'1440x900': 'laptop',
+			'1536x864': 'laptop',
+			'1920x1080': 'desktop',
+			'2560x1440': 'desktop',
+			'3840x2160': 'desktop',
+			'3440x1440': 'ultrawide',
+			'3840x1600': 'ultrawide',
+			'5120x1440': 'ultrawide',
 		};
 
 		const exactMatches = Object.entries(commonResolutions)
@@ -51,8 +110,10 @@ export class SimpleQueryBuilder {
 			.join(', ');
 
 		// SQL for parsing resolution dimensions with error handling
-		const widthExpr = "toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, 1, position(screen_resolution, 'x') - 1), NULL))";
-		const heightExpr = "toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, position(screen_resolution, 'x') + 1), NULL))";
+		const widthExpr =
+			"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, 1, position(screen_resolution, 'x') - 1), NULL))";
+		const heightExpr =
+			"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, position(screen_resolution, 'x') + 1), NULL))";
 		const longSideExpr = `greatest(${widthExpr}, ${heightExpr})`;
 		const shortSideExpr = `least(${widthExpr}, ${heightExpr})`;
 		const aspectExpr = `${longSideExpr} / ${shortSideExpr}`;
@@ -72,7 +133,6 @@ export class SimpleQueryBuilder {
 					return `(${aspectExpr} >= 2.0 AND ${longSideExpr} >= 2560 AND ${longSideExpr} IS NOT NULL)`;
 				case 'watch':
 					return `(${longSideExpr} <= 400 AND ${aspectExpr} >= 0.85 AND ${aspectExpr} <= 1.15 AND ${longSideExpr} IS NOT NULL)`;
-				case 'unknown':
 				default:
 					return '1 = 0'; // Never matches
 			}
@@ -97,8 +157,9 @@ export class SimpleQueryBuilder {
 
 		// Special handling for path filters - apply same normalization as used in queries
 		if (filter.field === SPECIAL_FILTER_FIELDS.PATH) {
-			const normalizedPathExpression = "CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
-			
+			const normalizedPathExpression =
+				"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
+
 			if (filter.op === 'like') {
 				return {
 					clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
@@ -124,43 +185,69 @@ export class SimpleQueryBuilder {
 
 		// Special handling for referrer filters - apply same normalization as used in queries
 		if (filter.field === SPECIAL_FILTER_FIELDS.REFERRER) {
-			const normalizedReferrerExpression = 
+			const normalizedReferrerExpression =
 				'CASE ' +
+				"WHEN referrer = '' OR referrer IS NULL THEN 'direct' " +
 				"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
 				"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
 				"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
 				"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
 				"ELSE concat('https://', domain(referrer)) " +
 				'END';
-			
+
 			if (filter.op === 'like') {
+				// For 'like' operations, we need to handle user-friendly input
+				// If user types "Google", they want to match referrers like 'https://google.com'
+				const lowerValue = String(filter.value).toLowerCase();
+				let searchValue = filter.value;
+
+				// Map common search terms to more specific patterns
+				if (lowerValue === 'direct') {
+					searchValue = 'direct';
+				} else if (lowerValue === 'google') {
+					searchValue = 'google.com';
+				} else if (lowerValue === 'facebook') {
+					searchValue = 'facebook.com';
+				} else if (lowerValue === 'twitter') {
+					searchValue = 'twitter.com';
+				} else if (lowerValue === 'instagram') {
+					searchValue = 'instagram.com';
+				}
+
 				return {
 					clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-					params: { [key]: `%${filter.value}%` },
+					params: { [key]: `%${searchValue}%` },
 				};
 			}
 
 			if (filter.op === 'in' || filter.op === 'notIn') {
 				const values = Array.isArray(filter.value)
-					? filter.value
-					: [filter.value];
+					? filter.value.map((v) => normalizeReferrerFilterValue(String(v)))
+					: [normalizeReferrerFilterValue(String(filter.value))];
 				return {
 					clause: `${normalizedReferrerExpression} ${operator} {${key}:Array(String)}`,
 					params: { [key]: values },
 				};
 			}
 
+			// For exact matches (eq, ne), normalize the user input to match the normalized referrer expression
+			const normalizedValue = normalizeReferrerFilterValue(
+				String(filter.value)
+			);
 			return {
 				clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-				params: { [key]: filter.value },
+				params: { [key]: normalizedValue },
 			};
 		}
 
 		// Special handling for device_type filters - convert to screen_resolution filters
-		if (filter.field === SPECIAL_FILTER_FIELDS.DEVICE_TYPE && typeof filter.value === 'string') {
+		if (
+			filter.field === SPECIAL_FILTER_FIELDS.DEVICE_TYPE &&
+			typeof filter.value === 'string'
+		) {
 			const deviceType = filter.value as DeviceType;
 			const condition = this.getDeviceTypeFilterCondition(deviceType);
-			
+
 			// Return the condition directly without parameters since it's self-contained
 			return {
 				clause: condition,
@@ -313,12 +400,24 @@ export class SimpleQueryBuilder {
 		}
 
 		// Security validation - only block dangerous SQL keywords
-		const dangerousKeywords = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'ALTER', 'TRUNCATE', 'EXEC', 'EXECUTE'];
+		const dangerousKeywords = [
+			'DROP',
+			'DELETE',
+			'INSERT',
+			'UPDATE',
+			'CREATE',
+			'ALTER',
+			'TRUNCATE',
+			'EXEC',
+			'EXECUTE',
+		];
 		for (const field of groupBy) {
 			const upperField = field.toUpperCase();
 			for (const keyword of dangerousKeywords) {
 				if (upperField.includes(keyword)) {
-					throw new Error(`Grouping by field '${field}' contains dangerous keyword: ${keyword}`);
+					throw new Error(
+						`Grouping by field '${field}' contains dangerous keyword: ${keyword}`
+					);
 				}
 			}
 		}
@@ -333,11 +432,23 @@ export class SimpleQueryBuilder {
 		}
 
 		// Security validation - only block dangerous SQL keywords
-		const dangerousKeywords = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'ALTER', 'TRUNCATE', 'EXEC', 'EXECUTE'];
+		const dangerousKeywords = [
+			'DROP',
+			'DELETE',
+			'INSERT',
+			'UPDATE',
+			'CREATE',
+			'ALTER',
+			'TRUNCATE',
+			'EXEC',
+			'EXECUTE',
+		];
 		const upperOrderBy = orderBy.toUpperCase();
 		for (const keyword of dangerousKeywords) {
 			if (upperOrderBy.includes(keyword)) {
-				throw new Error(`Ordering by field '${orderBy}' contains dangerous keyword: ${keyword}`);
+				throw new Error(
+					`Ordering by field '${orderBy}' contains dangerous keyword: ${keyword}`
+				);
 			}
 		}
 

@@ -10,6 +10,7 @@ import {
 	isAnalyticsRefreshingAtom,
 } from '@/stores/jotai/filterAtoms';
 import { AnalyticsToolbar } from './_components/analytics-toolbar';
+import { FiltersSection } from './_components/filters-section';
 
 interface WebsiteLayoutProps {
 	children: React.ReactNode;
@@ -47,14 +48,18 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 
 	return (
 		<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
-			{/* Analytics toolbar shared across all website pages */}
+			{/* Analytics toolbar and filters shared across all website pages */}
 			{isTrackingSetup && (
-				<AnalyticsToolbar
-					isRefreshing={isRefreshing}
-					onFiltersChange={setSelectedFilters}
-					onRefresh={handleRefresh}
-					selectedFilters={selectedFilters}
-				/>
+				<div className="space-y-4">
+					<AnalyticsToolbar
+						isRefreshing={isRefreshing}
+						onRefresh={handleRefresh}
+					/>
+					<FiltersSection
+						onFiltersChange={setSelectedFilters}
+						selectedFilters={selectedFilters}
+					/>
+				</div>
 			)}
 
 			{/* Page content */}
