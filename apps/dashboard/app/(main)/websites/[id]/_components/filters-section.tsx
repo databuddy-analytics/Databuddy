@@ -69,11 +69,11 @@ export function FiltersSection({
 							</span>
 							<button
 								aria-label={`Remove filter ${displayText}`}
-								className="ml-1 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+								className="ml-1 rounded-sm bg-transparent p-0.5 text-muted-foreground transition-colors hover:text-destructive"
 								onClick={() => removeFilter(index)}
 								type="button"
 							>
-								<XIcon className="h-3 w-3" weight="fill" />
+								<XIcon className="h-3 w-3" weight="bold" />
 							</button>
 						</div>
 					);
