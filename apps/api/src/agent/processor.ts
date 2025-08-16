@@ -1,8 +1,8 @@
 import type { User } from '@databuddy/auth';
 import type { Website } from '@databuddy/shared';
+import type { AssistantRequestType } from '../schemas';
 import { handleChartResponse } from './handlers/chart-handler';
 import { handleMetricResponse } from './handlers/metric-handler';
-import { comprehensiveUnifiedPrompt } from './prompts/agent';
 import { getAICompletion } from './utils/ai-client';
 import type { StreamingUpdate } from './utils/stream-utils';
 import { generateThinkingSteps } from './utils/stream-utils';
@@ -23,17 +23,8 @@ const unexpectedErrorMessages = [
 	'Something went a bit wonky on my end. Try asking me again?',
 ];
 
-export interface AssistantRequest {
-	message: string;
-	website_id: string;
-	website_hostname: string;
-	model?: 'chat' | 'agent' | 'agent-max';
-	context?: {
-		previousMessages?: Array<{
-			role?: string;
-			content: string;
-		}>;
-	};
+export interface AssistantRequest extends AssistantRequestType {
+	websiteHostname: string;
 }
 
 export interface AssistantContext {
@@ -50,34 +41,22 @@ export async function* processAssistantRequest(
 
 	try {
 		console.info('✅ [Assistant Processor] Input validated', {
-			message: request.message,
-			website_id: request.website_id,
-			website_hostname: request.website_hostname,
+			message: request.messages.at(-1),
+			websiteId: request.websiteId,
+			websiteHostname: request.websiteHostname,
 		});
 
 		if (context.user?.role === 'ADMIN') {
 			context.debugInfo.validatedInput = {
-				message: request.message,
-				website_id: request.website_id,
-				website_hostname: request.website_hostname,
+				message: request.messages.at(-1),
+				websiteId: request.websiteId,
+				websiteHostname: request.websiteHostname,
 			};
 		}
 
 		const aiStart = Date.now();
-		const fullPrompt = comprehensiveUnifiedPrompt(
-			request.message,
-			request.website_id,
-			request.website_hostname,
-			'execute_chat',
-			request.context?.previousMessages?.map((msg) => ({
-				role: msg.role || 'user',
-				content: msg.content,
-			})),
-			undefined,
-			request.model
-		);
 
-		const aiResponse = await getAICompletion({ prompt: fullPrompt });
+		const aiResponse = await getAICompletion(request);
 		const aiTime = Date.now() - aiStart;
 
 		const parsedResponse = aiResponse.content;
