@@ -1,3 +1,3 @@
-export * from './Databuddy';
+export * from './script';
 export * from './tracker';
 export * from './types';

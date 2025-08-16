@@ -103,10 +103,3 @@ export function trackError(
 ): Promise<void> {
 	return track('error', { message, ...properties });
 }
-
-export default {
-	track,
-	clear,
-	flush,
-	trackError,
-};

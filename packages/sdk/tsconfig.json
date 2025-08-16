@@ -1,18 +1,13 @@
 {
   "compilerOptions": {
-    "target": "es2018",
-    "module": "esnext",
+    "target": "ES2022",
+    "module": "ES2022",
     "lib": ["dom", "esnext"],
-    "declaration": true,
-    "declarationDir": "dist",
     "strict": true,
-    "moduleResolution": "node",
-    "esModuleInterop": true,
+    "moduleResolution": "bundler",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
