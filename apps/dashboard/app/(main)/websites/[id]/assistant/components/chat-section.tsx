@@ -1,15 +1,15 @@
 'use client';
 
 import {
-	Brain,
-	ChartBar,
+	BrainIcon,
+	ChartBarIcon,
 	ChatIcon,
-	ClockCounterClockwise,
-	Hash,
-	Lightning,
-	PaperPlaneRight,
-	Sparkle,
-	TrendUp,
+	ClockCounterClockwiseIcon,
+	HashIcon,
+	LightningIcon,
+	PaperPlaneRightIcon,
+	SparkleIcon,
+	TrendUpIcon,
 } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
@@ -98,12 +98,16 @@ export default function ChatSection() {
 	const quickQuestions = [
 		{
 			text: 'Show me page views over the last 7 days',
-			icon: TrendUp,
+			icon: TrendUpIcon,
 			type: 'chart',
 		},
-		{ text: 'How many visitors yesterday?', icon: Hash, type: 'metric' },
-		{ text: 'Top traffic sources breakdown', icon: ChartBar, type: 'chart' },
-		{ text: "What's my bounce rate?", icon: Hash, type: 'metric' },
+		{ text: 'How many visitors yesterday?', icon: HashIcon, type: 'metric' },
+		{
+			text: 'Top traffic sources breakdown',
+			icon: ChartBarIcon,
+			type: 'chart',
+		},
+		{ text: "What's my bounce rate?", icon: HashIcon, type: 'metric' },
 	];
 
 	// Focus input when component mounts and after sending
@@ -140,7 +144,7 @@ export default function ChatSection() {
 				<div className="flex min-w-0 flex-1 items-center gap-3">
 					<div className="relative">
 						<div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-accent/20 shadow-sm">
-							<Brain className="h-6 w-6 text-primary" />
+							<BrainIcon className="h-6 w-6 text-primary" weight="duotone" />
 						</div>
 						{isLoading && (
 							<div className="-bottom-1 -right-1 absolute flex h-4 w-4 items-center justify-center rounded-full bg-green-500">
@@ -177,7 +181,7 @@ export default function ChatSection() {
 						title="Open chat history"
 						variant="ghost"
 					>
-						<ChatIcon className="h-5 w-5" />
+						<ChatIcon className="h-5 w-5" weight="duotone" />
 					</Button>
 					<Button
 						className="h-9 w-9 flex-shrink-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
@@ -187,7 +191,7 @@ export default function ChatSection() {
 						title="Reset chat"
 						variant="ghost"
 					>
-						<ClockCounterClockwise
+						<ClockCounterClockwiseIcon
 							className={cn(
 								'h-4 w-4 transition-transform duration-200',
 								isLoading && 'animate-spin'
@@ -206,7 +210,10 @@ export default function ChatSection() {
 							<div className="fade-in-0 slide-in-from-bottom-4 animate-in space-y-6 duration-500">
 								<div className="py-8 text-center">
 									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-accent/10">
-										<Sparkle className="h-8 w-8 text-primary" />
+										<SparkleIcon
+											className="h-8 w-8 text-primary"
+											weight="duotone"
+										/>
 									</div>
 									<h3 className="mb-2 font-semibold text-lg">
 										Welcome to Databunny
@@ -220,7 +227,7 @@ export default function ChatSection() {
 
 								<div className="space-y-3">
 									<div className="mb-3 flex items-center gap-2 text-muted-foreground text-sm">
-										<Lightning className="h-4 w-4" />
+										<LightningIcon className="h-4 w-4" weight="duotone" />
 										<span>Try these examples:</span>
 									</div>
 									{quickQuestions.map((question, index) => (
@@ -317,7 +324,7 @@ export default function ChatSection() {
 							size="icon"
 							title="Send message"
 						>
-							<PaperPlaneRight
+							<PaperPlaneRightIcon
 								className={cn(
 									'h-4 w-4',
 									inputValue.trim() &&
@@ -325,6 +332,7 @@ export default function ChatSection() {
 										!isRateLimited &&
 										'scale-110'
 								)}
+								weight="duotone"
 							/>
 						</Button>
 					</div>
@@ -332,20 +340,20 @@ export default function ChatSection() {
 					{/* Helper text */}
 					<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
 						<div className="flex items-center gap-2 text-muted-foreground">
-							<Sparkle className="h-3 w-3 flex-shrink-0" />
+							<SparkleIcon className="h-3 w-3 flex-shrink-0" weight="duotone" />
 							<span>Ask about trends, comparisons, or specific metrics</span>
 						</div>
 						{hasMessages && (
 							<div className="flex items-center gap-3 text-muted-foreground">
 								{messageStats.charts > 0 && (
 									<span className="flex items-center gap-1">
-										<ChartBar className="h-3 w-3" />
+										<ChartBarIcon className="h-3 w-3" weight="duotone" />
 										{messageStats.charts}
 									</span>
 								)}
 								{messageStats.metrics > 0 && (
 									<span className="flex items-center gap-1">
-										<Hash className="h-3 w-3" />
+										<HashIcon className="h-3 w-3" weight="duotone" />
 										{messageStats.metrics}
 									</span>
 								)}
