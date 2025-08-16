@@ -1,33 +1,16 @@
 import { t } from 'elysia';
 
 export const AssistantRequestSchema = t.Object({
-	message: t.String(),
-	website_id: t.String(),
-	model: t.Optional(
-		t.Union([t.Literal('chat'), t.Literal('agent'), t.Literal('agent-max')])
-	),
-	context: t.Optional(
+	messages: t.Array(
 		t.Object({
-			previousMessages: t.Optional(
-				t.Array(
-					t.Object({
-						role: t.Optional(t.String()),
-						content: t.String(),
-					})
-				)
-			),
+			role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+			content: t.String(),
 		})
 	),
+	websiteId: t.String(),
+	model: t.Optional(
+		t.Union([t.Literal('chat'), t.Literal('agent'), t.Literal('agent-max')])
+	)
 });
 
-export type AssistantRequestType = {
-	message: string;
-	website_id: string;
-	model?: 'chat' | 'agent' | 'agent-max';
-	context?: {
-		previousMessages?: Array<{
-			role?: string;
-			content: string;
-		}>;
-	};
-};
+export type AssistantRequestType = typeof AssistantRequestSchema.static;
