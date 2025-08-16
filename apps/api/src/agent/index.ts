@@ -7,7 +7,7 @@ export { processAssistantRequest } from './processor';
 export {
 	AIPlanSchema,
 	AIResponseJsonSchema,
-	comprehensiveUnifiedPrompt,
+	comprehensiveSystemPrompt,
 } from './prompts/agent';
 export { getAICompletion } from './utils/ai-client';
 export { executeQuery } from './utils/query-executor';

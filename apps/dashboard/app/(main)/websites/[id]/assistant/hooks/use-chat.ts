@@ -182,10 +182,18 @@ export function useChat() {
 						},
 						credentials: 'include',
 						body: JSON.stringify({
-							message: messageContent,
-							website_id: websiteId || '',
+							messages: [
+								...messages.map((msg) => ({
+									role: msg.type,
+									content: msg.content,
+								})),
+								{
+									role: 'user',
+									content: messageContent,
+								},
+							],
+							websiteId: websiteId || '',
 							model,
-							context: { previousMessages: messages },
 						}),
 					}
 				);
