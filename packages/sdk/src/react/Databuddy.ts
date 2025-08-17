@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import type { DatabuddyConfig } from '../core/types';
 import { createScript, isScriptInjected } from '../core/script';
+import type { DatabuddyConfig } from '../core/types';
 
 /**
  * <Databuddy /> component for Next.js/React apps

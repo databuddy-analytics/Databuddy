@@ -1,26 +1,30 @@
-import { DatabuddyConfig } from "./types";
-import { version } from '../../package.json'
+import { version } from '../../package.json';
+import type { DatabuddyConfig } from './types';
+
+const INJECTED_SCRIPT_ATTRIBUTE = 'data-databuddy-injected';
 
 export function isScriptInjected() {
-  return !!document.querySelector('script[data-databuddy-injected]');
+	return !!document.querySelector(`script[${INJECTED_SCRIPT_ATTRIBUTE}]`);
 }
 
-export function createScript(props: DatabuddyConfig) {
-  const script = document.createElement('script');
+export function createScript({
+	scriptUrl,
+	sdkVersion,
+	...props
+}: DatabuddyConfig) {
+	const script = document.createElement('script');
 
-  script.src = props.scriptUrl || 'https://cdn.databuddy.cc/databuddy.js';
-  script.async = true;
-  script.crossOrigin = 'anonymous';
-  script.setAttribute('data-databuddy-injected', 'true');
-  script.setAttribute('data-sdk-version', props.sdkVersion || version);
+	script.src = scriptUrl || 'https://cdn.databuddy.cc/databuddy.js';
+	script.async = true;
+	script.crossOrigin = 'anonymous';
+	script.setAttribute(INJECTED_SCRIPT_ATTRIBUTE, 'true');
+	script.setAttribute('data-sdk-version', sdkVersion || version);
 
-  for (const [key, value] of Object.entries(props)) {
-    if (value !== undefined && key !== 'sdkVersion') {
-      const dataKey = `data-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+	for (const [key, value] of Object.entries(props)) {
+		const dataKey = `data-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
 
-      script.setAttribute(dataKey, String(value));
-    }
-  }
+		script.setAttribute(dataKey, String(value));
+	}
 
-  return script;
+	return script;
 }

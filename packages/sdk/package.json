@@ -7,21 +7,26 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "build": "unbuild",
-    "test": "vitest run"
+    "build": "unbuild"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "react": "18.0.0",
     "typescript": "catalog:",
-    "unbuild": "^3.6.1"
+    "unbuild": "^3.6.1",
+    "vue": "3.0.0",
+    "vue-sfc-transformer": "^0.1.16"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "vue": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },
@@ -33,6 +38,10 @@
     "./react": {
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.mjs"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.mjs"
     }
   },
   "files": [
@@ -42,6 +51,8 @@
     "analytics",
     "tracking",
     "databuddy",
-    "sdk"
+    "sdk",
+    "react",
+    "vue"
   ]
 }
