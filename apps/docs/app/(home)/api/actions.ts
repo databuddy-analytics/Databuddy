@@ -26,7 +26,9 @@ export async function getQueryTypes(
 ): Promise<QueryTypesResponse> {
 	try {
 		const url = new URL(`${API_BASE_URL}/v1/query/types`);
-		if (includeMeta) url.searchParams.set('include_meta', 'true');
+		if (includeMeta) {
+			url.searchParams.set('include_meta', 'true');
+		}
 
 		const response = await fetch(url.toString(), {
 			method: 'GET',

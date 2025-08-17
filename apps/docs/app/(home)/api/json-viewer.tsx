@@ -9,15 +9,19 @@ export interface JsonNodeProps {
 	level?: number;
 }
 
+function getKeyColor() {
+	return 'text-green-600 dark:text-blue-300';
+}
+
 function getValueColor(value: unknown) {
 	if (value === null) {
 		return 'text-muted-foreground';
 	}
 	if (typeof value === 'string') {
-		return 'text-emerald-500 dark:text-emerald-300';
+		return 'text-blue-600 dark:text-orange-300';
 	}
 	if (typeof value === 'number' || typeof value === 'boolean') {
-		return 'text-amber-500 dark:text-amber-300';
+		return 'text-blue-600 dark:text-orange-300';
 	}
 	return 'text-foreground/90';
 }
@@ -44,10 +48,10 @@ function PrimitiveNode({
 	const indent = level * 12;
 	return (
 		<div
-			className="flex items-center rounded px-2 py-1 transition-colors hover:bg-muted/20"
+			className="flex items-center rounded px-2 py-1 font-mono transition-colors hover:bg-muted/20"
 			style={{ paddingLeft: indent }}
 		>
-			{name && <span className="mr-2 text-primary">{name}:</span>}
+			{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 			<span className={getValueColor(value)}>{formatValue(value)}</span>
 		</div>
 	);
@@ -68,7 +72,7 @@ function ArrayNode({
 		return <PrimitiveNode level={level} name={name} value="[]" />;
 	}
 	return (
-		<div>
+		<div className="font-mono">
 			<button
 				aria-expanded={isExpanded}
 				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
@@ -81,7 +85,7 @@ function ArrayNode({
 				) : (
 					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
 				)}
-				{name && <span className="mr-2 text-primary">{name}:</span>}
+				{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 				<span className="font-semibold text-foreground/80">[</span>
 			</button>
 			{isExpanded && (
@@ -126,7 +130,7 @@ function ObjectNode({
 		return <PrimitiveNode level={level} name={name} value="{}" />;
 	}
 	return (
-		<div>
+		<div className="font-mono">
 			<button
 				aria-expanded={isExpanded}
 				className="flex w-full items-center rounded px-2 py-1 text-left transition-colors hover:bg-muted/20"
@@ -139,7 +143,7 @@ function ObjectNode({
 				) : (
 					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
 				)}
-				{name && <span className="mr-2 text-primary">{name}:</span>}
+				{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 				<span className="font-semibold text-foreground/80">{'{'}</span>
 			</button>
 			{isExpanded && (

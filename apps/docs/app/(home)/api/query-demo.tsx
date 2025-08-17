@@ -16,40 +16,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getQueryTypes } from './actions';
 import { JsonNode } from './json-viewer';
-import {
-	type BatchQueryResponse,
-	type DynamicQueryRequest,
-	executeBatchQueries,
-} from './query-builder';
+import { executeBatchQueries } from './query-builder';
+import type { BatchQueryResponse, DynamicQueryRequest } from './types';
 
 interface QueryType {
 	name: string;
 	defaultLimit?: number;
 	customizable?: boolean;
 	allowedFilters?: string[];
-}
-
-function CornerDecorations() {
-	return (
-		<div className="pointer-events-none absolute inset-0">
-			<div className="absolute top-0 left-0 h-2 w-2">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-		</div>
-	);
 }
 
 export function QueryDemo() {
@@ -73,15 +47,8 @@ export function QueryDemo() {
 	};
 
 	const displayedTypes = useMemo(() => {
-		const selectedSet = new Set(selectedOrder);
-		const selectedTypesOrdered = selectedOrder
-			.map((name) => availableTypes.find((t) => t.name === name))
-			.filter(Boolean) as QueryType[];
-		const unselectedTypes = availableTypes.filter(
-			(t) => !selectedSet.has(t.name)
-		);
-		return [...selectedTypesOrdered, ...unselectedTypes];
-	}, [availableTypes, selectedOrder]);
+		return availableTypes;
+	}, [availableTypes]);
 
 	// Load available query types on mount
 	const runQueries = useCallback(async (parameters: string[]) => {
@@ -222,7 +189,10 @@ export function QueryDemo() {
 					<div className="flex items-center justify-between">
 						<h3 className="font-medium text-lg">Query Builder</h3>
 						{selectedTypes.size > 0 && (
-							<Badge className="font-mono text-xs" variant="secondary">
+							<Badge
+								className="rounded-none font-mono text-xs"
+								variant="secondary"
+							>
 								{selectedTypes.size} selected
 								<button
 									aria-label="Clear selection"
@@ -245,10 +215,10 @@ export function QueryDemo() {
 							<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
 								{displayedTypes.map((type) => (
 									<Card
-										className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md ${
+										className={`group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm ${
 											selectedTypes.has(type.name)
-												? 'bg-primary/5 shadow-inner'
-												: 'border-border/50 bg-card/70 hover:border-border'
+												? 'border-primary/40 bg-primary/5 shadow-inner'
+												: 'border-border/30 bg-card/70'
 										}`}
 										key={type.name}
 										onClick={() => handleTypeToggle(type.name)}
@@ -284,7 +254,6 @@ export function QueryDemo() {
 												/>
 											</div>
 										</CardContent>
-										<CornerDecorations />
 									</Card>
 								))}
 							</div>
@@ -307,7 +276,7 @@ export function QueryDemo() {
 						<h3 className="font-medium text-lg">Response</h3>
 						{result && (
 							<Badge
-								className="text-xs"
+								className="rounded-none text-xs"
 								variant={result.success ? 'default' : 'destructive'}
 							>
 								{result.success ? 'Success' : 'Failed'}
@@ -315,7 +284,7 @@ export function QueryDemo() {
 						)}
 					</div>
 
-					<Card className="relative flex-1 border-border/50 bg-white dark:bg-black">
+					<Card className="relative flex-1 border border-border/40 bg-white transition-all duration-200 hover:border-border/60 hover:shadow-sm dark:bg-neutral-900">
 						<CardContent className="h-80 p-0 lg:h-96">
 							<ScrollArea className="h-full">
 								<div className="select-text break-words p-4 font-mono text-[13px] leading-6 tracking-tight sm:text-[13.5px]">
@@ -338,7 +307,6 @@ export function QueryDemo() {
 								</div>
 							</ScrollArea>
 						</CardContent>
-						<CornerDecorations />
 					</Card>
 				</div>
 			</div>
