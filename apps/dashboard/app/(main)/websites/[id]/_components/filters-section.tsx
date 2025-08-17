@@ -17,6 +17,12 @@ function getOperatorSymbol(operator: string): string {
 		eq: '=',
 		like: '∈',
 		ne: '≠',
+		in: '∈',
+		notIn: '∉',
+		gt: '>',
+		gte: '≥',
+		lt: '<',
+		lte: '≤',
 	};
 	return operatorToSymbolMap[operator] || operator;
 }
