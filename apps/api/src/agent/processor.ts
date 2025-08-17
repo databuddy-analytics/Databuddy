@@ -4,11 +4,9 @@ import { handleChartResponse } from './handlers/chart-handler';
 import { handleMetricResponse } from './handlers/metric-handler';
 import { comprehensiveUnifiedPrompt } from './prompts/agent';
 import { getAICompletion } from './utils/ai-client';
-import { parseAIResponse } from './utils/response-parser';
 import type { StreamingUpdate } from './utils/stream-utils';
 import { generateThinkingSteps } from './utils/stream-utils';
 
-// Simple message variation helpers
 const getRandomMessage = (messages: string[]): string =>
 	messages[Math.floor(Math.random() * messages.length)] ||
 	'An error occurred while processing your request.';
@@ -82,31 +80,9 @@ export async function* processAssistantRequest(
 		const aiResponse = await getAICompletion({ prompt: fullPrompt });
 		const aiTime = Date.now() - aiStart;
 
-		console.info('📝 [Assistant Processor] Raw AI response received', {
-			timeTaken: `${aiTime}ms`,
-			contentLength: aiResponse.content.length,
-		});
+		const parsedResponse = aiResponse.content;
 
-		const parsedResponse = parseAIResponse(aiResponse.content);
-
-		if (!parsedResponse.success) {
-			yield {
-				type: 'error',
-				content: getRandomMessage(parseErrorMessages),
-				debugInfo:
-					context.user?.role === 'ADMIN'
-						? {
-								...context.debugInfo,
-								parseError: parsedResponse.error,
-								rawResponse: parsedResponse.rawResponse,
-							}
-						: undefined,
-			};
-			return;
-		}
-
-		const aiJson = parsedResponse.data;
-		if (!aiJson) {
+		if (!parsedResponse) {
 			yield {
 				type: 'error',
 				content: getRandomMessage(parseErrorMessages),
@@ -115,24 +91,26 @@ export async function* processAssistantRequest(
 			};
 			return;
 		}
+
 		console.info('✅ [Assistant Processor] AI response parsed', {
-			responseType: aiJson.response_type,
-			hasSQL: !!aiJson.sql,
-			thinkingSteps: aiJson.thinking_steps?.length || 0,
+			responseType: parsedResponse.response_type,
+			hasSQL: !!parsedResponse.sql,
+			thinkingSteps: parsedResponse.thinking_steps?.length || 0,
 		});
 
 		// Process thinking steps
-		if (aiJson.thinking_steps?.length) {
-			yield* generateThinkingSteps(aiJson.thinking_steps);
+		if (parsedResponse.thinking_steps?.length) {
+			yield* generateThinkingSteps(parsedResponse.thinking_steps);
 		}
 
 		// Handle different response types
-		switch (aiJson.response_type) {
+		switch (parsedResponse.response_type) {
 			case 'text':
 				yield {
 					type: 'complete',
 					content:
-						aiJson.text_response || "Here's the answer to your question.",
+						parsedResponse.text_response ||
+						"Here's the answer to your question.",
 					data: { hasVisualization: false, responseType: 'text' },
 					debugInfo:
 						context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
@@ -140,12 +118,12 @@ export async function* processAssistantRequest(
 				break;
 
 			case 'metric':
-				yield* handleMetricResponse(aiJson, context);
+				yield* handleMetricResponse(parsedResponse, context);
 				break;
 
 			case 'chart':
-				if (aiJson.sql) {
-					yield* handleChartResponse(aiJson, {
+				if (parsedResponse.sql) {
+					yield* handleChartResponse(parsedResponse, {
 						...context,
 						startTime,
 						aiTime,

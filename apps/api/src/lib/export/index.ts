@@ -1,14 +1,14 @@
 // Main export orchestrator
 
 import { logger } from '../logger';
-import type { ExportRequest } from './types';
 import { fetchExportData } from './data-fetcher';
-import { 
-	generateExportFiles, 
-	generateMetadataFile, 
-	createZipBuffer, 
-	generateExportFilename 
+import {
+	createZipBuffer,
+	generateExportFilename,
+	generateExportFiles,
+	generateMetadataFile,
 } from './file-generator';
+import type { ExportRequest } from './types';
 
 export interface ExportResult {
 	buffer: Buffer;
@@ -21,9 +21,11 @@ export interface ExportResult {
 	};
 }
 
-export async function processExport(request: ExportRequest): Promise<ExportResult> {
+export async function processExport(
+	request: ExportRequest
+): Promise<ExportResult> {
 	const { website_id: websiteId, format = 'json' } = request;
-	
+
 	logger.info('Starting data export', {
 		websiteId,
 		startDate: request.start_date,
@@ -33,7 +35,7 @@ export async function processExport(request: ExportRequest): Promise<ExportResul
 
 	// Fetch data from ClickHouse
 	const data = await fetchExportData(request);
-	
+
 	logger.info('Data export queries completed', {
 		websiteId,
 		eventsCount: data.events.length,
@@ -50,7 +52,8 @@ export async function processExport(request: ExportRequest): Promise<ExportResul
 	const buffer = await createZipBuffer(allFiles);
 	const filename = generateExportFilename(websiteId);
 
-	const totalRecords = data.events.length + data.errors.length + data.webVitals.length;
+	const totalRecords =
+		data.events.length + data.errors.length + data.webVitals.length;
 
 	logger.info('Data export completed successfully', {
 		websiteId,
@@ -72,10 +75,10 @@ export async function processExport(request: ExportRequest): Promise<ExportResul
 }
 
 // Re-export types for convenience
-export type { 
-	ExportRequest, 
-	ExportFormat, 
-	SanitizedEvent, 
-	SanitizedError, 
-	SanitizedWebVitals 
+export type {
+	ExportFormat,
+	ExportRequest,
+	SanitizedError,
+	SanitizedEvent,
+	SanitizedWebVitals,
 } from './types';

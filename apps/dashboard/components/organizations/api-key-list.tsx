@@ -221,7 +221,7 @@ export function ApiKeyList({
 						Create your first API key to start integrating with our platform.
 					</div>
 					<Button onClick={onCreateNew} type="button">
-						<PlusIcon className="mr-2 h-4 w-4 not-dark:text-primary" />
+						<PlusIcon className="mr-2 h-4 w-4 not-dark:text-white" />
 						Create Your First Key
 					</Button>
 				</div>

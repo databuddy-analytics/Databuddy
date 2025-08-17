@@ -4,7 +4,10 @@
  * Builds a secure date filter using parameterized queries
  * Returns both the filter string and parameters to prevent SQL injection
  */
-export function buildDateFilter(startDate?: string, endDate?: string): {
+export function buildDateFilter(
+	startDate?: string,
+	endDate?: string
+): {
 	filter: string;
 	params: Record<string, string>;
 } {

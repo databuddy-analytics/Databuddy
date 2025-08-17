@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { AnalyticsToolbar } from '@/app/(main)/websites/[id]/_components/analytics-toolbar';
 import { Logo } from '@/components/layout/logo';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -29,7 +30,6 @@ import {
 	dynamicQueryFiltersAtom,
 	isAnalyticsRefreshingAtom,
 } from '@/stores/jotai/filterAtoms';
-import { AnalyticsToolbar } from '@/app/(main)/websites/[id]/_components/analytics-toolbar';
 
 const DEMO_WEBSITE_ID = 'OXmNQsViBT-FOS_wZCTHc';
 const DEMO_WEBSITE_URL = 'https://www.databuddy.cc';
@@ -97,11 +97,14 @@ function Sidebar() {
 		setIsMobileOpen(false);
 	}, []);
 
-	const handleKeyDown = useCallback((e: KeyboardEvent) => {
-		if (e.key === 'Escape' && isMobileOpen) {
-			closeSidebar();
-		}
-	}, [isMobileOpen, closeSidebar]);
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent) => {
+			if (e.key === 'Escape' && isMobileOpen) {
+				closeSidebar();
+			}
+		},
+		[isMobileOpen, closeSidebar]
+	);
 
 	useEffect(() => {
 		document.addEventListener('keydown', handleKeyDown);
@@ -218,7 +221,10 @@ function Sidebar() {
 												>
 													<Icon
 														aria-hidden="true"
-														className={cn('h-4 w-4', isActive && 'text-primary')}
+														className={cn(
+															'h-4 w-4',
+															isActive && 'text-primary'
+														)}
 														weight="duotone"
 													/>
 													<span className="truncate">{item.name}</span>
@@ -242,13 +248,15 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
-	const [selectedFilters, setSelectedFilters] = useAtom(dynamicQueryFiltersAtom);
+	const [selectedFilters, setSelectedFilters] = useAtom(
+		dynamicQueryFiltersAtom
+	);
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
 		try {
 			// Simulate refresh for demo
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 			toast.success('Demo data refreshed');
 		} catch {
 			toast.error('Failed to refresh data');
@@ -270,7 +278,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 							onRefresh={handleRefresh}
 							selectedFilters={selectedFilters}
 						/>
-						
+
 						{children}
 					</div>
 				</div>

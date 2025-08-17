@@ -319,7 +319,7 @@ export function WebsiteOverviewTab({
 				// For referrers, use the referrer field and get the actual referrer URL
 				return {
 					field: 'referrer',
-					value: row.referrer
+					value: row.referrer,
 				};
 			},
 		},
@@ -330,7 +330,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Source',
 			getFilter: (row: any) => ({
 				field: 'utm_source',
-				value: row.name
+				value: row.name,
 			}),
 		},
 		utm_mediums: {
@@ -340,7 +340,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Medium',
 			getFilter: (row: any) => ({
 				field: 'utm_medium',
-				value: row.name
+				value: row.name,
 			}),
 		},
 		utm_campaigns: {
@@ -350,7 +350,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Campaign',
 			getFilter: (row: any) => ({
 				field: 'utm_campaign',
-				value: row.name
+				value: row.name,
 			}),
 		},
 	});
@@ -363,7 +363,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Page',
 			getFilter: (row: any) => ({
 				field: 'path',
-				value: row.name
+				value: row.name,
 			}),
 		},
 		entry_pages: {
@@ -373,7 +373,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Page',
 			getFilter: (row: any) => ({
 				field: 'path',
-				value: row.name
+				value: row.name,
 			}),
 		},
 		exit_pages: {
@@ -383,7 +383,7 @@ export function WebsiteOverviewTab({
 			primaryHeader: 'Page',
 			getFilter: (row: any) => ({
 				field: 'path',
-				value: row.name
+				value: row.name,
 			}),
 		},
 	});
@@ -899,19 +899,22 @@ export function WebsiteOverviewTab({
 		return <UnauthorizedAccessError />;
 	}
 
-	const onAddFilter = useCallback((field: string, value: string, tableTitle?: string) => {
-		// The field parameter now contains the correct filter field from the tab configuration
-		const filter = {
-			field,
-			operator: 'eq' as const,
-			value
-		};
-		
-		addFilter(filter);
-	}, [addFilter]);
+	const onAddFilter = useCallback(
+		(field: string, value: string, tableTitle?: string) => {
+			// The field parameter now contains the correct filter field from the tab configuration
+			const filter = {
+				field,
+				operator: 'eq' as const,
+				value,
+			};
+
+			addFilter(filter);
+		},
+		[addFilter]
+	);
 
 	return (
-		<div className="pt-6 space-y-6">
+		<div className="space-y-6 pt-6">
 			<EventLimitIndicator />
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
 				{[
@@ -1110,20 +1113,20 @@ export function WebsiteOverviewTab({
 			</div>
 
 			{/* Custom Events Table */}
-							<DataTable
-					columns={customEventsColumns}
-					data={processedCustomEventsData}
-					description="User-defined events and interactions with property breakdowns"
-					emptyMessage="No custom events tracked yet"
-					expandable={true}
-					getSubRows={(row: CustomEventData) =>
-						row.propertyCategories as unknown as CustomEventData[]
-					}
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					renderSubRow={(subRow: CustomEventData, parentRow: CustomEventData) => {
+			<DataTable
+				columns={customEventsColumns}
+				data={processedCustomEventsData}
+				description="User-defined events and interactions with property breakdowns"
+				emptyMessage="No custom events tracked yet"
+				expandable={true}
+				getSubRows={(row: CustomEventData) =>
+					row.propertyCategories as unknown as CustomEventData[]
+				}
+				initialPageSize={8}
+				isLoading={isLoading}
+				minHeight={350}
+				onAddFilter={onAddFilter}
+				renderSubRow={(subRow: CustomEventData, parentRow: CustomEventData) => {
 					const typedSubRow = subRow as unknown as PropertyCategory;
 					const propertyKey = typedSubRow.key;
 					const propertyTotal = typedSubRow.total;
@@ -1211,7 +1214,6 @@ export function WebsiteOverviewTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					showSearch={false}
-					title="Devices"
 					tabs={[
 						{
 							id: 'devices',
@@ -1221,17 +1223,18 @@ export function WebsiteOverviewTab({
 							getFilter: (row: any) => {
 								// Map display device names to filter values
 								const deviceDisplayToFilterMap: Record<string, string> = {
-									'laptop': 'mobile',
-									'tablet': 'tablet', 
-									'desktop': 'desktop',
+									laptop: 'mobile',
+									tablet: 'tablet',
+									desktop: 'desktop',
 								};
 								return {
 									field: 'device_type',
-									value: deviceDisplayToFilterMap[row.name] || row.name
+									value: deviceDisplayToFilterMap[row.name] || row.name,
 								};
-							}
-						}
+							},
+						},
 					]}
+					title="Devices"
 				/>
 
 				<DataTable
@@ -1243,7 +1246,6 @@ export function WebsiteOverviewTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					showSearch={false}
-					title="Browsers"
 					tabs={[
 						{
 							id: 'browsers',
@@ -1252,10 +1254,11 @@ export function WebsiteOverviewTab({
 							columns: browserColumns,
 							getFilter: (row: any) => ({
 								field: 'browser_name',
-								value: row.name
+								value: row.name,
 							}),
-						}
+						},
 					]}
+					title="Browsers"
 				/>
 
 				<DataTable
@@ -1267,7 +1270,6 @@ export function WebsiteOverviewTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					showSearch={false}
-					title="Operating Systems"
 					tabs={[
 						{
 							id: 'operating_systems',
@@ -1276,10 +1278,11 @@ export function WebsiteOverviewTab({
 							columns: osColumns,
 							getFilter: (row: any) => ({
 								field: 'os_name',
-								value: row.name
+								value: row.name,
 							}),
-						}
+						},
 					]}
+					title="Operating Systems"
 				/>
 			</div>
 		</div>

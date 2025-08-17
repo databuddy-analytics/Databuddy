@@ -4,7 +4,7 @@ import { getPosts } from '@/lib/blog-query';
 import { source } from '@/lib/source';
 
 // Regex pattern for matching integration pages
-const integrationPattern = /\/docs\/Integrations\/(.+)/;
+const integrationPattern = /\/docs\/integrations\/(.+)/;
 
 // Priority mapping for different page types
 const priorityMap: Record<string, number> = {
@@ -16,7 +16,7 @@ const priorityMap: Record<string, number> = {
 	'/docs/performance/core-web-vitals-guide': 0.85,
 	'/docs/dashboard': 0.8,
 	'/docs/security': 0.8,
-	'/docs/Integrations': 0.8,
+	'/docs/integrations': 0.8,
 	'/docs/api': 0.7,
 	'/blog': 0.8,
 	'/api': 0.7,
@@ -35,7 +35,7 @@ const changeFrequencyMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {
 	'/docs/performance/core-web-vitals-guide': 'monthly',
 	'/docs/dashboard': 'weekly',
 	'/docs/security': 'monthly',
-	'/docs/Integrations': 'weekly',
+	'/docs/integrations': 'weekly',
 	'/docs/api': 'monthly',
 	'/blog': 'monthly',
 	'/api': 'monthly',
@@ -45,7 +45,7 @@ const changeFrequencyMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {
 };
 
 function getPriority(url: string): number {
-	return priorityMap[url] || (url.includes('/Integrations/') ? 0.7 : 0.6);
+	return priorityMap[url] || (url.includes('/integrations/') ? 0.7 : 0.6);
 }
 
 function getChangeFrequency(url: string): 'weekly' | 'monthly' | 'yearly' {
@@ -131,38 +131,38 @@ function getFallbackEntries(): Array<{
 		{ url: '/docs/dashboard', priority: 0.8, changeFrequency: 'weekly' },
 		{ url: '/docs/security', priority: 0.8, changeFrequency: 'monthly' },
 		{ url: '/docs/api', priority: 0.7, changeFrequency: 'monthly' },
-		{ url: '/docs/Integrations', priority: 0.8, changeFrequency: 'weekly' },
+		{ url: '/docs/integrations', priority: 0.8, changeFrequency: 'weekly' },
 		{
-			url: '/docs/Integrations/react',
+			url: '/docs/integrations/react',
 			priority: 0.8,
 			changeFrequency: 'weekly',
 		},
 		{
-			url: '/docs/Integrations/nextjs',
+			url: '/docs/integrations/nextjs',
 			priority: 0.8,
 			changeFrequency: 'weekly',
 		},
 		{
-			url: '/docs/Integrations/wordpress',
+			url: '/docs/integrations/wordpress',
 			priority: 0.8,
 			changeFrequency: 'weekly',
 		},
 		{
-			url: '/docs/Integrations/shopify',
+			url: '/docs/integrations/shopify',
 			priority: 0.8,
 			changeFrequency: 'weekly',
 		},
 		{
-			url: '/docs/Integrations/stripe',
+			url: '/docs/integrations/stripe',
 			priority: 0.8,
 			changeFrequency: 'weekly',
 		},
 		{
-			url: '/docs/Integrations/framer',
+			url: '/docs/integrations/framer',
 			priority: 0.7,
 			changeFrequency: 'weekly',
 		},
-		{ url: '/docs/Integrations/gtm', priority: 0.7, changeFrequency: 'weekly' },
+		{ url: '/docs/integrations/gtm', priority: 0.7, changeFrequency: 'weekly' },
 		{ url: '/privacy', priority: 0.5, changeFrequency: 'yearly' },
 		{ url: '/llms.txt', priority: 0.4, changeFrequency: 'weekly' },
 	];
@@ -190,12 +190,7 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 
 	try {
 		const pages = source.getPages();
-		const nonDocPages = [
-			'/privacy',
-			'/llms.txt',
-			'/contributors',
-			'/api',
-		];
+		const nonDocPages = ['/privacy', '/llms.txt', '/contributors', '/api'];
 
 		entries.push(...processSourcePages(pages, SITE_URL, lastModified));
 		entries.push(...processNonDocPages(nonDocPages, SITE_URL, lastModified));

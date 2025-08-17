@@ -19,12 +19,15 @@ import {
 	TrashIcon,
 	WarningCircleIcon,
 } from '@phosphor-icons/react';
+import dayjs from 'dayjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import type { DateRange as DayPickerRange } from 'react-day-picker';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import { toast } from 'sonner';
+import { DateRangePicker } from '@/components/date-range-picker';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -49,11 +52,8 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { WebsiteDialog } from '@/components/website-dialog';
+import { type ExportFormat, useDataExport } from '@/hooks/use-data-export';
 import { useDeleteWebsite, useUpdateWebsite } from '@/hooks/use-websites';
-import { useDataExport, type ExportFormat } from '@/hooks/use-data-export';
-import { DateRangePicker } from '@/components/date-range-picker';
-import type { DateRange as DayPickerRange } from 'react-day-picker';
-import dayjs from 'dayjs';
 import {
 	COPY_SUCCESS_TIMEOUT,
 	INSTALL_COMMANDS,
@@ -97,7 +97,9 @@ export function WebsiteSettingsTab({
 	});
 
 	// Settings State
-	const [isPublic, setIsPublic] = useState((websiteData as any)?.isPublic ?? false);
+	const [isPublic, setIsPublic] = useState(
+		(websiteData as any)?.isPublic ?? false
+	);
 	const [trackingOptions, setTrackingOptions] =
 		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
 
@@ -170,9 +172,12 @@ export function WebsiteSettingsTab({
 		onWebsiteUpdated?.();
 	}, [onWebsiteUpdated]);
 
-	const handleExportData = useCallback(async (format: ExportFormat, startDate?: string, endDate?: string) => {
-		await exportData({ format, startDate, endDate });
-	}, [exportData]);
+	const handleExportData = useCallback(
+		async (format: ExportFormat, startDate?: string, endDate?: string) => {
+			await exportData({ format, startDate, endDate });
+		},
+		[exportData]
+	);
 
 	// Memoized values for performance
 	const trackingCode = useMemo(
@@ -193,11 +198,11 @@ export function WebsiteSettingsTab({
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-							<WebsiteHeader
-					onEditClick={() => setShowEditDialog(true)}
-					websiteData={websiteData as any}
-					websiteId={websiteId}
-				/>
+			<WebsiteHeader
+				onEditClick={() => setShowEditDialog(true)}
+				websiteData={websiteData as any}
+				websiteId={websiteId}
+			/>
 
 			{/* Main Content */}
 			<div className="grid grid-cols-12 gap-6">
@@ -260,40 +265,43 @@ export function WebsiteSettingsTab({
 								/>
 							)}
 
-																{activeTab !== SETTINGS_TABS.TRACKING && activeTab !== 'export' && (
-										<TabActions
-											onCopyCode={() =>
-												handleCopyCode(
-													trackingCode,
-													'script-tag',
-													TOAST_MESSAGES.SCRIPT_COPIED
-												)
+							{activeTab !== SETTINGS_TABS.TRACKING &&
+								activeTab !== 'export' && (
+									<TabActions
+										onCopyCode={() =>
+											handleCopyCode(
+												trackingCode,
+												'script-tag',
+												TOAST_MESSAGES.SCRIPT_COPIED
+											)
+										}
+										onEnableAll={() => {
+											switch (activeTab) {
+												case SETTINGS_TABS.BASIC:
+													setTrackingOptions((prev) =>
+														enableAllBasicTracking(prev)
+													);
+													break;
+												case SETTINGS_TABS.ADVANCED:
+													setTrackingOptions((prev) =>
+														enableAllAdvancedTracking(prev)
+													);
+													break;
+												case SETTINGS_TABS.OPTIMIZATION:
+													setTrackingOptions((prev) =>
+														enableAllOptimization(prev)
+													);
+													break;
+												default:
+													// No action needed for other tabs
+													break;
 											}
-											onEnableAll={() => {
-												switch (activeTab) {
-													case SETTINGS_TABS.BASIC:
-														setTrackingOptions((prev) =>
-															enableAllBasicTracking(prev)
-														);
-														break;
-													case SETTINGS_TABS.ADVANCED:
-														setTrackingOptions((prev) =>
-															enableAllAdvancedTracking(prev)
-														);
-														break;
-													case SETTINGS_TABS.OPTIMIZATION:
-														setTrackingOptions((prev) =>
-															enableAllOptimization(prev)
-														);
-														break;
-													default:
-														// No action needed for other tabs
-														break;
-												}
-											}}
-											onResetDefaults={() => setTrackingOptions(resetToDefaults())}
-										/>
-									)}
+										}}
+										onResetDefaults={() =>
+											setTrackingOptions(resetToDefaults())
+										}
+									/>
+								)}
 						</CardContent>
 					</Card>
 				</div>
@@ -422,7 +430,13 @@ function SettingsNavigation({
 }: {
 	activeTab: string;
 	setActiveTab: (
-		tab: 'tracking' | 'basic' | 'advanced' | 'optimization' | 'privacy' | 'export'
+		tab:
+			| 'tracking'
+			| 'basic'
+			| 'advanced'
+			| 'optimization'
+			| 'privacy'
+			| 'export'
 	) => void;
 	onDeleteClick: () => void;
 	trackingOptions: TrackingOptions;
@@ -1647,18 +1661,36 @@ function ExportTab({
 	websiteId,
 }: {
 	isExporting: boolean;
-	onExportData: (format: ExportFormat, startDate?: string, endDate?: string) => void;
+	onExportData: (
+		format: ExportFormat,
+		startDate?: string,
+		endDate?: string
+	) => void;
 	websiteData: any;
 	websiteId: string;
 }) {
 	const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('csv');
-	const [dateRange, setDateRange] = useState<DayPickerRange | undefined>(undefined);
+	const [dateRange, setDateRange] = useState<DayPickerRange | undefined>(
+		undefined
+	);
 	const [useCustomRange, setUseCustomRange] = useState(false);
 
 	const formatOptions = [
-		{ value: 'json', label: 'JSON', description: 'Structured data format, ideal for developers' },
-		{ value: 'csv', label: 'CSV', description: 'Spreadsheet format, perfect for Excel/Google Sheets' },
-		{ value: 'txt', label: 'TXT', description: 'Plain text format for simple data viewing' },
+		{
+			value: 'json',
+			label: 'JSON',
+			description: 'Structured data format, ideal for developers',
+		},
+		{
+			value: 'csv',
+			label: 'CSV',
+			description: 'Spreadsheet format, perfect for Excel/Google Sheets',
+		},
+		{
+			value: 'txt',
+			label: 'TXT',
+			description: 'Plain text format for simple data viewing',
+		},
 	] as const;
 
 	const handleExport = () => {
@@ -1676,7 +1708,8 @@ function ExportTab({
 			<div className="flex flex-col space-y-1.5">
 				<h3 className="font-semibold text-lg">Data Export</h3>
 				<p className="text-muted-foreground text-sm">
-					Export your website's analytics data for backup, analysis, or migration purposes.
+					Export your website's analytics data for backup, analysis, or
+					migration purposes.
 				</p>
 			</div>
 
@@ -1687,17 +1720,17 @@ function ExportTab({
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 						{formatOptions.map((format) => (
 							<div
-								key={format.value}
 								className={`cursor-pointer rounded border p-4 transition-all hover:border-primary/50 ${
 									selectedFormat === format.value
 										? 'border-primary bg-primary/5'
 										: 'border-border'
 								}`}
+								key={format.value}
 								onClick={() => setSelectedFormat(format.value)}
 							>
 								<div className="flex items-center gap-3">
 									<div className="flex h-8 w-8 items-center justify-center rounded bg-muted">
-										<span className="font-mono text-xs font-semibold">
+										<span className="font-mono font-semibold text-xs">
 											{format.value.toUpperCase()}
 										</span>
 									</div>
@@ -1765,7 +1798,8 @@ function ExportTab({
 							<li>Device, browser, and location data</li>
 						</ul>
 						<p className="text-blue-700 text-xs dark:text-blue-300">
-							Data is exported as a ZIP file containing multiple files organized by data type.
+							Data is exported as a ZIP file containing multiple files organized
+							by data type.
 						</p>
 					</div>
 				</div>
@@ -1780,14 +1814,21 @@ function ExportTab({
 					<p className="text-muted-foreground text-xs">
 						Export format: {selectedFormat.toUpperCase()}
 						{useCustomRange && dateRange?.from && dateRange?.to && (
-							<span> • Date range: {dayjs(dateRange.from).format('YYYY-MM-DD')} to {dayjs(dateRange.to).format('YYYY-MM-DD')}</span>
+							<span>
+								{' '}
+								• Date range: {dayjs(dateRange.from).format('YYYY-MM-DD')} to{' '}
+								{dayjs(dateRange.to).format('YYYY-MM-DD')}
+							</span>
 						)}
 					</p>
 				</div>
 
 				<Button
 					className="gap-2"
-					disabled={isExporting || (useCustomRange && (!dateRange?.from || !dateRange?.to))}
+					disabled={
+						isExporting ||
+						(useCustomRange && !(dateRange?.from && dateRange?.to))
+					}
 					onClick={handleExport}
 					size="lg"
 				>

@@ -109,7 +109,7 @@ export const TrustedBy = () => {
 					Trusted by developers around the world
 				</h2>
 				<div className="w-full">
-					<LogoCarousel logos={logos} columns={3} />
+					<LogoCarousel columns={3} logos={logos} />
 				</div>
 			</div>
 		</div>

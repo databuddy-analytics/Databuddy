@@ -117,9 +117,9 @@ export const Description = () => {
 
 			{/* Desktop Layout */}
 			<div className="hidden w-full items-center justify-center lg:flex">
-				<div className="flex w-full max-w-7xl items-center justify-center">
+				<div className="flex w-full max-w-7xl items-center justify-center px-8">
 					{/* Left Column - Titles */}
-					<div className="flex-1">
+					<div className="flex-1 pr-12">
 						<h2 className="mb-8 font-medium text-2xl leading-tight xl:mb-12 xl:text-3xl">
 							Most Analytics Tools are
 						</h2>
@@ -140,10 +140,10 @@ export const Description = () => {
 					</div>
 
 					{/* Divider */}
-					<div className="mx-6 h-60 w-px flex-shrink-0 bg-border xl:mx-8" />
+					<div className="h-60 w-px flex-shrink-0 bg-border" />
 
 					{/* Right Column - Content */}
-					<div className="flex-1">
+					<div className="flex-1 pl-12">
 						<div className="flex min-h-[140px] items-center xl:min-h-[180px]">
 							<AnimatePresence mode="popLayout">
 								<motion.div

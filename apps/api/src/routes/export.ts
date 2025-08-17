@@ -1,12 +1,12 @@
-import { Elysia, t } from 'elysia';
-import { logger } from '../lib/logger';
-import { processExport, type ExportRequest } from '../lib/export';
-import { createRateLimitMiddleware } from '../middleware/rate-limit';
-import { websitesApi, auth } from '@databuddy/auth';
+import { auth, websitesApi } from '@databuddy/auth';
 import { db, eq, websites } from '@databuddy/db';
 import { cacheable } from '@databuddy/redis';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { Elysia, t } from 'elysia';
+import { type ExportRequest, processExport } from '../lib/export';
+import { logger } from '../lib/logger';
+import { createRateLimitMiddleware } from '../middleware/rate-limit';
 
 dayjs.extend(utc);
 
@@ -98,15 +98,19 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 
 			try {
 				const websiteId = body.website_id;
-				
+
 				if (!websiteId) {
-					return createErrorResponse(400, 'MISSING_WEBSITE_ID', 'Website ID is required');
+					return createErrorResponse(
+						400,
+						'MISSING_WEBSITE_ID',
+						'Website ID is required'
+					);
 				}
 
 				// Use the same authorization pattern as RPC routers
 				const website = await authorizeWebsiteAccess(
-					request.headers, 
-					websiteId, 
+					request.headers,
+					websiteId,
 					'read'
 				);
 
@@ -115,7 +119,7 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 					body.start_date,
 					body.end_date
 				);
-				
+
 				if (dateError) {
 					logger.warn('Export request with invalid dates', {
 						requestId,
@@ -135,7 +139,11 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 						websiteId,
 						format,
 					});
-					return createErrorResponse(400, 'INVALID_FORMAT', 'Invalid export format. Supported formats: csv, json, txt, proto');
+					return createErrorResponse(
+						400,
+						'INVALID_FORMAT',
+						'Invalid export format. Supported formats: csv, json, txt, proto'
+					);
 				}
 
 				// Log export initiation for audit trail
@@ -146,7 +154,9 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 					endDate: validatedDates.endDate,
 					format,
 					userAgent: request.headers.get('user-agent'),
-					ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+					ip:
+						request.headers.get('x-forwarded-for') ||
+						request.headers.get('x-real-ip'),
 					timestamp: new Date().toISOString(),
 				});
 
@@ -178,7 +188,6 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 						'Content-Length': result.buffer.length.toString(),
 					},
 				});
-
 			} catch (error) {
 				// Log export failure for audit trail
 				logger.error('Data export failed', {
@@ -188,24 +197,49 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 					stack: error instanceof Error ? error.stack : undefined,
 					processingTime: Date.now() - startTime,
 					userAgent: request.headers.get('user-agent'),
-					ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+					ip:
+						request.headers.get('x-forwarded-for') ||
+						request.headers.get('x-real-ip'),
 					timestamp: new Date().toISOString(),
 				});
 
 				// Handle authorization errors specifically
 				if (error instanceof Error) {
 					if (error.message.includes('not found')) {
-						return createErrorResponse(404, 'WEBSITE_NOT_FOUND', 'Website not found', requestId);
+						return createErrorResponse(
+							404,
+							'WEBSITE_NOT_FOUND',
+							'Website not found',
+							requestId
+						);
 					}
 					if (error.message.includes('Authentication is required')) {
-						return createErrorResponse(401, 'AUTH_REQUIRED', 'Authentication required', requestId);
+						return createErrorResponse(
+							401,
+							'AUTH_REQUIRED',
+							'Authentication required',
+							requestId
+						);
 					}
-					if (error.message.includes('permission') || error.message.includes('owner')) {
-						return createErrorResponse(403, 'ACCESS_DENIED', 'Access denied. You may not have permission to export data for this website.', requestId);
+					if (
+						error.message.includes('permission') ||
+						error.message.includes('owner')
+					) {
+						return createErrorResponse(
+							403,
+							'ACCESS_DENIED',
+							'Access denied. You may not have permission to export data for this website.',
+							requestId
+						);
 					}
 				}
 
-				return createErrorResponse(500, 'EXPORT_FAILED', 'Export failed. Please try again later.', requestId);
+				return createErrorResponse(
+					500,
+					'EXPORT_FAILED',
+					'Export failed. Please try again later.',
+					requestId
+				);
 			}
 		},
 		{
@@ -214,24 +248,33 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 					minLength: 1,
 					maxLength: 100,
 					pattern: '^[a-zA-Z0-9_-]+$',
-					error: 'Website ID must be alphanumeric with dashes/underscores only'
+					error: 'Website ID must be alphanumeric with dashes/underscores only',
 				}),
-				start_date: t.Optional(t.String({
-					pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-					error: 'Start date must be in YYYY-MM-DD format'
-				})),
-				end_date: t.Optional(t.String({
-					pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-					error: 'End date must be in YYYY-MM-DD format'
-				})),
-				format: t.Optional(t.Union([
-					t.Literal('csv'), 
-					t.Literal('json'), 
-					t.Literal('txt'), 
-					t.Literal('proto')
-				], {
-					error: 'Format must be one of: csv, json, txt, proto'
-				})),
+				start_date: t.Optional(
+					t.String({
+						pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+						error: 'Start date must be in YYYY-MM-DD format',
+					})
+				),
+				end_date: t.Optional(
+					t.String({
+						pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+						error: 'End date must be in YYYY-MM-DD format',
+					})
+				),
+				format: t.Optional(
+					t.Union(
+						[
+							t.Literal('csv'),
+							t.Literal('json'),
+							t.Literal('txt'),
+							t.Literal('proto'),
+						],
+						{
+							error: 'Format must be one of: csv, json, txt, proto',
+						}
+					)
+				),
 			}),
 		}
 	);
@@ -239,7 +282,12 @@ export const exportRoute = new Elysia({ prefix: '/v1/export' })
 /**
  * Creates a standardized error response
  */
-function createErrorResponse(status: number, code: string, message: string, requestId?: string) {
+function createErrorResponse(
+	status: number,
+	code: string,
+	message: string,
+	requestId?: string
+) {
 	return new Response(
 		JSON.stringify({
 			success: false,
@@ -247,9 +295,9 @@ function createErrorResponse(status: number, code: string, message: string, requ
 			code,
 			...(requestId && { requestId }),
 		}),
-		{ 
+		{
 			status,
-			headers: { 'Content-Type': 'application/json' }
+			headers: { 'Content-Type': 'application/json' },
 		}
 	);
 }
@@ -258,7 +306,10 @@ function createErrorResponse(status: number, code: string, message: string, requ
  * Validates and sanitizes date range inputs
  * Prevents SQL injection and ensures reasonable date ranges
  */
-function validateDateRange(startDate?: string, endDate?: string): {
+function validateDateRange(
+	startDate?: string,
+	endDate?: string
+): {
 	validatedDates: { startDate?: string; endDate?: string };
 	error?: string;
 } {
@@ -267,7 +318,7 @@ function validateDateRange(startDate?: string, endDate?: string): {
 	const maxRangeDays = 365; // 1 year max range
 
 	// If no dates provided, allow (will default to reasonable limits in query)
-	if (!startDate && !endDate) {
+	if (!(startDate || endDate)) {
 		return { validatedDates: {} };
 	}
 
@@ -278,13 +329,22 @@ function validateDateRange(startDate?: string, endDate?: string): {
 	if (startDate) {
 		const start = dayjs.utc(startDate, 'YYYY-MM-DD', true);
 		if (!start.isValid()) {
-			return { validatedDates: {}, error: 'Invalid start date format. Use YYYY-MM-DD.' };
+			return {
+				validatedDates: {},
+				error: 'Invalid start date format. Use YYYY-MM-DD.',
+			};
 		}
 		if (start.isAfter(now)) {
-			return { validatedDates: {}, error: 'Start date cannot be in the future.' };
+			return {
+				validatedDates: {},
+				error: 'Start date cannot be in the future.',
+			};
 		}
 		if (start.isBefore(now.subtract(maxHistoryDays, 'day'))) {
-			return { validatedDates: {}, error: `Start date cannot be more than ${maxHistoryDays} days ago.` };
+			return {
+				validatedDates: {},
+				error: `Start date cannot be more than ${maxHistoryDays} days ago.`,
+			};
 		}
 		validatedStartDate = start.format('YYYY-MM-DD');
 	}
@@ -293,13 +353,19 @@ function validateDateRange(startDate?: string, endDate?: string): {
 	if (endDate) {
 		const end = dayjs.utc(endDate, 'YYYY-MM-DD', true);
 		if (!end.isValid()) {
-			return { validatedDates: {}, error: 'Invalid end date format. Use YYYY-MM-DD.' };
+			return {
+				validatedDates: {},
+				error: 'Invalid end date format. Use YYYY-MM-DD.',
+			};
 		}
 		if (end.isAfter(now)) {
 			return { validatedDates: {}, error: 'End date cannot be in the future.' };
 		}
 		if (end.isBefore(now.subtract(maxHistoryDays, 'day'))) {
-			return { validatedDates: {}, error: `End date cannot be more than ${maxHistoryDays} days ago.` };
+			return {
+				validatedDates: {},
+				error: `End date cannot be more than ${maxHistoryDays} days ago.`,
+			};
 		}
 		validatedEndDate = end.format('YYYY-MM-DD');
 	}
@@ -308,14 +374,20 @@ function validateDateRange(startDate?: string, endDate?: string): {
 	if (validatedStartDate && validatedEndDate) {
 		const start = dayjs.utc(validatedStartDate);
 		const end = dayjs.utc(validatedEndDate);
-		
+
 		if (start.isAfter(end)) {
-			return { validatedDates: {}, error: 'Start date must be before or equal to end date.' };
+			return {
+				validatedDates: {},
+				error: 'Start date must be before or equal to end date.',
+			};
 		}
-		
+
 		const rangeDays = end.diff(start, 'day');
 		if (rangeDays > maxRangeDays) {
-			return { validatedDates: {}, error: `Date range cannot exceed ${maxRangeDays} days.` };
+			return {
+				validatedDates: {},
+				error: `Date range cannot exceed ${maxRangeDays} days.`,
+			};
 		}
 	}
 

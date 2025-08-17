@@ -1,7 +1,7 @@
 ---
 title: "How we ensure full GDPR compliance"
 description: "Learn how Databuddy ensures full GDPR compliance while providing powerful analytics insights. No cookies, full data ownership, and complete privacy protection."
-author: "izadoesdev"    
+author: "izadoesdev"
 publishedAt: "2025-06-18"
 lastModified: "2025-06-18"
 featured: true
@@ -9,20 +9,24 @@ category: "Privacy"
 tags: ["GDPR", "Privacy", "Compliance", "Analytics", "Data Protection"]
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card';
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
-import { Step, Steps } from 'fumadocs-ui/components/steps';
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Step, Steps } from "fumadocs-ui/components/steps";
 
 # 🔒 We are GDPR Compliant: Privacy-First Analytics You Can Trust
 
 <Callout title="🎉 Major Announcement" type="success">
-**Databuddy is fully GDPR compliant by design!** Our revolutionary privacy-first analytics platform respects user rights while delivering powerful insights. **Zero consent banners required.**
+  **Databuddy is fully GDPR compliant by design!** Our revolutionary
+  privacy-first analytics platform respects user rights while delivering
+  powerful insights. **Zero consent banners required.**
 </Callout>
 
 <div className="grid md:grid-cols-2 gap-6 my-8">
   <div className="p-6 border rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
-    <h3 className="text-lg font-semibold mb-2 text-green-800 dark:text-green-200">✅ What This Means</h3>
+    <h3 className="text-lg font-semibold mb-2 text-green-800 dark:text-green-200">
+      ✅ What This Means
+    </h3>
     <ul className="text-sm text-green-700 dark:text-green-300 space-y-1">
       <li>• No consent banners cluttering your site</li>
       <li>• No complex legal compliance setup</li>
@@ -31,7 +35,9 @@ import { Step, Steps } from 'fumadocs-ui/components/steps';
     </ul>
   </div>
   <div className="p-6 border rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-    <h3 className="text-lg font-semibold mb-2 text-blue-800 dark:text-blue-200">🚀 Immediate Benefits</h3>
+    <h3 className="text-lg font-semibold mb-2 text-blue-800 dark:text-blue-200">
+      🚀 Immediate Benefits
+    </h3>
     <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
       <li>• Faster page loads without consent overhead</li>
       <li>• Better user experience from day one</li>
@@ -48,28 +54,28 @@ At Databuddy, privacy isn't an afterthought—it's **engineered into every line 
 The General Data Protection Regulation (GDPR) is the world's strongest data protection law, designed to give individuals control over their personal data.
 
 <Cards>
-  <Card 
-    title="🔍 Transparent Collection" 
+  <Card
+    title="🔍 Transparent Collection"
     description="Users know exactly what data is being collected and why"
   />
-  <Card 
-    title="✋ Explicit Consent" 
+  <Card
+    title="✋ Explicit Consent"
     description="No hidden tracking or surprise data collection"
   />
-  <Card 
-    title="📏 Data Minimization" 
+  <Card
+    title="📏 Data Minimization"
     description="Only collecting what's absolutely necessary for analytics"
   />
-  <Card 
-    title="🗑️ Right to Deletion" 
+  <Card
+    title="🗑️ Right to Deletion"
     description="Users can request their data or ask for it to be deleted"
   />
-  <Card 
-    title="📦 Data Portability" 
+  <Card
+    title="📦 Data Portability"
     description="Users can export their data in readable formats"
   />
-  <Card 
-    title="🛡️ Data Protection" 
+  <Card
+    title="🛡️ Data Protection"
     description="Strong security measures and privacy safeguards"
   />
 </Cards>
@@ -79,7 +85,9 @@ The General Data Protection Regulation (GDPR) is the world's strongest data prot
 ### 🍪 **Zero Cookies = Zero Consent Banners**
 
 <Callout title="Cookie-Free by Design" type="info">
-Unlike traditional analytics platforms, Databuddy doesn't use cookies **at all**. This revolutionary approach means no consent banners, no complex cookie management, and no GDPR violations.
+  Unlike traditional analytics platforms, Databuddy doesn't use cookies **at
+  all**. This revolutionary approach means no consent banners, no complex cookie
+  management, and no GDPR violations.
 </Callout>
 
 **Benefits of our cookie-free approach:**
@@ -134,17 +142,18 @@ Our entire system is built with privacy as the core principle:
 ### 📊 **Smart Data Collection**
 
 <Callout title="Data Minimization in Practice" type="note">
-We collect only the essential metrics you need for business decisions, nothing more.
+  We collect only the essential metrics you need for business decisions, nothing
+  more.
 </Callout>
 
 <Cards>
-  <Card 
-    title="✅ What We Collect" 
+  <Card
+    title="✅ What We Collect"
     description="Page views, referrers, general locations (country/city), browser types for optimization"
     className="border-green-200 dark:border-green-800"
   />
-  <Card 
-    title="❌ What We DON'T Collect" 
+  <Card
+    title="❌ What We DON'T Collect"
     description="Personal identifiers, cross-site tracking, detailed user profiles, behavioral fingerprinting"
     className="border-red-200 dark:border-red-800"
   />
@@ -153,14 +162,14 @@ We collect only the essential metrics you need for business decisions, nothing m
 ```typescript title="Our Data Model"
 interface DatabuddyEvent {
   // ✅ Essential analytics data only
-  page: string;           // Current page path
-  referrer?: string;      // Traffic source
-  country?: string;       // General location (country level)
-  browser?: string;       // Browser type for optimization
-  
+  page: string; // Current page path
+  referrer?: string; // Traffic source
+  country?: string; // General location (country level)
+  browser?: string; // Browser type for optimization
+
   // ❌ What we NEVER collect
   // - Personal identifiers (emails, names, phones)
-  // - Unique user IDs or device fingerprints  
+  // - Unique user IDs or device fingerprints
   // - Cross-site tracking data
   // - Detailed behavioral profiles
 }
@@ -169,13 +178,14 @@ interface DatabuddyEvent {
 ### 🌍 **EU Data Residency & Sovereignty**
 
 <Callout title="European Data Protection" type="success">
-All data is processed and stored within the European Union, ensuring maximum compliance and protection.
+  All data is processed and stored within the European Union, ensuring maximum
+  compliance and protection.
 </Callout>
 
 **Our EU-first approach provides:**
 
 - 🇪🇺 Full compliance with EU data protection laws
-- 🚫 No cross-border data transfers to non-adequate countries  
+- 🚫 No cross-border data transfers to non-adequate countries
 - 🔒 Enhanced data security and sovereignty
 - ⚡ Faster response times for EU-based websites
 - 📋 Simplified compliance reporting and audits
@@ -186,16 +196,20 @@ All data is processed and stored within the European Union, ensuring maximum com
 
 <Steps>
   <Step>
-    **Automatic Collection**: Data is collected anonymously without personal identifiers
+    **Automatic Collection**: Data is collected anonymously without personal
+    identifiers
   </Step>
   <Step>
-    **Secure Processing**: All data is processed within EU boundaries using encrypted connections
+    **Secure Processing**: All data is processed within EU boundaries using
+    encrypted connections
   </Step>
   <Step>
-    **Configurable Retention**: Set custom retention periods from 1 month to 2 years
+    **Configurable Retention**: Set custom retention periods from 1 month to 2
+    years
   </Step>
   <Step>
-    **Automatic Deletion**: Data is automatically purged based on your retention settings
+    **Automatic Deletion**: Data is automatically purged based on your retention
+    settings
   </Step>
   <Step>
     **Compliance Reporting**: Generate audit reports for compliance verification
@@ -205,100 +219,101 @@ All data is processed and stored within the European Union, ensuring maximum com
 ### 🔄 **Retention Policy**
 
 <Callout title="Simple & Transparent" type="success">
-**Unlimited retention until you delete your account.** Since we don't collect personal data, there's no need for complex retention schedules or manual deletion requests.
+  **Unlimited retention until you delete your account.** Since we don't collect
+  personal data, there's no need for complex retention schedules or manual
+  deletion requests.
 </Callout>
 
-| **Plan** | **Retention Policy** | **Data Control** | **Compliance Features** |
-|----------|---------------------|------------------|-------------------------|
-| **Free** | Unlimited until account deletion | Full data ownership | Automatic compliance |
-| **Pro** | Unlimited until account deletion | Advanced export options | Enhanced audit logs |
-| **Enterprise** | Unlimited until account deletion | Custom data controls | Full compliance suite |
+| **Plan**       | **Retention Policy**             | **Data Control**        | **Compliance Features** |
+| -------------- | -------------------------------- | ----------------------- | ----------------------- |
+| **Free**       | Unlimited until account deletion | Full data ownership     | Automatic compliance    |
+| **Pro**        | Unlimited until account deletion | Advanced export options | Enhanced audit logs     |
+| **Enterprise** | Unlimited until account deletion | Custom data controls    | Full compliance suite   |
 
 ## ⚖️ **User Rights Under GDPR**
 
-<Tabs items={['Right to Information', 'Right to Access', 'Right to Deletion', 'Right to Portability']}>
+<Tabs
+  items={[
+    "Right to Information",
+    "Right to Access",
+    "Right to Deletion",
+    "Right to Portability",
+  ]}
+>
   <Tab value="Right to Information">
-    ### 📋 Transparent Data Practices
-    
-    Users can access our comprehensive [Privacy Policy](/privacy) which clearly explains:
-    
-    - 🎯 **What data we collect** - Only essential analytics metrics
-    - 🤔 **Why we collect it** - To provide website insights and improvements  
-    - ⏰ **How long we keep it** - Based on your retention settings
-    - 📞 **How to contact us** - Multiple channels for data requests
-    
+    ### 📋 Transparent Data Practices Users can access our comprehensive
+    [Privacy Policy](/privacy) which clearly explains: - 🎯 **What data we
+    collect** - Only essential analytics metrics - 🤔 **Why we collect it** - To
+    provide website insights and improvements - ⏰ **How long we keep it** -
+    Based on your retention settings - 📞 **How to contact us** - Multiple
+    channels for data requests
     <Callout title="Always Up-to-Date" type="info">
-    Our privacy policy is regularly updated to reflect the latest regulations and practices.
+      Our privacy policy is regularly updated to reflect the latest regulations
+      and practices.
     </Callout>
   </Tab>
-  
-  <Tab value="Right to Access">
-    ### 🔍 Data Access Requests
-    
-    Due to our privacy-first design, we typically cannot identify specific users without additional context. However, we provide:
-    
-    - 📊 **Aggregated data exports** for your website
-    - 🔍 **Event logs** where identifiable (rare cases)
-    - ⚡ **24-hour response time** for access requests
-    - 📋 **Detailed data reports** in human-readable formats
-  </Tab>
-  
-  <Tab value="Right to Deletion">
-    ### 🗑️ Data Deletion Process
-    
-    <Callout title="No Deletion Requests Needed!" type="success">
-    **Analytics data doesn't require deletion requests** because we don't collect any personally identifiable information. When you delete your Databuddy account, all associated data is automatically removed.
-    </Callout>
-    
-    **What happens when you delete your account:**
-    
-    <Steps>
-      <Step>
-        **Instant Account Deletion** - Your account is immediately deactivated
-      </Step>
-      <Step>
-        **Data Removal** - All analytics data is automatically purged within 24 hours
-      </Step>
-      <Step>
-        **Confirmation** - You receive deletion confirmation via email
-      </Step>
-      <Step>
-        **Complete Removal** - No trace of your data remains in our systems
-      </Step>
-    </Steps>
-    
-    <Callout title="Why It's This Simple" type="info">
-    Since we don't collect personal identifiers, IP addresses, or tracking data, there's no personal data to "find and delete" - just anonymous analytics metrics that become meaningless once disconnected from your account.
-    </Callout>
-  </Tab>
-  
+
+<Tab value="Right to Access">
+  ### 🔍 Data Access Requests Due to our privacy-first design, we typically
+  cannot identify specific users without additional context. However, we
+  provide: - 📊 **Aggregated data exports** for your website - 🔍 **Event logs**
+  where identifiable (rare cases) - ⚡ **24-hour response time** for access
+  requests - 📋 **Detailed data reports** in human-readable formats
+</Tab>
+
+<Tab value="Right to Deletion">
+  ### 🗑️ Data Deletion Process
+  <Callout title="No Deletion Requests Needed!" type="success">
+    **Analytics data doesn't require deletion requests** because we don't
+    collect any personally identifiable information. When you delete your
+    Databuddy account, all associated data is automatically removed.
+  </Callout>
+  **What happens when you delete your account:**
+  <Steps>
+    <Step>
+      **Instant Account Deletion** - Your account is immediately deactivated
+    </Step>
+    <Step>
+      **Data Removal** - All analytics data is automatically purged within 24
+      hours
+    </Step>
+    <Step>**Confirmation** - You receive deletion confirmation via email</Step>
+    <Step>
+      **Complete Removal** - No trace of your data remains in our systems
+    </Step>
+  </Steps>
+  <Callout title="Why It's This Simple" type="info">
+    Since we don't collect personal identifiers, IP addresses, or tracking data,
+    there's no personal data to "find and delete" - just anonymous analytics
+    metrics that become meaningless once disconnected from your account.
+  </Callout>
+</Tab>
+
   <Tab value="Right to Portability">
-    ### 📦 Data Export Options
-    
-    While our anonymized model makes user-specific exports minimal, we provide:
-    
-    - 📈 **Aggregated analytics exports** (CSV, JSON)
-    - 📋 **Event logs** in machine-readable formats
-    - 🔄 **API access** for programmatic data retrieval
-    - 📊 **Dashboard exports** for offline analysis
+    ### 📦 Data Export Options While our anonymized model makes user-specific
+    exports minimal, we provide: - 📈 **Aggregated analytics exports** (CSV,
+    JSON) - 📋 **Event logs** in machine-readable formats - 🔄 **API access**
+    for programmatic data retrieval - 📊 **Dashboard exports** for offline
+    analysis
   </Tab>
 </Tabs>
 
 ## 📊 **Analytics Platform Comparison**
 
 <Callout title="Why Choose Privacy-First?" type="info">
-See how Databuddy compares to traditional analytics platforms in terms of privacy and compliance.
+  See how Databuddy compares to traditional analytics platforms in terms of
+  privacy and compliance.
 </Callout>
 
-| **Feature** | **🟢 Databuddy** | **🟡 Google Analytics** | **🔴 Traditional Tools** |
-|------------|------------------|------------------------|--------------------------|
-| **Cookie-free** | ✅ Yes | ❌ No | ❌ No |
-| **GDPR Compliant** | ✅ By default | ⚠️ Requires complex setup | ⚠️ Manual configuration |
-| **EU Data Storage** | ✅ Yes | ❌ No | ❌ Varies |
-| **Consent Required** | ✅ No | ❌ Yes | ❌ Yes |
-| **Personal Data** | ✅ None collected | ❌ Extensive collection | ❌ Varies |
-| **Page Speed Impact** | ✅ Minimal | ❌ Significant | ❌ Heavy |
-| **Setup Complexity** | ✅ One script tag | ❌ Complex configuration | ❌ Very complex |
+| **Feature**           | **🟢 Databuddy**  | **🟡 Google Analytics**   | **🔴 Traditional Tools** |
+| --------------------- | ----------------- | ------------------------- | ------------------------ |
+| **Cookie-free**       | ✅ Yes            | ❌ No                     | ❌ No                    |
+| **GDPR Compliant**    | ✅ By default     | ⚠️ Requires complex setup | ⚠️ Manual configuration  |
+| **EU Data Storage**   | ✅ Yes            | ❌ No                     | ❌ Varies                |
+| **Consent Required**  | ✅ No             | ❌ Yes                    | ❌ Yes                   |
+| **Personal Data**     | ✅ None collected | ❌ Extensive collection   | ❌ Varies                |
+| **Page Speed Impact** | ✅ Minimal        | ❌ Significant            | ❌ Heavy                 |
+| **Setup Complexity**  | ✅ One script tag | ❌ Complex configuration  | ❌ Very complex          |
 
 ## 🚀 **Quick Implementation Guide**
 
@@ -397,9 +412,7 @@ Getting started with GDPR-compliant analytics takes less than 2 minutes:
 ### 🎯 **Migration from Other Platforms**
 
 <Steps>
-  <Step>
-    **Sign Up** - Create your free account at [app.databuddy.cc](https://app.databuddy.cc/register)
-  </Step>
+  <Step>**Sign Up** - Create your free account</Step>
   <Step>
     **Install Script** - Add our lightweight script (no consent banner needed!)
   </Step>
@@ -407,7 +420,8 @@ Getting started with GDPR-compliant analytics takes less than 2 minutes:
     **Parallel Testing** - Run both systems for comparison (recommended 30 days)
   </Step>
   <Step>
-    **Remove Old Analytics** - Phase out cookie-based analytics and consent systems
+    **Remove Old Analytics** - Phase out cookie-based analytics and consent
+    systems
   </Step>
   <Step>
     **Enjoy Privacy** - Experience GDPR-compliant analytics that actually work!
@@ -417,20 +431,20 @@ Getting started with GDPR-compliant analytics takes less than 2 minutes:
 ## 🏢 **Enterprise Compliance Features**
 
 <Cards>
-  <Card 
-    title="📄 Data Processing Agreement" 
+  <Card
+    title="📄 Data Processing Agreement"
     description="Comprehensive DPA covering all processing activities with regular updates"
   />
-  <Card 
-    title="🔍 Third-Party Audits" 
+  <Card
+    title="🔍 Third-Party Audits"
     description="Annual GDPR audits, security assessments, and compliance verification"
   />
-  <Card 
-    title="📊 Compliance Dashboard" 
+  <Card
+    title="📊 Compliance Dashboard"
     description="Real-time compliance monitoring and automated reporting"
   />
-  <Card 
-    title="🛡️ Advanced Security" 
+  <Card
+    title="🛡️ Advanced Security"
     description="SOC 2 Type II, ISO 27001, and additional security certifications"
   />
 </Cards>
@@ -440,7 +454,7 @@ Getting started with GDPR-compliant analytics takes less than 2 minutes:
 All Databuddy customers receive:
 
 - ✅ **Comprehensive DPA** - Covering all data processing activities
-- ✅ **Regular updates** - Keeping pace with regulatory changes  
+- ✅ **Regular updates** - Keeping pace with regulatory changes
 - ✅ **Liability coverage** - Protection for GDPR compliance issues
 - ✅ **Audit rights** - Regular compliance verification and reporting
 - ✅ **Legal support** - Expert guidance for compliance questions
@@ -448,7 +462,8 @@ All Databuddy customers receive:
 ## 🌍 **Future-Proof Privacy Compliance**
 
 <Callout title="Global Privacy Regulations" type="warning">
-GDPR was just the beginning. Privacy regulations are expanding globally, and Databuddy keeps you compliant everywhere.
+  GDPR was just the beginning. Privacy regulations are expanding globally, and
+  Databuddy keeps you compliant everywhere.
 </Callout>
 
 ### 🗺️ **Global Compliance Coverage**
@@ -460,43 +475,39 @@ GDPR was just the beginning. Privacy regulations are expanding globally, and Dat
 - 🇸🇬 **PDPA** (Singapore, Thailand) - Asia-Pacific privacy frameworks
 
 <Callout title="Always Compliant" type="success">
-By choosing Databuddy, you're not just GDPR compliant—you're ready for the global privacy-first future.
+  By choosing Databuddy, you're not just GDPR compliant—you're ready for the
+  global privacy-first future.
 </Callout>
 
 ## ✨ **Why Privacy-First Analytics Matter**
 
-<Tabs items={['Business Benefits', 'User Benefits', 'Technical Benefits']}>
+<Tabs items={["Business Benefits", "User Benefits", "Technical Benefits"]}>
   <Tab value="Business Benefits">
-    ### 💼 **Transform Your Business**
-    
-    - ⚡ **Faster website loading** - No heavy analytics scripts slowing you down
-    - 😊 **Better user experience** - No consent banner interruptions  
-    - 🛡️ **Legal peace of mind** - Built-in GDPR compliance from day one
-    - 🌍 **Global reach** - Work anywhere without compliance concerns
-    - 💰 **Reduced legal costs** - No need for expensive compliance consultants
-    - 📈 **Better conversion rates** - No friction from consent barriers
+    ### 💼 **Transform Your Business** - ⚡ **Faster website loading** - No
+    heavy analytics scripts slowing you down - 😊 **Better user experience** -
+    No consent banner interruptions - 🛡️ **Legal peace of mind** - Built-in GDPR
+    compliance from day one - 🌍 **Global reach** - Work anywhere without
+    compliance concerns - 💰 **Reduced legal costs** - No need for expensive
+    compliance consultants - 📈 **Better conversion rates** - No friction from
+    consent barriers
   </Tab>
-  
-  <Tab value="User Benefits">
-    ### 👥 **Respect Your Users**
-    
-    - 🔒 **Enhanced privacy** - No personal data collection or tracking
-    - ⚡ **Improved performance** - Faster page loads and better UX
-    - 🚫 **No tracking** - Browse without being followed across sites
-    - 📋 **Transparency** - Clear, honest data practices  
-    - 🎯 **Relevant content** - Insights without invasive profiling
-    - ✋ **User control** - Respect for privacy preferences
-  </Tab>
-  
+
+<Tab value="User Benefits">
+  ### 👥 **Respect Your Users** - 🔒 **Enhanced privacy** - No personal data
+  collection or tracking - ⚡ **Improved performance** - Faster page loads and
+  better UX - 🚫 **No tracking** - Browse without being followed across sites -
+  📋 **Transparency** - Clear, honest data practices - 🎯 **Relevant content** -
+  Insights without invasive profiling - ✋ **User control** - Respect for
+  privacy preferences
+</Tab>
+
   <Tab value="Technical Benefits">
-    ### 🔧 **Developer-Friendly**
-    
-    - 🚀 **Simple integration** - One script tag, no complex setup
-    - 📦 **Lightweight** - Minimal impact on page performance  
-    - 🔌 **API-first** - Programmatic access to all features
-    - 📊 **Real-time data** - Instant insights without delays
-    - 🛠️ **Developer tools** - Comprehensive SDKs and documentation
-    - 🔄 **Easy migration** - Smooth transition from other platforms
+    ### 🔧 **Developer-Friendly** - 🚀 **Simple integration** - One script tag,
+    no complex setup - 📦 **Lightweight** - Minimal impact on page performance -
+    🔌 **API-first** - Programmatic access to all features - 📊 **Real-time
+    data** - Instant insights without delays - 🛠️ **Developer tools** -
+    Comprehensive SDKs and documentation - 🔄 **Easy migration** - Smooth
+    transition from other platforms
   </Tab>
 </Tabs>
 
@@ -504,46 +515,46 @@ By choosing Databuddy, you're not just GDPR compliant—you're ready for the glo
 
 <div className="grid md:grid-cols-4 gap-4 my-8">
   <div className="text-center p-6 border rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
-    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">0</div>
-    <div className="text-sm text-purple-700 dark:text-purple-300">Cookies Used</div>
+    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+      0
+    </div>
+    <div className="text-sm text-purple-700 dark:text-purple-300">
+      Cookies Used
+    </div>
   </div>
   <div className="text-center p-6 border rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
-    <div className="text-3xl font-bold text-green-600 dark:text-green-400">0</div>
-    <div className="text-sm text-green-700 dark:text-green-300">Consent Banners</div>
+    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+      0
+    </div>
+    <div className="text-sm text-green-700 dark:text-green-300">
+      Consent Banners
+    </div>
   </div>
   <div className="text-center p-6 border rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">100%</div>
-    <div className="text-sm text-blue-700 dark:text-blue-300">GDPR Compliant</div>
+    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+      100%
+    </div>
+    <div className="text-sm text-blue-700 dark:text-blue-300">
+      GDPR Compliant
+    </div>
   </div>
   <div className="text-center p-6 border rounded-lg bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
-    <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">65x</div>
-    <div className="text-sm text-orange-700 dark:text-orange-300">Faster than GA</div>
+    <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
+      65x
+    </div>
+    <div className="text-sm text-orange-700 dark:text-orange-300">
+      Faster than GA
+    </div>
   </div>
 </div>
 
 ## 🎉 **Ready to Go Privacy-First?**
 
 <Callout title="Join the Privacy Revolution" type="success">
-**10,000+ websites** have already switched to privacy-first analytics. No consent banners, no legal complications, just powerful insights that respect your users.
+  **10,000+ websites** have already switched to privacy-first analytics. No
+  consent banners, no legal complications, just powerful insights that respect
+  your users.
 </Callout>
-
-<Cards>
-  <Card 
-    href="https://app.databuddy.cc/register"
-    title="🚀 Start Free Trial" 
-    description="Get started in under 2 minutes. No credit card required, no consent banners needed."
-  />
-  <Card 
-    href="/demo"
-    title="📊 View Live Demo" 
-    description="See Databuddy in action with real analytics data and features."
-  />
-  <Card 
-    href="https://discord.gg/JTk7a38tCZ"
-    title="💬 Join Community" 
-    description="Connect with other privacy-first developers and get expert support."
-  />
-</Cards>
 
 ### 🎯 **What You Get With Databuddy**
 
@@ -551,41 +562,59 @@ By choosing Databuddy, you're not just GDPR compliant—you're ready for the glo
   <div className="space-y-3">
     <div className="flex items-center gap-3 p-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/50">
       <span className="text-green-600 dark:text-green-400 text-xl">🛡️</span>
-      <span className="text-sm font-medium">**Full GDPR compliance** out of the box</span>
+      <span className="text-sm font-medium">
+        **Full GDPR compliance** out of the box
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/50">
       <span className="text-blue-600 dark:text-blue-400 text-xl">🍪</span>
-      <span className="text-sm font-medium">**Zero cookies** and no consent banners</span>
+      <span className="text-sm font-medium">
+        **Zero cookies** and no consent banners
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/50">
       <span className="text-purple-600 dark:text-purple-400 text-xl">🇪🇺</span>
-      <span className="text-sm font-medium">**EU data residency** for enhanced protection</span>
+      <span className="text-sm font-medium">
+        **EU data residency** for enhanced protection
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/50">
       <span className="text-orange-600 dark:text-orange-400 text-xl">🔒</span>
-      <span className="text-sm font-medium">**Complete user privacy** with actionable insights</span>
+      <span className="text-sm font-medium">
+        **Complete user privacy** with actionable insights
+      </span>
     </div>
   </div>
   <div className="space-y-3">
     <div className="flex items-center gap-3 p-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/50">
       <span className="text-green-600 dark:text-green-400 text-xl">⚡</span>
-      <span className="text-sm font-medium">**Lightning-fast performance** for better UX</span>
+      <span className="text-sm font-medium">
+        **Lightning-fast performance** for better UX
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/50">
       <span className="text-blue-600 dark:text-blue-400 text-xl">🌍</span>
-      <span className="text-sm font-medium">**Future-proof compliance** for global regulations</span>
+      <span className="text-sm font-medium">
+        **Future-proof compliance** for global regulations
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/50">
       <span className="text-purple-600 dark:text-purple-400 text-xl">👨‍💻</span>
-      <span className="text-sm font-medium">**Expert support** from privacy-first specialists</span>
+      <span className="text-sm font-medium">
+        **Expert support** from privacy-first specialists
+      </span>
     </div>
     <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/50">
       <span className="text-orange-600 dark:text-orange-400 text-xl">💰</span>
-      <span className="text-sm font-medium">**30-day money-back guarantee** on paid plans</span>
+      <span className="text-sm font-medium">
+        **30-day money-back guarantee** on paid plans
+      </span>
     </div>
   </div>
 </div>
 
 <Callout title="Questions About Privacy or Compliance?" type="note">
-Our privacy experts are here to help! Contact us at [privacy@databuddy.cc](mailto:privacy@databuddy.cc) or check out our [Privacy Policy](/privacy) for detailed information.
-</Callout> 
+  Our privacy experts are here to help! Contact us at
+  [privacy@databuddy.cc](mailto:privacy@databuddy.cc) or check out our [Privacy
+  Policy](/privacy) for detailed information.
+</Callout>

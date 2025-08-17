@@ -74,7 +74,7 @@ export function NoRevenueData({ websiteName }: NoRevenueDataProps) {
 					</div>
 					<Button asChild variant="outline">
 						<a
-							href="https://docs.databuddy.cc/docs/Integrations/stripe"
+							href="https://docs.databuddy.cc/docs/integrations/stripe"
 							rel="noopener noreferrer"
 							target="_blank"
 						>

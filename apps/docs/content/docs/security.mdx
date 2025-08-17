@@ -7,7 +7,7 @@ description: How Databuddy protects your data and respects user privacy
 
 Databuddy is built with privacy-first principles and enterprise-grade security. This guide covers what we do to protect your data and how to configure privacy settings for your users.
 
-## 🔒 Privacy-First Design
+## Privacy-First Design
 
 ### What We Don't Collect
 
@@ -24,7 +24,7 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 - **Technical Data** - Browser type, screen size, performance metrics
 - **Location Data** - Country and region only (from IP, then IP discarded)
 
-## 🛡️ Data Protection
+## Data Protection
 
 ### Anonymous by Default
 
@@ -46,7 +46,7 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 - **No Cookies** - We don't use tracking cookies
 - **User Control** - Easy to clear all data
 
-## 🌍 Privacy Compliance
+## Privacy Compliance
 
 ### GDPR Compliance by Design
 
@@ -55,14 +55,14 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 Databuddy is **compliant by default** - no consent banners or cookie notices required because:
 
 - **No Personal Data Collected** - Only anonymous usage statistics
-- **No Cookies Used** - Uses localStorage for anonymous IDs only  
+- **No Cookies Used** - Uses localStorage for anonymous IDs only
 - **No User Identification** - Cannot identify individual users
 - **Automatic Data Anonymization** - All data is anonymous from collection
 
 ### No Consent Required
 
 ```tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from "@databuddy/sdk";
 
 function App() {
   return (
@@ -74,7 +74,7 @@ function App() {
         trackPerformance={true}
         trackSessions={true}
       />
-      
+
       {/* No cookie banner needed! */}
     </>
   );
@@ -82,13 +82,14 @@ function App() {
 ```
 
 **Why No Consent Needed:**
+
 - Anonymous data only
 - No cross-site tracking
 - No personal information
 - No behavioral profiling
 - Legitimate interest applies
 
-## ⚙️ Privacy Controls
+## Privacy Controls
 
 ### Minimal Tracking Setup
 
@@ -96,10 +97,8 @@ function App() {
 // Essential analytics only
 <Databuddy
   clientId="your-client-id"
-  
   // Basic page tracking
   trackScreenViews={true}
-  
   // Disable everything else
   trackPerformance={false}
   trackWebVitals={false}
@@ -114,16 +113,15 @@ function App() {
 ### Development vs Production
 
 ```tsx
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === "production";
 
 <Databuddy
   clientId="your-client-id"
   disabled={!isProd} // No tracking in development
-  
   // Production-only features
   trackPerformance={isProd}
   trackWebVitals={isProd}
-/>
+/>;
 ```
 
 ## 🔐 Security Features
@@ -161,19 +159,21 @@ function PrivacyControls() {
 
   const handleOptOut = () => {
     // Clear local anonymous ID
-    localStorage.removeItem('databuddy_anon_id');
-    
+    localStorage.removeItem("databuddy_anon_id");
+
     // Disable tracking
     setTrackingEnabled(false);
-    
+
     // Store preference
-    localStorage.setItem('databuddy_opt_out', 'true');
+    localStorage.setItem("databuddy_opt_out", "true");
   };
 
   return (
     <div>
-      <p>Analytics helps us improve our website. No personal data is collected.</p>
-      
+      <p>
+        Analytics helps us improve our website. No personal data is collected.
+      </p>
+
       <label>
         <input
           type="checkbox"
@@ -182,10 +182,8 @@ function PrivacyControls() {
         />
         Enable anonymous analytics
       </label>
-      
-      <button onClick={handleOptOut}>
-        Disable analytics
-      </button>
+
+      <button onClick={handleOptOut}>Disable analytics</button>
     </div>
   );
 }
@@ -195,7 +193,7 @@ function PrivacyControls() {
 
 - **No Personal Data** - Nothing to identify individual users
 - **Anonymous by Design** - All data is aggregated and anonymous
-- **No User Profiles** - Cannot build profiles of individual users  
+- **No User Profiles** - Cannot build profiles of individual users
 - **Automatic Expiry** - Data expires automatically over time
 
 ## 🌐 Global Privacy Settings
@@ -204,12 +202,12 @@ function PrivacyControls() {
 
 ```javascript
 // Check Do Not Track setting
-const respectDNT = navigator.doNotTrack === '1';
+const respectDNT = navigator.doNotTrack === "1";
 
 <Databuddy
   clientId="your-client-id"
   disabled={respectDNT} // Respect browser privacy setting
-/>
+/>;
 ```
 
 ## 📋 Privacy Best Practices
@@ -223,8 +221,8 @@ function PrivacyNotice() {
     <div className="privacy-notice">
       <h3>We respect your privacy</h3>
       <p>
-        We collect anonymous usage data to improve our website. 
-        No personal information is collected. You can opt out anytime.
+        We collect anonymous usage data to improve our website. No personal
+        information is collected. You can opt out anytime.
       </p>
       <a href="/privacy-policy">Read our privacy policy</a>
     </div>
@@ -240,7 +238,7 @@ function PrivacyDashboard() {
   return (
     <div>
       <h2>Analytics Preferences</h2>
-      
+
       <div>
         <h3>Anonymous Data Collection</h3>
         <p>Help us improve our website with anonymous usage statistics.</p>
@@ -248,7 +246,7 @@ function PrivacyDashboard() {
         <Toggle label="Performance metrics" />
         <Toggle label="Error tracking" />
       </div>
-      
+
       <div>
         <h3>Your Privacy</h3>
         <p>✅ No personal data is collected</p>
@@ -272,7 +270,7 @@ const privacySettings = getUserPrivacySettings();
   trackScreenViews={privacySettings.allowPageViews}
   trackPerformance={privacySettings.allowPerformance}
   trackErrors={privacySettings.allowErrors}
-/>
+/>;
 ```
 
 ## ⚖️ Legal Compliance
@@ -280,29 +278,31 @@ const privacySettings = getUserPrivacySettings();
 ### Recommended Disclosures
 
 **Privacy Policy Should Include:**
+
 - Anonymous analytics are collected via Databuddy
 - No personal information or cookies are used
 - Data is used only for website improvement
 - Optional: How users can opt-out
 
 **Cookie Notice:**
+
 - **Not required for Databuddy** (no cookies used)
 - Only needed if you use other tracking tools
 
 ### Sample Privacy Policy Text
 
 ```
-Analytics: We use Databuddy to collect anonymous website usage statistics 
-to help us improve our site. No personal information, cookies, or tracking 
-is used. All data is completely anonymous and cannot identify individual 
-visitors. Data is processed securely by Databuddy and used only for 
+Analytics: We use Databuddy to collect anonymous website usage statistics
+to help us improve our site. No personal information, cookies, or tracking
+is used. All data is completely anonymous and cannot identify individual
+visitors. Data is processed securely by Databuddy and used only for
 understanding website performance and usage patterns.
 ```
 
 ### Minimal Privacy Notice
 
 ```
-We collect anonymous usage statistics to improve our website. 
+We collect anonymous usage statistics to improve our website.
 No personal data or cookies are used.
 ```
 
@@ -312,9 +312,11 @@ No personal data or cookies are used.
 
 ```html
 <!-- Add Databuddy to your CSP -->
-<meta http-equiv="Content-Security-Policy" 
-      content="script-src 'self' https://app.databuddy.cc; 
-               connect-src 'self' https://basket.databuddy.cc;">
+<meta
+  http-equiv="Content-Security-Policy"
+  content="script-src 'self' https://app.databuddy.cc; 
+               connect-src 'self' https://basket.databuddy.cc;"
+/>
 ```
 
 ### Secure Configuration
@@ -329,10 +331,10 @@ const config = {
   production: {
     clientId: process.env.NEXT_PUBLIC_DATABUDDY_PROD_ID,
     disabled: false,
-  }
+  },
 }[process.env.NODE_ENV];
 
-<Databuddy {...config} />
+<Databuddy {...config} />;
 ```
 
 ## 🆘 Support & Questions
@@ -340,6 +342,7 @@ const config = {
 ### Privacy Questions
 
 If you have questions about privacy or data handling:
+
 - 📧 [privacy@databuddy.cc](mailto:privacy@databuddy.cc)
 - 📚 [Privacy Policy](https://databuddy.cc/privacy)
 - 🛡️ [Security Overview](https://databuddy.cc/docs/security)
@@ -347,6 +350,7 @@ If you have questions about privacy or data handling:
 ### Data Requests
 
 **No data requests needed** - Databuddy doesn't collect personal data that can identify users. If you have questions about our data handling:
+
 - 📧 [privacy@databuddy.cc](mailto:privacy@databuddy.cc)
 
 ---
@@ -355,4 +359,4 @@ If you have questions about privacy or data handling:
 
 - **[SDK Reference](/docs/sdk)** - Configure tracking options
 - **[Getting Started](/docs/getting-started)** - Set up Databuddy on your site
-- **[Dashboard Guide](/docs/dashboard)** - Analyze your anonymous data 
+- **[Dashboard Guide](/docs/dashboard)** - Analyze your anonymous data

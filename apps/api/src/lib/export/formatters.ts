@@ -2,7 +2,9 @@
 
 import type { ExportFormat } from './types';
 
-export function convertToCSV<T extends Record<string, unknown>>(data: T[]): string {
+export function convertToCSV<T extends Record<string, unknown>>(
+	data: T[]
+): string {
 	if (data.length === 0) return '';
 
 	const headers = Object.keys(data[0] || {}).join(',');
@@ -31,7 +33,9 @@ export function convertToCSV<T extends Record<string, unknown>>(data: T[]): stri
 	return `${headers}\n${rows}`;
 }
 
-export function convertToTXT<T extends Record<string, unknown>>(data: T[]): string {
+export function convertToTXT<T extends Record<string, unknown>>(
+	data: T[]
+): string {
 	if (data.length === 0) return '';
 
 	const headers = Object.keys(data[0] || {}).join('\t');
@@ -53,20 +57,20 @@ export function convertToTXT<T extends Record<string, unknown>>(data: T[]): stri
 }
 
 export function convertToProto<T extends Record<string, unknown>>(
-	data: T[], 
+	data: T[],
 	typeName: string
 ): string {
 	if (data.length === 0) return '';
 
 	let protoContent = `# Protocol Buffer Text Format\n# Type: ${typeName}\n\n`;
-	
+
 	for (const [index, row] of data.entries()) {
 		protoContent += `${typeName} {\n`;
-		
+
 		for (const [key, value] of Object.entries(row)) {
 			if (value !== null && value !== undefined) {
 				const fieldName = key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-				
+
 				if (typeof value === 'string') {
 					// Escape quotes in string values
 					const escapedValue = value.replace(/"/g, '\\"').replace(/\n/g, '\\n');
@@ -77,24 +81,26 @@ export function convertToProto<T extends Record<string, unknown>>(
 					protoContent += `  ${fieldName}: ${value}\n`;
 				} else {
 					// Convert other types to string
-					const stringValue = String(value).replace(/"/g, '\\"').replace(/\n/g, '\\n');
+					const stringValue = String(value)
+						.replace(/"/g, '\\"')
+						.replace(/\n/g, '\\n');
 					protoContent += `  ${fieldName}: "${stringValue}"\n`;
 				}
 			}
 		}
-		
+
 		protoContent += '}\n';
 		if (index < data.length - 1) {
 			protoContent += '\n';
 		}
 	}
-	
+
 	return protoContent;
 }
 
 export function formatData<T extends Record<string, unknown>>(
-	data: T[], 
-	format: ExportFormat, 
+	data: T[],
+	format: ExportFormat,
 	typeName: string
 ): string {
 	switch (format) {

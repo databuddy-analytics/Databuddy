@@ -211,10 +211,7 @@ export default function ExperimentsPage() {
 	}
 
 	return (
-		<div
-			className="mx-auto max-w-[1600px] space-y-4 mt-6"
-			ref={pageRef}
-		>
+		<div className="mx-auto mt-6 max-w-[1600px] space-y-4" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Experiment"
 				description="Test different variants and optimize conversions"

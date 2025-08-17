@@ -1,14 +1,8 @@
-import { createRelativeLink } from 'fumadocs-ui/mdx';
-import {
-	DocsBody,
-	DocsDescription,
-	DocsPage,
-	DocsTitle,
-} from 'fumadocs-ui/page';
+import defaultMdxComponents from 'fumadocs-ui/mdx';
+import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/page';
 import { notFound } from 'next/navigation';
-import { StructuredData } from '@/components/structured-data';
+import { DocsFooter } from '@/components/docs-footer';
 import { source } from '@/lib/source';
-import { getMDXComponents } from '@/mdx-components';
 
 export default async function Page(props: {
 	params: Promise<{ slug?: string[] }>;
@@ -19,77 +13,31 @@ export default async function Page(props: {
 		notFound();
 	}
 
-	const MDXContent = page.data.body;
-	const url = `https://www.databuddy.cc${page.url}`;
-
-	// Generate breadcrumbs from slug
-	const breadcrumbs = [
-		{ name: 'Home', url: '/' },
-		{ name: 'Documentation', url: '/docs' },
-	];
-
-	if (params.slug && params.slug.length > 0) {
-		let currentPath = '/docs';
-		params.slug.forEach((segment, index) => {
-			currentPath += `/${segment}`;
-			if (index < (params.slug?.length ?? 0) - 1) {
-				breadcrumbs.push({
-					name: segment.charAt(0).toUpperCase() + segment.slice(1),
-					url: currentPath,
-				});
-			}
-		});
-	}
-
-	breadcrumbs.push({ name: page.data.title, url: page.url });
-
-	const title = `${page.data.title} | Databuddy Documentation`;
-	const description =
-		page.data.description ||
-		`Learn about ${page.data.title} in Databuddy's privacy-first analytics platform. Complete guides and API documentation.`;
-
-	const publishedDate = new Date();
-	const lastModified = page.data.lastModified
-		? new Date(page.data.lastModified)
-		: null;
+	const MDX = page.data.body;
 
 	return (
-		<>
-			<StructuredData
-				elements={[
-					{
-						type: 'article',
-						value: {
-							title,
-							description,
-							datePublished: publishedDate.toISOString(),
-							dateModified: lastModified?.toISOString(),
-						},
-					},
-				]}
-				page={{
-					title,
-					description,
-					url,
-					dateModified: lastModified?.toISOString(),
-					datePublished: publishedDate.toISOString(),
-					breadcrumbs,
-					inLanguage: 'en',
-				}}
-			/>
-			<DocsPage full={page.data.full} toc={page.data.toc}>
-				<DocsTitle>{page.data.title}</DocsTitle>
-				<DocsDescription>{page.data.description}</DocsDescription>
-				<DocsBody>
-					<MDXContent
-						components={getMDXComponents({
-							// this allows you to link to other pages with relative file paths
-							a: createRelativeLink(source, page),
-						})}
-					/>
-				</DocsBody>
-			</DocsPage>
-		</>
+		<DocsPage
+			editOnGithub={{
+				owner: 'databuddy-analytics',
+				repo: 'databuddy',
+				sha: 'main',
+				path: `/docs/content/docs/${page.file.path}`,
+			}}
+			footer={{
+				component: <DocsFooter />,
+				enabled: true,
+			}}
+			full={page.data.full}
+			tableOfContent={{
+				style: 'clerk',
+			}}
+			toc={page.data.toc}
+		>
+			<DocsTitle>{page.data.title}</DocsTitle>
+			<DocsBody>
+				<MDX components={defaultMdxComponents} />
+			</DocsBody>
+		</DocsPage>
 	);
 }
 
@@ -112,7 +60,6 @@ export async function generateMetadata(props: {
 		page.data.description ||
 		`Learn about ${page.data.title} in Databuddy's privacy-first analytics platform. Complete guides and API documentation.`;
 
-	// Generate dynamic keywords based on page content and URL
 	const baseKeywords = [
 		page.data.title.toLowerCase(),
 		'databuddy',
@@ -125,7 +72,6 @@ export async function generateMetadata(props: {
 		'data ownership',
 	];
 
-	// Add context-specific keywords
 	const contextKeywords = [
 		...(page.url.includes('integration') || page.url.includes('Integrations')
 			? ['integration', 'setup guide', 'installation']

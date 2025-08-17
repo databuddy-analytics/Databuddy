@@ -47,7 +47,6 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 
 	return (
 		<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
-			{/* Analytics toolbar shared across all website pages */}
 			{isTrackingSetup && (
 				<AnalyticsToolbar
 					isRefreshing={isRefreshing}

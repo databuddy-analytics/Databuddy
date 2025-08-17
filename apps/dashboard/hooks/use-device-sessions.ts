@@ -1,7 +1,7 @@
 'use client';
 
 import { authClient } from '@databuddy/auth/client';
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 interface DeviceSessionDetails {
@@ -28,107 +28,172 @@ export interface DeviceSessionEntry {
 	userId: string;
 }
 
-export function useDeviceSessions() {
-	const [sessions, setSessions] = useState<DeviceSessionEntry[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [operatingSession, setOperatingSession] = useState<string | null>(null);
+// Helper types
+type RawSessionItem = {
+	session?: DeviceSessionDetails;
+	sessionToken?: string;
+	userId?: string;
+	provider?: string;
+	isCurrent?: boolean;
+	ipAddress?: string;
+	userAgent?: string;
+	lastActive?: string;
+	createdAt?: string;
+	expiresAt?: string;
+	user?: { email?: string; name?: string };
+	email?: string;
+	name?: string;
+};
 
-	const fetchSessions = useCallback(async () => {
-		setIsLoading(true);
-		setError(null);
-		try {
-			const result = await authClient.multiSession.listDeviceSessions();
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
-			const processedSessions: DeviceSessionEntry[] =
-				result.data?.map((item: any) => ({
-					session: item.session || {
-						sessionToken: item.sessionToken,
-						userId: item.userId,
-						provider: item.provider,
-						isCurrent: item.isCurrent,
-						ipAddress: item.ipAddress,
-						userAgent: item.userAgent,
-						lastActive: item.lastActive,
-						createdAt: item.createdAt,
-						expiresAt: item.expiresAt,
-					},
-					user: item.user || {
-						email: item.email || 'Unknown User',
-						name: item.name,
-					},
-					sessionToken: item.sessionToken || item.session?.sessionToken,
-					isCurrent:
-						typeof item.isCurrent === 'boolean'
-							? item.isCurrent
-							: item.session?.isCurrent,
-					provider: item.provider || item.session?.provider || 'N/A',
-					userId: item.userId || item.session?.userId,
-				})) || [];
-			setSessions(processedSessions);
-		} catch (err: any) {
-			const errorMessage = err.message || 'Failed to fetch sessions.';
-			setError(errorMessage);
-		} finally {
-			setIsLoading(false);
+// Helper function to build session details
+function buildSessionDetails(
+	sessionItem: RawSessionItem
+): DeviceSessionDetails {
+	return (
+		sessionItem.session || {
+			sessionToken: sessionItem.sessionToken ?? '',
+			userId: sessionItem.userId ?? '',
+			provider: sessionItem.provider ?? '',
+			isCurrent: sessionItem.isCurrent ?? false,
+			ipAddress: sessionItem.ipAddress ?? null,
+			userAgent: sessionItem.userAgent ?? null,
+			lastActive: sessionItem.lastActive ?? '',
+			createdAt: sessionItem.createdAt ?? '',
+			expiresAt: sessionItem.expiresAt ?? '',
 		}
-	}, []);
+	);
+}
 
-	useEffect(() => {
-		fetchSessions();
-	}, [fetchSessions]);
+// Helper function to build user details
+function buildUserDetails(sessionItem: RawSessionItem) {
+	return (
+		sessionItem.user ?? {
+			email: sessionItem.email ?? 'Unknown User',
+			name: sessionItem.name,
+		}
+	);
+}
 
-	const setActiveSession = async (sessionToken: string) => {
-		setOperatingSession(sessionToken);
-		try {
+// Helper function to process a single session item
+function processSessionItem(item: unknown): DeviceSessionEntry {
+	const sessionItem = item as RawSessionItem;
+
+	const sessionDetails = buildSessionDetails(sessionItem);
+	const userDetails = buildUserDetails(sessionItem);
+	const sessionToken =
+		sessionItem.sessionToken ?? sessionItem.session?.sessionToken ?? '';
+	const isCurrent =
+		typeof sessionItem.isCurrent === 'boolean'
+			? sessionItem.isCurrent
+			: (sessionItem.session?.isCurrent ?? false);
+
+	return {
+		session: sessionDetails,
+		user: userDetails,
+		sessionToken,
+		isCurrent,
+		provider: sessionItem.provider ?? sessionItem.session?.provider ?? 'N/A',
+		userId: sessionItem.userId ?? sessionItem.session?.userId ?? '',
+	};
+}
+
+// Process raw session data into the expected format
+function processSessionData(result: unknown): DeviceSessionEntry[] {
+	const typedResult = result as {
+		error?: { message?: string } | null;
+		data?: unknown[] | null;
+	};
+
+	if (typedResult.error?.message) {
+		throw new Error(typedResult.error.message);
+	}
+
+	return typedResult.data?.map(processSessionItem) ?? [];
+}
+
+export function useDeviceSessions() {
+	const queryClient = useQueryClient();
+
+	// Fetch sessions with React Query
+	const {
+		data: sessions = [],
+		isLoading,
+		error,
+		refetch: fetchSessions,
+	} = useQuery({
+		queryKey: ['device-sessions'],
+		queryFn: async () => {
+			const result = await authClient.multiSession.listDeviceSessions();
+			return processSessionData(result);
+		},
+		staleTime: 2 * 60 * 1000, // 2 minutes - auth data should stay fresh
+		gcTime: 5 * 60 * 1000, // 5 minutes
+		refetchOnWindowFocus: true, // Refetch when user comes back to check sessions
+		refetchOnMount: true,
+		retry: (failureCount, err) => {
+			// Don't retry auth failures
+			if (
+				err.message.includes('unauthorized') ||
+				err.message.includes('forbidden')
+			) {
+				return false;
+			}
+			return failureCount < 2;
+		},
+	});
+
+	// Set active session mutation
+	const setActiveSession = useMutation({
+		mutationFn: async (sessionToken: string) => {
 			const result = await authClient.multiSession.setActive({ sessionToken });
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
+			return result;
+		},
+		onSuccess: () => {
 			toast.success('Session switched successfully. Reloading...');
+			// Clear all queries since we're switching context
+			queryClient.clear();
 			window.location.reload();
-			return { success: true };
-		} catch (err: any) {
+		},
+		onError: (err: Error) => {
 			toast.error(err.message || 'Failed to switch session.');
-			return {
-				success: false,
-				error: err.message || 'Failed to switch session.',
-			};
-		} finally {
-			setOperatingSession(null);
-		}
-	};
+		},
+	});
 
-	const revokeSession = async (sessionToken: string) => {
-		setOperatingSession(sessionToken);
-		try {
+	// Revoke session mutation
+	const revokeSession = useMutation({
+		mutationFn: async (sessionToken: string) => {
 			const result = await authClient.multiSession.revoke({ sessionToken });
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
+			return result;
+		},
+		onSuccess: () => {
 			toast.success('Session revoked successfully.');
-			fetchSessions();
-			return { success: true };
-		} catch (err: any) {
+			// Invalidate and refetch sessions to update the list
+			queryClient.invalidateQueries({ queryKey: ['device-sessions'] });
+		},
+		onError: (err: Error) => {
 			toast.error(err.message || 'Failed to revoke session.');
-			return {
-				success: false,
-				error: err.message || 'Failed to revoke session.',
-			};
-		} finally {
-			setOperatingSession(null);
-		}
-	};
+		},
+	});
 
 	return {
 		sessions,
 		isLoading,
-		error,
-		operatingSession,
+		error: error?.message || null,
+		operatingSession:
+			setActiveSession.isPending || revokeSession.isPending
+				? 'operating'
+				: null,
 		fetchSessions,
-		setActiveSession,
-		revokeSession,
+		setActiveSession: setActiveSession.mutate,
+		revokeSession: revokeSession.mutate,
+		isSettingActive: setActiveSession.isPending,
+		isRevoking: revokeSession.isPending,
+		isOperating: setActiveSession.isPending || revokeSession.isPending,
 	};
 }

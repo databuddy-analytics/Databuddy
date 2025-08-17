@@ -130,22 +130,25 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 	};
 
 	const utils = trpc.useUtils();
-	const { refetch: refetchTrackingSetup } = trpc.websites.isTrackingSetup.useQuery(
-		{ websiteId },
-		{ enabled: !!websiteId }
-	);
+	const { refetch: refetchTrackingSetup } =
+		trpc.websites.isTrackingSetup.useQuery(
+			{ websiteId },
+			{ enabled: !!websiteId }
+		);
 
 	const handleRefresh = async () => {
 		toast.success('Checking tracking status...');
-		
+
 		try {
 			await utils.websites.isTrackingSetup.invalidate({ websiteId });
 			const result = await refetchTrackingSetup();
-			
+
 			if (result.data?.tracking_setup) {
 				toast.success('Tracking setup correctly! Data is being collected.');
 			} else {
-				toast.error('Tracking not found. Please verify the script installation.');
+				toast.error(
+					'Tracking not found. Please verify the script installation.'
+				);
 			}
 		} catch (error) {
 			console.error('Failed to check tracking status:', error);

@@ -1,6 +1,11 @@
 'use client';
 
-import { TrendUpIcon, UsersIcon, CalendarIcon, ChartLineIcon } from '@phosphor-icons/react';
+import {
+	CalendarIcon,
+	ChartLineIcon,
+	TrendUpIcon,
+	UsersIcon,
+} from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import { StatCard } from '@/components/analytics';
 import type { Experiment } from '@/hooks/use-experiments';
@@ -9,7 +14,9 @@ interface ExperimentSummaryCardsProps {
 	experiment: Experiment;
 }
 
-export function ExperimentSummaryCards({ experiment }: ExperimentSummaryCardsProps) {
+export function ExperimentSummaryCards({
+	experiment,
+}: ExperimentSummaryCardsProps) {
 	const results = {
 		conversionRateControl: 11.1,
 		conversionRateVariant: 12.4,
@@ -30,28 +37,30 @@ export function ExperimentSummaryCards({ experiment }: ExperimentSummaryCardsPro
 	return (
 		<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
 			<StatCard
-				title="CONVERSION LIFT"
-				value={`+${results.lift}%`}
+				className="h-full"
 				description={`${results.conversionRateVariant}% vs ${results.conversionRateControl}%`}
 				icon={TrendUpIcon}
+				title="CONVERSION LIFT"
+				value={`+${results.lift}%`}
 				variant="success"
-				className="h-full"
 			/>
 
 			<StatCard
-				title="CONFIDENCE"
-				value={`${results.confidence}%`}
+				className="h-full"
 				description="Statistical significance"
 				icon={ChartLineIcon}
-				className="h-full"
+				title="CONFIDENCE"
+				value={`${results.confidence}%`}
 			/>
 
 			<StatCard
-				title="SAMPLE SIZE"
-				value={formatNumber(results.sampleSizeControl + results.sampleSizeVariant)}
+				className="h-full"
 				description={`${formatNumber(results.sampleSizeControl)} total participants`}
 				icon={UsersIcon}
-				className="h-full"
+				title="SAMPLE SIZE"
+				value={formatNumber(
+					results.sampleSizeControl + results.sampleSizeVariant
+				)}
 			/>
 		</div>
 	);

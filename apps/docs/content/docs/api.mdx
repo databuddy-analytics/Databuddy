@@ -3,19 +3,17 @@ title: API Reference
 description: Complete API reference for Databuddy analytics endpoints
 ---
 
-# API Reference
-
 Access your analytics data programmatically with Databuddy's REST API. All endpoints require authentication and are rate-limited for security.
 
 import { Callout } from "fumadocs-ui/components/callout";
 
 <Callout type="info">
-  **🚀 Try it live!** Test all these endpoints interactively in our [API
+  **Try it live!** Test all these endpoints interactively in our [API
   Playground](/api) with real data and see instant responses. Perfect for
   exploring query types and understanding the API structure.
 </Callout>
 
-## 🔐 Authentication
+## Authentication
 
 All API requests require authentication using your API key in the `X-Api-Key` header:
 
@@ -31,7 +29,7 @@ Get your API key from your [dashboard settings](https://app.databuddy.cc/setting
   write code first!
 </Callout>
 
-## 📊 Analytics Endpoints
+## Analytics Endpoints
 
 ### Get Website Analytics
 
@@ -175,7 +173,7 @@ GET /v1/websites/{website_id}/events
 }
 ```
 
-## 🌐 Websites Management
+## Websites Management
 
 ### List Websites
 
@@ -227,7 +225,7 @@ GET /v1/websites/{website_id}
 }
 ```
 
-## 🤖 AI Assistant
+## AI Assistant
 
 ### Query Analytics with AI
 
@@ -273,7 +271,7 @@ POST /v1/websites/{website_id}/assistant/chat
 }
 ```
 
-## 📝 Event Tracking
+## Event Tracking
 
 ### Send Custom Events
 
@@ -302,7 +300,7 @@ POST /v1/track
 }
 ```
 
-## ⚠️ Rate Limits
+## Rate Limits
 
 All API endpoints are rate-limited:
 
@@ -318,7 +316,7 @@ X-RateLimit-Remaining: 95
 X-RateLimit-Reset: 1640995200
 ```
 
-## 🚨 Error Handling
+## Error Handling
 
 All errors follow a consistent format:
 
@@ -341,14 +339,14 @@ All errors follow a consistent format:
 - `INVALID_DATE_RANGE` - Invalid start/end dates
 - `VALIDATION_ERROR` - Request validation failed
 
-## 📚 SDKs and Libraries
+## SDKs and Libraries
 
 - **JavaScript/TypeScript**: `@databuddy/sdk`
 - **Python**: Coming soon
 - **Go**: Coming soon
 - **PHP**: Coming soon
 
-## 🔗 Base URLs
+## Base URLs
 
 - **Production**: `https://api.databuddy.cc/v1`
 - **Sandbox**: `https://api-sandbox.databuddy.cc/v1`

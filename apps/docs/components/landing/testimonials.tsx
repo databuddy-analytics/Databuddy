@@ -95,7 +95,7 @@ const testimonials = [
 		name: 'Fynn',
 		profession: 'Founder, Studiis',
 		description:
-			'it\'s actually such a upgrade to switch from posthog to @trydatabuddy',
+			"it's actually such a upgrade to switch from posthog to @trydatabuddy",
 		link: 'https://x.com/_fqnn_/status/1955577969189306785',
 		social: null,
 		avatar:
@@ -255,7 +255,9 @@ export default function Testimonials(): ReactElement {
 					/>
 					<SlidingTestimonials
 						reverse
-						testimonials={testimonials.slice(Math.floor(testimonials.length / 2))}
+						testimonials={testimonials.slice(
+							Math.floor(testimonials.length / 2)
+						)}
 					/>
 				</div>
 			</div>

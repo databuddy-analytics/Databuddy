@@ -30,7 +30,7 @@ const faqs = [
 
 export default function FAQ() {
 	return (
-		<div className="w-full">
+		<div className="w-full px-8">
 			<div className="space-y-8 lg:space-y-12">
 				{/* Header Section */}
 				<div className="text-center lg:text-left">
@@ -41,17 +41,17 @@ export default function FAQ() {
 
 				{/* FAQ Accordion */}
 				<div className="w-full">
-					<Accordion className="w-full " collapsible type="single">
+					<Accordion className="w-full" collapsible type="single">
 						{faqs.map((faq) => (
 							<AccordionItem
-								className="bg-background/50 transition-colors duration-200 hover:bg-background/80"
+								className="border-l-4 border-l-transparent bg-background/50 transition-colors duration-200 hover:border-l-primary/20 hover:bg-background/80"
 								key={faq.question}
 								value={faq.question}
 							>
-								<AccordionTrigger className="py-4 text-left font-medium text-base hover:no-underline sm:py-6 sm:text-lg lg:text-xl">
+								<AccordionTrigger className="px-8 py-4 text-left font-medium text-base hover:no-underline sm:py-6 sm:text-lg lg:text-xl">
 									{faq.question}
 								</AccordionTrigger>
-								<AccordionContent className="pb-4 text-muted-foreground text-sm leading-relaxed sm:pb-6 sm:text-base">
+								<AccordionContent className="px-8 pb-4 text-muted-foreground text-sm leading-relaxed sm:pb-6 sm:text-base">
 									{faq.answer}
 								</AccordionContent>
 							</AccordionItem>

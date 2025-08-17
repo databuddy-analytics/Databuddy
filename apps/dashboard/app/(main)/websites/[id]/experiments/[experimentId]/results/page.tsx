@@ -1,28 +1,39 @@
 'use client';
 
-import { FlaskIcon, TrendUpIcon, CalendarIcon, UsersIcon } from '@phosphor-icons/react';
+import {
+	CalendarIcon,
+	FlaskIcon,
+	TrendUpIcon,
+	UsersIcon,
+} from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useExperiment } from '@/hooks/use-experiments';
 import { useWebsite } from '@/hooks/use-websites';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../../../_components/website-page-header';
+import { ConversionChart } from './_components/conversion-chart';
 import { ExperimentResultsHeader } from './_components/experiment-results-header';
 import { ExperimentSummaryCards } from './_components/experiment-summary-cards';
-import { ConversionChart } from './_components/conversion-chart';
 import { MetricsTable } from './_components/metrics-table';
-import { VariantComparison } from './_components/variant-comparison';
 import { StatisticalDetails } from './_components/statistical-details';
+import { VariantComparison } from './_components/variant-comparison';
 
 const ResultsLoadingSkeleton = () => (
 	<div className="space-y-6">
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 			{[...Array(4)].map((_, i) => (
-				<Card key={i} className="animate-pulse">
+				<Card className="animate-pulse" key={i}>
 					<CardHeader className="pb-2">
 						<Skeleton className="h-4 w-24" />
 					</CardHeader>
@@ -88,10 +99,18 @@ export default function ExperimentResultsPage() {
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
-							<FlaskIcon className="h-5 w-5 text-red-600" size={16} weight="duotone" />
-							<p className="font-medium text-red-600">Error loading experiment results</p>
+							<FlaskIcon
+								className="h-5 w-5 text-red-600"
+								size={16}
+								weight="duotone"
+							/>
+							<p className="font-medium text-red-600">
+								Error loading experiment results
+							</p>
 						</div>
-						<p className="mt-2 text-red-600/80 text-sm">Failed to load experiment</p>
+						<p className="mt-2 text-red-600/80 text-sm">
+							Failed to load experiment
+						</p>
 					</CardContent>
 				</Card>
 			</div>
@@ -99,18 +118,24 @@ export default function ExperimentResultsPage() {
 	}
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 mt-6">
+		<div className="mx-auto mt-6 max-w-[1600px] space-y-6">
 			<WebsitePageHeader
-				title={experiment?.name || 'Experiment Results'}
 				description="A/B test performance data"
-				icon={<FlaskIcon className="h-6 w-6 text-primary" size={16} weight="duotone" />}
-				websiteId={websiteId}
-				websiteName={websiteData?.name || undefined}
+				icon={
+					<FlaskIcon
+						className="h-6 w-6 text-primary"
+						size={16}
+						weight="duotone"
+					/>
+				}
 				isLoading={experimentLoading}
 				isRefreshing={isRefreshing}
 				onRefresh={handleRefresh}
 				showBackButton={true}
+				title={experiment?.name || 'Experiment Results'}
 				variant="minimal"
+				websiteId={websiteId}
+				websiteName={websiteData?.name || undefined}
 			/>
 
 			{isVisible && (
@@ -119,7 +144,7 @@ export default function ExperimentResultsPage() {
 						<div className="space-y-6">
 							<ExperimentSummaryCards experiment={experiment} />
 							<ConversionChart experiment={experiment} />
-							
+
 							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 								<MetricsTable experiment={experiment} />
 								<VariantComparison experiment={experiment} />

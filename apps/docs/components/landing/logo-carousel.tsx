@@ -52,7 +52,7 @@ function LogoColumn({
 	return (
 		<motion.div
 			animate={{ opacity: 1, y: 0 }}
-			className={`relative h-14 w-24 overflow-hidden ${isLast ? '' : 'border-r border-border/20'} sm:h-16 sm:w-32 md:h-20 md:w-48 lg:h-24 lg:w-64`}
+			className={`relative h-14 w-24 overflow-hidden ${isLast ? '' : 'border-border/20 border-r'} sm:h-16 sm:w-32 md:h-20 md:w-48 lg:h-24 lg:w-64`}
 			initial={{ opacity: 0, y: 20 }}
 			transition={{
 				delay: columnIndex * 0.1,

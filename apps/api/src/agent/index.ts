@@ -11,7 +11,6 @@ export {
 } from './prompts/agent';
 export { getAICompletion } from './utils/ai-client';
 export { executeQuery } from './utils/query-executor';
-export { parseAIResponse } from './utils/response-parser';
 export { validateSQL } from './utils/sql-validator';
 export type { StreamingUpdate } from './utils/stream-utils';
 export {

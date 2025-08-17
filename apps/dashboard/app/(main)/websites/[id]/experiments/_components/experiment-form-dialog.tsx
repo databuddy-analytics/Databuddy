@@ -88,7 +88,10 @@ export function ExperimentFormDialog({
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
-			<SheetContent className="w-full overflow-y-auto p-4 sm:w-[600px]" side="right">
+			<SheetContent
+				className="w-full overflow-y-auto p-4 sm:w-[600px]"
+				side="right"
+			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">
 						<div className="rounded border border-primary/20 bg-primary/10 p-3">
@@ -154,8 +157,6 @@ export function ExperimentFormDialog({
 								</FormItem>
 							)}
 						/>
-
-
 
 						<div className="flex justify-end gap-3 border-border/50 border-t pt-6">
 							<Button onClick={handleClose} type="button" variant="outline">

@@ -95,13 +95,13 @@ export function MetricsTable({ experiment }: MetricsTableProps) {
 			cell: (info: any) => {
 				const lift = info.getValue() as string;
 				return (
-					<span 
+					<span
 						className={`font-medium ${
-							lift.startsWith('+') 
-								? 'text-foreground' 
-								: lift.startsWith('-') 
-								? 'text-muted-foreground' 
-								: 'text-muted-foreground'
+							lift.startsWith('+')
+								? 'text-foreground'
+								: lift.startsWith('-')
+									? 'text-muted-foreground'
+									: 'text-muted-foreground'
 						}`}
 					>
 						{lift}

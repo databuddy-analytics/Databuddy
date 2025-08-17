@@ -1,23 +1,23 @@
-import OpenAI from 'openai';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { generateObject } from 'ai';
+import type { z } from 'zod';
+import { AIResponseJsonSchema } from '../prompts/agent';
 
-const OPENAI_CONFIG = {
+const openrouter = createOpenRouter({
 	apiKey: process.env.AI_API_KEY,
-	baseURL: 'https://openrouter.ai/api/v1',
-} as const;
+});
 
 const AI_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
 // const AI_MODEL = 'openrouter/horizon-beta';
 
-const openai = new OpenAI(OPENAI_CONFIG);
-
-export interface AICompletionRequest {
+interface AICompletionRequest {
 	prompt: string;
 	temperature?: number;
 }
 
-export interface AICompletionResponse {
-	content: string;
-	usage?: {
+interface AICompletionResponse {
+	content: z.infer<typeof AIResponseJsonSchema>;
+	usage: {
 		prompt_tokens: number;
 		completion_tokens: number;
 		total_tokens: number;
@@ -30,25 +30,30 @@ export async function getAICompletion(
 	const startTime = Date.now();
 
 	try {
-		const completion = await openai.chat.completions.create({
-			model: AI_MODEL,
-			messages: [{ role: 'system', content: request.prompt }],
+		const chat = await generateObject({
+			model: openrouter.chat(AI_MODEL),
+			messages: [{ role: 'user', content: request.prompt }],
 			temperature: request.temperature ?? 0.1,
-			response_format: { type: 'json_object' },
+			schema: AIResponseJsonSchema,
 		});
 
-		const content = completion.choices[0]?.message?.content || '';
+		const content = chat.object;
 		const aiTime = Date.now() - startTime;
 
 		console.info('🤖 [AI Client] Completion completed', {
 			timeTaken: `${aiTime}ms`,
-			contentLength: content.length,
-			usage: completion.usage,
+			contentLength: JSON.stringify(content).length,
+			usage: chat.usage,
+			content,
 		});
 
 		return {
 			content,
-			usage: completion.usage,
+			usage: {
+				prompt_tokens: chat.usage.inputTokens ?? 0,
+				completion_tokens: chat.usage.outputTokens ?? 0,
+				total_tokens: chat.usage.totalTokens ?? 0,
+			},
 		};
 	} catch (error) {
 		console.error('❌ [AI Client] Completion failed', {

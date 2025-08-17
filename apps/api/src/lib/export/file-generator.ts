@@ -1,21 +1,21 @@
 // File generation and ZIP creation
 
 import JSZip from 'jszip';
-import type { 
-	ExportFile, 
-	ExportFormat, 
-	ExportMetadata, 
-	ExportRequest 
-} from './types';
 import type { ExportData } from './data-fetcher';
 import { formatData, getFileExtension } from './formatters';
+import type {
+	ExportFile,
+	ExportFormat,
+	ExportMetadata,
+	ExportRequest,
+} from './types';
 
 export function generateExportFiles(
-	data: ExportData, 
+	data: ExportData,
 	format: ExportFormat
 ): ExportFile[] {
 	const extension = getFileExtension(format);
-	
+
 	return [
 		{
 			name: `events.${extension}`,
@@ -33,7 +33,7 @@ export function generateExportFiles(
 }
 
 export function generateMetadataFile(
-	request: ExportRequest, 
+	request: ExportRequest,
 	data: ExportData
 ): ExportFile {
 	const metadata: ExportMetadata = {
@@ -59,11 +59,11 @@ export function generateMetadataFile(
 
 export async function createZipBuffer(files: ExportFile[]): Promise<Buffer> {
 	const zip = new JSZip();
-	
+
 	for (const file of files) {
 		zip.file(file.name, file.content);
 	}
-	
+
 	return await zip.generateAsync({ type: 'nodebuffer' });
 }
 
