@@ -8,6 +8,7 @@ import {
 	CheckIcon,
 	ClipboardIcon,
 	CodeIcon,
+	DownloadIcon,
 	FileCodeIcon,
 	GlobeIcon,
 	InfoIcon,
@@ -18,12 +19,15 @@ import {
 	TrashIcon,
 	WarningCircleIcon,
 } from '@phosphor-icons/react';
+import dayjs from 'dayjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import type { DateRange as DayPickerRange } from 'react-day-picker';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import { toast } from 'sonner';
+import { DateRangePicker } from '@/components/date-range-picker';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -48,6 +52,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { WebsiteDialog } from '@/components/website-dialog';
+import { type ExportFormat, useDataExport } from '@/hooks/use-data-export';
 import { useDeleteWebsite, useUpdateWebsite } from '@/hooks/use-websites';
 import {
 	COPY_SUCCESS_TIMEOUT,
@@ -85,9 +90,16 @@ export function WebsiteSettingsTab({
 	);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [showEditDialog, setShowEditDialog] = useState(false);
+	// Data export hook
+	const { exportData, isExporting } = useDataExport({
+		websiteId,
+		websiteName: websiteData?.name || undefined,
+	});
 
 	// Settings State
-	const [isPublic, setIsPublic] = useState(websiteData?.isPublic ?? false);
+	const [isPublic, setIsPublic] = useState(
+		(websiteData as any)?.isPublic ?? false
+	);
 	const [trackingOptions, setTrackingOptions] =
 		useState<TrackingOptions>(RECOMMENDED_DEFAULTS);
 
@@ -160,6 +172,13 @@ export function WebsiteSettingsTab({
 		onWebsiteUpdated?.();
 	}, [onWebsiteUpdated]);
 
+	const handleExportData = useCallback(
+		async (format: ExportFormat, startDate?: string, endDate?: string) => {
+			await exportData({ format, startDate, endDate });
+		},
+		[exportData]
+	);
+
 	// Memoized values for performance
 	const trackingCode = useMemo(
 		() => generateScriptTag(websiteId, trackingOptions),
@@ -181,7 +200,7 @@ export function WebsiteSettingsTab({
 			{/* Header */}
 			<WebsiteHeader
 				onEditClick={() => setShowEditDialog(true)}
-				websiteData={websiteData as DatabaseWebsite}
+				websiteData={websiteData as any}
 				websiteId={websiteId}
 			/>
 
@@ -237,40 +256,52 @@ export function WebsiteSettingsTab({
 								/>
 							)}
 
-							{activeTab !== SETTINGS_TABS.TRACKING && (
-								<TabActions
-									onCopyCode={() =>
-										handleCopyCode(
-											trackingCode,
-											'script-tag',
-											TOAST_MESSAGES.SCRIPT_COPIED
-										)
-									}
-									onEnableAll={() => {
-										switch (activeTab) {
-											case SETTINGS_TABS.BASIC:
-												setTrackingOptions((prev) =>
-													enableAllBasicTracking(prev)
-												);
-												break;
-											case SETTINGS_TABS.ADVANCED:
-												setTrackingOptions((prev) =>
-													enableAllAdvancedTracking(prev)
-												);
-												break;
-											case SETTINGS_TABS.OPTIMIZATION:
-												setTrackingOptions((prev) =>
-													enableAllOptimization(prev)
-												);
-												break;
-											default:
-												// No action needed for other tabs
-												break;
-										}
-									}}
-									onResetDefaults={() => setTrackingOptions(resetToDefaults())}
+							{activeTab === 'export' && (
+								<ExportTab
+									isExporting={isExporting}
+									onExportData={handleExportData}
+									websiteData={websiteData as any}
+									websiteId={websiteId}
 								/>
 							)}
+
+							{activeTab !== SETTINGS_TABS.TRACKING &&
+								activeTab !== 'export' && (
+									<TabActions
+										onCopyCode={() =>
+											handleCopyCode(
+												trackingCode,
+												'script-tag',
+												TOAST_MESSAGES.SCRIPT_COPIED
+											)
+										}
+										onEnableAll={() => {
+											switch (activeTab) {
+												case SETTINGS_TABS.BASIC:
+													setTrackingOptions((prev) =>
+														enableAllBasicTracking(prev)
+													);
+													break;
+												case SETTINGS_TABS.ADVANCED:
+													setTrackingOptions((prev) =>
+														enableAllAdvancedTracking(prev)
+													);
+													break;
+												case SETTINGS_TABS.OPTIMIZATION:
+													setTrackingOptions((prev) =>
+														enableAllOptimization(prev)
+													);
+													break;
+												default:
+													// No action needed for other tabs
+													break;
+											}
+										}}
+										onResetDefaults={() =>
+											setTrackingOptions(resetToDefaults())
+										}
+									/>
+								)}
 						</CardContent>
 					</Card>
 				</div>
@@ -281,7 +312,7 @@ export function WebsiteSettingsTab({
 				onOpenChange={setShowEditDialog}
 				onSave={handleWebsiteUpdated}
 				open={showEditDialog}
-				website={websiteData}
+				website={websiteData as any}
 			/>
 
 			{/* Delete Dialog */}
@@ -290,7 +321,7 @@ export function WebsiteSettingsTab({
 				onConfirmDelete={handleDeleteWebsite}
 				onOpenChange={setShowDeleteDialog}
 				open={showDeleteDialog}
-				websiteData={websiteData}
+				websiteData={websiteData as any}
 			/>
 		</div>
 	);
@@ -302,7 +333,7 @@ function WebsiteHeader({
 	websiteId,
 	onEditClick,
 }: {
-	websiteData: DatabaseWebsite;
+	websiteData: any;
 	websiteId: string;
 	onEditClick: () => void;
 }) {
@@ -399,7 +430,13 @@ function SettingsNavigation({
 }: {
 	activeTab: string;
 	setActiveTab: (
-		tab: 'tracking' | 'basic' | 'advanced' | 'optimization' | 'privacy'
+		tab:
+			| 'tracking'
+			| 'basic'
+			| 'advanced'
+			| 'optimization'
+			| 'privacy'
+			| 'export'
 	) => void;
 	onDeleteClick: () => void;
 	trackingOptions: TrackingOptions;
@@ -517,6 +554,20 @@ function SettingsNavigation({
 							</div>
 						</Button>
 
+						<Button
+							className="h-10 w-full justify-between gap-2 transition-all duration-200"
+							onClick={() => setActiveTab('export')}
+							variant={activeTab === 'export' ? 'default' : 'ghost'}
+						>
+							<div className="flex items-center gap-2">
+								<DownloadIcon className="h-4 w-4" />
+								<span>Data Export</span>
+							</div>
+							<Badge className="h-5 px-2 text-xs" variant="secondary">
+								ZIP
+							</Badge>
+						</Button>
+
 						<div className="border-t pt-4">
 							<div className="px-3 py-2">
 								<h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
@@ -574,7 +625,7 @@ function TrackingCodeTab({
 }: {
 	trackingCode: string;
 	npmCode: string;
-	websiteData: DatabaseWebsite;
+	websiteData: any;
 	websiteId: string;
 	copiedBlockId: string | null;
 	onCopyCode: (code: string, blockId: string, message: string) => void;
@@ -800,7 +851,7 @@ function WebsiteInfoSection({
 	websiteData,
 	websiteId,
 }: {
-	websiteData: DatabaseWebsite;
+	websiteData: any;
 	websiteId: string;
 }) {
 	return (
@@ -1481,7 +1532,7 @@ function DeleteWebsiteDialog({
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	websiteData: DatabaseWebsite;
+	websiteData: any;
 	isDeleting: boolean;
 	onConfirmDelete: () => void;
 }) {
@@ -1598,6 +1649,201 @@ function PrivacyTab({
 						</p>
 					</div>
 				)}
+			</div>
+		</div>
+	);
+}
+
+function ExportTab({
+	isExporting,
+	onExportData,
+	websiteData,
+	websiteId,
+}: {
+	isExporting: boolean;
+	onExportData: (
+		format: ExportFormat,
+		startDate?: string,
+		endDate?: string
+	) => void;
+	websiteData: any;
+	websiteId: string;
+}) {
+	const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('csv');
+	const [dateRange, setDateRange] = useState<DayPickerRange | undefined>(
+		undefined
+	);
+	const [useCustomRange, setUseCustomRange] = useState(false);
+
+	const formatOptions = [
+		{
+			value: 'json',
+			label: 'JSON',
+			description: 'Structured data format, ideal for developers',
+		},
+		{
+			value: 'csv',
+			label: 'CSV',
+			description: 'Spreadsheet format, perfect for Excel/Google Sheets',
+		},
+		{
+			value: 'txt',
+			label: 'TXT',
+			description: 'Plain text format for simple data viewing',
+		},
+	] as const;
+
+	const handleExport = () => {
+		if (useCustomRange && dateRange?.from && dateRange?.to) {
+			const startDate = dayjs(dateRange.from).format('YYYY-MM-DD');
+			const endDate = dayjs(dateRange.to).format('YYYY-MM-DD');
+			onExportData(selectedFormat, startDate, endDate);
+		} else {
+			onExportData(selectedFormat);
+		}
+	};
+
+	return (
+		<div className="space-y-6">
+			<div className="flex flex-col space-y-1.5">
+				<h3 className="font-semibold text-lg">Data Export</h3>
+				<p className="text-muted-foreground text-sm">
+					Export your website's analytics data for backup, analysis, or
+					migration purposes.
+				</p>
+			</div>
+
+			{/* Export Format Selection */}
+			<div className="space-y-4">
+				<div className="space-y-3">
+					<Label className="font-medium text-sm">Export Format</Label>
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						{formatOptions.map((format) => (
+							<div
+								className={`cursor-pointer rounded border p-4 transition-all hover:border-primary/50 ${
+									selectedFormat === format.value
+										? 'border-primary bg-primary/5'
+										: 'border-border'
+								}`}
+								key={format.value}
+								onClick={() => setSelectedFormat(format.value)}
+							>
+								<div className="flex items-center gap-3">
+									<div className="flex h-8 w-8 items-center justify-center rounded bg-muted">
+										<span className="font-mono font-semibold text-xs">
+											{format.value.toUpperCase()}
+										</span>
+									</div>
+									<div className="flex-1">
+										<div className="font-medium text-sm">{format.label}</div>
+										<div className="text-muted-foreground text-xs">
+											{format.description}
+										</div>
+									</div>
+									{selectedFormat === format.value && (
+										<CheckIcon className="h-4 w-4 text-primary" />
+									)}
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+
+				{/* Date Range Selection */}
+				<div className="space-y-3">
+					<div className="flex items-center space-x-2">
+						<Switch
+							checked={useCustomRange}
+							id="custom-range"
+							onCheckedChange={setUseCustomRange}
+						/>
+						<Label className="font-medium text-sm" htmlFor="custom-range">
+							Custom Date Range
+						</Label>
+					</div>
+					<p className="text-muted-foreground text-xs">
+						{useCustomRange
+							? 'Select a specific date range for your export'
+							: 'Export all available data (recommended)'}
+					</p>
+
+					{useCustomRange && (
+						<div className="flex items-center gap-2">
+							<Label className="text-sm">Date Range:</Label>
+							<DateRangePicker
+								className="w-auto"
+								maxDate={new Date()}
+								minDate={new Date(2020, 0, 1)}
+								onChange={(range) => setDateRange(range)}
+								value={dateRange}
+							/>
+						</div>
+					)}
+				</div>
+			</div>
+
+			{/* Export Info */}
+			<div className="rounded border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/20 dark:bg-blue-950/20">
+				<div className="flex items-start gap-3">
+					<InfoIcon className="h-5 w-5 flex-shrink-0 text-blue-500" />
+					<div className="space-y-2">
+						<h4 className="font-medium text-blue-900 text-sm dark:text-blue-100">
+							What's included in your export?
+						</h4>
+						<ul className="list-disc space-y-1 pl-4 text-blue-800 text-xs dark:text-blue-200">
+							<li>Page views and user sessions</li>
+							<li>User interactions and events</li>
+							<li>Performance metrics and Web Vitals</li>
+							<li>Error logs and debugging data</li>
+							<li>Device, browser, and location data</li>
+						</ul>
+						<p className="text-blue-700 text-xs dark:text-blue-300">
+							Data is exported as a ZIP file containing multiple files organized
+							by data type.
+						</p>
+					</div>
+				</div>
+			</div>
+
+			{/* Export Actions */}
+			<div className="flex items-center justify-between border-t pt-6">
+				<div className="space-y-1">
+					<p className="font-medium text-sm">
+						Ready to export {websiteData.name || 'your website'} data?
+					</p>
+					<p className="text-muted-foreground text-xs">
+						Export format: {selectedFormat.toUpperCase()}
+						{useCustomRange && dateRange?.from && dateRange?.to && (
+							<span>
+								{' '}
+								• Date range: {dayjs(dateRange.from).format('YYYY-MM-DD')} to{' '}
+								{dayjs(dateRange.to).format('YYYY-MM-DD')}
+							</span>
+						)}
+					</p>
+				</div>
+
+				<Button
+					className="gap-2"
+					disabled={
+						isExporting ||
+						(useCustomRange && !(dateRange?.from && dateRange?.to))
+					}
+					onClick={handleExport}
+					size="lg"
+				>
+					{isExporting ? (
+						<>
+							<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+							Exporting...
+						</>
+					) : (
+						<>
+							<DownloadIcon className="h-4 w-4" />
+							Export Data
+						</>
+					)}
+				</Button>
 			</div>
 		</div>
 	);

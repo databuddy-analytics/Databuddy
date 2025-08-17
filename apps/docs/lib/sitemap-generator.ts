@@ -190,12 +190,7 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 
 	try {
 		const pages = source.getPages();
-		const nonDocPages = [
-			'/privacy',
-			'/llms.txt',
-			'/contributors',
-			'/api',
-		];
+		const nonDocPages = ['/privacy', '/llms.txt', '/contributors', '/api'];
 
 		entries.push(...processSourcePages(pages, SITE_URL, lastModified));
 		entries.push(...processNonDocPages(nonDocPages, SITE_URL, lastModified));

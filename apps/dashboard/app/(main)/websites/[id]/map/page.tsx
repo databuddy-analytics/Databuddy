@@ -119,7 +119,7 @@ function WebsiteMapPage() {
 	}
 
 	return (
-		<div className="flex h-[calc(100vh-7rem)] flex-col space-y-4 mt-6">
+		<div className="mt-6 flex h-[calc(100vh-7rem)] flex-col space-y-4">
 			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 				<WebsitePageHeader
 					additionalActions={

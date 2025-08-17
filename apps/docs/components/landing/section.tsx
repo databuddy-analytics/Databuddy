@@ -26,9 +26,7 @@ const Section = ({
 				<div className="hidden w-px flex-shrink-0 bg-stone-200 lg:block dark:bg-border" />
 
 				{/* Content with spacing */}
-				<div className="flex-1 px-4 sm:px-6 lg:px-8">
-					{children}
-				</div>
+				<div className="flex-1 px-4 sm:px-6 lg:px-8">{children}</div>
 
 				{/* Right border line - hidden on mobile, visible on larger screens */}
 				<div className="hidden w-px flex-shrink-0 bg-stone-200 lg:block dark:bg-border" />

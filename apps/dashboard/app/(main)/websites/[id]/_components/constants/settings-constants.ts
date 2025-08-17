@@ -12,6 +12,7 @@ export const SETTINGS_TABS = {
 	ADVANCED: 'advanced',
 	OPTIMIZATION: 'optimization',
 	PRIVACY: 'privacy',
+	EXPORT: 'export',
 } as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[keyof typeof SETTINGS_TABS];

@@ -3,20 +3,19 @@ title: SDK Reference
 description: Complete reference for the Databuddy SDK and JavaScript library
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Card, Cards } from 'fumadocs-ui/components/card';
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
-
-# 📦 SDK Reference
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 The Databuddy SDK provides both a React component and a standalone JavaScript library for tracking analytics events. This guide covers all configuration options, types, and usage patterns based on the actual implementation.
 
 <Callout type="info">
-**SDK Version**: Defaults to the version in `package.json` | **API**: basket.databuddy.cc | **CDN**: app.databuddy.cc
+  **SDK Version**: Defaults to the version in `package.json` | **API**:
+  basket.databuddy.cc | **CDN**: app.databuddy.cc
 </Callout>
 
-## 🚀 Installation
+## Installation
 
 <Tabs items={['React/Next.js', 'Script Tag']}>
 <Tab value="React/Next.js">
@@ -38,7 +37,7 @@ yarn add @databuddy/sdk
 No installation needed - load directly from CDN:
 
 ```html
-<script 
+<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id"
   async
@@ -48,15 +47,19 @@ No installation needed - load directly from CDN:
 </Tab>
 </Tabs>
 
-## ⚡ Quick Start
+## Quick Start
 
 <Tabs items={['React Component', 'Script Tag']}>
 <Tab value="React Component">
 
 ```tsx title="app/layout.tsx"
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from "@databuddy/sdk";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
@@ -84,8 +87,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 </head>
 <body>
   <!-- Your content -->
-  
-  <script 
+
+  <script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="your-client-id"
     data-track-screen-views="true"  // Enabled by default, shown for clarity
@@ -100,7 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 </Tab>
 </Tabs>
 
-## 🔧 Configuration Options
+## Configuration Options
 
 ### Required Settings
 
@@ -109,7 +112,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ```tsx
 <Databuddy
-  clientId="your-client-id"  // ✅ Required - Get from dashboard
+  clientId="your-client-id" // ✅ Required - Get from dashboard
 />
 ```
 
@@ -117,7 +120,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 <Tab value="Script Attributes">
 
 ```html
-<script 
+<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id"  <!-- ✅ Required -->
 ></script>
@@ -141,7 +144,7 @@ Tracks page views and route changes in SPAs.
 ```tsx
 <Databuddy
   clientId="your-client-id"
-  trackScreenViews={true}  // Default: true
+  trackScreenViews={true} // Default: true
 />
 ```
 
@@ -149,7 +152,7 @@ Tracks page views and route changes in SPAs.
 <Tab value="Script Tag">
 
 ```html
-<script 
+<script
   data-track-screen-views="true"  <!-- Default: true -->
 ></script>
 ```
@@ -171,7 +174,7 @@ Monitors page load times, navigation timing, and resource performance.
 ```tsx
 <Databuddy
   clientId="your-client-id"
-  trackPerformance={true}  // Default: true
+  trackPerformance={true} // Default: true
 />
 ```
 
@@ -179,7 +182,7 @@ Monitors page load times, navigation timing, and resource performance.
 <Tab value="Script Tag">
 
 ```html
-<script 
+<script
   data-track-performance="true"  <!-- Default: true -->
 ></script>
 ```
@@ -201,7 +204,7 @@ Tracks user sessions with a 30-minute timeout using sessionStorage.
 ```tsx
 <Databuddy
   clientId="your-client-id"
-  trackSessions={true}  // Default: true
+  trackSessions={true} // Default: true
 />
 ```
 
@@ -209,7 +212,7 @@ Tracks user sessions with a 30-minute timeout using sessionStorage.
 <Tab value="Script Tag">
 
 ```html
-<script 
+<script
   data-track-sessions="true"  <!-- Default: true -->
 ></script>
 ```
@@ -227,129 +230,129 @@ Tracks user sessions with a 30-minute timeout using sessionStorage.
 These features are **disabled by default** unless otherwise noted. Enable them as needed based on your tracking requirements. Refer to `types.ts` for the most up-to-date default values.
 
 <Callout type="warn">
-**Performance Impact**: Enabling many optional features can increase data volume and potentially impact performance. Choose only the features you need.
+  **Performance Impact**: Enabling many optional features can increase data
+  volume and potentially impact performance. Choose only the features you need.
 </Callout>
 
 <Accordions>
 
 <Accordion title="trackWebVitals (default: false)">
 Tracks Core Web Vitals: LCP, FID, CLS, TTFB. Note: INP (Interaction to Next Paint) is not explicitly tracked by default but may be captured through general interaction tracking if enabled.
+
 ```tsx
 // Example: Enabling Web Vitals tracking
 <Databuddy
   clientId="your-client-id"
-  trackWebVitals={true} // Default: false
+  trackWebVitals={true}
 />
 // Script tag: data-track-web-vitals="true"
 ```
+
 **Events tracked**: `web_vitals` with metrics data.
-<Callout type="info">
-While `trackWebVitals` is `false` by default, enabling it is highly recommended for understanding user experience.
-</Callout>
+
+  <Callout type="info">
+    While `trackWebVitals` is `false` by default, enabling it is highly
+    recommended for understanding user experience.
+  </Callout>
 </Accordion>
 
 <Accordion title="trackErrors (default: false)">
 Captures JavaScript errors and unhandled promise rejections.
+
 ```tsx
 // Example: Enabling Error tracking
 <Databuddy
   clientId="your-client-id"
-  trackErrors={true} // Default: false
+  trackErrors={true}
 />
 // Script tag: data-track-errors="true"
 ```
+
 **Events tracked**: `javascript_error`, `unhandled_rejection` (or similar, based on `error` event type in `types.ts`).
+
 </Accordion>
 
 <Accordion title="trackOutgoingLinks (default: false)">
 Tracks clicks on links that navigate away from your site.
+
 ```tsx
 // Example: Enabling Outgoing Link tracking
 <Databuddy
   clientId="your-client-id"
-  trackOutgoingLinks={true} // Default: false
+  trackOutgoingLinks={true}
 />
 // Script tag: data-track-outgoing-links="true"
 ```
+
 **Events tracked**: `link_out` (as per `types.ts`).
+
 </Accordion>
 
 <Accordion title="trackScrollDepth (default: false)">
-Measures how far users scroll down the page (e.g., 25%, 50%, 75%, 100% milestones).
-```tsx
-// Example: Enabling Scroll Depth tracking
-<Databuddy
-  clientId="your-client-id"
-  trackScrollDepth={true} // Default: false
-/>
-// Script tag: data-track-scroll-depth="true"
-```
-**Events tracked**: `scroll_depth` (or integrated into `screen_view` events).
+  Measures how far users scroll down the page (e.g., 25%, 50%, 75%, 100%
+  milestones). ```tsx // Example: Enabling Scroll Depth tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackScrollDepth={true}
+  />
+  // Script tag: data-track-scroll-depth="true" ``` **Events tracked**:
+  `scroll_depth` (or integrated into `screen_view` events).
 </Accordion>
 
 <Accordion title="trackEngagement (default: false)">
-Tracks user engagement metrics like time on page and interaction counts.
-```tsx
-// Example: Enabling Engagement tracking
-<Databuddy
-  clientId="your-client-id"
-  trackEngagement={true} // Default: false
-/>
-// Script tag: data-track-engagement="true"
-```
-**Events tracked**: `page_exit` (with engagement metrics), potentially custom events.
+  Tracks user engagement metrics like time on page and interaction counts.
+  ```tsx // Example: Enabling Engagement tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackEngagement={true}
+  />
+  // Script tag: data-track-engagement="true" ``` **Events tracked**:
+  `page_exit` (with engagement metrics), potentially custom events.
 </Accordion>
 
 <Accordion title="trackExitIntent (default: false)">
-Detects when a user's mouse movement suggests they are about to leave the page.
-```tsx
-// Example: Enabling Exit Intent tracking
-<Databuddy
-  clientId="your-client-id"
-  trackExitIntent={true} // Default: false
-/>
-// Script tag: data-track-exit-intent="true"
-```
-**Events tracked**: Adds `has_exit_intent` to relevant events like `screen_view` or `page_exit`.
+  Detects when a user's mouse movement suggests they are about to leave the
+  page. ```tsx // Example: Enabling Exit Intent tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackExitIntent={true}
+  />
+  // Script tag: data-track-exit-intent="true" ``` **Events tracked**: Adds
+  `has_exit_intent` to relevant events like `screen_view` or `page_exit`.
 </Accordion>
 
 <Accordion title="trackInteractions (default: false)">
-Tracks various user interactions like clicks, form submissions (if not covered by other specific trackers), and potentially other UI element interactions.
-```tsx
-// Example: Enabling Interaction tracking
-<Databuddy
-  clientId="your-client-id"
-  trackInteractions={true} // Default: false
-/>
-// Script tag: data-track-interactions="true"
-```
-**Events tracked**: `button_click`, `form_submit`, etc.
+  Tracks various user interactions like clicks, form submissions (if not covered
+  by other specific trackers), and potentially other UI element interactions.
+  ```tsx // Example: Enabling Interaction tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackInteractions={true}
+  />
+  // Script tag: data-track-interactions="true" ``` **Events tracked**:
+  `button_click`, `form_submit`, etc.
 </Accordion>
 
 <Accordion title="trackBounceRate (default: false)">
-Helps in identifying sessions where users leave after viewing only a single page.
-```tsx
-// Example: Enabling Bounce Rate tracking
-<Databuddy
-  clientId="your-client-id"
-  trackBounceRate={true} // Default: false
-/>
-// Script tag: data-track-bounce-rate="true"
-```
-**Events tracked**: Adds `is_bounce` to relevant events like `screen_view` or `page_exit`.
+  Helps in identifying sessions where users leave after viewing only a single
+  page. ```tsx // Example: Enabling Bounce Rate tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackBounceRate={true}
+  />
+  // Script tag: data-track-bounce-rate="true" ``` **Events tracked**: Adds
+  `is_bounce` to relevant events like `screen_view` or `page_exit`.
 </Accordion>
 
 <Accordion title="trackHashChanges (default: false)">
-Tracks changes to the URL hash (`#`) for single-page applications that use hash-based routing.
-```tsx
-// Example: Enabling Hash Change tracking
-<Databuddy
-  clientId="your-client-id"
-  trackHashChanges={true} // Default: false
-/>
-// Script tag: data-track-hash-changes="true"
-```
-**Events tracked**: Can trigger `screen_view` or dedicated hash change events.
+  Tracks changes to the URL hash (`#`) for single-page applications that use
+  hash-based routing. ```tsx // Example: Enabling Hash Change tracking
+  <Databuddy
+    clientId="your-client-id"
+    trackHashChanges={true}
+  />
+  // Script tag: data-track-hash-changes="true" ``` **Events tracked**: Can
+  trigger `screen_view` or dedicated hash change events.
 </Accordion>
 
 <Accordion title="trackAttributes (default: false)">
@@ -358,6 +361,7 @@ When `trackAttributes` is set to `true`, the Databuddy SDK automatically tracks 
 **How it Works:**
 
 1.  **Enable the Feature:**
+
     ```tsx
     // React/Next.js Example
     <Databuddy
@@ -365,6 +369,7 @@ When `trackAttributes` is set to `true`, the Databuddy SDK automatically tracks 
       trackAttributes={true} // Default is false
     />
     ```
+
     ```html
     <!-- Script Tag Example -->
     <script
@@ -385,88 +390,91 @@ When `trackAttributes` is set to `true`, the Databuddy SDK automatically tracks 
 
 **1. Tracking a Button Click:**
 
-*   **HTML:**
-    ```html
-    <button
-      data-track="signup_button_clicked"
-      data-button-label="Get Started Free"
-      data-button-location="Homepage Hero"
-      data-plan-type="Free Tier"
-    >
-      Sign Up
-    </button>
-    ```
+- **HTML:**
 
-*   **Generated Event Data:**
-    When this button is clicked, the SDK will track an event like this:
-    ```json
-    {
-      "name": "signup_button_clicked", // From data-track attribute
-      "properties": {
-        "buttonLabel": "Get Started Free",   // data-button-label converted to camelCase
-        "buttonLocation": "Homepage Hero", // data-button-location converted to camelCase
-        "planType": "Free Tier",           // data-plan-type converted to camelCase
-        // Standard properties like __path, sessionId, etc., will also be included
-      }
+  ```html
+  <button
+    data-track="signup_button_clicked"
+    data-button-label="Get Started Free"
+    data-button-location="Homepage Hero"
+    data-plan-type="Free Tier"
+  >
+    Sign Up
+  </button>
+  ```
+
+- **Generated Event Data:**
+  When this button is clicked, the SDK will track an event like this:
+  ```json
+  {
+    "name": "signup_button_clicked", // From data-track attribute
+    "properties": {
+      "buttonLabel": "Get Started Free", // data-button-label converted to camelCase
+      "buttonLocation": "Homepage Hero", // data-button-location converted to camelCase
+      "planType": "Free Tier" // data-plan-type converted to camelCase
+      // Standard properties like __path, sessionId, etc., will also be included
     }
-    ```
+  }
+  ```
 
 **2. Tracking a Navigation Link Click:**
 
-*   **HTML:**
-    ```html
-    <a
-      href="/features"
-      data-track="navigation_link_clicked"
-      data-link-text="View Features"
-      data-link-section="Header"
-    >
-      Features
-    </a>
-    ```
+- **HTML:**
 
-*   **Generated Event Data:**
-    ```json
-    {
-      "name": "navigation_link_clicked",
-      "properties": {
-        "linkText": "View Features",
-        "linkSection": "Header",
-        "href": "/features" // The href attribute is often automatically included for links
-        // Standard properties...
-      }
+  ```html
+  <a
+    href="/features"
+    data-track="navigation_link_clicked"
+    data-link-text="View Features"
+    data-link-section="Header"
+  >
+    Features
+  </a>
+  ```
+
+- **Generated Event Data:**
+  ```json
+  {
+    "name": "navigation_link_clicked",
+    "properties": {
+      "linkText": "View Features",
+      "linkSection": "Header",
+      "href": "/features" // The href attribute is often automatically included for links
+      // Standard properties...
     }
-    ```
-    *(Note: Specific auto-included properties like `href` might vary slightly based on the element type and SDK version, but custom `data-*` attributes will be consistently processed).*
+  }
+  ```
+  _(Note: Specific auto-included properties like `href` might vary slightly based on the element type and SDK version, but custom `data-_` attributes will be consistently processed).\*
 
 **3. Tracking a Generic Div Click (e.g., a custom card component):**
 
-*   **HTML:**
-    ```html
-    <div
-      data-track="feature_card_clicked"
-      data-card-id="FC001"
-      data-card-title="Advanced Analytics"
-      role="button"
-      tabindex="0"
-      style="cursor: pointer;"
-    >
-      <h4>Advanced Analytics</h4>
-      <p>Unlock deeper insights into your user behavior.</p>
-    </div>
-    ```
+- **HTML:**
 
-*   **Generated EventData:**
-    ```json
-    {
-      "name": "feature_card_clicked",
-      "properties": {
-        "cardId": "FC001",
-        "cardTitle": "Advanced Analytics"
-        // Standard properties...
-      }
+  ```html
+  <div
+    data-track="feature_card_clicked"
+    data-card-id="FC001"
+    data-card-title="Advanced Analytics"
+    role="button"
+    tabindex="0"
+    style="cursor: pointer;"
+  >
+    <h4>Advanced Analytics</h4>
+    <p>Unlock deeper insights into your user behavior.</p>
+  </div>
+  ```
+
+- **Generated EventData:**
+  ```json
+  {
+    "name": "feature_card_clicked",
+    "properties": {
+      "cardId": "FC001",
+      "cardTitle": "Advanced Analytics"
+      // Standard properties...
     }
-    ```
+  }
+  ```
 
 <Callout type="info">
 This feature is particularly useful for quickly adding tracking to static content or when you prefer a declarative approach without writing custom JavaScript for each event. Ensure your `data-track` event names are descriptive and follow a consistent naming convention (e.g., snake_case).
@@ -483,22 +491,14 @@ This feature is particularly useful for quickly adding tracking to static conten
 ```tsx title="Performance Configuration"
 <Databuddy
   clientId="your-client-id"
-  
-  // Batching (reduces requests)
-  enableBatching={false}     // Default: false
-  batchSize={10}             // Default: 10 (range: 1-50)
-  batchTimeout={2000}        // Default: 2000ms (range: 100-30000)
-  
-  // Reliability
-  enableRetries={true}       // Default: true
-  maxRetries={3}             // Default: 3
-  initialRetryDelay={500}    // Default: 500ms (range: 50-10000)
-  
-  // Sampling (for high-traffic sites)
-  samplingRate={1.0}         // Default: 1.0 (range: 0.0-1.0)
-  
-  // Environment control
-  disabled={process.env.NODE_ENV === 'development'}
+  enableBatching={false}
+  batchSize={10} // Default: 10 (range: 1-50)
+  batchTimeout={2000} // Default: 2000ms (range: 100-30000)
+  enableRetries={true} // Default: true
+  maxRetries={3} // Default: 3
+  initialRetryDelay={500} // Default: 500ms (range: 50-10000)
+  samplingRate={1.0} // Default: 1.0 (range: 0.0-1.0)
+  disabled={process.env.NODE_ENV === "development"}
 />
 ```
 
@@ -506,23 +506,23 @@ This feature is particularly useful for quickly adding tracking to static conten
 <Tab value="Script Attributes">
 
 ```html title="Performance Configuration"
-<script 
+<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id"
-  
+
   <!-- Batching -->
   data-enable-batching="false"
   data-batch-size="10"
   data-batch-timeout="2000"
-  
+
   <!-- Reliability -->
   data-enable-retries="true"
   data-max-retries="3"
   data-initial-retry-delay="500"
-  
+
   <!-- Sampling -->
   data-sampling-rate="1.0"
-  
+
   <!-- Environment -->
   data-disabled="false"
 ></script>
@@ -532,7 +532,8 @@ This feature is particularly useful for quickly adding tracking to static conten
 </Tabs>
 
 <Callout type="info">
-**Batching**: Groups multiple events into single requests. Enable for high-traffic sites to reduce server load.
+  **Batching**: Groups multiple events into single requests. Enable for
+  high-traffic sites to reduce server load.
 </Callout>
 
 ### Advanced Configuration
@@ -545,8 +546,8 @@ Only change these if you're self-hosting Databuddy:
 ```tsx
 <Databuddy
   clientId="your-client-id"
-  apiUrl="https://your-api.example.com"      // Default: basket.databuddy.cc
-  scriptUrl="https://your-cdn.example.com"   // Default: app.databuddy.cc
+  apiUrl="https://your-api.example.com" // Default: basket.databuddy.cc
+  scriptUrl="https://your-cdn.example.com" // Default: app.databuddy.cc
 />
 ```
 
@@ -561,20 +562,23 @@ Filter events before they're sent:
   clientId="your-client-id"
   filter={(event) => {
     // Example 1: Skip events based on a custom property
-    if (event.properties?.userRole === 'internal_tester') {
-      console.log('Skipping event for internal tester:', event.name);
+    if (event.properties?.userRole === "internal_tester") {
+      console.log("Skipping event for internal tester:", event.name);
       return false; // Don't send this event
     }
 
     // Example 2: Skip specific event types on certain paths
-    if (event.name === 'button_click' && event.properties?.__path?.startsWith('/admin')) {
-      console.log('Skipping button_click event on admin path:', event.name);
+    if (
+      event.name === "button_click" &&
+      event.properties?.__path?.startsWith("/admin")
+    ) {
+      console.log("Skipping button_click event on admin path:", event.name);
       return false;
     }
-    
+
     // Example 3: Conditionally skip based on event name (e.g., noisy events)
-    if (event.name === 'debug_event_to_ignore') {
-        return false;
+    if (event.name === "debug_event_to_ignore") {
+      return false;
     }
 
     // Conceptual Example: Skip events from specific IP ranges (requires server-side enrichment or proxy)
@@ -587,46 +591,49 @@ Filter events before they're sent:
   }}
 />
 ```
+
 The `event` object passed to the filter function typically includes `name` (string) and `properties` (object) keys, similar to what you'd pass to `databuddy.track()`.
+
 </Accordion>
 
 <Accordion title="clientSecret (Server-Side Only)">
-The `clientSecret` is used for server-side operations and should **never** be exposed in client-side browser code. It's typically used in backend integrations or secure environments where the SDK might be used for server-to-server event tracking.
-```tsx
-// Example: Server-side or secure environment usage
-<Databuddy
-  clientId="your-client-id"
-  clientSecret="your-client-secret" // ⚠️ NEVER EXPOSE IN BROWSER
-  // ... other configurations
-/>
-```
+  The `clientSecret` is used for server-side operations and should **never** be
+  exposed in client-side browser code. It's typically used in backend
+  integrations or secure environments where the SDK might be used for
+  server-to-server event tracking. ```tsx // Example: Server-side or secure
+  environment usage
+  <Databuddy
+    clientId="your-client-id"
+    clientSecret="your-client-secret"
+  />
+  ```
 </Accordion>
 
 <Accordion title="waitForProfile (Advanced)">
-The `waitForProfile` option (default: `false`) can be used in advanced scenarios where you need to ensure user profile information is available before any events are sent. This might be relevant if you load user data asynchronously and need it attached to initial events.
-```tsx
-// Example: Enabling waitForProfile
-<Databuddy
-  clientId="your-client-id"
-  waitForProfile={true} // Default: false
-  // ... other configurations
-/>
-// Script tag: data-wait-for-profile="true"
-```
+  The `waitForProfile` option (default: `false`) can be used in advanced
+  scenarios where you need to ensure user profile information is available
+  before any events are sent. This might be relevant if you load user data
+  asynchronously and need it attached to initial events. ```tsx // Example:
+  Enabling waitForProfile
+  <Databuddy
+    clientId="your-client-id"
+    waitForProfile={true}
+  />
+  // Script tag: data-wait-for-profile="true" ```
 </Accordion>
 
 <Accordion title="sdk and sdkVersion (Advanced)">
-These options, `sdk` (default: `'web'`) and `sdkVersion` (defaults to the package version), are primarily for internal use or for developers creating custom integrations or forks of the SDK. Overriding these is generally not needed for standard web usage.
-```tsx
-// Example: Overriding SDK metadata (rarely needed)
-<Databuddy
-  clientId="your-client-id"
-  sdk="custom-js-integration"
-  sdkVersion="1.0.0-alpha"
-  // ... other configurations
-/>
-// Script tag: data-sdk="custom-js-integration" data-sdk-version="1.0.0-alpha"
-```
+  These options, `sdk` (default: `'web'`) and `sdkVersion` (defaults to the
+  package version), are primarily for internal use or for developers creating
+  custom integrations or forks of the SDK. Overriding these is generally not
+  needed for standard web usage. ```tsx // Example: Overriding SDK metadata
+  (rarely needed)
+  <Databuddy
+    clientId="your-client-id"
+    sdk="custom-js-integration"
+    sdkVersion="1.0.0-alpha"
+  />  
+  ```
 </Accordion>
 
 <Accordion title="TypeScript Interface (from types.ts)">
@@ -641,65 +648,69 @@ export interface DatabuddyConfig {
   clientSecret?: string;
 
   // Endpoints
-  apiUrl?: string;        // Default: 'https://basket.databuddy.cc'
-  scriptUrl?: string;     // Default: 'https://cdn.databuddy.cc/databuddy.js'
+  apiUrl?: string; // Default: 'https://basket.databuddy.cc'
+  scriptUrl?: string; // Default: 'https://cdn.databuddy.cc/databuddy.js'
 
   // SDK metadata
-  sdk?: string;           // Default: 'web'
-  sdkVersion?: string;    // Default: package.json version
+  sdk?: string; // Default: 'web'
+  sdkVersion?: string; // Default: package.json version
 
   // Control
-  disabled?: boolean;     // Default: false
+  disabled?: boolean; // Default: false
   waitForProfile?: boolean; // Default: false (advanced)
 
   // --- Core Tracking Features ---
-  trackScreenViews?: boolean;    // Default: true
-  trackHashChanges?: boolean;    // Default: false
-  trackSessions?: boolean;       // Default: true
+  trackScreenViews?: boolean; // Default: true
+  trackHashChanges?: boolean; // Default: false
+  trackSessions?: boolean; // Default: true
 
   // --- Interaction Tracking ---
-  trackAttributes?: boolean;     // Default: false
+  trackAttributes?: boolean; // Default: false
   trackOutgoingLinks?: boolean; // Default: false
-  trackInteractions?: boolean;  // Default: false
+  trackInteractions?: boolean; // Default: false
 
   // --- Engagement Tracking ---
-  trackEngagement?: boolean;    // Default: false
-  trackScrollDepth?: boolean;   // Default: false
-  trackExitIntent?: boolean;    // Default: false
-  trackBounceRate?: boolean;    // Default: false
+  trackEngagement?: boolean; // Default: false
+  trackScrollDepth?: boolean; // Default: false
+  trackExitIntent?: boolean; // Default: false
+  trackBounceRate?: boolean; // Default: false
 
   // --- Performance Tracking ---
-  trackPerformance?: boolean;    // Default: true
-  trackWebVitals?: boolean;     // Default: false
-  trackErrors?: boolean;        // Default: false
+  trackPerformance?: boolean; // Default: true
+  trackWebVitals?: boolean; // Default: false
+  trackErrors?: boolean; // Default: false
 
   // --- Optimization ---
-  samplingRate?: number;         // Default: 1.0 (0.0-1.0)
-  enableRetries?: boolean;       // Default: true
-  maxRetries?: number;          // Default: 3
-  initialRetryDelay?: number;   // Default: 500ms
+  samplingRate?: number; // Default: 1.0 (0.0-1.0)
+  enableRetries?: boolean; // Default: true
+  maxRetries?: number; // Default: 3
+  initialRetryDelay?: number; // Default: 500ms
 
   // --- Batching ---
-  enableBatching?: boolean;     // Default: false
-  batchSize?: number;           // Default: 10 (Min: 1, Max: 50)
-  batchTimeout?: number;        // Default: 2000ms (Min: 100, Max: 30000)
+  enableBatching?: boolean; // Default: false
+  batchSize?: number; // Default: 10 (Min: 1, Max: 50)
+  batchTimeout?: number; // Default: 2000ms (Min: 100, Max: 30000)
 
   // Custom filter function
   filter?: (event: { name: string; properties?: any }) => boolean;
 }
 ```
-*Note: Ranges for `maxRetries` and `initialRetryDelay` are suggestions from comments in `types.ts`.*
+
+_Note: Ranges for `maxRetries` and `initialRetryDelay` are suggestions from comments in `types.ts`._
+
 </Accordion>
 </Accordions>
 
-## 💻 SDK Methods Reference
+## SDK Methods Reference
 
 Once the Databuddy SDK is initialized (either via the `<Databuddy />` component or the script tag), you can interact with it programmatically using methods available on `window.databuddy` or its shorter alias `window.db`.
 
 These methods allow you to send custom data, manage user sessions, and control SDK behavior dynamically.
 
 <Callout type="info">
-Ensure the SDK is fully loaded before calling these methods. If you're using the script tag with `async`, place your custom calls in a script that also asyncs or executes after the Databuddy script has loaded.
+  Ensure the SDK is fully loaded before calling these methods. If you're using
+  the script tag with `async`, place your custom calls in a script that also
+  asyncs or executes after the Databuddy script has loaded.
 </Callout>
 
 ---
@@ -718,10 +729,10 @@ window.db?.track(eventName, properties);
 
 **Parameters:**
 
-| Name | Type | Optional | Description |
-|------|------|----------|-------------|
-| `eventName` | `string` | No | The name of the event to track (e.g., `'product_viewed'`, `'signup_completed'`). Use snake_case for consistency. Refer to `EventTypeMap` in `types.ts` for some predefined event names and their specific expected properties. |
-| `properties` | `object` | Yes | An object containing key-value pairs of custom data to associate with the event. Values can be strings, numbers, or booleans. Avoid sending Personally Identifiable Information (PII). |
+| Name         | Type     | Optional | Description                                                                                                                                                                                                                    |
+| ------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `eventName`  | `string` | No       | The name of the event to track (e.g., `'product_viewed'`, `'signup_completed'`). Use snake_case for consistency. Refer to `EventTypeMap` in `types.ts` for some predefined event names and their specific expected properties. |
+| `properties` | `object` | Yes      | An object containing key-value pairs of custom data to associate with the event. Values can be strings, numbers, or booleans. Avoid sending Personally Identifiable Information (PII).                                         |
 
 **Returns:** `Promise<void>` - A promise that resolves when the event has been processed (e.g., queued or sent).
 
@@ -729,33 +740,36 @@ window.db?.track(eventName, properties);
 
 ```javascript
 // Tracking a product view
-window.db?.track('product_viewed', {
-  product_id: 'P12345',
-  product_name: 'Wireless Noise-Cancelling Headphones',
-  category: 'Electronics',
+window.db?.track("product_viewed", {
+  product_id: "P12345",
+  product_name: "Wireless Noise-Cancelling Headphones",
+  category: "Electronics",
   price: 299.99,
-  currency: 'USD'
+  currency: "USD",
 });
 
 // Tracking a button click (using a predefined event type)
-window.db?.track('button_click', {
-  button_text: 'Add to Cart',
-  button_id: 'add-to-cart-btn',
-  page_location: '/products/P12345'
+window.db?.track("button_click", {
+  button_text: "Add to Cart",
+  button_id: "add-to-cart-btn",
+  page_location: "/products/P12345",
 });
 
 // Tracking an error event
-window.db?.track('error', {
-  message: 'Failed to load user profile',
-  filename: 'UserProfile.js',
+window.db?.track("error", {
+  message: "Failed to load user profile",
+  filename: "UserProfile.js",
   lineno: 42,
   colno: 10,
-  error_type: 'APIError',
-  stack: 'Error: API request failed at UserProfile.js:42:10'
+  error_type: "APIError",
+  stack: "Error: API request failed at UserProfile.js:42:10",
 });
 ```
+
 <Callout type="warn">
-For general JavaScript error tracking, consider using the `trackErrors={true}` configuration option, which automatically captures unhandled errors. The `track('error', ...)` method is for manual error reporting.
+  For general JavaScript error tracking, consider using the `trackErrors={true}`
+  configuration option, which automatically captures unhandled errors. The
+  `track('error', ...)` method is for manual error reporting.
 </Callout>
 
 ---
@@ -774,19 +788,19 @@ window.db?.trackCustomEvent(eventName, properties);
 
 **Parameters:**
 
-| Name | Type | Optional | Description |
-|------|------|----------|-------------|
-| `eventName` | `string` | No | The name of the custom event (e.g., `'newsletter_subscribed'`, `'feature_engagement_time'`). |
-| `properties` | `object` | Yes | An object of custom data associated with the event. |
+| Name         | Type     | Optional | Description                                                                                  |
+| ------------ | -------- | -------- | -------------------------------------------------------------------------------------------- |
+| `eventName`  | `string` | No       | The name of the custom event (e.g., `'newsletter_subscribed'`, `'feature_engagement_time'`). |
+| `properties` | `object` | Yes      | An object of custom data associated with the event.                                          |
 
 **Returns:** `Promise<void>`
 
 **Example:**
 
 ```javascript
-window.db?.trackCustomEvent('early_access_requested', {
-  feature_name: 'New Dashboard Analytics',
-  user_segment: 'power_users'
+window.db?.trackCustomEvent("early_access_requested", {
+  feature_name: "New Dashboard Analytics",
+  user_segment: "power_users",
 });
 ```
 
@@ -806,10 +820,10 @@ window.db?.screenView(path, properties);
 
 **Parameters:**
 
-| Name | Type | Optional | Description |
-|------|------|----------|-------------|
-| `path` | `string` | Yes | The path of the screen to track (e.g., `'/profile/settings'`). Defaults to `window.location.pathname` if not provided. |
-| `properties` | `object` | Yes | Additional custom properties to associate with this screen view event. |
+| Name         | Type     | Optional | Description                                                                                                            |
+| ------------ | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `path`       | `string` | Yes      | The path of the screen to track (e.g., `'/profile/settings'`). Defaults to `window.location.pathname` if not provided. |
+| `properties` | `object` | Yes      | Additional custom properties to associate with this screen view event.                                                 |
 
 **Returns:** `void`
 
@@ -819,7 +833,7 @@ window.db?.screenView(path, properties);
 // Manually track a screen view after a custom navigation event in an SPA
 function handleRouteChange(newPath) {
   // ... your routing logic ...
-  window.db?.screenView(newPath, { navigation_type: 'custom_spa_router' });
+  window.db?.screenView(newPath, { navigation_type: "custom_spa_router" });
 }
 
 // If called without arguments, it uses current path
@@ -842,9 +856,9 @@ window.db?.setGlobalProperties(properties);
 
 **Parameters:**
 
-| Name | Type | Optional | Description |
-|------|------|----------|-------------|
-| `properties` | `object` | No | An object containing key-value pairs to be set as global properties. These will be merged with existing global properties. To remove a global property, set its value to `undefined`. |
+| Name         | Type     | Optional | Description                                                                                                                                                                           |
+| ------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `properties` | `object` | No       | An object containing key-value pairs to be set as global properties. These will be merged with existing global properties. To remove a global property, set its value to `undefined`. |
 
 **Returns:** `void`
 
@@ -853,24 +867,26 @@ window.db?.setGlobalProperties(properties);
 ```javascript
 // Set user properties after login
 window.db?.setGlobalProperties({
-  user_id: 'user-98765',
-  user_role: 'administrator',
-  app_version: '2.5.1'
+  user_id: "user-98765",
+  user_role: "administrator",
+  app_version: "2.5.1",
 });
 
 // Later, to update a global property
 window.db?.setGlobalProperties({
-  app_version: '2.5.2'
+  app_version: "2.5.2",
 });
 
 // To remove a global property (e.g., on logout)
 window.db?.setGlobalProperties({
-  user_role: undefined
+  user_role: undefined,
 });
 ```
 
 <Callout type="info">
-Global properties are not persisted across different browser sessions or if the user clears their site data. They are stored in memory for the current page lifecycle.
+  Global properties are not persisted across different browser sessions or if
+  the user clears their site data. They are stored in memory for the current
+  page lifecycle.
 </Callout>
 
 ---
@@ -927,27 +943,30 @@ window.db?.flush();
 // Example: Attempt to send any remaining events before user navigates away
 // Note: `navigator.sendBeacon` is often a more reliable way to send data on page unload.
 // The SDK might use sendBeacon internally if available.
-window.addEventListener('beforeunload', () => {
-  window.db?.track('app_closing', { reason: 'user_navigation' });
+window.addEventListener("beforeunload", () => {
+  window.db?.track("app_closing", { reason: "user_navigation" });
   window.db?.flush();
 });
 ```
 
 <Callout type="warn">
-If `enableBatching` is `false`, events are typically sent immediately or with a very short delay, making manual `flush()` calls less necessary.
+  If `enableBatching` is `false`, events are typically sent immediately or with
+  a very short delay, making manual `flush()` calls less necessary.
 </Callout>
 
-## 📖 Standard Event Reference
+## Standard Event Reference
 
 The Databuddy SDK defines a set of standard event types, each with a specific structure and purpose. These events are often tracked automatically by the SDK when certain configuration options are enabled (e.g., `trackScreenViews`, `trackErrors`). You can also track these events manually using the `db.track('event_name', properties)` method.
 
 Understanding these standard events can help you interpret your analytics data and decide when to track them manually.
 
 <Callout type="info" title="Extensible Properties">
-All standard events documented below can also include:
-- **Base Properties**: Common properties like `__path`, `__title`, `sessionId`, `utm_source`, etc., defined in `BaseEventProperties`.
-- **Custom Properties**: Any additional key-value pairs you provide in the `properties` object when calling `db.track()`.
-This allows you to enrich standard events with context specific to your application.
+  All standard events documented below can also include: - **Base Properties**:
+  Common properties like `__path`, `__title`, `sessionId`, `utm_source`, etc.,
+  defined in `BaseEventProperties`. - **Custom Properties**: Any additional
+  key-value pairs you provide in the `properties` object when calling
+  `db.track()`. This allows you to enrich standard events with context specific
+  to your application.
 </Callout>
 
 ---
@@ -960,23 +979,23 @@ Tracks a view of a page or a screen in a single-page application.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `time_on_page` | `number` | Yes | Time spent on the page in milliseconds. Often added when the view ends or a new view starts. |
-| `scroll_depth` | `number` | Yes | Maximum scroll depth percentage reached on the page (e.g., 75 for 75%). |
-| `interaction_count` | `number` | Yes | Number of significant user interactions on the page (e.g., clicks, form submissions). |
-| `has_exit_intent` | `boolean` | Yes | `true` if exit intent was detected before the user left the page. Requires `trackExitIntent={true}`. |
-| `is_bounce` | `0 \| 1` | Yes | `1` if the page view is considered a bounce (single page session), `0` otherwise. Requires `trackBounceRate={true}`. |
+| Property            | Type      | Optional | Description                                                                                                          |
+| ------------------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `time_on_page`      | `number`  | Yes      | Time spent on the page in milliseconds. Often added when the view ends or a new view starts.                         |
+| `scroll_depth`      | `number`  | Yes      | Maximum scroll depth percentage reached on the page (e.g., 75 for 75%).                                              |
+| `interaction_count` | `number`  | Yes      | Number of significant user interactions on the page (e.g., clicks, form submissions).                                |
+| `has_exit_intent`   | `boolean` | Yes      | `true` if exit intent was detected before the user left the page. Requires `trackExitIntent={true}`.                 |
+| `is_bounce`         | `0 \| 1`  | Yes      | `1` if the page view is considered a bounce (single page session), `0` otherwise. Requires `trackBounceRate={true}`. |
 
 **Example (Manual Tracking):**
 
 ```javascript
-window.db?.track('screen_view', {
-  __path: '/products/cool-widget',
-  __title: 'Cool Widget Product Page',
+window.db?.track("screen_view", {
+  __path: "/products/cool-widget",
+  __title: "Cool Widget Product Page",
   time_on_page: 30000, // e.g., if tracked at page unload or transition
   scroll_depth: 50,
-  interaction_count: 3
+  interaction_count: 3,
 });
 ```
 
@@ -990,28 +1009,28 @@ Tracks when a user navigates away from a page, often capturing final engagement 
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `time_on_page` | `number` | No | Total time spent on the page in milliseconds. |
-| `scroll_depth` | `number` | No | Maximum scroll depth percentage reached. |
-| `interaction_count` | `number` | No | Total number of significant user interactions. |
-| `has_exit_intent` | `boolean` | No | `true` if exit intent was detected. |
-| `page_count` | `number` | No | Number of pages viewed in the current session up to this point. |
-| `is_bounce` | `0 \| 1` | No | `1` if this page view was a bounce. |
+| Property            | Type      | Optional | Description                                                     |
+| ------------------- | --------- | -------- | --------------------------------------------------------------- |
+| `time_on_page`      | `number`  | No       | Total time spent on the page in milliseconds.                   |
+| `scroll_depth`      | `number`  | No       | Maximum scroll depth percentage reached.                        |
+| `interaction_count` | `number`  | No       | Total number of significant user interactions.                  |
+| `has_exit_intent`   | `boolean` | No       | `true` if exit intent was detected.                             |
+| `page_count`        | `number`  | No       | Number of pages viewed in the current session up to this point. |
+| `is_bounce`         | `0 \| 1`  | No       | `1` if this page view was a bounce.                             |
 
 **Example (Manual Tracking):**
 
 ```javascript
 // Usually tracked automatically if relevant features are enabled.
 // Manual tracking might be for specific scenarios.
-window.db?.track('page_exit', {
-  __path: '/checkout/step1',
+window.db?.track("page_exit", {
+  __path: "/checkout/step1",
   time_on_page: 120000,
   scroll_depth: 100,
   interaction_count: 5,
   has_exit_intent: false,
   page_count: 3,
-  is_bounce: 0
+  is_bounce: 0,
 });
 ```
 
@@ -1025,21 +1044,21 @@ Tracks a click on a button element.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `button_text` | `string` | Yes | The text content of the button. |
-| `button_type` | `string` | Yes | The `type` attribute of the button (e.g., 'submit', 'button'). |
-| `button_id` | `string` | Yes | The `id` attribute of the button. |
-| `element_class` | `string` | Yes | The CSS class(es) of the button. |
+| Property        | Type     | Optional | Description                                                    |
+| --------------- | -------- | -------- | -------------------------------------------------------------- |
+| `button_text`   | `string` | Yes      | The text content of the button.                                |
+| `button_type`   | `string` | Yes      | The `type` attribute of the button (e.g., 'submit', 'button'). |
+| `button_id`     | `string` | Yes      | The `id` attribute of the button.                              |
+| `element_class` | `string` | Yes      | The CSS class(es) of the button.                               |
 
 **Example (Manual Tracking):**
 
 ```javascript
-document.getElementById('myButton').addEventListener('click', () => {
-  window.db?.track('button_click', {
-    button_text: 'Learn More',
-    button_id: 'myButton',
-    page_section: 'hero' // Custom property
+document.getElementById("myButton").addEventListener("click", () => {
+  window.db?.track("button_click", {
+    button_text: "Learn More",
+    button_id: "myButton",
+    page_section: "hero", // Custom property
   });
 });
 ```
@@ -1054,24 +1073,26 @@ Tracks a click on a link that navigates to an external domain.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `href` | `string` | No | The URL of the outgoing link. |
-| `text` | `string` | Yes | The anchor text of the link. |
-| `target_domain` | `string` | Yes | The domain name of the link's target. |
+| Property        | Type     | Optional | Description                           |
+| --------------- | -------- | -------- | ------------------------------------- |
+| `href`          | `string` | No       | The URL of the outgoing link.         |
+| `text`          | `string` | Yes      | The anchor text of the link.          |
+| `target_domain` | `string` | Yes      | The domain name of the link's target. |
 
 **Example (Manual Tracking):**
 
 ```javascript
 // If trackOutgoingLinks is false, or for special cases:
-document.getElementById('externalLink').addEventListener('click', function(event) {
-  const href = event.target.href;
-  window.db?.track('link_out', {
-    href: href,
-    text: event.target.innerText,
-    target_domain: new URL(href).hostname
+document
+  .getElementById("externalLink")
+  .addEventListener("click", function (event) {
+    const href = event.target.href;
+    window.db?.track("link_out", {
+      href: href,
+      text: event.target.innerText,
+      target_domain: new URL(href).hostname,
+    });
   });
-});
 ```
 
 ---
@@ -1084,26 +1105,26 @@ Tracks the submission of a form.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `form_id` | `string` | Yes | The `id` attribute of the form. |
-| `form_name` | `string` | Yes | The `name` attribute of the form. |
-| `form_type` | `string` | Yes | A custom descriptor for the form's purpose (e.g., 'contact', 'signup', 'search'). |
-| `success` | `boolean` | Yes | Indicates if the form submission was successful (e.g., passed client-side or server-side validation). |
+| Property    | Type      | Optional | Description                                                                                           |
+| ----------- | --------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `form_id`   | `string`  | Yes      | The `id` attribute of the form.                                                                       |
+| `form_name` | `string`  | Yes      | The `name` attribute of the form.                                                                     |
+| `form_type` | `string`  | Yes      | A custom descriptor for the form's purpose (e.g., 'contact', 'signup', 'search').                     |
+| `success`   | `boolean` | Yes      | Indicates if the form submission was successful (e.g., passed client-side or server-side validation). |
 
 **Example (Manual Tracking):**
 
 ```javascript
-document.getElementById('contactForm').addEventListener('submit', (event) => {
+document.getElementById("contactForm").addEventListener("submit", (event) => {
   // Assuming validation logic here
   const isSuccess = true; // Replace with actual validation result
 
-  window.db?.track('form_submit', {
-    form_id: 'contactForm',
-    form_type: 'contact_inquiry',
+  window.db?.track("form_submit", {
+    form_id: "contactForm",
+    form_type: "contact_inquiry",
     success: isSuccess,
     // Add other form-specific data, carefully avoiding PII
-    inquiry_topic: document.getElementById('topicSelect').value
+    inquiry_topic: document.getElementById("topicSelect").value,
   });
 });
 ```
@@ -1118,33 +1139,36 @@ Tracks Core Web Vitals and other performance metrics.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `fcp` | `number` | Yes | First Contentful Paint (milliseconds). |
-| `lcp` | `number` | Yes | Largest Contentful Paint (milliseconds). |
-| `cls` | `string` | Yes | Cumulative Layout Shift score (typically a float, represented as string or number). |
-| `fid` | `number` | Yes | First Input Delay (milliseconds). |
-| `ttfb` | `number` | Yes | Time to First Byte (milliseconds). |
-| `load_time` | `number` | Yes | Total page load time (milliseconds). |
-| `dom_ready_time` | `number` | Yes | DOMContentLoaded time (milliseconds). |
-| `render_time` | `number` | Yes | Time to render critical path (custom metric, if applicable). |
-| `request_time` | `number` | Yes | Time for primary request/response (custom metric, if applicable). |
+| Property         | Type     | Optional | Description                                                                         |
+| ---------------- | -------- | -------- | ----------------------------------------------------------------------------------- |
+| `fcp`            | `number` | Yes      | First Contentful Paint (milliseconds).                                              |
+| `lcp`            | `number` | Yes      | Largest Contentful Paint (milliseconds).                                            |
+| `cls`            | `string` | Yes      | Cumulative Layout Shift score (typically a float, represented as string or number). |
+| `fid`            | `number` | Yes      | First Input Delay (milliseconds).                                                   |
+| `ttfb`           | `number` | Yes      | Time to First Byte (milliseconds).                                                  |
+| `load_time`      | `number` | Yes      | Total page load time (milliseconds).                                                |
+| `dom_ready_time` | `number` | Yes      | DOMContentLoaded time (milliseconds).                                               |
+| `render_time`    | `number` | Yes      | Time to render critical path (custom metric, if applicable).                        |
+| `request_time`   | `number` | Yes      | Time for primary request/response (custom metric, if applicable).                   |
 
 **Example (Illustrative - usually automatic):**
 
 ```javascript
 // This is typically handled automatically by the SDK when trackWebVitals=true.
 // Manual tracking would be unusual.
-window.db?.track('web_vitals', {
+window.db?.track("web_vitals", {
   fcp: 1200.5,
   lcp: 2500.0,
   cls: "0.102", // As per types.ts, CLS is string. Industry often uses number.
   fid: 50.2,
-  ttfb: 300.0
+  ttfb: 300.0,
 });
 ```
+
 <Callout type="note">
-The `cls` (Cumulative Layout Shift) property is defined as `string` in `types.ts`. While the raw value from browser APIs is a number, it might be formatted as a string by the SDK.
+  The `cls` (Cumulative Layout Shift) property is defined as `string` in
+  `types.ts`. While the raw value from browser APIs is a number, it might be
+  formatted as a string by the SDK.
 </Callout>
 
 ---
@@ -1157,14 +1181,14 @@ Tracks JavaScript errors or other manually reported errors.
 
 **Specific Properties:**
 
-| Property | Type | Optional | Description |
-|----------|------|----------|-------------|
-| `message` | `string` | No | The error message. |
-| `filename` | `string` | Yes | The name of the file where the error occurred. |
-| `lineno` | `number` | Yes | The line number where the error occurred. |
-| `colno` | `number` | Yes | The column number where the error occurred. |
-| `stack` | `string` | Yes | The error stack trace. |
-| `error_type` | `string` | Yes | A custom type for the error (e.g., 'APIError', 'ValidationError', 'TypeError'). |
+| Property     | Type     | Optional | Description                                                                     |
+| ------------ | -------- | -------- | ------------------------------------------------------------------------------- |
+| `message`    | `string` | No       | The error message.                                                              |
+| `filename`   | `string` | Yes      | The name of the file where the error occurred.                                  |
+| `lineno`     | `number` | Yes      | The line number where the error occurred.                                       |
+| `colno`      | `number` | Yes      | The column number where the error occurred.                                     |
+| `stack`      | `string` | Yes      | The error stack trace.                                                          |
+| `error_type` | `string` | Yes      | A custom type for the error (e.g., 'APIError', 'ValidationError', 'TypeError'). |
 
 **Example (Manual Tracking for a Handled Error):**
 
@@ -1173,20 +1197,20 @@ try {
   // Some operation that might fail
   let data = JSON.parse(invalidJsonString);
 } catch (e) {
-  window.db?.track('error', {
+  window.db?.track("error", {
     message: e.message,
-    filename: 'dataProcessor.js', // Or dynamically get filename
+    filename: "dataProcessor.js", // Or dynamically get filename
     lineno: 25, // Or dynamically get line number if possible
     stack: e.stack,
-    error_type: 'SyntaxError',
-    severity: 'warning', // Custom property
-    operation: 'parseUserData' // Custom property
+    error_type: "SyntaxError",
+    severity: "warning", // Custom property
+    operation: "parseUserData", // Custom property
   });
   // Handle the error gracefully in the UI
 }
 ```
 
-## 🎯 Custom Event Tracking
+## Custom Event Tracking
 
 This section focuses on the strategy and best practices for tracking custom business events to gain valuable insights. For the detailed syntax of the `track()` and `trackCustomEvent()` methods, please refer to the [SDK Methods Reference](#-sdk-methods-reference).
 When tracking events, you can use the standard event types documented above if they fit your use case, or define completely custom event names.
@@ -1197,42 +1221,42 @@ Track custom business events with detailed properties for comprehensive analytic
 <Tab value="React/Next.js">
 
 ```tsx title="Custom Events with Properties"
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 function ProductPage({ product }: { product: Product }) {
   useEffect(() => {
     // Track product view with detailed properties
-    window.databuddy?.track('product_viewed', {
+    window.databuddy?.track("product_viewed", {
       product_id: product.id,
       product_name: product.name,
       category: product.category,
       price: product.price,
-      currency: 'USD',
+      currency: "USD",
       brand: product.brand,
-      in_stock: product.availability > 0
+      in_stock: product.availability > 0,
     });
   }, [product]);
 
   const handlePurchase = () => {
     // Track conversion with purchase details
-    window.databuddy?.track('purchase_completed', {
+    window.databuddy?.track("purchase_completed", {
       product_id: product.id,
       revenue: product.price,
-      currency: 'USD',
-      payment_method: 'credit_card',
-      shipping_method: 'standard',
-      coupon_used: false
+      currency: "USD",
+      payment_method: "credit_card",
+      shipping_method: "standard",
+      coupon_used: false,
     });
   };
 
   const handleAddToCart = (quantity: number) => {
     // Track cart actions with context
-    window.databuddy?.track('add_to_cart', {
+    window.databuddy?.track("add_to_cart", {
       product_id: product.id,
       quantity: quantity,
       value: product.price * quantity,
-      currency: 'USD',
-      source: 'product_page'
+      currency: "USD",
+      source: "product_page",
     });
   };
 
@@ -1249,6 +1273,7 @@ function ProductPage({ product }: { product: Product }) {
 **Understanding Event Naming and Properties:**
 
 When using `db.track('your_event_name', { property: 'value' })`:
+
 - **`your_event_name`**: Choose clear, consistent names in `snake_case`.
 - **`properties`**: This object is where you add context to your event.
 
@@ -1259,54 +1284,56 @@ The examples below illustrate common use cases.
 
 ```html title="Custom Events with Rich Properties"
 <script>
-// Track user actions with detailed context
-function trackSignup(plan, source) {
-  db.track('signup_completed', {
-    plan: plan,
-    source: source,
-    trial_days: plan === 'pro' ? 14 : 7,
-    referrer: document.referrer,
-    utm_source: new URLSearchParams(window.location.search).get('utm_source')
-  });
-}
+  // Track user actions with detailed context
+  function trackSignup(plan, source) {
+    db.track("signup_completed", {
+      plan: plan,
+      source: source,
+      trial_days: plan === "pro" ? 14 : 7,
+      referrer: document.referrer,
+      utm_source: new URLSearchParams(window.location.search).get("utm_source"),
+    });
+  }
 
-function trackFeatureUsage(feature, context) {
-  db.track('feature_used', {
-    feature: feature,
-    page: window.location.pathname,
-    user_tier: context.userTier,
-    session_duration: context.sessionTime,
-    previous_action: context.lastAction
-  });
-}
+  function trackFeatureUsage(feature, context) {
+    db.track("feature_used", {
+      feature: feature,
+      page: window.location.pathname,
+      user_tier: context.userTier,
+      session_duration: context.sessionTime,
+      previous_action: context.lastAction,
+    });
+  }
 
-// Track complex interactions
-function trackVideoEngagement(videoId, action, timestamp) {
-  db.track('video_engagement', {
-    video_id: videoId,
-    action: action, // 'play', 'pause', 'complete', 'seek'
-    timestamp: timestamp,
-    duration: document.querySelector('#video').duration,
-    quality: document.querySelector('#video').videoQuality,
-    fullscreen: document.fullscreenElement !== null
-  });
-}
+  // Track complex interactions
+  function trackVideoEngagement(videoId, action, timestamp) {
+    db.track("video_engagement", {
+      video_id: videoId,
+      action: action, // 'play', 'pause', 'complete', 'seek'
+      timestamp: timestamp,
+      duration: document.querySelector("#video").duration,
+      quality: document.querySelector("#video").videoQuality,
+      fullscreen: document.fullscreenElement !== null,
+    });
+  }
 
-// Track form interactions with validation context
-document.getElementById('contact-form').addEventListener('submit', (e) => {
-  const formData = new FormData(e.target);
-  db.track('contact_form_submitted', {
-    form_id: 'contact-form',
-    fields_completed: Array.from(formData.keys()).length,
-    inquiry_type: formData.get('inquiry_type'),
-    page: window.location.pathname,
-    time_to_complete: Date.now() - window.formStartTime
+  // Track form interactions with validation context
+  document.getElementById("contact-form").addEventListener("submit", (e) => {
+    const formData = new FormData(e.target);
+    db.track("contact_form_submitted", {
+      form_id: "contact-form",
+      fields_completed: Array.from(formData.keys()).length,
+      inquiry_type: formData.get("inquiry_type"),
+      page: window.location.pathname,
+      time_to_complete: Date.now() - window.formStartTime,
+    });
   });
-});
 </script>
 
 <button onclick="trackSignup('pro', 'pricing_page')">Upgrade to Pro</button>
-<button onclick="trackFeatureUsage('export', {userTier: 'premium'})">Export Data</button>
+<button onclick="trackFeatureUsage('export', {userTier: 'premium'})">
+  Export Data
+</button>
 ```
 
 </Tab>
@@ -1315,9 +1342,10 @@ document.getElementById('contact-form').addEventListener('submit', (e) => {
 ### Custom Event Best Practices
 
 <Callout type="info">
-**Event Naming**: Use snake_case for event names (e.g., `signup_completed`, `product_viewed`)
-**Properties**: Include rich context for detailed analytics but avoid PII (personally identifiable information)
-**Property Keys**: Use consistent naming across events for better analysis
+  **Event Naming**: Use snake_case for event names (e.g., `signup_completed`,
+  `product_viewed`) **Properties**: Include rich context for detailed analytics
+  but avoid PII (personally identifiable information) **Property Keys**: Use
+  consistent naming across events for better analysis
 </Callout>
 
 <Cards>
@@ -1366,7 +1394,7 @@ document.getElementById('contact-form').addEventListener('submit', (e) => {
   </Card>
 </Cards>
 
-### 📊 Property Breakdown Analytics
+### Property Breakdown Analytics
 
 Your custom event properties are automatically analyzed in the dashboard with:
 
@@ -1374,19 +1402,21 @@ Your custom event properties are automatically analyzed in the dashboard with:
 <Tab value="Property Categories">
 
 **Automatic Property Analysis:**
+
 - 🏷️ **Property keys** - All custom properties are extracted and categorized
 - 📊 **Value distributions** - See how property values are distributed
 - 🎯 **Usage frequency** - Track which properties appear most often
 - 📈 **Trend analysis** - Monitor how property values change over time
 
 **Example Dashboard View:**
+
 ```
 Event: purchase_completed (247 events)
 ├── 📂 product_category (247 values)
 │   ├── software: 156 (63%)
 │   ├── hardware: 78 (32%)
 │   └── services: 13 (5%)
-├── 📂 payment_method (247 values)  
+├── 📂 payment_method (247 values)
 │   ├── credit_card: 198 (80%)
 │   ├── paypal: 35 (14%)
 │   └── bank_transfer: 14 (6%)
@@ -1399,6 +1429,7 @@ Event: purchase_completed (247 events)
 <Tab value="Interactive Breakdowns">
 
 **Dashboard Features:**
+
 - 🔍 **Expandable categories** - Click to explore property breakdowns
 - 📊 **Scrollable lists** - Handle large property value lists efficiently
 - 🎯 **Individual toggles** - Open/close each property category independently
@@ -1406,6 +1437,7 @@ Event: purchase_completed (247 events)
 - 🔢 **Value counts** - Total occurrences for each property value
 
 **Visual Hierarchy:**
+
 - **Event Level** - Overall event metrics and counts
 - **Property Level** - Property categories with aggregate counts
 - **Value Level** - Individual property values with percentages
@@ -1413,45 +1445,45 @@ Event: purchase_completed (247 events)
 </Tab>
 </Tabs>
 
-## 📋 Configuration Reference
+## Configuration Reference
 
 ### Default Values Table
 
 This table provides a comprehensive list of all configuration options available in `DatabuddyConfig`, their default values, types, and allowed ranges where applicable, based on `packages/sdk/src/types.ts`.
 
-| Option | Default | Type | Range | Description |
-|--------|---------|------|-------|-------------|
-| `clientId` | - | `string` | **Required** | Your Databuddy project client ID. |
-| `clientSecret` | `undefined` | `string` | - | Client secret for server-side operations (NEVER expose in browser). |
-| `apiUrl` | `https://basket.databuddy.cc` | `string` | Valid URL | Custom API endpoint for event ingestion. |
-| `scriptUrl` | `https://cdn.databuddy.cc/databuddy.js` | `string` | Valid URL | Custom script URL for the browser bundle. |
-| `sdk` | `'web'` | `string` | - | SDK name for analytics (advanced). |
-| `sdkVersion` | `package.json` version | `string` | - | SDK version (advanced). |
-| `disabled` | `false` | `boolean` | - | Disable all tracking if true. |
-| `waitForProfile` | `false` | `boolean` | - | Wait for user profile before sending events (advanced). |
-| `trackScreenViews` | `true` | `boolean` | - | Automatically track screen/page views. |
-| `trackHashChanges` | `false` | `boolean` | - | Track hash changes in the URL. |
-| `trackSessions` | `true` | `boolean` | - | Track user sessions. |
-| `trackAttributes` | `false` | `boolean` | - | Track `data-*` attributes on element clicks. |
-| `trackOutgoingLinks` | `false` | `boolean` | - | Track clicks on outgoing links. |
-| `trackInteractions` | `false` | `boolean` | - | Track user interactions (e.g., button clicks). |
-| `trackEngagement` | `false` | `boolean` | - | Track user engagement metrics. |
-| `trackScrollDepth` | `false` | `boolean` | - | Track scroll depth. |
-| `trackExitIntent` | `false` | `boolean` | - | Track exit intent. |
-| `trackBounceRate` | `false` | `boolean` | - | Track bounce rate. |
-| `trackPerformance` | `true` | `boolean` | - | Track page performance metrics. |
-| `trackWebVitals` | `false` | `boolean` | - | Track Web Vitals metrics. |
-| `trackErrors` | `false` | `boolean` | - | Track JavaScript errors. |
-| `samplingRate` | `1.0` | `number` | 0.0 - 1.0 | Sampling rate for events (e.g., 0.5 = 50%). |
-| `enableRetries` | `true` | `boolean` | - | Enable retries for failed requests. |
-| `maxRetries` | `3` | `number` | e.g., 0-10 | Max number of retries. |
-| `initialRetryDelay` | `500` | `number` | e.g., 50-10000ms | Initial retry delay in milliseconds. |
-| `enableBatching` | `false` | `boolean` | - | Enable event batching. |
-| `batchSize` | `10` | `number` | 1 - 50 | Number of events to batch. |
-| `batchTimeout` | `2000` | `number` | 100 - 30000ms | Batch timeout in milliseconds. |
-| `filter` | `undefined` | `(event: any) => boolean` | - | Custom function to filter events before sending. |
+| Option               | Default                                 | Type                      | Range            | Description                                                         |
+| -------------------- | --------------------------------------- | ------------------------- | ---------------- | ------------------------------------------------------------------- |
+| `clientId`           | -                                       | `string`                  | **Required**     | Your Databuddy project client ID.                                   |
+| `clientSecret`       | `undefined`                             | `string`                  | -                | Client secret for server-side operations (NEVER expose in browser). |
+| `apiUrl`             | `https://basket.databuddy.cc`           | `string`                  | Valid URL        | Custom API endpoint for event ingestion.                            |
+| `scriptUrl`          | `https://cdn.databuddy.cc/databuddy.js` | `string`                  | Valid URL        | Custom script URL for the browser bundle.                           |
+| `sdk`                | `'web'`                                 | `string`                  | -                | SDK name for analytics (advanced).                                  |
+| `sdkVersion`         | `package.json` version                  | `string`                  | -                | SDK version (advanced).                                             |
+| `disabled`           | `false`                                 | `boolean`                 | -                | Disable all tracking if true.                                       |
+| `waitForProfile`     | `false`                                 | `boolean`                 | -                | Wait for user profile before sending events (advanced).             |
+| `trackScreenViews`   | `true`                                  | `boolean`                 | -                | Automatically track screen/page views.                              |
+| `trackHashChanges`   | `false`                                 | `boolean`                 | -                | Track hash changes in the URL.                                      |
+| `trackSessions`      | `true`                                  | `boolean`                 | -                | Track user sessions.                                                |
+| `trackAttributes`    | `false`                                 | `boolean`                 | -                | Track `data-*` attributes on element clicks.                        |
+| `trackOutgoingLinks` | `false`                                 | `boolean`                 | -                | Track clicks on outgoing links.                                     |
+| `trackInteractions`  | `false`                                 | `boolean`                 | -                | Track user interactions (e.g., button clicks).                      |
+| `trackEngagement`    | `false`                                 | `boolean`                 | -                | Track user engagement metrics.                                      |
+| `trackScrollDepth`   | `false`                                 | `boolean`                 | -                | Track scroll depth.                                                 |
+| `trackExitIntent`    | `false`                                 | `boolean`                 | -                | Track exit intent.                                                  |
+| `trackBounceRate`    | `false`                                 | `boolean`                 | -                | Track bounce rate.                                                  |
+| `trackPerformance`   | `true`                                  | `boolean`                 | -                | Track page performance metrics.                                     |
+| `trackWebVitals`     | `false`                                 | `boolean`                 | -                | Track Web Vitals metrics.                                           |
+| `trackErrors`        | `false`                                 | `boolean`                 | -                | Track JavaScript errors.                                            |
+| `samplingRate`       | `1.0`                                   | `number`                  | 0.0 - 1.0        | Sampling rate for events (e.g., 0.5 = 50%).                         |
+| `enableRetries`      | `true`                                  | `boolean`                 | -                | Enable retries for failed requests.                                 |
+| `maxRetries`         | `3`                                     | `number`                  | e.g., 0-10       | Max number of retries.                                              |
+| `initialRetryDelay`  | `500`                                   | `number`                  | e.g., 50-10000ms | Initial retry delay in milliseconds.                                |
+| `enableBatching`     | `false`                                 | `boolean`                 | -                | Enable event batching.                                              |
+| `batchSize`          | `10`                                    | `number`                  | 1 - 50           | Number of events to batch.                                          |
+| `batchTimeout`       | `2000`                                  | `number`                  | 100 - 30000ms    | Batch timeout in milliseconds.                                      |
+| `filter`             | `undefined`                             | `(event: any) => boolean` | -                | Custom function to filter events before sending.                    |
 
-*Note: Ranges for `maxRetries` and `initialRetryDelay` are based on common usage patterns and comments in `types.ts` rather than strict programmatic enforcement within the type itself.*
+_Note: Ranges for `maxRetries` and `initialRetryDelay` are based on common usage patterns and comments in `types.ts` rather than strict programmatic enforcement within the type itself._
 
 ### Environment Variables
 
@@ -1466,18 +1498,18 @@ NEXT_PUBLIC_DATABUDDY_API_URL=https://your-api.example.com
 ```
 
 <Callout type="warn">
-**Security**: Never include `clientSecret` in client-side code. It's only for server-side usage.
+  **Security**: Never include `clientSecret` in client-side code. It's only for
+  server-side usage.
 </Callout>
 
-## 🔍 Debugging & Testing
+## Debugging & Testing
 
 ### Development Mode
 
 ```tsx title="Disable tracking in development"
 <Databuddy
   clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-  disabled={process.env.NODE_ENV === 'development'}
-  // ... other props
+  disabled={process.env.NODE_ENV === "development"}
 />
 ```
 
@@ -1487,10 +1519,10 @@ Test custom events in your browser console:
 
 ```javascript
 // Test if SDK is loaded
-console.log(window.databuddy ? 'SDK loaded ✅' : 'SDK not loaded ❌');
+console.log(window.databuddy ? "SDK loaded ✅" : "SDK not loaded ❌");
 
 // Send test event
-db.track('test_event', { source: 'console', timestamp: Date.now() });
+db.track("test_event", { source: "console", timestamp: Date.now() });
 
 // Check network requests
 // Look for requests to basket.databuddy.cc in Network tab
@@ -1540,7 +1572,7 @@ declare global {
 </Accordion>
 </Accordions>
 
-## 🔗 Related Documentation
+## Related Documentation
 
 <Cards>
   <Card title="Getting Started" href="/docs/getting-started" icon="🚀">

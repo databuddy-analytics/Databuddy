@@ -179,12 +179,7 @@ export function useExperiments(websiteId: string) {
 }
 
 export function useExperiment(experimentId: string, websiteId: string) {
-	const {
-		data,
-		isLoading,
-		error,
-		refetch,
-	} = trpc.experiments.getById.useQuery(
+	const { data, isLoading, error, refetch } = trpc.experiments.getById.useQuery(
 		{ id: experimentId, websiteId },
 		{
 			enabled: !!experimentId && !!websiteId,

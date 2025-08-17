@@ -798,3 +798,68 @@ export const abGoals = pgTable(
 			.onDelete('cascade'),
 	]
 );
+
+export const assistantConversations = pgTable(
+	'assistant_conversations',
+	{
+		id: text().primaryKey().notNull(),
+		userId: text('user_id'),
+		websiteId: text('website_id').notNull(),
+		title: text(),
+		createdAt: timestamp('created_at', { mode: 'string' })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+		updatedAt: timestamp('updated_at', { mode: 'string' })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+	},
+	(table) => [
+		index('assistant_conversations_website_id_idx').using(
+			'btree',
+			table.websiteId.asc().nullsLast().op('text_ops')
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: 'assistant_conversations_user_id_fkey',
+		}).onDelete('set null'),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: 'assistant_conversations_website_id_fkey',
+		}).onDelete('cascade'),
+	]
+);
+
+export const assistantMessages = pgTable(
+	'assistant_messages',
+	{
+		id: text().primaryKey().notNull(),
+		conversationId: text('conversation_id').notNull(),
+		userMessage: text('user_message').notNull(),
+		modelType: text('model_type').notNull(),
+		responseType: text('response_type').notNull(),
+		finalResponse: text('final_response'),
+		sqlQuery: text('sql_query'),
+		chartData: jsonb('chart_data'),
+		hasError: boolean('has_error').default(false).notNull(),
+		errorMessage: text('error_message'),
+		upvotes: integer('upvotes').default(0).notNull(),
+		downvotes: integer('downvotes').default(0).notNull(),
+		feedbackComments: jsonb('feedback_comments'),
+		createdAt: timestamp('created_at', { mode: 'string' })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+	},
+	(table) => [
+		index('assistant_messages_conversation_id_idx').using(
+			'btree',
+			table.conversationId.asc().nullsLast().op('text_ops')
+		),
+		foreignKey({
+			columns: [table.conversationId],
+			foreignColumns: [assistantConversations.id],
+			name: 'assistant_messages_conversation_id_fkey',
+		}).onDelete('cascade'),
+	]
+);

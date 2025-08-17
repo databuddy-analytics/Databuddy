@@ -27,7 +27,7 @@ export const AIResponseJsonSchema = z.object({
 		.optional(),
 	response_type: z.enum(['chart', 'text', 'metric']),
 	text_response: z.string().nullable().optional(),
-	metric_value: z.union([z.string(), z.number()]).nullable().optional(),
+	metric_value: z.string().nullable().optional(),
 	metric_label: z.string().nullable().optional(),
 	thinking_steps: z.array(z.string()).optional(),
 });

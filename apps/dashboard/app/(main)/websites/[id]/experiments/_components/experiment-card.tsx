@@ -1,6 +1,14 @@
 'use client';
 
-import { DotsThreeIcon, FlaskIcon, PauseIcon, PencilIcon, PlayIcon, TrashIcon, ChartLineIcon } from '@phosphor-icons/react';
+import {
+	ChartLineIcon,
+	DotsThreeIcon,
+	FlaskIcon,
+	PauseIcon,
+	PencilIcon,
+	PlayIcon,
+	TrashIcon,
+} from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import Link from 'next/link';
 import { memo } from 'react';
@@ -20,7 +28,10 @@ interface ExperimentCardProps {
 	experiment: Experiment;
 	onEdit: (experiment: Experiment) => void;
 	onDelete: (experimentId: string) => void;
-	onToggleStatus?: (experimentId: string, newStatus: 'running' | 'paused') => void;
+	onToggleStatus?: (
+		experimentId: string,
+		newStatus: 'running' | 'paused'
+	) => void;
 	websiteId: string;
 }
 
@@ -36,8 +47,9 @@ export const ExperimentCard = memo(function ExperimentCardComponent({
 	onToggleStatus,
 	websiteId,
 }: ExperimentCardProps) {
-	const statusInfo = statusConfig[experiment.status as keyof typeof statusConfig];
-	
+	const statusInfo =
+		statusConfig[experiment.status as keyof typeof statusConfig];
+
 	const handleToggleStatus = () => {
 		if (!onToggleStatus) return;
 		const newStatus = experiment.status === 'running' ? 'paused' : 'running';
@@ -73,26 +85,28 @@ export const ExperimentCard = memo(function ExperimentCardComponent({
 							<Badge variant={statusInfo?.variant || 'secondary'}>
 								{statusInfo?.label || 'Draft'}
 							</Badge>
-							{onToggleStatus && (experiment.status === 'running' || experiment.status === 'paused') && (
-								<Button
-									size="sm"
-									variant="ghost"
-									className="h-6 px-2"
-									onClick={handleToggleStatus}
-								>
-									{experiment.status === 'running' ? (
-										<>
-											<PauseIcon className="mr-1 h-3 w-3" size={12} />
-											Pause
-										</>
-									) : (
-										<>
-											<PlayIcon className="mr-1 h-3 w-3" size={12} />
-											Start
-										</>
-									)}
-								</Button>
-							)}
+							{onToggleStatus &&
+								(experiment.status === 'running' ||
+									experiment.status === 'paused') && (
+									<Button
+										className="h-6 px-2"
+										onClick={handleToggleStatus}
+										size="sm"
+										variant="ghost"
+									>
+										{experiment.status === 'running' ? (
+											<>
+												<PauseIcon className="mr-1 h-3 w-3" size={12} />
+												Pause
+											</>
+										) : (
+											<>
+												<PlayIcon className="mr-1 h-3 w-3" size={12} />
+												Start
+											</>
+										)}
+									</Button>
+								)}
 						</div>
 					</div>
 
@@ -131,9 +145,11 @@ export const ExperimentCard = memo(function ExperimentCardComponent({
 						{dayjs(experiment.createdAt).format('MMM D, YYYY')}
 					</span>
 				</div>
-				
-				<Link href={`/websites/${websiteId}/experiments/${experiment.id}/results`}>
-					<Button size="sm" className="w-full" variant="outline">
+
+				<Link
+					href={`/websites/${websiteId}/experiments/${experiment.id}/results`}
+				>
+					<Button className="w-full" size="sm" variant="outline">
 						<ChartLineIcon className="mr-2 h-4 w-4" size={16} />
 						View Results
 					</Button>

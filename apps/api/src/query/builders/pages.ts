@@ -18,7 +18,17 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
 		customizable: true,
 		meta: {
 			title: 'Top Pages',
@@ -68,7 +78,17 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	entry_pages: {
-		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
 		customizable: true,
 		customSql: (
 			websiteId: string,
@@ -124,7 +144,17 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	exit_pages: {
-		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
 		customizable: true,
 		customSql: (
 			websiteId: string,
@@ -204,7 +234,17 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
-		allowedFilters: ['path', 'country', 'device_type', 'browser_name', 'os_name', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign'],
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
 		customizable: true,
 	},
 };

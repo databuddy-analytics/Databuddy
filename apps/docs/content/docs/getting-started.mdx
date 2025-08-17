@@ -8,8 +8,6 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Callout } from "fumadocs-ui/components/callout";
 import { Card, Cards } from "fumadocs-ui/components/card";
 
-# Getting Started with Databuddy
-
 This guide will help you set up Databuddy analytics in your application in just a few minutes.
 
 <Steps>
@@ -161,7 +159,7 @@ Check that analytics are working correctly:
 </Step>
 </Steps>
 
-## ⚙️ Configuration Options
+## Configuration Options
 
 ### Essential Settings
 
@@ -201,12 +199,12 @@ Check that analytics are working correctly:
   data-batch-size="10"
   async
 ></script>
+```
 
 <Callout type="info">
   **Security**: All tracking scripts automatically include
-  `crossOrigin="anonymous"` for enhanced security.
+  `crossorigin="anonymous"` for enhanced security.
 </Callout>
-```
 
 </Tab>
 </Tabs>
@@ -237,7 +235,7 @@ const isProduction = process.env.NODE_ENV === "production";
 />;
 ```
 
-## 🎯 Custom Event Tracking
+## Custom Event Tracking
 
 Track custom events with rich properties for comprehensive analytics:
 
@@ -362,35 +360,30 @@ function SignupForm() {
   distributions and value percentages in an interactive tree structure.
 </Callout>
 
-## 🎉 What's Next?
+## What's Next?
 
 <Cards>
-  <Card title="API Playground" href="/api" icon="🔬">
+  <Card title="API Playground" href="/api">
     Test endpoints interactively and explore query types with real data
   </Card>
-  <Card
-    title="SDK Configuration Guide"
-    href="/docs/sdk#-configuration-options"
-    icon="📦"
-  >
+  <Card title="SDK Configuration Guide" href="/docs/sdk#-configuration-options">
     Explore all SDK configuration props and options
   </Card>
-  <Card title="Dashboard Guide" href="/docs/dashboard" icon="📊">
+  <Card title="Dashboard Guide" href="/docs/dashboard">
     Learn to navigate your analytics dashboard and its features
   </Card>
   <Card
     title="Event Tracking Deep Dive"
     href="/docs/sdk#-sdk-methods-reference"
-    icon="⚙️"
   >
     Master custom event tracking, SDK methods, and standard event types
   </Card>
-  <Card title="Security & Privacy" href="/docs/security" icon="🔒">
+  <Card title="Security & Privacy" href="/docs/security">
     Configure privacy settings and GDPR compliance
   </Card>
 </Cards>
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 **Not seeing data in your dashboard?**
 

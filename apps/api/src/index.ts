@@ -7,6 +7,7 @@ import { autumnHandler } from 'autumn-js/elysia';
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
 import { assistant } from './routes/assistant';
+import { exportRoute } from './routes/export';
 import { health } from './routes/health';
 import { query } from './routes/query';
 
@@ -42,6 +43,7 @@ const app = new Elysia()
 	)
 	.use(query)
 	.use(assistant)
+	.use(exportRoute)
 	.all('/trpc/*', ({ request }) => {
 		return fetchRequestHandler({
 			endpoint: '/trpc',

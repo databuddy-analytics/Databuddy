@@ -13,7 +13,10 @@ interface ExperimentsListProps {
 	onCreateExperiment: () => void;
 	onEditExperiment: (experiment: Experiment) => void;
 	onDeleteExperiment: (experimentId: string) => void;
-	onToggleExperimentStatus?: (experimentId: string, newStatus: 'running' | 'paused') => void;
+	onToggleExperimentStatus?: (
+		experimentId: string,
+		newStatus: 'running' | 'paused'
+	) => void;
 	websiteId: string;
 }
 
@@ -51,7 +54,10 @@ const LoadingSkeleton = memo(function ExperimentsLoadingSkeleton() {
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 			{[...new Array(6)].map((_, i) => (
-				<Card className="animate-pulse rounded" key={`experiment-skeleton-${i + 1}`}>
+				<Card
+					className="animate-pulse rounded"
+					key={`experiment-skeleton-${i + 1}`}
+				>
 					<div className="p-6">
 						<div className="mb-4 flex items-start justify-between">
 							<div className="flex-1 space-y-3">

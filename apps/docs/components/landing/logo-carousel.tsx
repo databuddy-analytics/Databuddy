@@ -52,7 +52,7 @@ function LogoColumn({
 	return (
 		<motion.div
 			animate={{ opacity: 1, y: 0 }}
-			className={`relative h-16 w-40 overflow-hidden ${isLast ? '' : 'border-r'} sm:h-20 md:h-24 md:w-64 lg:w-72`}
+			className={`relative h-14 w-24 overflow-hidden ${isLast ? '' : 'border-border/20 border-r'} sm:h-16 sm:w-32 md:h-20 md:w-48 lg:h-24 lg:w-64`}
 			initial={{ opacity: 0, y: 20 }}
 			transition={{
 				delay: columnIndex * 0.1,
@@ -93,7 +93,7 @@ function LogoColumn({
 							width={24}
 						/>
 					) : null} */}
-					<span className="truncate font-bold text-base sm:text-xl md:text-2xl">
+					<span className="truncate px-1 font-bold text-xs sm:text-sm md:text-base lg:text-lg">
 						{currentLogo.name}
 					</span>
 				</motion.div>
@@ -144,7 +144,7 @@ export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 	}, []);
 
 	return (
-		<div className="flex justify-center gap-4">
+		<div className="flex justify-center gap-0 sm:gap-1 md:gap-2 lg:gap-4">
 			{logoColumns.map((columnLogos, index) => (
 				<LogoColumn
 					columnIndex={index}

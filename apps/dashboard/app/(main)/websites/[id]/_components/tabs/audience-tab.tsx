@@ -191,16 +191,19 @@ export function WebsiteAudienceTab({
 		}
 	}, [isRefreshing, handleRefresh]);
 
-	const onAddFilter = useCallback((field: string, value: string, tableTitle?: string) => {
-		// The field parameter now contains the correct filter field from the tab configuration
-		const filter = {
-			field,
-			operator: 'eq' as const,
-			value
-		};
-		
-		addFilter(filter);
-	}, [addFilter]);
+	const onAddFilter = useCallback(
+		(field: string, value: string, tableTitle?: string) => {
+			// The field parameter now contains the correct filter field from the tab configuration
+			const filter = {
+				field,
+				operator: 'eq' as const,
+				value,
+			};
+
+			addFilter(filter);
+		},
+		[addFilter]
+	);
 
 	const processedData = useMemo((): ProcessedData => {
 		if (!batchResults?.length) {
@@ -226,7 +229,6 @@ export function WebsiteAudienceTab({
 			(r) => r.queryId === 'geographic-data'
 		);
 		const deviceResult = batchResults.find((r) => r.queryId === 'device-data');
-
 
 		return {
 			geographic: {
@@ -675,7 +677,7 @@ export function WebsiteAudienceTab({
 				columns: countryColumns,
 				getFilter: (row: any) => ({
 					field: 'country',
-					value: row.country_name || row.name
+					value: row.country_name || row.name,
 				}),
 			},
 			{
@@ -685,7 +687,7 @@ export function WebsiteAudienceTab({
 				columns: geographicColumns,
 				getFilter: (row: any) => ({
 					field: 'region',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -695,7 +697,7 @@ export function WebsiteAudienceTab({
 				columns: cityColumns,
 				getFilter: (row: any) => ({
 					field: 'city',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			...(canUseDisplayNames
@@ -703,11 +705,11 @@ export function WebsiteAudienceTab({
 						{
 							id: 'languages',
 							label: 'Languages',
-													data: processedData.geographic.languages,
+							data: processedData.geographic.languages,
 							columns: languageColumns,
 							getFilter: (row: any) => ({
 								field: 'language',
-								value: row.name
+								value: row.name,
 							}),
 						},
 					]
@@ -719,7 +721,7 @@ export function WebsiteAudienceTab({
 				columns: timezoneColumns,
 				getFilter: (row: any) => ({
 					field: 'timezone',
-					value: row.name
+					value: row.name,
 				}),
 			},
 		],
@@ -809,7 +811,6 @@ export function WebsiteAudienceTab({
 						);
 					}}
 					showSearch={false}
-					title="Browser Versions"
 					tabs={[
 						{
 							id: 'browsers',
@@ -818,10 +819,11 @@ export function WebsiteAudienceTab({
 							columns: browserColumns,
 							getFilter: (row: any) => ({
 								field: 'browser_name',
-								value: row.browserName || row.name
+								value: row.browserName || row.name,
 							}),
-						}
+						},
 					]}
+					title="Browser Versions"
 				/>
 
 				<DataTable
@@ -832,7 +834,6 @@ export function WebsiteAudienceTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					showSearch={false}
-					title="Connection Types"
 					tabs={[
 						{
 							id: 'connections',
@@ -841,10 +842,11 @@ export function WebsiteAudienceTab({
 							columns: connectionColumns,
 							getFilter: (row: any) => ({
 								field: 'connection_type',
-								value: row.name
+								value: row.name,
 							}),
-						}
+						},
 					]}
+					title="Connection Types"
 				/>
 			</div>
 

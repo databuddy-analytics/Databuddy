@@ -5,7 +5,10 @@ import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 
 const ProfilesList = dynamic(
-	() => import('./_components/profiles-list').then((mod) => ({ default: mod.ProfilesList })),
+	() =>
+		import('./_components/profiles-list').then((mod) => ({
+			default: mod.ProfilesList,
+		})),
 	{
 		loading: () => (
 			<div className="flex items-center justify-center p-8">

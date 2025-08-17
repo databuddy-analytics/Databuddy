@@ -1,11 +1,11 @@
-import { 
-	ArrowsOutSimpleIcon, 
-	XIcon,
+import {
 	ArrowDownIcon,
-	ArrowUpIcon,
 	ArrowsDownUpIcon,
+	ArrowsOutSimpleIcon,
+	ArrowUpIcon,
 	DatabaseIcon,
 	MagnifyingGlassIcon,
+	XIcon,
 } from '@phosphor-icons/react';
 import {
 	type ColumnDef,
@@ -970,15 +970,15 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 														</span>
 														{header.column.getCanSort() && (
 															<div className="flex h-3 w-3 flex-col items-center justify-center">
-																													{!header.column.getIsSorted() && (
-														<ArrowsDownUpIcon className="h-3 w-3 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/70" />
-													)}
-													{header.column.getIsSorted() === 'asc' && (
-														<ArrowUpIcon className="h-3 w-3 text-primary" />
-													)}
-													{header.column.getIsSorted() === 'desc' && (
-														<ArrowDownIcon className="h-3 w-3 text-primary" />
-													)}
+																{!header.column.getIsSorted() && (
+																	<ArrowsDownUpIcon className="h-3 w-3 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/70" />
+																)}
+																{header.column.getIsSorted() === 'asc' && (
+																	<ArrowUpIcon className="h-3 w-3 text-primary" />
+																)}
+																{header.column.getIsSorted() === 'desc' && (
+																	<ArrowDownIcon className="h-3 w-3 text-primary" />
+																)}
 															</div>
 														)}
 													</div>
@@ -1003,7 +1003,9 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 												<TableRow
 													className={cn(
 														'relative h-11 border-border/20 pl-3 transition-all duration-300 ease-in-out',
-														(onRowClick && !hasSubRows) || hasSubRows || onAddFilter
+														(onRowClick && !hasSubRows) ||
+															hasSubRows ||
+															onAddFilter
 															? 'cursor-pointer'
 															: '',
 														hoveredRow && hoveredRow !== row.id
@@ -1017,17 +1019,19 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 													onClick={() => {
 														if (hasSubRows) {
 															toggleRowExpansion(row.id);
-																											} else if (onAddFilter && row.original.name) {
-														// Determine the appropriate field and value based on table context
-														const activeTabConfig = tabs?.find(tab => tab.id === activeTab);
-														const filterFunc = activeTabConfig?.getFilter;
-														if (!filterFunc) {
-															return;
-														}
+														} else if (onAddFilter && row.original.name) {
+															// Determine the appropriate field and value based on table context
+															const activeTabConfig = tabs?.find(
+																(tab) => tab.id === activeTab
+															);
+															const filterFunc = activeTabConfig?.getFilter;
+															if (!filterFunc) {
+																return;
+															}
 
-														const { field, value } = filterFunc(row.original);
-														onAddFilter(field, value, title);
-													} else if (onRowClick) {
+															const { field, value } = filterFunc(row.original);
+															onAddFilter(field, value, title);
+														} else if (onRowClick) {
 															onRowClick('name', row.original.name);
 														}
 													}}
@@ -1219,6 +1223,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 								getSubRows={getSubRows}
 								initialPageSize={50}
 								isTransitioning={isTransitioning}
+								onAddFilter={onAddFilter}
 								onClose={() => setFullScreen(false)}
 								onTabChange={handleTabChange}
 								renderSubRow={renderSubRow}
@@ -1226,7 +1231,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 								showSearch={showSearch}
 								tabs={tabs}
 								title={title}
-								onAddFilter={onAddFilter}
 							/>
 						</div>
 					</div>,

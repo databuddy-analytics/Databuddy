@@ -95,7 +95,7 @@ const testimonials = [
 		name: 'Fynn',
 		profession: 'Founder, Studiis',
 		description:
-			'it\'s actually such a upgrade to switch from posthog to @trydatabuddy',
+			"it's actually such a upgrade to switch from posthog to @trydatabuddy",
 		link: 'https://x.com/_fqnn_/status/1955577969189306785',
 		social: null,
 		avatar:
@@ -121,18 +121,18 @@ function TestimonialCardContent({
 			aria-hidden
 			className="text-muted-foreground transition-colors duration-300 group-hover:text-foreground"
 		>
-			<XLogoIcon className="h-5 w-5" weight="duotone" />
+			<XLogoIcon className="h-4 w-4 sm:h-5 sm:w-5" weight="duotone" />
 		</span>
 	) : null;
 
 	return (
-		<div className="group relative flex h-[200px] w-[300px] shrink-0 flex-col justify-between rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[220px] sm:w-[350px] lg:h-[240px] lg:w-[400px]">
-			<p className="text-pretty px-4 pt-4 font-light text-foreground text-sm leading-relaxed tracking-tight sm:px-5 sm:pt-5 sm:text-base lg:px-6 lg:pt-6 lg:text-base">
+		<div className="group relative flex h-[190px] w-[280px] shrink-0 flex-col justify-between rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[210px] sm:w-[320px] md:h-[230px] md:w-[350px] lg:h-[250px] lg:w-[400px]">
+			<p className="text-pretty px-3 pt-3 font-light text-foreground text-sm leading-relaxed tracking-tight sm:px-4 sm:pt-4 sm:text-base md:px-5 md:pt-5 md:text-lg lg:px-6 lg:pt-6">
 				"{testimonial.description}"
 			</p>
-			<div className="flex h-[65px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[70px] lg:h-[75px]">
-				<div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 lg:px-6">
-					<Avatar className="h-9 w-9 border border-border sm:h-10 sm:w-10 lg:h-11 lg:w-11">
+			<div className="flex h-[55px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[60px] md:h-[65px] lg:h-[70px]">
+				<div className="flex w-full items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3 md:gap-4 md:px-5 md:py-4 lg:px-6">
+					<Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-11 lg:w-11">
 						<AvatarImage
 							src={testimonial.avatar.length > 2 ? testimonial.avatar : ''}
 						/>
@@ -141,10 +141,10 @@ function TestimonialCardContent({
 						</AvatarFallback>
 					</Avatar>
 					<div className="flex flex-1 flex-col gap-0">
-						<h5 className="font-medium text-foreground text-sm sm:text-base lg:text-base">
+						<h5 className="font-medium text-foreground text-xs sm:text-sm md:text-base">
 							{testimonial.name}
 						</h5>
-						<p className="mt-[-2px] truncate text-muted-foreground text-xs sm:text-sm lg:text-sm">
+						<p className="mt-[-1px] truncate text-muted-foreground text-xs sm:text-sm">
 							{testimonial.profession}
 						</p>
 					</div>
@@ -152,7 +152,7 @@ function TestimonialCardContent({
 				{socialIcon ? (
 					<>
 						<div className="h-full w-[1px] bg-border" />
-						<div className="flex h-full w-[55px] items-center justify-center sm:w-[65px] lg:w-[75px]">
+						<div className="flex h-full w-[45px] items-center justify-center sm:w-[55px] md:w-[65px] lg:w-[75px]">
 							{socialIcon}
 						</div>
 					</>
@@ -210,7 +210,7 @@ function SlidingTestimonials({
 	reverse?: boolean;
 }): ReactElement {
 	return (
-		<Marquee className="relative">
+		<Marquee className="relative w-full [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]">
 			<MarqueeFade side="left" />
 			<MarqueeFade side="right" />
 			<MarqueeContent
@@ -218,7 +218,7 @@ function SlidingTestimonials({
 				gradient={false}
 				pauseOnClick
 				pauseOnHover
-				speed={30}
+				speed={50}
 			>
 				{rowTestimonials.map((t) => (
 					<MarqueeItem key={`${t.name}-${t.profession}${reverse ? '-r' : ''}`}>
@@ -232,30 +232,34 @@ function SlidingTestimonials({
 
 export default function Testimonials(): ReactElement {
 	return (
-		<div className="relative w-full">
+		<div className="relative max-w-full">
 			{/* Header Section */}
-			<div className="mb-8 text-center lg:mb-12">
-				<h2 className="mb-4 font-medium text-2xl leading-tight sm:text-3xl lg:text-4xl xl:text-5xl">
+			<div className="mb-6 px-4 text-center sm:mb-8 sm:px-6 md:px-8 lg:mb-12">
+				<h2 className="mb-3 font-medium text-lg leading-tight sm:mb-4 sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl">
 					What developers are saying
 				</h2>
-				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
+				<p className="mx-auto max-w-2xl px-2 text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Join thousands of developers who trust Databuddy for their analytics
 					needs
 				</p>
 			</div>
 
 			{/* Testimonials Marquee */}
-			<div className="flex flex-col gap-4 lg:gap-5">
-				<SlidingTestimonials
-					testimonials={testimonials.slice(
-						0,
-						Math.floor(testimonials.length / 2)
-					)}
-				/>
-				<SlidingTestimonials
-					reverse
-					testimonials={testimonials.slice(Math.floor(testimonials.length / 2))}
-				/>
+			<div className="max-w-full overflow-x-hidden">
+				<div className="flex flex-col gap-3 sm:gap-4 lg:gap-5">
+					<SlidingTestimonials
+						testimonials={testimonials.slice(
+							0,
+							Math.floor(testimonials.length / 2)
+						)}
+					/>
+					<SlidingTestimonials
+						reverse
+						testimonials={testimonials.slice(
+							Math.floor(testimonials.length / 2)
+						)}
+					/>
+				</div>
 			</div>
 		</div>
 	);

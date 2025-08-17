@@ -1,9 +1,9 @@
 import type { Website } from '@databuddy/shared';
 import { CaretLeftIcon, PlanetIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
+import { FaviconImage } from '@/components/analytics/favicon-image';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FaviconImage } from '@/components/analytics/favicon-image';
 
 interface WebsiteHeaderProps {
 	website: Website | null | undefined;

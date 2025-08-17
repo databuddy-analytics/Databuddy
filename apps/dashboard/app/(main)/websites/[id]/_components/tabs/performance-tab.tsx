@@ -344,16 +344,19 @@ export function WebsitePerformanceTab({
 		[]
 	);
 
-	const onAddFilter = useCallback((field: string, value: string, tableTitle?: string) => {
-		// The field parameter now contains the correct filter field from the tab configuration
-		const filter = {
-			field,
-			operator: 'eq' as const,
-			value
-		};
-		
-		addFilter(filter);
-	}, [addFilter]);
+	const onAddFilter = useCallback(
+		(field: string, value: string, tableTitle?: string) => {
+			// The field parameter now contains the correct filter field from the tab configuration
+			const filter = {
+				field,
+				operator: 'eq' as const,
+				value,
+			};
+
+			addFilter(filter);
+		},
+		[addFilter]
+	);
 
 	const { processedData, performanceSummary } = useMemo(() => {
 		if (!performanceResults?.length) {
@@ -467,7 +470,7 @@ export function WebsitePerformanceTab({
 				nameFormatter: formatPageName,
 				getFilter: (row: any) => ({
 					field: 'path',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -477,7 +480,7 @@ export function WebsitePerformanceTab({
 				iconRenderer: getCountryIcon,
 				getFilter: (row: any) => ({
 					field: 'country',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -488,7 +491,7 @@ export function WebsitePerformanceTab({
 				nameFormatter: formatRegionName,
 				getFilter: (row: any) => ({
 					field: 'region',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -498,7 +501,7 @@ export function WebsitePerformanceTab({
 				iconRenderer: getDeviceIcon,
 				getFilter: (row: any) => ({
 					field: 'device_type',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -508,7 +511,7 @@ export function WebsitePerformanceTab({
 				iconRenderer: (name: string) => <BrowserIcon name={name} size="sm" />,
 				getFilter: (row: any) => ({
 					field: 'browser_name',
-					value: row.name
+					value: row.name,
 				}),
 			},
 			{
@@ -518,7 +521,7 @@ export function WebsitePerformanceTab({
 				iconRenderer: (name: string) => <OSIcon name={name} size="sm" />,
 				getFilter: (row: any) => ({
 					field: 'os_name',
-					value: row.name
+					value: row.name,
 				}),
 			},
 		];

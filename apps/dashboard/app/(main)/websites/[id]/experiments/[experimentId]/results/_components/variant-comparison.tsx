@@ -82,7 +82,9 @@ export function VariantComparison({ experiment }: VariantComparisonProps) {
 			accessorKey: 'revenue',
 			header: 'Revenue',
 			cell: (info: any) => (
-				<span className="font-medium text-muted-foreground">{info.getValue()}</span>
+				<span className="font-medium text-muted-foreground">
+					{info.getValue()}
+				</span>
 			),
 		},
 		{
@@ -90,7 +92,9 @@ export function VariantComparison({ experiment }: VariantComparisonProps) {
 			accessorKey: 'revenuePerVisitor',
 			header: 'Revenue/Visitor',
 			cell: (info: any) => (
-				<span className="font-medium text-muted-foreground">{info.getValue()}</span>
+				<span className="font-medium text-muted-foreground">
+					{info.getValue()}
+				</span>
 			),
 		},
 	];

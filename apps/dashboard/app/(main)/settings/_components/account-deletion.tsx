@@ -39,7 +39,7 @@ import { Separator } from '@/components/ui/separator';
 const formSchema = z.object({
 	email: z.string().email('Please enter a valid email address'),
 	password: z.string().min(1, 'Password is required'),
-	confirmText: z.literal('DELETE'),
+	confirmText: z.string().min(1, 'Please type "DELETE" to confirm'),
 });
 
 export function AccountDeletion() {
@@ -53,7 +53,7 @@ export function AccountDeletion() {
 		defaultValues: {
 			email: '',
 			password: '',
-			confirmText: 'DELETE',
+			confirmText: '',
 		},
 	});
 
@@ -105,11 +105,11 @@ export function AccountDeletion() {
 							Account Deletion
 						</h3>
 					</div>
-					<p className="text-slate-300 text-sm">
+					<p className="text-slate-700 text-sm">
 						Deleting your account will remove all your data and cannot be
 						reversed after the grace period.
 					</p>
-					<div className="mt-1 hidden text-slate-400 text-xs italic md:block">
+					<div className="mt-1 hidden text-slate-600 text-xs italic md:block">
 						A 30-day recovery window will be available before permanent
 						deletion.
 					</div>
@@ -126,13 +126,16 @@ export function AccountDeletion() {
 						</Button>
 					</AlertDialogTrigger>
 					<AlertDialogContent className="max-w-xl border border-red-900/30 bg-slate-950">
-						<div className="-top-12 -translate-x-1/2 absolute left-1/2 transform rounded-full bg-red-500 p-3 text-white">
-							<WarningIcon className="h-6 w-6" size={24} weight="duotone" />
-						</div>
-
 						<AlertDialogHeader className="pt-6">
 							<AlertDialogTitle className="text-center text-red-400 text-xl">
-								Delete Your Account
+								<div className="flex items-center justify-center gap-2 rounded-full bg-red-500 p-2 text-white">
+									<WarningIcon
+										className="h-6 w-6 bg-red-500 text-white"
+										size={24}
+										weight="duotone"
+									/>
+									Delete Your Account
+								</div>
 							</AlertDialogTitle>
 							<AlertDialogDescription className="text-center text-slate-300">
 								This action will schedule your account for deletion after a
@@ -255,12 +258,12 @@ export function AccountDeletion() {
 									)}
 								/>
 
-								<AlertDialogFooter className="gap-3 pt-2 sm:gap-0">
-									<AlertDialogCancel className="mt-0 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white">
+								<AlertDialogFooter className="gap-0 sm:gap-3">
+									<AlertDialogCancel className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white">
 										Cancel
 									</AlertDialogCancel>
 									<Button
-										className="border-red-600 bg-red-700 text-white hover:bg-red-600"
+										className="border-red-600 bg-red-700 text-white hover:bg-red-800"
 										disabled={isLoading}
 										type="submit"
 										variant="destructive"

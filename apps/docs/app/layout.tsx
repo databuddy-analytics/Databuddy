@@ -112,7 +112,12 @@ export default function Layout({ children }: { children: ReactNode }) {
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 					<RootProvider>
 						<main>{children}</main>
-						<Toaster closeButton duration={1500} position="top-center" richColors />
+						<Toaster
+							closeButton
+							duration={1500}
+							position="top-center"
+							richColors
+						/>
 					</RootProvider>
 				</ThemeProvider>
 			</body>
