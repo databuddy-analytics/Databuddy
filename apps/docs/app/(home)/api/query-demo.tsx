@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getQueryTypes } from './actions';
 import { executeBatchQueries } from './query-builder';
 import { QueryResults } from './query-results';
@@ -16,10 +16,11 @@ interface QueryType {
 
 export function QueryDemo() {
 	const [availableTypes, setAvailableTypes] = useState<QueryType[]>([]);
-	const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
 	const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [result, setResult] = useState<BatchQueryResponse | null>(null);
+
+	const selectedTypes = useMemo(() => new Set(selectedOrder), [selectedOrder]);
 
 	const runQueries = useCallback(async (parameters: string[]) => {
 		if (parameters.length === 0) {
@@ -99,7 +100,6 @@ export function QueryDemo() {
 					.slice(0, Math.min(3, sortedByUtility.length))
 					.map((t) => t.name);
 				if (defaultSelectedNames.length > 0) {
-					setSelectedTypes(new Set(defaultSelectedNames));
 					setSelectedOrder(defaultSelectedNames);
 					runQueries(defaultSelectedNames);
 				}
@@ -109,28 +109,24 @@ export function QueryDemo() {
 	}, [runQueries]);
 
 	const handleTypeToggle = (typeName: string) => {
-		const newSelected = new Set(selectedTypes);
-		if (newSelected.has(typeName)) {
-			newSelected.delete(typeName);
-			setSelectedOrder((prev) => prev.filter((n) => n !== typeName));
-		} else {
-			newSelected.add(typeName);
-			setSelectedOrder((prev) => [...prev, typeName]);
-		}
-		setSelectedTypes(newSelected);
+		setSelectedOrder((prev) => {
+			if (prev.includes(typeName)) {
+				return prev.filter((n) => n !== typeName);
+			}
+			return [...prev, typeName];
+		});
 	};
 
 	const handleClearSelection = () => {
-		setSelectedTypes(new Set());
 		setSelectedOrder([]);
 	};
 
 	const handleExecuteQuery = async () => {
-		if (selectedTypes.size === 0) {
+		if (selectedOrder.length === 0) {
 			return;
 		}
 
-		await runQueries([...selectedOrder]);
+		await runQueries(selectedOrder);
 	};
 
 	return (
@@ -147,7 +143,6 @@ export function QueryDemo() {
 
 				<QueryResults isLoading={isLoading} result={result} />
 			</div>
-
 		</div>
 	);
 }
