@@ -82,7 +82,7 @@ export function CategorySidebar({
 							<TooltipTrigger asChild>
 								<button
 									className={cn(
-										'flex items-center justify-center p-2 transition-colors hover:bg-muted/50',
+										'flex items-center justify-center px-4 py-2 transition-colors hover:bg-muted/50',
 										'focus:outline-none',
 										isActive && 'bg-muted text-foreground'
 									)}

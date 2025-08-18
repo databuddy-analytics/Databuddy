@@ -112,7 +112,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	return (
 		<div className="border-muted-foreground/20 border-b border-dotted last:border-b-0">
 			<button
-				className="flex w-full items-center gap-3 px-3 py-2.5 text-left font-medium text-foreground text-sm transition-colors hover:bg-muted/50 focus:outline-none"
+				className="flex w-full items-center gap-3 px-4 py-2 text-left font-medium text-foreground text-sm transition-colors hover:bg-muted/50 focus:outline-none"
 				onClick={() => toggleAccordion(title, true)}
 				type="button"
 			>
