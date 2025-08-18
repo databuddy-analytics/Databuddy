@@ -146,7 +146,7 @@ export function DocsFooter() {
 									className="group flex items-center gap-3 text-muted-foreground hover:text-foreground"
 									href="mailto:support@databuddy.cc"
 								>
-									<IoMdMail className="h-5 w-5" />
+									<IoMdMail className="h-5 w-5 shrink-0" />
 									support@databuddy.cc
 								</a>
 							</li>
