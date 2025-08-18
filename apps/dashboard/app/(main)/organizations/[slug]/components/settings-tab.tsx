@@ -55,11 +55,6 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 	const [isSaving, setIsSaving] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	// API Keys dialogs state - TODO: Re-enable when dialog components are fixed
-	// const [showCreateKey, setShowCreateKey] = useState(false);
-	// const [showKeyDetail, setShowKeyDetail] = useState(false);
-	// const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
-
 	const { updateOrganizationAsync, deleteOrganizationAsync } =
 		useOrganizations();
 
@@ -154,7 +149,6 @@ export function SettingsTab({ organization }: SettingsTabProps) {
 					<CardContent className="space-y-6">
 						{/* Logo Upload Section */}
 						<div className="space-y-4">
-							<Label className="font-medium text-sm">Organization Logo</Label>
 							<OrganizationLogoUploader organization={organization} />
 						</div>
 

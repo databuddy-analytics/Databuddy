@@ -296,7 +296,7 @@ export const categoryConfig = {
 		],
 		defaultCategory: 'websites',
 		navigationMap: {
-			websites: [], // Will be populated dynamically
+			websites: [],
 			organizations: organizationNavigation,
 			billing: billingNavigation,
 			settings: personalNavigation,
@@ -370,7 +370,6 @@ export const createLoadingWebsitesNavigation = (): NavigationSection[] => [
 	},
 ];
 
-// Function to get navigation with dynamic websites data
 export const getNavigationWithWebsites = (
 	pathname: string,
 	websites: Array<{ id: string; name: string | null; domain: string }> = [],

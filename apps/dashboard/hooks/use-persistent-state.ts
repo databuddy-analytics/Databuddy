@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from 'react';
  */
 function useIsClient() {
 	const [isClient, setIsClient] = useState(false);
-	
+
 	useEffect(() => {
 		setIsClient(true);
 	}, []);
-	
+
 	return isClient;
 }
 
@@ -22,13 +22,13 @@ export function usePersistentState<T>(
 	defaultValue: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
 	const isClient = useIsClient();
-	
+
 	// Initialize state with localStorage value only on client, default on server
 	const [state, setState] = useState<T>(() => {
 		if (!isClient) {
 			return defaultValue;
 		}
-		
+
 		try {
 			const item = window.localStorage.getItem(key);
 			return item ? JSON.parse(item) : defaultValue;
@@ -40,8 +40,10 @@ export function usePersistentState<T>(
 
 	// Sync with localStorage when client-side and key changes
 	useEffect(() => {
-		if (!isClient) return;
-		
+		if (!isClient) {
+			return;
+		}
+
 		try {
 			const item = window.localStorage.getItem(key);
 			if (item) {
@@ -58,13 +60,14 @@ export function usePersistentState<T>(
 			try {
 				setState((prevState) => {
 					// Allow function updates
-					const valueToStore = value instanceof Function ? value(prevState) : value;
-					
+					const valueToStore =
+						value instanceof Function ? value(prevState) : value;
+
 					// Only persist to localStorage on client side
 					if (isClient && typeof window !== 'undefined') {
 						window.localStorage.setItem(key, JSON.stringify(valueToStore));
 					}
-					
+
 					return valueToStore;
 				});
 			} catch (error) {

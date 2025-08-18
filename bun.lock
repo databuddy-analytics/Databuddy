@@ -445,6 +445,7 @@
         "@databuddy/validation": "workspace:*",
         "@trpc/react-query": "^11.4.3",
         "autumn-js": "^0.0.111",
+        "nanoid": "^5.1.5",
         "superjson": "^2.2.2",
         "zod": "3.25.76",
       },
