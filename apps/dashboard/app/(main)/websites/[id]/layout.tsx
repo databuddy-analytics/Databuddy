@@ -50,7 +50,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	};
 
 	return (
-		<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+		<div className="mx-auto h-full max-w-[1600px] p-3 sm:p-4 lg:p-6">
 			{isTrackingSetup && !isAssistantPage && (
 				<div className="space-y-4">
 					<AnalyticsToolbar

@@ -77,13 +77,9 @@ export default function AssistantPage() {
 		});
 	}, [id, setWebsiteId, websiteData, setWebsiteData, setDateRange]);
 
-	return (
-		<div className="flex h-full flex-col bg-gradient-to-br from-background to-muted/20">
-			{isLoading || !websiteData ? (
-				<AIAssistantLoadingSkeleton />
-			) : (
-				<AIAssistantMain />
-			)}
-		</div>
-	);
+	if (isLoading || !websiteData) {
+		return <AIAssistantLoadingSkeleton />;
+	}
+
+	return <AIAssistantMain />;
 }

@@ -21,7 +21,7 @@ export default function AIAssistantMain() {
 		.slice()
 		.reverse()
 		.find(
-			(m: Message) =>
+			(m) =>
 				m.data &&
 				m.chartType &&
 				m.type === 'assistant' &&
@@ -55,8 +55,8 @@ export default function AIAssistantMain() {
 	);
 
 	return (
-		<div className="flex h-full flex-col">
-			<div className="flex flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
+		<div className="h-full bg-gradient-to-br from-background to-muted/20">
+			<div className="flex h-full flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
 				<div
 					className={cn(
 						'flex flex-col overflow-hidden',

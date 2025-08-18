@@ -15,7 +15,6 @@ import { useAtom } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import {
@@ -202,20 +201,20 @@ export default function ChatSection() {
 			</div>
 
 			{/* Messages Area */}
-			<div className="relative min-h-0 flex-1 overflow-y-auto">
-				<ScrollArea className="h-full" ref={scrollAreaRef}>
-					<div className="px-4 py-3">
-						{/* Welcome State */}
-						{!(hasMessages || isLoading) && (
-							<div className="fade-in-0 slide-in-from-bottom-4 animate-in space-y-6 duration-500">
-								<div className="py-8 text-center">
+			<div className="min-h-0 flex-1 overflow-y-auto" ref={scrollAreaRef}>
+				{/* Welcome State */}
+				<div className="h-full px-4 py-3">
+					{!(hasMessages || isLoading) && (
+						<div className="fade-in-0 slide-in-from-bottom-4 h-full animate-in space-y-6 duration-500">
+							<div className="flex h-full flex-col justify-between">
+								<div className="space-y-2 py-4 text-center">
 									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-accent/10">
 										<SparkleIcon
 											className="h-8 w-8 text-primary"
 											weight="duotone"
 										/>
 									</div>
-									<h3 className="mb-2 font-semibold text-lg">
+									<h3 className="font-semibold text-lg">
 										Welcome to Databunny
 									</h3>
 									<p className="mx-auto max-w-md text-muted-foreground text-sm">
@@ -226,56 +225,56 @@ export default function ChatSection() {
 								</div>
 
 								<div className="space-y-3">
-									<div className="mb-3 flex items-center gap-2 text-muted-foreground text-sm">
+									<div className="flex items-center gap-2 text-muted-foreground text-sm">
 										<LightningIcon className="h-4 w-4" weight="duotone" />
 										<span>Try these examples:</span>
 									</div>
-									{quickQuestions.map((question, index) => (
-										<Button
-											className={cn(
-												'h-auto w-full justify-start px-4 py-3 text-left font-normal text-sm',
-												'hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5',
-												'border-dashed transition-all duration-300 hover:border-solid',
-												'fade-in-0 slide-in-from-left-2 animate-in'
-											)}
-											disabled={isLoading || isRateLimited}
-											key={question.text}
-											onClick={() => {
-												if (!(isLoading || isRateLimited)) {
-													sendMessage(question.text);
-													scrollToBottom();
-												}
-											}}
-											size="sm"
-											style={{ animationDelay: `${index * 100}ms` }}
-											variant="outline"
-										>
-											<question.icon className="mr-3 h-4 w-4 flex-shrink-0 text-primary/70" />
-											<div className="flex-1">
-												<div className="font-medium">{question.text}</div>
-												<div className="text-muted-foreground text-xs capitalize">
-													{question.type} response
+									<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+										{quickQuestions.map((question, index) => (
+											<Button
+												className={cn(
+													'h-auto px-4 py-3 text-left font-normal text-sm',
+													'hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5',
+													'border-dashed transition-all duration-300 hover:border-solid',
+													'fade-in-0 slide-in-from-left-2 animate-in'
+												)}
+												disabled={isLoading || isRateLimited}
+												key={question.text}
+												onClick={() => {
+													if (!(isLoading || isRateLimited)) {
+														sendMessage(question.text);
+														scrollToBottom();
+													}
+												}}
+												size="sm"
+												style={{ animationDelay: `${index * 100}ms` }}
+												variant="outline"
+											>
+												<question.icon className="mr-3 h-4 w-4 flex-shrink-0 text-primary/70" />
+												<div className="flex-1">
+													<div className="font-medium">{question.text}</div>
+													<div className="text-muted-foreground text-xs capitalize">
+														{question.type} response
+													</div>
 												</div>
-											</div>
-										</Button>
-									))}
+											</Button>
+										))}
+									</div>
 								</div>
 							</div>
-						)}
+						</div>
+					)}
 
-						{/* Messages */}
-						{hasMessages && (
-							<div className="space-y-6">
-								{messages.map((message) => (
-									<div className="mb-2" key={message.id}>
-										<MessageBubble message={message} />
-									</div>
-								))}
-								<div ref={bottomRef} />
-							</div>
-						)}
-					</div>
-				</ScrollArea>
+					{/* Messages */}
+					{hasMessages && (
+						<div className="space-y-3">
+							{messages.map((message) => (
+								<MessageBubble key={message.id} message={message} />
+							))}
+							<div ref={bottomRef} />
+						</div>
+					)}
+				</div>
 			</div>
 
 			{/* Enhanced Input Area */}
