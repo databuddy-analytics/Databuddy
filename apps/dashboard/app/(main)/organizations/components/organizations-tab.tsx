@@ -116,11 +116,7 @@ export function OrganizationsTab({
 	}
 
 	if (!organizations || organizations.length === 0) {
-		return (
-			<div className="py-12">
-				<OnboardingCard onCreateOrganization={onCreateOrganization} />
-			</div>
-		);
+		return <OnboardingCard onCreateOrganization={onCreateOrganization} />;
 	}
 
 	return (

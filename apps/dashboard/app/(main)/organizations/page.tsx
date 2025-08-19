@@ -93,7 +93,7 @@ function ActiveOrganizationBanner({
 	if (!activeOrg) {
 		return (
 			<Card className="border-warning/20 bg-warning/5">
-				<CardContent className="p-6">
+				<CardContent className="px-4 py-2">
 					<div className="flex items-center gap-4">
 						<div className="rounded-full bg-warning/10 p-3">
 							<UsersIcon
@@ -371,10 +371,7 @@ export default function OrganizationsPage() {
 						onClick={() => setShowCreateDialog(true)}
 						size="sm"
 					>
-						<PlusIcon
-							className="mr-2 h-4 w-4 not-dark:text-primary"
-							size={16}
-						/>
+						<PlusIcon className="mr-2 h-4 w-4" size={16} />
 						New Organization
 					</Button>
 				</div>
@@ -445,6 +442,7 @@ export default function OrganizationsPage() {
 											onClick={() => setShowCreateDialog(true)}
 											size="sm"
 										>
+											<BuildingsIcon className="mr-2 h-5 w-5" size={20} />
 											Create organization
 										</Button>
 										<OrganizationSwitcher
@@ -498,6 +496,7 @@ export default function OrganizationsPage() {
 										onClick={() => setShowCreateDialog(true)}
 										size="sm"
 									>
+										<BuildingsIcon className="mr-2 h-5 w-5" size={20} />
 										Create organization
 									</Button>
 									<OrganizationSwitcher
