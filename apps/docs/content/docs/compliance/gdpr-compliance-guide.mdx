@@ -4,7 +4,7 @@ description: "Everything you need to know about GDPR compliance for web analytic
 icon: "Shield"
 ---
 
-# GDPR Compliance for Web Analytics: Complete Guide 2024
+import { CodeBlock } from "@/components/docs";
 
 The General Data Protection Regulation (GDPR) has fundamentally changed how websites can track visitors. This comprehensive guide explains everything you need to know about GDPR compliance for web analytics.
 
@@ -173,8 +173,10 @@ Since we don't collect personal data, most rights don't apply. For any requests,
 ### Step 2: Choose Compliance Strategy
 
 **Option A: Consent-Based Approach**
-```html
-<!-- Consent banner required -->
+<CodeBlock 
+  language="html"
+  filename="Consent-Based Implementation"
+  code={`<!-- Consent banner required -->
 <div id="consent-banner">
   <p>We use analytics cookies to improve our website.</p>
   <button onclick="acceptAnalytics()">Accept</button>
@@ -187,16 +189,18 @@ function acceptAnalytics() {
   // Load analytics only after consent
   loadGoogleAnalytics();
 }
-</script>
-```
+</script>`}
+/>
 
 **Option B: Privacy-First Approach**
-```html
-<!-- No consent required -->
+<CodeBlock 
+  language="html"
+  filename="Privacy-First Implementation"
+  code={`<!-- No consent required -->
 <script src="https://cdn.databuddy.cc/sdk.js" 
         data-client-id="your-client-id">
-</script>
-```
+</script>`}
+/>
 
 ### Step 3: Update Privacy Policy
 

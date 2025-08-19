@@ -4,7 +4,7 @@ description: "Complete guide to Core Web Vitals - LCP, FID, and CLS. Learn how t
 icon: "Zap"
 ---
 
-# Core Web Vitals Guide: Improve SEO & User Experience
+import { CodeBlock } from "@/components/docs";
 
 Core Web Vitals are essential metrics that Google uses to evaluate user experience and SEO rankings. This comprehensive guide will help you understand, measure, and optimize these crucial performance indicators.
 
@@ -35,29 +35,33 @@ LCP measures how long it takes for the largest content element to become visible
 ### How to Measure LCP
 
 **Using Databuddy:**
-```javascript
-// Databuddy automatically tracks LCP
+<CodeBlock 
+  language="javascript"
+  code={`// Databuddy automatically tracks LCP
 databuddy.track('core_web_vital', {
   metric: 'LCP',
   value: lcpValue,
   element: lcpElement
-});
-```
+});`}
+/>
 
 **Using JavaScript:**
-```javascript
-new PerformanceObserver((entryList) => {
+<CodeBlock 
+  language="javascript"
+  code={`new PerformanceObserver((entryList) => {
   for (const entry of entryList.getEntries()) {
     console.log('LCP candidate:', entry.startTime, entry.element);
   }
-}).observe({entryTypes: ['largest-contentful-paint']});
-```
+}).observe({entryTypes: ['largest-contentful-paint']});`}
+/>
 
 ### LCP Optimization Strategies
 
 #### 1. Optimize Images
-```html
-<!-- Use modern image formats -->
+<CodeBlock 
+  language="html"
+  filename="Image Optimization"
+  code={`<!-- Use modern image formats -->
 <picture>
   <source srcset="hero.avif" type="image/avif">
   <source srcset="hero.webp" type="image/webp">
@@ -65,8 +69,8 @@ new PerformanceObserver((entryList) => {
 </picture>
 
 <!-- Preload critical images -->
-<link rel="preload" as="image" href="hero.jpg">
-```
+<link rel="preload" as="image" href="hero.jpg">`}
+/>
 
 #### 2. Optimize Server Response Time
 - Use a Content Delivery Network (CDN)
@@ -75,25 +79,29 @@ new PerformanceObserver((entryList) => {
 - Use HTTP/2 or HTTP/3
 
 #### 3. Remove Render-Blocking Resources
-```html
-<!-- async non-critical CSS -->
+<CodeBlock 
+  language="html"
+  filename="Remove Render-Blocking Resources"
+  code={`<!-- async non-critical CSS -->
 <link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
 
 <!-- async JavaScript -->
-<script src="script.js" async></script>
-```
+<script src="script.js" async></script>`}
+/>
 
 #### 4. Optimize Critical Rendering Path
-```html
-<!-- Inline critical CSS -->
+<CodeBlock 
+  language="html"
+  filename="Critical Rendering Path"
+  code={`<!-- Inline critical CSS -->
 <style>
   /* Critical above-the-fold styles */
   .hero { display: block; }
 </style>
 
 <!-- Preconnect to external domains -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-```
+<link rel="preconnect" href="https://fonts.googleapis.com">`}
+/>
 
 ## 2. First Input Delay (FID)
 
@@ -108,24 +116,26 @@ FID measures the time from when a user first interacts with your page (clicks a 
 ### How to Measure FID
 
 **Using Databuddy:**
-```javascript
-// Databuddy tracks FID automatically
+<CodeBlock 
+  language="javascript"
+  code={`// Databuddy tracks FID automatically
 databuddy.track('core_web_vital', {
   metric: 'FID',
   value: fidValue,
   eventType: eventType
-});
-```
+});`}
+/>
 
 **Using JavaScript:**
-```javascript
-new PerformanceObserver((entryList) => {
+<CodeBlock 
+  language="javascript"
+  code={`new PerformanceObserver((entryList) => {
   for (const entry of entryList.getEntries()) {
     const FID = entry.processingStart - entry.startTime;
     console.log('FID:', FID);
   }
-}).observe({entryTypes: ['first-input']});
-```
+}).observe({entryTypes: ['first-input']});`}
+/>
 
 ### FID Optimization Strategies
 

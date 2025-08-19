@@ -4,7 +4,7 @@ description: "Learn how cookieless analytics works, why it's the future of web t
 icon: "Shield"
 ---
 
-# Cookieless Analytics: Complete Guide to Privacy-First Tracking
+import { CodeBlock } from "@/components/docs";
 
 The era of third-party cookies is ending. This comprehensive guide explains cookieless analytics, why it matters, and how to implement privacy-first tracking that respects user privacy while delivering powerful insights.
 
@@ -13,22 +13,26 @@ The era of third-party cookies is ending. This comprehensive guide explains cook
 **Cookieless analytics** refers to web analytics methods that don't rely on cookies to track user behavior. Instead, they use privacy-friendly techniques to collect anonymous, aggregated data about website visitors.
 
 ### Traditional Cookie-Based Tracking
-```javascript
-// Traditional approach - uses cookies
+<CodeBlock 
+  language="javascript"
+  filename="Traditional Cookie-Based Approach"
+  code={`// Traditional approach - uses cookies
 document.cookie = "user_id=12345; expires=Thu, 18 Dec 2025 12:00:00 UTC; path=/";
 ga('create', 'UA-XXXXX-Y', 'auto');
-ga('send', 'pageview');
-```
+ga('send', 'pageview');`}
+/>
 
 ### Cookieless Tracking Approach
-```javascript
-// Cookieless approach - no persistent identifiers
+<CodeBlock 
+  language="javascript"
+  filename="Cookieless Analytics Approach"
+  code={`// Cookieless approach - no persistent identifiers
 databuddy.track('page_view', {
   page: window.location.pathname,
   referrer: document.referrer,
   // No user ID or persistent tracking
-});
-```
+});`}
+/>
 
 ## Why Cookieless Analytics Matters
 

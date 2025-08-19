@@ -325,24 +325,21 @@ export function MapComponent({
 
 	const zoom = resolvedHeight ? Math.log2(resolvedHeight / 400) + 1 : 1;
 
-	// Fix map background color after mount
 	useEffect(() => {
 		if (mapRef.current) {
 			const mapContainer = mapRef.current.getContainer();
 			if (mapContainer) {
-				const bgColor = resolvedTheme === 'dark' ? '#1f2937' : '#f8fafc';
+				const bgColor = 'hsl(var(--background))';
 				mapContainer.style.backgroundColor = bgColor;
-				// Also set it on the leaflet-container class
 				const leafletContainer =
 					mapContainer.querySelector('.leaflet-container');
-				if (leafletContainer) {
+				if (leafletContainer) {	
 					(leafletContainer as HTMLElement).style.backgroundColor = bgColor;
 				}
 			}
 		}
 	}, [resolvedTheme]);
 
-	// Helper function to calculate country centroid
 	const calculateCountryCentroid = useCallback(
 		(geometry: Country['features'][number]['geometry']) => {
 			let centroidLat = 0;
@@ -444,10 +441,7 @@ export function MapComponent({
 					ref={mapRef}
 					style={{
 						height: '100%',
-						backgroundColor:
-							resolvedTheme === 'dark'
-								? '#1f2937 !important'
-								: '#fffff !important',
+						backgroundColor: 'hsl(var(--background))',
 						cursor: 'default',
 						outline: 'none',
 						zIndex: '1',

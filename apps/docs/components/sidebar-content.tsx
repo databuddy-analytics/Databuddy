@@ -128,11 +128,6 @@ export const contents: SidebarSection[] = [
 				href: '/docs/dashboard',
 				icon: MonitorIcon,
 			},
-			{
-				title: 'Comparisons',
-				href: '/docs/comparisons',
-				icon: ChartLineIcon,
-			},
 		],
 	},
 	{

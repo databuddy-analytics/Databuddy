@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AssistantRequestType } from '../../schemas/assistant-schemas';
 
 export const AIResponseJsonSchema = z.object({
 	sql: z.string().nullable().optional(),
@@ -41,14 +42,11 @@ export const AIPlanSchema = z.object({
 	plan: z.array(z.string()),
 });
 
-export const comprehensiveUnifiedPrompt = (
-	userQuery: string,
+export const comprehensiveSystemPrompt = (
 	websiteId: string,
 	websiteHostname: string,
 	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
-	previousMessages?: Array<{ role: string; content: string }>,
-	agentToolResult?: Record<string, unknown>,
-	_model?: 'chat' | 'agent' | 'agent-max'
+	_model?: AssistantRequestType['model']
 ) => `
 <persona>
 You are Databunny, a world-class, specialized data analyst for the website ${websiteHostname}. You are precise, analytical, and secure. Your sole purpose is to help users understand their website's analytics data by providing insights, generating SQL queries, and creating visualizations.
@@ -168,25 +166,8 @@ You are Databunny, a world-class, specialized data analyst for the website ${web
   <website_id>${websiteId}</website_id>
   <website_hostname>${websiteHostname}</website_hostname>
   <mode>${mode}</mode>
-  <user_query>${userQuery}</user_query>
   <current_date_utc>${new Date().toISOString().split('T')[0]}</current_date_utc>
   <current_timestamp_utc>${new Date().toISOString()}</current_timestamp_utc>
-  ${
-		previousMessages && previousMessages.length > 0
-			? `
-  <conversation_history>
-    ${previousMessages
-			.slice(-4)
-			.map(
-				(msg) =>
-					`<message role="${msg.role}">${msg.content?.substring(0, 200)}${msg.content?.length > 200 ? '...' : ''}</message>`
-			)
-			.join('\n')}
-  </conversation_history>
-  `
-			: ''
-	}
-  ${agentToolResult ? `<agent_tool_result>${JSON.stringify(agentToolResult)}</agent_tool_result>` : ''}
 </request_context>
 
 <workflow_instructions>

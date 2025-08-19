@@ -1,8 +1,5 @@
 import { chQuery } from '@databuddy/db';
-import {
-	type DeviceType,
-	mapScreenResolutionToDeviceType,
-} from './screen-resolution-to-device-type';
+import type { DeviceType } from './screen-resolution-to-device-type';
 import type {
 	CompiledQuery,
 	Filter,
@@ -18,6 +15,48 @@ const SPECIAL_FILTER_FIELDS = {
 	REFERRER: 'referrer',
 	DEVICE_TYPE: 'device_type',
 } as const;
+
+// Helper function to normalize user input for referrer filters
+function normalizeReferrerFilterValue(value: string): string {
+	const lowerValue = value.toLowerCase();
+
+	// Map common user inputs to normalized referrer values
+	const referrerMappings: Record<string, string> = {
+		direct: 'direct',
+		google: 'https://google.com',
+		'google.com': 'https://google.com',
+		'www.google.com': 'https://google.com',
+		facebook: 'https://facebook.com',
+		'facebook.com': 'https://facebook.com',
+		'www.facebook.com': 'https://facebook.com',
+		twitter: 'https://twitter.com',
+		'twitter.com': 'https://twitter.com',
+		'www.twitter.com': 'https://twitter.com',
+		't.co': 'https://twitter.com',
+		instagram: 'https://instagram.com',
+		'instagram.com': 'https://instagram.com',
+		'www.instagram.com': 'https://instagram.com',
+		'l.instagram.com': 'https://instagram.com',
+	};
+
+	// Check if the input matches any known mapping
+	if (referrerMappings[lowerValue]) {
+		return referrerMappings[lowerValue];
+	}
+
+	// If the value already looks like a URL, return as-is
+	if (value.startsWith('http://') || value.startsWith('https://')) {
+		return value;
+	}
+
+	// For other domains, add https:// prefix if it looks like a domain
+	if (value.includes('.') && !value.includes(' ')) {
+		return `https://${value}`;
+	}
+
+	// Return original value if no transformation is needed
+	return value;
+}
 
 export class SimpleQueryBuilder {
 	private config: SimpleQueryConfig;
@@ -94,7 +133,6 @@ export class SimpleQueryBuilder {
 					return `(${aspectExpr} >= 2.0 AND ${longSideExpr} >= 2560 AND ${longSideExpr} IS NOT NULL)`;
 				case 'watch':
 					return `(${longSideExpr} <= 400 AND ${aspectExpr} >= 0.85 AND ${aspectExpr} <= 1.15 AND ${longSideExpr} IS NOT NULL)`;
-				case 'unknown':
 				default:
 					return '1 = 0'; // Never matches
 			}
@@ -149,6 +187,7 @@ export class SimpleQueryBuilder {
 		if (filter.field === SPECIAL_FILTER_FIELDS.REFERRER) {
 			const normalizedReferrerExpression =
 				'CASE ' +
+				"WHEN referrer = '' OR referrer IS NULL THEN 'direct' " +
 				"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
 				"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
 				"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
@@ -157,25 +196,47 @@ export class SimpleQueryBuilder {
 				'END';
 
 			if (filter.op === 'like') {
+				// For 'like' operations, we need to handle user-friendly input
+				// If user types "Google", they want to match referrers like 'https://google.com'
+				const lowerValue = String(filter.value).toLowerCase();
+				let searchValue = filter.value;
+
+				// Map common search terms to more specific patterns
+				if (lowerValue === 'direct') {
+					searchValue = 'direct';
+				} else if (lowerValue === 'google') {
+					searchValue = 'google.com';
+				} else if (lowerValue === 'facebook') {
+					searchValue = 'facebook.com';
+				} else if (lowerValue === 'twitter') {
+					searchValue = 'twitter.com';
+				} else if (lowerValue === 'instagram') {
+					searchValue = 'instagram.com';
+				}
+
 				return {
 					clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-					params: { [key]: `%${filter.value}%` },
+					params: { [key]: `%${searchValue}%` },
 				};
 			}
 
 			if (filter.op === 'in' || filter.op === 'notIn') {
 				const values = Array.isArray(filter.value)
-					? filter.value
-					: [filter.value];
+					? filter.value.map((v) => normalizeReferrerFilterValue(String(v)))
+					: [normalizeReferrerFilterValue(String(filter.value))];
 				return {
 					clause: `${normalizedReferrerExpression} ${operator} {${key}:Array(String)}`,
 					params: { [key]: values },
 				};
 			}
 
+			// For exact matches (eq, ne), normalize the user input to match the normalized referrer expression
+			const normalizedValue = normalizeReferrerFilterValue(
+				String(filter.value)
+			);
 			return {
 				clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-				params: { [key]: filter.value },
+				params: { [key]: normalizedValue },
 			};
 		}
 

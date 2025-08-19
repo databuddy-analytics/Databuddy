@@ -1,17 +1,10 @@
 'use client';
 
-import {
-	BellIcon,
-	GearSixIcon,
-	KeyIcon,
-	ShieldIcon,
-	UserIcon,
-} from '@phosphor-icons/react';
+import { BellIcon, GearSixIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
-import { useQueryState } from 'nuqs';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { ApiKeyDetailDialog } from '@/components/organizations/api-key-detail-dialog';
-import { Button } from '@/components/ui/button';
 import {
 	Card,
 	CardContent,
@@ -21,7 +14,6 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiKeyCreateDialog, ApiKeyList } from './_components';
-import { type NavItem, SettingsSidebar } from './_components/settings-sidebar';
 
 const EmailForm = dynamic(
 	() =>
@@ -100,46 +92,42 @@ const TimezonePreferences = dynamic(
 	}
 );
 
-type SettingsTab =
-	| 'profile'
-	| 'account'
-	| 'security'
-	| 'api-keys'
-	| 'notifications';
-
-const tabs: NavItem[] = [
-	{
-		id: 'profile',
-		label: 'Profile',
-		icon: UserIcon,
-	},
-	{
-		id: 'account',
-		label: 'Account',
-		icon: GearSixIcon,
-	},
-	{
-		id: 'security',
-		label: 'Security',
-		icon: ShieldIcon,
-	},
-	{
-		id: 'api-keys',
-		label: 'API keys',
-		icon: KeyIcon,
-	},
-	{
-		id: 'notifications',
-		label: 'Notifications',
-		icon: BellIcon,
-		disabled: true,
-	},
-];
-
 export default function SettingsPage() {
-	const [activeTab, setActiveTab] = useQueryState('tab', {
-		defaultValue: 'profile' as SettingsTab,
-	});
+	const searchParams = useSearchParams();
+	const activeTab = searchParams.get('tab') || 'profile';
+
+	const getPageTitle = () => {
+		switch (activeTab) {
+			case 'profile':
+				return {
+					title: 'Profile',
+					description: 'Manage your personal information and preferences',
+				};
+			case 'account':
+				return {
+					title: 'Account',
+					description: 'Update your email, password, and account settings',
+				};
+			case 'security':
+				return {
+					title: 'Security',
+					description:
+						'Manage your security settings and two-factor authentication',
+				};
+			case 'api-keys':
+				return {
+					title: 'API Keys',
+					description: 'Create and manage API keys for integrations',
+				};
+			default:
+				return {
+					title: 'Settings',
+					description: 'Manage your account and preferences',
+				};
+		}
+	};
+
+	const { title, description } = getPageTitle();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -156,10 +144,10 @@ export default function SettingsPage() {
 							</div>
 							<div>
 								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
-									Settings
+									{title}
 								</h1>
 								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
-									Manage your account and preferences
+									{description}
 								</p>
 							</div>
 						</div>
@@ -167,158 +155,117 @@ export default function SettingsPage() {
 				</div>
 			</div>
 
-			{/* Mobile Tab Nav */}
-			<div className="border-b sm:hidden">
-				<div className="flex overflow-x-auto p-4">
-					<div className="flex min-w-full gap-2">
-						{tabs.map((item) => (
-							<Button
-								className="flex-shrink-0 whitespace-nowrap"
-								disabled={item.disabled}
-								key={item.id}
-								onClick={() => setActiveTab(item.id)}
-								size="sm"
-								variant={activeTab === item.id ? 'secondary' : 'ghost'}
-							>
-								<item.icon className="mr-2 h-4 w-4" weight="duotone" />
-								{item.label}
-							</Button>
-						))}
-					</div>
-				</div>
-			</div>
-
-			<div className="flex flex-1 overflow-hidden">
-				<aside className="hidden w-56 flex-shrink-0 border-r p-4 pr-6 sm:block">
-					<SettingsSidebar
-						activeTab={activeTab}
-						items={tabs}
-						setActiveTab={setActiveTab}
-					/>
-				</aside>
-				<main className="flex-1 overflow-y-auto p-4 sm:p-6">
-					{activeTab === 'profile' && (
+			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+				{activeTab === 'profile' && (
+					<Card className="shadow-sm">
+						<CardContent className="pt-6">
+							<ProfileForm />
+						</CardContent>
+					</Card>
+				)}
+				{activeTab === 'account' && (
+					<div className="space-y-6">
 						<Card className="shadow-sm">
 							<CardHeader>
-								<CardTitle className="text-2xl">Profile</CardTitle>
+								<CardTitle>Email Address</CardTitle>
 								<CardDescription>
-									This information will be displayed on your public profile.
+									Update your email address and manage email preferences.
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
-								<ProfileForm />
+								<EmailForm />
 							</CardContent>
 						</Card>
-					)}
-					{activeTab === 'account' && (
+
 						<Card className="shadow-sm">
 							<CardHeader>
-								<CardTitle className="text-2xl">Account Settings</CardTitle>
+								<CardTitle>Password</CardTitle>
 								<CardDescription>
-									Manage your email, password, and other account settings.
+									Change your password to keep your account secure.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="flex flex-col gap-8">
-								<div>
-									<h3 className="font-semibold text-lg tracking-tight">
-										Email Address
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Update your email address and manage email preferences.
-									</p>
-									<div className="mt-4">
-										<EmailForm />
-									</div>
-								</div>
-								<div className="border-t pt-8">
-									<h3 className="font-semibold text-lg tracking-tight">
-										Password
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Change your password to keep your account secure.
-									</p>
-									<div className="mt-4">
-										<PasswordForm />
-									</div>
-								</div>
-								<div className="border-t pt-8">
-									<h3 className="font-semibold text-lg tracking-tight">
-										Timezone
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Set your timezone for accurate date and time display.
-									</p>
-									<div className="mt-4">
-										<TimezonePreferences />
-									</div>
-								</div>
-								<div className="border-destructive/50 border-t pt-8">
-									<h3 className="font-semibold text-destructive text-lg tracking-tight">
-										Delete Account
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Permanently delete your account and all associated data.
-										This action cannot be undone.
-									</p>
-									<div className="mt-4">
-										<AccountDeletion />
-									</div>
-								</div>
+							<CardContent>
+								<PasswordForm />
 							</CardContent>
 						</Card>
-					)}
-					{activeTab === 'security' && (
+
 						<Card className="shadow-sm">
 							<CardHeader>
-								<CardTitle className="text-2xl">Security Settings</CardTitle>
+								<CardTitle>Timezone</CardTitle>
 								<CardDescription>
-									Manage your account's security, including two-factor
-									authentication and active sessions.
+									Set your timezone for accurate date and time display.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="flex flex-col gap-8">
-								<div>
-									<h3 className="font-semibold text-lg tracking-tight">
-										Two-Factor Authentication
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Add an additional layer of security to your account by
-										enabling 2FA.
-									</p>
-									<div className="mt-4">
-										<TwoFactorForm />
-									</div>
-								</div>
-								<div className="border-t pt-8">
-									<h3 className="font-semibold text-lg tracking-tight">
-										Active Sessions
-									</h3>
-									<p className="mt-1 text-muted-foreground text-sm">
-										Manage your active sessions and log out from other devices.
-									</p>
-									<div className="mt-4">
-										<SessionsForm />
-									</div>
-								</div>
+							<CardContent>
+								<TimezonePreferences />
 							</CardContent>
 						</Card>
-					)}
-					{activeTab === 'api-keys' && <ApiKeysSection />}
-					{activeTab === 'notifications' && (
-						<div className="flex h-full items-center justify-center">
-							<div className="text-center">
-								<BellIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-								<h3 className="mt-2 font-medium text-foreground text-sm">
-									No new notifications
-								</h3>
-								<p className="mt-1 text-muted-foreground text-sm">
-									You're all caught up! Check back later.
-								</p>
-							</div>
+
+						<Card className="border-destructive/20 shadow-sm">
+							<CardHeader>
+								<CardTitle className="text-destructive">
+									Delete Account
+								</CardTitle>
+								<CardDescription>
+									Permanently delete your account and all associated data. This
+									action cannot be undone.
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<AccountDeletion />
+							</CardContent>
+						</Card>
+					</div>
+				)}
+				{activeTab === 'security' && (
+					<div className="space-y-6">
+						<Card className="shadow-sm">
+							<CardHeader>
+								<CardTitle>Two-Factor Authentication</CardTitle>
+								<CardDescription>
+									Add an additional layer of security to your account by
+									enabling 2FA.
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<TwoFactorForm />
+							</CardContent>
+						</Card>
+
+						<Card className="shadow-sm">
+							<CardHeader>
+								<CardTitle>Active Sessions</CardTitle>
+								<CardDescription>
+									Manage your active sessions and log out from other devices.
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<SessionsForm />
+							</CardContent>
+						</Card>
+					</div>
+				)}
+				{activeTab === 'api-keys' && (
+					<Card className="shadow-sm">
+						<CardContent className="pt-6">
+							<ApiKeysSection />
+						</CardContent>
+					</Card>
+				)}
+				{activeTab === 'notifications' && (
+					<div className="flex h-full items-center justify-center">
+						<div className="text-center">
+							<BellIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+							<h3 className="mt-2 font-medium text-foreground text-sm">
+								No new notifications
+							</h3>
+							<p className="mt-1 text-muted-foreground text-sm">
+								You're all caught up! Check back later.
+							</p>
 						</div>
-					)}
-				</main>
-			</div>
+					</div>
+				)}
+			</main>
 		</div>
 	);
 }

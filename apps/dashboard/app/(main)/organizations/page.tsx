@@ -3,26 +3,24 @@
 import {
 	BuildingsIcon,
 	CheckIcon,
+	ClockIcon,
 	GearIcon,
+	KeyIcon,
 	PlusIcon,
 	UsersIcon,
 } from '@phosphor-icons/react';
-import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { useQueryState } from 'nuqs';
-import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { lazy, Suspense, useState } from 'react';
 import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
 	type ActiveOrganization,
 	type Organization,
 	useOrganizations,
 } from '@/hooks/use-organizations';
-import { cn } from '@/lib/utils';
 import { OrganizationSwitcher } from './components/organization-switcher';
 
 // Skeletons
@@ -50,7 +48,7 @@ function PageSkeleton() {
 	);
 }
 
-function TabSkeleton() {
+function ComponentSkeleton() {
 	return (
 		<div className="space-y-4">
 			<Skeleton className="h-32 w-full rounded" />
@@ -59,27 +57,29 @@ function TabSkeleton() {
 	);
 }
 
-// Dynamic imports for tab components
-const OrganizationsTab = dynamic(
-	() =>
-		import('./components/organizations-tab').then((mod) => ({
-			default: mod.OrganizationsTab,
-		})),
-	{
-		loading: () => <TabSkeleton />,
-		ssr: false,
-	}
+// Dynamic imports for components
+const OrganizationsTab = lazy(() =>
+	import('./components/organizations-tab').then((mod) => ({
+		default: mod.OrganizationsTab,
+	}))
 );
 
-const TeamsTab = dynamic(
-	() =>
-		import('./[slug]/components/teams-tab').then((mod) => ({
-			default: mod.TeamsTab,
-		})),
-	{
-		loading: () => <TabSkeleton />,
-		ssr: false,
-	}
+const MembersOnlyView = lazy(() =>
+	import('./components/members-only-view').then((mod) => ({
+		default: mod.MembersOnlyView,
+	}))
+);
+
+const InvitationsOnlyView = lazy(() =>
+	import('./components/invitations-only-view').then((mod) => ({
+		default: mod.InvitationsOnlyView,
+	}))
+);
+
+const SettingsTab = lazy(() =>
+	import('./[slug]/components/settings-tab').then((mod) => ({
+		default: mod.SettingsTab,
+	}))
 );
 
 // Active Organization Banner
@@ -151,33 +151,15 @@ function ActiveOrganizationBanner({
 							organizations={organizations}
 						/>
 						<Button asChild className="rounded" size="sm" variant="outline">
-							<Link href={`/organizations/${activeOrg.slug}`}>
+							<a href={`/organizations/${activeOrg.slug}?tab=settings`}>
 								<GearIcon className="mr-2 h-4 w-4" size={16} />
 								Settings
-							</Link>
+							</a>
 						</Button>
 					</div>
 				</div>
 			</CardContent>
 		</Card>
-	);
-}
-
-// Sub-components
-function PageHeader({ onNewOrg }: { onNewOrg: () => void }) {
-	return (
-		<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-			<div>
-				<h1 className="font-bold text-2xl">Organizations</h1>
-				<p className="mt-1 text-muted-foreground text-sm">
-					Manage your organizations and team collaboration
-				</p>
-			</div>
-			<Button className="w-full rounded sm:w-auto" onClick={onNewOrg} size="sm">
-				<PlusIcon className="mr-2 h-4 w-4 not-dark:text-primary" size={16} />
-				New Organization
-			</Button>
-		</div>
 	);
 }
 
@@ -243,136 +225,291 @@ function QuickStats({
 	);
 }
 
-function MainView({
-	organizations,
-	activeOrganization,
-	isLoading,
-	onNewOrg,
-}: {
-	organizations: Organization[];
-	activeOrganization: ActiveOrganization;
-	isLoading: boolean;
-	onNewOrg: () => void;
-}) {
-	const [activeTab, setActiveTab] = useQueryState('tab', {
-		defaultValue: 'organizations',
-	});
-
-	return (
-		<>
-			<QuickStats
-				activeOrg={activeOrganization}
-				orgCount={organizations.length}
-			/>
-			<Tabs
-				className="space-y-4"
-				onValueChange={setActiveTab}
-				value={activeTab}
-			>
-				<div className="relative border-b">
-					<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="organizations"
-						>
-							<BuildingsIcon
-								className="mr-1 h-3 w-3 not-dark:text-primary"
-								size={16}
-							/>
-							<span className="hidden sm:inline">Organizations</span>
-							{activeTab === 'organizations' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full rounded bg-primary" />
-							)}
-						</TabsTrigger>
-						<TabsTrigger
-							className={cn(
-								'relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm'
-							)}
-							value="teams"
-						>
-							<UsersIcon
-								className="mr-1 h-3 w-3 not-dark:text-primary"
-								size={16}
-							/>
-							<span className="hidden sm:inline">Teams</span>
-							{activeTab === 'teams' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full rounded bg-primary" />
-							)}
-						</TabsTrigger>
-					</TabsList>
-				</div>
-				<TabsContent
-					className="animate-fadeIn transition-all duration-200"
-					value="organizations"
-				>
-					<Suspense fallback={<TabSkeleton />}>
-						<OrganizationsTab
-							activeOrganization={activeOrganization}
-							isLoading={isLoading}
-							onCreateOrganization={onNewOrg}
-							organizations={organizations}
-						/>
-					</Suspense>
-				</TabsContent>
-				<TabsContent
-					className="animate-fadeIn transition-all duration-200"
-					value="teams"
-				>
-					{activeOrganization ? (
-						<Suspense fallback={<TabSkeleton />}>
-							<TeamsTab organization={activeOrganization} />
-						</Suspense>
-					) : (
-						<div className="rounded border border-border/50 bg-muted/30 p-6 text-center">
-							<p className="mb-2 text-sm">
-								Teams are available inside a workspace.
-							</p>
-							<div className="flex items-center justify-center gap-2">
-								<Button className="rounded" onClick={onNewOrg} size="sm">
-									Create organization
-								</Button>
-								<OrganizationSwitcher
-									activeOrganization={activeOrganization}
-									organizations={organizations}
-								/>
-							</div>
-						</div>
-					)}
-				</TabsContent>
-			</Tabs>
-		</>
-	);
-}
-
 // Main page component
 export default function OrganizationsPage() {
+	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const { organizations, activeOrganization, isLoading } = useOrganizations();
 
+	// Get current view from URL parameters
+	const tab = searchParams.get('tab');
+	const view = searchParams.get('view');
+	const settings = searchParams.get('settings');
+	const action = searchParams.get('action');
+
+	// Handle create organization action
+	if (action === 'create' && !showCreateDialog) {
+		setShowCreateDialog(true);
+		// Remove action param from URL
+		const newParams = new URLSearchParams(searchParams);
+		newParams.delete('action');
+		router.replace(`/organizations?${newParams.toString()}`);
+	}
+
+	const getPageTitle = () => {
+		if (settings) {
+			switch (settings) {
+				case 'general':
+					return {
+						title: 'General Settings',
+						description: 'Manage organization name, slug, and basic settings',
+						icon: GearIcon,
+					};
+				case 'websites':
+					return {
+						title: 'Website Management',
+						description: 'Manage websites and transfer assets',
+						icon: BuildingsIcon,
+					};
+				case 'api-keys':
+					return {
+						title: 'API Keys',
+						description: 'Create and manage organization API keys',
+						icon: KeyIcon,
+					};
+				default:
+					return {
+						title: 'Organization Settings',
+						description: 'Configure your organization settings',
+						icon: GearIcon,
+					};
+			}
+		}
+
+		if (view) {
+			switch (view) {
+				case 'members':
+					return {
+						title: 'Team Members',
+						description: 'Manage team members and their roles',
+						icon: UsersIcon,
+					};
+				case 'invitations':
+					return {
+						title: 'Pending Invitations',
+						description: 'View and manage pending team invitations',
+						icon: ClockIcon,
+					};
+				default:
+					return {
+						title: 'Team Management',
+						description: 'Manage your team and collaboration',
+						icon: UsersIcon,
+					};
+			}
+		}
+
+		switch (tab) {
+			case 'teams':
+				return {
+					title: 'All Teams',
+					description: 'View and manage teams across organizations',
+					icon: UsersIcon,
+				};
+			default:
+				return {
+					title: 'Organizations',
+					description: 'Manage your organizations and team collaboration',
+					icon: BuildingsIcon,
+				};
+		}
+	};
+
+	const { title, description, icon: Icon } = getPageTitle();
+
 	if (isLoading) {
 		return (
-			<div className="container mx-auto max-w-6xl px-4 py-6">
-				<PageSkeleton />
+			<div className="flex h-full flex-col">
+				<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
+					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
+						<div className="min-w-0 flex-1">
+							<div className="flex items-center gap-4">
+								<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+									<Skeleton className="h-6 w-6" />
+								</div>
+								<div>
+									<Skeleton className="h-8 w-48" />
+									<Skeleton className="mt-1 h-4 w-64" />
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+					<PageSkeleton />
+				</main>
 			</div>
 		);
 	}
 
 	return (
-		<div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
-			<PageHeader onNewOrg={() => setShowCreateDialog(true)} />
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
+				<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-4">
+							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+								<Icon
+									className="h-6 w-6 text-primary"
+									size={24}
+									weight="duotone"
+								/>
+							</div>
+							<div>
+								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
+									{title}
+								</h1>
+								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
+									{description}
+								</p>
+							</div>
+						</div>
+					</div>
+					<Button
+						className="w-full rounded sm:w-auto"
+						onClick={() => setShowCreateDialog(true)}
+						size="sm"
+					>
+						<PlusIcon
+							className="mr-2 h-4 w-4 not-dark:text-primary"
+							size={16}
+						/>
+						New Organization
+					</Button>
+				</div>
+			</div>
 
-			{/* Active Organization Banner */}
-			<ActiveOrganizationBanner
-				activeOrg={activeOrganization}
-				organizations={organizations}
-			/>
+			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+				<div className="mx-auto max-w-6xl">
+					{!(tab || view || settings) && (
+						<div className="mb-6 space-y-6">
+							{/* Active Organization Banner */}
+							<ActiveOrganizationBanner
+								activeOrg={activeOrganization}
+								organizations={organizations}
+							/>
 
-			<MainView
-				activeOrganization={activeOrganization}
-				isLoading={isLoading}
-				onNewOrg={() => setShowCreateDialog(true)}
-				organizations={organizations}
-			/>
+							{/* Quick Stats */}
+							<QuickStats
+								activeOrg={activeOrganization}
+								orgCount={organizations.length}
+							/>
+						</div>
+					)}
+
+					{/* Content based on current view */}
+					{/* Default organizations view */}
+					{!(tab || view || settings) && (
+						<Suspense fallback={<ComponentSkeleton />}>
+							<OrganizationsTab
+								activeOrganization={activeOrganization}
+								isLoading={isLoading}
+								onCreateOrganization={() => setShowCreateDialog(true)}
+								organizations={organizations}
+							/>
+						</Suspense>
+					)}
+
+					{/* Organization overview (same as default but with explicit tab) */}
+					{tab === 'organizations' && (
+						<Suspense fallback={<ComponentSkeleton />}>
+							<OrganizationsTab
+								activeOrganization={activeOrganization}
+								isLoading={isLoading}
+								onCreateOrganization={() => setShowCreateDialog(true)}
+								organizations={organizations}
+							/>
+						</Suspense>
+					)}
+
+					{/* Views that need individual organization context */}
+					{(view === 'members' || view === 'invitations') &&
+						!activeOrganization && (
+							<Card className="p-6">
+								<div className="text-center">
+									<UsersIcon
+										className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
+										size={48}
+										weight="duotone"
+									/>
+									<h3 className="mb-2 font-semibold text-lg">
+										Select an Organization
+									</h3>
+									<p className="text-muted-foreground text-sm">
+										Team management features require an active organization.
+									</p>
+									<div className="mt-4 flex items-center justify-center gap-2">
+										<Button
+											className="rounded"
+											onClick={() => setShowCreateDialog(true)}
+											size="sm"
+										>
+											Create organization
+										</Button>
+										<OrganizationSwitcher
+											activeOrganization={activeOrganization}
+											organizations={organizations}
+										/>
+									</div>
+								</div>
+							</Card>
+						)}
+
+					{/* Members only view */}
+					{view === 'members' && activeOrganization && (
+						<Suspense fallback={<ComponentSkeleton />}>
+							<MembersOnlyView organization={activeOrganization} />
+						</Suspense>
+					)}
+
+					{/* Invitations only view */}
+					{view === 'invitations' && activeOrganization && (
+						<Suspense fallback={<ComponentSkeleton />}>
+							<InvitationsOnlyView organization={activeOrganization} />
+						</Suspense>
+					)}
+
+					{/* Settings views - show actual content */}
+					{settings && activeOrganization && (
+						<Suspense fallback={<ComponentSkeleton />}>
+							<SettingsTab organization={activeOrganization} />
+						</Suspense>
+					)}
+
+					{/* Settings without active org */}
+					{settings && !activeOrganization && (
+						<Card className="p-6">
+							<div className="text-center">
+								<GearIcon
+									className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
+									size={48}
+									weight="duotone"
+								/>
+								<h3 className="mb-2 font-semibold text-lg">
+									Select an Organization
+								</h3>
+								<p className="text-muted-foreground text-sm">
+									Organization settings require an active organization.
+								</p>
+								<div className="mt-4 flex items-center justify-center gap-2">
+									<Button
+										className="rounded"
+										onClick={() => setShowCreateDialog(true)}
+										size="sm"
+									>
+										Create organization
+									</Button>
+									<OrganizationSwitcher
+										activeOrganization={activeOrganization}
+										organizations={organizations}
+									/>
+								</div>
+							</div>
+						</Card>
+					)}
+				</div>
+			</main>
 
 			<CreateOrganizationDialog
 				isOpen={showCreateDialog}

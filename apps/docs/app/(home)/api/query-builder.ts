@@ -1,45 +1,10 @@
 'use server';
 
-interface DynamicQueryFilter {
-	field: string;
-	operator: string;
-	value: string | number | boolean;
-}
-
-interface DynamicQueryRequest {
-	id: string;
-	parameters: string[];
-	filters?: DynamicQueryFilter[];
-	limit?: number;
-	page?: number;
-	granularity?: string;
-}
-
-interface ParameterResult {
-	parameter: string;
-	success: boolean;
-	data: unknown[];
-	error?: string;
-}
-
-interface DynamicQueryResponse {
-	success: boolean;
-	queryId: string;
-	data: ParameterResult[];
-	meta: {
-		parameters: string[];
-		total_parameters: number;
-		page: number;
-		limit: number;
-		filters_applied: number;
-	};
-}
-
-interface BatchQueryResponse {
-	success: boolean;
-	batch: true;
-	results: DynamicQueryResponse[];
-}
+import type {
+	BatchQueryResponse,
+	DynamicQueryRequest,
+	DynamicQueryResponse,
+} from './types';
 
 function buildQueryParams(
 	websiteId: string,
@@ -93,7 +58,7 @@ async function executeDynamicQuery(
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'X-Api-Key': 'dbdy_poCMquJqsqUc6ktNvMsnvKZO7RyS1TlCpY2yo1EvW8trFLBa',
+				'X-Api-Key': 'dbdy_poCMquJqsqUc6ktNvMsnvKZO7RyS1TlCpY2yo1EvW8trFLBa', // this is a public readonly key
 			},
 			body: JSON.stringify(requestBody),
 		});
@@ -192,11 +157,3 @@ export async function executeBatchQueries(
 		};
 	}
 }
-
-export type {
-	DynamicQueryRequest,
-	DynamicQueryResponse,
-	BatchQueryResponse,
-	DynamicQueryFilter,
-	ParameterResult,
-};

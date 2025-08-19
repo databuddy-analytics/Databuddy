@@ -1,26 +1,29 @@
 'use client';
 
-import { XIcon } from '@phosphor-icons/react';
+import { ListIcon, XIcon } from '@phosphor-icons/react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAccordionStates } from '@/hooks/use-persistent-state';
 import { useWebsites } from '@/hooks/use-websites';
 import { cn } from '@/lib/utils';
+import { CategorySidebar } from './category-sidebar';
+import { MobileCategorySelector } from './navigation/mobile-category-selector';
 import {
-	demoNavigation,
-	mainNavigation,
-	sandboxNavigation,
-	websiteNavigation,
+	getDefaultCategory,
+	getNavigationWithWebsites,
 } from './navigation/navigation-config';
 import { NavigationSection } from './navigation/navigation-section';
 import { SandboxHeader } from './navigation/sandbox-header';
+import type { NavigationSection as NavigationSectionType } from './navigation/types';
 import { WebsiteHeader } from './navigation/website-header';
 import { OrganizationSelector } from './organization-selector';
-import { TopHeader } from './top-header';
 
 type NavigationConfig = {
-	navigation: typeof mainNavigation;
+	navigation: NavigationSectionType[];
 	header: React.ReactNode;
 	currentWebsiteId?: string | null;
 };
@@ -28,7 +31,9 @@ type NavigationConfig = {
 export function Sidebar() {
 	const pathname = usePathname();
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
-	const { websites } = useWebsites();
+	const [selectedCategory, setSelectedCategory] = useState<string>();
+	const { websites, isLoading: isLoadingWebsites } = useWebsites();
+	const accordionStates = useAccordionStates();
 	const sidebarRef = useRef<HTMLDivElement>(null);
 	const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -62,35 +67,58 @@ export function Sidebar() {
 	}, [isMobileOpen, closeSidebar, openSidebar]);
 
 	const getNavigationConfig = useMemo((): NavigationConfig => {
-		if (isWebsite) {
-			return {
-				navigation: websiteNavigation,
-				header: <WebsiteHeader website={currentWebsite} />,
-				currentWebsiteId: websiteId,
-			};
-		}
+		const contextConfig = getNavigationWithWebsites(
+			pathname,
+			websites,
+			isLoadingWebsites
+		);
+		const defaultCat = getDefaultCategory(pathname);
+		const activeCat = selectedCategory || defaultCat;
 
-		if (isDemo) {
-			return {
-				navigation: demoNavigation,
-				header: <WebsiteHeader website={currentWebsite} />,
-				currentWebsiteId: websiteId,
-			};
-		}
+		// Get navigation from centralized config
+		const navSections =
+			contextConfig.navigationMap[
+				activeCat as keyof typeof contextConfig.navigationMap
+			] ||
+			contextConfig.navigationMap[
+				contextConfig.defaultCategory as keyof typeof contextConfig.navigationMap
+			];
 
-		if (isSandbox) {
-			return {
-				navigation: sandboxNavigation,
-				header: <SandboxHeader />,
-				currentWebsiteId: 'sandbox',
-			};
+		// Determine header based on context
+		let headerComponent: React.ReactNode;
+		let currentId: string | null | undefined;
+
+		if (isWebsite || isDemo) {
+			headerComponent = isWebsite ? (
+				<WebsiteHeader website={currentWebsite} />
+			) : (
+				<OrganizationSelector />
+			);
+			currentId = websiteId;
+		} else if (isSandbox) {
+			headerComponent = <SandboxHeader />;
+			currentId = 'sandbox';
+		} else {
+			headerComponent = <OrganizationSelector />;
+			currentId = undefined;
 		}
 
 		return {
-			navigation: mainNavigation,
-			header: <OrganizationSelector />,
+			navigation: navSections,
+			header: headerComponent,
+			currentWebsiteId: currentId,
 		};
-	}, [isWebsite, isDemo, isSandbox, websiteId, currentWebsite]);
+	}, [
+		pathname,
+		selectedCategory,
+		isWebsite,
+		isDemo,
+		isSandbox,
+		websiteId,
+		currentWebsite,
+		websites,
+		isLoadingWebsites,
+	]);
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -120,7 +148,47 @@ export function Sidebar() {
 
 	return (
 		<>
-			<TopHeader toggleMobileSidebar={toggleSidebar} />
+			{/* Mobile Header */}
+			<header className="fixed top-0 right-0 left-0 z-50 h-12 w-full border-b bg-background md:hidden">
+				<div className="flex h-full items-center justify-between px-4">
+					<div className="flex items-center gap-3">
+						<Button
+							aria-label="Toggle navigation menu"
+							onClick={toggleSidebar}
+							size="icon"
+							type="button"
+							variant="ghost"
+						>
+							<ListIcon className="h-5 w-5" weight="duotone" />
+						</Button>
+
+						<Link
+							className="flex items-center gap-2 transition-opacity hover:opacity-80"
+							href="/websites"
+						>
+							<div className="flex h-8 w-8 items-center justify-center">
+								<Image
+									alt="Databuddy Logo"
+									className="drop-shadow-sm invert dark:invert-0"
+									height={24}
+									priority
+									src="/logo.svg"
+									width={24}
+								/>
+							</div>
+							<span className="font-semibold text-lg">Databuddy</span>
+						</Link>
+					</div>
+				</div>
+			</header>
+
+			{/* Category Sidebar - Desktop only */}
+			<div className="hidden md:block">
+				<CategorySidebar
+					onCategoryChange={setSelectedCategory}
+					selectedCategory={selectedCategory}
+				/>
+			</div>
 
 			{isMobileOpen && (
 				<div
@@ -139,8 +207,11 @@ export function Sidebar() {
 			<nav
 				aria-hidden={!isMobileOpen}
 				className={cn(
-					'fixed inset-y-0 left-0 z-40 w-64 bg-background',
-					'border-r pt-16 transition-transform duration-200 ease-out md:translate-x-0',
+					'fixed inset-y-0 z-40 w-72 bg-sidebar',
+					'border-r border-sidebar-border transition-transform duration-200 ease-out',
+					'left-0 md:left-12',
+					'pt-12 md:pt-0',
+					'md:translate-x-0',
 					isMobileOpen ? 'translate-x-0' : '-translate-x-full'
 				)}
 				ref={sidebarRef}
@@ -157,22 +228,30 @@ export function Sidebar() {
 					<span className="sr-only">Close sidebar</span>
 				</Button>
 
-				<ScrollArea className="h-[calc(100vh-4rem)]">
-					<nav
-						aria-label="Main navigation"
-						className="select-none space-y-4 p-3"
-					>
+				<ScrollArea className="h-full md:h-full">
+					<div className="flex h-full flex-col">
 						{header}
-						{navigation.map((section) => (
-							<NavigationSection
-								currentWebsiteId={currentWebsiteId}
-								items={section.items}
-								key={section.title}
-								pathname={pathname}
-								title={section.title}
-							/>
-						))}
-					</nav>
+
+						{/* Mobile Category Selector */}
+						<MobileCategorySelector
+							onCategoryChange={setSelectedCategory}
+							selectedCategory={selectedCategory}
+						/>
+
+						<nav aria-label="Main navigation" className="flex flex-col">
+							{navigation.map((section) => (
+								<NavigationSection
+									accordionStates={accordionStates}
+									currentWebsiteId={currentWebsiteId}
+									icon={section.icon}
+									items={section.items}
+									key={section.title}
+									pathname={pathname}
+									title={section.title}
+								/>
+							))}
+						</nav>
+					</div>
 				</ScrollArea>
 			</nav>
 		</>

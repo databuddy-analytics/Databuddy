@@ -21,7 +21,7 @@ export default function AIAssistantMain() {
 		.slice()
 		.reverse()
 		.find(
-			(m: Message) =>
+			(m) =>
 				m.data &&
 				m.chartType &&
 				m.type === 'assistant' &&
@@ -55,27 +55,25 @@ export default function AIAssistantMain() {
 	);
 
 	return (
-		<div className="fixed inset-0 flex flex-col bg-gradient-to-br from-background to-muted/20 pt-16 md:pl-72">
-			<div className="flex flex-1 overflow-hidden p-3 sm:p-4 lg:p-6">
-				<div className="flex flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
-					<div
-						className={cn(
-							'flex flex-col overflow-hidden',
-							shouldShowVisualization ? 'lg:flex-[0.6]' : 'flex-1'
-						)}
-					>
-						<Suspense fallback={<ChatSkeleton />}>
-							<ChatSection />
+		<div className="h-full bg-gradient-to-br from-background to-muted/20">
+			<div className="flex h-full flex-col gap-3 overflow-hidden lg:flex-row">
+				<div
+					className={cn(
+						'flex min-h-0 flex-col overflow-hidden',
+						shouldShowVisualization ? 'flex-1 lg:flex-[3]' : 'flex-1'
+					)}
+				>
+					<Suspense fallback={<ChatSkeleton />}>
+						<ChatSection />
+					</Suspense>
+				</div>
+				{shouldShowVisualization && (
+					<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-[2]">
+						<Suspense fallback={<VisualizationSkeleton />}>
+							<VisualizationSection />
 						</Suspense>
 					</div>
-					{shouldShowVisualization && (
-						<div className="flex flex-[0.4] flex-col overflow-hidden">
-							<Suspense fallback={<VisualizationSkeleton />}>
-								<VisualizationSection />
-							</Suspense>
-						</div>
-					)}
-				</div>
+				)}
 			</div>
 		</div>
 	);

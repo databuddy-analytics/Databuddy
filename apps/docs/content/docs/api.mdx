@@ -5,7 +5,8 @@ description: Complete API reference for Databuddy analytics endpoints
 
 Access your analytics data programmatically with Databuddy's REST API. All endpoints require authentication and are rate-limited for security.
 
-import { Callout } from "fumadocs-ui/components/callout";
+import { Callout } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
 
 <Callout type="info">
   **Try it live!** Test all these endpoints interactively in our [API
@@ -17,10 +18,11 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 All API requests require authentication using your API key in the `X-Api-Key` header:
 
-```bash
-curl -H "X-Api-Key: YOUR_API_KEY" \
-  https://api.databuddy.cc/v1/query
-```
+<CodeBlock 
+  language="bash"
+  code={`curl -H "X-Api-Key: YOUR_API_KEY" \\
+  https://api.databuddy.cc/v1/query`}
+/>
 
 Get your API key from your [dashboard settings](https://app.databuddy.cc/settings/api). Learn more about scopes and resource access on the [API Keys](/docs/api-keys) page.
 
@@ -35,9 +37,10 @@ Get your API key from your [dashboard settings](https://app.databuddy.cc/setting
 
 Retrieve analytics data for a specific website and date range.
 
-```http
-GET /v1/websites/{website_id}/analytics
-```
+<CodeBlock 
+  language="http"
+  code="GET /v1/websites/{website_id}/analytics"
+/>
 
 **Parameters:**
 
@@ -49,15 +52,17 @@ GET /v1/websites/{website_id}/analytics
 
 **Example:**
 
-```bash
-curl -H "X-Api-Key: YOUR_API_KEY" \
-  "https://api.databuddy.cc/v1/websites/web_123/analytics?start_date=2024-01-01&end_date=2024-01-31&granularity=day"
-```
+<CodeBlock 
+  language="bash"
+  code={`curl -H "X-Api-Key: YOUR_API_KEY" \\
+  "https://api.databuddy.cc/v1/websites/web_123/analytics?start_date=2024-01-01&end_date=2024-01-31&granularity=day"`}
+/>
 
 **Response:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": true,
   "data": {
     "summary": {
@@ -111,8 +116,8 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
       }
     ]
   }
-}
-```
+}`}
+/>
 
 ### Get Real-time Analytics
 
@@ -124,9 +129,10 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
 
 Get current active visitors and real-time metrics.
 
-```http
-GET /v1/websites/{website_id}/realtime
-```
+<CodeBlock 
+  language="http"
+  code="GET /v1/websites/{website_id}/realtime"
+/>
 
 Real-time analytics with WebSocket streaming will be available soon.
 
@@ -134,9 +140,10 @@ Real-time analytics with WebSocket streaming will be available soon.
 
 Retrieve custom event data and conversions.
 
-```http
-GET /v1/websites/{website_id}/events
-```
+<CodeBlock 
+  language="http"
+  code="GET /v1/websites/{website_id}/events"
+/>
 
 **Parameters:**
 
@@ -146,8 +153,9 @@ GET /v1/websites/{website_id}/events
 
 **Response:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": true,
   "data": {
     "events": [
@@ -170,8 +178,8 @@ GET /v1/websites/{website_id}/events
       }
     ]
   }
-}
-```
+}`}
+/>
 
 ## Websites Management
 
@@ -179,14 +187,16 @@ GET /v1/websites/{website_id}/events
 
 Get all websites in your account.
 
-```http
-GET /v1/websites
-```
+<CodeBlock 
+  language="http"
+  code="GET /v1/websites"
+/>
 
 **Response:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": true,
   "data": [
     {
@@ -197,21 +207,23 @@ GET /v1/websites
       "verified": true
     }
   ]
-}
-```
+}`}
+/>
 
 ### Get Website Details
 
 Get details for a specific website.
 
-```http
-GET /v1/websites/{website_id}
-```
+<CodeBlock 
+  language="http"
+  code="GET /v1/websites/{website_id}"
+/>
 
 **Response:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": true,
   "data": {
     "id": "web_123",
@@ -222,8 +234,8 @@ GET /v1/websites/{website_id}
     "tracking_code": "db_abc123...",
     "monthly_pageviews": 45678
   }
-}
-```
+}`}
+/>
 
 ## AI Assistant
 
@@ -231,14 +243,16 @@ GET /v1/websites/{website_id}
 
 Use natural language to query your analytics data.
 
-```http
-POST /v1/websites/{website_id}/assistant/chat
-```
+<CodeBlock 
+  language="http"
+  code="POST /v1/websites/{website_id}/assistant/chat"
+/>
 
 **Request:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "message": "Show me the top pages by pageviews last week",
   "context": {
     "dateRange": {
@@ -246,13 +260,14 @@ POST /v1/websites/{website_id}/assistant/chat
       "end": "2024-01-07"
     }
   }
-}
-```
+}`}
+/>
 
 **Response (Streaming):**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "type": "complete",
   "content": "Here are your top pages by pageviews last week:",
   "data": {
@@ -268,8 +283,8 @@ POST /v1/websites/{website_id}/assistant/chat
       }
     ]
   }
-}
-```
+}`}
+/>
 
 ## Event Tracking
 
@@ -277,14 +292,16 @@ POST /v1/websites/{website_id}/assistant/chat
 
 Track custom events programmatically.
 
-```http
-POST /v1/track
-```
+<CodeBlock 
+  language="http"
+  code="POST /v1/track"
+/>
 
 **Request:**
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "client_id": "your_tracking_id",
   "events": [
     {
@@ -297,8 +314,8 @@ POST /v1/track
       "timestamp": "2024-01-01T12:00:00Z"
     }
   ]
-}
-```
+}`}
+/>
 
 ## Rate Limits
 
@@ -310,26 +327,28 @@ All API endpoints are rate-limited:
 
 Rate limit headers are included in responses:
 
-```http
-X-RateLimit-Limit: 100
+<CodeBlock 
+  language="http"
+  code={`X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1640995200
-```
+X-RateLimit-Reset: 1640995200`}
+/>
 
 ## Error Handling
 
 All errors follow a consistent format:
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": false,
   "error": {
     "code": "INVALID_WEBSITE_ID",
     "message": "Website not found or access denied",
     "details": {}
   }
-}
-```
+}`}
+/>
 
 **Common Error Codes:**
 

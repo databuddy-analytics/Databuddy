@@ -3,6 +3,8 @@ title: API Keys
 description: Create, use, and manage API keys with scopes and resource access
 ---
 
+import { CodeBlock } from "@/components/docs";
+
 ## TL;DR
 
 - Generate keys in the dashboard Settings → API Keys
@@ -29,15 +31,17 @@ We only display the `prefix` and first characters (`start`) later for identifica
 
 You can authenticate with either header:
 
-```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"
-```
+<CodeBlock 
+  language="bash"
+  code={`curl -H "Authorization: Bearer YOUR_API_KEY" \\
+  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"`}
+/>
 
-```bash
-curl -H "x-api-key: YOUR_API_KEY" \
-  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"
-```
+<CodeBlock 
+  language="bash"
+  code={`curl -H "x-api-key: YOUR_API_KEY" \\
+  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"`}
+/>
 
 Notes:
 
@@ -67,21 +71,23 @@ Example: a key with `read:data` on a single website can read analytics only for 
 
 Authentication/authorization failures return structured errors:
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": false,
   "error": "Authentication required",
   "code": "AUTH_REQUIRED"
-}
-```
+}`}
+/>
 
-```json
-{
+<CodeBlock 
+  language="json"
+  code={`{
   "success": false,
   "error": "Insufficient permissions",
   "code": "FORBIDDEN"
-}
-```
+}`}
+/>
 
 ### Rotation and revocation
 

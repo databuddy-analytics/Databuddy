@@ -65,7 +65,7 @@ export default function CustomSidebar() {
 									>
 										<item.Icon
 											className="size-5 flex-shrink-0 text-foreground"
-											weight="duotone"
+											weight="fill"
 										/>
 										<span className="flex-1 text-sm">{item.title}</span>
 										{item.isNew && <NewBadge />}

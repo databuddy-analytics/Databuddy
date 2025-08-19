@@ -1,11 +1,9 @@
 'use client';
 
-import { ChartLineUp, Clock, CreditCard } from '@phosphor-icons/react';
-import { useQueryState } from 'nuqs';
+import { CreditCardIcon } from '@phosphor-icons/react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { TabLayout } from '@/app/(main)/websites/[id]/_components/utils/tab-layout';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
 	type Customer,
 	type Invoice,
@@ -22,31 +20,24 @@ const HistoryTab = lazy(() =>
 	import('./components/history-tab').then((m) => ({ default: m.HistoryTab }))
 );
 
-function TabSkeleton() {
+function ComponentSkeleton() {
 	return (
-		<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-			<div className="space-y-8">
-				<div className="space-y-4 text-center">
-					<Skeleton className="mx-auto h-10 w-64" />
-					<Skeleton className="mx-auto h-6 w-96" />
-				</div>
-				<Skeleton className="h-96 w-full rounded-xl" />
-			</div>
+		<div className="space-y-6">
+			<Skeleton className="h-32 w-full rounded" />
+			<Skeleton className="h-64 w-full rounded" />
+			<Skeleton className="h-48 w-full rounded" />
 		</div>
 	);
 }
 
-const TABS = [
-	{ id: 'overview', label: 'Overview', icon: ChartLineUp },
-	{ id: 'plans', label: 'Plans', icon: CreditCard },
-	{ id: 'history', label: 'History', icon: Clock },
-];
-
 export default function BillingPage() {
-	const [activeTab, setActiveTab] = useQueryState('tab', {
-		defaultValue: 'overview',
-		clearOnDefault: true,
-	});
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const activeTab = searchParams.get('tab') || 'overview';
+
+	const navigateToPlans = () => {
+		router.push('/billing?tab=plans');
+	};
 
 	const { customerData, isLoading } = useBillingData();
 	const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -59,73 +50,81 @@ export default function BillingPage() {
 		}
 	}, [customerData?.invoices, isLoading, hasLoadedInvoices]);
 
-	const navigateToPlans = () => {
-		setActiveTab('plans');
+	const getPageTitle = () => {
+		switch (activeTab) {
+			case 'overview':
+				return {
+					title: 'Usage & Metrics',
+					description: 'Monitor your usage and billing metrics',
+				};
+			case 'plans':
+				return {
+					title: 'Plans & Pricing',
+					description: 'Manage your subscription and billing plan',
+				};
+			case 'history':
+				return {
+					title: 'Payment History',
+					description: 'View your billing history and invoices',
+				};
+			default:
+				return {
+					title: 'Billing & Subscription',
+					description:
+						'Manage your subscription, usage, and billing preferences',
+				};
+		}
 	};
 
+	const { title, description } = getPageTitle();
+
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-			<TabLayout
-				className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
-				description="Manage your subscription, usage, and billing preferences"
-				title="Billing & Subscription"
-			>
-				<Tabs
-					className="space-y-8"
-					onValueChange={setActiveTab}
-					value={activeTab}
-				>
-					{/* Enhanced Tab Navigation */}
-					<div className="border-border/50 border-b">
-						<div className="mx-auto max-w-7xl">
-							<TabsList className="h-12 w-full justify-start overflow-x-auto border-0 bg-transparent p-0">
-								{TABS.map((tab) => (
-									<TabsTrigger
-										className="relative h-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-6 font-medium text-sm transition-all duration-200 hover:bg-muted/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-										key={tab.id}
-										value={tab.id}
-									>
-										<tab.icon className="mr-2 h-4 w-4" />
-										<span>{tab.label}</span>
-										{activeTab === tab.id && (
-											<div className="absolute bottom-0 left-0 h-[3px] w-full rounded-t-full bg-gradient-to-r from-primary to-primary/80" />
-										)}
-									</TabsTrigger>
-								))}
-							</TabsList>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
+				<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-4">
+							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+								<CreditCardIcon
+									className="h-6 w-6 text-primary"
+									size={24}
+									weight="duotone"
+								/>
+							</div>
+							<div>
+								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
+									{title}
+								</h1>
+								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
+									{description}
+								</p>
+							</div>
 						</div>
 					</div>
+				</div>
+			</div>
 
-					{/* Tab Content with improved spacing */}
-					<div className="py-4">
-						<TabsContent className="mt-0" value="overview">
-							<Suspense fallback={<TabSkeleton />}>
-								<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-									<OverviewTab onNavigateToPlans={navigateToPlans} />
-								</div>
-							</Suspense>
-						</TabsContent>
-
-						<TabsContent className="mt-0" value="plans">
-							<Suspense fallback={<TabSkeleton />}>
-								<PlansTab />
-							</Suspense>
-						</TabsContent>
-
-						<TabsContent className="mt-0" value="history">
-							<Suspense fallback={<TabSkeleton />}>
-								<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-									<HistoryTab
-										customerData={customerData as unknown as Customer}
-										invoices={invoices}
-										isLoading={isLoading && !hasLoadedInvoices}
-									/>
-								</div>
-							</Suspense>
-						</TabsContent>
-					</div>
-				</Tabs>
-			</TabLayout>
+			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+				{activeTab === 'overview' && (
+					<Suspense fallback={<ComponentSkeleton />}>
+						<OverviewTab onNavigateToPlans={navigateToPlans} />
+					</Suspense>
+				)}
+				{activeTab === 'plans' && (
+					<Suspense fallback={<ComponentSkeleton />}>
+						<PlansTab />
+					</Suspense>
+				)}
+				{activeTab === 'history' && (
+					<Suspense fallback={<ComponentSkeleton />}>
+						<HistoryTab
+							customerData={customerData as unknown as Customer}
+							invoices={invoices}
+							isLoading={isLoading && !hasLoadedInvoices}
+						/>
+					</Suspense>
+				)}
+			</main>
 		</div>
 	);
 }

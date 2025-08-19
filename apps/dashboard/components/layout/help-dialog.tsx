@@ -68,7 +68,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
 								>
 									<div className="flex items-start gap-4">
 										<div className="rounded-lg bg-primary/10 p-2">
-											<Icon className="h-5 w-5 text-primary" weight="duotone" />
+											<Icon
+												className="h-5 w-5 not-dark:text-primary"
+												weight="duotone"
+											/>
 										</div>
 										<div className="min-w-0 flex-1">
 											<h4 className="font-semibold text-sm leading-none">

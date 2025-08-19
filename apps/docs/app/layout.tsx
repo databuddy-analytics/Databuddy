@@ -1,7 +1,7 @@
 import './global.css';
 import { RootProvider } from 'fumadocs-ui/provider';
 import type { Metadata, Viewport } from 'next';
-import { Geist, Manrope } from 'next/font/google';
+import { Geist, Geist_Mono, Manrope } from 'next/font/google';
 import Head from 'next/head';
 import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
@@ -13,6 +13,12 @@ const geist = Geist({
 	subsets: ['latin'],
 	weight: ['400', '500', '600', '700'],
 	variable: '--font-geist',
+});
+
+const geistMono = Geist_Mono({
+	subsets: ['latin'],
+	weight: ['400', '500', '600', '700'],
+	variable: '--font-geist-mono',
 });
 
 const manrope = Manrope({
@@ -90,7 +96,7 @@ export const viewport: Viewport = {
 export default function Layout({ children }: { children: ReactNode }) {
 	return (
 		<html
-			className={`${geist.className} ${manrope.className}`}
+			className={`${manrope.variable} ${geist.className} ${geistMono.variable} `}
 			lang="en"
 			suppressHydrationWarning
 		>

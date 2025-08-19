@@ -3,10 +3,11 @@ title: Getting Started
 description: Install and configure Databuddy for your application
 ---
 
-import { Step, Steps } from "fumadocs-ui/components/steps";
-import { Tab, Tabs } from "fumadocs-ui/components/tabs";
-import { Callout } from "fumadocs-ui/components/callout";
-import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "@/components/docs";
+import { Tab, Tabs } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
 
 This guide will help you set up Databuddy analytics in your application in just a few minutes.
 
@@ -31,31 +32,33 @@ Choose your installation method based on your application type:
 
 Install the official Databuddy SDK:
 
-```bash
-# Using bun (recommended)
+<CodeBlock 
+  language="bash"
+  code={`# Using bun (recommended)
 bun add @databuddy/sdk
 
 # Using npm
 npm install @databuddy/sdk
 
 # Using yarn
-yarn add @databuddy/sdk
-```
+yarn add @databuddy/sdk`}
+/>
 
 </Tab>
-<Tab value="Script Tag">
+<Tab value="Script Tag">  
 
 For any website, use the script tag method:
 
-```html
-<script
+<CodeBlock 
+  language="html"
+  code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id-here"
   data-track-screen-views="true"
   data-track-performance="true"
   async
-></script>
-```
+></script>`}
+/>
 
 </Tab>
 </Tabs>
@@ -70,8 +73,10 @@ For any website, use the script tag method:
 
 Add the `<Databuddy />` component to your root layout:
 
-```tsx title="app/layout.tsx"
-import { Databuddy } from "@databuddy/sdk";
+<CodeBlock 
+  language="tsx" 
+  filename="app/layout.tsx"
+  code={`import { Databuddy } from "@databuddy/sdk";
 
 export default function RootLayout({
   children,
@@ -93,22 +98,26 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
-```
+}`}
+/>
 
 **Environment Variables:**
 
-```bash title=".env.local"
-NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id-here
-```
+<CodeBlock 
+  language="bash" 
+  filename=".env.local"
+  code="NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id-here"
+/>
 
 </Tab>
 <Tab value="Script Tag">
 
 Add the script to your HTML before the closing `</body>` tag:
 
-```html title="index.html"
-<!DOCTYPE html>
+<CodeBlock 
+  language="html" 
+  filename="index.html"
+  code={`<!DOCTYPE html>
 <html>
   <head>
     <title>My Website</title>
@@ -127,8 +136,8 @@ Add the script to your HTML before the closing `</body>` tag:
       async
     ></script>
   </body>
-</html>
-```
+</html>`}
+/>
 
 </Tab>
 </Tabs>
@@ -166,8 +175,10 @@ Check that analytics are working correctly:
 <Tabs items={['React/Next.js', 'Script Tag']}>
 <Tab value="React/Next.js">
 
-```tsx title="Recommended Configuration"
-<Databuddy
+<CodeBlock 
+  language="tsx" 
+  filename="Recommended Configuration"
+  code={`<Databuddy
   clientId="your-client-id"
   // Core tracking (recommended for all sites)
   trackScreenViews={true} // Track page/route changes
@@ -179,27 +190,29 @@ Check that analytics are working correctly:
   trackOutgoingLinks={false} // Track external link clicks
   trackScrollDepth={false} // Track scroll behavior
   trackEngagement={false} // Track user engagement
+/>`}
 />
-```
 
 </Tab>
 <Tab value="Script Tag">
 
-```html title="Recommended Configuration"
-<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-client-id="your-client-id"
-  data-track-screen-views="true"
-  data-track-performance="true"
-  data-track-web-vitals="true"
-  data-track-errors="true"
-  data-track-sessions="true"
-  data-track-outgoing-links="false"
-  data-enable-batching="true"
-  data-batch-size="10"
-  async
-></script>
-```
+<CodeBlock 
+  language="html" 
+  filename="Recommended Configuration"
+  code={`<script
+      src="https://cdn.databuddy.cc/databuddy.js"
+      data-client-id="your-client-id"
+      data-track-screen-views="true"
+      data-track-performance="true"
+      data-track-web-vitals="true"
+      data-track-errors="true"
+      data-track-sessions="true"
+      data-track-outgoing-links="false"
+      data-enable-batching="true"
+      data-batch-size="10"
+      async
+></script>`}
+/>
 
 <Callout type="info">
   **Security**: All tracking scripts automatically include
@@ -216,24 +229,26 @@ Check that analytics are working correctly:
   analytics with test data.
 </Callout>
 
-```tsx title="Environment Configuration"
-const isDevelopment = process.env.NODE_ENV === "development";
+<CodeBlock 
+  language="tsx" 
+  filename="Environment Configuration"
+  code={`const isDevelopment = process.env.NODE_ENV === "development";
 const isProduction = process.env.NODE_ENV === "production";
 
 <Databuddy
-  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-  disabled={isDevelopment} // 🚫 No tracking in development
-  // Core tracking
-  trackScreenViews
-  trackPerformance
-  trackWebVitals={isProduction}
-  trackErrors={isProduction}
-  // Performance optimizations for production
-  enableBatching={isProduction}
-  batchSize={isProduction ? 20 : 1}
-  samplingRate={isProduction ? 1.0 : 0.1}
-/>;
-```
+    clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+    disabled={isDevelopment} // 🚫 No tracking in development
+    // Core tracking
+    trackScreenViews
+    trackPerformance
+    trackWebVitals={isProduction}
+    trackErrors={isProduction}
+    // Performance optimizations for production
+    enableBatching={isProduction}
+    batchSize={isProduction ? 20 : 1}
+    samplingRate={isProduction ? 1.0 : 0.1}
+/>;`}
+/>
 
 ## Custom Event Tracking
 
@@ -242,8 +257,10 @@ Track custom events with rich properties for comprehensive analytics:
 <Tabs items={['React/Next.js', 'Script Tag']}>
 <Tab value="React/Next.js">
 
-```tsx title="Custom Events with Rich Properties"
-import { useEffect } from "react";
+<CodeBlock 
+  language="tsx" 
+  filename="Custom Events with Rich Properties"
+  code={`import { useEffect } from "react";
 
 function SignupForm() {
   const handleSignup = (plan: string) => {
@@ -252,7 +269,7 @@ function SignupForm() {
       source: "landing_page",
       plan: plan,
       trial_days: plan === "pro" ? 14 : 7,
-      form_type: "inline",
+      form_type: "in    line",
       utm_source: new URLSearchParams(window.location.search).get("utm_source"),
       referrer_domain: document.referrer
         ? new URL(document.referrer).hostname
@@ -293,14 +310,16 @@ function SignupForm() {
       </button>
     </form>
   );
-}
-```
+}`}
+/>
 
 </Tab>
 <Tab value="Script Tag">
 
-```html title="Custom Events with Detailed Properties"
-<script>
+<CodeBlock 
+  language="html" 
+  filename="Custom Events with Detailed Properties"
+  code={`<script>
   // Track button clicks with comprehensive context
   function trackSignup(plan) {
     db.track("signup_completed", {
@@ -348,8 +367,8 @@ function SignupForm() {
   onclick="trackFeatureUsed('export', {tier: 'premium', category: 'data'})"
 >
   Export Data
-</button>
-```
+</button>`}
+/>
 
 </Tab>
 </Tabs>

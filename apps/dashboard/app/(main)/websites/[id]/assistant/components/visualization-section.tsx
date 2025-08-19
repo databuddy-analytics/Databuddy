@@ -1157,15 +1157,13 @@ export default function VisualizationSection() {
 				)}
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto">
-				<ScrollArea className="h-full">
-					<div
-						className={`p-3 transition-all duration-300 ${websiteData ? 'opacity-100' : 'opacity-90'}`}
-					>
-						{renderChartContent()}
-					</div>
-				</ScrollArea>
-			</div>
+			<ScrollArea className="min-h-0 flex-1">
+				<div
+					className={`p-3 transition-all duration-300 ${websiteData ? 'opacity-100' : 'opacity-90'}`}
+				>
+					{renderChartContent()}
+				</div>
+			</ScrollArea>
 		</div>
 	);
 }

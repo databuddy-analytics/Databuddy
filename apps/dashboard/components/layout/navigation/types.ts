@@ -9,9 +9,12 @@ export interface NavigationItem {
 	highlight?: boolean;
 	alpha?: boolean;
 	production?: boolean;
+	domain?: string;
+	disabled?: boolean;
 }
 
 export interface NavigationSection {
 	title: string;
+	icon: Icon;
 	items: NavigationItem[];
 }

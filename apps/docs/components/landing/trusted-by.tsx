@@ -103,15 +103,11 @@ import { LogoCarousel } from './logo-carousel';
 
 export const TrustedBy = () => {
 	return (
-		<div className="relative flex h-full w-full flex-col items-center overflow-hidden px-4 pt-6 sm:px-6 sm:pt-8 md:px-8">
-			<div className="w-full max-w-6xl space-y-6 text-center sm:space-y-8">
-				<h2 className="mx-auto max-w-xs font-medium text-foreground text-lg leading-tight sm:max-w-sm sm:text-xl md:text-2xl">
-					Trusted by developers around the world
-				</h2>
-				<div className="w-full">
-					<LogoCarousel columns={3} logos={logos} />
-				</div>
-			</div>
+		<div className="space-y-6 sm:space-y-8">
+			<h2 className="mx-auto max-w-xs text-center font-medium text-foreground text-lg leading-tight sm:max-w-sm sm:text-xl md:text-2xl">
+				Trusted by developers around the world
+			</h2>
+			<LogoCarousel columns={3} logos={logos} />
 		</div>
 	);
 };

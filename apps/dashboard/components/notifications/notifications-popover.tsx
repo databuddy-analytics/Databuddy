@@ -37,7 +37,13 @@ export function NotificationsPopover() {
 					)}
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-80 bg-card p-0">
+			<PopoverContent
+				align="start"
+				className="w-80 bg-card p-0"
+				collisionPadding={16}
+				side="right"
+				sideOffset={8}
+			>
 				<div className="flex items-center justify-between border-b p-4">
 					<h4 className="font-medium">Notifications</h4>
 					{Notifications.length > 0 && (

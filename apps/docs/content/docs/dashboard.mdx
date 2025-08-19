@@ -3,10 +3,11 @@ title: Dashboard Guide
 description: Complete guide to using your Databuddy analytics dashboard
 ---
 
-import { Tab, Tabs } from "fumadocs-ui/components/tabs";
-import { Callout } from "fumadocs-ui/components/callout";
-import { Card, Cards } from "fumadocs-ui/components/card";
-import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { Tab, Tabs } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+import { Accordion, Accordions } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
 
 Your Databuddy dashboard provides comprehensive analytics insights with real-time data, detailed reports, and powerful filtering capabilities.
 
@@ -432,30 +433,32 @@ Event: purchase_completed (156 events, 89 users)
 
 <Cards>
   <Card title="E-commerce Events" icon="🛒">
-    ```json
-    {
-      "event": "purchase_completed",
-      "properties": {
-        "product_id": "prod_123",
-        "revenue": 29.99,
-        "currency": "USD",
-        "category": "software"
-      }
-    }
-    ```
+    <CodeBlock 
+      language="json"
+      code={`{
+  "event": "purchase_completed",
+  "properties": {
+    "product_id": "prod_123",
+    "revenue": 29.99,
+    "currency": "USD",
+    "category": "software"
+  }
+}`}
+    />
   </Card>
   
   <Card title="Engagement Events" icon="💡">
-    ```json
-    {
-      "event": "feature_used",
-      "properties": {
-        "feature": "export_data",
-        "plan": "pro",
-        "usage_count": 5
-      }
-    }
-    ```
+    <CodeBlock 
+      language="json"
+      code={`{
+  "event": "feature_used",
+  "properties": {
+    "feature": "export_data",
+    "plan": "pro",
+    "usage_count": 5
+  }
+}`}
+    />
   </Card>
 </Cards>
 

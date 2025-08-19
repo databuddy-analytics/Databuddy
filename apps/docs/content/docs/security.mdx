@@ -3,7 +3,7 @@ title: Security & Privacy
 description: How Databuddy protects your data and respects user privacy
 ---
 
-# Security & Privacy
+import { CodeBlock } from "@/components/docs";
 
 Databuddy is built with privacy-first principles and enterprise-grade security. This guide covers what we do to protect your data and how to configure privacy settings for your users.
 
@@ -28,16 +28,17 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 
 ### Anonymous by Default
 
-```javascript
-// All users get anonymous IDs - no personal data
+<CodeBlock 
+  language="javascript"
+  code={`// All users get anonymous IDs - no personal data
 {
   anonymousId: "anon_abc123...",      // Random UUID
   sessionId: "sess_xyz789...",        // Session identifier
   event: "page_view",                 // What happened
   path: "/dashboard",                 // Where it happened
   // No names, emails, or personal data
-}
-```
+}`}
+/>
 
 ### Local Data Storage
 
@@ -61,8 +62,9 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
 
 ### No Consent Required
 
-```tsx
-import { Databuddy } from "@databuddy/sdk";
+<CodeBlock 
+  language="tsx"
+  code={`import { Databuddy } from "@databuddy/sdk";
 
 function App() {
   return (
@@ -78,8 +80,8 @@ function App() {
       {/* No cookie banner needed! */}
     </>
   );
-}
-```
+}`}
+/>
 
 **Why No Consent Needed:**
 
@@ -93,8 +95,10 @@ function App() {
 
 ### Minimal Tracking Setup
 
-```tsx
-// Essential analytics only
+<CodeBlock 
+  language="tsx"
+  filename="Minimal Tracking Setup"
+  code={`// Essential analytics only
 <Databuddy
   clientId="your-client-id"
   // Basic page tracking
@@ -107,13 +111,15 @@ function App() {
   trackScrollDepth={false}
   trackEngagement={false}
   trackErrors={false}
+/>`}
 />
-```
 
 ### Development vs Production
 
-```tsx
-const isProd = process.env.NODE_ENV === "production";
+<CodeBlock 
+  language="tsx"
+  filename="Environment Configuration"
+  code={`const isProd = process.env.NODE_ENV === "production";
 
 <Databuddy
   clientId="your-client-id"
@@ -121,8 +127,8 @@ const isProd = process.env.NODE_ENV === "production";
   // Production-only features
   trackPerformance={isProd}
   trackWebVitals={isProd}
-/>;
-```
+/>;`}
+/>
 
 ## 🔐 Security Features
 
@@ -153,8 +159,10 @@ Since Databuddy only collects anonymous data, users don't need to request data d
 
 ### Optional Opt-Out Implementation
 
-```tsx
-function PrivacyControls() {
+<CodeBlock 
+  language="tsx"
+  filename="Optional Opt-Out Component"
+  code={`function PrivacyControls() {
   const [trackingEnabled, setTrackingEnabled] = useState(true);
 
   const handleOptOut = () => {
@@ -186,8 +194,8 @@ function PrivacyControls() {
       <button onClick={handleOptOut}>Disable analytics</button>
     </div>
   );
-}
-```
+}`}
+/>
 
 ### Why Data Deletion Isn't Needed
 
@@ -200,22 +208,26 @@ function PrivacyControls() {
 
 ### Respect Browser Preferences
 
-```javascript
-// Check Do Not Track setting
+<CodeBlock 
+  language="javascript"
+  filename="Respect Browser Privacy Settings"
+  code={`// Check Do Not Track setting
 const respectDNT = navigator.doNotTrack === "1";
 
 <Databuddy
   clientId="your-client-id"
   disabled={respectDNT} // Respect browser privacy setting
-/>;
-```
+/>;`}
+/>
 
 ## 📋 Privacy Best Practices
 
 ### 1. Be Transparent
 
-```tsx
-// Clear privacy notice
+<CodeBlock 
+  language="tsx"
+  filename="Privacy Notice Component"
+  code={`// Clear privacy notice
 function PrivacyNotice() {
   return (
     <div className="privacy-notice">
@@ -227,13 +239,15 @@ function PrivacyNotice() {
       <a href="/privacy-policy">Read our privacy policy</a>
     </div>
   );
-}
-```
+}`}
+/>
 
 ### 2. Provide Controls (Optional)
 
-```tsx
-// Optional privacy dashboard (not required since data is anonymous)
+<CodeBlock 
+  language="tsx"
+  filename="Privacy Dashboard Component"
+  code={`// Optional privacy dashboard (not required since data is anonymous)
 function PrivacyDashboard() {
   return (
     <div>
@@ -256,13 +270,15 @@ function PrivacyDashboard() {
       </div>
     </div>
   );
-}
-```
+}`}
+/>
 
 ### 3. Honor Preferences
 
-```tsx
-// Respect user choices
+<CodeBlock 
+  language="tsx"
+  filename="Respect User Preferences"
+  code={`// Respect user choices
 const privacySettings = getUserPrivacySettings();
 
 <Databuddy
@@ -270,8 +286,8 @@ const privacySettings = getUserPrivacySettings();
   trackScreenViews={privacySettings.allowPageViews}
   trackPerformance={privacySettings.allowPerformance}
   trackErrors={privacySettings.allowErrors}
-/>;
-```
+/>;`}
+/>
 
 ## ⚖️ Legal Compliance
 
@@ -310,19 +326,23 @@ No personal data or cookies are used.
 
 ### Content Security Policy
 
-```html
-<!-- Add Databuddy to your CSP -->
+<CodeBlock 
+  language="html"
+  filename="Content Security Policy"
+  code={`<!-- Add Databuddy to your CSP -->
 <meta
   http-equiv="Content-Security-Policy"
   content="script-src 'self' https://app.databuddy.cc; 
                connect-src 'self' https://basket.databuddy.cc;"
+/>`}
 />
-```
 
 ### Secure Configuration
 
-```tsx
-// Environment-specific settings
+<CodeBlock 
+  language="tsx"
+  filename="Secure Environment Configuration"
+  code={`// Environment-specific settings
 const config = {
   development: {
     clientId: process.env.NEXT_PUBLIC_DATABUDDY_DEV_ID,
@@ -334,8 +354,8 @@ const config = {
   },
 }[process.env.NODE_ENV];
 
-<Databuddy {...config} />;
-```
+<Databuddy {...config} />;`}
+/>
 
 ## 🆘 Support & Questions
 

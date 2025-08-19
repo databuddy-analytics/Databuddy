@@ -30,14 +30,16 @@ export const getDeviceIcon = (device: string) => {
 export const getBrowserIconComponent = (browser: string) => {
 	const iconPath = getBrowserIcon(browser);
 	return (
-		<img
-			alt={browser}
-			className="h-4 w-4 object-contain"
-			onError={(e) => {
-				(e.target as HTMLImageElement).style.display = 'none';
-			}}
-			src={iconPath}
-		/>
+		<div className="flex h-4 w-4 items-center justify-center">
+			<img
+				alt={browser}
+				className="h-4 w-4 object-contain"
+				onError={(e) => {
+					(e.target as HTMLImageElement).style.display = 'none';
+				}}
+				src={iconPath}
+			/>
+		</div>
 	);
 };
 
@@ -57,7 +59,11 @@ export const getOSIconComponent = (os: string) => {
 
 export const getCountryFlag = (country: string) => {
 	if (!country || country === 'Unknown' || country === '') {
-		return <GlobeIcon className="h-4 w-4 text-muted-foreground" />;
+		return (
+			<div className="flex h-4 w-6 items-center justify-center">
+				<GlobeIcon className="h-4 w-4 text-muted-foreground" />
+			</div>
+		);
 	}
 
 	return (

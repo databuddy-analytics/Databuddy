@@ -22,32 +22,34 @@ const AIAssistantMain = dynamic(
 
 function AIAssistantLoadingSkeleton() {
 	return (
-		<div className="flex flex-1 gap-3 overflow-hidden p-3">
-			<div className="flex flex-[2_2_0%] flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
-				<div className="flex-shrink-0 border-b p-3">
-					<Skeleton className="mb-1 h-5 w-32" />
-					<Skeleton className="h-3 w-48" />
-				</div>
-				<div className="flex-1 space-y-3 overflow-y-auto p-3">
-					<div className="flex gap-2">
-						<Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
-						<Skeleton className="h-16 w-3/4 rounded-lg" />
+		<div className="flex h-full min-h-0 flex-col gap-3">
+			<div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+				<div className="flex flex-[2_2_0%] flex-col overflow-hidden rounded border bg-background shadow-sm">
+					<div className="flex-shrink-0 border-b p-3">
+						<Skeleton className="mb-1 h-5 w-32" />
+						<Skeleton className="h-3 w-48" />
 					</div>
-					<div className="ml-auto flex flex-row-reverse gap-2">
-						<Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
-						<Skeleton className="h-10 w-1/2 rounded-lg" />
+					<div className="flex-1 space-y-3 overflow-y-auto p-3">
+						<div className="flex gap-2">
+							<Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
+							<Skeleton className="h-16 w-3/4 rounded" />
+						</div>
+						<div className="ml-auto flex flex-row-reverse gap-2">
+							<Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
+							<Skeleton className="h-10 w-1/2 rounded" />
+						</div>
+					</div>
+					<div className="flex-shrink-0 border-t p-3">
+						<Skeleton className="h-9 w-full rounded" />
 					</div>
 				</div>
-				<div className="flex-shrink-0 border-t p-3">
-					<Skeleton className="h-9 w-full rounded-md" />
-				</div>
-			</div>
-			<div className="flex flex-[3_3_0%] flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
-				<div className="flex-shrink-0 border-b p-3">
-					<Skeleton className="mb-1 h-5 w-32" />
-				</div>
-				<div className="flex-1 p-3">
-					<Skeleton className="h-full w-full rounded-lg" />
+				<div className="flex flex-[3_3_0%] flex-col overflow-hidden rounded border bg-background shadow-sm">
+					<div className="flex-shrink-0 border-b p-3">
+						<Skeleton className="mb-1 h-5 w-32" />
+					</div>
+					<div className="flex-1 p-3">
+						<Skeleton className="h-full w-full rounded" />
+					</div>
 				</div>
 			</div>
 		</div>
@@ -75,15 +77,13 @@ export default function AssistantPage() {
 		});
 	}, [id, setWebsiteId, websiteData, setWebsiteData, setDateRange]);
 
+	if (isLoading || !websiteData) {
+		return <AIAssistantLoadingSkeleton />;
+	}
+
 	return (
-		<div className="fixed inset-0 flex flex-col bg-gradient-to-br from-background to-muted/20 pt-16 md:pl-72">
-			<div className="mt-6 flex flex-1 overflow-hidden">
-				{isLoading || !websiteData ? (
-					<AIAssistantLoadingSkeleton />
-				) : (
-					<AIAssistantMain />
-				)}
-			</div>
+		<div className="h-full min-h-0">
+			<AIAssistantMain />
 		</div>
 	);
 }

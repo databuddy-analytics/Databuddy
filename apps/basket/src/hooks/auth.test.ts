@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { logger } from '../lib/logger';
 import {
 	isLocalhost,
@@ -8,35 +8,6 @@ import {
 	isValidOriginSecure,
 	normalizeDomain,
 } from './auth';
-
-// Mock the logger to prevent console output during tests
-vi.mock('../../lib/logger', () => ({
-	logger: {
-		warn: vi.fn(),
-		error: vi.fn(),
-	},
-}));
-
-vi.mock('@databuddy/db', () => ({
-	db: {
-		query: {
-			websites: {
-				findFirst: vi.fn(),
-			},
-			member: {
-				findFirst: vi.fn(),
-			},
-		},
-	},
-	eq: vi.fn(),
-	and: vi.fn(),
-	websites: {},
-	member: {},
-}));
-
-vi.mock('@databuddy/redis', () => ({
-	cacheable: vi.fn(),
-}));
 
 describe('Auth Hooks', () => {
 	describe('normalizeDomain', () => {

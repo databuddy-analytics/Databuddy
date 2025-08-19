@@ -1,24 +1,25 @@
-'use client';
-
 import {
-	BrainIcon,
-	CaretDownIcon,
 	ChartBarIcon,
 	ChartLineIcon,
 	ChartPieIcon,
-	ClockIcon,
 	HashIcon,
-	RobotIcon,
-	UserIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+	CopyIcon,
+	ArrowClockwiseIcon,
+} from '@phosphor-icons/react/ssr';
+
 import {
-	Accordion,
-	AccordionContent,
-	AccordionItem,
-	AccordionTrigger,
-} from '@/components/ui/accordion';
-import { cn } from '@/lib/utils';
+	Message as AIMessage,
+	MessageContent,
+	MessageAvatar,
+} from '@/components/ai-elements/message';
+import { Loader } from '@/components/ai-elements/loader';
+import {
+	Reasoning,
+	ReasoningTrigger,
+	ReasoningContent,
+} from '@/components/ai-elements/reasoning';
+import { Response } from '@/components/ai-elements/response';
+import { Actions, Action } from '@/components/ai-elements/actions';
 import type { Message } from '../types/message';
 
 interface MessageBubbleProps {
@@ -38,96 +39,20 @@ const getChartIcon = (chartType: string) => {
 	}
 };
 
-function ThinkingStepsPreview({ steps }: { steps: string[] }) {
-	const [visibleSteps, setVisibleSteps] = useState<string[]>([]);
-	const [animatedSteps, setAnimatedSteps] = useState<Set<number>>(new Set());
-	const maxPreviewSteps = 3;
 
-	useEffect(() => {
-		if (steps.length === 0) {
-			return;
-		}
 
-		// Show the latest steps in the preview (sliding window)
-		const latestSteps = steps.slice(-maxPreviewSteps);
-		setVisibleSteps(latestSteps);
-
-		// Animate new steps
-		const newStepIndex = latestSteps.length - 1;
-		if (newStepIndex >= 0) {
-			setTimeout(() => {
-				setAnimatedSteps((prev) => new Set([...prev, newStepIndex]));
-			}, 50);
-		}
-	}, [steps]);
-
-	if (visibleSteps.length === 0) {
-		return null;
-	}
-
-	return (
-		<div className="mt-2 max-h-20 space-y-1 overflow-hidden">
-			{visibleSteps.map((step, index) => {
-				const isAnimated = animatedSteps.has(index);
-
-				return (
-					<div
-						className={cn(
-							'flex items-start gap-2 py-1 pl-1 text-muted-foreground text-xs transition-all duration-300 ease-in-out',
-							isAnimated
-								? 'translate-y-0 opacity-100'
-								: 'translate-y-2 opacity-0'
-						)}
-						key={`preview-${index}-${step.slice(0, 20)}`}
-					>
-						<ClockIcon className="mt-0.5 h-3 w-3 flex-shrink-0" />
-						<span className="break-words leading-relaxed">{step}</span>
-					</div>
-				);
-			})}
-			{steps.length > maxPreviewSteps && (
-				<div className="flex items-center gap-2 py-1 pl-1 text-muted-foreground text-xs opacity-60">
-					<CaretDownIcon className="h-3 w-3" />
-					<span>+{steps.length - maxPreviewSteps} more steps...</span>
-				</div>
-			)}
-		</div>
-	);
-}
-
-function ThinkingStepsAccordion({ steps }: { steps: string[] }) {
+function ThinkingStepsReasoning({ steps, isStreaming = false }: { steps: string[]; isStreaming?: boolean }) {
 	if (steps.length === 0) {
 		return null;
 	}
 
+	const reasoningContent = steps.map((step, index) => `${index + 1}. ${step}`).join('\n\n');
+
 	return (
-		<Accordion className="w-full" collapsible type="single">
-			<AccordionItem className="border-border/30" value="thinking-steps">
-				<AccordionTrigger className="py-2 text-xs hover:no-underline">
-					<div className="flex items-center gap-2">
-						<BrainIcon className="h-3 w-3" />
-						<span>Thinking Process ({steps.length} steps)</span>
-					</div>
-				</AccordionTrigger>
-				<AccordionContent className="pt-2">
-					<div className="max-h-48 space-y-2 overflow-y-auto">
-						{steps.map((step, index) => {
-							return (
-								<div
-									className="flex items-start gap-2 py-1 pl-1 text-muted-foreground text-xs"
-									key={`step-${index}-${step.slice(0, 20)}`}
-								>
-									<div className="mt-0.5 flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full bg-muted-foreground/20">
-										<span className="font-mono text-[10px]">{index + 1}</span>
-									</div>
-									<span className="leading-relaxed">{step}</span>
-								</div>
-							);
-						})}
-					</div>
-				</AccordionContent>
-			</AccordionItem>
-		</Accordion>
+		<Reasoning isStreaming={isStreaming} defaultOpen={false}>
+			<ReasoningTrigger title={`Thinking Process (${steps.length} steps)`} />
+			<ReasoningContent>{reasoningContent}</ReasoningContent>
+		</Reasoning>
 	);
 }
 
@@ -136,17 +61,14 @@ function InProgressMessage({ message }: { message: Message }) {
 		message.thinkingSteps && message.thinkingSteps.length > 0;
 
 	return (
-		<div className="flex w-full max-w-[85%] gap-3">
-			<div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border bg-muted shadow-sm">
-				<RobotIcon className="h-4 w-4" />
-			</div>
-			<div className="min-w-0 flex-1 rounded-lg border bg-muted px-4 py-3 shadow-sm">
-				<div className="flex items-center gap-2 text-sm">
-					<div className="flex space-x-1">
-						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.3s]" />
-						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground [animation-delay:-0.15s]" />
-						<div className="h-2 w-2 animate-bounce rounded-full bg-foreground" />
-					</div>
+		<AIMessage from="assistant">
+			<MessageAvatar 
+				src="/databunny-avatar.png" 
+				name="Databunny"
+			/>
+			<MessageContent>
+				<div className="flex items-center gap-2">
+					<Loader size={16} />
 					<span className="text-muted-foreground">
 						Databunny is analyzing...
 					</span>
@@ -154,11 +76,14 @@ function InProgressMessage({ message }: { message: Message }) {
 
 				{hasThinkingSteps && (
 					<div className="mt-3 border-border/30 border-t pt-3">
-						<ThinkingStepsPreview steps={message.thinkingSteps || []} />
+						<ThinkingStepsReasoning 
+							steps={message.thinkingSteps || []} 
+							isStreaming={true}
+						/>
 					</div>
 				)}
-			</div>
-		</div>
+			</MessageContent>
+		</AIMessage>
 	);
 }
 
@@ -173,42 +98,17 @@ function CompletedMessage({
 		message.thinkingSteps && message.thinkingSteps.length > 0;
 
 	return (
-		<div
-			className={cn(
-				'group flex w-full gap-3',
-				isUser ? 'justify-end' : 'justify-start'
-			)}
-		>
-			<div
-				className={cn(
-					'mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full shadow-sm',
-					isUser
-						? 'order-2 bg-primary text-primary-foreground'
-						: 'order-1 border bg-muted'
-				)}
-			>
-				{isUser ? (
-					<UserIcon className="h-4 w-4" />
-				) : (
-					<RobotIcon className="h-4 w-4" />
-				)}
-			</div>
-
-			<div
-				className={cn(
-					'relative min-w-0 max-w-[85%] rounded-lg px-4 py-3 shadow-sm',
-					isUser
-						? 'order-1 bg-primary text-primary-foreground'
-						: 'order-2 border bg-muted'
-				)}
-			>
-				<div className="overflow-wrap-anywhere whitespace-pre-wrap break-words text-sm leading-relaxed">
-					{message.content}
-				</div>
+		<AIMessage from={isUser ? 'user' : 'assistant'}>
+			<MessageAvatar 
+				src={isUser ? "/user-avatar.png" : "/databunny-avatar.png"} 
+				name={isUser ? "You" : "Databunny"}
+			/>
+			<MessageContent>
+				<Response>{message.content}</Response>
 
 				{hasThinkingSteps && !isUser && message.content && (
 					<div className="mt-3">
-						<ThinkingStepsAccordion steps={message.thinkingSteps || []} />
+						<ThinkingStepsReasoning steps={message.thinkingSteps || []} />
 					</div>
 				)}
 
@@ -243,16 +143,32 @@ function CompletedMessage({
 					</div>
 				)}
 
-				<div className="-bottom-5 absolute right-0 opacity-0 transition-opacity group-hover:opacity-60">
-					<div className="mt-1 font-mono text-xs">
+				<div className="mt-3 flex items-center justify-between">
+					<div className="opacity-60 text-xs">
 						{message.timestamp.toLocaleTimeString([], {
 							hour: '2-digit',
 							minute: '2-digit',
 						})}
 					</div>
+					{!isUser && (
+						<Actions>
+							<Action 
+								tooltip="Copy message"
+								onClick={() => navigator.clipboard.writeText(message.content)}
+							>
+								<CopyIcon className="h-4 w-4" />
+							</Action>
+							<Action 
+								tooltip="Regenerate response"
+								onClick={() => {/* TODO: Implement regenerate */}}
+							>
+								<ArrowClockwiseIcon className="h-4 w-4" />
+							</Action>
+						</Actions>
+					)}
 				</div>
-			</div>
-		</div>
+			</MessageContent>
+		</AIMessage>
 	);
 }
 

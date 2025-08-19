@@ -1,187 +1,78 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/app/util/constants';
 import { getPosts } from '@/lib/blog-query';
+import { getAllCompetitorSlugs } from '@/lib/comparison-config';
 import { source } from '@/lib/source';
 
-// Regex pattern for matching integration pages
-const integrationPattern = /\/docs\/integrations\/(.+)/;
+const priorityRules = [
+	{ pattern: '/docs', priority: 1.0 },
+	{ pattern: '/compare', priority: 0.9 },
+	{ pattern: '/compare/plausible', priority: 0.85 },
+	{ pattern: '/compare/google-analytics', priority: 0.85 },
+	{ pattern: '/compare/fathom', priority: 0.85 },
 
-// Priority mapping for different page types
-const priorityMap: Record<string, number> = {
-	'/docs': 1.0,
-	'/docs/getting-started': 0.9,
-	'/docs/sdk': 0.9,
-	'/docs/comparisons/databuddy-vs-google-analytics': 0.95,
-	'/docs/compliance/gdpr-compliance-guide': 0.9,
-	'/docs/performance/core-web-vitals-guide': 0.85,
-	'/docs/dashboard': 0.8,
-	'/docs/security': 0.8,
-	'/docs/integrations': 0.8,
-	'/docs/api': 0.7,
-	'/blog': 0.8,
-	'/api': 0.7,
-	'/contributors': 0.8,
-	'/privacy': 0.5,
-	'/llms.txt': 0.4,
-};
-
-// Change frequency mapping
-const changeFrequencyMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {
-	'/docs': 'weekly',
-	'/docs/getting-started': 'weekly',
-	'/docs/sdk': 'weekly',
-	'/docs/comparisons/databuddy-vs-google-analytics': 'monthly',
-	'/docs/compliance/gdpr-compliance-guide': 'monthly',
-	'/docs/performance/core-web-vitals-guide': 'monthly',
-	'/docs/dashboard': 'weekly',
-	'/docs/security': 'monthly',
-	'/docs/integrations': 'weekly',
-	'/docs/api': 'monthly',
-	'/blog': 'monthly',
-	'/api': 'monthly',
-	'/contributors': 'monthly',
-	'/privacy': 'yearly',
-	'/llms.txt': 'weekly',
-};
+	{ pattern: '/getting-started', priority: 0.9 },
+	{ pattern: '/sdk', priority: 0.9 },
+	{ pattern: '/compliance/gdpr', priority: 0.85 },
+	{ pattern: '/performance/core-web-vitals', priority: 0.85 },
+	{ pattern: '/integrations/react', priority: 0.8 },
+	{ pattern: '/integrations/nextjs', priority: 0.8 },
+	{ pattern: '/dashboard', priority: 0.8 },
+	{ pattern: '/security', priority: 0.8 },
+	{ pattern: '/contributors', priority: 0.8 },
+	{ pattern: '/pricing', priority: 0.8 },
+	{ pattern: '/integrations/', priority: 0.7 },
+	{ pattern: '/blog', priority: 0.7 },
+	{ pattern: '/api', priority: 0.7 },
+	{ pattern: '/roadmap', priority: 0.6 },
+	{ pattern: '/sponsors', priority: 0.6 },
+	{ pattern: '/ambassadors', priority: 0.6 },
+	{ pattern: '/privacy', priority: 0.5 },
+	{ pattern: '/terms', priority: 0.5 },
+	{ pattern: '/llms.txt', priority: 0.4 },
+];
 
 function getPriority(url: string): number {
-	return priorityMap[url] || (url.includes('/integrations/') ? 0.7 : 0.6);
-}
-
-function getChangeFrequency(url: string): 'weekly' | 'monthly' | 'yearly' {
-	return changeFrequencyMap[url] || 'weekly';
-}
-
-function createSitemapEntry(
-	url: string,
-	baseUrl: string,
-	lastModified: Date,
-	priority?: number,
-	changeFrequency?: 'weekly' | 'monthly' | 'yearly'
-): MetadataRoute.Sitemap[0] {
-	return {
-		url: `${baseUrl}${url}`,
-		lastModified,
-		changeFrequency: changeFrequency || getChangeFrequency(url),
-		priority: priority || getPriority(url),
-	};
-}
-
-function processIntegrationPages(entries: MetadataRoute.Sitemap): void {
-	for (const entry of entries) {
-		const match = entry.url.match(integrationPattern);
-		if (match) {
-			const integrationName = match[1];
-			if (integrationName === 'react' || integrationName === 'nextjs') {
-				entry.priority = 0.8;
-			}
+	for (const rule of priorityRules) {
+		if (
+			url === rule.pattern ||
+			(rule.pattern !== url && url.includes(rule.pattern))
+		) {
+			return rule.priority;
 		}
 	}
+	return 0.6;
 }
 
-function processSourcePages(
-	pages: Array<{ url: string }>,
-	baseUrl: string,
-	lastModified: Date
-): MetadataRoute.Sitemap {
-	return pages.map((page) =>
-		createSitemapEntry(page.url, baseUrl, lastModified)
-	);
-}
-
-function processNonDocPages(
-	pages: string[],
-	baseUrl: string,
-	lastModified: Date
-): MetadataRoute.Sitemap {
-	return pages.map((page) =>
-		createSitemapEntry(page, baseUrl, lastModified, 0.5, 'yearly')
-	);
-}
-
-function processBlogPages(baseUrl: string): Promise<MetadataRoute.Sitemap> {
-	return getPosts()
-		.then((data) => {
-			if ('error' in data || !data?.posts) {
-				return [];
-			}
-
-			return data.posts.map((post) => ({
-				url: `${baseUrl}/blog/${post.slug}`,
-				lastModified: new Date(post.publishedAt),
-				changeFrequency: 'monthly' as const,
-				priority: 0.8,
-			}));
-		})
-		.catch((error) => {
-			console.warn('Failed to fetch blog posts for sitemap:', error);
-			return [];
-		});
-}
-
-function getFallbackEntries(): Array<{
-	url: string;
-	priority: number;
-	changeFrequency: 'weekly' | 'monthly' | 'yearly';
-}> {
-	return [
-		{ url: '/docs', priority: 1.0, changeFrequency: 'weekly' },
-		{ url: '/docs/getting-started', priority: 0.9, changeFrequency: 'weekly' },
-		{ url: '/docs/sdk', priority: 0.9, changeFrequency: 'weekly' },
-		{ url: '/docs/dashboard', priority: 0.8, changeFrequency: 'weekly' },
-		{ url: '/docs/security', priority: 0.8, changeFrequency: 'monthly' },
-		{ url: '/docs/api', priority: 0.7, changeFrequency: 'monthly' },
-		{ url: '/docs/integrations', priority: 0.8, changeFrequency: 'weekly' },
-		{
-			url: '/docs/integrations/react',
-			priority: 0.8,
-			changeFrequency: 'weekly',
-		},
-		{
-			url: '/docs/integrations/nextjs',
-			priority: 0.8,
-			changeFrequency: 'weekly',
-		},
-		{
-			url: '/docs/integrations/wordpress',
-			priority: 0.8,
-			changeFrequency: 'weekly',
-		},
-		{
-			url: '/docs/integrations/shopify',
-			priority: 0.8,
-			changeFrequency: 'weekly',
-		},
-		{
-			url: '/docs/integrations/stripe',
-			priority: 0.8,
-			changeFrequency: 'weekly',
-		},
-		{
-			url: '/docs/integrations/framer',
-			priority: 0.7,
-			changeFrequency: 'weekly',
-		},
-		{ url: '/docs/integrations/gtm', priority: 0.7, changeFrequency: 'weekly' },
-		{ url: '/privacy', priority: 0.5, changeFrequency: 'yearly' },
-		{ url: '/llms.txt', priority: 0.4, changeFrequency: 'weekly' },
-	];
-}
-
-function processFallbackEntries(
-	baseUrl: string,
-	lastModified: Date
-): MetadataRoute.Sitemap {
-	const fallbackEntries = getFallbackEntries();
-	return fallbackEntries.map((entry) =>
-		createSitemapEntry(
-			entry.url,
-			baseUrl,
-			lastModified,
-			entry.priority,
-			entry.changeFrequency
-		)
-	);
+// Simple change frequency rules
+function getChangeFrequency(url: string): 'weekly' | 'monthly' | 'yearly' {
+	if (url.includes('/privacy') || url.includes('/terms')) {
+		return 'yearly';
+	}
+	if (
+		url.includes('/compliance/') ||
+		url.includes('/performance/') ||
+		url.includes('/security')
+	) {
+		return 'monthly';
+	}
+	if (url.includes('/api') && !url.includes('/api-keys')) {
+		return 'monthly';
+	}
+	if (url.includes('/blog') && url !== '/blog') {
+		return 'monthly';
+	}
+	if (url.includes('/pricing') || url.includes('/roadmap')) {
+		return 'monthly';
+	}
+	if (
+		url.includes('/contributors') ||
+		url.includes('/sponsors') ||
+		url.includes('/ambassadors')
+	) {
+		return 'monthly';
+	}
+	return 'weekly';
 }
 
 export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
@@ -189,50 +80,86 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 	const entries: MetadataRoute.Sitemap = [];
 
 	try {
+		// Get all documentation pages from source
 		const pages = source.getPages();
-		const nonDocPages = ['/privacy', '/llms.txt', '/contributors', '/api'];
-
-		entries.push(...processSourcePages(pages, SITE_URL, lastModified));
-		entries.push(...processNonDocPages(nonDocPages, SITE_URL, lastModified));
-
-		const blogEntries = await processBlogPages(SITE_URL);
-		entries.push(...blogEntries);
-
-		// Add the blog index page with lastModified set to latest blog post
-		const latestBlogModified = blogEntries.length
-			? new Date(
-					Math.max(
-						...blogEntries
-							.map((e) =>
-								e.lastModified ? new Date(e.lastModified).getTime() : 0
-							)
-							.filter((t) => Number.isFinite(t) && t > 0)
-					)
-				)
-			: lastModified;
 		entries.push(
-			createSitemapEntry(
-				'/blog',
-				SITE_URL,
-				latestBlogModified,
-				priorityMap['/blog'],
-				changeFrequencyMap['/blog']
-			)
+			...pages.map((page) => ({
+				url: `${SITE_URL}${page.url}`,
+				lastModified,
+				changeFrequency: getChangeFrequency(page.url),
+				priority: getPriority(page.url),
+			}))
 		);
 
-		processIntegrationPages(entries);
+		// Add static pages that actually exist
+		const staticPages = [
+			'/privacy',
+			'/llms.txt',
+			'/api',
+			'/contributors',
+			'/pricing',
+			'/roadmap',
+			'/sponsors',
+			'/terms',
+			'/ambassadors',
+			'/compare',
+		];
+		entries.push(
+			...staticPages.map((page) => ({
+				url: `${SITE_URL}${page}`,
+				lastModified,
+				changeFrequency: getChangeFrequency(page),
+				priority: getPriority(page),
+			}))
+		);
+
+		// Add blog posts and blog index
+		const blogData = await getPosts();
+		if (!('error' in blogData) && blogData?.posts) {
+			const blogEntries = blogData.posts.map((post) => ({
+				url: `${SITE_URL}/blog/${post.slug}`,
+				lastModified: new Date(post.publishedAt),
+				changeFrequency: 'monthly' as const,
+				priority: 0.7,
+			}));
+			entries.push(...blogEntries);
+
+			// Add blog index with latest post date
+			const latestPostDate =
+				blogEntries.length > 0
+					? blogEntries.reduce(
+							(latest, entry) =>
+								entry.lastModified > latest ? entry.lastModified : latest,
+							blogEntries[0].lastModified
+						)
+					: lastModified;
+
+			entries.push({
+				url: `${SITE_URL}/blog`,
+				lastModified: latestPostDate,
+				changeFrequency: 'monthly',
+				priority: 0.8,
+			});
+		}
+
+		const competitorSlugs = getAllCompetitorSlugs();
+		const comparisonEntries = competitorSlugs.map((slug) => ({
+			url: `${SITE_URL}/compare/${slug}`,
+			lastModified,
+			changeFrequency: 'monthly' as const,
+			priority: getPriority(`/compare/${slug}`),
+		}));
+		entries.push(...comparisonEntries);
 	} catch (error) {
-		console.warn('Failed to generate dynamic sitemap, using fallback:', error);
-		entries.push(...processFallbackEntries(SITE_URL, lastModified));
+		console.warn('Sitemap generation failed, using minimal fallback:', error);
+		// Minimal fallback - just the main docs page
+		entries.push({
+			url: `${SITE_URL}/docs`,
+			lastModified,
+			changeFrequency: 'weekly',
+			priority: 1.0,
+		});
 	}
 
 	return entries;
-}
-
-export function getSitemapMetadata() {
-	return {
-		title: 'Databuddy Documentation Sitemap',
-		description:
-			'Dynamically generated sitemap of Databuddy documentation including all guides, integrations, and API references.',
-	};
 }

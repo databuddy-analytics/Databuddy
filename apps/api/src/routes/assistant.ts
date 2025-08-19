@@ -25,10 +25,10 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 	.post(
 		'/stream',
 		async ({ body, user }: { body: AssistantRequestType; user: User }) => {
-			const { message, website_id, model, context } = body;
+			const { messages, websiteId, model } = body;
 
 			try {
-				const websiteValidation = await validateWebsite(website_id);
+				const websiteValidation = await validateWebsite(websiteId);
 
 				if (!websiteValidation.success) {
 					return createStreamingResponse(
@@ -45,11 +45,10 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				}
 
 				const assistantRequest: AssistantRequest = {
-					message,
-					website_id,
-					website_hostname: website.domain,
+					messages,
+					websiteId,
+					websiteHostname: website.domain,
 					model: model || 'chat',
-					context,
 				};
 
 				const assistantContext: AssistantContext = {

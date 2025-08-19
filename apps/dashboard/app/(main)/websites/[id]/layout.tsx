@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
 import {
@@ -10,6 +10,7 @@ import {
 	isAnalyticsRefreshingAtom,
 } from '@/stores/jotai/filterAtoms';
 import { AnalyticsToolbar } from './_components/analytics-toolbar';
+import { FiltersSection } from './_components/filters-section';
 
 interface WebsiteLayoutProps {
 	children: React.ReactNode;
@@ -17,12 +18,15 @@ interface WebsiteLayoutProps {
 
 export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	const { id } = useParams();
+	const pathname = usePathname();
 	const queryClient = useQueryClient();
 	const { isTrackingSetup } = useTrackingSetup(id as string);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 	const [selectedFilters, setSelectedFilters] = useAtom(
 		dynamicQueryFiltersAtom
 	);
+
+	const isAssistantPage = pathname.includes('/assistant');
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
@@ -46,18 +50,21 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	};
 
 	return (
-		<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
-			{isTrackingSetup && (
-				<AnalyticsToolbar
-					isRefreshing={isRefreshing}
-					onFiltersChange={setSelectedFilters}
-					onRefresh={handleRefresh}
-					selectedFilters={selectedFilters}
-				/>
+		<div className="mx-auto flex h-full max-w-[1600px] flex-col p-3 sm:p-4 lg:p-6">
+			{isTrackingSetup && !isAssistantPage && (
+				<div className="flex-shrink-0 space-y-4">
+					<AnalyticsToolbar
+						isRefreshing={isRefreshing}
+						onRefresh={handleRefresh}
+					/>
+					<FiltersSection
+						onFiltersChange={setSelectedFilters}
+						selectedFilters={selectedFilters}
+					/>
+				</div>
 			)}
 
-			{/* Page content */}
-			{children}
+			<div className={isAssistantPage ? 'min-h-0 flex-1' : ''}>{children}</div>
 		</div>
 	);
 }

@@ -18,7 +18,7 @@ As contributors and maintainers of this project, we pledge to foster an open, we
 This Code of Conduct applies within all project spaces and in public spaces when representing the project.
 
 ## Enforcement
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at [INSERT EMAIL]. All complaints will be reviewed and investigated.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at support@databuddy.cc. All complaints will be reviewed and investigated.
 
 ## Attribution
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/). 

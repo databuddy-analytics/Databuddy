@@ -1,0 +1,186 @@
+import { Analytics } from '../../types/tables';
+import type { SimpleQueryConfig } from '../types';
+
+export const LinksBuilders: Record<string, SimpleQueryConfig> = {
+	outbound_links: {
+		meta: {
+			title: 'Outbound Links',
+			description:
+				'Track external links clicked by users, showing which outbound destinations are most popular.',
+			category: 'Behavior',
+			tags: ['links', 'outbound', 'external', 'clicks', 'engagement'],
+			output_fields: [
+				{
+					name: 'href',
+					type: 'string',
+					label: 'Destination URL',
+					description: 'The external URL that was clicked',
+				},
+				{
+					name: 'text',
+					type: 'string',
+					label: 'Link Text',
+					description: 'The visible text of the clicked link',
+				},
+				{
+					name: 'total_clicks',
+					type: 'number',
+					label: 'Total Clicks',
+					description: 'Total number of clicks on this link',
+				},
+				{
+					name: 'unique_users',
+					type: 'number',
+					label: 'Unique Users',
+					description: 'Number of unique users who clicked this link',
+				},
+				{
+					name: 'unique_sessions',
+					type: 'number',
+					label: 'Unique Sessions',
+					description: 'Number of unique sessions with clicks on this link',
+				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Click Share',
+					description: 'Percentage of total outbound link clicks',
+					unit: '%',
+				},
+				{
+					name: 'last_clicked',
+					type: 'string',
+					label: 'Last Clicked',
+					description: 'Most recent time this link was clicked',
+				},
+			],
+			default_visualization: 'table',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
+		table: Analytics.events,
+		fields: [
+			'href',
+			'text',
+			'COUNT(*) as total_clicks',
+			'COUNT(DISTINCT anonymous_id) as unique_users',
+			'COUNT(DISTINCT session_id) as unique_sessions',
+			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
+			'MAX(time) as last_clicked',
+		],
+		where: [
+			"event_name = 'link_out'",
+			'href IS NOT NULL',
+			"href != ''",
+			"href NOT LIKE '%undefined%'",
+			"href NOT LIKE '%null%'",
+			"length(href) > 7",
+			"href LIKE 'http%'",
+			"position('.' IN href) > 0",
+			"text IS NOT NULL",
+			"text != 'undefined'",
+			"text != 'null'",
+			"length(trim(text)) >= 0",
+		],
+		groupBy: ['href', 'text'],
+		orderBy: 'total_clicks DESC',
+		limit: 100,
+		timeField: 'time',
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
+		customizable: true,
+	},
+
+	outbound_domains: {
+		meta: {
+			title: 'Outbound Domains',
+			description:
+				'Aggregate outbound link clicks by destination domain to see which external sites users visit most.',
+			category: 'Behavior',
+			tags: ['links', 'domains', 'external', 'clicks', 'destinations'],
+			output_fields: [
+				{
+					name: 'domain',
+					type: 'string',
+					label: 'Domain',
+					description: 'The external domain that was clicked',
+				},
+				{
+					name: 'total_clicks',
+					type: 'number',
+					label: 'Total Clicks',
+					description: 'Total number of clicks to this domain',
+				},
+				{
+					name: 'unique_users',
+					type: 'number',
+					label: 'Unique Users',
+					description: 'Number of unique users who clicked links to this domain',
+				},
+				{
+					name: 'unique_links',
+					type: 'number',
+					label: 'Unique Links',
+					description: 'Number of different links clicked to this domain',
+				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Click Share',
+					description: 'Percentage of total outbound link clicks',
+					unit: '%',
+				},
+			],
+			default_visualization: 'table',
+			supports_granularity: ['hour', 'day'],
+			version: '1.0',
+		},
+		table: Analytics.events,
+		fields: [
+			'domain(href) as domain',
+			'COUNT(*) as total_clicks',
+			'COUNT(DISTINCT anonymous_id) as unique_users',
+			'COUNT(DISTINCT href) as unique_links',
+			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
+		],
+		where: [
+			"event_name = 'link_out'",
+			'href IS NOT NULL',
+			"href != ''",
+			"href NOT LIKE '%undefined%'",
+			"href NOT LIKE '%null%'",
+			"length(href) > 7", // Minimum valid URL length (http://)
+			"href LIKE 'http%'", // Must start with http or https
+			"position('.' IN href) > 0", // Must contain at least one dot
+			"text IS NOT NULL",
+			"text != 'undefined'",
+			"text != 'null'",
+			"length(trim(text)) >= 0", // Allow empty text but not null
+		],
+		groupBy: ['domain(href)'],
+		orderBy: 'total_clicks DESC',
+		limit: 100,
+		timeField: 'time',
+		allowedFilters: [
+			'path',
+			'country',
+			'device_type',
+			'browser_name',
+			'os_name',
+			'referrer',
+			'utm_source',
+			'utm_medium',
+			'utm_campaign',
+		],
+		customizable: true,
+	},
+};

@@ -61,8 +61,11 @@ export function CreateOrganizationDialog({
 	isOpen,
 	onClose,
 }: CreateOrganizationDialogProps) {
-	const { createOrganizationAsync, isCreatingOrganization } =
-		useOrganizations();
+	const {
+		createOrganizationAsync,
+		isCreatingOrganization,
+		uploadOrganizationLogoAsync,
+	} = useOrganizations();
 	// const router = useRouter();
 
 	// Form state
@@ -80,6 +83,7 @@ export function CreateOrganizationDialog({
 	const [crop, setCrop] = useState<Crop>();
 	const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
 	const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+	const [logoFile, setLogoFile] = useState<File | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const imageRef = useRef<HTMLImageElement | null>(null);
 
@@ -100,7 +104,10 @@ export function CreateOrganizationDialog({
 	const resetForm = () => {
 		setFormData({ name: '', slug: '', logo: '', metadata: {} });
 		setPreview(null);
+		setLogoFile(null);
 		setSlugManuallyEdited(false);
+		resetCropState();
+		setIsCropModalOpen(false);
 	};
 
 	// Close dialog
@@ -133,14 +140,18 @@ export function CreateOrganizationDialog({
 	);
 
 	// Image crop modal handlers
-	const handleCropModalOpenChange = (open: boolean) => {
-		if (!open && fileInputRef.current) {
+	const resetCropState = () => {
+		setImageSrc(null);
+		setCrop(undefined);
+		setCompletedCrop(undefined);
+		if (fileInputRef.current) {
 			fileInputRef.current.value = '';
 		}
+	};
+
+	const handleCropModalOpenChange = (open: boolean) => {
 		if (!open) {
-			setImageSrc(null);
-			setCrop(undefined);
-			setCompletedCrop(undefined);
+			resetCropState();
 		}
 		setIsCropModalOpen(open);
 	};
@@ -187,11 +198,13 @@ export function CreateOrganizationDialog({
 				completedCrop,
 				'logo.png'
 			);
+
+			setLogoFile(croppedFile);
+
 			const reader = new FileReader();
 			reader.onloadend = () => {
 				const dataUrl = reader.result as string;
 				setPreview(dataUrl);
-				setFormData((prev) => ({ ...prev, logo: dataUrl }));
 				handleCropModalOpenChange(false);
 				toast.success('Logo saved successfully!');
 			};
@@ -201,7 +214,6 @@ export function CreateOrganizationDialog({
 		}
 	};
 
-	// Organization initials for avatar fallback
 	const getOrganizationInitials = (name: string) =>
 		name
 			.split(' ')
@@ -210,13 +222,39 @@ export function CreateOrganizationDialog({
 			.toUpperCase()
 			.slice(0, 2);
 
-	// Submit handler
 	const handleSubmit = async () => {
 		if (!isFormValid) {
 			return;
 		}
 		try {
-			await createOrganizationAsync(formData);
+			const organization = await createOrganizationAsync({
+				name: formData.name,
+				slug: formData.slug,
+				metadata: formData.metadata,
+			});
+
+			if (logoFile && organization?.id) {
+				try {
+					const reader = new FileReader();
+					const fileData = await new Promise<string>((resolve) => {
+						reader.onloadend = () => resolve(reader.result as string);
+						reader.readAsDataURL(logoFile);
+					});
+
+					await uploadOrganizationLogoAsync({
+						organizationId: organization.id,
+						fileData,
+						fileName: logoFile.name,
+						fileType: logoFile.type,
+					});
+				} catch (logoError) {
+					toast.warning(
+						'Organization created, but logo upload failed. You can upload it later from settings.'
+					);
+					console.error('Logo upload failed:', logoError);
+				}
+			}
+
 			handleClose();
 			// router.push('/organizations');
 		} catch {
@@ -444,6 +482,9 @@ export function CreateOrganizationDialog({
 								crop={crop}
 								onChange={(pixelCrop, percentCrop) => {
 									setCrop(percentCrop);
+									setCompletedCrop(pixelCrop);
+								}}
+								onComplete={(pixelCrop) => {
 									setCompletedCrop(pixelCrop);
 								}}
 							>

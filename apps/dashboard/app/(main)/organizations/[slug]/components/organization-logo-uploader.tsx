@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRef, useState } from 'react';
 import ReactCrop, {
 	type Crop,
@@ -18,11 +19,10 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type Organization, useOrganizations } from '@/hooks/use-organizations';
 import { getOrganizationInitials } from '@/lib/utils';
 import 'react-image-crop/dist/ReactCrop.css';
-import { UploadSimpleIcon } from '@phosphor-icons/react';
+import { TrashIcon, UploadSimpleIcon } from '@phosphor-icons/react';
 import { getCroppedImage } from '@/lib/canvas-utils';
 
 interface OrganizationLogoUploaderProps {
@@ -32,8 +32,12 @@ interface OrganizationLogoUploaderProps {
 export function OrganizationLogoUploader({
 	organization,
 }: OrganizationLogoUploaderProps) {
-	const { uploadOrganizationLogo, isUploadingOrganizationLogo } =
-		useOrganizations();
+	const {
+		uploadOrganizationLogo,
+		isUploadingOrganizationLogo,
+		deleteOrganizationLogo,
+		isDeletingOrganizationLogo,
+	} = useOrganizations();
 	const [preview, setPreview] = useState(organization.logo);
 	const [imageSrc, setImageSrc] = useState<string | null>(null);
 	const [crop, setCrop] = useState<Crop>();
@@ -42,20 +46,24 @@ export function OrganizationLogoUploader({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const imageRef = useRef<HTMLImageElement>(null);
 
-	const handleModalOpenChange = (isOpen: boolean) => {
-		if (!isOpen && fileInputRef.current) {
+	const resetCropState = () => {
+		setImageSrc(null);
+		setCrop(undefined);
+		setCompletedCrop(undefined);
+		if (fileInputRef.current) {
 			fileInputRef.current.value = '';
 		}
+	};
+
+	const handleModalOpenChange = (isOpen: boolean) => {
 		if (!isOpen) {
-			setImageSrc(null);
-			setCrop(undefined);
-			setCompletedCrop(undefined);
+			resetCropState();
 		}
 		setIsModalOpen(isOpen);
 	};
 
-	function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-		const { width, height } = e.currentTarget;
+	function onImageLoad(img: HTMLImageElement) {
+		const { naturalWidth: width, naturalHeight: height } = img;
 		const percentCrop = centerCrop(
 			makeAspectCrop(
 				{
@@ -70,6 +78,7 @@ export function OrganizationLogoUploader({
 			height
 		);
 		setCrop(percentCrop);
+
 		const pixelCrop = {
 			unit: 'px' as const,
 			x: Math.round((percentCrop.x / 100) * width),
@@ -105,31 +114,51 @@ export function OrganizationLogoUploader({
 				'logo.png'
 			);
 
-			const formData = new FormData();
-			formData.append('file', croppedFile);
-
-			uploadOrganizationLogo(
-				{ organizationId: organization.id, formData },
-				{
-					onSuccess: (data) => {
-						setPreview(data.url);
-						handleModalOpenChange(false);
-						toast.success('Logo updated successfully!');
+			const reader = new FileReader();
+			reader.onloadend = () => {
+				const fileData = reader.result as string;
+				uploadOrganizationLogo(
+					{
+						organizationId: organization.id,
+						fileData,
+						fileName: croppedFile.name,
+						fileType: croppedFile.type,
 					},
-					onError: (error) => {
-						toast.error(error.message || 'Failed to upload logo.');
-					},
-				}
-			);
+					{
+						onSuccess: (data) => {
+							setPreview(data.logoUrl);
+							handleModalOpenChange(false);
+							setTimeout(() => resetCropState(), 100);
+						},
+						onError: (error) => {
+							toast.error(error.message || 'Failed to upload logo.');
+						},
+					}
+				);
+			};
+			reader.readAsDataURL(croppedFile);
 		} catch (e) {
 			toast.error('Failed to crop image.');
 			console.error(e);
 		}
 	};
 
+	const handleDeleteLogo = () => {
+		deleteOrganizationLogo(
+			{ organizationId: organization.id },
+			{
+				onSuccess: () => {
+					setPreview(null);
+				},
+				onError: (error) => {
+					toast.error(error.message || 'Failed to delete logo.');
+				},
+			}
+		);
+	};
+
 	return (
 		<div className="space-y-3">
-			<Label>Organization Logo</Label>
 			<div className="flex items-center gap-4">
 				<div className="group relative">
 					<Avatar className="h-20 w-20 border-2 border-border/50 shadow-sm">
@@ -152,6 +181,27 @@ export function OrganizationLogoUploader({
 					<p className="text-muted-foreground text-sm">
 						Click the image to upload a new one.
 					</p>
+					{preview && (
+						<Button
+							className="rounded"
+							disabled={isDeletingOrganizationLogo}
+							onClick={handleDeleteLogo}
+							size="sm"
+							variant="outline"
+						>
+							{isDeletingOrganizationLogo ? (
+								<>
+									<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
+									Deleting...
+								</>
+							) : (
+								<>
+									<TrashIcon className="mr-2 h-4 w-4" size={16} />
+									Remove Logo
+								</>
+							)}
+						</Button>
+					)}
 					<Input
 						accept="image/png, image/jpeg, image/gif"
 						className="hidden"
@@ -176,12 +226,17 @@ export function OrganizationLogoUploader({
 								setCrop(percentCrop);
 								setCompletedCrop(pixelCrop);
 							}}
+							onComplete={(pixelCrop) => {
+								setCompletedCrop(pixelCrop);
+							}}
 						>
-							<img
+							<Image
 								alt="Crop preview"
-								onLoad={onImageLoad}
+								height={600}
+								onLoadingComplete={onImageLoad}
 								ref={imageRef}
 								src={imageSrc}
+								width={800}
 							/>
 						</ReactCrop>
 					)}

@@ -4,7 +4,6 @@ import {
 	ArrowSquareOutIcon,
 	CaretDownIcon,
 	CaretRightIcon,
-	ClockIcon,
 	EyeIcon,
 	SparkleIcon,
 	WarningIcon,
@@ -128,7 +127,7 @@ function SessionRowInternal({
 							{getBrowserIconComponent(
 								session.browser || session.browser_name || ''
 							)}
-							{getOSIconComponent(session.os || '')}
+							{getOSIconComponent(session.os_name || '')}
 						</div>
 
 						<div className="min-w-0 flex-1">
@@ -172,16 +171,6 @@ function SessionRowInternal({
 					</div>
 
 					<div className="ml-4 flex flex-shrink-0 items-center gap-4 text-sm">
-						<div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
-							<div className="flex items-center gap-1 text-muted-foreground text-xs">
-								<ClockIcon className="h-3 w-3" />
-								<span>Duration</span>
-							</div>
-							<span className="font-semibold text-foreground text-sm">
-								{session.duration_formatted || '0s'}
-							</span>
-						</div>
-
 						<div className="hidden min-w-[60px] flex-col items-center gap-1 sm:flex">
 							<div className="flex items-center gap-1 text-muted-foreground text-xs">
 								<EyeIcon className="h-3 w-3" />
@@ -231,15 +220,7 @@ function SessionRowInternal({
 
 			<CollapsibleContent>
 				<div className="border-t bg-muted/20 px-4 pb-4">
-					<div className="grid grid-cols-1 gap-4 border-b py-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
-						<div className="text-center">
-							<span className="mb-2 block text-muted-foreground text-xs uppercase tracking-wide">
-								Duration
-							</span>
-							<div className="font-bold text-foreground text-lg">
-								{session.duration_formatted || '0s'}
-							</div>
-						</div>
+					<div className="grid grid-cols-1 gap-4 border-b py-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
 						<div className="text-center">
 							<span className="mb-2 block text-muted-foreground text-xs uppercase tracking-wide">
 								Page Views

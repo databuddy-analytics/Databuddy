@@ -2,7 +2,7 @@ import type { PixelCrop } from 'react-image-crop';
 
 // This function was adapted from the official react-image-crop examples
 // to ensure the output is a high-quality, circular image.
-export async function getCroppedImage(
+export function getCroppedImage(
 	image: HTMLImageElement,
 	crop: PixelCrop,
 	fileName: string
@@ -27,12 +27,8 @@ export async function getCroppedImage(
 	const cropX = crop.x * scaleX;
 	const cropY = crop.y * scaleY;
 
-	const _centerX = image.naturalWidth / 2;
-	const _centerY = image.naturalHeight / 2;
-
 	ctx.save();
 
-	// Create a circular clipping path.
 	const radius = canvas.width / (2 * pixelRatio);
 	ctx.beginPath();
 	ctx.arc(radius, radius, radius, 0, Math.PI * 2, true);
@@ -47,8 +43,8 @@ export async function getCroppedImage(
 		crop.height * scaleY,
 		0,
 		0,
-		crop.width * scaleX,
-		crop.height * scaleY
+		canvas.width / pixelRatio,
+		canvas.height / pixelRatio
 	);
 
 	ctx.restore();

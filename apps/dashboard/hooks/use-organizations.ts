@@ -1,6 +1,7 @@
 import { authClient } from '@databuddy/auth/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc';
 
 export type OrganizationRole = 'owner' | 'admin' | 'member';
 
@@ -127,46 +128,25 @@ export function useOrganizations() {
 		)
 	);
 
-	const uploadOrganizationLogoMutation = useMutation(
-		createMutation(
-			async ({
-				organizationId,
-				formData,
-			}: {
-				organizationId: string;
-				formData: FormData;
-			}) => {
-				const response = await fetch(
-					`${process.env.NEXT_PUBLIC_API_URL}/v1/upload/organization/${organizationId}/logo`,
-					{
-						method: 'POST',
-						body: formData,
-						credentials: 'include',
-					}
-				);
-
-				if (!response.ok) {
-					const errorData = await response
-						.json()
-						.catch(() => ({ message: 'Failed to upload logo' }));
-					throw new Error(errorData.error || 'Failed to upload logo');
-				}
-
-				const { url } = await response.json();
-
-				await authClient.organization.update({
-					data: {
-						logo: url,
-					},
-					organizationId,
-				});
-
-				return { url };
+	const uploadOrganizationLogoMutation =
+		trpc.organizations.uploadLogo.useMutation({
+			onSuccess: () => {
+				toast.success('Logo uploaded successfully');
 			},
-			'Logo uploaded successfully',
-			'Failed to upload logo'
-		)
-	);
+			onError: (error) => {
+				toast.error(error.message || 'Failed to upload logo');
+			},
+		});
+
+	const deleteOrganizationLogoMutation =
+		trpc.organizations.deleteLogo.useMutation({
+			onSuccess: () => {
+				toast.success('Logo deleted successfully');
+			},
+			onError: (error) => {
+				toast.error(error.message || 'Failed to delete logo');
+			},
+		});
 
 	const deleteOrganizationMutation = useMutation(
 		createMutation(
@@ -246,12 +226,15 @@ export function useOrganizations() {
 		setActiveOrganizationAsync: setActiveOrganizationMutation.mutateAsync,
 		uploadOrganizationLogo: uploadOrganizationLogoMutation.mutate,
 		uploadOrganizationLogoAsync: uploadOrganizationLogoMutation.mutateAsync,
+		deleteOrganizationLogo: deleteOrganizationLogoMutation.mutate,
+		deleteOrganizationLogoAsync: deleteOrganizationLogoMutation.mutateAsync,
 
 		isCreatingOrganization: createOrganizationMutation.isPending,
 		isUpdatingOrganization: updateOrganizationMutation.isPending,
 		isDeletingOrganization: deleteOrganizationMutation.isPending,
 		isSettingActiveOrganization: setActiveOrganizationMutation.isPending,
 		isUploadingOrganizationLogo: uploadOrganizationLogoMutation.isPending,
+		isDeletingOrganizationLogo: deleteOrganizationLogoMutation.isPending,
 	};
 }
 

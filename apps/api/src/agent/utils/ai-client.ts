@@ -1,7 +1,11 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { generateObject } from 'ai';
 import type { z } from 'zod';
-import { AIResponseJsonSchema } from '../prompts/agent';
+import type { AssistantRequest } from '../processor';
+import {
+	AIResponseJsonSchema,
+	comprehensiveSystemPrompt,
+} from '../prompts/agent';
 
 const openrouter = createOpenRouter({
 	apiKey: process.env.AI_API_KEY,
@@ -9,11 +13,6 @@ const openrouter = createOpenRouter({
 
 const AI_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
 // const AI_MODEL = 'openrouter/horizon-beta';
-
-interface AICompletionRequest {
-	prompt: string;
-	temperature?: number;
-}
 
 interface AICompletionResponse {
 	content: z.infer<typeof AIResponseJsonSchema>;
@@ -25,15 +24,25 @@ interface AICompletionResponse {
 }
 
 export async function getAICompletion(
-	request: AICompletionRequest
+	request: AssistantRequest
 ): Promise<AICompletionResponse> {
 	const startTime = Date.now();
+
+	const systemPrompt = comprehensiveSystemPrompt(
+		request.websiteId,
+		request.websiteHostname,
+		'execute_chat',
+		request.model
+	);
 
 	try {
 		const chat = await generateObject({
 			model: openrouter.chat(AI_MODEL),
-			messages: [{ role: 'user', content: request.prompt }],
-			temperature: request.temperature ?? 0.1,
+			messages: [
+				{ role: 'system', content: systemPrompt },
+				...request.messages,
+			],
+			temperature: 0.1,
 			schema: AIResponseJsonSchema,
 		});
 

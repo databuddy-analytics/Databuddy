@@ -1,6 +1,7 @@
 import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useMemo } from 'react';
+import { FaviconImage } from '@/components/analytics/favicon-image';
 import { cn } from '@/lib/utils';
 import type { NavigationItem as NavigationItemType } from './types';
 
@@ -22,6 +23,8 @@ export function NavigationItem({
 	isExternal,
 	production,
 	currentWebsiteId,
+	domain,
+	disabled,
 }: NavigationItemProps) {
 	const fullPath = useMemo(() => {
 		if (isRootLevel) {
@@ -46,17 +49,56 @@ export function NavigationItem({
 				prefetch: true,
 			};
 
+	const content = (
+		<>
+			{domain ? (
+				<FaviconImage
+					className="rounded-sm"
+					domain={domain}
+					fallbackIcon={
+						<Icon
+							aria-hidden="true"
+							className="size-5 flex-shrink-0"
+							weight="duotone"
+						/>
+					}
+					size={20}
+				/>
+			) : (
+				<Icon
+					aria-hidden="true"
+					className="size-5 flex-shrink-0"
+					weight="duotone"
+				/>
+			)}
+			<span className="flex-1">{name}</span>
+		</>
+	);
+
+	if (disabled) {
+		return (
+					<div
+			aria-disabled="true"
+			className={cn(
+				'group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
+				'cursor-not-allowed text-sidebar-foreground/30'
+			)}
+			>
+				{content}
+			</div>
+		);
+	}
+
 	return (
 		<LinkComponent
 			{...linkProps}
 			aria-current={isActive ? 'page' : undefined}
 			aria-label={`${name}${isExternal ? ' (opens in new tab)' : ''}`}
 			className={cn(
-				'group flex items-center gap-x-3 rounded px-3 py-2 text-sm transition-all duration-200',
-				'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-1',
+				'group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
 				isActive
-					? 'bg-accent font-medium text-foreground shadow-sm'
-					: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+					? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-r-2 border-sidebar-ring'
+					: 'text-sidebar-foreground/70'
 			)}
 			data-is-external={isExternal ? 'true' : 'false'}
 			data-nav-item={name.toLowerCase().replace(/\s+/g, '-')}
@@ -65,27 +107,15 @@ export function NavigationItem({
 			data-track="navigation-click"
 			role="menuitem"
 		>
-			<span className="flex-shrink-0">
-				<Icon
-					aria-hidden="true"
-					className={cn(
-						'h-4 w-4 transition-colors duration-200',
-						isActive
-							? 'text-primary'
-							: 'not-dark:text-primary group-hover:text-primary'
-					)}
-					weight="duotone"
-				/>
-			</span>
-			<span className="flex-grow truncate">{name}</span>
+			{content}
 			<div className="flex items-center gap-1.5">
 				{alpha && (
-					<span className="font-mono text-muted-foreground text-xs">ALPHA</span>
+					<span className="font-mono text-sidebar-foreground/50 text-xs">ALPHA</span>
 				)}
 				{isExternal && (
 					<ArrowSquareOutIcon
 						aria-hidden="true"
-						className="h-3 w-3 not-dark:text-primary text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+						className="h-3 w-3 text-sidebar-ring opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 						weight="duotone"
 					/>
 				)}
