@@ -30,26 +30,24 @@ export interface ChartHandlerContext {
 	aiTime: number;
 }
 
-export async function* handleChartResponse(
+export async function handleChartResponse(
 	parsedAiJson: z.infer<typeof AIResponseJsonSchema>,
 	context: ChartHandlerContext
-): AsyncGenerator<StreamingUpdate> {
+): Promise<StreamingUpdate> {
 	if (!parsedAiJson.sql) {
-		yield {
+		return {
 			type: 'error',
 			content: 'AI did not provide a query for the chart.',
 			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
-		return;
 	}
 
 	if (!validateSQL(parsedAiJson.sql)) {
-		yield {
+		return {
 			type: 'error',
 			content: 'Generated query failed security validation.',
 			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 		};
-		return;
 	}
 
 	try {
@@ -64,7 +62,7 @@ export async function* handleChartResponse(
 			};
 		}
 
-		yield {
+		return {
 			type: 'complete',
 			content:
 				queryResult.data.length > 0
@@ -83,7 +81,7 @@ export async function* handleChartResponse(
 			error: queryError instanceof Error ? queryError.message : 'Unknown error',
 			sql: parsedAiJson.sql,
 		});
-		yield {
+		return {
 			type: 'error',
 			content: getRandomMessage(queryFailedMessages),
 			debugInfo: context.user?.role === 'ADMIN' ? context.debugInfo : undefined,

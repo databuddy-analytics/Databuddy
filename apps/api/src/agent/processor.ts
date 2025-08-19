@@ -1,9 +1,15 @@
 import type { User } from '@databuddy/auth';
-import type { Website } from '@databuddy/shared';
+import { createId, type Website } from '@databuddy/shared';
 import type { AssistantRequestType } from '../schemas';
 import { handleChartResponse } from './handlers/chart-handler';
 import { handleMetricResponse } from './handlers/metric-handler';
+import type 
+{ AIResponse } from './prompts/agent';
 import { getAICompletion } from './utils/ai-client';
+import {
+	addMessageToConversation,
+	createNewConversation,
+} from './utils/conversation-utils';
 import type { StreamingUpdate } from './utils/stream-utils';
 import { generateThinkingSteps } from './utils/stream-utils';
 
@@ -23,20 +29,125 @@ const unexpectedErrorMessages = [
 	'Something went a bit wonky on my end. Try asking me again?',
 ];
 
-export interface AssistantRequest extends AssistantRequestType {
+export interface AssistantRequest extends Omit<AssistantRequestType, 'model'> {
 	websiteHostname: string;
+	model: NonNullable<AssistantRequestType['model']>;
 }
 
 export interface AssistantContext {
-	user?: User | null;
+	user: User;
 	website: Website;
 	debugInfo: Record<string, unknown>;
 }
 
-export async function* processAssistantRequest(
+async function processResponseByType(
+	parsedResponse: AIResponse,
+	context: AssistantContext,
+	startTime: number,
+	aiTime: number
+): Promise<StreamingUpdate> {
+	switch (parsedResponse.response_type) {
+		case 'text': {
+			const textResult = {
+				type: 'complete',
+				content:
+					parsedResponse.text_response || "Here's the answer to your question.",
+				data: { hasVisualization: false, responseType: 'text' },
+				debugInfo:
+					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			} as const;
+			return textResult;
+		}
+
+		case 'metric': {
+			return await handleMetricResponse(parsedResponse, context);
+		}
+
+		case 'chart': {
+			if (parsedResponse.sql) {
+				return await handleChartResponse(parsedResponse, {
+					...context,
+					startTime,
+					aiTime,
+				});
+			}
+			return {
+				type: 'error',
+				content: 'Invalid chart configuration.',
+				debugInfo:
+					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			};
+		}
+		default: {
+			return {
+				type: 'error',
+				content: 'Invalid response format from AI.',
+				debugInfo:
+					context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+			};
+		}
+	}
+}
+
+function saveConversationWithResult(
+	request: AssistantRequest,
+	context: AssistantContext,
+	parsedResponse: AIResponse,
+	finalResult: StreamingUpdate,
+	conversationId: string
+) {
+	const numberOfUserMessages = request.messages.filter(
+		(message) => message.role === 'user'
+	).length;
+	const isNewConversation = numberOfUserMessages === 1;
+
+	const conversationMessages = [
+		{
+			id: createId(),
+			role: 'user',
+			content: request.messages.at(-1)?.content as string,
+			conversationId,
+			modelType: request.model,
+		},
+		{
+			id: createId(),
+			role: 'assistant',
+			content: finalResult.content,
+			conversationId,
+			modelType: request.model,
+			sql: parsedResponse.sql,
+			chartType: parsedResponse.chart_type,
+			responseType: parsedResponse.response_type,
+			textResponse: parsedResponse.text_response,
+			thinkingSteps: parsedResponse.thinking_steps,
+			hasError: finalResult.type === 'error',
+			errorMessage: finalResult.type === 'error' ? finalResult.content : '',
+			finalResult,
+		},
+	];
+
+	if (isNewConversation) {
+		createNewConversation(
+			conversationId,
+			request.websiteId,
+			context.user.id,
+			'New Conversation',
+			request.model,
+			conversationMessages
+		);
+	} else {
+		addMessageToConversation(
+			conversationId,
+			request.model,
+			conversationMessages
+		);
+	}
+}
+
+export async function processAssistantRequest(
 	request: AssistantRequest,
 	context: AssistantContext
-): AsyncGenerator<StreamingUpdate> {
+): Promise<StreamingUpdate[]> {
 	const startTime = Date.now();
 
 	try {
@@ -46,7 +157,7 @@ export async function* processAssistantRequest(
 			websiteHostname: request.websiteHostname,
 		});
 
-		if (context.user?.role === 'ADMIN') {
+		if (context.user.role === 'ADMIN') {
 			context.debugInfo.validatedInput = {
 				message: request.messages.at(-1),
 				websiteId: request.websiteId,
@@ -62,13 +173,14 @@ export async function* processAssistantRequest(
 		const parsedResponse = aiResponse.content;
 
 		if (!parsedResponse) {
-			yield {
-				type: 'error',
-				content: getRandomMessage(parseErrorMessages),
-				debugInfo:
-					context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
-			};
-			return;
+			return [
+				{
+					type: 'error',
+					content: getRandomMessage(parseErrorMessages),
+					debugInfo:
+						context.user.role === 'ADMIN' ? context.debugInfo : undefined,
+				},
+			];
 		}
 
 		console.info('✅ [Assistant Processor] AI response parsed', {
@@ -77,54 +189,35 @@ export async function* processAssistantRequest(
 			thinkingSteps: parsedResponse.thinking_steps?.length || 0,
 		});
 
-		// Process thinking steps
-		if (parsedResponse.thinking_steps?.length) {
-			yield* generateThinkingSteps(parsedResponse.thinking_steps);
+		const conversationId = request.conversationId || createId();
+		const assistantResponse: StreamingUpdate[] = [];
+
+		if (parsedResponse.thinking_steps) {
+			assistantResponse.push(
+				...generateThinkingSteps(parsedResponse.thinking_steps)
+			);
 		}
 
-		// Handle different response types
-		switch (parsedResponse.response_type) {
-			case 'text':
-				yield {
-					type: 'complete',
-					content:
-						parsedResponse.text_response ||
-						"Here's the answer to your question.",
-					data: { hasVisualization: false, responseType: 'text' },
-					debugInfo:
-						context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
-				};
-				break;
+		const finalResult = await processResponseByType(
+			parsedResponse,
+			context,
+			startTime,
+			aiTime
+		);
 
-			case 'metric':
-				yield* handleMetricResponse(parsedResponse, context);
-				break;
+		assistantResponse.push(finalResult);
 
-			case 'chart':
-				if (parsedResponse.sql) {
-					yield* handleChartResponse(parsedResponse, {
-						...context,
-						startTime,
-						aiTime,
-					});
-				} else {
-					yield {
-						type: 'error',
-						content: 'Invalid chart configuration.',
-						debugInfo:
-							context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
-					};
-				}
-				break;
+		setImmediate(() => {
+			saveConversationWithResult(
+				request,
+				context,
+				parsedResponse,
+				finalResult,
+				conversationId
+			);
+		});
 
-			default:
-				yield {
-					type: 'error',
-					content: 'Invalid response format from AI.',
-					debugInfo:
-						context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
-				};
-		}
+		return assistantResponse;
 	} catch (error: unknown) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
@@ -132,11 +225,13 @@ export async function* processAssistantRequest(
 			error: errorMessage,
 		});
 
-		yield {
-			type: 'error',
-			content: getRandomMessage(unexpectedErrorMessages),
-			debugInfo:
-				context.user?.role === 'ADMIN' ? { error: errorMessage } : undefined,
-		};
+		return [
+			{
+				type: 'error',
+				content: getRandomMessage(unexpectedErrorMessages),
+				debugInfo:
+					context.user.role === 'ADMIN' ? { error: errorMessage } : undefined,
+			},
+		];
 	}
 }

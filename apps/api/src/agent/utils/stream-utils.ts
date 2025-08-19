@@ -6,13 +6,14 @@ export interface StreamingUpdate {
 }
 
 export function createStreamingResponse(
-	updates: AsyncGenerator<StreamingUpdate>
+	updates: StreamingUpdate[]
 ): Response {
 	const stream = new ReadableStream({
 		async start(controller) {
 			try {
 				for await (const update of updates) {
 					const data = `data: ${JSON.stringify(update)}\n\n`;
+					await new Promise((resolve) => setTimeout(resolve, 200));
 					controller.enqueue(new TextEncoder().encode(data));
 				}
 				controller.close();
@@ -38,15 +39,16 @@ export function createStreamingResponse(
 	});
 }
 
-export function createThinkingStep(step: string): string {
+function createThinkingStep(step: string): string {
 	return `🧠 ${step}`;
 }
 
-export async function* generateThinkingSteps(
+export function generateThinkingSteps(
 	steps: string[]
-): AsyncGenerator<StreamingUpdate> {
+): StreamingUpdate[] {
+	const updates: StreamingUpdate[] = [];
 	for (const step of steps) {
-		yield { type: 'thinking', content: createThinkingStep(step) };
-		await new Promise((resolve) => setTimeout(resolve, 200));
+		updates.push({ type: 'thinking', content: createThinkingStep(step) });
 	}
+	return updates;
 }

@@ -5,26 +5,35 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 
+const messageSchema = z.object({
+	messageId: z.string().optional(),
+	conversationId: z.string(),
+	role: z.enum(['user', 'assistant']),
+	content: z.string().optional(),
+	modelType: z.string(),
+	sql: z.string().optional(),
+	chartType: z.string().optional(),
+	responseType: z.string().optional(),
+	textResponse: z.string().optional(),
+	thinkingSteps: z.array(z.string()).optional(),
+	errorMessage: z.string().optional(),
+	hasError: z.boolean().optional(),
+	finalResult: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const assistantRouter = createTRPCRouter({
 	// Save a conversation (creates conversation + message)
 	saveConversation: protectedProcedure
 		.input(
 			z.object({
+				conversationId: z.string().optional(),
 				websiteId: z.string(),
-				title: z.string().optional(),
-				userMessage: z.string(),
-				modelType: z.string(),
-				responseType: z.string(),
-				finalResponse: z.string().optional(),
-				sqlQuery: z.string().optional(),
-				chartData: z.record(z.string(), z.unknown()).optional(),
-				hasError: z.boolean().default(false),
-				errorMessage: z.string().optional(),
+				title: z.string(),
+				messages: z.array(messageSchema.omit({ conversationId: true })),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const conversationId = createId();
-			const messageId = createId();
+			const conversationId = input.conversationId || createId();
 
 			await db.transaction(async (tx) => {
 				// Insert conversation
@@ -32,53 +41,43 @@ export const assistantRouter = createTRPCRouter({
 					id: conversationId,
 					userId: ctx.user.id,
 					websiteId: input.websiteId,
-					title: input.title || `${input.userMessage.slice(0, 50)}...`,
+					title: input.title,
 				});
 
-				// Insert message
-				await tx.insert(assistantMessages).values({
-					id: messageId,
+				// Insert all messages in a single batch operation
+				const messagesToInsert = input.messages.map((message) => ({
+					id: message.messageId || createId(),
 					conversationId,
-					userMessage: input.userMessage,
-					modelType: input.modelType,
-					responseType: input.responseType,
-					finalResponse: input.finalResponse,
-					sqlQuery: input.sqlQuery,
-					chartData: input.chartData,
-					hasError: input.hasError,
-					errorMessage: input.errorMessage,
-					upvotes: 0,
-					downvotes: 0,
-					feedbackComments: null,
-				});
+					role: message.role,
+					content: message.content,
+					modelType: message.modelType,
+					hasError: message.hasError,
+					errorMessage: message.errorMessage,
+					sql: message.sql,
+					chartType: message.chartType,
+					responseType: message.responseType,
+					textResponse: message.textResponse,
+					thinkingSteps: message.thinkingSteps,
+				}));
+
+				await tx.insert(assistantMessages).values(messagesToInsert);
 			});
 
-			return { conversationId, messageId };
+			return { conversationId };
 		}),
 
 	// Add message to existing conversation
 	addMessage: protectedProcedure
-		.input(
-			z.object({
-				conversationId: z.string(),
-				userMessage: z.string(),
-				modelType: z.string(),
-				responseType: z.string(),
-				finalResponse: z.string().optional(),
-				sqlQuery: z.string().optional(),
-				chartData: z.record(z.string(), z.unknown()).optional(),
-				hasError: z.boolean().default(false),
-				errorMessage: z.string().optional(),
-			})
-		)
+		.input(z.array(messageSchema))
 		.mutation(async ({ ctx, input }) => {
+			const conversationId = input[0].conversationId;
 			// Verify conversation exists and user has access
 			const conversation = await db
 				.select()
 				.from(assistantConversations)
 				.where(
 					and(
-						eq(assistantConversations.id, input.conversationId),
+						eq(assistantConversations.id, conversationId),
 						eq(assistantConversations.userId, ctx.user.id)
 					)
 				)
@@ -91,34 +90,33 @@ export const assistantRouter = createTRPCRouter({
 				});
 			}
 
-			const messageId = createId();
+			const messagesToInsert = input.map((message) => ({
+				id: message.messageId || createId(),
+				conversationId: message.conversationId,
+				role: message.role,
+				content: message.content,
+				modelType: message.modelType,
+				hasError: message.hasError,
+				errorMessage: message.errorMessage,
+				sql: message.sql,
+				chartType: message.chartType,
+				responseType: message.responseType,
+				textResponse: message.textResponse,
+				thinkingSteps: message.thinkingSteps,
+			}));
 
 			await db.transaction(async (tx) => {
 				// Insert message
-				await tx.insert(assistantMessages).values({
-					id: messageId,
-					conversationId: input.conversationId,
-					userMessage: input.userMessage,
-					modelType: input.modelType,
-					responseType: input.responseType,
-					finalResponse: input.finalResponse,
-					sqlQuery: input.sqlQuery,
-					chartData: input.chartData,
-					hasError: input.hasError,
-					errorMessage: input.errorMessage,
-					upvotes: 0,
-					downvotes: 0,
-					feedbackComments: null,
-				});
+				await tx.insert(assistantMessages).values(messagesToInsert);
 
 				// Update conversation timestamp
 				await tx
 					.update(assistantConversations)
 					.set({ updatedAt: new Date().toISOString() })
-					.where(eq(assistantConversations.id, input.conversationId));
+					.where(eq(assistantConversations.id, conversationId));
 			});
 
-			return { messageId };
+			return { messageIds: messagesToInsert.map((message) => message.id) };
 		}),
 
 	// Get user's conversations

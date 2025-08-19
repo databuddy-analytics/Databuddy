@@ -12,11 +12,8 @@ import { validateWebsite } from '../lib/website-utils';
 import { websiteAuth } from '../middleware/website-auth';
 import { AssistantRequestSchema, type AssistantRequestType } from '../schemas';
 
-// biome-ignore lint/suspicious/useAwait: async generator function doesn't need await
-async function* createErrorResponse(
-	message: string
-): AsyncGenerator<StreamingUpdate> {
-	yield { type: 'error', content: message };
+function createErrorResponse(message: string): StreamingUpdate[] {
+	return [{ type: 'error', content: message }];
 }
 
 export const assistant = new Elysia({ prefix: '/v1/assistant' })
@@ -25,7 +22,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 	.post(
 		'/stream',
 		async ({ body, user }: { body: AssistantRequestType; user: User }) => {
-			const { messages, websiteId, model } = body;
+			const { messages, websiteId, model, conversationId } = body;
 
 			try {
 				const websiteValidation = await validateWebsite(websiteId);
@@ -47,17 +44,18 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				const assistantRequest: AssistantRequest = {
 					messages,
 					websiteId,
+					conversationId,
 					websiteHostname: website.domain,
 					model: model || 'chat',
 				};
 
 				const assistantContext: AssistantContext = {
-					user: user ?? null,
+					user,
 					website,
 					debugInfo: {},
 				};
 
-				const updates = processAssistantRequest(
+				const updates = await processAssistantRequest(
 					assistantRequest,
 					assistantContext
 				);

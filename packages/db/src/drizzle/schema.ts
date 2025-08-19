@@ -836,12 +836,15 @@ export const assistantMessages = pgTable(
 	{
 		id: text().primaryKey().notNull(),
 		conversationId: text('conversation_id').notNull(),
-		userMessage: text('user_message').notNull(),
+		role: text('role').notNull(),
+		content: text('content'),
 		modelType: text('model_type').notNull(),
-		responseType: text('response_type').notNull(),
-		finalResponse: text('final_response'),
-		sqlQuery: text('sql_query'),
-		chartData: jsonb('chart_data'),
+		sql: text('sql'),
+		chartType: text('chart_type'),
+		responseType: text('response_type'),
+		finalResult: jsonb('final_result'),
+		textResponse: text('text_response'),
+		thinkingSteps: text('thinking_steps').array(),
 		hasError: boolean('has_error').default(false).notNull(),
 		errorMessage: text('error_message'),
 		upvotes: integer('upvotes').default(0).notNull(),
@@ -863,3 +866,5 @@ export const assistantMessages = pgTable(
 		}).onDelete('cascade'),
 	]
 );
+
+export type AssistantMessageInput = typeof assistantMessages.$inferInsert;

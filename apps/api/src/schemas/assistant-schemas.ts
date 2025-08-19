@@ -2,6 +2,7 @@ import { t } from 'elysia';
 
 export const AssistantRequestSchema = t.Object(
 	{
+		conversationId: t.Optional(t.String()),
 		messages: t.Array(
 			t.Object(
 				{

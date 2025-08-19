@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AssistantRequestType } from '../../schemas/assistant-schemas';
 
 export const AIResponseJsonSchema = z.object({
-	sql: z.string().nullable().optional(),
+	sql: z.string().optional(),
 	chart_type: z
 		.enum([
 			'bar',
@@ -24,14 +24,15 @@ export const AIResponseJsonSchema = z.object({
 			'treemap',
 			'gauge',
 		])
-		.nullable()
 		.optional(),
 	response_type: z.enum(['chart', 'text', 'metric']),
-	text_response: z.string().nullable().optional(),
-	metric_value: z.string().nullable().optional(),
-	metric_label: z.string().nullable().optional(),
+	text_response: z.string().optional(),
+	metric_value: z.string().optional(),
+	metric_label: z.string().optional(),
 	thinking_steps: z.array(z.string()).optional(),
 });
+
+export type AIResponse = z.infer<typeof AIResponseJsonSchema>;
 
 export const AIPlanSchema = z.object({
 	thinking: z.array(z.string()),

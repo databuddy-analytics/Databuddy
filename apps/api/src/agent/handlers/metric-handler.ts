@@ -12,19 +12,18 @@ export interface MetricHandlerContext {
 	debugInfo: Record<string, unknown>;
 }
 
-export async function* handleMetricResponse(
+export async function handleMetricResponse(
 	parsedAiJson: z.infer<typeof AIResponseJsonSchema>,
 	context: MetricHandlerContext
-): AsyncGenerator<StreamingUpdate> {
+): Promise<StreamingUpdate> {
 	if (parsedAiJson.sql) {
 		if (!validateSQL(parsedAiJson.sql)) {
-			yield {
+			return {
 				type: 'error',
 				content: 'Generated query failed security validation.',
 				debugInfo:
 					context.user?.role === 'ADMIN' ? context.debugInfo : undefined,
 			};
-			return;
 		}
 
 		try {
@@ -33,21 +32,21 @@ export async function* handleMetricResponse(
 				queryResult.data,
 				parsedAiJson.metric_value
 			);
-			yield* sendMetricResponse(parsedAiJson, metricValue, context);
+			return sendMetricResponse(parsedAiJson, metricValue, context);
 		} catch (queryError: unknown) {
 			console.error('❌ Metric SQL execution error', {
 				error:
 					queryError instanceof Error ? queryError.message : 'Unknown error',
 				sql: parsedAiJson.sql,
 			});
-			yield* sendMetricResponse(
+			return sendMetricResponse(
 				parsedAiJson,
 				parsedAiJson.metric_value,
 				context
 			);
 		}
 	} else {
-		yield* sendMetricResponse(parsedAiJson, parsedAiJson.metric_value, context);
+		return sendMetricResponse(parsedAiJson, parsedAiJson.metric_value, context);
 	}
 }
 
@@ -67,17 +66,17 @@ function extractMetricValue(
 	return valueKey ? firstRow[valueKey] : defaultValue;
 }
 
-async function* sendMetricResponse(
+function sendMetricResponse(
 	parsedAiJson: z.infer<typeof AIResponseJsonSchema>,
 	metricValue: unknown,
 	context: MetricHandlerContext
-): AsyncGenerator<StreamingUpdate> {
+): StreamingUpdate {
 	const formattedValue =
 		typeof metricValue === 'number'
 			? metricValue.toLocaleString()
 			: metricValue;
 
-	yield {
+	return {
 		type: 'complete',
 		content:
 			parsedAiJson.text_response ||
