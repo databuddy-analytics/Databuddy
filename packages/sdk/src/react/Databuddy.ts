@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { createScript, isScriptInjected } from '../core/script';
 import type { DatabuddyConfig } from '../core/types';
 
@@ -8,19 +7,11 @@ import type { DatabuddyConfig } from '../core/types';
  * Usage: <Databuddy clientId="..." trackScreenViews trackPerformance ... />
  */
 export function Databuddy(props: DatabuddyConfig) {
-	useEffect(() => {
-		if (props.disabled || isScriptInjected()) {
-			return;
-		}
-
+	// Only inject script on client-side and if not already injected
+	if (typeof window !== 'undefined' && !props.disabled && !isScriptInjected()) {
 		const script = createScript(props);
-
 		document.head.appendChild(script);
-
-		return () => {
-			script.remove();
-		};
-	}, [props]);
+	}
 
 	return null;
 }
