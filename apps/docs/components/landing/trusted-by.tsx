@@ -97,6 +97,12 @@ const logos = [
 		src: 'https://inbound.new/',
 		style: 'font-semibold',
 	},
+	{
+		id: 17,
+		name: 'Mantlz',
+		src: 'https://mantlz.com',
+		style: 'font-semibold',
+	},
 ];
 
 import { LogoCarousel } from './logo-carousel';
