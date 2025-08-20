@@ -1,8 +1,8 @@
+import type { StreamingUpdate } from '@databuddy/shared';
 import type { z } from 'zod';
 import type { AIResponseJsonSchema } from '../prompts/agent';
 import { executeQuery } from '../utils/query-executor';
 import { validateSQL } from '../utils/sql-validator';
-import type { StreamingUpdate } from '../utils/stream-utils';
 
 const getRandomMessage = (messages: string[]): string =>
 	messages[Math.floor(Math.random() * messages.length)] ||

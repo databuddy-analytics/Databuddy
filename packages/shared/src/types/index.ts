@@ -11,3 +11,4 @@ export * from './query';
 export * from './realtime';
 export * from './revenue';
 export * from './website';
+export * from './assistant';

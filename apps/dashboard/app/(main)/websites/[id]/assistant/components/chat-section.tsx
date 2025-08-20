@@ -27,14 +27,7 @@ import {
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import {
-	inputValueAtom,
-	isLoadingAtom,
-	isRateLimitedAtom,
-	messagesAtom,
-	modelAtom,
-	websiteDataAtom,
-} from '@/stores/jotai/assistantAtoms';
+import { modelAtom, websiteDataAtom } from '@/stores/jotai/assistantAtoms';
 import { useChat } from '../hooks/use-chat';
 import { MessageBubble } from './message-bubble';
 import { ModelSelector } from './model-selector';
@@ -88,15 +81,22 @@ const quickQuestions = [
 ];
 
 export default function ChatSection() {
-	const [messages] = useAtom(messagesAtom);
-	const [inputValue, setInputValue] = useAtom(inputValueAtom);
-	const [isLoading] = useAtom(isLoadingAtom);
-	const [isRateLimited] = useAtom(isRateLimitedAtom);
 	const [selectedModel] = useAtom(modelAtom);
 	const [websiteData] = useAtom(websiteDataAtom);
 
 	const inputRef = useRef<HTMLTextAreaElement>(null);
-	const { sendMessage, scrollToBottom, resetChat } = useChat();
+	const {
+		messages,
+		inputValue,
+		setInputValue,
+		isLoading,
+		isRateLimited,
+		sendMessage,
+		scrollToBottom,
+		resetChat,
+		handleUpVote,
+		handleDownVote,
+	} = useChat();
 
 	const hasMessages = messages.length > 1;
 

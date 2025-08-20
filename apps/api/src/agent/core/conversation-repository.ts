@@ -4,9 +4,9 @@ import {
 	assistantMessages,
 	db,
 } from '@databuddy/db';
+import type { StreamingUpdate } from '@databuddy/shared';
 import { createId } from '@databuddy/shared';
 import { eq } from 'drizzle-orm';
-import type { StreamingUpdate } from '../utils/stream-utils';
 import type { AssistantSession, SessionMetrics } from './assistant-session';
 import type { AIResponseContent } from './response-processor';
 
@@ -18,6 +18,7 @@ export class ConversationRepository {
 	async saveConversation(
 		session: AssistantSession,
 		aiResponse: AIResponseContent,
+		aiMessageId: string,
 		finalResult: StreamingUpdate,
 		metrics: SessionMetrics
 	): Promise<void> {
@@ -35,7 +36,6 @@ export class ConversationRepository {
 			messages.filter((m) => m.role === 'user').length === 1;
 
 		try {
-			const nowIso = new Date().toISOString();
 			const userMsg: AssistantMessageInput = {
 				id: createId('NANOID'),
 				conversationId: context.conversationId,
@@ -60,11 +60,10 @@ export class ConversationRepository {
 				totalTokens: null,
 				debugLogs: null,
 				metadata: null,
-				createdAt: nowIso,
 			};
 
 			const assistantMsg: AssistantMessageInput = {
-				id: createId('NANOID'),
+				id: aiMessageId,
 				conversationId: context.conversationId,
 				role: 'assistant',
 				content: finalResult.content,
@@ -77,17 +76,12 @@ export class ConversationRepository {
 				thinkingSteps: aiResponse.thinking_steps ?? null,
 				hasError: finalResult.type === 'error',
 				errorMessage: finalResult.type === 'error' ? finalResult.content : null,
-				upvotes: 0,
-				downvotes: 0,
-				feedbackComments: null,
 				aiResponseTime: metrics.aiResponseTime,
 				totalProcessingTime: metrics.totalProcessingTime,
 				promptTokens: metrics.tokenUsage.promptTokens,
 				completionTokens: metrics.tokenUsage.completionTokens,
 				totalTokens: metrics.tokenUsage.totalTokens,
 				debugLogs,
-				metadata: null,
-				createdAt: nowIso,
 			};
 
 			const conversationMessages: AssistantMessageInput[] = [

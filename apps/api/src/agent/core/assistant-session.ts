@@ -21,7 +21,7 @@ export interface SessionContext {
 	user: User;
 	website: Website;
 	conversationId: string;
-	model: string;
+	model: 'chat' | 'agent' | 'agent-max';
 }
 
 /**

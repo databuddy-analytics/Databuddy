@@ -1,5 +1,7 @@
+import type { StreamingUpdate } from '@databuddy/shared';
 import { useAtom } from 'jotai';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { trpc } from '@/lib/trpc';
 import {
 	inputValueAtom,
 	isLoadingAtom,
@@ -12,21 +14,6 @@ import {
 } from '@/stores/jotai/assistantAtoms';
 import { getChatDB } from '../lib/chat-db';
 import type { Message } from '../types/message';
-
-// StreamingUpdate interface to match API
-interface StreamingUpdate {
-	type: 'thinking' | 'progress' | 'complete' | 'error';
-	content: string;
-	data?: {
-		hasVisualization?: boolean;
-		chartType?: string;
-		data?: any[];
-		responseType?: 'chart' | 'text' | 'metric';
-		metricValue?: string | number;
-		metricLabel?: string;
-	};
-	debugInfo?: Record<string, any>;
-}
 
 function generateWelcomeMessage(websiteName?: string): string {
 	const examples = [
@@ -52,6 +39,7 @@ export function useChat() {
 	const [scrollAreaRef] = useAtom(scrollAreaRefAtom);
 	const rateLimitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const chatDB = getChatDB();
+	const [conversationId, setConversationId] = useState<string>();
 
 	useEffect(() => {
 		let isMounted = true;
@@ -158,17 +146,14 @@ export function useChat() {
 			setInputValue('');
 			setIsLoading(true);
 
-			const assistantId = (Date.now() + 1).toString();
-			const assistantMessage: Message = {
-				id: assistantId,
+			let assistantMessage: Message = {
+				id: '',
 				type: 'assistant',
 				content: '',
 				timestamp: new Date(),
 				hasVisualization: false,
 				thinkingSteps: [],
 			};
-
-			setMessages((prev) => [...prev, assistantMessage]);
 
 			try {
 				// Stream the AI response using the new single endpoint
@@ -187,6 +172,7 @@ export function useChat() {
 								content,
 							})),
 							websiteId: websiteId || '',
+							conversationId,
 							model,
 						}),
 					}
@@ -197,17 +183,12 @@ export function useChat() {
 					if (response.status === 429) {
 						const errorData = await response.json();
 						if (errorData.code === 'RATE_LIMIT_EXCEEDED') {
-							setMessages((prev) =>
-								prev.map((msg) =>
-									msg.id === assistantId
-										? {
-												...msg,
-												content:
-													"⏱️ You've reached the rate limit. Please wait 60 seconds before sending another message.",
-											}
-										: msg
-								)
-							);
+							assistantMessage = {
+								...assistantMessage,
+								content:
+									"⏱️ You've reached the rate limit. Please wait 60 seconds before sending another message.",
+							};
+
 							setIsLoading(false);
 							setIsRateLimited(true);
 
@@ -247,86 +228,81 @@ export function useChat() {
 								try {
 									const update: StreamingUpdate = JSON.parse(line.slice(6));
 
-									if (update.type === 'thinking') {
-										setMessages((prev) =>
-											prev.map((msg) =>
-												msg.id === assistantId
-													? {
-															...msg,
-															thinkingSteps: [
-																...(msg.thinkingSteps || []),
-																update.content,
-															],
-														}
-													: msg
-											)
-										);
-									} else if (update.type === 'progress') {
-										setMessages((prev) =>
-											prev.map((msg) =>
-												msg.id === assistantId
-													? {
-															...msg,
-															content: update.content,
-															hasVisualization: update.data?.hasVisualization,
-															chartType: update.data?.chartType as any,
-															data: update.data?.data,
-															responseType: update.data?.responseType,
-															metricValue: update.data?.metricValue,
-															metricLabel: update.data?.metricLabel,
-														}
-													: msg
-											)
-										);
-										scrollToBottom();
-									} else if (update.type === 'complete') {
-										const completedMessage = {
-											id: assistantId,
-											type: 'assistant' as const,
-											content: update.content,
-											timestamp: new Date(),
-											hasVisualization: update.data?.hasVisualization,
-											chartType: update.data?.chartType as any,
-											data: update.data?.data,
-											responseType: update.data?.responseType,
-											metricValue: update.data?.metricValue,
-											metricLabel: update.data?.metricLabel,
-											debugInfo: update.debugInfo,
-										};
-
-										// Save completed assistant message to IndexedDB
-										try {
-											await chatDB.saveMessage(
-												completedMessage,
-												websiteId || ''
-											);
-										} catch (error) {
-											console.error(
-												'Failed to save Databunny message to IndexedDB:',
-												error
-											);
+									switch (update.type) {
+										case 'thinking': {
+											assistantMessage = {
+												...assistantMessage,
+												thinkingSteps: [
+													...(assistantMessage.thinkingSteps || []),
+													update.content,
+												],
+											};
+											break;
 										}
+										case 'progress': {
+											assistantMessage = {
+												...assistantMessage,
+												content: update.content,
+												hasVisualization: update.data?.hasVisualization,
+												chartType: update.data?.chartType as any,
+												data: update.data?.data,
+												responseType: update.data?.responseType,
+												metricValue: update.data?.metricValue,
+												metricLabel: update.data?.metricLabel,
+											};
+											scrollToBottom();
+											break;
+										}
+										case 'complete': {
+											assistantMessage = {
+												...assistantMessage,
+												type: 'assistant' as const,
+												content: update.content,
+												timestamp: new Date(),
+												hasVisualization: update.data?.hasVisualization,
+												chartType: update.data?.chartType as any,
+												data: update.data?.data,
+												responseType: update.data?.responseType,
+												metricValue: update.data?.metricValue,
+												metricLabel: update.data?.metricLabel,
+												debugInfo: update.debugInfo,
+											};
 
-										setMessages((prev) =>
-											prev.map((msg) =>
-												msg.id === assistantId ? completedMessage : msg
-											)
-										);
-										scrollToBottom();
-										break;
-									} else if (update.type === 'error') {
-										setMessages((prev) =>
-											prev.map((msg) =>
-												msg.id === assistantId
-													? {
-															...msg,
-															content: update.content,
-															debugInfo: update.debugInfo,
-														}
-													: msg
-											)
-										);
-										break;
+											// Save completed assistant message to IndexedDB
+											try {
+												await chatDB.saveMessage(
+													assistantMessage,
+													websiteId || ''
+												);
+											} catch (error) {
+												console.error(
+													'Failed to save Databunny message to IndexedDB:',
+													error
+												);
+											}
+
+											scrollToBottom();
+											break;
+										}
+										case 'error': {
+											assistantMessage = {
+												...assistantMessage,
+												content: update.content,
+												debugInfo: update.debugInfo,
+											};
+											break;
+										}
+										case 'metadata': {
+											assistantMessage = {
+												...assistantMessage,
+												id: update.data.messageId,
+											};
+											setConversationId(update.data.conversationId);
+											break;
+										}
+										default: {
+											break;
+										}
 									}
 								} catch (_parseError) {
 									console.warn('Failed to parse SSE data:', line);
@@ -339,20 +315,16 @@ export function useChat() {
 				}
 			} catch (error) {
 				console.error('Failed to get AI response:', error);
-				setMessages((prev) =>
-					prev.map((msg) =>
-						msg.id === assistantId
-							? {
-									...msg,
-									content:
-										"I apologize, but I'm having trouble processing your request right now. Please try again in a moment.",
-								}
-							: msg
-					)
-				);
+				assistantMessage = {
+					...assistantMessage,
+					content:
+						"I apologize, but I'm having trouble processing your request right now. Please try again in a moment.",
+				};
 			} finally {
 				setIsLoading(false);
 			}
+
+			setMessages((prev) => [...prev, assistantMessage]);
 		},
 		[
 			inputValue,
@@ -384,6 +356,8 @@ export function useChat() {
 		try {
 			// Clear messages from IndexedDB
 			await chatDB.clearMessages(websiteId || '');
+
+			setConversationId(undefined);
 
 			// Create new welcome message
 			const welcomeMessage: Message = {

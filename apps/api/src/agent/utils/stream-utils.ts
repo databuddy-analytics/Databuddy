@@ -1,13 +1,6 @@
-export interface StreamingUpdate {
-	type: 'thinking' | 'progress' | 'complete' | 'error';
-	content: string;
-	data?: Record<string, unknown>;
-	debugInfo?: Record<string, unknown>;
-}
+import type { StreamingUpdate } from '@databuddy/shared';
 
-export function createStreamingResponse(
-	updates: StreamingUpdate[]
-): Response {
+export function createStreamingResponse(updates: StreamingUpdate[]): Response {
 	const stream = new ReadableStream({
 		async start(controller) {
 			try {
@@ -43,9 +36,7 @@ function createThinkingStep(step: string): string {
 	return `🧠 ${step}`;
 }
 
-export function generateThinkingSteps(
-	steps: string[]
-): StreamingUpdate[] {
+export function generateThinkingSteps(steps: string[]): StreamingUpdate[] {
 	const updates: StreamingUpdate[] = [];
 	for (const step of steps) {
 		updates.push({ type: 'thinking', content: createThinkingStep(step) });

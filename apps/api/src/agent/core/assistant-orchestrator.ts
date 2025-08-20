@@ -1,7 +1,7 @@
 import type { User } from '@databuddy/auth';
-import type { Website } from '@databuddy/shared';
+import type { StreamingUpdate } from '@databuddy/shared';
+import { createId, type Website } from '@databuddy/shared';
 import type { AssistantRequestType } from '../../schemas';
-import type { StreamingUpdate } from '../utils/stream-utils';
 import { AIService } from './ai-service';
 import { AssistantSession, type SessionMetrics } from './assistant-session';
 import { ConversationRepository } from './conversation-repository';
@@ -30,6 +30,7 @@ export class AssistantOrchestrator {
 		try {
 			// Step 1: Generate AI response
 			const aiResponse = await this.aiService.generateResponse(session);
+			const aiMessageId = createId();
 
 			if (!aiResponse.content) {
 				session.log('AI response was empty');
@@ -42,11 +43,23 @@ export class AssistantOrchestrator {
 				];
 			}
 
+			const streamingUpdates: StreamingUpdate[] = [
+				{
+					type: 'metadata',
+					data: {
+						conversationId: session.getContext().conversationId,
+						messageId: aiMessageId,
+					},
+				},
+			];
+
 			// Step 2: Process the response into streaming updates
-			const streamingUpdates = await this.responseProcessor.process(
+			const aiResponseUpdates = await this.responseProcessor.process(
 				aiResponse.content,
 				session
 			);
+
+			streamingUpdates.push(...aiResponseUpdates);
 
 			// Step 3: Save to database (async, don't block response)
 			const finalResult = streamingUpdates.at(-1);
@@ -57,6 +70,7 @@ export class AssistantOrchestrator {
 				this.saveConversationAsync(
 					session,
 					aiResponse.content,
+					aiMessageId,
 					finalResult,
 					metrics
 				);
@@ -85,6 +99,7 @@ export class AssistantOrchestrator {
 	private async saveConversationAsync(
 		session: AssistantSession,
 		aiResponse: AIResponseContent,
+		messageId: string,
 		finalResult: StreamingUpdate,
 		metrics: SessionMetrics
 	): Promise<void> {
@@ -92,6 +107,7 @@ export class AssistantOrchestrator {
 			await this.conversationRepo.saveConversation(
 				session,
 				aiResponse,
+				messageId,
 				finalResult,
 				metrics
 			);
@@ -110,15 +126,21 @@ export class AssistantOrchestrator {
 		try {
 			const errorAIResponse = {
 				response_type: 'text' as const,
-				text_response: errorResponse.content,
+				text_response:
+					errorResponse.type === 'error'
+						? errorResponse.content
+						: 'Oops! Something unexpected happened. Mind trying that again?',
 				thinking_steps: [
 					`Error: ${originalError instanceof Error ? originalError.message : 'Unknown error'}`,
 				],
 			};
 
+			const messageId = createId('NANOID');
+
 			await this.conversationRepo.saveConversation(
 				session,
 				errorAIResponse,
+				messageId,
 				errorResponse,
 				metrics
 			);

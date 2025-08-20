@@ -1,10 +1,8 @@
 import { auth, type User, websitesApi } from '@databuddy/auth';
+import type { StreamingUpdate } from '@databuddy/shared';
 import { Elysia } from 'elysia';
 import { processAssistantRequest } from '../agent/processor';
-import {
-	createStreamingResponse,
-	type StreamingUpdate,
-} from '../agent/utils/stream-utils';
+import { createStreamingResponse } from '../agent/utils/stream-utils';
 import { validateWebsite } from '../lib/website-utils';
 import { AssistantRequestSchema, type AssistantRequestType } from '../schemas';
 

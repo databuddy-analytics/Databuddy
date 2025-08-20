@@ -38,7 +38,7 @@ export class AIService {
 			context.website.id,
 			context.website.domain,
 			'execute_chat',
-			context.model as 'chat' | 'agent' | 'agent-max'
+			context.model
 		);
 
 		try {
