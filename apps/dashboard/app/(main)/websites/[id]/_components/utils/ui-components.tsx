@@ -44,6 +44,7 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 			'indigo-500': '#6366f1',
 			'orange-500': '#f97316',
 			'sky-500': '#0ea5e9',
+			'amber-500': '#fd9a00',
 		};
 
 		return colorMap[colorName] || '#3b82f6'; // Default to blue if color not found
