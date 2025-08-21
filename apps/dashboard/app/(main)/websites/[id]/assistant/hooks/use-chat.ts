@@ -1,7 +1,6 @@
 import type { StreamingUpdate } from '@databuddy/shared';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { trpc } from '@/lib/trpc';
 import {
 	inputValueAtom,
 	isLoadingAtom,
@@ -121,6 +120,15 @@ export function useChat() {
 		};
 	}, []);
 
+	function updateAiMessage(message: Message) {
+		setMessages((prev) => {
+			//TODO: find a way to update the message with the correct id
+			const newMessages = [...prev];
+			newMessages[newMessages.length - 1] = message;
+			return newMessages;
+		});
+	}
+
 	const sendMessage = useCallback(
 		async (content?: string) => {
 			const messageContent = content || inputValue.trim();
@@ -154,6 +162,8 @@ export function useChat() {
 				hasVisualization: false,
 				thinkingSteps: [],
 			};
+
+			setMessages((prev) => [...prev, assistantMessage]);
 
 			try {
 				// Stream the AI response using the new single endpoint
@@ -304,6 +314,7 @@ export function useChat() {
 											break;
 										}
 									}
+									updateAiMessage(assistantMessage);
 								} catch (_parseError) {
 									console.warn('Failed to parse SSE data:', line);
 								}
@@ -323,8 +334,6 @@ export function useChat() {
 			} finally {
 				setIsLoading(false);
 			}
-
-			setMessages((prev) => [...prev, assistantMessage]);
 		},
 		[
 			inputValue,
