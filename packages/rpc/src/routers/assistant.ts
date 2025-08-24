@@ -184,11 +184,15 @@ export const assistantRouter = createTRPCRouter({
 	// Add feedback to message
 	addFeedback: protectedProcedure
 		.input(
-			z.object({
-				messageId: z.string(),
-				type: z.enum(['upvote', 'downvote']),
-				comment: z.string().optional(),
-			})
+			z
+				.object({
+					messageId: z.string(),
+					type: z.enum(['upvote', 'downvote']).optional(),
+					comment: z.string().optional(),
+				})
+				.refine((v) => v.type || v.comment, {
+					message: 'Either type or comment must be provided',
+				})
 		)
 		.mutation(async ({ ctx, input }) => {
 			// Get message with conversation to verify user access
@@ -223,7 +227,7 @@ export const assistantRouter = createTRPCRouter({
 			const updates: Partial<typeof assistantMessages.$inferInsert> = {};
 			if (input.type === 'upvote') {
 				updates.upvotes = message.upvotes + 1;
-			} else {
+			} else if (input.type === 'downvote') {
 				updates.downvotes = message.downvotes + 1;
 			}
 

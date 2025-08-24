@@ -1,6 +1,8 @@
 import type { StreamingUpdate } from '@databuddy/shared';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc';
 import {
 	inputValueAtom,
 	isLoadingAtom,
@@ -25,6 +27,8 @@ function generateWelcomeMessage(websiteName?: string): string {
 	return `Hello! I'm Databunny, your data analyst for ${websiteName || 'your website'}. I can help you understand your data with charts, single metrics, or detailed answers. Try asking me questions like:\n\n${examples.map((prompt: string) => `• "${prompt}"`).join('\n')}\n\nI'll automatically choose the best way to present your data - whether it's a chart, a single number, or a detailed explanation.`;
 }
 
+export type Vote = 'upvote' | 'downvote';
+
 export function useChat() {
 	const [model] = useAtom(modelAtom);
 	const [websiteId] = useAtom(websiteIdAtom);
@@ -39,6 +43,14 @@ export function useChat() {
 	if (!websiteId) {
 		throw new Error('Website ID is required');
 	}
+
+	const addFeedback = trpc.assistant.addFeedback.useMutation({
+		onError: (error) => {
+			toast.error(
+				error.message || 'Failed to submit feedback. Please try again.'
+			);
+		},
+	});
 
 	// Initialize with welcome message if no messages exist
 	useEffect(() => {
@@ -304,6 +316,30 @@ export function useChat() {
 		setConversationId(undefined);
 	}, [websiteData?.name, setMessages, setInputValue, setIsLoading]);
 
+	const handleVote = useCallback(
+		(messageId: string, type: Vote) => {
+			addFeedback.mutate({ messageId, type });
+		},
+		[addFeedback]
+	);
+
+	const handleFeedbackComment = useCallback(
+		(messageId: string, comment: string) => {
+			addFeedback.mutate(
+				{ messageId, comment },
+				{
+					onSuccess: () => {
+						toast.success('Feedback submitted');
+					},
+					onError: () => {
+						toast.error('Failed to submit feedback');
+					},
+				}
+			);
+		},
+		[addFeedback]
+	);
+
 	return {
 		messages,
 		inputValue,
@@ -314,5 +350,7 @@ export function useChat() {
 		handleKeyPress,
 		resetChat,
 		scrollToBottom,
+		handleVote,
+		handleFeedbackComment,
 	};
 }

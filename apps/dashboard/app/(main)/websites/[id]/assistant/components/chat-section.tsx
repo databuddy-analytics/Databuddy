@@ -92,6 +92,8 @@ export default function ChatSection() {
 		sendMessage,
 		scrollToBottom,
 		resetChat,
+		handleVote,
+		handleFeedbackComment,
 	} = useChat();
 
 	const hasMessages = messages.length > 1;
@@ -190,8 +192,14 @@ export default function ChatSection() {
 
 					{hasMessages && (
 						<div className="space-y-4">
-							{messages.map((message) => (
-								<MessageBubble key={message.id} message={message} />
+							{messages.map((message, index) => (
+								<MessageBubble
+									handleFeedbackComment={handleFeedbackComment}
+									handleVote={handleVote}
+									isLastMessage={index === messages.length - 1}
+									key={message.id}
+									message={message}
+								/>
 							))}
 						</div>
 					)}
