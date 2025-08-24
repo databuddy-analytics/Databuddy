@@ -1,6 +1,6 @@
 import type { StreamingUpdate } from '@databuddy/shared';
 import { useAtom } from 'jotai';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import {
@@ -8,35 +8,18 @@ import {
 	isLoadingAtom,
 	messagesAtom,
 	modelAtom,
-	scrollAreaRefAtom,
-	websiteDataAtom,
 	websiteIdAtom,
 } from '@/stores/jotai/assistantAtoms';
 import type { Message } from '../types/message';
-
-function generateWelcomeMessage(websiteName?: string): string {
-	const examples = [
-		'Show me page views over the last 7 days',
-		'How many visitors did I have yesterday?',
-		'What are my top traffic sources?',
-		"What's my current bounce rate?",
-		'How is my mobile vs desktop traffic?',
-		'Show me traffic by country',
-	];
-
-	return `Hello! I'm Databunny, your data analyst for ${websiteName || 'your website'}. I can help you understand your data with charts, single metrics, or detailed answers. Try asking me questions like:\n\n${examples.map((prompt: string) => `• "${prompt}"`).join('\n')}\n\nI'll automatically choose the best way to present your data - whether it's a chart, a single number, or a detailed explanation.`;
-}
 
 export type Vote = 'upvote' | 'downvote';
 
 export function useChat() {
 	const [model] = useAtom(modelAtom);
 	const [websiteId] = useAtom(websiteIdAtom);
-	const [websiteData] = useAtom(websiteDataAtom);
 	const [messages, setMessages] = useAtom(messagesAtom);
 	const [inputValue, setInputValue] = useAtom(inputValueAtom);
 	const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
-	const [scrollAreaRef] = useAtom(scrollAreaRefAtom);
 	const [conversationId, setConversationId] = useState<string>();
 
 	// Validate required fields
@@ -51,36 +34,6 @@ export function useChat() {
 			);
 		},
 	});
-
-	// Initialize with welcome message if no messages exist
-	useEffect(() => {
-		if (messages.length === 0 && websiteData?.name) {
-			const welcomeMessage: Message = {
-				id: '1',
-				type: 'assistant',
-				content: generateWelcomeMessage(websiteData.name),
-				timestamp: new Date(),
-			};
-			setMessages([welcomeMessage]);
-		}
-	}, [websiteData?.name, messages.length, setMessages]);
-
-	const scrollToBottom = useCallback(() => {
-		setTimeout(() => {
-			if (scrollAreaRef?.current) {
-				const scrollContainer = scrollAreaRef.current.querySelector(
-					'[data-radix-scroll-area-viewport]'
-				);
-				if (scrollContainer) {
-					scrollContainer.scrollTop = scrollContainer.scrollHeight;
-				}
-			}
-		}, 50);
-	}, [scrollAreaRef]);
-
-	useEffect(() => {
-		scrollToBottom();
-	}, [scrollToBottom]);
 
 	const updateAiMessage = useCallback(
 		(message: Message) => {
@@ -116,7 +69,6 @@ export function useChat() {
 						metricValue: update.data?.metricValue,
 						metricLabel: update.data?.metricLabel,
 					};
-					scrollToBottom();
 					return updatedMessage;
 				}
 				case 'complete': {
@@ -133,7 +85,6 @@ export function useChat() {
 						metricLabel: update.data?.metricLabel,
 						debugInfo: update.debugInfo,
 					};
-					scrollToBottom();
 					return completedMessage;
 				}
 				case 'error': {
@@ -155,7 +106,7 @@ export function useChat() {
 				}
 			}
 		},
-		[scrollToBottom]
+		[]
 	);
 
 	const readStreamChunk = useCallback(
@@ -302,19 +253,11 @@ export function useChat() {
 	);
 
 	const resetChat = useCallback(() => {
-		// Create new welcome message
-		const welcomeMessage: Message = {
-			id: '1',
-			type: 'assistant',
-			content: generateWelcomeMessage(websiteData?.name || ''),
-			timestamp: new Date(),
-		};
-
-		setMessages([welcomeMessage]);
+		setMessages([]);
 		setInputValue('');
 		setIsLoading(false);
 		setConversationId(undefined);
-	}, [websiteData?.name, setMessages, setInputValue, setIsLoading]);
+	}, [setInputValue, setIsLoading, setMessages]);
 
 	const handleVote = useCallback(
 		(messageId: string, type: Vote) => {
@@ -345,11 +288,9 @@ export function useChat() {
 		inputValue,
 		setInputValue,
 		isLoading,
-		scrollAreaRef,
 		sendMessage,
 		handleKeyPress,
 		resetChat,
-		scrollToBottom,
 		handleVote,
 		handleFeedbackComment,
 	};

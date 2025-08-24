@@ -1,5 +1,4 @@
 import { atom } from 'jotai';
-import type { RefObject } from 'react';
 import type { WebsiteDataTabProps } from '@/app/(main)/websites/[id]/_components/utils/types';
 import type { Message } from '@/app/(main)/websites/[id]/assistant/types/message';
 import type { AssistantModel } from '@/app/(main)/websites/[id]/assistant/types/model';
@@ -19,5 +18,4 @@ export const inputValueAtom = atom<string>('');
 export const isLoadingAtom = atom<boolean>(false);
 export const isRateLimitedAtom = atom<boolean>(false);
 export const isInitializedAtom = atom<boolean>(false);
-export const scrollAreaRefAtom = atom<RefObject<HTMLDivElement> | null>(null);
 export const currentMessageAtom = atom<Message | undefined>(undefined);

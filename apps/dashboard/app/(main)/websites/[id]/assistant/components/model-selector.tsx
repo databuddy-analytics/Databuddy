@@ -28,13 +28,11 @@ const modelIcons: Record<string, React.ReactNode> = {
 
 interface ModelSelectorProps {
 	selectedModel: AssistantModel;
-	// onModelChange: (model: AssistantModel) => void;
 	disabled?: boolean;
 }
 
 export function ModelSelector({
 	selectedModel,
-	// onModelChange,
 	disabled = false,
 }: ModelSelectorProps) {
 	const currentConfig = MODEL_CONFIGS[selectedModel];
