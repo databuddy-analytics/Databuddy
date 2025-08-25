@@ -120,15 +120,15 @@ export const Description = () => {
 				<div className="flex w-full max-w-7xl items-center justify-center px-8">
 					{/* Left Column - Titles */}
 					<div className="flex-1 pr-12">
-						<h2 className="mb-8 font-medium text-2xl leading-tight xl:mb-12 xl:text-3xl">
+						<h2 className="mb-4 font-medium text-2xl leading-tight xl:mb-6 xl:text-3xl">
 							Most Analytics Tools are
 						</h2>
 
-						<div className="space-y-3 xl:space-y-4">
+						<div className="space-y-2 xl:space-y-3">
 							{data.map((item, index) => (
 								<motion.div
 									animate={item.isActive ? 'active' : 'inactive'}
-									className="cursor-pointer font-medium text-lg transition-colors duration-200 hover:opacity-80 xl:text-xl"
+									className="cursor-pointer font-normal text-lg transition-colors duration-200 hover:opacity-80 xl:text-xl"
 									key={`title-${item.title}`}
 									onClick={() => setCurrentIndex(index)}
 									variants={titleVariants}
