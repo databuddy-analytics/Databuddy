@@ -77,7 +77,7 @@ export default function HomePage() {
 				>
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 						{/* Description Section */}
-						<Section className="pt-16 lg:pt-20" customPaddings id="description">
+						<Section className="pt-8 lg:pt-12" customPaddings id="description">
 							<Description />
 						</Section>
 
