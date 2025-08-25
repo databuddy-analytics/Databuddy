@@ -23,7 +23,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.1.2",
     "@types/bun": "latest",
-    "dotenv-cli": "^9.0.0",
+    "dotenv-cli": "^10.0.0",
     "turbo": "^2.5.2",
     "typescript": "^5.8.3",
     "ultracite": "5.0.49"
