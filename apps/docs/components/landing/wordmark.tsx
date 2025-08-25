@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 export const Wordmark = () => {
 	return (
 		<div className="w-full">
-			<div className="flex flex-col items-center gap-8 pt-12 lg:gap-12">
+			<div className="flex flex-col items-center gap-8 p-8 lg:gap-12">
 				{/* Logo SVG */}
 				<div className="flex w-full items-center justify-center overflow-hidden">
 					<div className="max-w-full">
