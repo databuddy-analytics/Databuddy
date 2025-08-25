@@ -48,7 +48,7 @@ export default function FAQ() {
 								key={faq.question}
 								value={faq.question}
 							>
-								<AccordionTrigger className="px-8 py-4 text-left font-medium text-base hover:no-underline sm:py-6 sm:text-lg lg:text-xl">
+								<AccordionTrigger className="px-8 py-4 text-left font-normal text-base hover:no-underline sm:py-6 sm:text-lg lg:text-xl">
 									{faq.question}
 								</AccordionTrigger>
 								<AccordionContent className="px-8 pb-4 text-muted-foreground text-sm leading-relaxed sm:pb-6 sm:text-base">
