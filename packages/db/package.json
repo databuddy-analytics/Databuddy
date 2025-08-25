@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/pg": "^8.15.4",
     "drizzle-kit": "^0.31.4",
-    "tsx": "^4.20.3"
+    "tsx": "^4.20.5"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
