@@ -240,7 +240,7 @@ export default function Testimonials(): ReactElement {
 				</h2>
 				<p className="mx-auto max-w-2xl px-2 text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Join thousands of developers who trust Databuddy for their analytics
-					needs
+					needs.
 				</p>
 			</div>
 

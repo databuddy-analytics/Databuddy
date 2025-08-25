@@ -62,8 +62,8 @@ export const GridCards = () => {
 					<span className="text-muted-foreground">Everything you need to </span>
 					<span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">understand your users</span>
 				</h2>
-				<p className="mx-auto mt-3 max-w-3xl text-base text-muted-foreground lg:mx-0">
-					Privacy-first, lightweight, real-time insights to grow with confidence.
+				<p className="max-w-2xl mt-3 text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
+					Privacy-first, lightweight, real-time insights to grow with confidence. 
 				</p>
 			</div>
 
