@@ -60,8 +60,11 @@ export const GridCards = () => {
 			<div className="mb-12 text-center lg:mb-16 lg:text-left">
 				<h2 className="mx-auto max-w-4xl font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
 					<span className="text-muted-foreground">Everything you need to </span>
-					<span className="text-foreground">understand your users</span>
+					<span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">understand your users</span>
 				</h2>
+				<p className="mx-auto mt-3 max-w-3xl text-base text-muted-foreground lg:mx-0">
+					Privacy-first, lightweight, real-time insights to grow with confidence.
+				</p>
 			</div>
 
 			{/* Grid Section */}
