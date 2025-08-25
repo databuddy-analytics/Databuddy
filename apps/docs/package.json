@@ -65,7 +65,7 @@
     "react-icons": "^5.5.0",
     "react-resizable-panels": "^3.0.2",
     "recharts": "^2.15.3",
-    "shiki": "^3.9.2",
+    "shiki": "^3.11.0",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.0",
     "use-sound": "^5.0.0",
