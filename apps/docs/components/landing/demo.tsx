@@ -72,7 +72,7 @@ export default function DemoContainer() {
 
 				<iframe
 					allowFullScreen
-					className="h-[500px] w-full rounded border-0 bg-gradient-to-b from-transparent to-background grayscale sm:h-[600px] lg:h-[700px]"
+					className="h-[500px] w-full rounded border-0 bg-gradient-to-b from-transparent to-background grayscale shadow-2xl sm:h-[600px] lg:h-[700px]"
 					loading="lazy"
 					ref={iframeRef}
 					src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"
@@ -86,7 +86,7 @@ export default function DemoContainer() {
 					onClick={handleFullscreen}
 					type="button"
 				>
-					<div className="flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors hover:bg-card">
+					<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors hover:bg-background/10 transition-all duration-300">
 						<ArrowsOutSimpleIcon
 							className="h-4 w-4 text-foreground"
 							weight="fill"
