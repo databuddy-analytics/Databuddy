@@ -33,14 +33,14 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 			<div
 				className={`relative h-full rounded border backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg ${tierColors[sponsor.tier]}`}
 			>
-				<div className="flex flex-col items-center p-8">
+				<div className="flex flex-col items-center p-6 sm:p-8">
 					{/* Tier Badge */}
-					<div className="mb-4 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary text-xs">
-						{tierLabels[sponsor.tier]} Sponsor
+					<div className="mb-3 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary text-xs uppercase tracking-wide">
+						{tierLabels[sponsor.tier]}
 					</div>
 
 					{/* Logo */}
-					<div className="mb-6 flex h-24 w-full items-center justify-center">
+					<div className="mb-4 flex h-20 w-full items-center justify-center sm:mb-6 sm:h-24">
 						<Image
 							alt={`${sponsor.name} logo`}
 							className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105 dark:brightness-0 dark:invert"
@@ -51,7 +51,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 					</div>
 
 					{/* Name */}
-					<h3 className="mb-2 text-center font-semibold text-foreground text-xl transition-colors group-hover:text-primary">
+					<h3 className="mb-3 text-center font-semibold text-foreground text-lg transition-colors group-hover:text-primary sm:text-xl">
 						{sponsor.name}
 					</h3>
 
@@ -128,7 +128,7 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 			</div>
 
 			{/* Sponsors by Tier */}
-			<div className="space-y-16">
+			<div className="space-y-12 lg:space-y-16">
 				{tierOrder.map((tier) => {
 					const tierSponsors = sponsorsByTier[tier];
 					if (!tierSponsors || tierSponsors.length === 0) {
@@ -142,19 +142,34 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 						bronze: 'Bronze Sponsors',
 					};
 
-					const gridCols: Record<typeof tier, string> = {
-						platinum: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2',
-						gold: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-						silver: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-						bronze: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+					// Dynamic grid columns based on number of items
+					const getGridCols = (count: number, tierType: string) => {
+						if (count === 1) {
+							return 'grid-cols-1 place-items-center max-w-md mx-auto';
+						}
+						if (count === 2) {
+							return 'grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto';
+						}
+
+						const tierCols: Record<string, string> = {
+							platinum: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2',
+							gold: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+							silver:
+								'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+							bronze:
+								'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+						};
+						return tierCols[tierType] || tierCols.bronze;
 					};
 
 					return (
 						<div key={tier}>
-							<h3 className="mb-8 text-center font-semibold text-xl sm:text-2xl">
+							<h3 className="mb-6 text-center font-semibold text-xl sm:text-2xl lg:mb-8">
 								{tierLabels[tier]}
 							</h3>
-							<div className={`grid gap-6 ${gridCols[tier]}`}>
+							<div
+								className={`grid gap-4 sm:gap-6 ${getGridCols(tierSponsors.length, tier)}`}
+							>
 								{tierSponsors.map((sponsor) => (
 									<SponsorCard key={sponsor.id} sponsor={sponsor} />
 								))}

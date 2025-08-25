@@ -5,6 +5,7 @@ import Section from '@/components/landing/section';
 import { Spotlight } from '@/components/landing/spotlight';
 import { StructuredData } from '@/components/structured-data';
 import ActivityStats from './activity-stats';
+import AppreciationFlipCards from './appreciation-flip-cards';
 import CodeChurnChart from './code-churn-chart';
 import CommitActivityChart from './commit-activity-chart';
 import ContributorsGrid from './contributors-grid';
@@ -191,7 +192,7 @@ function fetchPullRequestsData(
 ): Promise<GitHubPullRequest[]> {
 	const cachedPrsResponse = cache(async () => {
 		const prsResponse = await fetch(
-			'https://api.github.com/repos/databuddy-analytics/Databuddy/pulls?state=all&per_page=100',
+			'https://api.github.com/repos/databuddy-analytics/Databuddy/pulls?state=all&per_page=50',
 			requestInit
 		);
 		if (!prsResponse.ok) {
@@ -501,9 +502,19 @@ export default async function ContributorsPage() {
 				</div>
 			</Section>
 
-			{/* Commit Activity Section */}
+			{/* Appreciation Section */}
 			<Section
 				className="border-border border-b bg-background/30"
+				id="appreciation"
+			>
+				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+					<AppreciationFlipCards />
+				</div>
+			</Section>
+
+			{/* Commit Activity Section */}
+			<Section
+				className="border-border border-b bg-background/50"
 				id="commit-activity"
 			>
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">

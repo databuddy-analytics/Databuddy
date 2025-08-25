@@ -130,11 +130,9 @@ export function Footer() {
 							<li>
 								<Link
 									className="text-muted-foreground hover:text-foreground"
-									href="https://github.com/databuddy-analytics"
-									rel="noopener"
-									target="_blank"
+									href="/sponsors"
 								>
-									Open Source
+									Sponsors
 								</Link>
 							</li>
 						</ul>

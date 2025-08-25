@@ -88,6 +88,10 @@ const config = {
 				protocol: 'https',
 				hostname: 'avatars.githubusercontent.com',
 			},
+			{
+				protocol: 'https',
+				hostname: 'pbs.twimg.com',
+			},
 		],
 		formats: ['image/webp', 'image/avif'],
 		minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
