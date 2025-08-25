@@ -25,7 +25,7 @@ function LogoColumn({
 	currentTime,
 	isLast,
 }: LogoColumnProps) {
-	const CYCLE_DURATION = 2000;
+	const CYCLE_DURATION = 3600;
 	const columnDelay = columnIndex * 200;
 	const adjustedTime =
 		(currentTime + columnDelay) % (CYCLE_DURATION * logos.length);
@@ -52,7 +52,7 @@ function LogoColumn({
 	return (
 		<motion.div
 			animate={{ opacity: 1, y: 0 }}
-			className={`relative h-14 w-24 overflow-hidden ${isLast ? '' : 'border-border/20 border-r'} sm:h-16 sm:w-32 md:h-20 md:w-48 lg:h-24 lg:w-64`}
+			className={`relative h-14 w-28 overflow-hidden rounded bg-background/40 ${isLast ? '' : 'border-border/20 border-r'} sm:h-16 sm:w-36 md:h-20 md:w-52 lg:h-24 lg:w-64`}
 			initial={{ opacity: 0, y: 20 }}
 			transition={{
 				delay: columnIndex * 0.1,
@@ -66,36 +66,37 @@ function LogoColumn({
 						y: '0%',
 						opacity: 1,
 						transition: {
-							duration: 0.6,
+							duration: 0.5,
 							ease: [0.25, 0.46, 0.45, 0.94],
 						},
 					}}
-					className="absolute inset-0 flex items-center justify-center gap-2"
+					className="absolute inset-0 flex items-center justify-center gap-2 px-2"
 					exit={{
-						y: '-20%',
+						y: '-15%',
 						filter: 'blur(3px)',
 						opacity: 0,
-						transition: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
+						transition: { duration: 0.25, ease: [0.23, 1, 0.32, 1] },
 					}}
 					initial={{ y: '10%', opacity: 0 }}
 					key={`${currentLogo.id}-${currentIndex}`}
 				>
-					{/* {showFavicon ? (
-						<Image
-							alt={`${currentLogo.name} favicon`}
-							className="h-6 w-6"
-							height={24}
-							loading="eager"
-							onError={() => setImgError(true)}
-							priority
-							sizes="24px"
-							src={faviconSrc}
-							width={24}
-						/>
-					) : null} */}
-					<span className="truncate px-1 font-bold text-xs sm:text-sm md:text-base lg:text-lg">
-						{currentLogo.name}
-					</span>
+					{currentLogo.src ? (
+						<a
+							aria-label={`Visit ${currentLogo.name}`}
+							className="inline-flex max-w-full items-center justify-center px-1 text-foreground/80 transition-colors hover:text-foreground"
+							href={currentLogo.src}
+							target="_blank"
+							rel="noopener"
+						>
+							<span className="truncate font-bold text-xs tracking-wide sm:text-sm md:text-base lg:text-lg">
+								{currentLogo.name}
+							</span>
+						</a>
+					) : (
+						<span className="truncate px-1 font-bold text-xs tracking-wide sm:text-sm md:text-base lg:text-lg">
+							{currentLogo.name}
+						</span>
+					)}
 				</motion.div>
 			</AnimatePresence>
 		</motion.div>
@@ -110,6 +111,8 @@ interface LogoCarouselProps {
 export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 	const [logoColumns, setLogoColumns] = useState<Logo[][]>([]);
 	const [time, setTime] = useState(0);
+	const [isPaused, setIsPaused] = useState(false);
+	const [reducedMotion, setReducedMotion] = useState(false);
 
 	const distributeLogos = useCallback(
 		(logoList: Logo[]) => {
@@ -137,18 +140,37 @@ export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 	}, [logos, distributeLogos]);
 
 	useEffect(() => {
+		try {
+			const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+			setReducedMotion(media.matches);
+			const listener = () => setReducedMotion(media.matches);
+			media.addEventListener?.('change', listener);
+			return () => media.removeEventListener?.('change', listener);
+		} catch {}
+	}, []);
+
+	useEffect(() => {
+		if (reducedMotion) return;
+		if (isPaused) return;
 		const interval = setInterval(() => {
 			setTime((prev) => prev + 100);
 		}, 100);
 		return () => clearInterval(interval);
-	}, []);
+	}, [isPaused, reducedMotion]);
 
 	return (
-		<div className="flex justify-center gap-0 sm:gap-1 md:gap-2 lg:gap-4">
+		<div
+			className="relative mx-auto flex justify-center gap-0 sm:gap-1 md:gap-2 lg:gap-4"
+			onMouseEnter={() => setIsPaused(true)}
+			onMouseLeave={() => setIsPaused(false)}
+		>
+			{/* gradient edges */}
+			<div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent sm:w-12" />
+			<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent sm:w-12" />
 			{logoColumns.map((columnLogos, index) => (
 				<LogoColumn
 					columnIndex={index}
-					currentTime={time}
+					currentTime={reducedMotion ? 0 : time}
 					isLast={index === logoColumns.length - 1}
 					key={`${index}-${columnLogos.map((logo) => logo.id).join('-')}`}
 					logos={columnLogos}

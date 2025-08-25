@@ -110,10 +110,10 @@ import { LogoCarousel } from './logo-carousel';
 export const TrustedBy = () => {
 	return (
 		<div className="space-y-6 sm:space-y-8">
-			<h2 className="mx-auto max-w-xs text-center font-medium text-foreground text-lg leading-tight sm:max-w-sm sm:text-xl md:text-2xl">
-				Trusted by developers around the world
+			<h2 className="mx-auto max-w-md text-center font-medium text-foreground text-lg leading-tight tracking-tight sm:text-xl md:text-2xl">
+				Trusted by teams and developers worldwide
 			</h2>
-			<LogoCarousel columns={3} logos={logos} />
+			<LogoCarousel columns={4} logos={logos} />
 		</div>
 	);
 };
