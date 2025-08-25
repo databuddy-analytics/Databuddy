@@ -8,8 +8,11 @@ import { Tab, Tabs } from "@/components/docs";
 import { Callout } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
+import { LeapComponent } from "@/components/docs";
 
 This guide will help you set up Databuddy analytics in your application in just a few minutes.
+
+<LeapComponent/>
 
 <Steps>
 <Step>
@@ -32,7 +35,7 @@ Choose your installation method based on your application type:
 
 Install the official Databuddy SDK:
 
-<CodeBlock 
+<CodeBlock
   language="bash"
   code={`# Using bun (recommended)
 bun add @databuddy/sdk
@@ -45,11 +48,11 @@ yarn add @databuddy/sdk`}
 />
 
 </Tab>
-<Tab value="Script Tag">  
+<Tab value="Script Tag">
 
 For any website, use the script tag method:
 
-<CodeBlock 
+<CodeBlock
   language="html"
   code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
@@ -73,8 +76,8 @@ For any website, use the script tag method:
 
 Add the `<Databuddy />` component to your root layout:
 
-<CodeBlock 
-  language="tsx" 
+<CodeBlock
+  language="tsx"
   filename="app/layout.tsx"
   code={`import { Databuddy } from "@databuddy/sdk";
 
@@ -103,8 +106,8 @@ export default function RootLayout({
 
 **Environment Variables:**
 
-<CodeBlock 
-  language="bash" 
+<CodeBlock
+  language="bash"
   filename=".env.local"
   code="NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id-here"
 />
@@ -114,8 +117,8 @@ export default function RootLayout({
 
 Add the script to your HTML before the closing `</body>` tag:
 
-<CodeBlock 
-  language="html" 
+<CodeBlock
+  language="html"
   filename="index.html"
   code={`<!DOCTYPE html>
 <html>
@@ -175,8 +178,8 @@ Check that analytics are working correctly:
 <Tabs items={['React/Next.js', 'Script Tag']}>
 <Tab value="React/Next.js">
 
-<CodeBlock 
-  language="tsx" 
+<CodeBlock
+  language="tsx"
   filename="Recommended Configuration"
   code={`<Databuddy
   clientId="your-client-id"
@@ -196,8 +199,8 @@ Check that analytics are working correctly:
 </Tab>
 <Tab value="Script Tag">
 
-<CodeBlock 
-  language="html" 
+<CodeBlock
+  language="html"
   filename="Recommended Configuration"
   code={`<script
       src="https://cdn.databuddy.cc/databuddy.js"
@@ -229,8 +232,8 @@ Check that analytics are working correctly:
   analytics with test data.
 </Callout>
 
-<CodeBlock 
-  language="tsx" 
+<CodeBlock
+  language="tsx"
   filename="Environment Configuration"
   code={`const isDevelopment = process.env.NODE_ENV === "development";
 const isProduction = process.env.NODE_ENV === "production";
@@ -257,8 +260,8 @@ Track custom events with rich properties for comprehensive analytics:
 <Tabs items={['React/Next.js', 'Script Tag']}>
 <Tab value="React/Next.js">
 
-<CodeBlock 
-  language="tsx" 
+<CodeBlock
+  language="tsx"
   filename="Custom Events with Rich Properties"
   code={`import { useEffect } from "react";
 
@@ -316,8 +319,8 @@ function SignupForm() {
 </Tab>
 <Tab value="Script Tag">
 
-<CodeBlock 
-  language="html" 
+<CodeBlock
+  language="html"
   filename="Custom Events with Detailed Properties"
   code={`<script>
   // Track button clicks with comprehensive context
