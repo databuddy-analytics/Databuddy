@@ -6,12 +6,15 @@ import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { autumnHandler } from 'autumn-js/elysia';
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
+import { cspHeaders, securityMiddleware } from './middleware/security';
 import { assistant } from './routes/assistant';
 import { exportRoute } from './routes/export';
 import { health } from './routes/health';
 import { query } from './routes/query';
 
 const app = new Elysia()
+	.use(securityMiddleware())
+	.use(cspHeaders())
 	.use(
 		cors({
 			credentials: true,

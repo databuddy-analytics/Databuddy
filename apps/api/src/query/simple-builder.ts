@@ -1,4 +1,5 @@
 import { chQuery } from '@databuddy/db';
+import { validateSQL } from '../agent/utils/sql-validator';
 import type { DeviceType } from './screen-resolution-to-device-type';
 import type {
 	CompiledQuery,
@@ -466,7 +467,15 @@ export class SimpleQueryBuilder {
 
 	async execute(): Promise<Record<string, unknown>[]> {
 		const { sql, params } = this.compile();
+		
+		// Additional validation of the final SQL
+		if (!validateSQL(sql)) {
+			throw new Error('Generated SQL failed security validation');
+		}
+		
 		const rawData = await chQuery(sql, params);
 		return applyPlugins(rawData, this.config, this.websiteDomain);
 	}
+
+	// Validation now delegated to the shared validator
 }
