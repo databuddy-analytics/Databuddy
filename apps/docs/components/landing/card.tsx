@@ -62,7 +62,7 @@ export const SciFiGridCard = ({
 						/>
 					</div>
 
-					<h3 className="px-2 pb-6 text-center font-medium text-2xl text-foreground transition-colors duration-300 group-hover:text-foreground/90 sm:pb-8 sm:text-3xl lg:pb-10">
+					<h3 className="px-2 pb-2 text-center font-medium text-2xl text-foreground transition-colors duration-300 group-hover:text-foreground/90 sm:pb-2 sm:text-3xl">
 						{title}
 					</h3>
 
