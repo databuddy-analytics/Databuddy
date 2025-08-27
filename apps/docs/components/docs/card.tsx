@@ -3,14 +3,6 @@ import type * as React from 'react';
 import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 
-// Re-export the base card components
-export {
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
-
 interface CardProps extends React.ComponentProps<'div'> {
 	href?: string;
 	title?: string;
@@ -30,7 +22,7 @@ function Card({
 	const content = (
 		<SciFiCard
 			className={cn(
-				'group h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70',
+				'group h-full rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70',
 				href && 'cursor-pointer',
 				className
 			)}

@@ -11,7 +11,7 @@ import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 
 const calloutVariants = cva(
-	'my-4 w-full rounded border backdrop-blur-sm transition-all duration-300',
+	'my-4 w-full rounded-none border backdrop-blur-sm transition-all duration-300',
 	{
 		variants: {
 			type: {
@@ -78,11 +78,10 @@ function Callout({
 			role="alert"
 			{...props}
 		>
-			<div className="flex items-start gap-4 p-4">
-				<Icon
-					className={cn(iconVariants({ type }), 'mt-0.5')}
-					weight="duotone"
-				/>
+			<div className="flex items-center gap-2 pl-4">
+				<div className="mt-0.5 flex-shrink-0">
+					<Icon className={cn(iconVariants({ type }))} weight="duotone" />
+				</div>
 				<div className="min-w-0 flex-1 space-y-2">
 					{title && (
 						<div className="font-semibold text-foreground tracking-tight">

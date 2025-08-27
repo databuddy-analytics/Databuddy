@@ -83,13 +83,13 @@ function FlipCard() {
 				style={{ transformStyle: 'preserve-3d' }}
 				transition={{ duration: 0.7, ease: 'easeInOut' }}
 				variants={{
-					initial: { rotateY: 0 },
-					flipped: { rotateY: 180 },
+					initial: { rotateX: 0 },
+					flipped: { rotateX: 180 },
 				}}
 			>
 				{/* Front Side - Sponsors */}
 				<motion.div
-					className="absolute inset-0 rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
+					className="absolute inset-0 rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
 					style={{ backfaceVisibility: 'hidden' }}
 				>
 					<SciFiCard className="flex h-full flex-col items-center justify-center p-6">
@@ -178,8 +178,8 @@ function FlipCard() {
 
 				{/* Back Side - Non-Code Contributors */}
 				<motion.div
-					className="absolute inset-0 rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
-					style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+					className="absolute inset-0 rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
+					style={{ backfaceVisibility: 'hidden', transform: 'rotateX(180deg)' }}
 				>
 					<SciFiCard className="flex h-full flex-col p-4">
 						{/* Header - Compact */}
