@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Footer } from '@/components/footer';
 import Section from '@/components/landing/section';
 import { Spotlight } from '@/components/landing/spotlight';
+import { SciFiCard } from '@/components/scifi-card';
 import { StructuredData } from '@/components/structured-data';
 import { calculateRoadmapStats, roadmapItems } from './roadmap-data';
 import RoadmapHero from './roadmap-hero';
@@ -100,86 +101,26 @@ export default function RoadmapPage() {
 
 					{/* Community Stats */}
 					<div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
-						<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 							<div className="font-bold text-2xl">500+</div>
 							<div className="text-muted-foreground text-sm">
 								Community Members
 							</div>
+						</SciFiCard>
 
-							{/* Sci-fi corners */}
-							<div className="pointer-events-none absolute inset-0">
-								<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-							</div>
-						</div>
-
-						<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 							<div className="font-bold text-2xl">150+</div>
 							<div className="text-muted-foreground text-sm">
 								Feature Requests
 							</div>
+						</SciFiCard>
 
-							{/* Sci-fi corners */}
-							<div className="pointer-events-none absolute inset-0">
-								<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-							</div>
-						</div>
-
-						<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 							<div className="font-bold text-2xl">95%</div>
 							<div className="text-muted-foreground text-sm">
 								User Satisfaction
 							</div>
-
-							{/* Sci-fi corners */}
-							<div className="pointer-events-none absolute inset-0">
-								<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-								<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-									<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-									<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-								</div>
-							</div>
-						</div>
+						</SciFiCard>
 					</div>
 
 					<div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
@@ -217,7 +158,7 @@ export default function RoadmapPage() {
 				id="roadmap-transparency"
 			>
 				<div className="mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8">
-					<div className="group relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
+					<SciFiCard className="rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
 						<h3 className="mb-4 font-semibold text-foreground text-lg">
 							Our Commitment to Transparency
 						</h3>
@@ -244,27 +185,7 @@ export default function RoadmapPage() {
 								• <strong>Next review:</strong> End of current quarter
 							</p>
 						</div>
-
-						{/* Sci-fi corners */}
-						<div className="pointer-events-none absolute inset-0">
-							<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-						</div>
-					</div>
+					</SciFiCard>
 				</div>
 			</Section>
 

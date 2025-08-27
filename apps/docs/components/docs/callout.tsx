@@ -7,11 +7,11 @@ import {
 } from '@phosphor-icons/react/ssr';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type * as React from 'react';
-
+import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 
 const calloutVariants = cva(
-	'group relative my-4 w-full rounded border backdrop-blur-sm transition-all duration-300',
+	'my-4 w-full rounded border backdrop-blur-sm transition-all duration-300',
 	{
 		variants: {
 			type: {
@@ -72,8 +72,9 @@ function Callout({
 	const Icon = iconMap[type as keyof typeof iconMap];
 
 	return (
-		<div
+		<SciFiCard
 			className={cn(calloutVariants({ type }), className)}
+			opacity="reduced"
 			role="alert"
 			{...props}
 		>
@@ -93,27 +94,7 @@ function Callout({
 					</div>
 				</div>
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-			</div>
-		</div>
+		</SciFiCard>
 	);
 }
 

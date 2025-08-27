@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type * as React from 'react';
-
+import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 
 // Re-export the base card components
@@ -28,12 +28,13 @@ function Card({
 	...props
 }: CardProps) {
 	const content = (
-		<div
+		<SciFiCard
 			className={cn(
-				'group relative h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70',
+				'group h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70',
 				href && 'cursor-pointer',
 				className
 			)}
+			opacity="reduced"
 			{...props}
 		>
 			<div className="p-6">
@@ -50,27 +51,7 @@ function Card({
 				)}
 				{children}
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-				</div>
-			</div>
-		</div>
+		</SciFiCard>
 	);
 
 	if (href) {

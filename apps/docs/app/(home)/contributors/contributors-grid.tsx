@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { SciFiCard } from '@/components/scifi-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface Contributor {
@@ -20,12 +21,12 @@ interface ContributorsGridProps {
 function ContributorCard({ contributor }: { contributor: Contributor }) {
 	return (
 		<Link
-			className="group block"
+			className="block"
 			href={contributor.html_url}
 			rel="noopener noreferrer nofollow"
 			target="_blank"
 		>
-			<div className="relative h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg">
+			<SciFiCard className="h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg">
 				<div className="flex flex-col items-center p-6">
 					{/* Rank Badge */}
 					<div className="mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-sm">
@@ -56,27 +57,7 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
 						</div>
 					</div>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 		</Link>
 	);
 }

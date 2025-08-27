@@ -7,6 +7,7 @@ import {
 	RocketLaunchIcon,
 	SparkleIcon,
 } from '@phosphor-icons/react';
+import { SciFiCard } from '@/components/scifi-card';
 
 function FeatureCard({
 	icon: Icon,
@@ -18,42 +19,20 @@ function FeatureCard({
 	description: string;
 }) {
 	return (
-		<div className="group relative">
-			<div className="relative flex h-20 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-24 lg:h-28">
-				<Icon
-					className="mb-1 h-5 w-5 text-muted-foreground transition-colors duration-300 group-hover:text-foreground sm:h-6 sm:w-6 lg:h-7 lg:w-7"
-					weight="duotone"
-				/>
-				<div className="px-3 text-center">
-					<div className="font-semibold text-foreground text-xs sm:text-sm lg:text-base">
-						{title}
-					</div>
-					<div className="mt-0.5 text-muted-foreground text-xs">
-						{description}
-					</div>
+		<SciFiCard className="flex h-20 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-24 lg:h-28">
+			<Icon
+				className="mb-1 h-5 w-5 text-muted-foreground transition-colors duration-300 group-hover:text-foreground sm:h-6 sm:w-6 lg:h-7 lg:w-7"
+				weight="duotone"
+			/>
+			<div className="px-3 text-center">
+				<div className="font-semibold text-foreground text-xs sm:text-sm lg:text-base">
+					{title}
+				</div>
+				<div className="mt-0.5 text-muted-foreground text-xs">
+					{description}
 				</div>
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-			</div>
-		</div>
+		</SciFiCard>
 	);
 }
 

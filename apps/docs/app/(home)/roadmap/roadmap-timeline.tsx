@@ -12,6 +12,7 @@ import {
 	XCircleIcon,
 } from '@phosphor-icons/react';
 import { useMemo } from 'react';
+import { SciFiCard } from '@/components/scifi-card';
 import type {
 	RoadmapItem,
 	RoadmapPriority,
@@ -215,36 +216,16 @@ export default function RoadmapTimeline({ items }: Props) {
 
 	if (!sortedItems.length) {
 		return (
-			<div className="group relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
+			<SciFiCard className="rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
 				<div className="py-8 text-center text-muted-foreground">
 					No roadmap items available
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 		);
 	}
 
 	return (
-		<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+		<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 			<div className="space-y-8">
 				{sortedItems.map((item, index) => {
 					const statusConfig = getStatusConfig(item.status);
@@ -414,26 +395,6 @@ export default function RoadmapTimeline({ items }: Props) {
 					);
 				})}
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-				</div>
-			</div>
-		</div>
+		</SciFiCard>
 	);
 }

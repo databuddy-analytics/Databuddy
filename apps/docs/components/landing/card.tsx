@@ -1,5 +1,6 @@
 import type { IconProps } from '@phosphor-icons/react';
 import type { ComponentType } from 'react';
+import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 import { GridPatternBg } from './grid-pattern';
 
@@ -31,29 +32,7 @@ export const SciFiGridCard = ({
 				<GridPatternBg />
 			</div>
 
-			<div className="relative h-full border border-border bg-transparent px-5 transition-all duration-300 sm:px-6 lg:px-8">
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-
+			<SciFiCard className="h-full border border-border bg-transparent px-5 transition-all duration-300 sm:px-6 lg:px-8">
 				<div className="relative flex h-full flex-col items-center justify-center py-6 sm:py-8">
 					<div className="mb-6 rounded border border-border bg-card p-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] sm:mb-8 sm:p-5">
 						<Icon
@@ -70,7 +49,7 @@ export const SciFiGridCard = ({
 						{description}
 					</p>
 				</div>
-			</div>
+			</SciFiCard>
 		</div>
 	);
 };

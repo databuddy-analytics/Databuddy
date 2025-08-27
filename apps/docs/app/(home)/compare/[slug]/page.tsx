@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { SciFiButton } from '@/components/landing/scifi-btn';
 import Section from '@/components/landing/section';
 import { Spotlight } from '@/components/landing/spotlight';
+import { SciFiCard } from '@/components/scifi-card';
 import { StructuredData } from '@/components/structured-data';
 import { Badge } from '@/components/ui/badge';
 import type {
@@ -76,7 +77,7 @@ function CompetitorStatsCard({
 	return (
 		<div className="grid gap-6 md:grid-cols-2">
 			{/* Databuddy Card */}
-			<div className="group relative">
+			<SciFiCard>
 				<div className="relative h-full rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 					<div className="mb-4 flex items-center justify-between">
 						<div>
@@ -124,30 +125,10 @@ function CompetitorStatsCard({
 						</Link>
 					</SciFiButton>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Competitor Card */}
-			<div className="group relative">
+			<SciFiCard>
 				<div className="relative h-full rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 					<div className="mb-4 flex items-center justify-between">
 						<div>
@@ -201,27 +182,7 @@ function CompetitorStatsCard({
 						/>
 					</Link>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 		</div>
 	);
 }

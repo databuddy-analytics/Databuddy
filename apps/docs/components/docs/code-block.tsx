@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import { cache } from 'react';
 import { createHighlighter } from 'shiki';
-
+import { SciFiCard } from '@/components/scifi-card';
 import { cn } from '@/lib/utils';
 
 interface CodeBlockProps extends React.ComponentProps<'div'> {
@@ -87,7 +87,11 @@ async function CodeBlock({
 	}
 
 	return (
-		<div className="group relative my-4 w-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70">
+		<SciFiCard
+			className="my-4 w-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70"
+			cornerOpacity="opacity-60"
+			variant="primary"
+		>
 			{/* Header */}
 			{(language !== 'text' || filename) && (
 				<div className="flex items-center justify-between border-border border-b bg-muted/30 px-4 py-2.5">
@@ -133,27 +137,7 @@ async function CodeBlock({
 					</pre>
 				)}
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2 opacity-60 transition-all duration-300 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] group-hover:opacity-100">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-primary/40" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-primary/40" />
-				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 opacity-60 transition-all duration-300 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] group-hover:opacity-100">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-primary/40" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-primary/40" />
-				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 opacity-60 transition-all duration-300 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] group-hover:opacity-100">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-primary/40" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-primary/40" />
-				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 opacity-60 transition-all duration-300 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] group-hover:opacity-100">
-					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-primary/40" />
-					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-primary/40" />
-				</div>
-			</div>
-		</div>
+		</SciFiCard>
 	);
 }
 

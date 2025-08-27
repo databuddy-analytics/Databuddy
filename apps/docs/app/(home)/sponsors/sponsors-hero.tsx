@@ -2,6 +2,7 @@
 
 import type { IconWeight } from '@phosphor-icons/react';
 import { HeartIcon, SparkleIcon } from '@phosphor-icons/react';
+import { SciFiCard } from '@/components/scifi-card';
 
 interface SponsorsHeroProps {
 	totalSponsors: number;
@@ -23,8 +24,8 @@ function StatCard({
 	value: number;
 	description: string;
 }) {
-	const cardContent = (
-		<div className="relative flex h-32 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-36 lg:h-40">
+	return (
+		<SciFiCard className="flex h-32 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-36 lg:h-40">
 			<Icon
 				className="mb-2 h-6 w-6 text-muted-foreground transition-colors duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8"
 				weight="duotone"
@@ -40,35 +41,7 @@ function StatCard({
 					{description}
 				</div>
 			</div>
-		</div>
-	);
-
-	const corners = (
-		<div className="pointer-events-none absolute inset-0">
-			<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-			<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-			</div>
-		</div>
-	);
-
-	return (
-		<div className="group relative">
-			{cardContent}
-			{corners}
-		</div>
+		</SciFiCard>
 	);
 }
 

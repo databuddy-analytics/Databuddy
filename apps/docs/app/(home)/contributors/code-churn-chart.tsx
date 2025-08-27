@@ -10,6 +10,8 @@ import {
 	XAxis,
 	YAxis,
 } from 'recharts';
+import { SciFiCard } from '@/components/scifi-card';
+import { cn } from '@/lib/utils';
 
 interface ProcessedCodeFrequency {
 	week: string;
@@ -149,31 +151,11 @@ export default function CodeChurnChart({ data }: Props) {
 						Weekly code additions and deletions over time
 					</p>
 				</div>
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm sm:p-8">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm sm:p-8">
 					<div className="py-6 text-center text-muted-foreground text-sm sm:py-8 sm:text-base">
 						No code frequency data available
 					</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 		);
 	}
@@ -194,67 +176,30 @@ export default function CodeChurnChart({ data }: Props) {
 
 			{/* Insights Cards */}
 			<div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-green-600 text-lg sm:text-2xl">
 						+{insights.totalAdditions.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
 						Total Added
 					</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-lg text-red-600 sm:text-2xl">
 						-{insights.totalDeletions.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
 						Total Removed
 					</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div
-						className={`font-bold text-lg sm:text-2xl ${insights.netGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+						className={cn(
+							'font-bold text-lg sm:text-2xl',
+							insights.netGrowth >= 0 ? 'text-green-600' : 'text-red-600'
+						)}
 					>
 						{insights.netGrowth >= 0 ? '+' : ''}
 						{insights.netGrowth.toLocaleString()}
@@ -262,59 +207,19 @@ export default function CodeChurnChart({ data }: Props) {
 					<div className="text-muted-foreground text-xs sm:text-sm">
 						Net Growth
 					</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="font-bold text-2xl">
 						{insights.avgWeeklyAdditions.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-sm">Avg Weekly</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 
 			{/* Chart */}
-			<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
-				<div className="relative" style={{ width: '100%', height: 400 }}>
+			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+				<div className="relative h-[400px] w-full">
 					<ResponsiveContainer height="100%" width="100%">
 						<BarChart
 							data={chartData}
@@ -410,31 +315,11 @@ export default function CodeChurnChart({ data }: Props) {
 						</BarChart>
 					</ResponsiveContainer>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Additional Insights */}
 			{insights.mostActiveWeek && (
-				<div className="group relative mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
+				<SciFiCard className="mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
 					<p className="text-muted-foreground text-sm">
 						<span className="font-medium">Most active week:</span>{' '}
 						{insights.mostActiveWeek} with{' '}
@@ -449,27 +334,7 @@ export default function CodeChurnChart({ data }: Props) {
 						).toLocaleString()}{' '}
 						deletions
 					</p>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			)}
 		</div>
 	);

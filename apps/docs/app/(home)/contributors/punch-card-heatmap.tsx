@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { SciFiCard } from '@/components/scifi-card';
 
 interface ProcessedPunchCard {
 	day: number;
@@ -201,31 +202,11 @@ export default function PunchCardHeatmap({ data }: Props) {
 						When contributors are most active throughout the week
 					</p>
 				</div>
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm sm:p-8">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm sm:p-8">
 					<div className="py-6 text-center text-muted-foreground text-sm sm:py-8 sm:text-base">
 						No punch card data available
 					</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 		);
 	}
@@ -278,90 +259,30 @@ export default function PunchCardHeatmap({ data }: Props) {
 
 			{/* Insights Cards */}
 			<div className="mb-6 grid grid-cols-1 gap-3 sm:mb-8 sm:grid-cols-3 sm:gap-4">
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-xl sm:text-2xl">
 						{insights.peakDay}
 					</div>
 					<div className="text-muted-foreground text-sm">Most Active Day</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-xl sm:text-2xl">
 						{insights.peakHour !== null ? formatHour(insights.peakHour) : 'N/A'}
 					</div>
 					<div className="text-muted-foreground text-sm">Peak Hour</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-xl sm:text-2xl">
 						{insights.mostActiveTime}
 					</div>
 					<div className="text-muted-foreground text-sm">Hottest Time Slot</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 
 			{/* Heatmap */}
-			<div className="group relative rounded border border-border bg-card/50 p-3 backdrop-blur-sm sm:p-6">
+			<SciFiCard className="rounded border border-border bg-card/50 p-3 backdrop-blur-sm sm:p-6">
 				{/* Desktop view */}
 				<div className="hidden sm:block">
 					<div className="overflow-x-auto">
@@ -561,30 +482,10 @@ export default function PunchCardHeatmap({ data }: Props) {
 						</p>
 					</div>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Additional Insights */}
-			<div className="group relative mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
+			<SciFiCard className="mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
 				<p className="text-muted-foreground text-sm">
 					<span className="font-medium">Pattern analysis:</span> Based on{' '}
 					{insights.totalCommits.toLocaleString()} total commits, contributors
@@ -604,27 +505,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 						? ' This suggests active weekday development.'
 						: ' Weekend development activity detected!'}
 				</p>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Custom Tooltip */}
 			{tooltip && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { ClockIcon, MapPinIcon, RocketLaunchIcon } from '@phosphor-icons/react';
+import { SciFiCard } from '@/components/scifi-card';
 import type { RoadmapStats } from './roadmap-types';
 
 interface Props {
@@ -48,7 +49,7 @@ export default function RoadmapHero({ stats }: Props) {
 				{/* Key Stats Cards */}
 				<div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
 					{/* Current Quarter */}
-					<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
 								<ClockIcon
@@ -62,30 +63,10 @@ export default function RoadmapHero({ stats }: Props) {
 						<div className="mt-2 text-muted-foreground text-xs">
 							{stats.inProgressItems} items in progress
 						</div>
-
-						{/* Sci-fi corners */}
-						<div className="pointer-events-none absolute inset-0">
-							<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-						</div>
-					</div>
+					</SciFiCard>
 
 					{/* Completed Items */}
-					<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
 								<RocketLaunchIcon
@@ -100,30 +81,10 @@ export default function RoadmapHero({ stats }: Props) {
 							{Math.round((stats.completedItems / stats.totalItems) * 100)}% of
 							total
 						</div>
-
-						{/* Sci-fi corners */}
-						<div className="pointer-events-none absolute inset-0">
-							<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-						</div>
-					</div>
+					</SciFiCard>
 
 					{/* Upcoming Milestones */}
-					<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
 								<MapPinIcon
@@ -139,27 +100,7 @@ export default function RoadmapHero({ stats }: Props) {
 						<div className="mt-2 text-muted-foreground text-xs">
 							{stats.plannedItems} planned items
 						</div>
-
-						{/* Sci-fi corners */}
-						<div className="pointer-events-none absolute inset-0">
-							<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-							<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-								<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-								<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-							</div>
-						</div>
-					</div>
+					</SciFiCard>
 				</div>
 
 				{/* Call to Action */}

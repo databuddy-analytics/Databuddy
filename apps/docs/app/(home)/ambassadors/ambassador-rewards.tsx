@@ -9,6 +9,8 @@ import {
 	TrophyIcon,
 	UsersIcon,
 } from '@phosphor-icons/react';
+import { SciFiCard } from '@/components/scifi-card';
+import { cn } from '@/lib/utils';
 
 interface Reward {
 	icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;
@@ -64,11 +66,12 @@ const rewards: Reward[] = [
 
 function RewardCard({ reward }: { reward: Reward }) {
 	return (
-		<div className="group relative">
+		<SciFiCard variant={reward.highlight ? 'primary' : 'foreground'}>
 			<div
-				className={`relative h-full rounded border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg ${
+				className={cn(
+					'relative h-full rounded border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg',
 					reward.highlight ? 'border-primary/50 bg-primary/5' : 'border-border'
-				}`}
+				)}
 			>
 				<div className="flex flex-col p-6">
 					{/* Icon and Value */}
@@ -111,60 +114,8 @@ function RewardCard({ reward }: { reward: Reward }) {
 						</p>
 					</div>
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div
-							className={`absolute top-0 left-0.5 h-0.5 w-1.5 origin-left ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-						<div
-							className={`absolute top-0 left-0 h-2 w-0.5 origin-top ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div
-							className={`absolute top-0 left-0.5 h-0.5 w-1.5 origin-left ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-						<div
-							className={`absolute top-0 left-0 h-2 w-0.5 origin-top ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div
-							className={`absolute top-0 left-0.5 h-0.5 w-1.5 origin-left ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-						<div
-							className={`absolute top-0 left-0 h-2 w-0.5 origin-top ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div
-							className={`absolute top-0 left-0.5 h-0.5 w-1.5 origin-left ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-						<div
-							className={`absolute top-0 left-0 h-2 w-0.5 origin-top ${
-								reward.highlight ? 'bg-primary' : 'bg-foreground'
-							}`}
-						/>
-					</div>
-				</div>
 			</div>
-		</div>
+		</SciFiCard>
 	);
 }
 

@@ -2,6 +2,7 @@
 
 import { RocketIcon, TagIcon } from '@phosphor-icons/react';
 import { useMemo } from 'react';
+import { SciFiCard } from '@/components/scifi-card';
 
 interface ProcessedRelease {
 	name: string;
@@ -107,31 +108,11 @@ export default function ReleasesTimeline({ data }: Props) {
 						Project delivery momentum and release cadence
 					</p>
 				</div>
-				<div className="group relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
+				<SciFiCard className="rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
 					<div className="py-8 text-center text-muted-foreground">
 						No releases data available
 					</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 		);
 	}
@@ -181,113 +162,33 @@ export default function ReleasesTimeline({ data }: Props) {
 
 			{/* Insights Cards */}
 			<div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="font-bold text-2xl">{insights.totalReleases}</div>
 					<div className="text-muted-foreground text-sm">Total Releases</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="font-bold text-2xl">{insights.stableReleases}</div>
 					<div className="text-muted-foreground text-sm">Stable Releases</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="font-bold text-2xl">{insights.releaseFrequency}</div>
 					<div className="text-muted-foreground text-sm">Release Frequency</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="font-bold text-2xl">
 						{insights.lastReleaseDate
 							? getTimeSince(insights.lastReleaseDate)
 							: 'N/A'}
 					</div>
 					<div className="text-muted-foreground text-sm">Last Release</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 
 			{/* Timeline */}
-			<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-6 font-semibold text-foreground text-lg">
 					Recent Releases
 				</h3>
@@ -347,30 +248,10 @@ export default function ReleasesTimeline({ data }: Props) {
 						</div>
 					))}
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Additional Insights */}
-			<div className="group relative mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
+			<SciFiCard className="mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
 				<p className="text-muted-foreground text-sm">
 					<span className="font-medium">Release pattern:</span> The project has
 					shipped {insights.totalReleases} total releases with a{' '}
@@ -386,27 +267,7 @@ export default function ReleasesTimeline({ data }: Props) {
 						? 'Focus on stable releases indicates mature development practices.'
 						: 'Active pre-release testing shows careful development approach.'}
 				</p>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 		</div>
 	);
 }

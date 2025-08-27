@@ -9,6 +9,7 @@ import {
 	TrendUpIcon,
 } from '@phosphor-icons/react';
 import { useMemo } from 'react';
+import { SciFiCard } from '@/components/scifi-card';
 import type { RoadmapItem, RoadmapStats } from './roadmap-types';
 
 interface Props {
@@ -156,7 +157,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 		<div className="space-y-8">
 			{/* Overall Stats Grid */}
 			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
 							<CheckCircleIcon
@@ -167,29 +168,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 					</div>
 					<div className="font-bold text-xl">{stats.completedItems}</div>
 					<div className="text-muted-foreground text-xs">Completed</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
 							<ClockIcon
@@ -200,29 +181,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 					</div>
 					<div className="font-bold text-xl">{stats.inProgressItems}</div>
 					<div className="text-muted-foreground text-xs">In Progress</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
 							<CalendarIcon
@@ -233,29 +194,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 					</div>
 					<div className="font-bold text-xl">{stats.plannedItems}</div>
 					<div className="text-muted-foreground text-xs">Planned</div>
+				</SciFiCard>
 
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
-
-				<div className="group relative rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
+				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
 							<PauseCircleIcon
@@ -266,31 +207,11 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 					</div>
 					<div className="font-bold text-xl">{stats.onHoldItems}</div>
 					<div className="text-muted-foreground text-xs">On Hold</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-1.5 w-1.5 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-1.5 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			</div>
 
 			{/* Category Breakdown */}
-			<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
 					<ChartBarIcon className="h-5 w-5" weight="duotone" />
 					Progress by Category
@@ -315,30 +236,10 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 						</div>
 					))}
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Priority Breakdown */}
-			<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
 					<TrendUpIcon className="h-5 w-5" weight="duotone" />
 					Progress by Priority
@@ -358,31 +259,11 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 						</div>
 					))}
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 
 			{/* Upcoming Items */}
 			{upcomingItems.length > 0 && (
-				<div className="group relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
+				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 					<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
 						<CalendarIcon className="h-5 w-5" weight="duotone" />
 						Coming Up Next (30 Days)
@@ -407,27 +288,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 							</div>
 						))}
 					</div>
-
-					{/* Sci-fi corners */}
-					<div className="pointer-events-none absolute inset-0">
-						<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-						<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-							<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-							<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-						</div>
-					</div>
-				</div>
+				</SciFiCard>
 			)}
 		</div>
 	);

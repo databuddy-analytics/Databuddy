@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { SciFiCard } from '@/components/scifi-card';
 import type { Sponsor } from './sponsors-data';
 
 interface SponsorsGridProps {
@@ -25,13 +26,13 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 
 	return (
 		<Link
-			className="group block"
+			className="block"
 			href={sponsor.website}
 			rel="noopener noreferrer"
 			target="_blank"
 		>
-			<div
-				className={`relative h-full rounded border backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg ${tierColors[sponsor.tier]}`}
+			<SciFiCard
+				className={`h-full rounded border backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg ${tierColors[sponsor.tier]}`}
 			>
 				<div className="flex flex-col items-center p-6 sm:p-8">
 					{/* Tier Badge */}
@@ -62,27 +63,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 						</p>
 					)}
 				</div>
-
-				{/* Sci-fi corners */}
-				<div className="pointer-events-none absolute inset-0">
-					<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-					<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
-					</div>
-				</div>
-			</div>
+			</SciFiCard>
 		</Link>
 	);
 }
