@@ -1,7 +1,6 @@
 'use client';
 
 import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -24,7 +23,7 @@ export function ExtensionSearch({
 
 	return (
 		<div className={`relative max-w-md flex-1 ${className}`}>
-			<MagnifyingGlassIcon className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+			<MagnifyingGlassIcon className="-translate-y-1/2 absolute top-1/2 left-3 z-10 h-4 w-4 text-muted-foreground" />
 			<Input
 				className="rounded border-border/50 bg-background/50 pr-10 pl-10 backdrop-blur-sm transition-all duration-200 focus:border-primary/50 focus:bg-background"
 				onChange={(e) => onSearchChange(e.target.value)}
@@ -40,13 +39,6 @@ export function ExtensionSearch({
 				>
 					<XIcon className="h-3 w-3" />
 				</Button>
-			)}
-			{search && (
-				<div className="absolute top-full left-0 z-10 mt-2">
-					<Badge className="text-xs" variant="secondary">
-						Searching: {search}
-					</Badge>
-				</div>
 			)}
 		</div>
 	);

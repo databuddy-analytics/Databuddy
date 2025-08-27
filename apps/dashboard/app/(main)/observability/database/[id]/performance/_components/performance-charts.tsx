@@ -134,7 +134,7 @@ export const ResponseTimeChart = ({
 			</div>
 			<div className="p-6">
 				<ResponsiveContainer height={300} width="100%">
-					<BarChart data={chartData}>
+					<BarChart data={chartData} margin={{ left: 20 }}>
 						<XAxis
 							angle={-45}
 							dataKey="name"

@@ -123,12 +123,15 @@ export function ExtensionCard({
 
 	return (
 		<Card className="group relative overflow-hidden rounded border transition-all duration-200 hover:border-primary/20 hover:shadow-lg">
-			<CardContent className="p-6">
+			<CardContent className="py-2">
 				<div className="space-y-4">
 					{/* Header */}
 					<div className="flex items-start justify-between">
 						<div className="min-w-0 flex-1">
-							<h3 className="truncate font-semibold text-lg leading-tight">
+							<h3
+								className="truncate font-semibold text-lg leading-tight"
+								title={extension.name}
+							>
 								{extension.name}
 							</h3>
 							<p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
@@ -145,7 +148,7 @@ export function ExtensionCard({
 
 					{/* Actions */}
 					<div className="flex items-center justify-between pt-2">
-						<div className="flex gap-2">
+						<div>
 							{type === 'installed' && extension.needsUpdate && onUpdate && (
 								<Button
 									disabled={!canManage || isLoading}
@@ -153,7 +156,7 @@ export function ExtensionCard({
 									size="sm"
 									variant="outline"
 								>
-									<ArrowClockwiseIcon className="mr-1 h-3 w-3" />
+									<ArrowClockwiseIcon className="h-3 w-3" />
 									{isUpdating ? 'Updating...' : 'Update'}
 								</Button>
 							)}
@@ -169,7 +172,7 @@ export function ExtensionCard({
 							)}
 						</div>
 
-						<div className="flex gap-2">
+						<div>
 							{type === 'available' && onInstall && (
 								<Button
 									className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
@@ -177,7 +180,7 @@ export function ExtensionCard({
 									onClick={onInstall}
 									size="sm"
 								>
-									<PlusIcon className="mr-1 h-3 w-3" />
+									<PlusIcon className="h-3 w-3" />
 									{isInstalling ? 'Installing...' : 'Install'}
 								</Button>
 							)}
@@ -188,7 +191,7 @@ export function ExtensionCard({
 									size="sm"
 									variant="destructive"
 								>
-									<TrashIcon className="mr-1 h-3 w-3" />
+									<TrashIcon className="h-3 w-3" />
 									{isRemoving ? 'Removing...' : 'Remove'}
 								</Button>
 							)}

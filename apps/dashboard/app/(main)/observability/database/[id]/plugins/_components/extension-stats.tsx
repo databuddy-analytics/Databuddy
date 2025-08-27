@@ -48,7 +48,7 @@ function StatCard({
 		<Card
 			className={`rounded transition-all duration-200 hover:shadow-md ${variantStyles[variant]}`}
 		>
-			<CardContent className="p-6">
+			<CardContent>
 				<div className="flex items-center space-x-3">
 					<div
 						className={`rounded-lg border border-current/20 bg-current/10 p-3 ${iconStyles[variant]}`}

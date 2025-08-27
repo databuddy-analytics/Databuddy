@@ -41,7 +41,7 @@ interface ConnectionSettingsPageProps {
 
 function LoadingState() {
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
+		<>
 			<div className="space-y-2">
 				<div className="h-8 w-64 animate-pulse rounded bg-muted" />
 				<div className="h-4 w-96 animate-pulse rounded bg-muted" />
@@ -340,21 +340,19 @@ export default function ConnectionSettingsPage({
 
 	if (!connection) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
-				<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
-					<WarningIcon className="h-4 w-4 text-red-600" />
-					<AlertDescription className="text-red-800 dark:text-red-200">
-						Connection not found or you don't have permission to access it.
-					</AlertDescription>
-				</Alert>
-			</div>
+			<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
+				<WarningIcon className="h-4 w-4 text-red-600" />
+				<AlertDescription className="text-red-800 dark:text-red-200">
+					Connection not found or you don't have permission to access it.
+				</AlertDescription>
+			</Alert>
 		);
 	}
 
 	const isAdmin = connection.permissionLevel === 'admin';
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
+		<>
 			{/* Header */}
 			<div className="space-y-2">
 				<div className="flex items-center gap-2">
@@ -371,7 +369,7 @@ export default function ConnectionSettingsPage({
 
 			{/* Success Banner */}
 			{success && (
-				<Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+				<Alert className="items-center border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
 					<CheckIcon className="h-4 w-4 text-green-600" />
 					<AlertDescription className="flex items-center justify-between">
 						<span className="text-green-800 dark:text-green-200">
@@ -402,7 +400,7 @@ export default function ConnectionSettingsPage({
 							size="sm"
 							variant="outline"
 						>
-							<PencilIcon className="mr-2 h-4 w-4" />
+							<PencilIcon className="h-4 w-4" />
 							Edit
 						</Button>
 					</div>
@@ -676,6 +674,6 @@ export default function ConnectionSettingsPage({
 				onSuccess={handleDeleteSuccess}
 				open={deleteDialog}
 			/>
-		</div>
+		</>
 	);
 }

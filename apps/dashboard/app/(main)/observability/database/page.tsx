@@ -169,31 +169,26 @@ export default function DatabasePage() {
 
 	if (error) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
-				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
-					<CardContent className="pt-6">
-						<div className="flex items-center gap-2">
-							<TrendDownIcon
-								className="h-5 w-5 text-red-600"
-								size={16}
-								weight="duotone"
-							/>
-							<p className="font-medium text-red-600">
-								Error loading database connections
-							</p>
-						</div>
-						<p className="mt-2 text-red-600/80 text-sm">{error.message}</p>
-					</CardContent>
-				</Card>
-			</div>
+			<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+				<CardContent>
+					<div className="flex items-center gap-2">
+						<TrendDownIcon
+							className="h-5 w-5 text-red-600"
+							size={16}
+							weight="duotone"
+						/>
+						<p className="font-medium text-red-600">
+							Error loading database connections
+						</p>
+					</div>
+					<p className="mt-2 text-red-600/80 text-sm">{error.message}</p>
+				</CardContent>
+			</Card>
 		);
 	}
 
 	return (
-		<div
-			className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8"
-			ref={pageRef}
-		>
+		<div className="space-y-6" ref={pageRef}>
 			<DatabasePageHeader
 				createActionLabel="Add Connection"
 				description="Monitor your database connections and performance metrics"
@@ -221,7 +216,6 @@ export default function DatabasePage() {
 				<InfoIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
 				<AlertDescription className="text-amber-800 dark:text-amber-200">
 					<strong>Alpha Release - Early Access</strong>
-					<br />
 					Database monitoring is currently in alpha and not intended for
 					production use. This is an early access feature for testing and
 					feedback purposes only.

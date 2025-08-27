@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { SciFiCard } from '@/components/scifi-card';
+import { cn } from '@/lib/utils';
 import type { Sponsor } from './sponsors-data';
 
 interface SponsorsGridProps {
@@ -44,7 +45,12 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 					<div className="mb-4 flex h-20 w-full items-center justify-center sm:mb-6 sm:h-24">
 						<Image
 							alt={`${sponsor.name} logo`}
-							className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105 dark:brightness-0 dark:invert"
+							className={cn(
+								'max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105',
+								sponsor.name === 'Upstash'
+									? 'dark:brightness-0 dark:invert'
+									: 'brightness-0 dark:brightness-100'
+							)}
 							height={96}
 							src={sponsor.logo}
 							width={200}

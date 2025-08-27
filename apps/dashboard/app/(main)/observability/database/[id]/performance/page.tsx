@@ -93,11 +93,11 @@ function ExtensionNotEnabledState({ connectionId }: { connectionId: string }) {
 				<WarningIcon className="h-4 w-4 text-amber-600" />
 				<AlertDescription className="text-amber-800 dark:text-amber-200">
 					<div className="space-y-3">
-						<div>
+						<div className="space-y-1">
 							<p className="font-medium">
 								pg_stat_statements Extension Required
 							</p>
-							<p className="mt-1 text-sm">
+							<p className="text-sm">
 								The pg_stat_statements extension is required to view query
 								performance data. This extension tracks execution statistics for
 								all SQL statements.

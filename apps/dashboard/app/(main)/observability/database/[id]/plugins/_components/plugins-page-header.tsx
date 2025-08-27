@@ -74,7 +74,7 @@ export function PluginsPageHeader({
 		}
 
 		return (
-			<div className="flex items-center gap-4 text-muted-foreground text-sm">
+			<div className="flex items-center gap-2 text-muted-foreground text-sm">
 				<span>{stats.installed} installed</span>
 				<span>•</span>
 				<span>{stats.available} available</span>

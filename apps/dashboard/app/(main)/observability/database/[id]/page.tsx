@@ -336,7 +336,6 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 	// Show loading state while connection is loading
 	if (isLoadingConnection) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
 				<Card className="rounded">
 					<CardContent className="flex items-center justify-center py-12">
 						<div className="flex items-center gap-2 text-muted-foreground">
@@ -345,13 +344,11 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 						</div>
 					</CardContent>
 				</Card>
-			</div>
 		);
 	}
 
 	if (connectionError) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-3 text-red-600">
@@ -363,13 +360,11 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 						</p>
 					</CardContent>
 				</Card>
-			</div>
 		);
 	}
 
 	if (!connection) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
 				<Card className="rounded">
 					<CardContent className="pt-6">
 						<div className="text-center text-muted-foreground">
@@ -381,12 +376,11 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 						</div>
 					</CardContent>
 				</Card>
-			</div>
 		);
 	}
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
+		<>
 			{/* Database Stats */}
 			<div className="space-y-4">
 				<div className="flex items-center gap-2">
@@ -469,6 +463,6 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 					</div>
 				)}
 			</div>
-		</div>
+		</>
 	);
 }

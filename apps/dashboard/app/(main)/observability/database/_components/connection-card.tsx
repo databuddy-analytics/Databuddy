@@ -97,13 +97,21 @@ export function ConnectionCard({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem onClick={onEdit}>
+							<DropdownMenuItem
+								onClick={(e) => {
+									e.stopPropagation();
+									onEdit();
+								}}
+							>
 								<PencilSimpleIcon className="mr-2 h-4 w-4" />
 								Edit
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
-								onClick={onDelete}
+								onClick={(e) => {
+									e.stopPropagation();
+									onDelete();
+								}}
 							>
 								<TrashIcon className="mr-2 h-4 w-4" />
 								Delete

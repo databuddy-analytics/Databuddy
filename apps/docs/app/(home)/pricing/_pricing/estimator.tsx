@@ -52,7 +52,9 @@ export function Estimator({
 							<Label htmlFor="events">Monthly events</Label>
 							<div className="mt-1 font-semibold text-2xl tracking-tight">
 								{formatInteger(monthlyEvents)}
-								<span className="ml-1 text-muted-foreground text-sm">/ mo</span>
+								<span className="ml-1 text-muted-foreground text-sm">
+									/ month
+								</span>
 							</div>
 							<div className="mt-3 flex items-center gap-3">
 								<Input
@@ -132,7 +134,9 @@ export function Estimator({
 							</div>
 							<Separator className="my-3" />
 							<div className="flex items-center justify-between">
-								<span className="font-semibold text-sm">Est. total / mo</span>
+								<span className="font-semibold text-sm">
+									Estimated total / month
+								</span>
 								<span className="font-semibold text-sm">
 									{formatMoney(estimatedMonthly)}
 								</span>

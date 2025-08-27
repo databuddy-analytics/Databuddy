@@ -81,7 +81,8 @@ export function DatabasePageHeader({
 							</div>
 						</div>
 					</div>
-					<div className="flex items-center gap-3">
+					{/* Sidebar gets hidden when the screen is smaller than md */}
+					<div className="flex flex-row items-stretch gap-3 md:flex-col lg:flex-row">
 						{onRefresh && (
 							<Button
 								className="gap-2 border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5"

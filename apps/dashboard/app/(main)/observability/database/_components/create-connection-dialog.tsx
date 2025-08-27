@@ -16,7 +16,9 @@ import { Label } from '@/components/ui/label';
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
@@ -99,9 +101,19 @@ export function CreateConnectionDialog({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="postgres">PostgreSQL</SelectItem>
-								<SelectItem value="mysql">MySQL</SelectItem>
-								<SelectItem value="sqlite">SQLite</SelectItem>
+								<SelectGroup>
+									<SelectLabel>Available</SelectLabel>
+									<SelectItem value="postgres">PostgreSQL</SelectItem>
+								</SelectGroup>
+								<SelectGroup>
+									<SelectLabel>Coming soon</SelectLabel>
+									<SelectItem disabled value="mysql">
+										MySQL
+									</SelectItem>
+									<SelectItem disabled value="sqlite">
+										SQLite
+									</SelectItem>
+								</SelectGroup>
 							</SelectContent>
 						</Select>
 					</div>
@@ -138,7 +150,7 @@ export function CreateConnectionDialog({
 								'Adding...'
 							) : (
 								<>
-									<PlusIcon className="mr-2 h-4 w-4" />
+									<PlusIcon className="h-4 w-4" />
 									Add Connection
 								</>
 							)}

@@ -124,7 +124,7 @@ export function EditConnectionDialog({
 								'Updating...'
 							) : (
 								<>
-									<PencilSimpleIcon className="mr-2 h-4 w-4" />
+									<PencilSimpleIcon className="h-4 w-4" />
 									Update Connection
 								</>
 							)}

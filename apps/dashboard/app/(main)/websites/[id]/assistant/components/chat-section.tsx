@@ -49,15 +49,12 @@ export function ChatSkeleton() {
 			{/* Messages Area Skeleton */}
 			<div className="flex-1 space-y-4 overflow-y-auto p-4">
 				<div className="flex gap-3">
-					<Skeleton className="h-8 w-8 flex-shrink-0 rounded" />
 					<Skeleton className="h-12 w-3/4 rounded" />
 				</div>
 				<div className="ml-auto flex flex-row-reverse gap-3">
-					<Skeleton className="h-8 w-8 flex-shrink-0 rounded" />
 					<Skeleton className="h-10 w-1/2 rounded" />
 				</div>
 				<div className="flex gap-3">
-					<Skeleton className="h-8 w-8 flex-shrink-0 rounded" />
 					<Skeleton className="h-16 w-4/5 rounded" />
 				</div>
 			</div>

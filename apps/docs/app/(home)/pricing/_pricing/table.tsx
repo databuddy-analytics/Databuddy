@@ -66,7 +66,7 @@ export function PlansComparisonTable({ plans }: Props) {
 						</tr>
 						<tr className="border-border border-t transition-colors hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Included events / mo
+								Included events / month
 							</td>
 							{plans.map((p) => (
 								<td
