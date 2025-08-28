@@ -121,11 +121,11 @@ function LoginPage() {
 							>
 								<GithubLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with GitHub</span>
-								{/* {lastUsed === 'github' && ( */}
+								{lastUsed === 'github' && (
 								<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
-								
+								)}
 							</Button>
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
@@ -136,11 +136,11 @@ function LoginPage() {
 							>
 								<GoogleLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with Google</span>
-								{/* {lastUsed === 'google' && ( */}
+								{lastUsed === 'google' && (
 									<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
-								
+								)}
 							</Button>
 						</div>
 						<div className="relative">
