@@ -1,7 +1,7 @@
 'use client';
 
 import { signIn } from '@databuddy/auth/client';
-import { Eye, EyeOff, GithubIcon, Loader2, Mail, Sparkles } from 'lucide-react';
+import { EyeIcon, EyeSlashIcon, GithubLogoIcon, SpinnerIcon, SparkleIcon, GoogleLogoIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -100,18 +100,18 @@ function LoginPage() {
 
 	return (
 		<>
-			<div className="mb-8 text-center">
+			<div className="mb-8 text-center -mt-8">
 				<h1 className="font-bold text-2xl text-foreground">Welcome back</h1>
 				<p className="mt-2 text-muted-foreground">
 					Sign in to your account to continue your journey with Databuddy
 				</p>
 			</div>
-			<div className="relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
-				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
-				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
+			<div className="relative overflow-hidden p-6">
+				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
+				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
 				<div className="relative z-10">
 					<div className="space-y-6">
-						<div className="space-y-3">
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 -mt-2">
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 								disabled={isLoading}
@@ -119,15 +119,13 @@ function LoginPage() {
 								type="button"
 								variant="outline"
 							>
-								<GithubIcon className="mr-2 h-5 w-5" />
-								<span className="flex items-center gap-2">
-									Sign in with GitHub
-									{lastUsed === 'github' && (
-										<span className="ml-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-											Last used
-										</span>
-									)}
-								</span>
+								<GithubLogoIcon className="mr-2 h-5 w-5" />
+								<span>Sign in with GitHub</span>
+								{/* {lastUsed === 'github' && ( */}
+								<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+										Last used
+									</span>
+								
 							</Button>
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
@@ -136,15 +134,13 @@ function LoginPage() {
 								type="button"
 								variant="outline"
 							>
-								<Mail className="mr-2 h-5 w-5" />
-								<span className="flex items-center gap-2">
-									Sign in with Google
-									{lastUsed === 'google' && (
-										<span className="ml-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-											Last used
-										</span>
-									)}
-								</span>
+								<GoogleLogoIcon className="mr-2 h-5 w-5" />
+								<span>Sign in with Google</span>
+								{/* {lastUsed === 'google' && ( */}
+									<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+										Last used
+									</span>
+								
 							</Button>
 						</div>
 						<div className="relative">
@@ -160,23 +156,24 @@ function LoginPage() {
 						<form className="space-y-4" onSubmit={handleEmailPasswordLogin}>
 							<div className="space-y-2">
 								<Label className="font-medium text-foreground" htmlFor="email">
-									Email
+									Email<span className="text-blue-700">*</span>
 								</Label>
 								<div className="relative">
 									<Input
 										autoComplete="email"
-										className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+										className="h-11 border-none text-foreground bg-input transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
 										id="email"
 										name="email"
 										onChange={(e) => setEmail(e.target.value)}
-										placeholder="you@example.com"
+										placeholder="Enter your email"
 										required
 										type="email"
 										value={email}
 									/>
 									{lastUsed === 'email' && (
-										<span className="-translate-y-1/2 absolute top-1/2 right-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-											Last used
+										<span className="-translate-y-1/2 absolute top-1/2 right-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs sm:px-2">
+											<span className="hidden sm:inline">Last used</span>
+											<span className="sm:hidden">★</span>
 										</span>
 									)}
 								</div>
@@ -187,19 +184,20 @@ function LoginPage() {
 										className="font-medium text-foreground"
 										htmlFor="password"
 									>
-										Password
+										Password<span className="text-blue-700">*</span>
 									</Label>
 									<Link
-										className="h-auto cursor-pointer p-0 text-primary text-xs"
+										className="h-auto cursor-pointer p-0 text-primary text-xs sm:text-sm"
 										href="/login/forgot"
 									>
-										Forgot password?
+										<span className="hidden sm:inline">Forgot password?</span>
+										<span className="sm:hidden">Forgot?</span>
 									</Link>
 								</div>
 								<div className="relative">
 									<Input
 										autoComplete="current-password"
-										className="h-11 pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+										className="h-11 pr-10 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
 										id="password"
 										name="password"
 										onChange={(e) => setPassword(e.target.value)}
@@ -213,12 +211,12 @@ function LoginPage() {
 										onClick={() => setShowPassword(!showPassword)}
 										size="sm"
 										type="button"
-										variant="ghost"
+										variant="link"
 									>
 										{showPassword ? (
-											<EyeOff className="h-4 w-4" />
+											<EyeSlashIcon className="h-4 w-4" />
 										) : (
-											<Eye className="h-4 w-4" />
+											<EyeIcon className="h-4 w-4" />
 										)}
 									</Button>
 								</div>
@@ -230,7 +228,7 @@ function LoginPage() {
 							>
 								{isLoading ? (
 									<>
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
 										Signing in...
 									</>
 								) : (
@@ -239,11 +237,11 @@ function LoginPage() {
 							</Button>
 							<Link href="/login/magic" passHref>
 								<Button
-									className="flex w-full cursor-pointer items-center justify-center font-medium text-primary hover:text-primary/80"
+									className="flex w-full cursor-pointer items-center justify-center font-medium text-primary hover:text-primary/80 hover:no-underline"
 									type="button"
 									variant="link"
 								>
-									<Sparkles className="mr-2 h-4 w-4" />
+									<SparkleIcon className="mr-2 h-4 w-4" />
 									Sign in with magic link
 								</Button>
 							</Link>
@@ -251,7 +249,7 @@ function LoginPage() {
 					</div>
 				</div>
 			</div>
-			<div className="mt-6 text-center">
+			<div className="mt-2 text-center">
 				<p className="text-muted-foreground text-sm">
 					Don&apos;t have an account?{' '}
 					<Link
@@ -273,7 +271,7 @@ export default function Page() {
 				<div className="flex h-screen items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
-						<Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+						<SpinnerIcon className="relative h-8 w-8 animate-spin text-primary" />
 					</div>
 				</div>
 			}

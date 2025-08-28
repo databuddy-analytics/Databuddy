@@ -2,16 +2,16 @@
 
 import { authClient } from '@databuddy/auth/client';
 import {
-	AlertCircle,
-	CheckCircle2,
-	ChevronLeft,
-	Eye,
-	EyeOff,
-	GithubIcon,
-	Info,
-	Loader2,
-	Mail,
-} from 'lucide-react';
+	WarningCircleIcon,
+	CheckCircleIcon,
+	CaretLeftIcon,
+	EyeIcon,
+	EyeSlashIcon,
+	InfoIcon,
+	SpinnerIcon,
+	GoogleLogoIcon,
+	GithubLogoIcon,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
@@ -165,7 +165,7 @@ function RegisterPageContent() {
 							<div className="absolute inset-0 animate-pulse rounded-full bg-amber-50" />
 							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-amber-200 to-amber-100 opacity-70 blur-md" />
 							<div className="relative rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 p-2.5">
-								<AlertCircle className="h-8 w-8 text-white" />
+								<WarningCircleIcon className="h-8 w-8 text-white" />
 							</div>
 						</div>
 						<h1 className="font-bold text-2xl text-foreground">
@@ -186,7 +186,7 @@ function RegisterPageContent() {
 							<div className="absolute inset-0 animate-pulse rounded-full bg-green-50" />
 							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-green-200 to-green-100 opacity-70 blur-md" />
 							<div className="relative rounded-full bg-gradient-to-tr from-green-500 to-green-400 p-2.5">
-								<CheckCircle2 className="h-8 w-8 text-white" />
+								<CheckCircleIcon className="h-8 w-8 text-white" />
 							</div>
 						</div>
 						<h1 className="font-bold text-2xl text-foreground">Success!</h1>
@@ -222,27 +222,31 @@ function RegisterPageContent() {
 
 			<div className="flex flex-col space-y-3">
 				<Button
-					className="w-full bg-amber-500 text-white hover:bg-amber-600"
+					className="w-full bg-amber-500 text-white hover:bg-amber-600 text-sm sm:text-base"
 					disabled={isLoading}
 					onClick={resendVerificationEmail}
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
 							Sending...
 						</>
 					) : (
-						'Resend verification email'
+						<>
+							<span className="hidden sm:inline">Resend verification email</span>
+							<span className="sm:hidden">Resend email</span>
+						</>
 					)}
 				</Button>
 
 				<Button
-					className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+					className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 text-sm sm:text-base"
 					onClick={() => setRegistrationStep('form')}
 					variant="outline"
 				>
-					<ChevronLeft className="mr-2 h-4 w-4" />
-					Back to registration
+					<CaretLeftIcon className="mr-2 h-4 w-4" />
+					<span className="hidden sm:inline">Back to registration</span>
+					<span className="sm:hidden">Back</span>
 				</Button>
 			</div>
 		</div>
@@ -258,17 +262,18 @@ function RegisterPageContent() {
 			</div>
 
 			<Button
-				className="w-full bg-green-500 text-white hover:bg-green-600"
+				className="w-full bg-green-500 text-white hover:bg-green-600 text-sm sm:text-base"
 				onClick={() => router.push('/login')}
 			>
-				Continue to login
+				<span className="hidden sm:inline">Continue to login</span>
+				<span className="sm:hidden">Continue</span>
 			</Button>
 		</div>
 	);
 
 	const renderFormContent = () => (
-		<div className="space-y-5">
-			<div className="space-y-3">
+		<div className="space-y-4">
+			<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 -mt-4">
 				<Button
 					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
@@ -276,7 +281,7 @@ function RegisterPageContent() {
 					type="button"
 					variant="outline"
 				>
-					<GithubIcon className="mr-2 h-5 w-5" />
+					<GithubLogoIcon className="mr-2 h-5 w-5" />
 					Sign up with GitHub
 				</Button>
 
@@ -287,7 +292,7 @@ function RegisterPageContent() {
 					type="button"
 					variant="outline"
 				>
-					<Mail className="mr-2 h-5 w-5" />
+					<GoogleLogoIcon className="mr-2 h-5 w-5" />
 					Sign up with Google
 				</Button>
 			</div>
@@ -306,16 +311,16 @@ function RegisterPageContent() {
 			<form className="space-y-4" onSubmit={handleSubmit}>
 				<div className="space-y-2">
 					<Label className="font-medium text-foreground" htmlFor="name">
-						Full name
+						Full name<span className="text-blue-700">*</span>
 					</Label>
 					<Input
 						autoComplete="name"
-						className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+						className="h-11 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
 						disabled={isLoading}
 						id="name"
 						name="name"
 						onChange={handleChange}
-						placeholder="John Doe"
+						placeholder="Enter your name"
 						required
 						type="text"
 						value={formData.name}
@@ -324,100 +329,105 @@ function RegisterPageContent() {
 
 				<div className="space-y-2">
 					<Label className="font-medium text-foreground" htmlFor="email">
-						Email address
+						Email address<span className="text-blue-700">*</span>
 					</Label>
 					<Input
 						autoComplete="email"
-						className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+						className="h-11 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
 						disabled={isLoading}
 						id="email"
 						name="email"
 						onChange={handleChange}
-						placeholder="name@example.com"
+						placeholder="Enter your email"
 						required
 						type="email"
 						value={formData.email}
 					/>
 				</div>
 
-				<div className="space-y-2">
-					<div className="flex items-center justify-between">
-						<Label className="font-medium text-foreground" htmlFor="password">
-							Password
-						</Label>
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Info className="h-4 w-4 text-muted-foreground" />
-								</TooltipTrigger>
-								<TooltipContent>
-									<p>Password must be at least 8 characters long</p>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<Label className="font-medium text-foreground" htmlFor="password">
+								Password<span className="text-blue-700">*</span>
+							</Label>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<InfoIcon className="h-4 w-4 text-muted-foreground" />
+									</TooltipTrigger>
+									<TooltipContent>
+										<p>Password must be at</p>
+										<p>least 8 characters long</p>
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+						<div className="relative">
+							<Input
+								autoComplete="new-password"
+								className="h-11 pr-10 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+								disabled={isLoading}
+								id="password"
+								minLength={8}
+								name="password"
+								onChange={handleChange}
+								placeholder="••••••••"
+								required
+								type={showPassword ? 'text' : 'password'}
+								value={formData.password}
+							/>
+							<Button
+								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
+								onClick={() => setShowPassword(!showPassword)}
+								size="sm"
+								type="button"
+								variant="link"
+							>
+								{showPassword ? (
+									<EyeSlashIcon className="h-4 w-4" />
+								) : (
+									<EyeIcon className="h-4 w-4" />
+								)}
+							</Button>
+						</div>
 					</div>
-					<div className="relative">
-						<Input
-							autoComplete="new-password"
-							className="h-11 pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-							disabled={isLoading}
-							id="password"
-							minLength={8}
-							name="password"
-							onChange={handleChange}
-							required
-							type={showPassword ? 'text' : 'password'}
-							value={formData.password}
-						/>
-						<Button
-							className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
-							onClick={() => setShowPassword(!showPassword)}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							{showPassword ? (
-								<EyeOff className="h-4 w-4" />
-							) : (
-								<Eye className="h-4 w-4" />
-							)}
-						</Button>
-					</div>
-				</div>
 
-				<div className="space-y-2">
-					<Label
-						className="font-medium text-foreground"
-						htmlFor="confirmPassword"
-					>
-						Confirm password
-					</Label>
-					<div className="relative">
-						<Input
-							autoComplete="new-password"
-							className="h-11 pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-							disabled={isLoading}
-							id="confirmPassword"
-							minLength={8}
-							name="confirmPassword"
-							onChange={handleChange}
-							required
-							type={showConfirmPassword ? 'text' : 'password'}
-							value={formData.confirmPassword}
-						/>
-						<Button
-							className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
-							onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-							size="sm"
-							type="button"
-							variant="ghost"
+					<div className="space-y-2">
+						<Label
+							className="font-medium text-foreground"
+							htmlFor="confirmPassword"
 						>
-							{showConfirmPassword ? (
-								<EyeOff className="h-4 w-4" />
-							) : (
-								<Eye className="h-4 w-4" />
-							)}
-						</Button>
+							Confirm password<span className="text-blue-700">*</span>
+						</Label>
+						<div className="relative">
+							<Input
+								autoComplete="new-password"
+								className="h-11 pr-10 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+								disabled={isLoading}
+								id="confirmPassword"
+								minLength={8}
+								name="confirmPassword"
+								onChange={handleChange}
+								placeholder="••••••••"
+								required
+								type={showConfirmPassword ? 'text' : 'password'}
+								value={formData.confirmPassword}
+							/>
+							<Button
+								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
+								onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+								size="sm"
+								type="button"
+								variant="link"
+							>
+								{showConfirmPassword ? (
+									<EyeSlashIcon className="h-4 w-4" />
+								) : (
+									<EyeIcon className="h-4 w-4" />
+								)}
+							</Button>
+						</div>
 					</div>
 				</div>
 
@@ -432,29 +442,29 @@ function RegisterPageContent() {
 					</div>
 				</VisuallyHidden>
 
-				<div className="flex items-center space-x-2">
+				<div className="flex sm:flex-row items-center gap-2 sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
 					<Checkbox
 						checked={acceptTerms}
-						className="cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+						className="mt-1 sm:mt-0 cursor-pointer data-[state=unchecked]:bg-input data-[state=checked]:border-primary data-[state=checked]:bg-primary"
 						disabled={isLoading}
 						id="terms"
 						onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
 					/>
 					<Label
-						className="text-muted-foreground text-sm leading-tight"
+						className="text-muted-foreground text-xs leading-tight sm:text-sm tracking-tighter"
 						htmlFor="terms"
 					>
-						I agree to the{' '}
+						I agree to the{''}
 						<Link
-							className="font-medium text-primary hover:text-primary/80"
+							className="font-medium text-primary hover:text-primary/80 text-xs sm:text-sm tracking-tighter"
 							href="https://www.databuddy.cc/terms"
 							target="_blank"
 						>
 							Terms of Service
-						</Link>{' '}
-						and{' '}
+						</Link>
+						{''}and{''}
 						<Link
-							className="font-medium text-primary hover:text-primary/80"
+							className="font-medium text-primary hover:text-primary/80 text-xs sm:text-sm tracking-tighter"
 							href="https://www.databuddy.cc/privacy"
 							target="_blank"
 						>
@@ -464,17 +474,21 @@ function RegisterPageContent() {
 				</div>
 
 				<Button
-					className="hover:-translate-y-0.5 relative h-11 w-full overflow-hidden shadow transition-all duration-300 hover:shadow-lg hover:shadow-primary/20"
+					className="hover:-translate-y-0.5 relative h-11 w-full overflow-hidden shadow transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 text-sm sm:text-base"
 					disabled={isLoading}
 					type="submit"
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							Creating account...
+							<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
+							<span className="hidden sm:inline">Creating account...</span>
+							<span className="sm:hidden">Creating...</span>
 						</>
 					) : (
-						'Create account'
+						<>
+							<span className="hidden sm:inline">Create account</span>
+							<span className="sm:hidden">Sign up</span>
+						</>
 					)}
 				</Button>
 			</form>
@@ -496,13 +510,13 @@ function RegisterPageContent() {
 	return (
 		<>
 			<div className="mb-8 text-center">{renderHeaderContent()}</div>
-			<div className="relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
-				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
-				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
+			<div className="relative overflow-hidden p-6">
+				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 blur-3xl" />
+				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 blur-3xl" />
 				<div className="relative z-10">{renderContent()}</div>
 			</div>
 			{registrationStep === 'form' && (
-				<div className="mt-6 text-center">
+				<div className="mt-2 text-center">
 					<p className="text-muted-foreground text-sm">
 						Already have an account?{' '}
 						<Link
@@ -525,7 +539,7 @@ export default function RegisterPage() {
 				<div className="flex h-screen items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
-						<Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+						<SpinnerIcon className="relative h-8 w-8 animate-spin text-primary" />
 					</div>
 				</div>
 			}
