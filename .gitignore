@@ -28,6 +28,9 @@ out/
 build
 # generated
 # packages/db/generated
+packages/db/src/drizzle/meta/0000_snapshot.json
+packages/db/src/drizzle/meta/_journal.json
+packages/db/src/drizzle/*.sql
 dist
 
 
