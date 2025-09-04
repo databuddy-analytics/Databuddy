@@ -43,12 +43,12 @@ export default function MagicLinkPage() {
 	};
 
 	return (
-		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden p-6 shadow">
+		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden p-6">
 			<div className="mb-12 text-center">
 				<div className="relative mb-10 inline-flex h-16 w-16 items-center justify-center ">
 					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-blue-200 to-blue-100 opacity-20 blur-md" />
 					<div className="relative ">
-						<Sparkles className="animate-pulse h-8 w-8 text-white" />
+						<Sparkles className="animate-pulse h-8 w-8 text-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">
@@ -76,7 +76,7 @@ export default function MagicLinkPage() {
 					/>
 				</div>
 				<div className="flex gap-3 items-center p-3 text-blue-800 text-sm">
-					<Sparkles className="h-5 w-5 flex-shrink-0 text-white" />
+					<Sparkles className="h-5 w-5 flex-shrink-0 text-foreground" />
 					<p className="text-muted-foreground">
 						We'll send a secure link to your email that will sign you in
 						instantly — no password needed.
