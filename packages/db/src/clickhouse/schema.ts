@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.events (
   
   created_at DateTime64(3, 'UTC')
 ) ENGINE = MergeTree()
-INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1
 PARTITION BY toYYYYMM(time)
 ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192
@@ -307,7 +306,7 @@ CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.events (
 
     start_time DateTime64(3, 'UTC') DEFAULT now(),
     end_time DateTime64(3, 'UTC') DEFAULT now(),
-    duration_ms Nullable(UInt32) AS (toUInt32(dateDiff('millisecond', start_time, end_time))),
+    duration_ms Nullable(UInt32) MATERIALIZED (toUInt32(dateDiff('millisecond', start_time, end_time))),
 
     level LowCardinality(String),
     category LowCardinality(String),

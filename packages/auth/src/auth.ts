@@ -219,12 +219,11 @@ export const auth = betterAuth({
 		}),
 		twoFactor(),
 		customSession(async ({ user: sessionUser, session }) => {
-			const [dbUser] = await db.query.user.findMany({
-				where: eq(user.id, session.userId),
-				columns: {
-					role: true,
-				},
-			});
+			const [dbUser] = await db
+				.select({ role: user.role })
+				.from(user)
+				.where(eq(user.id, session.userId))
+				.limit(1);
 			return {
 				role: dbUser?.role,
 				user: {
