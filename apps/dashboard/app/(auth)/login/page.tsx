@@ -111,7 +111,7 @@ function LoginPage() {
 				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
 				<div className="relative z-10">
 					<div className="space-y-6">
-						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 -mt-2">
+						<div className="grid grid-cols-1 gap-3 lg:grid-cols-2 -mt-2">
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 								disabled={isLoading}

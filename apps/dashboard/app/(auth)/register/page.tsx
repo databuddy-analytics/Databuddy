@@ -275,7 +275,7 @@ function RegisterPageContent() {
 
 	const renderFormContent = () => (
 		<div className="space-y-4">
-			<div className="-mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+			<div className="-mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
 				<Button
 					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
@@ -284,7 +284,7 @@ function RegisterPageContent() {
 					variant="outline"
 				>
 					<GithubLogoIcon className="mr-2 h-5 w-5" />
-					Sign up with GitHub
+					<span>Sign up with GitHub</span>
 				</Button>
 
 				<Button
@@ -295,7 +295,7 @@ function RegisterPageContent() {
 					variant="outline"
 				>
 					<GoogleLogoIcon className="mr-2 h-5 w-5" />
-					Sign up with Google
+					<span>Sign up with Google</span>
 				</Button>
 			</div>
 
@@ -398,7 +398,7 @@ function RegisterPageContent() {
 
 					<div className="space-y-2">
 						<Label
-							className="font-medium text-foreground"
+							className="font-medium text-foreground whitespace-nowrap"
 							htmlFor="confirmPassword"
 						>
 							Confirm password<span className="text-blue-700">*</span>
@@ -448,35 +448,57 @@ function RegisterPageContent() {
 					</div>
 				</VisuallyHidden>
 
-				<div className="flex items-center gap-2 space-y-2 sm:flex-row sm:items-center sm:space-x-2 sm:space-y-0">
-					<Checkbox
-						checked={acceptTerms}
-						className="mt-1 cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input sm:mt-0"
-						disabled={isLoading}
-						id="terms"
-						onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-					/>
-					<Label
-						className="text-muted-foreground text-xs leading-tight tracking-tighter sm:text-sm"
-						htmlFor="terms"
-					>
-						I agree to the{''}
-						<Link
-							className="font-medium text-primary text-xs tracking-tighter hover:text-primary/80 sm:text-sm"
-							href="https://www.databuddy.cc/terms"
-							target="_blank"
+				<div className="space-y-2">
+					<div className="flex items-start gap-2">
+						<Checkbox
+							checked={acceptTerms}
+							className="mt-1 cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+							disabled={isLoading}
+							id="terms"
+							onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+						/>
+						<Label
+							className="text-muted-foreground text-xs leading-relaxed sm:text-sm"
+							htmlFor="terms"
 						>
-							Terms of Service
-						</Link>
-						{''}and{''}
-						<Link
-							className="font-medium text-primary text-xs tracking-tighter hover:text-primary/80 sm:text-sm"
-							href="https://www.databuddy.cc/privacy"
-							target="_blank"
-						>
-							Privacy Policy
-						</Link>
-					</Label>
+							<span className="hidden sm:inline">
+								I agree to the{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/terms"
+									target="_blank"
+								>
+									Terms of Service
+								</Link>
+								{' '}and{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/privacy"
+									target="_blank"
+								>
+									Privacy Policy
+								</Link>
+							</span>
+							<span className="sm:hidden">
+								I agree to{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/terms"
+									target="_blank"
+								>
+									Terms
+								</Link>
+								{' '}&{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/privacy"
+									target="_blank"
+								>
+									Privacy
+								</Link>
+							</span>
+						</Label>
+					</div>
 				</div>
 
 				<Button
