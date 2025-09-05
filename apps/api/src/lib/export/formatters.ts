@@ -5,7 +5,9 @@ import type { ExportFormat } from './types';
 export function convertToCSV<T extends Record<string, unknown>>(
 	data: T[]
 ): string {
-	if (data.length === 0) return '';
+	if (data.length === 0) {
+		return '';
+	}
 
 	const headers = Object.keys(data[0] || {}).join(',');
 	const rows = data
@@ -36,7 +38,9 @@ export function convertToCSV<T extends Record<string, unknown>>(
 export function convertToTXT<T extends Record<string, unknown>>(
 	data: T[]
 ): string {
-	if (data.length === 0) return '';
+	if (data.length === 0) {
+		return '';
+	}
 
 	const headers = Object.keys(data[0] || {}).join('\t');
 	const rows = data
@@ -60,7 +64,9 @@ export function convertToProto<T extends Record<string, unknown>>(
 	data: T[],
 	typeName: string
 ): string {
-	if (data.length === 0) return '';
+	if (data.length === 0) {
+		return '';
+	}
 
 	let protoContent = `# Protocol Buffer Text Format\n# Type: ${typeName}\n\n`;
 
@@ -110,7 +116,6 @@ export function formatData<T extends Record<string, unknown>>(
 			return convertToTXT(data);
 		case 'proto':
 			return convertToProto(data, typeName);
-		case 'json':
 		default:
 			return JSON.stringify(data, null, 2);
 	}
@@ -124,7 +129,6 @@ export function getFileExtension(format: ExportFormat): string {
 			return 'txt';
 		case 'proto':
 			return 'proto.txt';
-		case 'json':
 		default:
 			return 'json';
 	}

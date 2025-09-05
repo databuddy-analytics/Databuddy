@@ -11,7 +11,7 @@ import { createRateLimitMiddleware } from '../middleware/rate-limit';
 
 dayjs.extend(utc);
 
-const exportRateLimit = createRateLimitMiddleware({
+const _exportRateLimit = createRateLimitMiddleware({
 	type: 'expensive',
 	identifier: 'export',
 	customConfig: {

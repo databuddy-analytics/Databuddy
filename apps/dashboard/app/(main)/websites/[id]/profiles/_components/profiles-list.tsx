@@ -91,12 +91,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 		setPage(1);
 		setAllProfiles([]);
 		setIsInitialLoad(true);
-	}, [
-		dateRange.start_date,
-		dateRange.end_date,
-		dateRange.granularity,
-		JSON.stringify(filters),
-	]);
+	}, []);
 
 	const toggleProfile = useCallback((profileId: string) => {
 		setExpandedProfileId((currentId) =>

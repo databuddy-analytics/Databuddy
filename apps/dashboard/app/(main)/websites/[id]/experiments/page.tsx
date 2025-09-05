@@ -129,7 +129,7 @@ export default function ExperimentsPage() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [refetchExperiments]);
+	}, [refetchExperiments, setIsRefreshing]);
 
 	const handleSaveExperiment = async (
 		data: Experiment | Omit<CreateExperimentData, 'websiteId'>

@@ -651,14 +651,14 @@
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
   }
 
   .sidebar-transition {
-    transition: none !important;
+    transition: none;
   }
 }
 
@@ -675,7 +675,7 @@
   }
 
   .sidebar-backdrop {
-    background-color: rgba(0, 0, 0, 0.8) !important;
+    background-color: rgba(0, 0, 0, 0.8);
   }
 }
 
@@ -695,10 +695,10 @@
 /* Print styles */
 @media print {
   * {
-    background: transparent !important;
-    color: black !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
+    background: transparent;
+    color: black;
+    box-shadow: none;
+    text-shadow: none;
   }
 
   body {
@@ -716,7 +716,7 @@
   }
 
   .no-print {
-    display: none !important;
+    display: none;
   }
 }
 

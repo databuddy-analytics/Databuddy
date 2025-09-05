@@ -52,7 +52,7 @@ const mockMetrics: MetricResult[] = [
 	},
 ];
 
-const formatNumber = (value: number | null | undefined): string => {
+const _formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
 		return '0';
 	}

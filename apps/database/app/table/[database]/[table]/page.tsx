@@ -94,7 +94,7 @@ export default async function TableDetail({
 	useEffect(() => {
 		loadTableData();
 		loadTableStats();
-	}, []);
+	}, [loadTableData, loadTableStats]);
 
 	const exportTable = async () => {
 		setLoading(true);

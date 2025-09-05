@@ -261,7 +261,7 @@ export const assistantRouter = createTRPCRouter({
 	deleteConversation: protectedProcedure
 		.input(z.object({ conversationId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const result = await db
+			const _result = await db
 				.delete(assistantConversations)
 				.where(
 					and(

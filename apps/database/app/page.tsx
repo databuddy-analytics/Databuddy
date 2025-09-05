@@ -45,7 +45,7 @@ export default function DatabaseManager() {
 
 	useEffect(() => {
 		loadData();
-	}, []);
+	}, [loadData]);
 
 	useEffect(() => {
 		if (searchTerm) {

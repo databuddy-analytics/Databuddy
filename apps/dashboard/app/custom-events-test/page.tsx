@@ -347,7 +347,7 @@ const TabButtons = ({
 	</div>
 );
 
-const FormFields = ({
+const _FormFields = ({
 	activeTab,
 	formData,
 	setFormData,

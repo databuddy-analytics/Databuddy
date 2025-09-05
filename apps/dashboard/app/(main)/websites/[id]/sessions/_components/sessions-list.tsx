@@ -146,9 +146,9 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		return (
 			<Card className="border-sidebar-border bg-sidebar/20">
 				<CardContent className="flex items-center justify-center p-16">
-					<div className="text-center max-w-md">
+					<div className="max-w-md text-center">
 						<UserIcon
-							className="h-12 w-12 text-muted-foreground mx-auto mb-6"
+							className="mx-auto mb-6 h-12 w-12 text-muted-foreground"
 							weight="duotone"
 						/>
 						<h3 className="mb-3 font-semibold text-lg">No sessions found</h3>

@@ -158,6 +158,7 @@ export default function FunnelsPage() {
 		autocompleteQuery.refetch,
 		refetchTrackingSetup,
 		expandedFunnelId,
+		setIsRefreshing,
 	]);
 
 	const handleCreateFunnel = async (data: CreateFunnelData) => {

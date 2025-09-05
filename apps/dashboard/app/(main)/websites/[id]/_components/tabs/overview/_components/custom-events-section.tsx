@@ -4,8 +4,6 @@ import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/components/analytics';
 import type {
-	CustomEventData,
-	CustomEventsData,
 	CustomEventsSectionProps,
 	EventProperty,
 	OutboundDomainData,

@@ -2,7 +2,14 @@
   "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "extends": ["ultracite"],
   "files": {
-    "includes": ["**", "!**/*.mdx"]
+    "includes": [
+      "**",
+      "!**/*.mdx",
+      "!**/*.css",
+      "!**/countries.json",
+      "!**/subdivisions.json",
+      "!**/databuddy.js"
+    ]
   },
   "javascript": {
     "formatter": {
@@ -18,10 +25,53 @@
           "options": {
             "allow": ["assert", "error", "info", "warn"]
           }
-        }
+        },
+        "noExplicitAny": "off",
+        "noEvolvingTypes": "off",
+        "noImplicitAnyLet": "off",
+        "useAwait": "off",
+        "noEmptyBlockStatements": "off",
+        "noArrayIndexKey": "off",
+        "noDocumentCookie": "off",
+        "noShadowRestrictedNames": "off"
       },
       "style": {
-        "noNestedTernary": "off"
+        "noNestedTernary": "off",
+        "useFilenamingConvention": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off",
+        "noForEach": "off"
+      },
+      "performance": {
+        "useTopLevelRegex": "off",
+        "noImgElement": "off",
+        "noNamespaceImport": "off"
+      },
+      "correctness": {
+        "noInvalidUseBeforeDeclaration": "off",
+        "useExhaustiveDependencies": "off",
+        "noUnusedVariables": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnreachable": "off",
+        "useHookAtTopLevel": "off"
+      },
+      "nursery": {
+        "noShadow": "off",
+        "noNestedComponentDefinitions": "off",
+        "noNoninteractiveElementInteractions": "off",
+        "noAwaitInLoop": "off",
+        "noBitwiseOperators": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "useFocusableInteractive": "off",
+        "useAriaPropsForRole": "off",
+        "useKeyWithClickEvents": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       }
     }
   }

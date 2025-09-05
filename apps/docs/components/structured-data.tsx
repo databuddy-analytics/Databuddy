@@ -122,7 +122,9 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 						unitText: 'per 1,000 events (overage)',
 					});
 
-					if (t.to !== 'inf') prevMax = t.to as number;
+					if (t.to !== 'inf') {
+						prevMax = t.to as number;
+					}
 				});
 			}
 			// Other priced features (e.g., extra websites per month)

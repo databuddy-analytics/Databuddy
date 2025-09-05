@@ -192,7 +192,7 @@ export function WebsiteAudienceTab({
 	}, [isRefreshing, handleRefresh]);
 
 	const onAddFilter = useCallback(
-		(field: string, value: string, tableTitle?: string) => {
+		(field: string, value: string, _tableTitle?: string) => {
 			// The field parameter now contains the correct filter field from the tab configuration
 			const filter = {
 				field,

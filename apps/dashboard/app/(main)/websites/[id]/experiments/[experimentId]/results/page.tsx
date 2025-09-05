@@ -1,29 +1,15 @@
 'use client';
 
-import {
-	CalendarIcon,
-	FlaskIcon,
-	TrendUpIcon,
-	UsersIcon,
-} from '@phosphor-icons/react';
+import { FlaskIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useExperiment } from '@/hooks/use-experiments';
 import { useWebsite } from '@/hooks/use-websites';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { WebsitePageHeader } from '../../../_components/website-page-header';
 import { ConversionChart } from './_components/conversion-chart';
-import { ExperimentResultsHeader } from './_components/experiment-results-header';
 import { ExperimentSummaryCards } from './_components/experiment-summary-cards';
 import { MetricsTable } from './_components/metrics-table';
 import { StatisticalDetails } from './_components/statistical-details';
@@ -32,7 +18,7 @@ import { VariantComparison } from './_components/variant-comparison';
 const ResultsLoadingSkeleton = () => (
 	<div className="space-y-6">
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-			{[...Array(4)].map((_, i) => (
+			{[...new Array(4)].map((_, i) => (
 				<Card className="animate-pulse" key={i}>
 					<CardHeader className="pb-2">
 						<Skeleton className="h-4 w-24" />
@@ -91,7 +77,7 @@ export default function ExperimentResultsPage() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, []);
+	}, [setIsRefreshing]);
 
 	if (experimentError) {
 		return (

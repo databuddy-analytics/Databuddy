@@ -134,7 +134,7 @@ export default function WebsiteRevenuePage() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [refetch, revenueConfig.refetch]);
+	}, [refetch, revenueConfig.refetch, setIsRefreshing]);
 
 	if (revenueConfig.isLoading) {
 		return (

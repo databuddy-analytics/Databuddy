@@ -16,10 +16,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import type {
-	SettingsNavigationProps,
-	TrackingOptions,
-} from '../../utils/types';
+import type { SettingsNavigationProps } from '../../utils/types';
 
 export function SettingsNavigation({
 	activeTab,

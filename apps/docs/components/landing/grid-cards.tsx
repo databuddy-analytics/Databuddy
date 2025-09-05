@@ -64,7 +64,7 @@ export const GridCards = () => {
 						understand your users
 					</span>
 				</h2>
-				<p className="max-w-2xl mt-3 text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
+				<p className="mt-3 max-w-2xl text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Privacy-first, lightweight, real-time insights to grow with
 					confidence.
 				</p>

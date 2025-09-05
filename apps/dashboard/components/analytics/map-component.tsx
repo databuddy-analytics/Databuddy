@@ -338,7 +338,7 @@ export function MapComponent({
 				}
 			}
 		}
-	}, [resolvedTheme]);
+	}, []);
 
 	const calculateCountryCentroid = useCallback(
 		(geometry: Country['features'][number]['geometry']) => {

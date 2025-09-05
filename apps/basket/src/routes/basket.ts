@@ -314,8 +314,8 @@ async function insertWebVitals(
 async function insertCustomEvent(
 	customData: any,
 	clientId: string,
-	userAgent: string,
-	ip: string
+	_userAgent: string,
+	_ip: string
 ): Promise<void> {
 	let eventId = sanitizeString(
 		customData.eventId,
@@ -369,8 +369,8 @@ async function insertCustomEvent(
 async function insertOutgoingLink(
 	linkData: any,
 	clientId: string,
-	userAgent: string,
-	ip: string
+	_userAgent: string,
+	_ip: string
 ): Promise<void> {
 	let eventId = sanitizeString(
 		linkData.eventId,

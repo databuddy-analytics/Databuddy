@@ -5,9 +5,9 @@ import {
 	EyeIcon,
 	EyeSlashIcon,
 	GithubLogoIcon,
-	SpinnerIcon,
-	SparkleIcon,
 	GoogleLogoIcon,
+	SparkleIcon,
+	SpinnerIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -107,7 +107,7 @@ function LoginPage() {
 
 	return (
 		<>
-			<div className="mb-8 text-center -mt-8">
+			<div className="-mt-8 mb-8 text-center">
 				<h1 className="font-bold text-2xl text-foreground">Welcome back</h1>
 				<p className="mt-2 text-muted-foreground">
 					Sign in to your account to continue your journey with Databuddy
@@ -118,7 +118,7 @@ function LoginPage() {
 				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
 				<div className="relative z-10">
 					<div className="space-y-6">
-						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 -mt-2">
+						<div className="-mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 								disabled={isLoading}
@@ -129,7 +129,7 @@ function LoginPage() {
 								<GithubLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with GitHub</span>
 								{lastUsed === 'github' && (
-									<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
 								)}
@@ -144,7 +144,7 @@ function LoginPage() {
 								<GoogleLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with Google</span>
 								{lastUsed === 'google' && (
-									<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
 								)}
@@ -168,7 +168,7 @@ function LoginPage() {
 								<div className="relative">
 									<Input
 										autoComplete="email"
-										className="h-11 border-none text-foreground bg-input transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+										className="h-11 border-none bg-input text-foreground transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 										id="email"
 										name="email"
 										onChange={(e) => setEmail(e.target.value)}
@@ -204,7 +204,7 @@ function LoginPage() {
 								<div className="relative">
 									<Input
 										autoComplete="current-password"
-										className="h-11 pr-10 bg-input border-none transition-all duration-200 focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+										className="h-11 border-none bg-input pr-10 transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 										id="password"
 										name="password"
 										onChange={(e) => setPassword(e.target.value)}

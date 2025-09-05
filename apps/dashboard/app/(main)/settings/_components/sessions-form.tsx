@@ -37,7 +37,7 @@ export function SessionsForm() {
 
 	useEffect(() => {
 		fetchSessions();
-	}, []);
+	}, [fetchSessions]);
 
 	const fetchSessions = async () => {
 		setIsLoading(true);
@@ -110,8 +110,9 @@ export function SessionsForm() {
 	};
 
 	const getDeviceIcon = (userAgent?: string | null) => {
-		if (!userAgent)
+		if (!userAgent) {
 			return <GlobeIcon className="h-4 w-4" size={16} weight="duotone" />;
+		}
 
 		const ua = userAgent.toLowerCase();
 		if (
@@ -126,7 +127,9 @@ export function SessionsForm() {
 	};
 
 	const formatUserAgent = (userAgent?: string | null) => {
-		if (!userAgent) return 'Unknown Device';
+		if (!userAgent) {
+			return 'Unknown Device';
+		}
 
 		// Extract browser and OS information
 		let browser = 'Unknown Browser';

@@ -2,7 +2,6 @@ import {
 	AtomIcon,
 	BookOpenIcon,
 	ChartBarIcon,
-	ChartLineIcon,
 	CodeIcon,
 	CreditCardIcon,
 	DatabaseIcon,
