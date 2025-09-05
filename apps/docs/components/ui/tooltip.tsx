@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import type * as React from 'react';
 

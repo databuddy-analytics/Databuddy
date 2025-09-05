@@ -53,11 +53,5 @@ export const CodeBlockContent = async ({
 			})
 		: children;
 
-	return (
-		<div
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: "Kinda how Shiki works"
-			dangerouslySetInnerHTML={{ __html: html }}
-			{...props}
-		/>
-	);
+	return <div dangerouslySetInnerHTML={{ __html: html }} {...props} />;
 };

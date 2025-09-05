@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
 

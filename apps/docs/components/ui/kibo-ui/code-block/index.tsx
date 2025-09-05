@@ -619,7 +619,6 @@ export const CodeBlockContent = ({
 
 		highlight(children as string, language, themes)
 			.then(setHtml)
-			// biome-ignore lint/suspicious/noConsole: "it's fine"
 			.catch(console.error);
 	}, [children, themes, syntaxHighlighting, language]);
 
@@ -627,11 +626,5 @@ export const CodeBlockContent = ({
 		return <CodeBlockFallback>{children}</CodeBlockFallback>;
 	}
 
-	return (
-		<div
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: "Kinda how Shiki works"
-			dangerouslySetInnerHTML={{ __html: html }}
-			{...props}
-		/>
-	);
+	return <div dangerouslySetInnerHTML={{ __html: html }} {...props} />;
 };

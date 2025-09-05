@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as SheetPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
 import type * as React from 'react';

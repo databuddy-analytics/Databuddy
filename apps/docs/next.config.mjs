@@ -8,7 +8,6 @@ const config = {
 	compress: true,
 	poweredByHeader: false,
 
-	// biome-ignore lint: false positive
 	async headers() {
 		return [
 			{
@@ -49,7 +48,6 @@ const config = {
 		];
 	},
 
-	// biome-ignore lint: false positive
 	async redirects() {
 		return [
 			{

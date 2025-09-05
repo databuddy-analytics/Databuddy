@@ -121,7 +121,6 @@ async function CodeBlock({
 							'[&_.line]:min-h-[1.25rem] [&_.line]:px-0',
 							className
 						)}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: Required for syntax highlighting
 						dangerouslySetInnerHTML={{ __html: highlightedCode }}
 					/>
 				) : (
