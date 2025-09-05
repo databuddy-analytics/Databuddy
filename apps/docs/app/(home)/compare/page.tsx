@@ -142,7 +142,6 @@ function CompetitorCard({
 						</div>
 					</div>
 				</div>
-
 			</SciFiCard>
 		</Link>
 	);

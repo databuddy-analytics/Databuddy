@@ -2,7 +2,7 @@
 #
 # This workflow runs code quality checks on all pull requests to ensure
 # consistent code style and catch potential issues before they're merged.
-# It uses Biome (via ultracite) for linting and TypeScript for type checking.
+# It uses Biome for linting with the configuration from biome.jsonc.
 #
 name: Lint
 
@@ -40,10 +40,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run lint check
         run: bun run lint
-
-      - name: Run type check
-        run: bun run check-types

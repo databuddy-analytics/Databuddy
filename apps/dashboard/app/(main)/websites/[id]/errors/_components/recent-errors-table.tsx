@@ -43,7 +43,10 @@ export const RecentErrorsTable = ({ recentErrors, isLoading }: Props) => {
 							</div>
 							<Badge className={getSeverityColor(severity)}>{type}</Badge>
 							{row.stack && (
-								<Badge className="text-xs border-sidebar-border bg-sidebar/20" variant="outline">
+								<Badge
+									className="text-xs border-sidebar-border bg-sidebar/20"
+									variant="outline"
+								>
 									Stack Available
 								</Badge>
 							)}

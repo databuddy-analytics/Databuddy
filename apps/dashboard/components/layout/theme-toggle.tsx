@@ -25,7 +25,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 			onClick={switchTheme}
 			type="button"
 			variant="ghost"
-		>	
+		>
 			<SunIcon
 				className="dark:-rotate-90 h-5 w-5 rotate-0 scale-100 not-dark:text-primary transition-all duration-300 dark:scale-0"
 				size={32}

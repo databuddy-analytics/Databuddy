@@ -333,7 +333,7 @@ export function MapComponent({
 				mapContainer.style.backgroundColor = bgColor;
 				const leafletContainer =
 					mapContainer.querySelector('.leaflet-container');
-				if (leafletContainer) {	
+				if (leafletContainer) {
 					(leafletContainer as HTMLElement).style.backgroundColor = bgColor;
 				}
 			}

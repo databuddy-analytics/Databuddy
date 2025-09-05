@@ -20,7 +20,9 @@ import { MODEL_CONFIGS } from '../types/model';
 
 const modelIcons: Record<string, React.ReactNode> = {
 	chat: <StarIcon className="h-4 w-4 text-yellow-400" weight="duotone" />, // Use Star for default
-	agent: <FlaskIcon className="h-4 w-4 text-muted-foreground" weight="duotone" />, // Flask for experimental/agent
+	agent: (
+		<FlaskIcon className="h-4 w-4 text-muted-foreground" weight="duotone" />
+	), // Flask for experimental/agent
 	'agent-max': (
 		<FlaskIcon className="h-4 w-4 text-purple-400" weight="duotone" />
 	), // Flask for max

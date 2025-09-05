@@ -1,7 +1,14 @@
 'use client';
 
 import { signIn } from '@databuddy/auth/client';
-import { EyeIcon, EyeSlashIcon, GithubLogoIcon, SpinnerIcon, SparkleIcon, GoogleLogoIcon } from '@phosphor-icons/react';
+import {
+	EyeIcon,
+	EyeSlashIcon,
+	GithubLogoIcon,
+	SpinnerIcon,
+	SparkleIcon,
+	GoogleLogoIcon,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -122,7 +129,7 @@ function LoginPage() {
 								<GithubLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with GitHub</span>
 								{lastUsed === 'github' && (
-								<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+									<span className="absolute -top-4 -right-0.5 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
 								)}
@@ -207,7 +214,9 @@ function LoginPage() {
 										value={password}
 									/>
 									<Button
-										aria-label={showPassword ? 'Hide password' : 'Show password'}
+										aria-label={
+											showPassword ? 'Hide password' : 'Show password'
+										}
 										className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
 										onClick={() => setShowPassword(!showPassword)}
 										size="sm"
