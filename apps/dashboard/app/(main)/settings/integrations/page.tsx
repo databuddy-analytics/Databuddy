@@ -176,13 +176,13 @@ export default function IntegrationsPage() {
 								<CardContent className="p-6">
 									<div className="space-y-4">
 										<div className="flex items-start justify-between">
-											<div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-white shadow-sm">
+											<div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-white shadow-sm dark:bg-gray-800">
 												<Image
 													src={integration.logo}
 													alt={`${integration.name} logo`}
 													width={28}
 													height={28}
-													className="h-7 w-7 not-dark:brightness-0"
+													className="h-7 w-7 brightness-0 dark:brightness-100"
 												/>
 											</div>
 											{integration.connected && (
