@@ -323,7 +323,7 @@ export function MapComponent({
 		return () => window.removeEventListener('resize', updateHeight);
 	}, []);
 
-	const zoom = resolvedHeight ? Math.log2(resolvedHeight / 400) + 1 : 1;
+	const zoom = 2.2;
 
 	useEffect(() => {
 		if (mapRef.current) {
@@ -437,6 +437,10 @@ export function MapComponent({
 					attributionControl={false}
 					center={[40, 3]}
 					className={resolvedTheme === 'dark' ? 'map-dark' : 'map-light'}
+					maxBounds={[[-85, -180], [85, 180]]}
+					maxBoundsViscosity={1.0}
+					maxZoom={5}
+					minZoom={2.2}
 					preferCanvas
 					ref={mapRef}
 					style={{
