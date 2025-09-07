@@ -213,9 +213,9 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 		return (
 			<Badge>
 				<CheckIcon
-					className="mr-1 font-bold not-dark:text-primary"
+					className="mr-1 text-white dark:text-black"
 					size={12}
-					weight="duotone"
+					weight="bold"
 				/>
 				Active
 			</Badge>
@@ -247,7 +247,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 	};
 
 	return (
-		<Card>
+		<Card className="h-full flex flex-col">
 			<CardHeader>
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0 flex-1 space-y-3">
@@ -292,7 +292,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 				</div>
 			</CardHeader>
 
-			<CardContent className="space-y-6">
+			<CardContent className="flex-1 flex flex-col space-y-6">
 				<div className="space-y-3">
 					{plan?.items.map((item) => (
 						<div className="flex items-start gap-3" key={item.feature_id}>
@@ -318,7 +318,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 
 				<Separator />
 
-				<div className="space-y-3">
+				<div className="space-y-3 mt-auto">
 					{isCanceled ? (
 						<Button
 							aria-label="Reactivate subscription"
@@ -347,7 +347,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 							{!(isFree || isCanceled) && (
 								<Button
 									aria-label="Cancel subscription"
-									className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+									className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground hover:cursor-pointer"
 									onClick={() =>
 										plan &&
 										onCancelClick(
@@ -368,7 +368,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 
 					<Button
 						aria-label="Manage billing settings"
-						className="w-full"
+						className="w-full hover:cursor-pointer"
 						onClick={onManageBilling}
 						size="sm"
 						type="button"
@@ -440,23 +440,37 @@ export const OverviewTab = memo(function OverviewTabComponent({
 	if (isLoading) {
 		return (
 			<div className="space-y-8">
-				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<div className="space-y-2">
-						<Skeleton className="h-8 w-48" />
-						<Skeleton className="h-4 w-64" />
-					</div>
-					<Skeleton className="h-6 w-32" />
-				</div>
-
+				{/* Header Section Skeleton */}
 				<div className="grid gap-8 lg:grid-cols-3">
-					<div className="space-y-6 lg:col-span-2">
-						<div className="grid gap-4">
-							{Array.from({ length: 3 }).map((_, i) => (
-								<Skeleton className="h-32 w-full" key={`skeleton-${i + 1}`} />
-							))}
+					{/* Usage Overview Header Skeleton */}
+					<div className="lg:col-span-2">
+						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+							<div className="space-y-2">
+								<Skeleton className="h-8 w-48" />
+								<Skeleton className="h-4 w-64" />
+							</div>
+							<Skeleton className="h-6 w-32" />
 						</div>
 					</div>
+
+					{/* Current Plan Header Skeleton */}
 					<div className="lg:col-span-1">
+						<div className="space-y-2">
+							<Skeleton className="h-8 w-32" />
+							<Skeleton className="h-4 w-40" />
+						</div>
+					</div>
+				</div>
+
+				{/* Main Content Grid Skeleton */}
+				<div className="grid gap-8 lg:grid-cols-3">
+					{/* Usage Overview Section Skeleton */}
+					<div className="space-y-6 lg:col-span-2">
+						<Skeleton className="h-96 w-full" />
+					</div>
+
+					{/* Current Plan Section Skeleton */}
+					<div className="space-y-6 lg:col-span-1">
 						<Skeleton className="h-96 w-full" />
 					</div>
 				</div>
@@ -483,19 +497,34 @@ export const OverviewTab = memo(function OverviewTabComponent({
 
 			<div className="space-y-8">
 				{/* Header Section */}
-				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<div>
-						<h1 className="font-bold text-2xl tracking-tight">
-							Usage Overview
-						</h1>
-						<p className="mt-1 text-muted-foreground">
-							Monitor your current usage and limits
-						</p>
+				<div className="grid gap-8 lg:grid-cols-3">
+					{/* Usage Overview Header */}
+					<div className="lg:col-span-2">
+						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+							<div>
+								<h1 className="font-bold text-2xl tracking-tight">
+									Usage Overview
+								</h1>
+								<p className="mt-1 text-muted-foreground">
+									Monitor your current usage and limits
+								</p>
+							</div>
+							<Badge variant="secondary">
+								<SparkleIcon className="mr-1" size={12} weight="duotone" />
+								Current period
+							</Badge>
+						</div>
 					</div>
-					<Badge variant="secondary">
-						<SparkleIcon className="mr-1" size={12} weight="duotone" />
-						Current period
-					</Badge>
+
+					{/* Current Plan Header */}
+					<div className="lg:col-span-1">
+						<div>
+							<h2 className="font-bold text-2xl tracking-tight">Current Plan</h2>
+							<p className="mt-1 text-muted-foreground">
+								Manage your subscription
+							</p>
+						</div>
+					</div>
 				</div>
 
 				{/* Main Content Grid */}
@@ -503,8 +532,8 @@ export const OverviewTab = memo(function OverviewTabComponent({
 					{/* Usage Overview Section */}
 					<div className="space-y-6 lg:col-span-2">
 						{usageStats.length === 0 ? (
-							<Card>
-								<CardContent className="flex flex-col items-center justify-center py-16">
+							<Card className="h-full">
+								<CardContent className="flex h-full flex-col items-center justify-center py-16">
 									<div className="mb-6 flex h-16 w-16 items-center justify-center rounded border bg-muted">
 										<TrendUpIcon
 											className="not-dark:text-primary text-muted-foreground"
@@ -533,20 +562,15 @@ export const OverviewTab = memo(function OverviewTabComponent({
 
 					{/* Current Plan Section */}
 					<div className="space-y-6 lg:col-span-1">
-						<div>
-							<h2 className="font-bold text-xl">Current Plan</h2>
-							<p className="mt-1 text-muted-foreground text-sm">
-								Manage your subscription
-							</p>
+						<div className="h-full">
+							<PlanStatusCard
+								onCancelClick={onCancelClick}
+								onManageBilling={onManageBilling}
+								onUpgrade={onNavigateToPlans}
+								plan={currentPlan}
+								statusDetails={statusDetails}
+							/>
 						</div>
-
-						<PlanStatusCard
-							onCancelClick={onCancelClick}
-							onManageBilling={onManageBilling}
-							onUpgrade={onNavigateToPlans}
-							plan={currentPlan}
-							statusDetails={statusDetails}
-						/>
 					</div>
 				</div>
 			</div>

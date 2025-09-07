@@ -197,6 +197,11 @@ export function useBillingData() {
 		refetch: refetchCustomer,
 	} = useCustomer({
 		expand: ['invoices'],
+		swrConfig: {
+			revalidateOnFocus: false,
+			revalidateOnMount: true,
+			dedupingInterval: 5 * 60 * 1000, // 5 minutes
+		},
 	});
 
 	const {
