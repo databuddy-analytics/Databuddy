@@ -58,10 +58,12 @@ export function FaviconImage({
 		);
 	}
 
+	const isGitHub = hostname === 'github.com';
+	
 	return (
 		<Image
 			alt={altText || `${domain} favicon`}
-			className={className}
+			className={`${className} ${isGitHub ? 'dark:invert ' : ''}`}
 			height={size}
 			onError={() => setError(true)}
 			src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`}
