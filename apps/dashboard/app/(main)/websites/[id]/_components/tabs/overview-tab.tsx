@@ -939,24 +939,34 @@ export function WebsiteOverviewTab({
 			{/* Chart */}
 			<div className="rounded border border-sidebar-border border-b-0 bg-sidebar shadow-sm">
 				<div className="flex flex-col items-start justify-between gap-3 border-sidebar-border border-b px-4 py-3 sm:flex-row">
-					<div>
-						<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
-							Traffic Trends
-						</h2>
-						<p className="text-sidebar-foreground/70 text-sm">
-							{dateRange.granularity === 'hourly' ? 'Hourly' : 'Daily'} traffic
-							data
-						</p>
-						{dateRange.granularity === 'hourly' && dateDiff > 7 && (
-							<div className="mt-1 flex items-center gap-1 text-amber-600 text-xs">
-								<WarningIcon size={16} weight="fill" />
-								<span>Large date ranges may affect performance</span>
-							</div>
-						)}
+					<div className="flex flex-col items-start gap-3 sm:block">
+						<div>
+							<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+								Traffic Trends
+							</h2>
+							<p className="text-sidebar-foreground/70 text-sm">
+								{dateRange.granularity === 'hourly' ? 'Hourly' : 'Daily'} traffic
+								data
+							</p>
+							{dateRange.granularity === 'hourly' && dateDiff > 7 && (
+								<div className="mt-1 flex items-center gap-1 text-amber-600 text-xs">
+									<WarningIcon size={16} weight="fill" />
+									<span>Large date ranges may affect performance</span>
+								</div>
+							)}
+						</div>
+						
+						{/* Live user indicator - visible on mobile only, positioned to the left */}
+						<div className="sm:hidden">
+							<LiveUserIndicator websiteId={websiteId} />
+						</div>
 					</div>
 
 					<div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-						<LiveUserIndicator websiteId={websiteId} />
+						{/* Live user indicator - hidden on mobile, visible on larger screens */}
+						<div className="hidden sm:block">
+							<LiveUserIndicator websiteId={websiteId} />
+						</div>
 						<MetricToggles
 							colors={metricColors}
 							labels={{

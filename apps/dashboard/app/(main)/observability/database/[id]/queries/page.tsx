@@ -130,41 +130,41 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 			>
 				<div className="relative border-b">
 					<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="most-called"
-						>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="most-called"
+							>
 							Most Called
-							{activeTab === 'most-called' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
+								{activeTab === 'most-called' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
 						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="slowest"
-						>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="slowest"
+							>
 							Slowest
-							{activeTab === 'slowest' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
+								{activeTab === 'slowest' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
 						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="resource-hogs"
-						>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="resource-hogs"
+							>
 							Resource Hogs
-							{activeTab === 'resource-hogs' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
+								{activeTab === 'resource-hogs' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
 						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="all"
-						>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="all"
+							>
 							All Queries
-							{activeTab === 'all' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
+								{activeTab === 'all' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
 						</TabsTrigger>
 					</TabsList>
 				</div>

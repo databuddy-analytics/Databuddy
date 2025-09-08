@@ -6,6 +6,8 @@ import { useParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
+import { useWebsite } from '@/hooks/use-websites';
+import { getWebsiteUIStatus } from '@/lib/status-utils';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { AnalyticsToolbar } from './_components/analytics-toolbar';
 import { FiltersSection } from './_components/filters-section';
@@ -19,6 +21,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	const pathname = usePathname();
 	const queryClient = useQueryClient();
 	const { isTrackingSetup } = useTrackingSetup(id as string);
+	const { data: website } = useWebsite(id as string);
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 
 	const isAssistantPage =
@@ -52,6 +55,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 					<AnalyticsToolbar
 						isRefreshing={isRefreshing}
 						onRefresh={handleRefresh}
+						status={website ? getWebsiteUIStatus(website) : 'live'}
 					/>
 					<FiltersSection />
 				</div>

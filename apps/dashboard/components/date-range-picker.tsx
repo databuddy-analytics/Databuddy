@@ -110,12 +110,12 @@ export function DateRangePicker({
 				<PopoverTrigger asChild>
 					<Button
 						className={cn(
-							'h-8 justify-start gap-2 whitespace-nowrap border px-3 text-left font-normal text-sm shadow-xs transition-[color,box-shadow]',
+							'h-8 justify-start gap-2 whitespace-nowrap text-left font-normal text-sm transition-[color,box-shadow] hover:cursor-pointer',
 							!hasSelection && 'text-muted-foreground'
 						)}
 						disabled={disabled}
 						size="sm"
-						variant="outline"
+						variant="ghost"
 					>
 						<CalendarDotsIcon className="h-4 w-4" weight="duotone" />
 						<span className="truncate font-medium text-sm">

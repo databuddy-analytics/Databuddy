@@ -188,6 +188,7 @@ function FilterSelectionForm({
 			{filterOptions.map((filter) => (
 				<DropdownMenuItem
 					key={filter.value}
+					className="cursor-pointer"
 					onClick={(e) => {
 						e.preventDefault();
 						e.stopPropagation();

@@ -6,6 +6,7 @@ import { useAtom } from 'jotai';
 import { useCallback, useMemo } from 'react';
 import type { DateRange as DayPickerRange } from 'react-day-picker';
 import { DateRangePicker } from '@/components/date-range-picker';
+import { StatusIndicator } from '@/components/status-indicator';
 import { Button } from '@/components/ui/button';
 import { useDateFilters } from '@/hooks/use-date-filters';
 import { addDynamicFilterAtom } from '@/stores/jotai/filterAtoms';
@@ -14,11 +15,13 @@ import { AddFilterForm } from './utils/add-filters';
 interface AnalyticsToolbarProps {
 	isRefreshing: boolean;
 	onRefresh: () => void;
+	status?: 'live' | 'deprecated' | 'offline';
 }
 
 export function AnalyticsToolbar({
 	isRefreshing,
 	onRefresh,
+	status = 'live',
 }: AnalyticsToolbarProps) {
 	const {
 		currentDateRange,
@@ -63,38 +66,66 @@ export function AnalyticsToolbar({
 	);
 
 	return (
-		<div className="mt-3 flex flex-col gap-2 rounded border bg-card p-3 shadow-sm">
+		<div className="mt-3 flex flex-col gap-2">
 			<div className="flex items-center justify-between gap-3">
-				<div className="flex h-8 overflow-hidden rounded border bg-background shadow-sm">
-					<Button
-						className={`h-8 cursor-pointer touch-manipulation rounded-none px-3 text-sm ${currentGranularity === 'daily' ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground'}`}
-						onClick={() => setCurrentGranularityAtomState('daily')}
-						size="sm"
-						title="View daily aggregated data"
-						variant="ghost"
-					>
-						Daily
-					</Button>
-					<Button
-						className={`h-8 cursor-pointer touch-manipulation rounded-none px-3 text-sm ${currentGranularity === 'hourly' ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground'}`}
-						onClick={() => setCurrentGranularityAtomState('hourly')}
-						size="sm"
-						title="View hourly data (best for 24h periods)"
-						variant="ghost"
-					>
-						Hourly
-					</Button>
+				<div className="flex items-center gap-2">
+					<div className="flex h-10 overflow-hidden rounded border bg-background shadow-sm">
+						<Button
+							className={`h-10 cursor-pointer touch-manipulation rounded-none px-3 text-sm ${currentGranularity === 'daily' ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground'}`}
+							onClick={() => setCurrentGranularityAtomState('daily')}
+							size="sm"
+							title="View daily aggregated data"
+							variant="ghost"
+						>
+							Daily
+						</Button>
+						<Button
+							className={`h-10 cursor-pointer touch-manipulation rounded-none px-3 text-sm ${currentGranularity === 'hourly' ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground'}`}
+							onClick={() => setCurrentGranularityAtomState('hourly')}
+							size="sm"
+							title="View hourly data (best for 24h periods)"
+							variant="ghost"
+						>
+							Hourly
+						</Button>
+					</div>
+					<AddFilterForm className="h-10 hover:cursor-pointer" addFilter={addFilter} buttonText="Filter" />
+					
+					{/* Live status and refresh button - visible on small screens only */}
+					<div className="flex h-10 w-24 overflow-hidden rounded border bg-background shadow-sm sm:hidden">
+						<div className="flex font-medium items-center gap-1 px-3">
+							<StatusIndicator status={status} />
+						</div>
+						<div className="border-border/50 border-l" />
+						<Button
+							aria-label="Refresh data"
+							className="h-10 w-9 rounded-none hover:cursor-pointer !flex !items-center !justify-center"
+							disabled={isRefreshing}
+							onClick={onRefresh}
+							size="icon"
+							variant="ghost"
+						>
+							<ArrowClockwiseIcon
+								aria-hidden="true"
+								className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+							/>
+						</Button>
+					</div>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<AddFilterForm addFilter={addFilter} buttonText="Filter" />
+				{/* Live status and refresh button - hidden on small screens, visible on larger screens */}
+				<div className="hidden h-10 w-24 overflow-hidden rounded border bg-background shadow-sm sm:flex">
+					<div className="flex font-medium items-center gap-1 px-3">
+						<StatusIndicator status={status} />
+					</div>
+					<div className="border-border/50 border-l" />
 					<Button
 						aria-label="Refresh data"
-						className="h-8 w-8"
+						className="h-10 w-9 rounded-none hover:cursor-pointer !flex !items-center !justify-center"
 						disabled={isRefreshing}
 						onClick={onRefresh}
 						size="icon"
-						variant="outline"
+						variant="ghost"
 					>
 						<ArrowClockwiseIcon
 							aria-hidden="true"
@@ -104,7 +135,7 @@ export function AnalyticsToolbar({
 				</div>
 			</div>
 
-			<div className="flex items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
+			<div className="flex w-106 items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
 				{quickRanges.map((range) => {
 					const now = new Date();
 					const start = range.hours
