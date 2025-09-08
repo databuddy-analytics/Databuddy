@@ -30,7 +30,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+	useDbConnection,
+	useDeleteDbConnection,
+	useUpdateDbConnection,
+} from '@/hooks/use-db-connections';
 import { trpc } from '@/lib/trpc';
+import { EditConnectionDialog } from '../../_components/edit-connection-dialog';
 
 interface ConnectionSettingsPageProps {
 	params: Promise<{ id: string }>;
@@ -63,80 +69,6 @@ function LoadingState() {
 	);
 }
 
-function EditConnectionDialog({
-	open,
-	onOpenChange,
-	connection,
-	onSuccess,
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	connection: { id: string; name: string } | null;
-	onSuccess: () => void;
-}) {
-	const [name, setName] = useState(connection?.name || '');
-
-	const updateMutation = trpc.dbConnections.update.useMutation({
-		onSuccess: () => {
-			onSuccess();
-			onOpenChange(false);
-		},
-	});
-
-	const handleSave = () => {
-		if (!(connection && name.trim())) {
-			return;
-		}
-		updateMutation.mutate({
-			id: connection.id,
-			name: name.trim(),
-		});
-	};
-
-	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Edit Connection</DialogTitle>
-					<DialogDescription>
-						Update the name and basic settings for this database connection.
-					</DialogDescription>
-				</DialogHeader>
-				<div className="space-y-4">
-					<div>
-						<Label htmlFor="connection-name">Connection Name</Label>
-						<Input
-							id="connection-name"
-							onChange={(e) => setName(e.target.value)}
-							placeholder="Enter connection name"
-							value={name}
-						/>
-					</div>
-					{updateMutation.error && (
-						<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
-							<WarningIcon className="h-4 w-4 text-red-600" />
-							<AlertDescription className="text-red-800 dark:text-red-200">
-								{updateMutation.error.message}
-							</AlertDescription>
-						</Alert>
-					)}
-				</div>
-				<DialogFooter>
-					<Button onClick={() => onOpenChange(false)} variant="outline">
-						Cancel
-					</Button>
-					<Button
-						disabled={!name.trim() || updateMutation.isPending}
-						onClick={handleSave}
-					>
-						{updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 function DeleteConnectionDialog({
 	open,
 	onOpenChange,
@@ -150,7 +82,7 @@ function DeleteConnectionDialog({
 }) {
 	const [confirmName, setConfirmName] = useState('');
 
-	const deleteMutation = trpc.dbConnections.delete.useMutation({
+	const deleteMutation = useDeleteDbConnection({
 		onSuccess: () => {
 			onSuccess();
 			onOpenChange(false);
@@ -235,8 +167,13 @@ export default function ConnectionSettingsPage({
 
 	const utils = trpc.useUtils();
 
-	const { data: connection, isLoading } = trpc.dbConnections.getById.useQuery({
-		id: connectionId,
+	const { data: connection, isLoading } = useDbConnection(connectionId);
+
+	const updateMutation = useUpdateDbConnection({
+		onSuccess: () => {
+			handleSuccess('Connection updated successfully');
+			setEditDialog(false);
+		},
 	});
 
 	const handleSuccess = (message: string) => {
@@ -494,8 +431,11 @@ export default function ConnectionSettingsPage({
 			{/* Dialogs */}
 			<EditConnectionDialog
 				connection={connection}
+				isLoading={updateMutation.isPending}
 				onOpenChange={setEditDialog}
-				onSuccess={() => handleSuccess('Connection updated successfully')}
+				onSubmit={(data) => {
+					updateMutation.mutate(data);
+				}}
 				open={editDialog}
 			/>
 

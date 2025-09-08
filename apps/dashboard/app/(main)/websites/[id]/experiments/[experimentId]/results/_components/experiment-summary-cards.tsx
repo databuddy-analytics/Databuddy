@@ -1,11 +1,6 @@
 'use client';
 
-import {
-	CalendarIcon,
-	ChartLineIcon,
-	TrendUpIcon,
-	UsersIcon,
-} from '@phosphor-icons/react';
+import { ChartLineIcon, TrendUpIcon, UsersIcon } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import { StatCard } from '@/components/analytics';
 import type { Experiment } from '@/hooks/use-experiments';

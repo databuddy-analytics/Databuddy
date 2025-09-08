@@ -134,6 +134,7 @@ export default function GoalsPage() {
 		refetchAnalytics,
 		goalIds.length,
 		autocompleteQuery.refetch,
+		setIsRefreshing,
 	]);
 
 	const handleSaveGoal = async (

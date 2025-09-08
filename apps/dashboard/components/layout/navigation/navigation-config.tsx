@@ -101,6 +101,12 @@ export const personalNavigation: NavigationSection[] = [
 				href: '/settings?tab=api-keys',
 				rootLevel: true,
 			},
+			{
+				name: 'Integrations',
+				icon: PlugIcon,
+				href: '/settings?tab=integrations',
+				rootLevel: true,
+			},
 		],
 	},
 ];

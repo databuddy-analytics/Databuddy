@@ -5,7 +5,6 @@ import {
 	ArrowUpIcon,
 	DatabaseIcon,
 	MagnifyingGlassIcon,
-	SpinnerIcon,
 	XIcon,
 } from '@phosphor-icons/react';
 import {
@@ -53,7 +52,7 @@ const PERCENTAGE_THRESHOLDS = {
 } as const;
 
 // Default column sizes
-const COLUMN_SIZES = {
+const _COLUMN_SIZES = {
 	DEFAULT: 150,
 	MIN_WIDTH: 80,
 	MAX_WIDTH: 300,
@@ -347,7 +346,9 @@ function FullScreenTable<TData extends { name: string | number }>({
 
 	// Keyboard navigation for tabs
 	useEffect(() => {
-		if (!tabs || tabs.length < 2) return;
+		if (!tabs || tabs.length < 2) {
+			return;
+		}
 		if (tabFocusIndex >= 0 && tabRefs.current[tabFocusIndex]) {
 			tabRefs.current[tabFocusIndex]?.focus();
 		}
@@ -718,7 +719,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 			}
 			if (e.key === 'Tab' && focusable && focusable.length) {
 				const first = focusable[0];
-				const last = focusable[focusable.length - 1];
+				const last = focusable.at(-1);
 				if (e.shiftKey && document.activeElement === first) {
 					e.preventDefault();
 					last.focus();

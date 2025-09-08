@@ -29,9 +29,6 @@ COPY packages/ ./packages
 WORKDIR /app/packages/logger
 RUN bun run build
 
-WORKDIR /app/packages/db
-RUN bun run db:generate
-
 # Build the API app
 WORKDIR /app/apps/api
 RUN bun run build

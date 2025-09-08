@@ -143,7 +143,6 @@ export default function Features() {
 									<div className="flex gap-3">
 										<p
 											className="max-w-lg font-normal text-foreground text-xl tracking-tighter md:text-2xl"
-											// biome-ignore lint/security/noDangerouslySetInnerHtml: false positive
 											dangerouslySetInnerHTML={{ __html: item.title }}
 										/>
 									</div>
@@ -194,7 +193,6 @@ export default function Features() {
 									<div className="flex gap-3">
 										<p
 											className="max-w-lg font-normal text-foreground text-xl tracking-tighter md:text-2xl"
-											// biome-ignore lint/security/noDangerouslySetInnerHtml: false positive
 											dangerouslySetInnerHTML={{ __html: item.title }}
 										/>
 									</div>

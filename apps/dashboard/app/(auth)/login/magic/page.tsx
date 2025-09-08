@@ -43,13 +43,12 @@ export default function MagicLinkPage() {
 	};
 
 	return (
-		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
-			<div className="mb-8 text-center">
-				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 p-3">
-					<div className="absolute inset-0 animate-pulse rounded-full bg-blue-50" />
-					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-blue-200 to-blue-100 opacity-70 blur-md" />
-					<div className="relative rounded-full bg-gradient-to-tr from-blue-500 to-blue-400 p-2.5">
-						<Sparkles className="h-8 w-8 text-white" />
+		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden p-6">
+			<div className="mb-12 text-center">
+				<div className="relative mb-10 inline-flex h-16 w-16 items-center justify-center ">
+					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-blue-200 to-blue-100 opacity-20 blur-md" />
+					<div className="relative ">
+						<Sparkles className="h-8 w-8 animate-pulse text-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">
@@ -76,15 +75,15 @@ export default function MagicLinkPage() {
 						value={email}
 					/>
 				</div>
-				<div className="flex gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800 text-sm">
-					<Sparkles className="h-5 w-5 flex-shrink-0 text-blue-500" />
-					<p>
+				<div className="flex items-center gap-3 p-3 text-info-foreground text-sm">
+					<Sparkles className="h-5 w-5 flex-shrink-0 text-foreground" />
+					<p className="text-muted-foreground">
 						We'll send a secure link to your email that will sign you in
 						instantly — no password needed.
 					</p>
 				</div>
 				<Button
-					className="h-11 w-full bg-blue-500 text-white hover:bg-blue-600"
+					className="h-11 w-full bg-info text-info-foreground hover:bg-info/90"
 					disabled={isLoading}
 					type="submit"
 				>
@@ -100,9 +99,9 @@ export default function MagicLinkPage() {
 						</>
 					)}
 				</Button>
-				<Link className="mt-4 block" href="/login">
+				<Link className="block" href="/login">
 					<Button
-						className="w-full border-blue-200 hover:bg-blue-50"
+						className="h-11 w-full border-info/20 hover:cursor-pointer hover:bg-info/5"
 						type="button"
 						variant="outline"
 					>

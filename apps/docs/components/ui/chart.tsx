@@ -8,7 +8,6 @@ import {
 	useId,
 	useMemo,
 } from 'react';
-// biome-ignore lint: false positive
 import * as RechartsPrimitive from 'recharts';
 
 import { cn } from '@/lib/utils';
@@ -88,7 +87,6 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
 	return (
 		<style
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: false positive
 			dangerouslySetInnerHTML={{
 				__html: Object.entries(THEMES)
 					.map(
@@ -188,7 +186,6 @@ function ChartTooltipContent({
 		>
 			{nestLabel ? null : tooltipLabel}
 			<div className="grid gap-1.5">
-				{/* biome-ignore lint: false positive */}
 				{payload.map((item, index) => {
 					const key = `${nameKey || item.name || item.dataKey || 'value'}`;
 					const itemConfig = getPayloadConfigFromPayload(config, item, key);

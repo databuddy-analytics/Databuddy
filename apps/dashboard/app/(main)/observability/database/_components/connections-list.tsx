@@ -1,22 +1,14 @@
 'use client';
 
+import type { DbConnection } from '@/hooks/use-db-connections';
 import { ConnectionCard } from './connection-card';
 import { EmptyState } from './empty-state';
 
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-	userId: string;
-	createdAt: string;
-	updatedAt: string;
-}
-
 interface ConnectionsListProps {
-	connections: DatabaseConnection[];
+	connections: DbConnection[];
 	isLoading: boolean;
-	onEdit: (connection: DatabaseConnection) => void;
-	onDelete: (connection: DatabaseConnection) => void;
+	onEdit: (connection: DbConnection) => void;
+	onDelete: (connection: DbConnection) => void;
 	onCreate: () => void;
 }
 

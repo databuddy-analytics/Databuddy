@@ -5,7 +5,7 @@
   "envMode": "loose",
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "db:generate"],
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
       "passThroughEnv": [
@@ -23,13 +23,9 @@
       ]
     },
     "start": {
-      "dependsOn": ["^start", "db:generate"],
+      "dependsOn": ["^start"],
       "cache": false,
       "outputs": ["dist/**"]
-    },
-    "db:generate": {
-      "cache": false,
-      "persistent": false
     },
     "db:push": {
       "cache": false,

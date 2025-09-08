@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import type * as React from 'react';
 

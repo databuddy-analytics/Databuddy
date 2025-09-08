@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as SliderPrimitive from '@radix-ui/react-slider';
 import { type ComponentProps, useMemo } from 'react';
 
@@ -54,7 +53,6 @@ function Slider({
 				<SliderPrimitive.Thumb
 					className="block size-4 shrink-0 rounded-full border border-primary bg-background shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:outline-hidden focus-visible:ring-4 disabled:pointer-events-none disabled:opacity-50"
 					data-slot="slider-thumb"
-					// biome-ignore lint: false positive
 					key={index}
 				/>
 			))}

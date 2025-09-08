@@ -35,7 +35,9 @@ const generateTimeSeriesData = (startDate: Date, days: number) => {
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
-	if (!(active && payload && payload.length)) return null;
+	if (!(active && payload && payload.length)) {
+		return null;
+	}
 
 	return (
 		<div className="rounded border bg-card p-3 shadow-lg">

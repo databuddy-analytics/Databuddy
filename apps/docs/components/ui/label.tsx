@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as LabelPrimitive from '@radix-ui/react-label';
 
 import { cn } from '@/lib/utils';

@@ -51,7 +51,9 @@ export const ExperimentCard = memo(function ExperimentCardComponent({
 		statusConfig[experiment.status as keyof typeof statusConfig];
 
 	const handleToggleStatus = () => {
-		if (!onToggleStatus) return;
+		if (!onToggleStatus) {
+			return;
+		}
 		const newStatus = experiment.status === 'running' ? 'paused' : 'running';
 		onToggleStatus(experiment.id, newStatus);
 	};

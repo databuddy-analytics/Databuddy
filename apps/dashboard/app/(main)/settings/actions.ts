@@ -29,7 +29,7 @@ export async function setPassword(formData: FormData) {
 	});
 
 	if (!result.success) {
-		return { success: false, message: result.error.errors[0].message };
+		return { success: false, message: result.error.message };
 	}
 
 	try {

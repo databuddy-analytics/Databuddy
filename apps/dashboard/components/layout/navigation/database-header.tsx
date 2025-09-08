@@ -2,15 +2,10 @@ import { CaretLeftIcon, DatabaseIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-}
+import type { DbConnection } from '@/hooks/use-db-connections';
 
 interface DatabaseHeaderProps {
-	database: DatabaseConnection | null | undefined;
+	database: DbConnection | null | undefined;
 }
 
 export function DatabaseHeader({ database }: DatabaseHeaderProps) {

@@ -14,8 +14,6 @@ const options: RedisOptions = {
 	maxRetriesPerRequest: 3,
 };
 
-export { Redis };
-
 interface ExtendedRedis extends Redis {
 	getJson: <T = any>(key: string) => Promise<T | null>;
 	setJson: <T = any>(

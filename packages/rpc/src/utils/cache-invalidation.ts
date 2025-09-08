@@ -20,12 +20,10 @@ export const invalidateBasicWebsiteCaches = async (
  * Invalidates all caches related to a specific website
  * @param websiteId - The ID of the website
  * @param userId - The ID of the user performing the action
- * @param reason - Optional reason for logging purposes
  */
 export const invalidateWebsiteCaches = async (
 	websiteId: string,
-	userId: string,
-	reason?: string
+	userId: string
 ): Promise<void> => {
 	try {
 		await Promise.all([
@@ -85,15 +83,6 @@ export const invalidateWebsiteCaches = async (
 				namespace: 'mini-charts',
 			}).invalidateByKey(`mini-charts:public:${websiteId}`),
 		]);
-
-		logger.info(
-			'Caches invalidated',
-			`All caches invalidated for website ${websiteId}${reason ? ` - ${reason}` : ''}`,
-			{
-				websiteId,
-				userId,
-			}
-		);
 	} catch (error) {
 		logger.error(
 			'Failed to invalidate caches',

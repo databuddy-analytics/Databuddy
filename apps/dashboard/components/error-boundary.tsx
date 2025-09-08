@@ -38,9 +38,9 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 
 		return (
 			<div className="flex h-full min-h-[400px] w-full items-center justify-center p-6">
-				<Card className="w-full max-w-lg border-red-100 shadow-lg">
-					<CardHeader className="border-b bg-red-50/40 pb-3">
-						<CardTitle className="flex items-center gap-2 text-red-700">
+				<Card className="w-full max-w-lg border-destructive/20 shadow-lg">
+					<CardHeader className="border-b bg-destructive/5 pb-3">
+						<CardTitle className="flex items-center gap-2 text-destructive">
 							<AlertTriangle className="h-5 w-5" />
 							Something went wrong
 						</CardTitle>

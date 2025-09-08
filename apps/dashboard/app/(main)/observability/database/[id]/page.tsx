@@ -13,6 +13,7 @@ import { use } from 'react';
 import { DataTable } from '@/components/analytics/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDbConnection } from '@/hooks/use-db-connections';
 import { trpc } from '@/lib/trpc';
 
 interface DatabasePageProps {
@@ -306,14 +307,12 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 	const resolvedParams = use(params);
 	const connectionId = resolvedParams.id;
 
-	// Get connection details
 	const {
 		data: connection,
 		isLoading: isLoadingConnection,
 		error: connectionError,
-	} = trpc.dbConnections.getById.useQuery({ id: connectionId });
+	} = useDbConnection(connectionId);
 
-	// Get database stats
 	const {
 		data: databaseStats,
 		isLoading: isLoadingStats,
@@ -323,7 +322,6 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 		{ enabled: !!connection }
 	);
 
-	// Get table stats
 	const {
 		data: tableStats,
 		isLoading: isLoadingTables,
@@ -333,7 +331,6 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 		{ enabled: !!connection }
 	);
 
-	// Show loading state while connection is loading
 	if (isLoadingConnection) {
 		return (
 			<Card className="rounded">

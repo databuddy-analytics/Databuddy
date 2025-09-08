@@ -530,7 +530,6 @@ function CodeBlock({ code, description, copied, onCopy }: CodeBlockProps) {
 			<div className="relative">
 				<div
 					className="[&_pre]:!bg-transparent [&_code]:!bg-transparent [&_*]:!font-mono overflow-hidden rounded-lg border border-sidebar-border bg-sidebar/40 p-6 text-sm leading-relaxed"
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki generates safe HTML
 					dangerouslySetInnerHTML={{ __html: highlightedCode }}
 					style={{
 						fontSize: '14px',

@@ -39,11 +39,11 @@ export default function VerificationNeededPage() {
 	return (
 		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
 			<div className="mb-8 text-center">
-				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 p-3">
-					<div className="absolute inset-0 animate-pulse rounded-full bg-amber-50" />
-					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-amber-200 to-amber-100 opacity-70 blur-md" />
-					<div className="relative rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 p-2.5">
-						<AlertCircle className="h-8 w-8 text-white" />
+				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-warning/10 p-3">
+					<div className="absolute inset-0 animate-pulse rounded-full bg-warning/5" />
+					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-warning/20 to-warning/10 opacity-70 blur-md" />
+					<div className="relative rounded-full bg-gradient-to-tr from-warning to-warning/80 p-2.5">
+						<AlertCircle className="h-8 w-8 text-warning-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">
@@ -51,18 +51,18 @@ export default function VerificationNeededPage() {
 				</h1>
 				<p className="mt-2 text-muted-foreground">
 					Verification needed for{' '}
-					<strong className="font-medium text-amber-600">{email}</strong>
+					<strong className="font-medium text-warning">{email}</strong>
 				</p>
 			</div>
 			<div className="space-y-5 py-4">
-				<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+				<div className="rounded-lg border border-warning/20 bg-warning/5 p-4 text-warning-foreground">
 					<p className="text-sm">
 						Your email <strong>{email}</strong> needs to be verified before you
 						can sign in. Please check your inbox for the verification link.
 					</p>
 				</div>
 				<Button
-					className="w-full bg-amber-500 text-white hover:bg-amber-600"
+					className="w-full bg-warning text-warning-foreground hover:bg-warning/90"
 					disabled={isLoading}
 					onClick={sendVerificationEmail}
 				>
@@ -77,7 +77,7 @@ export default function VerificationNeededPage() {
 				</Button>
 				<Link href="/login">
 					<Button
-						className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+						className="w-full border-warning/20 text-warning hover:bg-warning/5"
 						type="button"
 						variant="outline"
 					>

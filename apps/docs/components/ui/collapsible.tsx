@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 
 function Collapsible({

@@ -5,8 +5,13 @@ import { Suspense, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { trpc } from '@/lib/trpc';
+import {
+	type DbConnection,
+	useCreateDbConnection,
+	useDbConnections,
+	useDeleteDbConnection,
+	useUpdateDbConnection,
+} from '@/hooks/use-db-connections';
 import { ConnectionsList } from './_components/connections-list';
 import { CreateConnectionDialog } from './_components/create-connection-dialog';
 import { DatabasePageHeader } from './_components/database-page-header';
@@ -40,79 +45,48 @@ const DatabaseConnectionsSkeleton = () => (
 	</div>
 );
 
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-	userId: string;
-	organizationId?: string;
-	createdAt: string;
-	updatedAt: string;
-}
-
 export default function DatabasePage() {
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [connectionToEdit, setConnectionToEdit] =
-		useState<DatabaseConnection | null>(null);
+	const [connectionToEdit, setConnectionToEdit] = useState<DbConnection | null>(
+		null
+	);
 	const [connectionToDelete, setConnectionToDelete] =
-		useState<DatabaseConnection | null>(null);
+		useState<DbConnection | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	// Intersection observer for lazy loading
 	const pageRef = useRef<HTMLDivElement>(null);
 
-	// Organization context
-	const { activeOrganization } = useOrganizations();
-
-	const utils = trpc.useUtils();
-
-	// Query for database connections
-	const {
-		data: connections = [],
-		isLoading,
-		error,
-		refetch,
-	} = trpc.dbConnections.list.useQuery({
-		organizationId: activeOrganization?.id,
-	});
+	const { connections, isLoading, error, refetch } = useDbConnections();
 
 	// Mutations
-	const createMutation = trpc.dbConnections.create.useMutation({
+	const createMutation = useCreateDbConnection({
 		onSuccess: () => {
-			utils.dbConnections.list.invalidate({
-				organizationId: activeOrganization?.id,
-			});
 			toast.success('Database connection created successfully');
 			setIsCreateDialogOpen(false);
 		},
-		onError: (err) => {
-			toast.error(err.message || 'Failed to create database connection');
+		onError: (errorMessage) => {
+			toast.error(errorMessage || 'Failed to create database connection');
 		},
 	});
 
-	const editMutation = trpc.dbConnections.update.useMutation({
+	const editMutation = useUpdateDbConnection({
 		onSuccess: () => {
-			utils.dbConnections.list.invalidate({
-				organizationId: activeOrganization?.id,
-			});
 			toast.success('Database connection updated successfully');
 			setConnectionToEdit(null);
 		},
-		onError: (err) => {
-			toast.error(err.message || 'Failed to update database connection');
+		onError: (errorMessage) => {
+			toast.error(errorMessage || 'Failed to update database connection');
 		},
 	});
 
-	const deleteMutation = trpc.dbConnections.delete.useMutation({
+	const deleteMutation = useDeleteDbConnection({
 		onSuccess: () => {
-			utils.dbConnections.list.invalidate({
-				organizationId: activeOrganization?.id,
-			});
 			toast.success('Database connection deleted successfully');
 			setConnectionToDelete(null);
 		},
-		onError: (err) => {
-			toast.error(err.message || 'Failed to delete database connection');
+		onError: (errorMessage) => {
+			toast.error(errorMessage || 'Failed to delete database connection');
 		},
 	});
 
@@ -131,16 +105,13 @@ export default function DatabasePage() {
 		setIsCreateDialogOpen(true);
 	}, []);
 
-	const handleEditConnection = useCallback((connection: DatabaseConnection) => {
+	const handleEditConnection = useCallback((connection: DbConnection) => {
 		setConnectionToEdit(connection);
 	}, []);
 
-	const handleDeleteConnection = useCallback(
-		(connection: DatabaseConnection) => {
-			setConnectionToDelete(connection);
-		},
-		[]
-	);
+	const handleDeleteConnection = useCallback((connection: DbConnection) => {
+		setConnectionToDelete(connection);
+	}, []);
 
 	const handleDeleteConfirm = useCallback(() => {
 		if (connectionToDelete) {

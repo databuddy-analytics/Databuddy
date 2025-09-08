@@ -137,7 +137,6 @@ Check the root `package.json` for available scripts. Here are some common ones:
 - `bun run format` - Format all code with Prettier
 - `bun run check-types` - Type check all TypeScript code
 - `bun run db:studio` - Open Drizzle Studio for database management
-- `bun run db:generate` - Generate Drizzle ORM types
 - `bun run db:push` - Apply database schema changes
 - `bun run db:migrate` - Run database migrations
 - `bun run db:deploy` - Deploy database migrations

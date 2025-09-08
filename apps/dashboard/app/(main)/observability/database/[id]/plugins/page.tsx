@@ -30,6 +30,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDbConnection } from '@/hooks/use-db-connections';
 import { trpc } from '@/lib/trpc';
 import {
 	ExtensionSearch,
@@ -458,10 +459,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 
 	const utils = trpc.useUtils();
 
-	// Queries
-	const { data: connection } = trpc.dbConnections.getById.useQuery({
-		id: connectionId,
-	});
+	const { data: connection } = useDbConnection(connectionId);
 	const { data: extensions } = trpc.dbConnections.getExtensions.useQuery({
 		id: connectionId,
 	});

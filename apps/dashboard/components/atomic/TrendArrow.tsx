@@ -20,14 +20,10 @@ export const TrendArrow: React.FC<TrendArrowProps> = ({
 	let colorClass = 'text-muted-foreground'; // Default for zero
 
 	if (value > 0) {
-		colorClass = invertColor
-			? 'text-red-600 dark:text-red-400'
-			: 'text-green-600 dark:text-green-400';
+		colorClass = invertColor ? 'text-destructive' : 'text-success';
 	}
 	if (value < 0) {
-		colorClass = invertColor
-			? 'text-green-600 dark:text-green-400'
-			: 'text-red-600 dark:text-red-400';
+		colorClass = invertColor ? 'text-success' : 'text-destructive';
 	}
 
 	return (

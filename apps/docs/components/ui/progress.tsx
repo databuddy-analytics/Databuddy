@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as ProgressPrimitive from '@radix-ui/react-progress';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';

@@ -179,7 +179,7 @@ export default async function TableSchemaPage({
 	});
 	const [showAddDialog, setShowAddDialog] = useState(false);
 	const [showImportDialog, setShowImportDialog] = useState(false);
-	const [importedSchemaFile, setImportedSchemaFile] = useState<File | null>(
+	const [_importedSchemaFile, setImportedSchemaFile] = useState<File | null>(
 		null
 	);
 	const [confirmText, setConfirmText] = useState('');
@@ -196,7 +196,7 @@ export default async function TableSchemaPage({
 	useEffect(() => {
 		loadTableSchema();
 		loadTableInfo();
-	}, [database, table]);
+	}, [loadTableInfo, loadTableSchema]);
 
 	useEffect(() => {
 		if (backfillSource) {
@@ -376,7 +376,9 @@ export default async function TableSchemaPage({
 				body: JSON.stringify({ query: uniqueQuery }),
 			});
 			const uniqueResult = await uniqueResponse.json();
-			if (!uniqueResult.success) throw new Error(uniqueResult.error);
+			if (!uniqueResult.success) {
+				throw new Error(uniqueResult.error);
+			}
 			const unique_count = uniqueResult.data.data[0].unique_count;
 
 			let non_default_count: number | undefined;
@@ -388,7 +390,9 @@ export default async function TableSchemaPage({
 					body: JSON.stringify({ query: nonDefaultQuery }),
 				});
 				const nonDefaultResult = await nonDefaultResponse.json();
-				if (!nonDefaultResult.success) throw new Error(nonDefaultResult.error);
+				if (!nonDefaultResult.success) {
+					throw new Error(nonDefaultResult.error);
+				}
 				non_default_count = nonDefaultResult.data.data[0].non_default_count;
 			}
 
@@ -493,7 +497,7 @@ export default async function TableSchemaPage({
 							setSchemaDiff(null);
 						}
 					}
-				} catch (err) {
+				} catch (_err) {
 					setError(
 						'Failed to parse schema file. Please ensure it is valid JSON.'
 					);
@@ -533,7 +537,9 @@ export default async function TableSchemaPage({
 	};
 
 	const applySchemaChanges = async () => {
-		if (!schemaDiff) return;
+		if (!schemaDiff) {
+			return;
+		}
 		setLoading(true);
 		setError(null);
 		try {
@@ -597,14 +603,18 @@ export default async function TableSchemaPage({
 
 	const getColumnBadges = (column: ColumnInfo) => {
 		const badges = [];
-		if (column.is_in_primary_key)
+		if (column.is_in_primary_key) {
 			badges.push({ label: 'PK', variant: 'default' as const });
-		if (column.is_in_partition_key)
+		}
+		if (column.is_in_partition_key) {
 			badges.push({ label: 'PART', variant: 'secondary' as const });
-		if (column.is_in_sorting_key)
+		}
+		if (column.is_in_sorting_key) {
 			badges.push({ label: 'SORT', variant: 'outline' as const });
-		if (column.is_in_sampling_key)
+		}
+		if (column.is_in_sampling_key) {
 			badges.push({ label: 'SAMPLE', variant: 'outline' as const });
+		}
 		return badges;
 	};
 

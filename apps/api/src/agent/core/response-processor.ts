@@ -1,8 +1,8 @@
+import type { StreamingUpdate } from '@databuddy/shared';
 import type { z } from 'zod';
 import { handleChartResponse } from '../handlers/chart-handler';
 import { handleMetricResponse } from '../handlers/metric-handler';
 import type { AIResponseJsonSchema } from '../prompts/agent';
-import type { StreamingUpdate } from '@databuddy/shared';
 import { generateThinkingSteps } from '../utils/stream-utils';
 import type { AssistantSession } from './assistant-session';
 

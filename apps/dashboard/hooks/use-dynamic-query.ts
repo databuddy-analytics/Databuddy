@@ -5,18 +5,9 @@ import type {
 	DynamicQueryRequest,
 	DynamicQueryResponse,
 	ExtractDataTypes,
-	JourneyDropoff,
-	JourneyEntryPoint,
-	JourneyPath,
-	JourneyTransition,
 	ParameterDataMap,
 	ProfileData,
 	QueryOptionsResponse,
-	RecentRefundData,
-	RecentTransactionData,
-	RevenueBreakdownData,
-	RevenueSummaryData,
-	RevenueTrendData,
 } from '@databuddy/shared';
 import { getCountryCode, getCountryName } from '@databuddy/shared';
 import {
