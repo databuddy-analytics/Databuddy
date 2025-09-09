@@ -135,7 +135,7 @@ export function AnalyticsToolbar({
 				</div>
 			</div>
 
-			<div className="flex w-106 items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
+			<div className="flex w-[424px] items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
 				{quickRanges.map((range) => {
 					const now = new Date();
 					const start = range.hours
