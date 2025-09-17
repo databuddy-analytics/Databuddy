@@ -87,7 +87,7 @@ export default function DatabaseManager() {
 
 	useEffect(() => {
 		loadData();
-	}, [loadData]);
+	}, []);
 
 	const formatBytes = (bytes: number) => {
 		if (bytes === 0) {
