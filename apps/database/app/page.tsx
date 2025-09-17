@@ -44,10 +44,6 @@ export default function DatabaseManager() {
 	const [loading, setLoading] = useState(false);
 
 	useEffect(() => {
-		loadData();
-	}, [loadData]);
-
-	useEffect(() => {
 		if (searchTerm) {
 			setFilteredTables(
 				tables.filter(
@@ -88,6 +84,10 @@ export default function DatabaseManager() {
 			setLoading(false);
 		}
 	};
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
 	const formatBytes = (bytes: number) => {
 		if (bytes === 0) {
