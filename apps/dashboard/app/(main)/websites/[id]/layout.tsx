@@ -24,7 +24,8 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	const isAssistantPage =
 		pathname.includes('/assistant') ||
 		pathname.includes('/map') ||
-		pathname.includes('/flags');
+		pathname.includes('/flags') ||
+		pathname.includes('/databunny');
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);

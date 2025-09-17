@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:17
     container_name: databuddy-postgres
@@ -19,7 +18,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ClickHouse for Analytics
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.1-alpine
     container_name: databuddy-clickhouse
@@ -28,8 +26,8 @@ services:
       CLICKHOUSE_USER: default
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
-      - "8123:8123" # HTTP interface
-      - "9000:9000" # Native interface
+      - "8123:8123"
+      - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./scripts/clickhouse-init.sql:/docker-entrypoint-initdb.d/clickhouse-init.sql
@@ -52,7 +50,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Redis for Caching and Sessions
   redis:
     image: redis:7-alpine
     container_name: databuddy-redis
