@@ -9,28 +9,24 @@
   "scripts": {
     "build": "unbuild"
   },
+  "dependencies": {
+    "jotai": ">=2.0.0"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "react": "18.0.0",
     "typescript": "catalog:",
-    "unbuild": "^3.6.1",
-    "vue": "3.0.0",
-    "vue-sfc-transformer": "^0.1.16"
+    "unbuild": "^3.6.1"
   },
   "peerDependencies": {
     "react": ">=18",
-    "vue": ">=3",
-    "jotai": ">=2.0.0"
+    "vue": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "vue": {
-      "optional": true
-    },
-    "jotai": {
       "optional": true
     }
   },

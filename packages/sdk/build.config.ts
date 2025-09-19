@@ -8,7 +8,7 @@ export default defineBuildConfig({
 		'./src/react/index.ts',
 		'./src/vue/index.ts',
 	],
-	externals: ['react', 'react-dom', 'vue'],
+	externals: ['react', 'react-dom', 'vue', 'jotai'],
 	declaration: true,
 	hooks: {
 		'build:done': async () => {
