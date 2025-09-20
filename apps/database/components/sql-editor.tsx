@@ -315,6 +315,12 @@ LIMIT 20`,
 											className="cursor-pointer rounded border p-3 transition-colors hover:bg-muted/50"
 											key={item.id}
 											onClick={() => loadFromHistory(item.query)}
+											onKeyUp={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													loadFromHistory(item.query);
+												}
+											}}
 										>
 											<div className="flex items-start justify-between gap-2">
 												<div className="min-w-0 flex-1">

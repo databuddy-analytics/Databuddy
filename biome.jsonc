@@ -60,8 +60,7 @@
         "noBitwiseOperators": "off"
       },
       "a11y": {
-        "noStaticElementInteractions": "off",
-        "useKeyWithClickEvents": "off"
+        "noStaticElementInteractions": "off"
       },
       "security": {
         "noDangerouslySetInnerHtml": "off"
