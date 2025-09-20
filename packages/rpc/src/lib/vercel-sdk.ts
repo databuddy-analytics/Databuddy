@@ -341,7 +341,7 @@ export class VercelSDK {
 	async getProjectEnvByKey(
 		projectId: string,
 		key: string,
-		options: {
+		_options: {
 			teamId?: string;
 			slug?: string;
 		} = {}
@@ -353,7 +353,7 @@ export class VercelSDK {
 	async getProjectEnvsByKey(
 		projectId: string,
 		key: string,
-		options: {
+		_options: {
 			teamId?: string;
 			slug?: string;
 		} = {}

@@ -160,13 +160,11 @@ interface FeatureOptionWithRequiredPrice
 }
 
 export const OptionsInput = ({
-	className,
 	option,
 	optionsInput,
 	setOptionsInput,
 	index,
 }: {
-	className?: string;
 	option: FeatureOptionWithRequiredPrice;
 	optionsInput: FeatureOption[];
 	setOptionsInput: (options: FeatureOption[]) => void;

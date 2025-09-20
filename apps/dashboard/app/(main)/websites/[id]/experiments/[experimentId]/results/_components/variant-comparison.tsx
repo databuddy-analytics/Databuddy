@@ -1,11 +1,6 @@
 'use client';
 
 import { DataTable } from '@/components/analytics';
-import type { Experiment } from '@/hooks/use-experiments';
-
-interface VariantComparisonProps {
-	experiment: Experiment;
-}
 
 interface VariantData {
 	variant: string;
@@ -16,7 +11,7 @@ interface VariantData {
 	revenuePerVisitor: string;
 }
 
-export function VariantComparison({ experiment }: VariantComparisonProps) {
+export function VariantComparison() {
 	// Mock variant data
 	const variants: VariantData[] = [
 		{

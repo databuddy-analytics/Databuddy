@@ -242,14 +242,12 @@ export function FeatureEmptyState({
 	description,
 	actionLabel,
 	onAction,
-	feature,
 }: {
 	icon: ReactNode;
 	title: string;
 	description: string;
 	actionLabel: string;
 	onAction: () => void;
-	feature: string;
 }) {
 	return (
 		<EmptyState

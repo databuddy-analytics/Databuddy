@@ -36,7 +36,6 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 	title: string;
 	description?: string;
 	isLoading?: boolean;
-	tabLoadingStates?: Record<string, boolean> | undefined;
 	initialPageSize?: number;
 	emptyMessage?: string;
 	className?: string;
@@ -52,7 +51,6 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 		index: number
 	) => React.ReactNode;
 	expandable?: boolean;
-	renderTooltipContent?: (row: TData) => React.ReactNode;
 }
 
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
@@ -93,7 +91,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	title,
 	description,
 	isLoading = false,
-	tabLoadingStates,
 	emptyMessage = 'No data available',
 	className,
 	onRowClick,
@@ -102,7 +99,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	getSubRows,
 	renderSubRow,
 	expandable = false,
-	renderTooltipContent,
 	onAddFilter,
 	onRowAction,
 }: DataTableProps<TData, TValue>) {

@@ -1,11 +1,6 @@
 'use client';
 
 import { DataTable } from '@/components/analytics';
-import type { Experiment } from '@/hooks/use-experiments';
-
-interface MetricsTableProps {
-	experiment: Experiment;
-}
 
 interface MetricResult {
 	metric: string;
@@ -62,7 +57,7 @@ const _formatNumber = (value: number | null | undefined): string => {
 	}).format(value);
 };
 
-export function MetricsTable({ experiment }: MetricsTableProps) {
+export function MetricsTable() {
 	const columns = [
 		{
 			id: 'metric',

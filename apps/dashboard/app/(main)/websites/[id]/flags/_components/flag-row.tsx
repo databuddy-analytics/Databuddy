@@ -11,7 +11,6 @@ import type { Flag } from './types';
 interface FlagRowProps {
 	flag: Flag;
 	onEdit: () => void;
-	onDelete?: (flagId: string) => void;
 	isExpanded?: boolean;
 	onToggle?: (flagId: string) => void;
 	children?: React.ReactNode;
@@ -20,7 +19,6 @@ interface FlagRowProps {
 export function FlagRow({
 	flag,
 	onEdit,
-	onDelete,
 	isExpanded = false,
 	onToggle,
 	children,

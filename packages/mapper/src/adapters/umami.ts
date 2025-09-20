@@ -77,7 +77,7 @@ function formatBrowserName(browser: string): string {
 }
 
 function determineEventType(
-	row: UmamiCsvRow,
+	_row: UmamiCsvRow,
 	isLastInSession = false
 ): 'screen_view' | 'page_exit' {
 	if (isLastInSession) {

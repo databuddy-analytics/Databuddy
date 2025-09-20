@@ -1,11 +1,6 @@
 'use client';
 
 import { DataTable } from '@/components/analytics';
-import type { Experiment } from '@/hooks/use-experiments';
-
-interface StatisticalDetailsProps {
-	experiment: Experiment;
-}
 
 interface StatData {
 	metric: string;
@@ -13,7 +8,7 @@ interface StatData {
 	description: string;
 }
 
-export function StatisticalDetails({ experiment }: StatisticalDetailsProps) {
+export function StatisticalDetails() {
 	// Mock statistical data
 	const statisticalData: StatData[] = [
 		{

@@ -56,8 +56,7 @@
       "correctness": {
         "noInvalidUseBeforeDeclaration": "off",
         "useExhaustiveDependencies": "off",
-        "noUnusedVariables": "off",
-        "noUnusedFunctionParameters": "off"
+        "noUnusedVariables": "off"
       },
       "nursery": {
         "noShadow": "off",

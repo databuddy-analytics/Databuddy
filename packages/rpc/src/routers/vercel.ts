@@ -964,7 +964,7 @@ export const vercelRouter = createTRPCRouter({
 							}
 						);
 
-						const duplicates = databeddyEnvVars.filter((envVar, index) => {
+						const duplicates = databeddyEnvVars.filter((_envVar, index) => {
 							return index > 0;
 						});
 
