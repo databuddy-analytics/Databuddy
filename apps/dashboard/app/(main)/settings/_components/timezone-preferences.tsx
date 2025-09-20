@@ -27,11 +27,7 @@ function formatDate(
 	date: Date,
 	options: { timezone?: string; dateFormat?: string; timeFormat?: string }
 ) {
-	const {
-		timezone = getBrowserTimezone(),
-		dateFormat = 'MMM D, YYYY',
-		timeFormat = 'h:mm a',
-	} = options;
+	const { timezone = getBrowserTimezone(), timeFormat = 'h:mm a' } = options;
 
 	try {
 		const formatter = new Intl.DateTimeFormat('en-US', {
@@ -97,8 +93,7 @@ const TIME_FORMATS = [
 ];
 
 export function TimezonePreferences() {
-	const { preferences, loading, updatePreferences, error, refetch } =
-		usePreferences();
+	const { preferences, loading, updatePreferences, refetch } = usePreferences();
 	const [localPreferences, setLocalPreferences] = useState({
 		timezone: preferences?.timezone || 'auto',
 		dateFormat: preferences?.dateFormat || 'MMM D, YYYY',

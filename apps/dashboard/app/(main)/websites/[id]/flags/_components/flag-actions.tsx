@@ -56,7 +56,7 @@ export function FlagActions({ flag, onEdit, onDeleted }: FlagActionsProps) {
 			await deleteMutation.mutateAsync({ id: flag.id });
 			toast.success('Flag deleted');
 			onDeleted?.();
-		} catch (error) {
+		} catch (_error) {
 			utils.flags.list.invalidate();
 			toast.error('Failed to delete flag');
 		} finally {

@@ -309,7 +309,7 @@ export function MapComponent({
 	);
 
 	const containerRef = useRef<HTMLDivElement>(null);
-	const [resolvedHeight, setResolvedHeight] = useState<number>(0);
+	const [_resolvedHeight, setResolvedHeight] = useState<number>(0);
 
 	useEffect(() => {
 		const updateHeight = () => {

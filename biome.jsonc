@@ -55,8 +55,7 @@
       },
       "correctness": {
         "noInvalidUseBeforeDeclaration": "off",
-        "useExhaustiveDependencies": "off",
-        "noUnusedVariables": "off"
+        "useExhaustiveDependencies": "off"
       },
       "nursery": {
         "noShadow": "off",

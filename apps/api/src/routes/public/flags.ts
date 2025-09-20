@@ -336,7 +336,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 					count: Object.keys(enabledFlags).length,
 					timestamp: new Date().toISOString(),
 				};
-			} catch (error) {
+			} catch (_error) {
 				logger.error('Bulk flag evaluation failed');
 				set.status = 500;
 				return {

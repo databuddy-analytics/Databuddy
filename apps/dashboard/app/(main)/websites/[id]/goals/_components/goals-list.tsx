@@ -5,13 +5,6 @@ import { EmptyState } from '@/components/empty-state';
 import type { Goal } from '@/hooks/use-goals';
 import { GoalCard } from './goal-card';
 
-interface GoalAnalytics {
-	goalId: string;
-	conversionRate: number;
-	totalUsers: number;
-	completions: number;
-}
-
 interface GoalsListProps {
 	goals: Goal[];
 	isLoading: boolean;

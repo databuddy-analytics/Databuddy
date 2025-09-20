@@ -111,7 +111,7 @@ export const umamiAdapter = (
 
 		const lastInSessionMap = new Map<string, boolean>();
 
-		for (const [sessionId, sessionEvents] of sessionGroups) {
+		for (const [_sessionId, sessionEvents] of sessionGroups) {
 			if (sessionEvents.length >= 2) {
 				sessionEvents.sort(
 					(a, b) =>

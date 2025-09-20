@@ -102,7 +102,7 @@ export function UsageBreakdownTable({
 		);
 	}
 
-	const { eventTypeBreakdown, totalEvents } = usageData;
+	const { eventTypeBreakdown } = usageData;
 
 	const sortedBreakdown = [...eventTypeBreakdown].sort(
 		(a, b) => b.event_count - a.event_count

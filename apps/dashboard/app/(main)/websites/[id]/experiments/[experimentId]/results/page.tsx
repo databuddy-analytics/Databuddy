@@ -72,7 +72,7 @@ export default function ExperimentResultsPage() {
 		try {
 			// Refresh experiment results data
 			// await refetchExperimentResults();
-		} catch (error) {
+		} catch (_error) {
 			// console.error('Failed to refresh experiment results:', error);
 		} finally {
 			setIsRefreshing(false);

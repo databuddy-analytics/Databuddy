@@ -23,7 +23,7 @@ export function FlagRow({
 	onToggle,
 	children,
 }: FlagRowProps) {
-	const [isArchiving, setIsArchiving] = useState(false);
+	const [_isArchiving, _setIsArchiving] = useState(false);
 
 	const utils = trpc.useUtils();
 

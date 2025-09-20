@@ -463,7 +463,7 @@ export const vercelRouter = createTRPCRouter({
 								})),
 							},
 						};
-					} catch (error: any) {
+					} catch (_error: any) {
 						return {
 							id: project.id,
 							name: project.name,
@@ -906,14 +906,13 @@ export const vercelRouter = createTRPCRouter({
 		.mutation(async ({ ctx, input }) => {
 			const token = await getVercelToken(ctx.user.id, ctx.db);
 			const vercel = new VercelSDK(token);
-			const websiteService = new WebsiteService(ctx.db);
+			const _websiteService = new WebsiteService(ctx.db);
 
 			const {
 				projectId,
 				action,
 				domainName,
 				envVarId,
-				websiteId,
 				organizationId,
 				teamId,
 				slug,

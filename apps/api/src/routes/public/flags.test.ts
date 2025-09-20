@@ -703,7 +703,7 @@ describe('Flag Evaluation System', () => {
 				],
 			};
 
-			let enabledByRollout = 0;
+			let _enabledByRollout = 0;
 			let disabledByRule = 0;
 			let totalEnabled = 0;
 
@@ -714,7 +714,7 @@ describe('Flag Evaluation System', () => {
 				if (result.enabled) {
 					totalEnabled++;
 					if (result.reason === 'ROLLOUT_ENABLED') {
-						enabledByRollout++;
+						_enabledByRollout++;
 					}
 				} else if (result.reason === 'USER_RULE_MATCH') {
 					disabledByRule++;
