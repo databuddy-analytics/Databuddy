@@ -84,7 +84,9 @@ export function ConsumptionChart({
 			{} as Record<string, number>
 		);
 
-		return Array.from(dailyDataMap.entries()).map(([date, eventCounts]) => {
+		const entries = Array.from(dailyDataMap.entries());
+
+		return entries.map(([date, eventCounts]) => {
 			const dayData: any = {
 				date: new Date(date).toLocaleDateString('en-US', {
 					month: 'short',
@@ -94,10 +96,10 @@ export function ConsumptionChart({
 			};
 
 			// Use real data from ClickHouse, not approximations
-			Object.keys(EVENT_TYPE_COLORS).forEach((eventType) => {
+			for (const eventType of Object.keys(EVENT_TYPE_COLORS)) {
 				if (hiddenTypes[eventType]) {
 					dayData[eventType] = 0;
-					return;
+					continue;
 				}
 				const actualAmount = eventCounts[eventType] || 0;
 
@@ -107,7 +109,7 @@ export function ConsumptionChart({
 				} else {
 					dayData[eventType] = actualAmount;
 				}
-			});
+			}
 
 			return dayData;
 		});

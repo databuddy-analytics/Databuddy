@@ -102,14 +102,16 @@ export function DataTable({
 			);
 		}
 
+		const entries = Object.entries(columnFilters);
+
 		// Apply column filters
-		Object.entries(columnFilters).forEach(([column, filter]) => {
+		for (const [column, filter] of entries) {
 			if (filter) {
 				filtered = filtered.filter((row) =>
 					String(row[column]).toLowerCase().includes(filter.toLowerCase())
 				);
 			}
-		});
+		}
 
 		// Apply sorting
 		if (sortColumn) {

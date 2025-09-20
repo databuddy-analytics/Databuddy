@@ -290,11 +290,11 @@ export function DataTableView({
 
 	const handleDeleteSelected = () => {
 		const selectedRows = table.getSelectedRowModel().rows;
-		selectedRows.forEach((row) => {
+		for (const row of selectedRows) {
 			if (onDeleteRow) {
 				onDeleteRow(row.original);
 			}
-		});
+		}
 		setRowSelection({});
 	};
 

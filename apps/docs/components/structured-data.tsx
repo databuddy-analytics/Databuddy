@@ -87,66 +87,66 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 		});
 	}
 
+	const items = plan.items.filter(
+		(i): i is Extract<RawItem, { type: 'priced_feature' }> =>
+			i.type === 'priced_feature'
+	);
+
 	// priced_feature with tiers (events, extra websites, etc.)
-	plan.items
-		.filter(
-			(i): i is Extract<RawItem, { type: 'priced_feature' }> =>
-				i.type === 'priced_feature'
-		)
-		.forEach((pf) => {
-			// Event overage tiers → convert per-event micro price to per-1,000 events
-			if (pf.feature?.id === 'events' && pf.tiers?.length) {
-				// Start tier ranges right after included quota (if any)
-				let prevMax: number | undefined =
-					typeof pf.included_usage === 'number' ? pf.included_usage : undefined;
+	for (const pf of items) {
+		// Event overage tiers → convert per-event micro price to per-1,000 events
+		if (pf.feature?.id === 'events' && pf.tiers?.length) {
+			// Start tier ranges right after included quota (if any)
+			let prevMax: number | undefined =
+				typeof pf.included_usage === 'number' ? pf.included_usage : undefined;
 
-				pf.tiers.forEach((t) => {
-					const minValue = prevMax != null ? prevMax + 1 : undefined;
-					const maxValue = t.to === 'inf' ? undefined : (t.to as number);
+			for (const t of pf.tiers) {
+				const minValue = prevMax != null ? prevMax + 1 : undefined;
+				const maxValue = t.to === 'inf' ? undefined : (t.to as number);
 
-					priceSpecs.push({
-						'@type': 'UnitPriceSpecification',
-						price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 2), // e.g. "0.03" per 1,000 events
-						priceCurrency: 'USD',
-						referenceQuantity: {
-							'@type': 'QuantitativeValue',
-							value: BLOCK_UNITS_FOR_EVENTS,
-							unitText: 'events',
-						},
-						eligibleQuantity: {
-							'@type': 'QuantitativeValue',
-							minValue,
-							maxValue,
-							unitText: 'events',
-						},
-						unitText: 'per 1,000 events (overage)',
-					});
-
-					if (t.to !== 'inf') {
-						prevMax = t.to as number;
-					}
-				});
-			}
-			// Other priced features (e.g., extra websites per month)
-			else if (typeof pf.price === 'number') {
-				const refUnit = toUnitCode(pf.interval);
 				priceSpecs.push({
 					'@type': 'UnitPriceSpecification',
-					price: priceStr(pf.price, 2), // e.g. "0.50"
+					price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 2), // e.g. "0.03" per 1,000 events
 					priceCurrency: 'USD',
-					unitText: `per ${pf.feature?.display?.singular ?? 'unit'}`,
-					...(refUnit
-						? {
-								referenceQuantity: {
-									'@type': 'QuantitativeValue',
-									value: 1,
-									unitCode: refUnit, // MON or DAY
-								},
-							}
-						: {}),
+					referenceQuantity: {
+						'@type': 'QuantitativeValue',
+						value: BLOCK_UNITS_FOR_EVENTS,
+						unitText: 'events',
+					},
+					eligibleQuantity: {
+						'@type': 'QuantitativeValue',
+						minValue,
+						maxValue,
+						unitText: 'events',
+					},
+					unitText: 'per 1,000 events (overage)',
 				});
+
+				if (t.to !== 'inf') {
+					prevMax = t.to as number;
+				}
 			}
-		});
+		}
+		// Other priced features (e.g., extra websites per month)
+		else if (typeof pf.price === 'number') {
+			const refUnit = toUnitCode(pf.interval);
+			priceSpecs.push({
+				'@type': 'UnitPriceSpecification',
+				price: priceStr(pf.price, 2), // e.g. "0.50"
+				priceCurrency: 'USD',
+				unitText: `per ${pf.feature?.display?.singular ?? 'unit'}`,
+				...(refUnit
+					? {
+							referenceQuantity: {
+								'@type': 'QuantitativeValue',
+								value: 1,
+								unitCode: refUnit, // MON or DAY
+							},
+						}
+					: {}),
+			});
+		}
+	}
 
 	return {
 		'@type': 'Offer',

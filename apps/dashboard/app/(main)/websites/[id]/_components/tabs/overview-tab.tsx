@@ -255,9 +255,9 @@ export function WebsiteOverviewTab({
 
 	const hiddenMetrics = useMemo(() => {
 		const result: Record<string, boolean> = {};
-		Object.keys(visibleMetrics).forEach((key) => {
+		for (const key of Object.keys(visibleMetrics)) {
 			result[key] = !visibleMetrics[key as keyof typeof visibleMetrics];
-		});
+		}
 		return result;
 	}, [visibleMetrics]);
 

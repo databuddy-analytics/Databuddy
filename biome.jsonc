@@ -36,8 +36,7 @@
         "useFilenamingConvention": "off"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "off",
-        "noForEach": "off"
+        "noExcessiveCognitiveComplexity": "off"
       },
       "performance": {
         "useTopLevelRegex": "off",
