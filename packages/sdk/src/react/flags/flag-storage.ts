@@ -94,19 +94,19 @@ class FlagStorage {
 		}
 	}
 
-	async setAll(flags: Record<string, unknown>): Promise<void> {
-		const currentFlags = await this.getAll();
+	setAll(flags: Record<string, unknown>): void {
+		const currentFlags = this.getAll();
 		const currentKeys = Object.keys(currentFlags);
 		const newKeys = Object.keys(flags);
 
 		const removedKeys = currentKeys.filter((key) => !newKeys.includes(key));
 
 		if (removedKeys.length > 0) {
-			await this.deleteMultiple(removedKeys);
+			this.deleteMultiple(removedKeys);
 		}
 
 		for (const [key, value] of Object.entries(flags)) {
-			await this.set(key, value);
+			this.set(key, value);
 		}
 	}
 

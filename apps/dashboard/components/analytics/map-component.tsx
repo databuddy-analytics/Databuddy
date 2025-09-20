@@ -4,13 +4,21 @@ import type { CountryData, LocationData } from '@databuddy/shared';
 import { scalePow } from 'd3-scale';
 import type { Feature, GeoJsonObject } from 'geojson';
 import type { Layer, Map as LeafletMap } from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import dynamic from 'next/dynamic';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GeoJSON, MapContainer, useMap } from 'react-leaflet';
 import { getCountryPopulation } from '@/lib/data';
 import { type Country, useCountries } from '@/lib/geo';
 import { CountryFlag } from './icons/CountryFlag';
+
+const MapContainer = dynamic(
+	() => import('react-leaflet').then((mod) => mod.MapContainer),
+	{ ssr: false }
+);
+const GeoJSON = dynamic(
+	() => import('react-leaflet').then((mod) => mod.GeoJSON),
+	{ ssr: false }
+);
 
 interface TooltipContent {
 	name: string;
@@ -29,35 +37,37 @@ const roundToTwo = (num: number): number => {
 	return Math.round((num + Number.EPSILON) * 100) / 100;
 };
 
-function MapEvents({
-	onClick,
-}: {
-	onClick: (latlng: { lat: number; lng: number }) => void;
-}) {
-	useMap().on('click', (e) => {
-		onClick(e.latlng);
-	});
-	return null;
-}
-
 export function MapComponent({
 	height,
 	mode = 'total',
 	locationData,
 	isLoading: passedIsLoading = false,
-	onCountrySelect: _onCountrySelect,
 	selectedCountry,
 }: {
 	height: string;
 	mode?: 'total' | 'perCapita';
 	locationData?: LocationData;
 	isLoading?: boolean;
-	onCountrySelect?: (countryCode: string) => void;
 	selectedCountry?: string | null;
 }) {
 	const mapRef = useRef<LeafletMap | null>(null);
 	const locationsData = locationData;
 	const { resolvedTheme } = useTheme();
+
+	useEffect(() => {
+		if (typeof window !== 'undefined') {
+			const link = document.createElement('link');
+			link.rel = 'stylesheet';
+			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+			link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+			link.crossOrigin = 'anonymous';
+			document.head.appendChild(link);
+
+			return () => {
+				document.head.removeChild(link);
+			};
+		}
+	}, []);
 
 	const countryData = useMemo(() => {
 		if (!locationsData?.countries) {
@@ -83,8 +93,6 @@ export function MapComponent({
 			})),
 		};
 	}, [locationsData?.countries]);
-
-	// Remove unnecessary dataVersion state and effect - use mode and locationData as keys instead
 
 	const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(
 		null
@@ -127,7 +135,6 @@ export function MapComponent({
 		const nonZeroValues = values.filter((v: number) => v > 0);
 		const minValue = nonZeroValues.length > 0 ? Math.min(...nonZeroValues) : 0;
 
-		// More saturated blue color scheme
 		const isDark = resolvedTheme === 'dark';
 		const baseBlue = isDark ? '59, 130, 246' : '37, 99, 235'; // blue-500 / blue-600 (more saturated)
 		const lightBlue = isDark ? '96, 165, 250' : '59, 130, 246'; // blue-400 / blue-500
@@ -159,7 +166,6 @@ export function MapComponent({
 	const getThemeColors = useCallback(() => {
 		const isDark = resolvedTheme === 'dark';
 		return {
-			// More saturated blue colors
 			primary: isDark ? 'rgb(59, 130, 246)' : 'rgb(37, 99, 235)', // blue-500 / blue-600
 			muted: isDark ? 'rgb(75, 85, 99)' : 'rgb(156, 163, 175)', // gray-600 / gray-400
 			isDark,
@@ -291,7 +297,6 @@ export function MapComponent({
 				},
 				click: (e) => {
 					if (mapRef.current) {
-						// Use flyTo with smooth animation and duration
 						mapRef.current.flyTo(
 							e.latlng,
 							Math.min(mapRef.current.getZoom() + 2, 12),
@@ -350,12 +355,10 @@ export function MapComponent({
 				coords: number[] | number[][] | number[][][]
 			) => {
 				if (typeof coords[0] === 'number') {
-					// Single coordinate pair
 					centroidLng += coords[0] as number;
 					centroidLat += coords[1] as number;
 					pointCount += 1;
 				} else {
-					// Array of coordinates
 					for (const coord of coords) {
 						processCoordinates(coord as number[] | number[][] | number[][][]);
 					}
@@ -380,13 +383,11 @@ export function MapComponent({
 		[]
 	);
 
-	// Fly to selected country
 	useEffect(() => {
 		if (!(selectedCountry && mapRef.current && countriesGeoData)) {
 			return;
 		}
 
-		// Find the country feature in the GeoJSON data
 		const countryFeature = countriesGeoData.features?.find(
 			(feature) => feature.properties?.ISO_A2 === selectedCountry
 		);
@@ -397,7 +398,6 @@ export function MapComponent({
 
 		const centroid = calculateCountryCentroid(countryFeature.geometry);
 		if (centroid) {
-			// Fly to the country with smooth animation
 			mapRef.current.flyTo([centroid.lat, centroid.lng], 7, {
 				animate: true,
 				duration: 2,
@@ -456,22 +456,6 @@ export function MapComponent({
 					zoom={zoom}
 					zoomControl={false}
 				>
-					<MapEvents
-						onClick={(latlng) => {
-							if (mapRef.current) {
-								// Use flyTo with smooth animation for map background clicks
-								mapRef.current.flyTo(
-									latlng,
-									Math.min(mapRef.current.getZoom() + 1, 12),
-									{
-										animate: true,
-										duration: 1.2,
-										easeLinearity: 0.2,
-									}
-								);
-							}
-						}}
-					/>
 					{mapView === 'countries' && countriesGeoData && (
 						<GeoJSON
 							data={countriesGeoData as GeoJsonObject}
