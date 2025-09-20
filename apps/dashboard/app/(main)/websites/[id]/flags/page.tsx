@@ -161,7 +161,7 @@ export default function FlagsPage() {
 			)}
 			<Suspense fallback={<FlagsListSkeleton />}>
 				<FlagsList
-					flags={flags || []}
+					flags={(flags as any) || []}
 					isLoading={isLoading}
 					onCreateFlag={handleCreateFlag}
 					onEditFlag={handleEditFlag}

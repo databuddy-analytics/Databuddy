@@ -13,7 +13,7 @@ interface UserContext {
 }
 
 interface FlagRule {
-	type: 'user_id' | 'email' | 'property' | 'percentage';
+	type: 'user_id' | 'email' | 'property';
 	operator: string;
 	field?: string;
 	value?: unknown;
@@ -311,7 +311,7 @@ describe('Flag Evaluation System', () => {
 	describe('Percentage Rules', () => {
 		it('should enable users within percentage threshold', () => {
 			const rule: FlagRule = {
-				type: 'percentage',
+				type: 'property',
 				operator: 'equals',
 				value: 50,
 				enabled: true,
@@ -335,7 +335,7 @@ describe('Flag Evaluation System', () => {
 
 		it('should be consistent for same user', () => {
 			const rule: FlagRule = {
-				type: 'percentage',
+				type: 'property',
 				operator: 'equals',
 				value: 25,
 				enabled: true,
@@ -354,7 +354,7 @@ describe('Flag Evaluation System', () => {
 
 		it('should handle invalid percentage values', () => {
 			const rule: FlagRule = {
-				type: 'percentage',
+				type: 'property',
 				operator: 'equals',
 				value: 'invalid',
 				enabled: true,
@@ -694,7 +694,7 @@ describe('Flag Evaluation System', () => {
 				payload: { rollout: true },
 				rules: [
 					{
-						type: 'percentage',
+						type: 'property',
 						operator: 'equals',
 						value: 30,
 						enabled: false,
@@ -785,7 +785,7 @@ describe('Flag Evaluation System', () => {
 					payload: { percentage: true },
 					rules: [
 						{
-							type: 'percentage',
+							type: 'property',
 							operator: 'equals',
 							value: 25,
 							enabled: true,

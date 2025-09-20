@@ -25,7 +25,7 @@ interface UserContext {
 }
 
 interface FlagRule {
-	type: 'user_id' | 'email' | 'property' | 'percentage';
+	type: 'user_id' | 'email' | 'property';
 	operator: string;
 	field?: string;
 	value?: unknown;
@@ -155,15 +155,15 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 			const propertyValue = context.properties?.[rule.field];
 			return evaluateValueRule(propertyValue, rule);
 		}
-		case 'percentage': {
-			if (typeof rule.value !== 'number') {
-				return false;
-			}
-			const userId = context.userId || context.email || 'anonymous';
-			const hash = hashString(`percentage:${userId}`);
-			const percentage = hash % 100;
-			return percentage < rule.value;
-		}
+		// case 'percentage': {
+		// 	if (typeof rule.value !== 'number') {
+		// 		return false;
+		// 	}
+		// 	const userId = context.userId || context.email || 'anonymous';
+		// 	const hash = hashString(`percentage:${userId}`);
+		// 	const percentage = hash % 100;
+		// 	return percentage < rule.value;
+		// }
 		default:
 			return false;
 	}

@@ -3,12 +3,12 @@ export interface Flag {
 	key: string;
 	name?: string | null;
 	description?: string | null;
-	type: string;
-	status: string;
-	defaultValue?: any;
-	payload?: any;
+	type: 'boolean' | 'rollout';
+	status: 'active' | 'inactive' | 'archived';
+	defaultValue?: boolean;
+	payload?: unknown;
 	rolloutPercentage?: number | null;
-	rules?: any;
+	rules?: UserRule[];
 	persistAcrossAuth?: boolean;
 	websiteId?: string | null;
 	organizationId?: string | null;
@@ -31,8 +31,8 @@ export interface UserRule {
 		| 'exists'
 		| 'not_exists';
 	field?: string;
-	value?: any;
-	values?: any[];
+	value?: string;
+	values?: string[];
 	enabled: boolean;
 	batch: boolean;
 	batchValues?: string[];

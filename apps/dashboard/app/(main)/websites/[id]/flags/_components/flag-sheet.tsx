@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FlagIcon, PlusIcon } from '@phosphor-icons/react';
+import { FlagIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -33,10 +33,10 @@ import {
 	SheetTitle,
 } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
-import { TagsChat } from '@/components/ui/tags';
 import { Textarea } from '@/components/ui/textarea';
 import { trpc } from '@/lib/trpc';
-import type { Flag, UserRule } from './types';
+import type { Flag } from './types';
+import { UserRulesBuilder } from './user-rules-builder';
 
 const userRuleSchema = z.object({
 	type: z.enum(['user_id', 'email', 'property']),
@@ -51,8 +51,8 @@ const userRuleSchema = z.object({
 		'not_exists',
 	]),
 	field: z.string().optional(),
-	value: z.any().optional(),
-	values: z.array(z.any()).optional(),
+	value: z.string().optional(),
+	values: z.array(z.string()).optional(),
 	enabled: z.boolean(),
 	batch: z.boolean(),
 	batchValues: z.array(z.string()).optional(),
@@ -76,7 +76,6 @@ const flagFormSchema = z.object({
 	type: z.enum(['boolean', 'rollout']),
 	status: z.enum(['active', 'inactive', 'archived']),
 	defaultValue: z.boolean(),
-	payload: z.string().optional(),
 	rolloutPercentage: z.number().min(0).max(100),
 	rules: z.array(userRuleSchema).optional(),
 });
@@ -108,7 +107,6 @@ export function FlagSheet({
 			type: 'boolean',
 			status: 'active',
 			defaultValue: false,
-			payload: '',
 			rolloutPercentage: 0,
 			rules: [],
 		},
@@ -128,9 +126,8 @@ export function FlagSheet({
 					type: flag.type as 'boolean' | 'rollout',
 					status: flag.status as 'active' | 'inactive' | 'archived',
 					defaultValue: Boolean(flag.defaultValue),
-					payload: '', // Payload is commented out
 					rolloutPercentage: flag.rolloutPercentage || 0,
-					rules: (flag.rules as any[]) || [],
+					rules: flag.rules || [],
 				});
 			} else {
 				form.reset();
@@ -162,32 +159,27 @@ export function FlagSheet({
 
 	const onSubmit = async (data: FlagFormData) => {
 		try {
-			// Payload is commented out for now
-			const payload = undefined;
-
 			const mutation = isEditing ? updateMutation : createMutation;
 			const mutationData =
 				isEditing && flag
 					? {
 							id: flag.id,
-							name: data.name || undefined,
-							description: data.description || undefined,
+							name: data.name,
+							description: data.description,
 							type: data.type,
 							status: data.status,
 							defaultValue: data.defaultValue,
-							payload,
 							rolloutPercentage: data.rolloutPercentage,
 							rules: data.rules || [],
 						}
 					: {
 							websiteId,
 							key: data.key,
-							name: data.name || undefined,
-							description: data.description || undefined,
+							name: data.name,
+							description: data.description,
 							type: data.type,
 							status: data.status,
 							defaultValue: data.defaultValue,
-							payload,
 							rolloutPercentage: data.rolloutPercentage,
 							rules: data.rules || [],
 						};
@@ -198,13 +190,15 @@ export function FlagSheet({
 			// Invalidate to refresh with real server data
 			utils.flags.list.invalidate();
 			onClose();
-		} catch (error: any) {
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
 			if (
-				error?.message?.includes('unique') ||
-				error?.message?.includes('CONFLICT')
+				errorMessage.includes('unique') ||
+				errorMessage.includes('CONFLICT')
 			) {
 				toast.error('A flag with this key already exists in this scope');
-			} else if (error?.message?.includes('FORBIDDEN')) {
+			} else if (errorMessage.includes('FORBIDDEN')) {
 				toast.error('You do not have permission to perform this action');
 			} else {
 				toast.error(`Failed to ${isEditing ? 'update' : 'create'} flag`);
@@ -217,17 +211,13 @@ export function FlagSheet({
 	return (
 		<Sheet onOpenChange={onClose} open={isOpen}>
 			<SheetContent
-				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[800px]"
+				className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
 				side="right"
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">
-						<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-							<FlagIcon
-								className="h-6 w-6 text-primary"
-								size={16}
-								weight="duotone"
-							/>
+						<div className="rounded border border-primary/20 bg-primary/10 p-3">
+							<FlagIcon className="h-6 w-6 text-primary" weight="duotone" />
 						</div>
 						<div>
 							<SheetTitle className="font-semibold text-foreground text-xl">
@@ -247,7 +237,7 @@ export function FlagSheet({
 						<form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
 							{/* Basic Information */}
 							<div className="space-y-4">
-								<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 									<FormField
 										control={form.control}
 										name="name"
@@ -273,7 +263,9 @@ export function FlagSheet({
 												<FormLabel>
 													Key{' '}
 													{!isEditing && (
-														<span className="text-red-500">*</span>
+														<span aria-hidden="true" className="text-red-500">
+															*
+														</span>
 													)}
 												</FormLabel>
 												<FormControl>
@@ -288,6 +280,12 @@ export function FlagSheet({
 														}}
 													/>
 												</FormControl>
+												{isEditing && (
+													<FormDescription>
+														Flag keys cannot be changed after creation to
+														maintain data integrity.
+													</FormDescription>
+												)}
 												<FormMessage />
 											</FormItem>
 										)}
@@ -315,7 +313,7 @@ export function FlagSheet({
 
 							{/* Configuration */}
 							<div className="space-y-4">
-								<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 									<FormField
 										control={form.control}
 										name="type"
@@ -361,13 +359,9 @@ export function FlagSheet({
 														</SelectTrigger>
 													</FormControl>
 													<SelectContent>
-														<SelectItem value="active">🟢 Active</SelectItem>
-														<SelectItem value="inactive">
-															🟡 Inactive
-														</SelectItem>
-														<SelectItem value="archived">
-															⚫ Archived
-														</SelectItem>
+														<SelectItem value="active">Active</SelectItem>
+														<SelectItem value="inactive">Inactive</SelectItem>
+														<SelectItem value="archived">Archived</SelectItem>
 													</SelectContent>
 												</Select>
 												<FormMessage />
@@ -394,6 +388,7 @@ export function FlagSheet({
 																Off
 															</span>
 															<Switch
+																aria-label="Toggle default flag value"
 																checked={field.value}
 																onCheckedChange={field.onChange}
 															/>
@@ -437,10 +432,11 @@ export function FlagSheet({
 																step={5}
 																value={currentValue}
 															/>
-															<div className="flex justify-center gap-2">
+															<div className="flex flex-wrap justify-center gap-2">
 																{[0, 25, 50, 75, 100].map((preset) => (
 																	<button
-																		className={`rounded border px-2 py-1 text-xs transition-colors ${
+																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? '(disabled)' : preset === 100 ? '(enabled)' : ''}`}
+																		className={`rounded border px-3 py-2 text-sm transition-colors ${
 																			currentValue === preset
 																				? 'border-primary bg-primary text-primary-foreground'
 																				: 'border-border hover:border-primary/50'
@@ -455,6 +451,10 @@ export function FlagSheet({
 															</div>
 														</div>
 													</FormControl>
+													<FormDescription>
+														Percentage of users who will see this flag enabled.
+														0% = disabled, 100% = fully enabled.
+													</FormDescription>
 													<FormMessage />
 												</FormItem>
 											);
@@ -462,64 +462,6 @@ export function FlagSheet({
 									/>
 								</div>
 							)}
-
-							{/* Payload Section - Commented out for now */}
-							{/* <div className="space-y-3">
-								{showPayload ? (
-									<div className="slide-in-from-top-2 animate-in duration-300">
-										<FormField
-											control={form.control}
-											name="payload"
-											render={({ field }) => (
-												<FormItem>
-													<div className="flex items-center justify-between">
-														<FormLabel className="font-medium text-foreground text-sm">
-															Payload (Optional)
-														</FormLabel>
-														<Button
-															className="h-6 px-2 text-muted-foreground hover:text-foreground"
-															onClick={() => {
-																setShowPayload(false);
-																form.setValue('payload', '');
-															}}
-															size="sm"
-															type="button"
-															variant="ghost"
-														>
-															Remove
-														</Button>
-													</div>
-													<FormControl>
-														<Textarea
-															className="rounded border-border/50 font-mono text-sm focus:border-primary/50 focus:ring-primary/20"
-															placeholder='{"theme": "dark", "timeout": 5000}'
-															rows={4}
-															{...field}
-														/>
-													</FormControl>
-													<FormDescription className="text-muted-foreground text-xs">
-														JSON data returned when flag is enabled
-													</FormDescription>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-									</div>
-								) : (
-									<Button
-										className="group w-full rounded border-2 border-primary/30 border-dashed transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
-										onClick={() => setShowPayload(true)}
-										type="button"
-										variant="outline"
-									>
-										<PlusIcon
-											className="mr-2 h-4 w-4 transition-transform duration-300 group-hover:rotate-90"
-											size={16}
-										/>
-										Add Payload (Optional)
-									</Button>
-								)}
-							</div> */}
 
 							{/* User Targeting Rules */}
 							<div className="space-y-4">
@@ -557,323 +499,5 @@ export function FlagSheet({
 				</div>
 			</SheetContent>
 		</Sheet>
-	);
-}
-
-// User Rules Builder Component
-interface UserRulesBuilderProps {
-	rules: UserRule[];
-	onChange: (rules: UserRule[]) => void;
-}
-
-function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
-	const addRule = () => {
-		const newRule: UserRule = {
-			type: 'user_id',
-			operator: 'equals',
-			value: '',
-			enabled: true,
-			batch: false,
-		};
-		onChange([...rules, newRule]);
-	};
-
-	const canUseBatch = (rule: UserRule) => {
-		return rule.operator !== 'exists' && rule.operator !== 'not_exists';
-	};
-
-	const updateRule = (index: number, updatedRule: Partial<UserRule>) => {
-		const newRules = [...rules];
-		newRules[index] = { ...newRules[index], ...updatedRule };
-		onChange(newRules);
-	};
-
-	const removeRule = (index: number) => {
-		onChange(rules.filter((_, i) => i !== index));
-	};
-
-	if (rules.length === 0) {
-		return (
-			<div className="rounded border border-primary/30 border-dashed bg-primary/5 p-8 text-center">
-				<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-					<FlagIcon className="h-6 w-6 text-primary" weight="duotone" />
-				</div>
-				<h3 className="mb-2 font-medium text-sm">No targeting rules</h3>
-				<p className="mb-4 text-muted-foreground text-xs">
-					Add rules to target specific users, emails, or properties
-				</p>
-				<Button
-					className="rounded"
-					onClick={addRule}
-					size="sm"
-					type="button"
-					variant="outline"
-				>
-					<PlusIcon className="mr-2 h-4 w-4" size={16} />
-					Add First Rule
-				</Button>
-			</div>
-		);
-	}
-
-	return (
-		<div className="space-y-4">
-			{rules.map((rule, index) => {
-				const ruleId = `rule-${index}`;
-				const supportsBatch = canUseBatch(rule);
-
-				return (
-					<div className="rounded border bg-card p-4" key={index}>
-						{/* Rule Header */}
-						<div className="mb-4 flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
-									{index + 1}
-								</div>
-								<span className="font-medium text-sm">
-									{rule.type === 'user_id' && 'User ID'}
-									{rule.type === 'email' && 'Email'}
-									{rule.type === 'property' && 'Property'}
-									{rule.batch && ' (Batch)'}
-								</span>
-							</div>
-							<Button
-								onClick={() => removeRule(index)}
-								size="sm"
-								type="button"
-								variant="ghost"
-							>
-								Remove
-							</Button>
-						</div>
-
-						{/* Rule Configuration */}
-						<div className="space-y-4">
-							{/* Target Type & Batch Toggle */}
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-								<div>
-									<label
-										className="mb-1 block font-medium text-sm"
-										htmlFor={`${ruleId}-type`}
-									>
-										Target Type
-									</label>
-									<Select
-										onValueChange={(value) => {
-											const newType = value as UserRule['type'];
-											updateRule(index, {
-												type: newType,
-												batch: rule.batch,
-												operator: rule.operator,
-											});
-										}}
-										value={rule.type}
-									>
-										<SelectTrigger id={`${ruleId}-type`}>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="user_id">User ID</SelectItem>
-											<SelectItem value="email">Email</SelectItem>
-											<SelectItem value="property">Property</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-
-								{supportsBatch && (
-									<div>
-										<label
-											className="mb-1 block font-medium text-sm"
-											htmlFor={`${ruleId}-batch-toggle`}
-										>
-											Mode
-										</label>
-										<div className="flex items-center gap-2 rounded border p-2">
-											<Switch
-												checked={rule.batch}
-												id={`${ruleId}-batch-toggle`}
-												onCheckedChange={(batch) =>
-													updateRule(index, { batch })
-												}
-											/>
-											<span className="font-medium text-sm">
-												{rule.batch ? 'Batch Mode' : 'Single Value'}
-											</span>
-										</div>
-									</div>
-								)}
-							</div>
-
-							{/* Property Field */}
-							{rule.type === 'property' && (
-								<div>
-									<label
-										className="mb-1 block font-medium text-sm"
-										htmlFor={`${ruleId}-field`}
-									>
-										Property Name
-									</label>
-									<Input
-										id={`${ruleId}-field`}
-										onChange={(e) =>
-											updateRule(index, { field: e.target.value })
-										}
-										placeholder="e.g. plan, role, country"
-										value={rule.field || ''}
-									/>
-								</div>
-							)}
-
-							{/* Condition & Value */}
-							{rule.batch ? (
-								<div>
-									<div className="mb-1 block font-medium text-sm">
-										{rule.type === 'user_id' && 'User IDs'}
-										{rule.type === 'email' && 'Email Addresses'}
-										{rule.type === 'property' && 'Property Values'}
-									</div>
-									<TagsChat
-										allowDuplicates={false}
-										maxTags={100}
-										onChange={(values) =>
-											updateRule(index, { batchValues: values })
-										}
-										placeholder={
-											rule.type === 'user_id'
-												? 'Type user ID and press Enter...'
-												: rule.type === 'email'
-													? 'Type email address and press Enter...'
-													: 'Type property value and press Enter...'
-										}
-										values={rule.batchValues || []}
-									/>
-								</div>
-							) : (
-								<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-									<div>
-										<label
-											className="mb-1 block font-medium text-sm"
-											htmlFor={`${ruleId}-operator`}
-										>
-											Condition
-										</label>
-										<Select
-											onValueChange={(value) =>
-												updateRule(index, { operator: value as any })
-											}
-											value={rule.operator}
-										>
-											<SelectTrigger id={`${ruleId}-operator`}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="equals">Equals</SelectItem>
-												<SelectItem value="contains">Contains</SelectItem>
-												<SelectItem value="starts_with">Starts with</SelectItem>
-												<SelectItem value="ends_with">Ends with</SelectItem>
-												<SelectItem value="in">Is one of</SelectItem>
-												<SelectItem value="not_in">Is not one of</SelectItem>
-												{rule.type === 'property' && (
-													<>
-														<SelectItem value="exists">Exists</SelectItem>
-														<SelectItem value="not_exists">
-															Does not exist
-														</SelectItem>
-													</>
-												)}
-											</SelectContent>
-										</Select>
-									</div>
-
-									{rule.operator !== 'exists' &&
-										rule.operator !== 'not_exists' && (
-											<div>
-												<label
-													className="mb-1 block font-medium text-sm"
-													htmlFor={`${ruleId}-value`}
-												>
-													{rule.operator === 'in' || rule.operator === 'not_in'
-														? 'Values'
-														: 'Value'}
-												</label>
-												{rule.operator === 'in' ||
-												rule.operator === 'not_in' ? (
-													<TagsChat
-														allowDuplicates={false}
-														maxTags={20}
-														onChange={(values) => updateRule(index, { values })}
-														placeholder={
-															rule.type === 'user_id'
-																? 'Type user ID and press Enter...'
-																: rule.type === 'email'
-																	? 'Type email address and press Enter...'
-																	: 'Type property value and press Enter...'
-														}
-														values={rule.values || []}
-													/>
-												) : (
-													<Input
-														id={`${ruleId}-value`}
-														onChange={(e) =>
-															updateRule(index, { value: e.target.value })
-														}
-														placeholder={
-															rule.type === 'user_id'
-																? 'Enter user ID'
-																: rule.type === 'email'
-																	? 'Enter email address'
-																	: 'Enter property value'
-														}
-														value={rule.value || ''}
-													/>
-												)}
-											</div>
-										)}
-								</div>
-							)}
-
-							{/* Result */}
-							<div className="flex items-center justify-between rounded bg-muted/30 p-3">
-								<span className="font-medium text-sm">
-									When this rule matches:
-								</span>
-								<div className="flex items-center gap-2">
-									<span
-										className={
-											rule.enabled ? 'text-muted-foreground' : 'font-medium'
-										}
-									>
-										Disabled
-									</span>
-									<Switch
-										checked={rule.enabled}
-										onCheckedChange={(enabled) =>
-											updateRule(index, { enabled })
-										}
-									/>
-									<span
-										className={
-											rule.enabled ? 'font-medium' : 'text-muted-foreground'
-										}
-									>
-										Enabled
-									</span>
-								</div>
-							</div>
-						</div>
-					</div>
-				);
-			})}
-
-			<Button
-				className="w-full"
-				onClick={addRule}
-				type="button"
-				variant="outline"
-			>
-				<PlusIcon className="mr-2 h-4 w-4" />
-				Add Rule
-			</Button>
-		</div>
 	);
 }

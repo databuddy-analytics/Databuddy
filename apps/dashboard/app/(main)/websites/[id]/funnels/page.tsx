@@ -266,7 +266,7 @@ export default function FunnelsPage() {
 			<Suspense fallback={<FunnelsListSkeleton />}>
 				<FunnelsList
 					expandedFunnelId={expandedFunnelId}
-					funnels={funnels}
+					funnels={(funnels as any) || []}
 					isLoading={funnelsLoading}
 					onCreateFunnel={() => {
 						setEditingFunnel(null);

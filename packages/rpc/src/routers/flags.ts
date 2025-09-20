@@ -16,7 +16,7 @@ const CACHE_DURATION = 60; // seconds
 // ============================================================================
 
 const userRuleSchema = z.object({
-	type: z.enum(['user_id', 'email', 'property', 'percentage']),
+	type: z.enum(['user_id', 'email', 'property']),
 	operator: z.enum([
 		'equals',
 		'contains',
@@ -28,8 +28,8 @@ const userRuleSchema = z.object({
 		'not_exists',
 	]),
 	field: z.string().optional(), // For property rules
-	value: z.any().optional(),
-	values: z.array(z.any()).optional(), // For 'in' and 'not_in' operators
+	value: z.string().optional(),
+	values: z.array(z.string()).optional(), // For 'in' and 'not_in' operators
 	enabled: z.boolean(),
 	// Batch support
 	batch: z.boolean().default(false), // Whether this rule uses batch mode
@@ -49,7 +49,7 @@ const flagSchema = z.object({
 	description: z.string().optional(),
 	type: z.enum(['boolean', 'rollout']).default('boolean'),
 	status: z.enum(['active', 'inactive', 'archived']).default('active'),
-	defaultValue: z.any().default(false),
+	defaultValue: z.boolean().default(false),
 	payload: z.any().optional(),
 	rules: z.array(userRuleSchema).default([]),
 	persistAcrossAuth: z.boolean().default(false),
@@ -73,7 +73,7 @@ const updateFlagSchema = z.object({
 	description: z.string().optional(),
 	type: z.enum(['boolean', 'rollout']).optional(),
 	status: z.enum(['active', 'inactive', 'archived']).optional(),
-	defaultValue: z.any().optional(),
+	defaultValue: z.boolean().optional(),
 	payload: z.any().optional(),
 	rules: z.array(userRuleSchema).optional(),
 	persistAcrossAuth: z.boolean().optional(),
