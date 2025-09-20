@@ -330,10 +330,8 @@ export function CustomEventsSection({
 
 						{isExpanded && (
 							<div
-								aria-labelledby={`property-header-${propertyId}`}
 								className="mt-1 max-h-48 overflow-y-auto rounded border border-sidebar-border/20"
 								id={`property-${propertyId}`}
-								role="region"
 							>
 								{propertyValues.map((valueItem, index) => (
 									<div

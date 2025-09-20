@@ -61,7 +61,6 @@
       },
       "a11y": {
         "noStaticElementInteractions": "off",
-        "useSemanticElements": "off",
         "useFocusableInteractive": "off",
         "useAriaPropsForRole": "off",
         "useKeyWithClickEvents": "off"

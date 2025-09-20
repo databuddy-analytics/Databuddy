@@ -89,7 +89,7 @@ export const EmptyState = memo(function EmptyState({
 					{icon}
 				</div>
 				{showPlusBadge && (
-					<div
+					<button
 						aria-label="Create new item"
 						className="-top-2 -right-2 absolute cursor-pointer select-none rounded-full border-2 border-primary/10 bg-background p-2"
 						onClick={(e) => {
@@ -102,11 +102,11 @@ export const EmptyState = memo(function EmptyState({
 								action?.onClick();
 							}
 						}}
-						role="button"
 						tabIndex={0}
+						type="button"
 					>
 						<PlusIcon className="h-6 w-6 text-primary" size={16} />
-					</div>
+					</button>
 				)}
 			</div>
 		);
@@ -172,12 +172,10 @@ export const EmptyState = memo(function EmptyState({
 						</div>
 						{(action || secondaryAction) && (
 							<div
-								aria-label="Actions"
 								className={cn(
 									'flex flex-col items-stretch justify-center gap-3 pt-4',
 									'sm:flex-row sm:items-center'
 								)}
-								role="group"
 							>
 								{action && (
 									<Button
