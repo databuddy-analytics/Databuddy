@@ -38,8 +38,7 @@
         "noExplicitAny": "off",
         "noEmptyBlockStatements": "off",
         "noArrayIndexKey": "off",
-        "noDocumentCookie": "off",
-        "noShadowRestrictedNames": "off"
+        "noDocumentCookie": "off"
       },
       "style": {
         "noNestedTernary": "off",

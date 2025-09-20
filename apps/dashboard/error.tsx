@@ -5,13 +5,12 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function Error({
-	error,
-	reset,
-}: {
+type ErrorPageProps = {
 	error: Error & { digest?: string };
 	reset: () => void;
-}) {
+};
+
+export default function ErrorPage({ error, reset }: ErrorPageProps) {
 	useEffect(() => {
 		console.error(error);
 	}, [error]);
