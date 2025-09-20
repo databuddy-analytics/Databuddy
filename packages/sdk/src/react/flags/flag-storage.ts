@@ -1,15 +1,15 @@
 class FlagStorage {
 	private ttl = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-	async get(key: string): Promise<any> {
+	get(key: string): any {
 		return this.getFromLocalStorage(key);
 	}
 
-	async set(key: string, value: unknown): Promise<void> {
+	set(key: string, value: unknown): void {
 		this.setToLocalStorage(key, value);
 	}
 
-	async getAll(): Promise<Record<string, unknown>> {
+	getAll(): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 		const now = Date.now();
 		Object.keys(localStorage)
@@ -31,7 +31,7 @@ class FlagStorage {
 		return result;
 	}
 
-	async clear(): Promise<void> {
+	clear(): void {
 		Object.keys(localStorage)
 			.filter((key) => key.startsWith('db-flag-'))
 			.forEach((key) => {
@@ -80,11 +80,11 @@ class FlagStorage {
 		return Date.now() > expiresAt;
 	}
 
-	async delete(key: string): Promise<void> {
+	delete(key: string): void {
 		localStorage.removeItem(`db-flag-${key}`);
 	}
 
-	async deleteMultiple(keys: string[]): Promise<void> {
+	deleteMultiple(keys: string[]): void {
 		for (const key of keys) {
 			localStorage.removeItem(`db-flag-${key}`);
 		}
@@ -106,7 +106,7 @@ class FlagStorage {
 		}
 	}
 
-	async cleanupExpired(): Promise<void> {
+	cleanupExpired(): void {
 		const now = Date.now();
 		Object.keys(localStorage)
 			.filter((key) => key.startsWith('db-flag-'))

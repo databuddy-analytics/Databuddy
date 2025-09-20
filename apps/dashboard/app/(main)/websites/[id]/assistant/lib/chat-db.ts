@@ -39,7 +39,7 @@ class ChatDatabase {
 	}
 
 	private async initDB(): Promise<IDBPDatabase<ChatDBSchema>> {
-		return openDB<ChatDBSchema>(this.DB_NAME, this.DB_VERSION, {
+		return await openDB<ChatDBSchema>(this.DB_NAME, this.DB_VERSION, {
 			upgrade(db) {
 				// Create chats store
 				const chatsStore = db.createObjectStore('chats', {

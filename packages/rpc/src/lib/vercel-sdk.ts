@@ -124,7 +124,7 @@ export class VercelSDK {
 	}
 
 	async getProjectEnvs(projectId: string): Promise<VercelEnvVarsResponse> {
-		return this.request<VercelEnvVarsResponse>(
+		return await this.request<VercelEnvVarsResponse>(
 			`/v10/projects/${projectId}/env`
 		);
 	}
@@ -170,7 +170,7 @@ export class VercelSDK {
 			requestBody.target = ['production']; // Default to production if neither is specified
 		}
 
-		return this.request<CreateEnvVarResponse>(endpoint, {
+		return await this.request<CreateEnvVarResponse>(endpoint, {
 			method: 'POST',
 			body: JSON.stringify(requestBody),
 		});
@@ -221,7 +221,7 @@ export class VercelSDK {
 			return body;
 		});
 
-		return this.request<CreateEnvVarResponse>(endpoint, {
+		return await this.request<CreateEnvVarResponse>(endpoint, {
 			method: 'POST',
 			body: JSON.stringify(requestBody),
 		});
@@ -281,7 +281,7 @@ export class VercelSDK {
 		const query = searchParams.toString();
 		const endpoint = `/v9/projects/${projectId}/domains${query ? `?${query}` : ''}`;
 
-		return this.request<VercelDomainsResponse>(endpoint);
+		return await this.request<VercelDomainsResponse>(endpoint);
 	}
 
 	async editProjectEnv(
@@ -304,7 +304,7 @@ export class VercelSDK {
 		const query = searchParams.toString();
 		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ''}`;
 
-		return this.request<VercelEnvVar>(endpoint, {
+		return await this.request<VercelEnvVar>(endpoint, {
 			method: 'PATCH',
 			body: JSON.stringify(envVar),
 		});
@@ -333,7 +333,7 @@ export class VercelSDK {
 		const query = searchParams.toString();
 		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ''}`;
 
-		return this.request<VercelEnvVar[]>(endpoint, {
+		return await this.request<VercelEnvVar[]>(endpoint, {
 			method: 'DELETE',
 		});
 	}
@@ -436,7 +436,7 @@ export class VercelSDK {
 	async getUser(): Promise<{
 		user: { id: string; username: string; email: string };
 	}> {
-		return this.request<{
+		return await this.request<{
 			user: { id: string; username: string; email: string };
 		}>('/v2/user');
 	}

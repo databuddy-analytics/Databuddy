@@ -64,7 +64,7 @@ export function TwoFactorForm() {
 
 	// Check if 2FA is already enabled
 	useEffect(() => {
-		const checkTwoFactorStatus = async () => {
+		const checkTwoFactorStatus = () => {
 			try {
 				// As a fallback, we'll just check if we can find any property that might indicate 2FA is enabled
 				// Different auth implementations might use different property names

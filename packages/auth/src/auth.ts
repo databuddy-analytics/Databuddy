@@ -32,7 +32,7 @@ export const auth = betterAuth({
 	databaseHooks: {
 		user: {
 			create: {
-				after: async (user: { id: string; name: string; email: string }) => {
+				after: (user: { id: string; name: string; email: string }) => {
 					logger.info(
 						'User Created',
 						`User ${user.id}, ${user.name}, ${user.email} created`

@@ -44,7 +44,7 @@ function getPrompt(
 	}
 }
 
-export async function handleMessage(
+export function handleMessage(
 	messages: ModelMessage[],
 	mode: Mode,
 	websiteId: string,

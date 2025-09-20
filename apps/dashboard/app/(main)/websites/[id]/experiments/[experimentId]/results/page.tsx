@@ -67,7 +67,7 @@ export default function ExperimentResultsPage() {
 	const experimentLoading = false;
 	const experimentError = null;
 
-	const handleRefresh = useCallback(async () => {
+	const handleRefresh = useCallback(() => {
 		setIsRefreshing(true);
 		try {
 			// Refresh experiment results data

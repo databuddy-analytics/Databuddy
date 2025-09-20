@@ -8,6 +8,7 @@ const config = {
 	compress: true,
 	poweredByHeader: false,
 
+	// biome-ignore lint/suspicious/useAwait: "headers is async"
 	async headers() {
 		return [
 			{
@@ -48,6 +49,7 @@ const config = {
 		];
 	},
 
+	// biome-ignore lint/suspicious/useAwait: "redirects is async"
 	async redirects() {
 		return [
 			{
