@@ -36,7 +36,6 @@
       "suspicious": {
         "noConsole": "off",
         "noExplicitAny": "off",
-        "noImplicitAnyLet": "off",
         "noEmptyBlockStatements": "off",
         "noArrayIndexKey": "off",
         "noDocumentCookie": "off",
