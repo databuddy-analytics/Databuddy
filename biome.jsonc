@@ -23,6 +23,7 @@
     "rules": {
       "suspicious": {
         "noConsole": {
+          "level": "warn",
           "options": {
             "allow": ["assert", "error", "info", "warn"]
           }
