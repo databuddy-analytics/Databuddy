@@ -18,7 +18,7 @@ interface ConversionChartProps {
 
 // Mock data generator
 const generateTimeSeriesData = (startDate: Date, days: number) => {
-	const data = [];
+	const data: any[] = [];
 	for (let i = 0; i < days; i++) {
 		const date = dayjs(startDate).add(i, 'day');
 		// Simulate conversion rates with some variance

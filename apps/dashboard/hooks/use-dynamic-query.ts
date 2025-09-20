@@ -695,7 +695,7 @@ function transformSessionsData(sessions: any[]): any[] {
 		const durationFormatted = formatDuration(session.duration || 0);
 
 		// Parse referrer
-		let referrerParsed = null;
+		let referrerParsed: any = null;
 		if (session.referrer) {
 			try {
 				const url = new URL(session.referrer);

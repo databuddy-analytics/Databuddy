@@ -98,7 +98,7 @@ const TriageMenu = ({
 	) => Promise<void>;
 }) => {
 	const getTriageActions = (domainStatus: any) => {
-		const actions = [];
+		const actions: any[] = [];
 
 		if (domainStatus.status === 'orphaned') {
 			actions.push({

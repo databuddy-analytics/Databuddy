@@ -65,7 +65,7 @@ export default function ExperimentResultsPage() {
 		updatedAt: '2024-10-15T00:00:00Z',
 	};
 	const experimentLoading = false;
-	const experimentError = null;
+	const experimentError: any = null;
 
 	const handleRefresh = useCallback(() => {
 		setIsRefreshing(true);

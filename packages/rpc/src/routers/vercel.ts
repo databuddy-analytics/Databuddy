@@ -669,8 +669,8 @@ export const vercelRouter = createTRPCRouter({
 				}
 			}
 
-			const results = [];
-			const errors = [];
+			const results: any[] = [];
+			const errors: any[] = [];
 
 			const websiteService = new WebsiteService(ctx.db);
 			const [existingEnvVars, userWebsites] = await Promise.all([
@@ -699,7 +699,7 @@ export const vercelRouter = createTRPCRouter({
 					});
 					const existingWebsite = domainMap.get(domainName);
 
-					let websiteToUse;
+					let websiteToUse: any;
 					let isNewWebsite = false;
 
 					if (existingWebsite) {
@@ -721,7 +721,7 @@ export const vercelRouter = createTRPCRouter({
 						);
 						isNewWebsite = true;
 					}
-					let envVarResult = null;
+					let envVarResult: any = null;
 					if (!existingEnvVar || existingEnvVar.value !== websiteToUse.id) {
 						const conflictingEnvVar = existingEnvVars.find((envVar) =>
 							envVar.target?.some((target) =>

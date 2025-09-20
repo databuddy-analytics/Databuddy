@@ -928,7 +928,7 @@ const app = new Elysia()
 				}
 			}
 
-			const results = [];
+			const results: any[] = [];
 			const processingPromises = body.map(async (event: any) => {
 				const eventType = event.type || 'track';
 

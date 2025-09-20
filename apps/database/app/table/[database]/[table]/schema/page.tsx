@@ -543,7 +543,7 @@ export default async function TableSchemaPage({
 		setLoading(true);
 		setError(null);
 		try {
-			const queries = [];
+			const queries: string[] = [];
 
 			for (const col of schemaDiff.dropped) {
 				queries.push(`ALTER TABLE ${tableName} DROP COLUMN ${col.name}`);
@@ -602,7 +602,7 @@ export default async function TableSchemaPage({
 	const isConfirmRequired = hasDestructiveChanges && confirmText !== 'confirm';
 
 	const getColumnBadges = (column: ColumnInfo) => {
-		const badges = [];
+		const badges: any[] = [];
 		if (column.is_in_primary_key) {
 			badges.push({ label: 'PK', variant: 'default' as const });
 		}

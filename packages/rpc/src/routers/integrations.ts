@@ -114,7 +114,7 @@ export const integrationsRouter = createTRPCRouter({
 				}
 
 				const integration = connectedAccount[0];
-				let parsedScope = null;
+				let parsedScope: any = null;
 
 				try {
 					parsedScope = integration.scope

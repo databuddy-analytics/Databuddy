@@ -151,7 +151,7 @@ export default function AmbassadorForm() {
 
 			clearTimeout(timeoutId);
 
-			let data;
+			let data: any;
 			try {
 				data = await response.json();
 			} catch (_parseError) {
