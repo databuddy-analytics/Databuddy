@@ -129,7 +129,7 @@ describe('drizzle-cache', () => {
 			queryFn: async () => 'v',
 		});
 		await cache.invalidateByKey('i');
-		await cache.cleanupDeps();
+		await cache.cleanupEmptySets();
 		const depMembers = await redis.smembers('test:dep:t3');
 		const tagMembers = await redis.smembers('test:tag:tag3');
 		expect(depMembers).toEqual([]);
