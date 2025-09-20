@@ -58,7 +58,6 @@
       },
       "nursery": {
         "noShadow": "off",
-        "noNestedComponentDefinitions": "off",
         "noNoninteractiveElementInteractions": "off",
         "noAwaitInLoop": "off",
         "noBitwiseOperators": "off"
