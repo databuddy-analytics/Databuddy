@@ -58,8 +58,7 @@
         "useExhaustiveDependencies": "off",
         "noUnusedVariables": "off",
         "noUnusedFunctionParameters": "off",
-        "noUnreachable": "off",
-        "useHookAtTopLevel": "off"
+        "noUnreachable": "off"
       },
       "nursery": {
         "noShadow": "off",
