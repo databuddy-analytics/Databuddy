@@ -9,7 +9,19 @@
       "!**/countries.json",
       "!**/subdivisions.json",
       "!**/databuddy.js",
-      "!apps/better-admin/**"
+      "!apps/better-admin/**",
+
+      "!apps/docs/components/ui",
+      "!apps/dashboard/components/ui",
+      "!apps/database/components/ui",
+
+      "!apps/docs/components/lib/utils.ts",
+      "!apps/dashboard/components/lib/utils.ts",
+      "!apps/database/components/lib/utils.ts",
+
+      "!apps/docs/components/hooks/use-mobile.ts",
+      "!apps/dashboard/components/hooks/use-mobile.ts",
+      "!apps/database/components/hooks/use-mobile.ts"
     ]
   },
   "javascript": {
