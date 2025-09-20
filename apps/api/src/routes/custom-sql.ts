@@ -699,6 +699,11 @@ async function validateAPIKeyAndPermissions(
 	return { status: 200, response: null };
 }
 
+const UNKNOWN_COLUMN_REGEX =
+	/Unknown expression or function identifier `(\w+)`/;
+const TABLE_NOT_FOUND_REGEX = /Table\s+[\w.]*\.(\w+)\s+does not exist/;
+const SUBSTITUTION_NOT_SET_REGEX = /Substitution `(\w+)` is not set/;
+
 function parseClickHouseError(errorMessage: string): {
 	error: string;
 	suggestion?: string;
@@ -706,9 +711,7 @@ function parseClickHouseError(errorMessage: string): {
 } {
 	// Column not found errors
 	if (errorMessage.includes('Unknown expression or function identifier')) {
-		const columnMatch = errorMessage.match(
-			/Unknown expression or function identifier `(\w+)`/
-		);
+		const columnMatch = errorMessage.match(UNKNOWN_COLUMN_REGEX);
 		if (columnMatch) {
 			const column = columnMatch[1];
 			let suggestion = '';
@@ -746,9 +749,7 @@ function parseClickHouseError(errorMessage: string): {
 		errorMessage.includes('Table') &&
 		errorMessage.includes('does not exist')
 	) {
-		const tableMatch = errorMessage.match(
-			/Table\s+[\w.]*\.(\w+)\s+does not exist/
-		);
+		const tableMatch = errorMessage.match(TABLE_NOT_FOUND_REGEX);
 		if (tableMatch) {
 			const table = tableMatch[1];
 			return {
@@ -788,7 +789,7 @@ function parseClickHouseError(errorMessage: string): {
 		errorMessage.includes('Substitution') &&
 		errorMessage.includes('is not set')
 	) {
-		const paramMatch = errorMessage.match(/Substitution `(\w+)` is not set/);
+		const paramMatch = errorMessage.match(SUBSTITUTION_NOT_SET_REGEX);
 		if (paramMatch) {
 			const param = paramMatch[1];
 			return {

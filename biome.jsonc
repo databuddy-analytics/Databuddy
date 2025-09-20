@@ -51,7 +51,6 @@
         "noExcessiveCognitiveComplexity": "off"
       },
       "performance": {
-        "useTopLevelRegex": "off",
         "noImgElement": "off",
         "noNamespaceImport": "off"
       },

@@ -138,6 +138,9 @@ export async function chCommand(
 	});
 }
 
+const Z_REGEX = /Z+$/;
+const DATE_REGEX = /\d{4}-\d{2}-\d{2}/;
+
 export function formatClickhouseDate(
 	date: Date | string,
 	skipTime = false
@@ -145,19 +148,19 @@ export function formatClickhouseDate(
 	if (skipTime) {
 		return new Date(date).toISOString().split('T')[0] ?? '';
 	}
-	return new Date(date).toISOString().replace('T', ' ').replace(/Z+$/, '');
+	return new Date(date).toISOString().replace('T', ' ').replace(Z_REGEX, '');
 }
 
 export function toDate(str: string, interval?: string) {
 	if (!interval || interval === 'minute' || interval === 'hour') {
-		if (str.match(/\d{4}-\d{2}-\d{2}/)) {
+		if (str.match(DATE_REGEX)) {
 			return escape(str);
 		}
 
 		return str;
 	}
 
-	if (str.match(/\d{4}-\d{2}-\d{2}/)) {
+	if (str.match(DATE_REGEX)) {
 		return `toDate(${escape(str.split(' ')[0])})`;
 	}
 

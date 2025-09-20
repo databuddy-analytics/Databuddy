@@ -152,6 +152,9 @@ export const getColorVariant = (
 	return 'success';
 };
 
+const PROTOCOL_REGEX = /^https?:\/\//;
+const SLASH_REGEX = /\//;
+
 // Format domain links
 export const formatDomainLink = (
 	path: string,
@@ -163,7 +166,9 @@ export const formatDomainLink = (
 
 	if (domain) {
 		// Remove protocol if present
-		const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+		const cleanDomain = domain
+			.replace(PROTOCOL_REGEX, '')
+			.replace(SLASH_REGEX, '');
 		// Ensure path starts with a single slash
 		let cleanPath = path.startsWith('/') ? path : `/${path}`;
 		// Remove duplicate slashes

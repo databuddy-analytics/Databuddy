@@ -13,6 +13,7 @@ import {
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 
 const ENV_KEY = 'NEXT_PUBLIC_DATABUDDY_CLIENT_ID';
+const WWW_REGEX = /^www\./;
 
 const buildDomainIntegrationStatus = (
 	domain: any,
@@ -27,7 +28,7 @@ const buildDomainIntegrationStatus = (
 			return domainMap.get(targetDomain);
 		}
 
-		const withoutWww = targetDomain.replace(/^www\./, '');
+		const withoutWww = targetDomain.replace(WWW_REGEX, '');
 		if (domainMap.has(withoutWww)) {
 			return domainMap.get(withoutWww);
 		}
@@ -61,7 +62,7 @@ const buildDomainIntegrationStatus = (
 		}
 		return (
 			websiteForEnv.domain === domainName ||
-			websiteForEnv.domain === domainName.replace(/^www\./, '') ||
+			websiteForEnv.domain === domainName.replace(WWW_REGEX, '') ||
 			websiteForEnv.domain === `www.${domainName}` ||
 			domainName === `www.${websiteForEnv.domain}`
 		);
@@ -111,7 +112,7 @@ const buildDomainIntegrationStatus = (
 
 			const websiteDomainMatches =
 				website.domain === domainName ||
-				website.domain === domainName.replace(/^www\./, '') ||
+				website.domain === domainName.replace(WWW_REGEX, '') ||
 				website.domain === `www.${domainName}` ||
 				domainName === `www.${website.domain}`;
 

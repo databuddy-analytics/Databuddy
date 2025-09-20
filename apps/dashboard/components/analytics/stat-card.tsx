@@ -183,6 +183,8 @@ const MiniChart = memo(
 
 MiniChart.displayName = 'MiniChart';
 
+const DURATION_REGEX = /\d+(\.\d+)?(s|ms)$/;
+
 export function StatCard({
 	title,
 	titleExtra,
@@ -261,8 +263,7 @@ export function StatCard({
 		);
 	}
 
-	const isTimeValue =
-		typeof value === 'string' && /\d+(\.\d+)?(s|ms)$/.test(value);
+	const isTimeValue = typeof value === 'string' && DURATION_REGEX.test(value);
 
 	const displayValue =
 		(typeof value === 'string' && (value.endsWith('%') || isTimeValue)) ||
