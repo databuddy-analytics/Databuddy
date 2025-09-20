@@ -15,13 +15,13 @@
       "!apps/dashboard/components/ui",
       "!apps/database/components/ui",
 
-      "!apps/docs/components/lib/utils.ts",
-      "!apps/dashboard/components/lib/utils.ts",
-      "!apps/database/components/lib/utils.ts",
+      "!apps/docs/lib/utils.ts",
+      "!apps/dashboard/lib/utils.ts",
+      "!apps/database/lib/utils.ts",
 
-      "!apps/docs/components/hooks/use-mobile.ts",
-      "!apps/dashboard/components/hooks/use-mobile.ts",
-      "!apps/database/components/hooks/use-mobile.ts"
+      "!apps/docs/hooks/use-mobile.ts",
+      "!apps/dashboard/hooks/use-mobile.ts",
+      "!apps/database/hooks/use-mobile.ts"
     ]
   },
   "javascript": {
@@ -51,8 +51,7 @@
         "noExcessiveCognitiveComplexity": "off"
       },
       "performance": {
-        "noImgElement": "off",
-        "noNamespaceImport": "off"
+        "noImgElement": "off"
       },
       "correctness": {
         "noInvalidUseBeforeDeclaration": "off",

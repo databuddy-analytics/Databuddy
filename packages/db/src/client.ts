@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/performance/noNamespaceImport: "Required" */
+
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import * as relations from './drizzle/relations';
 import * as schema from './drizzle/schema';

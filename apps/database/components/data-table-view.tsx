@@ -28,7 +28,7 @@ import {
 	Trash2,
 	Type,
 } from 'lucide-react';
-import * as React from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -128,7 +128,7 @@ const FieldIcon = ({
 	children,
 }: {
 	label: string | null;
-	children: React.ReactNode;
+	children: ReactNode;
 }) => {
 	if (children === null) {
 		return null;
@@ -248,23 +248,17 @@ export function DataTableView({
 	onEditRow,
 	onHideRow,
 }: DataTableViewProps) {
-	const [sorting, setSorting] = React.useState<SortingState>([]);
-	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-		[]
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+	const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+	const [rowSelection, setRowSelection] = useState({});
+	const [colSizing, setColSizing] = useState<ColumnSizingState>({});
+	const [hiddenRows, setHiddenRows] = useState<Set<string>>(new Set());
+	const [editingRow, setEditingRow] = useState<Record<string, any> | null>(
+		null
 	);
-	const [columnVisibility, setColumnVisibility] =
-		React.useState<VisibilityState>({});
-	const [rowSelection, setRowSelection] = React.useState({});
-	const [colSizing, setColSizing] = React.useState<ColumnSizingState>({});
-	const [hiddenRows, setHiddenRows] = React.useState<Set<string>>(new Set());
-	const [editingRow, setEditingRow] = React.useState<Record<
-		string,
-		any
-	> | null>(null);
-	const [editFormData, setEditFormData] = React.useState<Record<string, any>>(
-		{}
-	);
-	const [confirmText, setConfirmText] = React.useState('');
+	const [editFormData, setEditFormData] = useState<Record<string, any>>({});
+	const [confirmText, setConfirmText] = useState('');
 
 	// Helper functions
 	const handleEditRow = (row: Record<string, any>) => {
@@ -349,7 +343,7 @@ export function DataTableView({
 		</Dialog>
 	);
 
-	const tableColumns: ColumnDef<any>[] = React.useMemo(() => {
+	const tableColumns: ColumnDef<any>[] = useMemo(() => {
 		const fields: ColumnDef<any>[] = columns.map((col) => {
 			return {
 				accessorKey: col.name,
@@ -514,7 +508,7 @@ export function DataTableView({
 	]);
 
 	// Filter out hidden rows
-	const filteredData = React.useMemo(() => {
+	const filteredData = useMemo(() => {
 		if (!data) {
 			return [];
 		}
@@ -552,7 +546,7 @@ export function DataTableView({
 		columnResizeMode: 'onChange',
 	});
 
-	const rows = React.useMemo(() => table.getRowModel().rows, [table]);
+	const rows = useMemo(() => table.getRowModel().rows, [table]);
 	const selectedRowsCount = table.getSelectedRowModel().rows.length;
 
 	// Table controls component
