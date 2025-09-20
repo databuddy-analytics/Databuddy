@@ -193,27 +193,6 @@ export default async function TableSchemaPage({
 
 	const tableName = `${database}.${table}`;
 
-	useEffect(() => {
-		loadTableSchema();
-		loadTableInfo();
-	}, [loadTableInfo, loadTableSchema]);
-
-	useEffect(() => {
-		if (backfillSource) {
-			const sourceColumn = columns.find((c) => c.name === backfillSource);
-			if (sourceColumn) {
-				let expression = `${sourceColumn.name}`; // Default to direct copy
-				// Suggest a transformation based on type
-				if (sourceColumn.type.includes('DateTime')) {
-					expression = `toUnixTimestamp(${sourceColumn.name})`;
-				} else if (sourceColumn.type.includes('String')) {
-					expression = `concat(${sourceColumn.name}, '_copy')`;
-				}
-				setNewColumn((prev) => ({ ...prev, default_expression: expression }));
-			}
-		}
-	}, [backfillSource, columns]);
-
 	const loadTableSchema = async () => {
 		setLoading(true);
 		setError(null);
@@ -268,6 +247,27 @@ export default async function TableSchemaPage({
 			console.error('Failed to load table info:', err);
 		}
 	};
+
+	useEffect(() => {
+		loadTableSchema();
+		loadTableInfo();
+	}, [loadTableInfo, loadTableSchema]);
+
+	useEffect(() => {
+		if (backfillSource) {
+			const sourceColumn = columns.find((c) => c.name === backfillSource);
+			if (sourceColumn) {
+				let expression = `${sourceColumn.name}`; // Default to direct copy
+				// Suggest a transformation based on type
+				if (sourceColumn.type.includes('DateTime')) {
+					expression = `toUnixTimestamp(${sourceColumn.name})`;
+				} else if (sourceColumn.type.includes('String')) {
+					expression = `concat(${sourceColumn.name}, '_copy')`;
+				}
+				setNewColumn((prev) => ({ ...prev, default_expression: expression }));
+			}
+		}
+	}, [backfillSource, columns]);
 
 	const addColumn = async () => {
 		if (!(newColumn.name && newColumn.type)) {

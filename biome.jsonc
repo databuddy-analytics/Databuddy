@@ -54,7 +54,6 @@
         "noImgElement": "off"
       },
       "correctness": {
-        "noInvalidUseBeforeDeclaration": "off",
         "useExhaustiveDependencies": "off"
       },
       "nursery": {
