@@ -57,8 +57,7 @@
         "noInvalidUseBeforeDeclaration": "off",
         "useExhaustiveDependencies": "off",
         "noUnusedVariables": "off",
-        "noUnusedFunctionParameters": "off",
-        "noUnreachable": "off"
+        "noUnusedFunctionParameters": "off"
       },
       "nursery": {
         "noShadow": "off",
