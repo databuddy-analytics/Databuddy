@@ -10,6 +10,8 @@
     "build": "unbuild"
   },
   "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "ai": "^5.0.51",
     "jotai": ">=2.0.0"
   },
   "devDependencies": {
@@ -42,6 +44,14 @@
     "./vue": {
       "types": "./dist/vue/index.d.ts",
       "import": "./dist/vue/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.mjs"
+    },
+    "./ai/vercel": {
+      "types": "./dist/ai/vercel/index.d.ts",
+      "import": "./dist/ai/vercel/index.mjs"
     }
   },
   "files": [
