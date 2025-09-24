@@ -335,6 +335,10 @@ export const user = pgTable(
 	},
 	(table) => [
 		unique('users_email_unique').on(table.email),
+		index('users_email_idx').using(
+			'btree',
+			table.email.asc().nullsLast().op('text_ops')
+		),
 		index('users_emailVerified_idx').using(
 			'btree',
 			table.emailVerified.asc().nullsLast()
@@ -643,7 +647,13 @@ export const organization = pgTable(
 		createdAt: timestamp('created_at').notNull(),
 		metadata: text(),
 	},
-	(table) => [unique('organizations_slug_unique').on(table.slug)]
+	(table) => [
+		unique('organizations_slug_unique').on(table.slug),
+		index('organizations_slug_idx').using(
+			'btree',
+			table.slug.asc().nullsLast().op('text_ops')
+		),
+	]
 );
 
 export const abTestStatus = pgEnum('ab_test_status', [
