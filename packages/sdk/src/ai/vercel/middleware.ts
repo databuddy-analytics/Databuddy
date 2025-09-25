@@ -3,6 +3,7 @@ import type {
 	LanguageModelV2Middleware,
 } from '@ai-sdk/provider';
 import { wrapLanguageModel } from 'ai';
+import { computeCostUSD } from 'tokenlens';
 import type { Databuddy } from '../../node';
 
 export type TrackProperties = {
@@ -14,11 +15,14 @@ export type TrackProperties = {
 	toolCallCount?: number;
 	toolResultCount?: number;
 	toolCallNames?: string[];
+	inputTokenCostUSD?: number;
+	outputTokenCostUSD?: number;
+	totalTokenCostUSD?: number;
 };
 
 const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 	return {
-		wrapGenerate: async ({ doGenerate }) => {
+		wrapGenerate: async ({ doGenerate, model }) => {
 			const result = await doGenerate();
 
 			const isToolCall = (
@@ -41,6 +45,12 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				new Set(toolCalls.map((c) => c.toolName))
 			);
 
+			const consts = await computeCostUSD({
+				modelId: model.modelId,
+				provider: model.provider,
+				usage: result.usage,
+			});
+
 			const payload: TrackProperties = {
 				inputTokens: result.usage.inputTokens,
 				outputTokens: result.usage.outputTokens,
@@ -49,6 +59,9 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				finishReason: result.finishReason,
 				toolCallCount: toolCalls.length,
 				toolResultCount: toolResults.length,
+				inputTokenCostUSD: consts.inputUSD,
+				outputTokenCostUSD: consts.outputUSD,
+				totalTokenCostUSD: consts.totalUSD,
 				toolCallNames,
 			};
 			buddy.track('ai.generate', payload);

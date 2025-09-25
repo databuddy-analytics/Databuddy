@@ -12,7 +12,8 @@
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "ai": "^5.0.51",
-    "jotai": ">=2.0.0"
+    "jotai": ">=2.0.0",
+    "tokenlens": "^2.0.0-alpha.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
