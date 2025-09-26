@@ -55,7 +55,7 @@ export function QueryTypeSelector({
 
 			<ScrollArea className="h-80 lg:h-96">
 				<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
-					{availableTypes.map((type) => (
+					{availableTypes.sort().map((type) => (
 						<Card
 							className={`group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm ${
 								selectedTypes.has(type.name)
