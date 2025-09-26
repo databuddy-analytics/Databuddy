@@ -11,6 +11,7 @@
     "@databuddy/validation": "workspace:*",
     "@trpc/react-query": "^11.5.1",
     "autumn-js": "^0.0.111",
+    "effect": "^3.17.14",
     "nanoid": "^5.1.5",
     "pg": "^8.16.3",
     "superjson": "^2.2.2",
