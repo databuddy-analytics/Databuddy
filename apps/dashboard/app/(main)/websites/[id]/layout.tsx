@@ -6,6 +6,7 @@ import { useParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import NotFound from '@/app/not-found';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
+import { cn } from '@/lib/utils';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { AnalyticsToolbar } from './_components/analytics-toolbar';
 import { FiltersSection } from './_components/filters-section';
@@ -31,7 +32,10 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		pathname.includes('/assistant') ||
 		pathname.includes('/map') ||
 		pathname.includes('/flags') ||
-		pathname.includes('/databunny');
+		pathname.includes('/databunny') ||
+		pathname.includes('/settings');
+
+	const noPadding = pathname.includes('/settings');
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
@@ -55,7 +59,12 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	};
 
 	return (
-		<div className="mx-auto flex h-full max-w-[1600px] flex-col p-3 sm:p-4 lg:p-6">
+		<div
+			className={cn(
+				'mx-auto flex h-full max-w-[1600px] flex-col',
+				noPadding ? 'p-0' : 'p-3 sm:p-4 lg:p-6'
+			)}
+		>
 			{isTrackingSetup && !isAssistantPage && (
 				<div className="flex-shrink-0 space-y-4">
 					<AnalyticsToolbar

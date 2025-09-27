@@ -9,6 +9,7 @@ import {
 	CreditCardIcon,
 	CurrencyDollarIcon,
 	DatabaseIcon,
+	DownloadIcon,
 	EyeIcon,
 	FlagIcon,
 	FunnelIcon,
@@ -387,6 +388,30 @@ export const websiteNavigation: NavigationSection[] = [
 	},
 ];
 
+export const websiteSettingsNavigation: NavigationSection[] = [
+	{
+		title: 'Website Settings',
+		icon: GearIcon,
+		items: [
+			{
+				name: 'General',
+				icon: GearIcon,
+				href: '/settings/general',
+			},
+			{
+				name: 'Privacy',
+				icon: ShieldIcon,
+				href: '/settings/privacy',
+			},
+			{
+				name: 'Data Export',
+				icon: DownloadIcon,
+				href: '/settings/export',
+			},
+		],
+	},
+];
+
 export const createDemoNavigation = (): NavigationSection[] => [
 	{
 		title: 'Demo Analytics',
@@ -448,10 +473,17 @@ export const categoryConfig = {
 				icon: ChartBarIcon,
 				production: true,
 			},
+			{
+				id: 'settings',
+				name: 'Settings',
+				icon: GearIcon,
+				production: true,
+			},
 		],
 		defaultCategory: 'analytics',
 		navigationMap: {
 			analytics: websiteNavigation, // All analytics sections in one category
+			settings: websiteSettingsNavigation,
 		},
 	},
 	database: {

@@ -526,7 +526,6 @@ export function WebsitePerformanceTab({
 
 	return (
 		<div className="space-y-4">
-			{/* Core Web Vitals Chart */}
 			<WebVitalsChart
 				data={
 					processedData.webVitalsTimeSeries as {
@@ -540,7 +539,6 @@ export function WebsitePerformanceTab({
 				webVitalsTabs={webVitalsTabs}
 			/>
 
-			{/* Performance Overview */}
 			<div className="rounded border bg-muted/20 p-4">
 				<div className="mb-4 flex items-start gap-2">
 					<LightningIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />

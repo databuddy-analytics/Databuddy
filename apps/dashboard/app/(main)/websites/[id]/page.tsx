@@ -25,12 +25,7 @@ import type {
 } from './_components/utils/types';
 import { EmptyState } from './_components/utils/ui-components';
 
-type TabId =
-	| 'overview'
-	| 'audience'
-	| 'performance'
-	| 'settings'
-	| 'tracking-setup';
+type TabId = 'overview' | 'audience' | 'performance' | 'tracking-setup';
 
 const WebsiteOverviewTab = dynamic(
 	() =>
@@ -50,13 +45,6 @@ const WebsitePerformanceTab = dynamic(
 	() =>
 		import('./_components/tabs/performance-tab').then((mod) => ({
 			default: mod.WebsitePerformanceTab,
-		})),
-	{ loading: () => <TabLoadingSkeleton />, ssr: false }
-);
-const WebsiteSettingsTab = dynamic(
-	() =>
-		import('./_components/tabs/settings-tab').then((mod) => ({
-			default: mod.WebsiteSettingsTab,
 		})),
 	{ loading: () => <TabLoadingSkeleton />, ssr: false }
 );
@@ -111,6 +99,7 @@ function WebsiteDetailsPage() {
 			}
 
 			const key = `${tabId}-${id as string}`;
+
 			const settingsProps: WebsiteDataTabProps = {
 				websiteId: id as string,
 				dateRange,
@@ -133,8 +122,6 @@ function WebsiteDetailsPage() {
 						return <WebsiteAudienceTab {...tabProps} />;
 					case 'performance':
 						return <WebsitePerformanceTab {...tabProps} />;
-					case 'settings':
-						return <WebsiteSettingsTab {...settingsProps} />;
 					case 'tracking-setup':
 						return <WebsiteTrackingSetupTab {...settingsProps} />;
 					default:
@@ -183,12 +170,8 @@ function WebsiteDetailsPage() {
 				{ id: 'overview', label: 'Overview', className: 'pt-2 space-y-2' },
 				{ id: 'audience', label: 'Audience' },
 				{ id: 'performance', label: 'Performance' },
-				{ id: 'settings', label: 'Settings' },
 			]
-		: [
-				{ id: 'tracking-setup', label: 'Setup Tracking' },
-				{ id: 'settings', label: 'Settings' },
-			];
+		: [{ id: 'tracking-setup', label: 'Setup Tracking' }];
 
 	return (
 		<div>

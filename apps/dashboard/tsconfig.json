@@ -19,9 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "~/*": ["../dashboard"]
     },
-    "baseUrl": ".",
     "strictNullChecks": true
   },
   "include": [
