@@ -50,6 +50,7 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 		index: number
 	) => React.ReactNode;
 	expandable?: boolean;
+	showSearch?: boolean;
 }
 
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
@@ -99,6 +100,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	expandable = false,
 	onAddFilter,
 	onRowAction,
+	showSearch = true,
 }: DataTableProps<TData, TValue>) {
 	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id || '');
 	const [isTransitioning, setIsTransitioning] = useState(false);
@@ -200,6 +202,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 					onFullScreenToggle={() => setFullScreen(true)}
 					onSearchChange={setGlobalFilter}
 					searchValue={globalFilter}
+					showSearch={showSearch}
 					title={title}
 				/>
 

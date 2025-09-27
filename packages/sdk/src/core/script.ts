@@ -23,7 +23,11 @@ export function createScript({
 	for (const [key, value] of Object.entries(props)) {
 		const dataKey = `data-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
 
-		script.setAttribute(dataKey, String(value));
+		if (Array.isArray(value) || (value && typeof value === 'object')) {
+			script.setAttribute(dataKey, JSON.stringify(value));
+		} else {
+			script.setAttribute(dataKey, String(value));
+		}
 	}
 
 	return script;

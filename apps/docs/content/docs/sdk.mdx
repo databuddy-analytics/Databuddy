@@ -285,17 +285,120 @@ const clientId = import.meta.env.VITE_DATABUDDY_CLIENT_ID;
 | `sdk` | SDK name (default: `web`) |
 | `sdkVersion` | SDK version (auto-detected from package.json) |
 
-### Observability Options
+### Privacy & Path Masking
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enableObservability` | `false` | Enable observability features |
-| `observabilityService` | — | Service name for observability events |
-| `observabilityEnvironment` | — | Environment for observability events |
-| `observabilityVersion` | — | Service version for observability events |
-| `enableLogging` | `false` | Enable structured logging |
-| `enableTracing` | `false` | Enable distributed tracing |
-| `enableErrorTracking` | `false` | Enable error tracking |
+Control which pages are tracked and how sensitive URL paths are handled:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `skipPatterns` | `string[]` | Skip tracking on matching paths (e.g., `["/admin/**", "/private/*"]`) |
+| `maskPatterns` | `string[]` | Mask sensitive URL segments in analytics (e.g., `["/users/*", "/orders/**"]`) |
+
+#### Pattern Syntax
+
+- `*` matches a single path segment: `/users/*` matches `/users/123` but not `/users/123/settings`
+- `**` matches multiple path segments: `/admin/**` matches `/admin/users/edit/123`
+
+#### Skip Patterns
+
+Prevent tracking on sensitive pages:
+
+<Tabs items={['React/Next.js', 'Vue', 'Vanilla JS']}>
+<Tab value="React/Next.js">
+
+```tsx
+<Databuddy
+  clientId="your-client-id"
+  skipPatterns={[
+    "/admin/**",        // Skip all admin pages
+    "/private/*",       // Skip direct private pages only
+    "/checkout/payment" // Skip specific payment page
+  ]}
+/>
+```
+
+</Tab>
+<Tab value="Vue">
+
+```vue
+<template>
+  <Databuddy
+    :client-id="clientId"
+    :skip-patterns="['/admin/**', '/private/*', '/checkout/payment']"
+  />
+</template>
+```
+
+</Tab>
+<Tab value="Vanilla JS">
+
+```html
+<script
+  src="https://cdn.databuddy.cc/databuddy.js"
+  data-client-id="your-client-id"
+  data-skip-patterns='["/admin/**", "/private/*", "/checkout/payment"]'
+></script>
+```
+
+</Tab>
+</Tabs>
+
+#### Mask Patterns
+
+Hide sensitive URL segments while preserving analytics structure:
+
+<Tabs items={['React/Next.js', 'Vue', 'Vanilla JS']}>
+<Tab value="React/Next.js">
+
+```tsx
+<Databuddy
+  clientId="your-client-id"
+  maskPatterns={[
+    "/users/*",     // /users/123/profile → /users/*/profile
+    "/orders/**",   // /orders/abc/items/xyz → /orders/*
+    "/documents/*"  // /documents/secret.pdf → /documents/*
+  ]}
+/>
+```
+
+</Tab>
+<Tab value="Vue">
+
+```vue
+<template>
+  <Databuddy
+    :client-id="clientId"
+    :mask-patterns="['/users/*', '/orders/**', '/documents/*']"
+  />
+</template>
+```
+
+</Tab>
+<Tab value="Vanilla JS">
+
+```html
+<script
+  src="https://cdn.databuddy.cc/databuddy.js"
+  data-client-id="your-client-id"
+  data-mask-patterns='["/users/*", "/orders/**", "/documents/*"]'
+></script>
+```
+
+</Tab>
+</Tabs>
+
+#### Masking Behavior
+
+| Pattern | Original Path | Masked Path | Description |
+|---------|---------------|-------------|-------------|
+| `/users/*` | `/users/123` | `/users/*` | Mask single segment |
+| `/users/*` | `/users/123/settings` | `/users/*/settings` | Mask one segment, keep rest |
+| `/users/**` | `/users/123/settings` | `/users/*` | Mask everything after prefix |
+| `/orders/**` | `/orders/abc/items/xyz` | `/orders/*` | Mask all remaining segments |
+
+<Callout type="info">
+**Privacy by Design**: Use skip patterns for pages that should never be tracked, and mask patterns for pages where you need analytics but want to hide sensitive identifiers like user IDs, order numbers, or document names.
+</Callout>
 
 ## SDK Methods
 
