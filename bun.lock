@@ -382,7 +382,7 @@
     },
     "packages/sdk": {
       "name": "@databuddy/sdk",
-      "version": "2.1.77",
+      "version": "2.1.78",
       "dependencies": {
         "jotai": ">=2.0.0",
       },
