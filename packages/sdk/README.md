@@ -31,7 +31,7 @@ npm install @databuddy/sdk
 Add to your root layout (Next.js/React):
 
 ```tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 
 export default function RootLayout({ children }) {
   return (
