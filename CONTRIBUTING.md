@@ -50,20 +50,14 @@ bun run sdk:build
 bun run dev
 ```
 
-8. Seed the database with sample data (optional):
+## 💾 Seeding data (dev/demo)
 
-```bash
-bun run db:seed <WEBSITE_ID> [DOMAIN] [EVENT_COUNT]
-```
-
-**Examples:**
-
-```bash
-bun run db:seed g0zlgMtBaXzIP1EGY2ieG onlybuddies.com 10000
-bun run db:seed d7zlgMtBaSzIL1EGR2ieR notmybuddy.cc 5000
-```
-
-**Note:** You can find your website ID in your website overview settings.
+- The seeding system lives in `packages/db/src/seed`.
+- Run via root script: `bun run db:seed` (uses defaults) or run package script in `packages/db`.
+- Scenarios: `base`, `demo`, `analyticsHeavy`.
+- Useful options: `scenario`, `fakerSeed`, `users`, `events`, `dryRun`, `reset=append|truncate`, `batchSizeEvents`.
+- Architecture: pure factories (no IO) + small scenarios that insert via existing db/ClickHouse clients.
+- See [`packages/db/README.md`](./packages/db/README.md) (Seeding quickstart) for details and a short recipe to add new scenarios.
 
 ## 💻 Development
 
@@ -124,7 +118,6 @@ git push origin feature/your-feature
 Note: Open a pull request to the STAGING branch
 
 7. Create a Pull Request
-
 
 ## Code Style
 

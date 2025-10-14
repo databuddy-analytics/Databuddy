@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./clickhouse": "./clickhouse/index.ts"
+    "./clickhouse": "./clickhouse/index.ts",
+    "./seed": "./src/seed/index.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.12.0",
@@ -28,8 +29,7 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate": "tsx src/migrate.ts",
     "db:deploy": "tsx src/migrate.ts",
-    "db:seed": "tsx src/seed.ts",
-    "db:clean": "tsx src/clean.ts",
+    "db:seed": "tsx src/seed/index.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts"
   }
 }

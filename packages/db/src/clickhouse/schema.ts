@@ -743,17 +743,6 @@ export async function initClickHouseSchema() {
 	try {
 		console.info('Initializing ClickHouse schema...');
 
-		// Clear existing databases (for development/testing purposes)
-		await clickHouse.command({
-			query: `DROP DATABASE IF EXISTS ${ANALYTICS_DATABASE}`,
-		});
-		console.info(`Dropped database if existed: ${ANALYTICS_DATABASE}`);
-
-		await clickHouse.command({
-			query: `DROP DATABASE IF EXISTS ${OBSERVABILITY_DATABASE}`,
-		});
-		console.info(`Dropped database if existed: ${OBSERVABILITY_DATABASE}`);
-
 		// Create the analytics database
 		await clickHouse.command({
 			query: CREATE_DATABASE,

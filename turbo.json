@@ -46,11 +46,6 @@
       "cache": false,
       "persistent": true
     },
-    "db:clean": {
-      "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "persistent": false
-    },
     "lint": {
       "dependsOn": ["^lint"],
       "persistent": false
