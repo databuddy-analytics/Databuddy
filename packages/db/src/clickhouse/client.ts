@@ -10,6 +10,7 @@ export const TABLE_NAMES = {
 	events: 'analytics.events',
 	errors: 'analytics.errors',
 	custom_events: 'analytics.custom_events',
+	outgoing_links: 'analytics.outgoing_links',
 	web_vitals: 'analytics.web_vitals',
 	stripe_payment_intents: 'analytics.stripe_payment_intents',
 	stripe_charges: 'analytics.stripe_charges',

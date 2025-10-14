@@ -474,7 +474,8 @@ function createSingleEvent(
 		anonymous_id: session.anonymousId,
 		time: baseTime,
 		session_id: session.sessionId,
-		timestamp: baseTime,
+		event_type: 'track',
+		event_id: isPageExit ? `exit_${session.sessionId}_${btoa(path)}_${baseTime}` : undefined,
 		session_start_time: session.sessionStartTime,
 		referrer: session.referrer === 'direct' ? undefined : session.referrer,
 		url: `https://${websiteDomain}${path}`,
@@ -519,22 +520,10 @@ function createSingleEvent(
 		interaction_count: isPageExit
 			? faker.number.int({ min: 0, max: 50 })
 			: undefined,
-		exit_intent: isPageExit ? (faker.datatype.boolean() ? 1 : 0) : 0,
 		page_count:
 			eventName === 'screen_view' || isPageExit
 				? faker.number.int({ min: 1, max: 10 })
 				: 1,
-		is_bounce: isPageExit
-			? faker.number.int({ min: 1, max: 10 }) === 1
-				? 1
-				: 0 // 10% bounce rate
-			: 0,
-		has_exit_intent: isPageExit
-			? faker.datatype.boolean({ probability: 0.15 })
-				? 1
-				: 0 // 15% exit intent
-			: undefined,
-		page_size: faker.number.int({ min: 50_000, max: 5_000_000 }),
 		// UTM parameters - from URL or referrer
 		utm_source: faker.helpers.maybe(
 			() =>
@@ -548,7 +537,12 @@ function createSingleEvent(
 		utm_campaign: faker.helpers.maybe(() => faker.lorem.slug(), {
 			probability: 0.2,
 		}),
-
+		utm_term: faker.helpers.maybe(() => faker.lorem.word(), {
+			probability: 0.1,
+		}),
+		utm_content: faker.helpers.maybe(() => faker.lorem.word(), {
+			probability: 0.1,
+		}),
 		// Performance metrics - only for screen_view events when trackPerformance is enabled
 		load_time:
 			eventName === 'screen_view'
@@ -586,58 +580,89 @@ function createSingleEvent(
 			eventName === 'screen_view'
 				? faker.number.int({ min: 5, max: 100 })
 				: undefined,
-		// Web Vitals - only for screen_view events with trackWebVitals enabled
-		fcp:
-			eventName === 'screen_view' &&
-			faker.datatype.boolean({ probability: 0.3 })
-				? faker.number.int({ min: 500, max: 4000 })
-				: undefined,
-		lcp:
-			eventName === 'screen_view' &&
-			faker.datatype.boolean({ probability: 0.3 })
-				? faker.number.int({ min: 1000, max: 6000 })
-				: undefined,
-		cls:
-			eventName === 'screen_view' &&
-			faker.datatype.boolean({ probability: 0.3 })
-				? faker.number.float({ min: 0, max: 0.5, fractionDigits: 3 })
-				: undefined,
-		fid:
-			eventName === 'screen_view' &&
-			faker.datatype.boolean({ probability: 0.2 })
-				? faker.number.int({ min: 10, max: 300 })
-				: undefined,
-		inp:
-			eventName === 'screen_view' &&
-			faker.datatype.boolean({ probability: 0.2 })
-				? faker.number.int({ min: 50, max: 500 })
-				: undefined,
-		href: faker.helpers.maybe(() => faker.internet.url(), {
-			probability: 0.2,
-		}),
-		text: faker.helpers.maybe(() => faker.lorem.words({ min: 1, max: 5 }), {
-			probability: 0.2,
-		}),
-		value: faker.helpers.maybe(() => faker.commerce.price(), {
-			probability: 0.1,
-		}),
-		// Add event-specific properties
-		...(eventName === 'page_exit' && {
-			// page_exit events get unique eventId for deduplication
-			event_id: `exit_${session.sessionId}_${btoa(path)}_${baseTime}`,
-		}),
-		...(eventName === 'screen_view' && {
-			// screen_view events include performance data
-			load_time: faker.number.int({ min: 200, max: 5000 }),
-			dom_ready_time: faker.number.int({ min: 100, max: 3000 }),
-			dom_interactive: faker.number.int({ min: 50, max: 2000 }),
-			ttfb: faker.number.int({ min: 50, max: 1000 }),
-			request_time: faker.number.int({ min: 20, max: 500 }),
-			render_time: faker.number.int({ min: 50, max: 1000 }),
-		}),
-
 		properties: JSON.stringify(customProps),
-		created_at: Date.now(),
+		created_at: baseTime,
+	};
+}
+
+function createErrorEvent(
+	client: string,
+	websiteDomain: string,
+	eventIndex = 0
+) {
+	const session = faker.helpers.arrayElement(SESSION_POOL);
+	const user = session.user;
+	const baseTime = faker.date.recent({ days: 30 }).getTime();
+	const path = faker.helpers.arrayElement(PATHS);
+
+	const errorTypes = ['TypeError', 'ReferenceError', 'SyntaxError', 'NetworkError'];
+	const messages = [
+		'Cannot read property of undefined',
+		'Failed to fetch',
+		'Unexpected token',
+		'Network request failed',
+	];
+
+	return {
+		id: faker.string.uuid(),
+		client_id: client,
+		event_id: faker.string.uuid(),
+		anonymous_id: session.anonymousId,
+		session_id: session.sessionId,
+		timestamp: baseTime,
+		path,
+		message: faker.helpers.arrayElement(messages),
+		filename: faker.system.filePath(),
+		lineno: faker.number.int({ min: 1, max: 100 }),
+		colno: faker.number.int({ min: 1, max: 100 }),
+		stack: faker.lorem.paragraph(),
+		error_type: faker.helpers.arrayElement(errorTypes),
+		ip: faker.internet.ip(),
+		user_agent: faker.internet.userAgent(),
+		browser_name: user.browser,
+		browser_version: faker.system.semver(),
+		os_name: user.os,
+		os_version: faker.system.semver(),
+		device_type: user.deviceType,
+		country: user.country,
+		region: user.region,
+		created_at: baseTime,
+	};
+}
+
+function createWebVitalsEvent(
+	client: string,
+	websiteDomain: string,
+	eventIndex = 0
+) {
+	const session = faker.helpers.arrayElement(SESSION_POOL);
+	const user = session.user;
+	const baseTime = faker.date.recent({ days: 30 }).getTime();
+	const path = faker.helpers.arrayElement(PATHS);
+
+	return {
+		id: faker.string.uuid(),
+		client_id: client,
+		event_id: faker.string.uuid(),
+		anonymous_id: session.anonymousId,
+		session_id: session.sessionId,
+		timestamp: baseTime,
+		path,
+		fcp: faker.number.int({ min: 500, max: 4000 }),
+		lcp: faker.number.int({ min: 1000, max: 6000 }),
+		cls: faker.number.float({ min: 0, max: 0.5, fractionDigits: 3 }),
+		fid: faker.number.int({ min: 10, max: 300 }),
+		inp: faker.number.int({ min: 50, max: 500 }),
+		ip: faker.internet.ip(),
+		user_agent: faker.internet.userAgent(),
+		browser_name: user.browser,
+		browser_version: faker.system.semver(),
+		os_name: user.os,
+		os_version: faker.system.semver(),
+		device_type: user.deviceType,
+		country: user.country,
+		region: user.region,
+		created_at: baseTime,
 	};
 }
 
@@ -656,11 +681,94 @@ function createSingleEvent(
 	// Sort events by time to ensure chronological order
 	events.sort((a, b) => a.time - b.time);
 
-	await clickHouse.insert({
-		table: TABLE_NAMES.events,
-		format: 'JSONEachRow',
-		values: events,
+	// Separate events by type
+	const mainEvents = events.filter(event => 
+		event.event_name === 'screen_view' || event.event_name === 'page_exit'
+	);
+	const customEvents = events.filter(event => 
+		CUSTOM_EVENTS.includes(event.event_name)
+	).map(event => ({
+		id: event.id,
+		client_id: event.client_id,
+		event_name: event.event_name,
+		anonymous_id: event.anonymous_id,
+		session_id: event.session_id,
+		properties: event.properties,
+		timestamp: event.time,
+	}));
+	const outgoingLinks = events.filter(event => 
+		event.event_name === 'link_out'
+	).map(event => {
+		const props = JSON.parse(event.properties);
+		return {
+			id: event.id,
+			client_id: event.client_id,
+			anonymous_id: event.anonymous_id,
+			session_id: event.session_id,
+			href: props.href || '',
+			text: props.text || null,
+			properties: event.properties,
+			timestamp: event.time,
+		};
 	});
 
-	console.log(`Inserted ${events.length} events for client ${clientId}`);
+	// Insert main events (screen_view and page_exit)
+	if (mainEvents.length > 0) {
+		await clickHouse.insert({
+			table: TABLE_NAMES.events,
+			format: 'JSONEachRow',
+			values: mainEvents,
+		});
+		console.log(`Inserted ${mainEvents.length} main events for client ${clientId}`);
+	}
+
+	// Insert custom events
+	if (customEvents.length > 0) {
+		await clickHouse.insert({
+			table: TABLE_NAMES.custom_events,
+			format: 'JSONEachRow',
+			values: customEvents,
+		});
+		console.log(`Inserted ${customEvents.length} custom events for client ${clientId}`);
+	}
+
+	// Insert outgoing links
+	if (outgoingLinks.length > 0) {
+		await clickHouse.insert({
+			table: TABLE_NAMES.outgoing_links,
+			format: 'JSONEachRow',
+			values: outgoingLinks,
+		});
+		console.log(`Inserted ${outgoingLinks.length} outgoing links for client ${clientId}`);
+	}
+
+	// Generate and insert error events (about 5% of event count)
+	const errorCount = Math.floor(eventCount * 0.05);
+	const errors = Array.from({ length: errorCount }, (_, index) =>
+		createErrorEvent(clientId, domain, index)
+	);
+
+	if (errors.length > 0) {
+		await clickHouse.insert({
+			table: TABLE_NAMES.errors,
+			format: 'JSONEachRow',
+			values: errors,
+		});
+		console.log(`Inserted ${errors.length} error events for client ${clientId}`);
+	}
+
+	// Generate and insert web vitals events (about 10% of event count, only for screen_view like events)
+	const webVitalsCount = Math.floor(eventCount * 0.1);
+	const webVitals = Array.from({ length: webVitalsCount }, (_, index) =>
+		createWebVitalsEvent(clientId, domain, index)
+	);
+
+	if (webVitals.length > 0) {
+		await clickHouse.insert({
+			table: TABLE_NAMES.web_vitals,
+			format: 'JSONEachRow',
+			values: webVitals,
+		});
+		console.log(`Inserted ${webVitals.length} web vitals events for client ${clientId}`);
+	}
 })();
