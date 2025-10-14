@@ -29,6 +29,7 @@
     "db:migrate": "tsx src/migrate.ts",
     "db:deploy": "tsx src/migrate.ts",
     "db:seed": "tsx src/seed.ts",
+    "db:clean": "tsx src/clean.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts"
   }
 }
