@@ -1,5 +1,11 @@
 import { faker } from '@faker-js/faker';
 import { clickHouse, TABLE_NAMES } from './clickhouse/client';
+import { db } from './client';
+import {
+	user,
+	websites,
+	account,
+} from './drizzle/schema';
 
 const clientId = process.argv[2] || faker.string.uuid();
 const domain = process.argv[3] || 'example.com';
@@ -666,60 +672,128 @@ function createWebVitalsEvent(
 	};
 }
 
+// PostgreSQL seeding functions
+async function seedPostgreSQL() {
+	console.log('Seeding PostgreSQL with mock data...');
+
+	// Create fix databuddy user
+	const userData = {
+		id: faker.string.uuid(),
+		name: 'DataBuddy',
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		email: 'admin@databuddy.cc',
+		emailVerified: true,
+		image: 'https://www.databuddy.cc/logo.svg',
+		firstName: 'Data',
+		lastName: 'Buddy',
+		status: 'ACTIVE' as const,
+		role: 'ADMIN' as const,
+	}
+
+	const [createdUser] = await db.insert(user).values(userData).returning();
+	console.log(`Created user: ${createdUser.name} (${createdUser.email})`);
+
+	// Create account for the user with a default password 'password'
+	const accountData = {
+		id: faker.string.uuid(),
+		accountId: createdUser.id,
+		providerId: 'credential',
+		userId: createdUser.id,
+		password: '358bf30ca7ceede1e8a4d050ffdd9455:c7e6aea60a40807311e1b8dc7e5087ed9a14e391df2c11aeac6730535adea98798d780ded59b3c69dd38c41076315dd471556b0ab58550ce9b8a27ca998c6e3a', // password
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	await db.insert(account).values(accountData);
+
+	// Create website
+	const websiteData = {
+		id: faker.string.uuid(),
+		domain: domain,
+		name: 'Example Website',
+		status: 'ACTIVE' as const,
+		userId: createdUser.id,
+		isPublic: true,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		deletedAt: null
+	};
+
+	const [createdWebsite] = await db.insert(websites).values(websiteData).returning();
+	console.log(`Created website: ${createdWebsite.domain}`);
+
+	console.log('PostgreSQL seeding completed');
+
+	return {
+		user: createdUser,
+		website: createdWebsite
+	};
+}
+
 (async () => {
+	// First seed PostgreSQL with mock data
+	const pgData = await seedPostgreSQL();
+
+	// Use the seeded website's ID as client ID and domain for ClickHouse events
+	const actualClientId = pgData.website.id;
+	const actualDomain = pgData.website.domain;
+
 	console.log(
-		`Generating ${eventCount} events for client: ${clientId} on domain: ${domain}`
+		`Generating ${eventCount} events for client: ${actualClientId} on domain: ${actualDomain}`
 	);
 	console.log(
 		`Creating realistic journeys: ${UNIQUE_USERS} users across ${TOTAL_SESSIONS} sessions`
 	);
 
-	const events = Array.from({ length: eventCount }, (_, index) =>
-		createSingleEvent(clientId, domain, index)
-	);
+	// Generate events
+	const events: any[] = [];
+	const customEvents: any[] = [];
+	const outgoingLinks: any[] = [];
+
+	for (let index = 0; index < eventCount; index++) {
+		const event = createSingleEvent(actualClientId, actualDomain, index);
+
+		// Separate custom events and outgoing links for special handling
+		if (CUSTOM_EVENTS.includes(event.event_name)) {
+			customEvents.push({
+				id: event.id,
+				client_id: event.client_id,
+				event_name: event.event_name,
+				anonymous_id: event.anonymous_id,
+				session_id: event.session_id,
+				properties: event.properties,
+				timestamp: event.time,
+			});
+		} else if (event.event_name === 'link_out') {
+			const props = JSON.parse(event.properties);
+			outgoingLinks.push({
+				id: event.id,
+				client_id: event.client_id,
+				anonymous_id: event.anonymous_id,
+				session_id: event.session_id,
+				href: props.href || '',
+				text: props.text || null,
+				properties: event.properties,
+				timestamp: event.time,
+			});
+		}
+		else {
+			events.push(event);
+		}
+	}
 
 	// Sort events by time to ensure chronological order
 	events.sort((a, b) => a.time - b.time);
 
-	// Separate events by type
-	const mainEvents = events.filter(event => 
-		event.event_name === 'screen_view' || event.event_name === 'page_exit'
-	);
-	const customEvents = events.filter(event => 
-		CUSTOM_EVENTS.includes(event.event_name)
-	).map(event => ({
-		id: event.id,
-		client_id: event.client_id,
-		event_name: event.event_name,
-		anonymous_id: event.anonymous_id,
-		session_id: event.session_id,
-		properties: event.properties,
-		timestamp: event.time,
-	}));
-	const outgoingLinks = events.filter(event => 
-		event.event_name === 'link_out'
-	).map(event => {
-		const props = JSON.parse(event.properties);
-		return {
-			id: event.id,
-			client_id: event.client_id,
-			anonymous_id: event.anonymous_id,
-			session_id: event.session_id,
-			href: props.href || '',
-			text: props.text || null,
-			properties: event.properties,
-			timestamp: event.time,
-		};
-	});
-
 	// Insert main events (screen_view and page_exit)
-	if (mainEvents.length > 0) {
+	if (events.length > 0) {
 		await clickHouse.insert({
 			table: TABLE_NAMES.events,
 			format: 'JSONEachRow',
-			values: mainEvents,
+			values: events,
 		});
-		console.log(`Inserted ${mainEvents.length} main events for client ${clientId}`);
+		console.log(`Inserted ${events.length} main events for client ${actualClientId}`);
 	}
 
 	// Insert custom events
@@ -729,7 +803,7 @@ function createWebVitalsEvent(
 			format: 'JSONEachRow',
 			values: customEvents,
 		});
-		console.log(`Inserted ${customEvents.length} custom events for client ${clientId}`);
+		console.log(`Inserted ${customEvents.length} custom events for client ${actualClientId}`);
 	}
 
 	// Insert outgoing links
@@ -745,7 +819,7 @@ function createWebVitalsEvent(
 	// Generate and insert error events (about 5% of event count)
 	const errorCount = Math.floor(eventCount * 0.05);
 	const errors = Array.from({ length: errorCount }, (_, index) =>
-		createErrorEvent(clientId, domain, index)
+		createErrorEvent(actualClientId, actualDomain, index)
 	);
 
 	if (errors.length > 0) {
@@ -754,13 +828,13 @@ function createWebVitalsEvent(
 			format: 'JSONEachRow',
 			values: errors,
 		});
-		console.log(`Inserted ${errors.length} error events for client ${clientId}`);
+		console.log(`Inserted ${errors.length} error events for client ${actualClientId}`);
 	}
 
 	// Generate and insert web vitals events (about 10% of event count, only for screen_view like events)
 	const webVitalsCount = Math.floor(eventCount * 0.1);
 	const webVitals = Array.from({ length: webVitalsCount }, (_, index) =>
-		createWebVitalsEvent(clientId, domain, index)
+		createWebVitalsEvent(actualClientId, actualDomain, index)
 	);
 
 	if (webVitals.length > 0) {
@@ -769,6 +843,6 @@ function createWebVitalsEvent(
 			format: 'JSONEachRow',
 			values: webVitals,
 		});
-		console.log(`Inserted ${webVitals.length} web vitals events for client ${clientId}`);
+		console.log(`Inserted ${webVitals.length} web vitals events for client ${actualClientId}`);
 	}
 })();
