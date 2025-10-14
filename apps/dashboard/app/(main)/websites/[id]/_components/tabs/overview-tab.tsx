@@ -22,7 +22,7 @@ import {
 	StatCard,
 	UnauthorizedAccessError,
 } from '@/components/analytics';
-import { MetricsChart } from '@/components/charts/metrics-chart';
+import { MetricsChartWithAnnotations } from '@/components/charts/metrics-chart-with-annotations';
 import { BrowserIcon, OSIcon } from '@/components/icon';
 import { DataTable } from '@/components/table/data-table';
 import {
@@ -984,12 +984,18 @@ export function WebsiteOverviewTab({
 					</div>
 				</div>
 				<div>
-					<MetricsChart
+					<MetricsChartWithAnnotations
+						websiteId={websiteId}
 						className="rounded border-0"
 						data={chartData}
 						height={350}
 						isLoading={isLoading}
 						onRangeSelect={setDateRangeAction}
+						dateRange={{
+							startDate: new Date(dateRange.start_date),
+							endDate: new Date(dateRange.end_date),
+							granularity: dateRange.granularity as 'hourly' | 'daily' | 'weekly' | 'monthly',
+						}}
 					/>
 				</div>
 			</div>
