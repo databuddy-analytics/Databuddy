@@ -1,1 +1,0 @@
-export { Databuddy } from './Databuddy';
