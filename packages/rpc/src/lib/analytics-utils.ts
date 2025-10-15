@@ -111,17 +111,53 @@ const buildStepQuery = (
 	const whereCondition = buildWhereCondition(step, params);
 	const referrerSelect = includeReferrer ? ', any(referrer) as referrer' : '';
 
+	// For PAGE_VIEW, only query analytics.events
+	if (step.type === 'PAGE_VIEW') {
+		return `
+			SELECT 
+				${stepIndex + 1} as step_number,
+				{${stepNameKey}:String} as step_name,
+				session_id,
+				MIN(time) as first_occurrence${referrerSelect}
+			FROM analytics.events
+			WHERE client_id = {websiteId:String}
+				AND time >= parseDateTimeBestEffort({startDate:String})
+				AND time <= parseDateTimeBestEffort({endDate:String})
+				AND ${whereCondition}${filterConditions}
+			GROUP BY session_id`;
+	}
+
+	// For custom EVENT, query both analytics.events and analytics.custom_events
+	const targetKey = `target_${step.step_number - 1}`;
+	const referrerSelectCustom = includeReferrer ? ", '' as referrer" : '';
+
 	return `
 		SELECT 
 			${stepIndex + 1} as step_number,
 			{${stepNameKey}:String} as step_name,
 			session_id,
-			MIN(time) as first_occurrence${referrerSelect}
-		FROM analytics.events
-		WHERE client_id = {websiteId:String}
-			AND time >= parseDateTimeBestEffort({startDate:String})
-			AND time <= parseDateTimeBestEffort({endDate:String})
-			AND ${whereCondition}${filterConditions}
+			MIN(first_occurrence) as first_occurrence${referrerSelect}
+		FROM (
+			SELECT 
+				session_id,
+				time as first_occurrence${includeReferrer ? ', referrer' : ''}
+			FROM analytics.events
+			WHERE client_id = {websiteId:String}
+				AND time >= parseDateTimeBestEffort({startDate:String})
+				AND time <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = {${targetKey}:String}${filterConditions}
+			
+			UNION ALL
+			
+			SELECT 
+				session_id,
+				timestamp as first_occurrence${referrerSelectCustom}
+			FROM analytics.custom_events
+			WHERE client_id = {websiteId:String}
+				AND timestamp >= parseDateTimeBestEffort({startDate:String})
+				AND timestamp <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = {${targetKey}:String}
+		)
 		GROUP BY session_id`;
 };
 
