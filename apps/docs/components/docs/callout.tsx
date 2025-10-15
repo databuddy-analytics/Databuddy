@@ -69,7 +69,7 @@ function Callout({
 	children,
 	...props
 }: CalloutProps) {
-	const Icon = iconMap[type as keyof typeof iconMap];
+	const Icon = iconMap[type as keyof typeof iconMap] || iconMap.info;
 
 	return (
 		<SciFiCard

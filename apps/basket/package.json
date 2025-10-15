@@ -4,7 +4,12 @@
   "packageManager": "bun@1.2.12",
   "scripts": {
     "dev": "bun --watch run src/index.ts --port 3002",
-    "start": "bun run src/index.ts --port 3002"
+    "start": "bun run src/index.ts --port 3002",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:routes": "bun test src/routes/*.test.ts",
+    "test:utils": "bun test src/utils/*.test.ts",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
     "@clickhouse/client": "catalog:",
