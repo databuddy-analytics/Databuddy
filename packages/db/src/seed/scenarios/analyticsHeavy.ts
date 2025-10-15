@@ -5,7 +5,7 @@ import {
 	buildUserPool,
 	createAnalyticsResources,
 	isCustomEvent,
-	makeAnalyticsEvent,
+	makeSessionEvents,
 	makeErrorEvent,
 	makeWebVitalsEvent,
 	toCustomEventRecord,
@@ -52,22 +52,23 @@ export async function runAnalyticsHeavyScenario(
 	const customEvents: AnalyticsCustomEventRecord[] = [];
 	const outgoingLinks: AnalyticsOutgoingLinkRecord[] = [];
 
-	for (let index = 0; index < totalEvents; index++) {
-		const event = makeAnalyticsEvent(ctx, {
+	// Generate events per session for realistic flow
+	for (const session of sessionPool) {
+		const sessionEvents = makeSessionEvents(ctx, {
 			clientId,
 			domain,
-			eventIndex: index,
-			totalEvents,
-			sessions: sessionPool,
+			session,
 			resources,
 		});
 
-		if (isCustomEvent(event.event_name)) {
-			customEvents.push(toCustomEventRecord(event));
-		} else if (event.event_name === 'link_out') {
-			outgoingLinks.push(toOutgoingLinkRecord(event));
-		} else {
-			mainEvents.push(event);
+		for (const event of sessionEvents) {
+			if (isCustomEvent(event.event_name)) {
+				customEvents.push(toCustomEventRecord(event));
+			} else if (event.event_name === 'link_out') {
+				outgoingLinks.push(toOutgoingLinkRecord(event));
+			} else {
+				mainEvents.push(event);
+			}
 		}
 	}
 

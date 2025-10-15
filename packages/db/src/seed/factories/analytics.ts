@@ -14,7 +14,7 @@ const CUSTOM_EVENTS = [
 	'login',
 	'logout',
 	'purchase',
-	'add_to_cart',
+	'add_to_cart',		
 	'remove_from_cart',
 	'checkout_started',
 	'search',
@@ -301,74 +301,161 @@ export function buildSessionPool(
 	});
 }
 
-export interface MakeAnalyticsEventParams {
+export interface MakeSessionEventsParams {
 	clientId: string;
 	domain: string;
-	eventIndex: number;
-	totalEvents: number;
-	sessions: AnalyticsSession[];
+	session: AnalyticsSession;
 	resources: AnalyticsResources;
 }
 
-export function makeAnalyticsEvent(
+/**
+ * Generate a realistic sequence of events for a single session.
+ * Flow: screen_view → interactions on same path → page_exit → repeat for next page
+ */
+export function makeSessionEvents(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,
-	params: MakeAnalyticsEventParams
-): AnalyticsEventRecord {
-	const { clientId, domain, eventIndex, totalEvents, sessions, resources } =
-		params;
+	params: MakeSessionEventsParams
+): AnalyticsEventRecord[] {
+	const { clientId, domain, session, resources } = params;
 	const { faker } = ctx;
-
-	const session = resolveSessionForEvent(ctx, sessions, resources, {
-		eventIndex,
-		totalEvents,
-	});
 	const user = session.user;
-
-	const maxSessionDuration = 2 * 60 * 60 * 1000;
-	// Compute eventsPerSession based on the total events and number of sessions to avoid undefined reference
-	const safeSessionCount = Math.max(1, sessions.length);
-	const eventsPerSession = Math.max(1, Math.ceil(totalEvents / safeSessionCount));
-	const sessionProgress =
-		(eventIndex % eventsPerSession) / Math.max(1, eventsPerSession - 1);
-	const baseTime = addMs(
-		session.sessionStartTime,
-		sessionProgress * maxSessionDuration
+	
+	const events: AnalyticsEventRecord[] = [];
+	const targetEventCount = session.eventsInSession;
+	const maxSessionDuration = 2 * 60 * 60 * 1000; // 2 hours max
+	
+	// Determine how many pages to visit in this session (1-5)
+	const pagesInSession = Math.min(
+		faker.number.int({ min: 1, max: 5 }),
+		targetEventCount
 	);
-
-	const path = faker.helpers.arrayElement(resources.paths);
-	const isLastEventInSession =
-		sessionProgress > 0.8 || faker.datatype.boolean({ probability: 0.2 });
-
-	let eventName: string;
-	if (isLastEventInSession && faker.datatype.boolean({ probability: 0.8 })) {
-		eventName = 'page_exit';
-	} else {
-		eventName = faker.helpers.weightedArrayElement([
-			{ weight: 70, value: 'screen_view' },
-			{ weight: 5, value: 'link_out' },
-			{
-				weight: 25,
-				value: faker.helpers.arrayElement(CUSTOM_EVENTS),
-			},
-		]);
+	
+	let currentTime = session.sessionStartTime;
+	let pageCount = 0;
+	
+	for (let pageIndex = 0; pageIndex < pagesInSession; pageIndex++) {
+		const path = faker.helpers.arrayElement(resources.paths);
+		const isLastPage = pageIndex === pagesInSession - 1;
+		
+		// 1. screen_view (page load)
+		const screenViewEvent = makeEventBase(ctx, {
+			clientId,
+			domain,
+			session,
+			path,
+			eventName: 'screen_view',
+			time: currentTime,
+			pageCount: ++pageCount,
+		});
+		
+		// Add load timing for screen_view
+		screenViewEvent.load_time = faker.number.int({ min: 200, max: 5000 });
+		screenViewEvent.dom_ready_time = faker.number.int({ min: 50, max: 2000 });
+		screenViewEvent.dom_interactive = faker.number.int({ min: 50, max: 2000 });
+		screenViewEvent.ttfb = faker.number.int({ min: 50, max: 1000 });
+		screenViewEvent.connection_time = faker.number.int({ min: 10, max: 200 });
+		screenViewEvent.request_time = faker.number.int({ min: 20, max: 500 });
+		screenViewEvent.render_time = faker.number.int({ min: 50, max: 1000 });
+		screenViewEvent.redirect_time = faker.number.int({ min: 0, max: 100 });
+		screenViewEvent.domain_lookup_time = faker.number.int({ min: 5, max: 100 });
+		screenViewEvent.time_on_page = faker.number.float({ min: 5, max: 600, fractionDigits: 1 });
+		
+		events.push(screenViewEvent);
+		currentTime = addMs(currentTime, faker.number.int({ min: 1000, max: 5000 }));
+		
+		// 2. Interactions on this page (custom events, link_out)
+		const remainingSlots = targetEventCount - events.length - (isLastPage ? 1 : 2); // reserve for exit
+		const maxInteractions = Math.max(0, Math.min(3, remainingSlots));
+		const interactionsOnPage = isLastPage
+			? Math.max(0, remainingSlots)
+			: (maxInteractions > 0 ? faker.number.int({ min: 0, max: maxInteractions }) : 0);
+		
+		for (let i = 0; i < interactionsOnPage; i++) {
+			const interactionType = faker.helpers.weightedArrayElement([
+				{ weight: 80, value: 'custom' },
+				{ weight: 20, value: 'link_out' },
+			]);
+			
+			const eventName = interactionType === 'link_out'
+				? 'link_out'
+				: faker.helpers.arrayElement(CUSTOM_EVENTS);
+			
+			const interactionEvent = makeEventBase(ctx, {
+				clientId,
+				domain,
+				session,
+				path,
+				eventName,
+				time: currentTime,
+				pageCount,
+			});
+			
+			events.push(interactionEvent);
+			currentTime = addMs(currentTime, faker.number.int({ min: 500, max: 3000 }));
+		}
+		
+		// 3. page_exit (always on last page, optional on others)
+		const shouldExit = isLastPage || faker.datatype.boolean({ probability: 0.7 });
+		if (shouldExit) {
+			const exitEvent = makeEventBase(ctx, {
+				clientId,
+				domain,
+				session,
+				path,
+				eventName: 'page_exit',
+				time: currentTime,
+				pageCount,
+			});
+			
+			// Add exit metrics
+			exitEvent.time_on_page = faker.number.float({ min: 5, max: 600, fractionDigits: 1 });
+			exitEvent.scroll_depth = faker.number.float({ min: 10, max: 100, fractionDigits: 1 });
+			exitEvent.interaction_count = faker.number.int({ min: 0, max: 50 });
+			exitEvent.event_id = `exit_${session.sessionId}_${Buffer.from(path).toString('base64')}_${currentTime}`;
+			
+			events.push(exitEvent);
+			currentTime = addMs(currentTime, faker.number.int({ min: 1000, max: 3000 }));
+		}
+		
+		// Stop if we've hit target event count
+		if (events.length >= targetEventCount) {
+			break;
+		}
 	}
+	
+	return events;
+}
 
+/**
+ * Create base event structure (shared fields)
+ */
+function makeEventBase(
+	ctx: Pick<SeedContext, 'faker' | 'now'>,
+	options: {
+		clientId: string;
+		domain: string;
+		session: AnalyticsSession;
+		path: string;
+		eventName: string;
+		time: number;
+		pageCount: number;
+	}
+): AnalyticsEventRecord {
+	const { faker } = ctx;
+	const { clientId, domain, session, path, eventName, time, pageCount } = options;
+	const user = session.user;
+	
 	const customProps = generateCustomProperties(ctx, eventName);
-	const isPageExit = eventName === 'page_exit';
-
-	const eventId = isPageExit
-		? `exit_${session.sessionId}_${Buffer.from(path).toString('base64')}_${baseTime}`
-		: undefined;
-
+	
 	return {
 		id: createId(faker),
 		client_id: clientId,
 		event_name: eventName,
 		anonymous_id: session.anonymousId,
-		time: baseTime,
+		time,
 		session_id: session.sessionId,
 		event_type: 'track',
-		event_id: eventId,
+		event_id: undefined,
 		session_start_time: session.sessionStartTime,
 		referrer: session.referrer === 'direct' ? undefined : session.referrer,
 		url: `https://${domain}${path}`,
@@ -405,20 +492,10 @@ export function makeAnalyticsEvent(
 		]),
 		rtt: faker.number.int({ min: 10, max: 500 }),
 		downlink: faker.number.float({ min: 1, max: 100, fractionDigits: 1 }),
-		time_on_page:
-			isPageExit || eventName === 'screen_view'
-				? faker.number.float({ min: 5, max: 600, fractionDigits: 1 })
-				: undefined,
-		scroll_depth: isPageExit
-			? faker.number.float({ min: 10, max: 100, fractionDigits: 1 })
-			: undefined,
-		interaction_count: isPageExit
-			? faker.number.int({ min: 0, max: 50 })
-			: undefined,
-		page_count:
-			eventName === 'screen_view' || isPageExit
-				? faker.number.int({ min: 1, max: 10 })
-				: 1,
+		time_on_page: undefined,
+		scroll_depth: undefined,
+		interaction_count: undefined,
+		page_count: pageCount,
 		utm_source: faker.helpers.maybe(
 			() =>
 				faker.helpers.arrayElement(['google', 'facebook', 'twitter', 'email']),
@@ -437,44 +514,17 @@ export function makeAnalyticsEvent(
 		utm_content: faker.helpers.maybe(() => faker.lorem.word(), {
 			probability: 0.1,
 		}),
-		load_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 200, max: 5000 })
-				: undefined,
-		dom_ready_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 50, max: 2000 })
-				: undefined,
-		dom_interactive:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 50, max: 2000 })
-				: undefined,
-		ttfb:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 50, max: 1000 })
-				: undefined,
-		connection_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 10, max: 200 })
-				: undefined,
-		request_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 20, max: 500 })
-				: undefined,
-		render_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 50, max: 1000 })
-				: undefined,
-		redirect_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 0, max: 100 })
-				: undefined,
-		domain_lookup_time:
-			eventName === 'screen_view'
-				? faker.number.int({ min: 5, max: 100 })
-				: undefined,
+		load_time: undefined,
+		dom_ready_time: undefined,
+		dom_interactive: undefined,
+		ttfb: undefined,
+		connection_time: undefined,
+		request_time: undefined,
+		render_time: undefined,
+		redirect_time: undefined,
+		domain_lookup_time: undefined,
 		properties: JSON.stringify(customProps),
-		created_at: baseTime,
+		created_at: time,
 	};
 }
 
@@ -622,31 +672,7 @@ export function makeWebVitalsEvent(
 	};
 }
 
-interface SessionResolutionContext {
-	eventIndex: number;
-	totalEvents: number;
-}
 
-function resolveSessionForEvent(
-	ctx: Pick<SeedContext, 'faker' | 'now'>,
-	sessions: AnalyticsSession[],
-	resources: AnalyticsResources,
-	meta: SessionResolutionContext
-): AnalyticsSession {
-	if (sessions.length === 0) {
-		return createSyntheticSession(ctx, resources);
-	}
-
-	const safeSessionCount = Math.max(1, sessions.length);
-	const eventsPerSession = Math.max(
-		1,
-		Math.ceil(meta.totalEvents / safeSessionCount)
-	);
-	const sessionIndex = Math.floor(meta.eventIndex / eventsPerSession);
-	const boundedIndex = Math.min(sessionIndex, sessions.length - 1);
-
-	return sessions[boundedIndex] ?? sessions[sessions.length - 1];
-}
 
 function pickSession(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,

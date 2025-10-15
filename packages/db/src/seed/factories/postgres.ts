@@ -8,7 +8,7 @@ export type NewAccount = InferInsertModel<typeof account>;
 export type NewWebsite = InferInsertModel<typeof websites>;
 
 const DEFAULT_HASHED_PASSWORD =
-	'358bf30ca7ceede1e8a4d050ffdd9455:c7e6aea60a40807311e1b8dc7e5087ed9a14e391df2c11aeac6730535adea98798d780ded59b3c69dd38c41076315dd471556b0ab58550ce9b8a27ca998c6e3a';
+	'358bf30ca7ceede1e8a4d050ffdd9455:c7e6aea60a40807311e1b8dc7e5087ed9a14e391df2c11aeac6730535adea98798d780ded59b3c69dd38c41076315dd471556b0ab58550ce9b8a27ca998c6e3a'; // "password"
 
 export function makeUser(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,
