@@ -59,12 +59,12 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				finishReason: result.finishReason,
 				toolCallCount: toolCalls.length,
 				toolResultCount: toolResults.length,
-				inputTokenCostUSD: consts.inputUSD,
-				outputTokenCostUSD: consts.outputUSD,
-				totalTokenCostUSD: consts.totalUSD,
+				inputTokenCostUSD: consts.inputTokenCostUSD,
+				outputTokenCostUSD: consts.outputTokenCostUSD,
+				totalTokenCostUSD: consts.totalTokenCostUSD,
 				toolCallNames,
 			};
-			buddy.track('ai.generate', payload);
+			buddy.track({name: 'ai.generate', properties: payload});
 
 			return result;
 		},
