@@ -1,15 +1,12 @@
 'use client';
 
 import {
-	ClockIcon,
 	DeviceMobileIcon,
 	DeviceTabletIcon,
 	GlobeIcon,
 	InfoIcon,
 	LaptopIcon,
-	MapPinIcon,
 	MonitorIcon,
-	TranslateIcon,
 	WifiHighIcon,
 	WifiLowIcon,
 } from '@phosphor-icons/react';
@@ -18,39 +15,30 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import { useCallback, useEffect, useMemo } from 'react';
-import { DataTable } from '@/components/analytics/data-table';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { BrowserIcon } from '@/components/icon';
+import { DataTable } from '@/components/table/data-table';
+import {
+	createGeoColumns,
+	createIconTextColumns,
+	createLanguageColumns,
+	createTimezoneColumns,
+} from '@/components/table/rows';
+
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
-import {
-	PercentageBadge,
-	type TechnologyTableEntry,
-} from '../utils/technology-helpers';
+import { PercentageBadge } from '../utils/technology-helpers';
 import type { FullTabProps } from '../utils/types';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-interface GeographicEntry {
-	name: string;
-	visitors: number;
-	pageviews: number;
-	percentage: number;
-	country_code?: string;
-	country_name?: string;
-}
-
-interface ConnectionEntry extends TechnologyTableEntry {
-	category: 'connection';
-	iconComponent: React.ReactNode;
-}
-
 interface BrowserVersion {
 	version: string;
 	visitors: number;
 	pageviews: number;
+	percentage?: number;
 }
 
 interface BrowserEntry {
@@ -66,25 +54,7 @@ interface ScreenResolutionEntry {
 	name: string;
 	visitors: number;
 	pageviews?: number;
-}
-
-interface DeviceData {
-	browser_name: string[];
-	browser_versions: string[];
-	os_name: string[];
-	screen_resolution: ScreenResolutionEntry[];
-	connection_type: string[];
-}
-
-interface ProcessedData {
-	geographic: {
-		countries: GeographicEntry[];
-		regions: GeographicEntry[];
-		cities: GeographicEntry[];
-		timezones: GeographicEntry[];
-		languages: GeographicEntry[];
-	};
-	device: DeviceData;
+	percentage?: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -183,74 +153,28 @@ export function WebsiteAudienceTab({
 		}
 	}, [isRefreshing, handleRefresh]);
 
-	const onAddFilter = useCallback(
-		(field: string, value: string) => {
-			addFilter({
-				field,
-				operator: 'eq' as const,
-				value,
-			});
-		},
-		[addFilter]
-	);
+	const geographicData = useMemo(() => {
+		const result = batchResults?.find((r) => r.queryId === 'geographic-data');
+		return result?.data || {};
+	}, [batchResults]);
 
-	const processedData = useMemo((): ProcessedData => {
-		if (!batchResults?.length) {
-			return {
-				geographic: {
-					countries: [],
-					regions: [],
-					cities: [],
-					timezones: [],
-					languages: [],
-				},
-				device: {
-					browser_name: [],
-					browser_versions: [],
-					os_name: [],
-					screen_resolution: [],
-					connection_type: [],
-				},
-			};
-		}
-
-		const geographicResult = batchResults.find(
-			(r) => r.queryId === 'geographic-data'
-		);
-		const deviceResult = batchResults.find((r) => r.queryId === 'device-data');
-
-		const geographicData = geographicResult?.data || {};
-		const deviceData = deviceResult?.data || {};
-
-		return {
-			geographic: {
-				countries: geographicData.country || [],
-				regions: geographicData.region || [],
-				cities: geographicData.city || [],
-				timezones: geographicData.timezone || [],
-				languages: geographicData.language || [],
-			},
-			device: {
-				browser_name: deviceData.browser_name || [],
-				browser_versions: deviceData.browser_versions || [],
-				os_name: deviceData.os_name || [],
-				screen_resolution: deviceData.screen_resolution || [],
-				connection_type: deviceData.connection_type || [],
-			},
-		};
+	const deviceData = useMemo(() => {
+		const result = batchResults?.find((r) => r.queryId === 'device-data');
+		return result?.data || {};
 	}, [batchResults]);
 
 	const processedBrowserData = useMemo((): BrowserEntry[] => {
-		const browserVersions = processedData.device.browser_versions || [];
-		const browserData = processedData.device.browser_name || [];
+		const browserVersions = deviceData.browser_versions || [];
+		const browserData = deviceData.browser_name || [];
 
 		return browserData.map((browser: any) => {
 			const versions = browserVersions
-				.filter((version: any) => version.name.startsWith(`${browser.name} `))
+				.filter((version: any) => version.browser_name === browser.name)
 				.map((version: any) => ({
-					version: version.name.slice(browser.name.length + 1),
+					version: version.browser_version,
 					visitors: version.visitors,
 					pageviews: version.pageviews,
+					percentage: version.percentage,
 				}));
 
 			return {
@@ -259,18 +183,7 @@ export function WebsiteAudienceTab({
 				versions,
 			};
 		});
-	}, [
-		processedData.device.browser_name,
-		processedData.device.browser_versions,
-	]);
-
-	const processedConnectionData = useMemo((): ConnectionEntry[] => {
-		return (processedData.device.connection_type || []).map((item: any) => ({
-			...item,
-			iconComponent: getConnectionIcon(item.name || ''),
-			category: 'connection' as const,
-		}));
-	}, [processedData.device.connection_type]);
+	}, [deviceData.browser_name, deviceData.browser_versions]);
 
 	const isLoading = isBatchLoading || isRefreshing;
 
@@ -341,344 +254,34 @@ export function WebsiteAudienceTab({
 		[]
 	);
 
-	const connectionColumns = useMemo(
-		(): ColumnDef<ConnectionEntry>[] => [
-			{
-				id: 'name',
-				accessorKey: 'name',
-				header: 'Connection Type',
-				cell: (info: CellContext<ConnectionEntry, any>) => {
-					const entry = info.row.original;
-					return (
-						<div className="flex items-center gap-3">
-							{entry.iconComponent}
-							<span className="font-medium">{entry.name}</span>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<ConnectionEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<ConnectionEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[]
-	);
+	const connectionColumns = createIconTextColumns({
+		header: 'Connection Type',
+		getIcon: getConnectionIcon,
+	});
 
-	const geographicColumns = useMemo(
-		(): ColumnDef<GeographicEntry>[] => [
-			{
-				id: 'name',
-				accessorKey: 'name',
-				header: 'Location',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const name = info.getValue() as string;
-					return (
-						<div className="flex items-center gap-2">
-							<GlobeIcon className="h-4 w-4 text-primary" />
-							<span className="font-medium">{name}</span>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'pageviews',
-				accessorKey: 'pageviews',
-				header: 'Pageviews',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[]
-	);
+	const countryColumns = createGeoColumns({ type: 'country' });
 
-	const countryColumns = useMemo(
-		(): ColumnDef<GeographicEntry>[] => [
-			{
-				id: 'country',
-				accessorKey: 'country_name',
-				header: 'Country',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const entry = info.row.original;
-					const code = entry.country_code;
-					const name = entry.country_name || entry.name || 'Unknown';
-					return (
-						<div className="flex items-center gap-2">
-							{code && code !== 'Unknown' ? (
-								<img
-									alt={code}
-									className="h-4 w-5 rounded-sm bg-muted object-cover"
-									onError={(e) => {
-										(e.target as HTMLImageElement).style.display = 'none';
-									}}
-									src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${code.toUpperCase()}.svg`}
-								/>
-							) : (
-								<GlobeIcon className="h-3 w-3 text-muted-foreground" />
-							)}
-							<span className="font-medium">{name}</span>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'pageviews',
-				accessorKey: 'pageviews',
-				header: 'Pageviews',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[]
-	);
+	const timezoneColumns = createTimezoneColumns();
 
-	const timezoneColumns = useMemo(
-		(): ColumnDef<GeographicEntry>[] => [
-			{
-				id: 'name',
-				accessorKey: 'name',
-				header: 'Timezone',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const entry = info.row.original;
-					const timezoneName = entry.name;
-					return (
-						<div className="flex items-center gap-2">
-							<ClockIcon className="h-4 w-4 text-primary" />
-							<div>
-								<div className="font-medium">{timezoneName}</div>
-							</div>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'current_time',
-				header: 'Current Time',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const entry = info.row.original;
-					const timezoneName = entry.name;
-					let currentTime = '-';
-					try {
-						if (timezoneName) {
-							currentTime = dayjs().tz(timezoneName).format('hh:mm A');
-						}
-					} catch {}
-					return <span className="font-mono text-xs">{currentTime}</span>;
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'pageviews',
-				accessorKey: 'pageviews',
-				header: 'Pageviews',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[]
-	);
+	const displayNames =
+		typeof window !== 'undefined'
+			? new Intl.DisplayNames([navigator.language || 'en'], {
+					type: 'language',
+				})
+			: null;
 
-	// Feature detection for Intl.DisplayNames
-	const canUseDisplayNames = useMemo(() => {
-		if (typeof window === 'undefined') {
-			return false;
-		}
-		try {
-			// Try to construct and use .of
-			const dn = new Intl.DisplayNames([navigator.language || 'en'], {
-				type: 'language',
-			});
-			return typeof dn.of === 'function' && !!dn.of('en');
-		} catch {
-			return false;
-		}
-	}, []);
+	const languageColumns = createLanguageColumns(displayNames);
 
-	const displayNames = useMemo(
-		() =>
-			typeof window !== 'undefined'
-				? new Intl.DisplayNames([navigator.language || 'en'], {
-						type: 'language',
-					})
-				: null,
-		[]
-	);
+	const regionColumns = createGeoColumns({ type: 'region' });
 
-	const languageColumns = useMemo(
-		(): ColumnDef<GeographicEntry>[] => [
-			{
-				id: 'name',
-				accessorKey: 'name',
-				header: 'Language',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const entry = info.row.original;
-					const language = entry.name;
-					const code = (entry as any).code;
-					let readableName = language;
-					try {
-						readableName = displayNames?.of(language) || language;
-					} catch {
-						readableName = language;
-					}
-					return (
-						<div className="flex items-center gap-2">
-							<TranslateIcon className="h-4 w-4 text-primary" />
-							<div>
-								<div className="font-medium">{readableName}</div>
-								{code && code !== language && (
-									<div className="text-muted-foreground text-xs">{code}</div>
-								)}
-							</div>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'pageviews',
-				accessorKey: 'pageviews',
-				header: 'Pageviews',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[displayNames]
-	);
-
-	const cityColumns = useMemo(
-		(): ColumnDef<GeographicEntry>[] => [
-			{
-				id: 'name',
-				accessorKey: 'name',
-				header: 'City',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const name = info.getValue() as string;
-					return (
-						<div className="flex items-center gap-2">
-							<MapPinIcon className="h-4 w-4 text-primary" />
-							<span className="font-medium">{name}</span>
-						</div>
-					);
-				},
-			},
-			{
-				id: 'visitors',
-				accessorKey: 'visitors',
-				header: 'Visitors',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'pageviews',
-				accessorKey: 'pageviews',
-				header: 'Pageviews',
-				cell: (info: CellContext<GeographicEntry, any>) => (
-					<span className="font-medium">{formatNumber(info.getValue())}</span>
-				),
-			},
-			{
-				id: 'percentage',
-				accessorKey: 'percentage',
-				header: 'Share',
-				cell: (info: CellContext<GeographicEntry, any>) => {
-					const percentage = info.getValue() as number;
-					return <PercentageBadge percentage={percentage} />;
-				},
-			},
-		],
-		[]
-	);
+	const cityColumns = createGeoColumns({ type: 'city' });
 
 	const geographicTabs = useMemo(
 		() => [
 			{
 				id: 'countries',
 				label: 'Countries',
-				data: processedData.geographic.countries,
+				data: geographicData.country || [],
 				columns: countryColumns,
 				getFilter: (row: any) => ({
 					field: 'country',
@@ -688,8 +291,8 @@ export function WebsiteAudienceTab({
 			{
 				id: 'regions',
 				label: 'Regions',
-				data: processedData.geographic.regions,
-				columns: geographicColumns,
+				data: geographicData.region || [],
+				columns: regionColumns,
 				getFilter: (row: any) => ({
 					field: 'region',
 					value: row.name,
@@ -698,19 +301,19 @@ export function WebsiteAudienceTab({
 			{
 				id: 'cities',
 				label: 'Cities',
-				data: processedData.geographic.cities,
+				data: geographicData.city || [],
 				columns: cityColumns,
 				getFilter: (row: any) => ({
 					field: 'city',
 					value: row.name,
 				}),
 			},
-			...(canUseDisplayNames
+			...(displayNames
 				? [
 						{
 							id: 'languages',
 							label: 'Languages',
-							data: processedData.geographic.languages,
+							data: geographicData.language || [],
 							columns: languageColumns,
 							getFilter: (row: any) => ({
 								field: 'language',
@@ -722,7 +325,7 @@ export function WebsiteAudienceTab({
 			{
 				id: 'timezones',
 				label: 'Timezones',
-				data: processedData.geographic.timezones,
+				data: geographicData.timezone || [],
 				columns: timezoneColumns,
 				getFilter: (row: any) => ({
 					field: 'timezone',
@@ -731,17 +334,12 @@ export function WebsiteAudienceTab({
 			},
 		],
 		[
-			processedData.geographic.countries,
-			processedData.geographic.regions,
-			processedData.geographic.cities,
-			processedData.geographic.languages,
-			processedData.geographic.timezones,
-			countryColumns,
-			geographicColumns,
-			cityColumns,
-			languageColumns,
-			timezoneColumns,
-			canUseDisplayNames,
+			geographicData.country,
+			geographicData.region,
+			geographicData.city,
+			geographicData.language,
+			geographicData.timezone,
+			displayNames,
 		]
 	);
 
@@ -763,8 +361,11 @@ export function WebsiteAudienceTab({
 					getSubRows={(row: any) => row.versions}
 					isLoading={isLoading}
 					minHeight={350}
-					onAddFilter={onAddFilter}
+					onAddFilter={(field: string, value: string) =>
+						addFilter({ field, operator: 'eq' as const, value })
+					}
 					renderSubRow={(subRow: any, parentRow: any) => {
+						// Calculate percentage relative to parent browser (not total visitors)
 						const percentage = Math.round(
 							((subRow.visitors || 0) / (parentRow.visitors || 1)) * 100
 						);
@@ -833,17 +434,19 @@ export function WebsiteAudienceTab({
 
 				<DataTable
 					columns={connectionColumns}
-					data={processedConnectionData}
+					data={deviceData.connection_type || []}
 					description="Visitors by network connection"
 					isLoading={isLoading}
 					minHeight={350}
-					onAddFilter={onAddFilter}
+					onAddFilter={(field: string, value: string) =>
+						addFilter({ field, operator: 'eq' as const, value })
+					}
 					showSearch={false}
 					tabs={[
 						{
 							id: 'connections',
 							label: 'Connection Types',
-							data: processedConnectionData,
+							data: deviceData.connection_type || [],
 							columns: connectionColumns,
 							getFilter: (row: any) => ({
 								field: 'connection_type',
@@ -863,7 +466,9 @@ export function WebsiteAudienceTab({
 						initialPageSize={8}
 						isLoading={isLoading}
 						minHeight={400}
-						onAddFilter={onAddFilter}
+						onAddFilter={(field: string, value: string) =>
+							addFilter({ field, operator: 'eq' as const, value })
+						}
 						tabs={geographicTabs}
 						title="Geographic Distribution"
 					/>
@@ -908,11 +513,11 @@ export function WebsiteAudienceTab({
 								))}
 							</div>
 						</div>
-					) : processedData.device.screen_resolution?.length ? (
+					) : deviceData.screen_resolution?.length ? (
 						<div className="space-y-4">
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-								{processedData.device.screen_resolution
-									?.slice(0, 6)
+								{(deviceData.screen_resolution || [])
+									.slice(0, 6)
 									.map((item: ScreenResolutionEntry) => {
 										const resolution = item.name;
 										if (!resolution) {
@@ -923,15 +528,7 @@ export function WebsiteAudienceTab({
 											Number.isNaN(width) || Number.isNaN(height)
 										);
 
-										const totalVisitors =
-											processedData.device.screen_resolution?.reduce(
-												(sum: number, resItem: ScreenResolutionEntry) =>
-													sum + resItem.visitors,
-												0
-											) || 1;
-										const percentage = Math.round(
-											(item.visitors / totalVisitors) * 100
-										);
+										const percentage = item.percentage || 0;
 
 										let deviceType = 'Unknown';
 										let deviceIcon = (
@@ -1073,12 +670,11 @@ export function WebsiteAudienceTab({
 									})}
 							</div>
 
-							{processedData.device.screen_resolution &&
-								processedData.device.screen_resolution.length > 6 && (
+							{deviceData.screen_resolution &&
+								deviceData.screen_resolution.length > 6 && (
 									<div className="border-border/30 border-t pt-2 text-center text-muted-foreground text-xs">
-										Showing top 6 of{' '}
-										{processedData.device.screen_resolution.length} screen
-										resolutions
+										Showing top 6 of {deviceData.screen_resolution.length}{' '}
+										screen resolutions
 									</div>
 								)}
 						</div>

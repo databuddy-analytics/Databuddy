@@ -7,11 +7,11 @@ import {
 	createPageColumn,
 	errorColumns,
 } from './error-table-columns';
+import type { ErrorType, ErrorByPage } from './types';
 
-// Dynamically import DataTable for better performance
 const DataTable = dynamic(
 	() =>
-		import('@/components/analytics/data-table').then((mod) => ({
+		import('@/components/table/data-table').then((mod) => ({
 			default: mod.DataTable,
 		})),
 	{
@@ -22,8 +22,8 @@ const DataTable = dynamic(
 
 interface ErrorDataTableProps {
 	processedData: {
-		error_types: Record<string, unknown>[];
-		errors_by_page: Record<string, unknown>[];
+		error_types: ErrorType[];
+		errors_by_page: ErrorByPage[];
 	};
 	isLoading: boolean;
 	isRefreshing: boolean;

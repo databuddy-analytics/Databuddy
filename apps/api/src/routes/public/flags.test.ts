@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
 	evaluateFlag,
 	evaluateRule,
@@ -822,7 +822,7 @@ describe('Flag Evaluation System', () => {
 			// First evaluation - establish baseline
 			for (const userId of testUserIds) {
 				for (const flag of flags) {
-					const context = contexts.find((c) => c.userId === userId);
+					const context = contexts.find((c) => c.userId === userId)!;
 					const result = evaluateFlag(flag, context);
 					baselineResults[`${userId}-${flag.key}`] = result.enabled;
 				}
@@ -831,7 +831,7 @@ describe('Flag Evaluation System', () => {
 			for (let evaluation = 0; evaluation < 1000; evaluation++) {
 				for (const userId of testUserIds) {
 					for (const flag of flags) {
-						const context = contexts.find((c) => c.userId === userId);
+						const context = contexts.find((c) => c.userId === userId)!;
 						const result = evaluateFlag(flag, context);
 						const key = `${userId}-${flag.key}`;
 

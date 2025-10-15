@@ -1,3 +1,2 @@
-export { FlagsProvider } from './flags-provider';
+export { FlagsProvider, useFlags } from './flags-provider';
 export * from './types';
-export * from './use-flags';

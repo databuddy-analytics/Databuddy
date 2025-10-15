@@ -847,6 +847,16 @@ export const flagStatus = pgEnum('flag_status', [
 	'archived',
 ]);
 
+export const annotationType = pgEnum('annotation_type', [
+	'point',
+	'line',
+	'range',
+]);
+
+export const chartType = pgEnum('chart_type', [
+	'metrics',
+]);
+
 export const dbConnections = pgTable(
 	'db_connections',
 	{
@@ -951,6 +961,48 @@ export const flags = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: 'flags_created_by_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('restrict'),
+	]
+);
+
+export const annotations = pgTable(
+	'annotations',
+	{
+		id: text().primaryKey().notNull(),
+		websiteId: text('website_id').notNull(),
+		chartType: chartType('chart_type').notNull(),
+		chartContext: jsonb('chart_context').notNull(),
+		annotationType: annotationType('annotation_type').notNull(),
+		xValue: timestamp('x_value', { precision: 3 }).notNull(),
+		xEndValue: timestamp('x_end_value', { precision: 3 }),
+		yValue: integer('y_value'),
+		text: text().notNull(),
+		tags: text('tags').array(),
+		color: text().default('#3B82F6').notNull(),
+		isPublic: boolean('is_public').default(false).notNull(),
+		createdBy: text('created_by').notNull(),
+		createdAt: timestamp('created_at', { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp('deleted_at', { precision: 3 }),
+	},
+	(table) => [
+		index('annotations_website_id_idx').using(
+			'btree',
+			table.websiteId.asc().nullsLast().op('text_ops')
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: 'annotations_website_id_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: 'annotations_created_by_fkey',
 		})
 			.onUpdate('cascade')
 			.onDelete('restrict'),

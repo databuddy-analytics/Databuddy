@@ -11,6 +11,8 @@ export interface NavigationItem {
 	production?: boolean;
 	domain?: string;
 	disabled?: boolean;
+	hideFromDemo?: boolean;
+	showOnlyOnDemo?: boolean;
 	badge?: {
 		text: string;
 		variant: 'purple' | 'blue' | 'green' | 'orange' | 'red';
@@ -28,4 +30,5 @@ export interface Category {
 	name: string;
 	icon: Icon;
 	production?: boolean;
+	hideFromDemo?: boolean;
 }

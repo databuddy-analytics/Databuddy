@@ -85,15 +85,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				e.session_id,
 				e.anonymous_id,
 				e.event_name,
-				toTimeZone(e.time, {timezone:String}) as normalized_time,
-				sa.session_referrer as referrer,
-				sa.session_utm_source as utm_source,
-				sa.session_utm_medium as utm_medium,
-				sa.session_utm_campaign as utm_campaign,
-				sa.session_country as country,
-				sa.session_device_type as device_type,
-				sa.session_browser_name as browser_name,
-				sa.session_os_name as os_name
+				toTimeZone(e.time, {timezone:String}) as normalized_time
 			FROM analytics.events e
 			${helpers.sessionAttributionJoin('e')}
 			WHERE 
@@ -318,15 +310,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     e.session_id,
                     e.anonymous_id,
                     e.event_name,
-                    toTimeZone(e.time, {timezone:String}) as normalized_time,
-                    sa.session_referrer as referrer,
-                    sa.session_utm_source as utm_source,
-                    sa.session_utm_medium as utm_medium,
-                    sa.session_utm_campaign as utm_campaign,
-                    sa.session_country as country,
-                    sa.session_device_type as device_type,
-                    sa.session_browser_name as browser_name,
-                    sa.session_os_name as os_name
+                    toTimeZone(e.time, {timezone:String}) as normalized_time
                   FROM analytics.events e
                   ${helpers.sessionAttributionJoin('e')}
                   WHERE 
@@ -356,12 +340,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					sql: `
                 WITH ${sessionAttributionCTE}
                 ${baseEventsQuery}
-                hour_range AS (
-                  SELECT arrayJoin(arrayMap(
-                    h -> toStartOfHour(toTimeZone(toDateTime(concat({startDate:String}, ' 00:00:00')) + (h * 3600), {timezone:String})),
-                    range(toUInt32(dateDiff('hour', toDateTime(concat({startDate:String}, ' 00:00:00')), toDateTime(concat({endDate:String}, ' 23:59:59'))) + 1))
-                  )) AS datetime
-                ),
                 session_details AS (
                   SELECT
                     session_id,
@@ -389,9 +367,9 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                   GROUP BY event_hour
                 )
                 SELECT
-                  formatDateTime(hr.datetime, '%Y-%m-%d %H:00:00') as date,
-                  COALESCE(hem.pageviews, 0) as pageviews,
-                  COALESCE(hem.unique_visitors, 0) as visitors,
+                  formatDateTime(hem.event_hour, '%Y-%m-%d %H:00:00') as date,
+                  hem.pageviews as pageviews,
+                  hem.unique_visitors as visitors,
                   COALESCE(hsm.sessions, 0) as sessions,
                   ROUND(CASE 
                     WHEN COALESCE(hsm.sessions, 0) > 0 
@@ -401,13 +379,12 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                   ROUND(COALESCE(hsm.median_session_duration, 0), 2) as avg_session_duration,
                   ROUND(CASE 
                     WHEN COALESCE(hsm.sessions, 0) > 0 
-                    THEN COALESCE(hem.pageviews, 0) / COALESCE(hsm.sessions, 0) 
+                    THEN hem.pageviews / COALESCE(hsm.sessions, 0) 
                     ELSE 0 
                   END, 2) as pages_per_session
-                FROM hour_range hr
-                LEFT JOIN hourly_session_metrics hsm ON hr.datetime = hsm.event_hour
-                LEFT JOIN hourly_event_metrics hem ON hr.datetime = hem.event_hour
-                ORDER BY hr.datetime ASC
+                FROM hourly_event_metrics hem
+                LEFT JOIN hourly_session_metrics hsm ON hem.event_hour = hsm.event_hour
+                ORDER BY hem.event_hour ASC
             `,
 					params: {
 						websiteId,
@@ -431,15 +408,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     e.session_id,
                     e.anonymous_id,
                     e.event_name,
-                    toTimeZone(e.time, {timezone:String}) as normalized_time,
-                    sa.session_referrer as referrer,
-                    sa.session_utm_source as utm_source,
-                    sa.session_utm_medium as utm_medium,
-                    sa.session_utm_campaign as utm_campaign,
-                    sa.session_country as country,
-                    sa.session_device_type as device_type,
-                    sa.session_browser_name as browser_name,
-                    sa.session_os_name as os_name
+                    toTimeZone(e.time, {timezone:String}) as normalized_time
                   FROM analytics.events e
                   ${helpers.sessionAttributionJoin('e')}
                   WHERE
@@ -469,12 +438,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				sql: `
                 WITH ${sessionAttributionCTE}
                 ${baseEventsQuery}
-                date_range AS (
-                  SELECT arrayJoin(arrayMap(
-                    d -> toDate({startDate:String}) + d,
-                    range(toUInt32(dateDiff('day', toDate({startDate:String}), toDate({endDate:String})) + 1))
-                  )) AS date
-                ),
                 session_details AS (
                   SELECT
                     session_id,
@@ -502,9 +465,9 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                   GROUP BY event_date
                 )
                 SELECT
-                  dr.date,
-                  COALESCE(dem.pageviews, 0) as pageviews,
-                  COALESCE(dem.unique_visitors, 0) as visitors,
+                  dem.event_date as date,
+                  dem.pageviews as pageviews,
+                  dem.unique_visitors as visitors,
                   COALESCE(dsm.sessions, 0) as sessions,
                   ROUND(CASE 
                     WHEN COALESCE(dsm.sessions, 0) > 0 
@@ -514,13 +477,12 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                   ROUND(COALESCE(dsm.median_session_duration, 0), 2) as avg_session_duration,
                   ROUND(CASE 
                     WHEN COALESCE(dsm.sessions, 0) > 0 
-                    THEN COALESCE(dem.pageviews, 0) / COALESCE(dsm.sessions, 0) 
+                    THEN dem.pageviews / COALESCE(dsm.sessions, 0) 
                     ELSE 0 
                   END, 2) as pages_per_session
-                FROM date_range dr
-                LEFT JOIN daily_session_metrics dsm ON dr.date = dsm.session_start_date
-                LEFT JOIN daily_event_metrics dem ON dr.date = dem.event_date
-                ORDER BY dr.date ASC
+                FROM daily_event_metrics dem
+                LEFT JOIN daily_session_metrics dsm ON dem.event_date = dsm.session_start_date
+                ORDER BY dem.event_date ASC
             `,
 				params: {
 					websiteId,

@@ -32,12 +32,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDbConnection } from '@/hooks/use-db-connections';
 import { trpc } from '@/lib/trpc';
-import {
-	ExtensionSearch,
-	ExtensionStats,
-	ExtensionTabs,
-	PluginsPageHeader,
-} from './_components';
+import { ExtensionSearch, ExtensionStats, ExtensionTabs } from './_components';
 
 interface ExtensionsPageProps {
 	params: Promise<{ id: string }>;
@@ -45,34 +40,37 @@ interface ExtensionsPageProps {
 
 function LoadingState() {
 	return (
-		<>
-			{/* Header skeleton */}
-			<div className="space-y-4">
-				<div className="flex items-center gap-3">
-					<Skeleton className="h-12 w-12 rounded-lg" />
-					<div className="space-y-2">
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded border border-primary/20 bg-primary/10 p-3">
+						<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div className="flex-1">
 						<Skeleton className="h-8 w-64" />
-						<Skeleton className="h-4 w-96" />
+						<Skeleton className="mt-2 h-4 w-96" />
+					</div>
+					<Skeleton className="h-10 w-32" />
+				</div>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Stats skeleton */}
+				<ExtensionStats
+					isLoading={true}
+					stats={{ installed: 0, available: 0, updates: 0 }}
+				/>
+
+				{/* Content skeleton */}
+				<div className="space-y-4">
+					<Skeleton className="h-10 w-full max-w-md" />
+					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+						{Array.from({ length: 6 }).map((_, i) => (
+							<Skeleton className="h-48 w-full rounded" key={i.toString()} />
+						))}
 					</div>
 				</div>
 			</div>
-
-			{/* Stats skeleton */}
-			<ExtensionStats
-				isLoading={true}
-				stats={{ installed: 0, available: 0, updates: 0 }}
-			/>
-
-			{/* Content skeleton */}
-			<div className="space-y-4">
-				<Skeleton className="h-10 w-full max-w-md" />
-				<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-					{Array.from({ length: 6 }).map((_, i) => (
-						<Skeleton className="h-48 w-full rounded" key={i.toString()} />
-					))}
-				</div>
-			</div>
-		</>
+		</div>
 	);
 }
 
@@ -601,132 +599,149 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 	};
 
 	return (
-		<>
-			{/* Header */}
-			<PluginsPageHeader
-				description="Manage database extensions with production-safe operations"
-				icon={<DatabaseIcon className="h-6 w-6" weight="duotone" />}
-				onInstallExtension={() => setInstallDialog(true)}
-				stats={stats}
-				title="PostgreSQL Extensions"
-			/>
-
-			{/* Success Banner */}
-			{success && (
-				<Alert className="items-center border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
-					<CheckIcon className="h-4 w-4" color="green" />
-					<AlertDescription className="flex items-center justify-between">
-						<span className="text-green-800 dark:text-green-200">
-							{success}
-						</span>
-						<Button onClick={() => setSuccess(null)} size="sm" variant="ghost">
-							Dismiss
-						</Button>
-					</AlertDescription>
-				</Alert>
-			)}
-
-			{/* Error Banner */}
-			{error && (
-				<Alert className="items-center border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
-					<WarningIcon className="h-4 w-4" color="red" />
-					<AlertDescription className="flex items-center justify-between">
-						<span className="text-red-800 dark:text-red-200">{error}</span>
-						<Button onClick={() => setError(null)} size="sm" variant="ghost">
-							Dismiss
-						</Button>
-					</AlertDescription>
-				</Alert>
-			)}
-
-			{/* Stats */}
-			<ExtensionStats stats={stats} />
-
-			{/* Search */}
-			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-				<ExtensionSearch
-					onSearchChange={setSearch}
-					placeholder="Search extensions by name or description..."
-					search={search}
-				/>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div className="flex-1">
+						<h1 className="font-bold text-2xl tracking-tight">
+							PostgreSQL Extensions
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Manage database extensions with production-safe operations
+						</p>
+					</div>
+					<Button onClick={() => setInstallDialog(true)} variant="outline">
+						<PlusIcon className="mr-2 h-4 w-4" />
+						Install Extension
+					</Button>
+				</div>
 			</div>
 
-			{/* Extensions Tabs */}
-			<ExtensionTabs
-				availableExtensions={filteredAvailable}
-				canManage={true}
-				installedExtensions={filteredInstalled}
-				loadingStates={{
-					installing: installMutation.isPending
-						? installMutation.variables?.extensionName
-						: undefined,
-					updating: updateMutation.isPending
-						? updateMutation.variables?.extensionName
-						: undefined,
-					removing: removeMutation.isPending
-						? removeMutation.variables?.extensionName
-						: undefined,
-					resetting: resetMutation.isPending
-						? resetMutation.variables?.extensionName
-						: undefined,
-				}}
-				onClearSearch={() => setSearch('')}
-				onInstall={(ext) => handleInstall(ext.name)}
-				onInstallExtension={() => setInstallDialog(true)}
-				onRemove={(ext) => setRemoveDialog(ext.name)}
-				onReset={(ext) =>
-					resetMutation.mutate({
-						id: connectionId,
-						extensionName: ext.name,
-					})
-				}
-				onUpdate={(ext) =>
-					updateMutation.mutate({
-						id: connectionId,
-						extensionName: ext.name,
-					})
-				}
-				searchTerm={search}
-			/>
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Success Banner */}
+				{success && (
+					<Alert className="items-center border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+						<CheckIcon className="h-4 w-4" color="green" />
+						<AlertDescription className="flex items-center justify-between">
+							<span className="text-green-800 dark:text-green-200">
+								{success}
+							</span>
+							<Button
+								onClick={() => setSuccess(null)}
+								size="sm"
+								variant="ghost"
+							>
+								Dismiss
+							</Button>
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Dialogs */}
-			<InstallDialog
-				availableExtensions={availableExtensions}
-				isLoading={installMutation.isPending}
-				onInstall={handleInstall}
-				onOpenChange={setInstallDialog}
-				open={installDialog}
-			/>
+				{/* Error Banner */}
+				{error && (
+					<Alert className="items-center border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
+						<WarningIcon className="h-4 w-4" color="red" />
+						<AlertDescription className="flex items-center justify-between">
+							<span className="text-red-800 dark:text-red-200">{error}</span>
+							<Button onClick={() => setError(null)} size="sm" variant="ghost">
+								Dismiss
+							</Button>
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Configuration Required Dialog */}
-			<ConfigurationRequiredDialog
-				extensionName={configDialog.extensionName}
-				onOpenChange={(open) => {
-					if (!open) {
-						setConfigDialog({ open: false, extensionName: '', warnings: [] });
+				{/* Stats */}
+				<ExtensionStats stats={stats} />
+
+				{/* Search */}
+				<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+					<ExtensionSearch
+						onSearchChange={setSearch}
+						placeholder="Search extensions by name or description..."
+						search={search}
+					/>
+				</div>
+
+				{/* Extensions Tabs */}
+				<ExtensionTabs
+					availableExtensions={filteredAvailable}
+					canManage={true}
+					installedExtensions={filteredInstalled}
+					loadingStates={{
+						installing: installMutation.isPending
+							? installMutation.variables?.extensionName
+							: undefined,
+						updating: updateMutation.isPending
+							? updateMutation.variables?.extensionName
+							: undefined,
+						removing: removeMutation.isPending
+							? removeMutation.variables?.extensionName
+							: undefined,
+						resetting: resetMutation.isPending
+							? resetMutation.variables?.extensionName
+							: undefined,
+					}}
+					onClearSearch={() => setSearch('')}
+					onInstall={(ext) => handleInstall(ext.name)}
+					onInstallExtension={() => setInstallDialog(true)}
+					onRemove={(ext) => setRemoveDialog(ext.name)}
+					onReset={(ext) =>
+						resetMutation.mutate({
+							id: connectionId,
+							extensionName: ext.name,
+						})
 					}
-				}}
-				open={configDialog.open}
-				warnings={configDialog.warnings}
-			/>
-
-			{/* Remove Extension Dialog */}
-			<RemoveExtensionDialog
-				extensionName={removeDialog}
-				forceCascade={forceCascade}
-				isLoading={removeMutation.isPending}
-				onForceCascadeChange={setForceCascade}
-				onOpenChange={(open) => {
-					if (!open) {
-						setRemoveDialog(null);
-						setRemoveWarnings([]);
-						setForceCascade(false);
+					onUpdate={(ext) =>
+						updateMutation.mutate({
+							id: connectionId,
+							extensionName: ext.name,
+						})
 					}
-				}}
-				onRemove={handleRemove}
-				open={!!removeDialog}
-				warnings={removeWarnings}
-			/>
-		</>
+					searchTerm={search}
+				/>
+
+				{/* Dialogs */}
+				<InstallDialog
+					availableExtensions={availableExtensions}
+					isLoading={installMutation.isPending}
+					onInstall={handleInstall}
+					onOpenChange={setInstallDialog}
+					open={installDialog}
+				/>
+
+				{/* Configuration Required Dialog */}
+				<ConfigurationRequiredDialog
+					extensionName={configDialog.extensionName}
+					onOpenChange={(open) => {
+						if (!open) {
+							setConfigDialog({ open: false, extensionName: '', warnings: [] });
+						}
+					}}
+					open={configDialog.open}
+					warnings={configDialog.warnings}
+				/>
+
+				{/* Remove Extension Dialog */}
+				<RemoveExtensionDialog
+					extensionName={removeDialog}
+					forceCascade={forceCascade}
+					isLoading={removeMutation.isPending}
+					onForceCascadeChange={setForceCascade}
+					onOpenChange={(open) => {
+						if (!open) {
+							setRemoveDialog(null);
+							setRemoveWarnings([]);
+							setForceCascade(false);
+						}
+					}}
+					onRemove={handleRemove}
+					open={!!removeDialog}
+					warnings={removeWarnings}
+				/>
+			</div>
+		</div>
 	);
 }

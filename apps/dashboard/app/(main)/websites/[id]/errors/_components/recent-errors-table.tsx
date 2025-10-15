@@ -1,26 +1,25 @@
 'use client';
 
-import type { ErrorEvent } from '@databuddy/shared';
 import { GlobeIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { DataTable } from '@/components/analytics/data-table';
 import { CountryFlag } from '@/components/analytics/icons/CountryFlag';
 import { BrowserIcon, OSIcon } from '@/components/icon';
+import { DataTable } from '@/components/table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { ErrorDetailModal } from './error-detail-modal';
 import { getErrorTypeIcon } from './error-icons';
 import { formatDateTime, getErrorCategory, getSeverityColor } from './utils';
+import type { RecentError } from './types';
 
 interface Props {
-	recentErrors: ErrorEvent[];
-	isLoading: boolean;
+	recentErrors: RecentError[];
 }
 
-export const RecentErrorsTable = ({ recentErrors, isLoading }: Props) => {
-	const [selectedError, setSelectedError] = useState<ErrorEvent | null>(null);
+export const RecentErrorsTable = ({ recentErrors }: Props) => {
+	const [selectedError, setSelectedError] = useState<RecentError | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	const handleViewError = (error: ErrorEvent) => {
+	const handleViewError = (error: RecentError) => {
 		setSelectedError(error);
 		setIsModalOpen(true);
 	};
@@ -32,7 +31,7 @@ export const RecentErrorsTable = ({ recentErrors, isLoading }: Props) => {
 			header: 'Error',
 			cell: (info: any) => {
 				const message = info.getValue() as string;
-				const row = info.row.original as ErrorEvent;
+				const row = info.row.original as RecentError;
 				const { type, severity } = getErrorCategory(message);
 
 				return (
@@ -122,7 +121,7 @@ export const RecentErrorsTable = ({ recentErrors, isLoading }: Props) => {
 			accessorKey: 'country',
 			header: 'Location',
 			cell: (info: any) => {
-				const row = info.row.original as ErrorEvent;
+				const row = info.row.original as RecentError;
 				const countryCode = row.country_code;
 				const countryName = row.country_name || row.country;
 
@@ -166,7 +165,6 @@ export const RecentErrorsTable = ({ recentErrors, isLoading }: Props) => {
 				}))}
 				emptyMessage="No recent errors found"
 				initialPageSize={10}
-				isLoading={isLoading}
 				minHeight={400}
 				onRowAction={(row) => handleViewError(row)}
 				showSearch={true}

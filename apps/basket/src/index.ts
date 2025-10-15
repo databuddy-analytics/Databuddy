@@ -4,7 +4,6 @@ import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
 import basketRouter from './routes/basket';
 import emailRouter from './routes/email';
-import observabilityRouter from './routes/observability';
 import stripeRouter from './routes/stripe';
 import './polyfills/compression';
 // import { checkBotId } from "botid/server";
@@ -37,7 +36,6 @@ const app = new Elysia()
 	.use(basketRouter)
 	.use(stripeRouter)
 	.use(emailRouter)
-	.use(observabilityRouter)
 	.get('/health', () => ({ status: 'ok', version: '1.0.0' }));
 
 export default {

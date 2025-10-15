@@ -13,6 +13,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from '../schemas';
+import { databuddy } from '../lib/databuddy';
 
 interface QueryParams {
 	start_date?: string;
@@ -213,6 +214,13 @@ export const query = new Elysia({ prefix: '/v1/query' })
 					: null;
 
 				const result = compileQuery(body as QueryRequest, websiteDomain);
+				databuddy.track({
+					name: 'compile_query',
+					properties: {
+						website_id,
+						website_domain: websiteDomain,
+					},
+				});
 				return {
 					success: true,
 					...result,
@@ -317,10 +325,35 @@ async function executeDynamicQuery(
 		? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
 		: null;
 
-	const getTimeUnit = (granularity?: string): 'hour' | 'day' => {
-		if (['hourly', 'hour'].includes(granularity || '')) {
+	const MAX_HOURLY_DAYS = 7;
+	const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+	const validateHourlyDateRange = (start: string, end: string) => {
+		const rangeDays = Math.ceil(
+			(new Date(end).getTime() - new Date(start).getTime()) / MS_PER_DAY
+		);
+		
+		if (rangeDays > MAX_HOURLY_DAYS) {
+			throw new Error(
+				`Hourly granularity only supports ranges up to ${MAX_HOURLY_DAYS} days. Use daily granularity for longer periods.`
+			);
+		}
+	};
+
+	const getTimeUnit = (
+		granularity?: string,
+		startDate?: string,
+		endDate?: string
+	): 'hour' | 'day' => {
+		const isHourly = ['hourly', 'hour'].includes(granularity || '');
+		
+		if (isHourly) {
+			if (startDate && endDate) {
+				validateHourlyDateRange(startDate, endDate);
+			}
 			return 'hour';
 		}
+		
 		return 'day';
 	};
 
@@ -405,7 +438,11 @@ async function executeDynamicQuery(
 				type: parameterName,
 				from: validation.start,
 				to: validation.end,
-				timeUnit: getTimeUnit(paramGranularity),
+				timeUnit: getTimeUnit(
+					paramGranularity,
+					validation.start,
+					validation.end
+				),
 				filters: dynamicRequest.filters || [],
 				limit: dynamicRequest.limit || 100,
 				offset: dynamicRequest.page

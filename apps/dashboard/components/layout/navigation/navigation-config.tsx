@@ -1,564 +1,322 @@
 import {
-	BookOpenIcon,
-	BugIcon,
-	BuildingsIcon,
+	EyeIcon,
+	GearIcon,
+	PlusIcon,
 	ChartBarIcon,
-	ChartLineIcon,
 	ChartLineUpIcon,
-	ClockIcon,
+	ChartPieIcon,
+	TrendUpIcon,
+	ActivityIcon,
+	PulseIcon,
+	UserIcon,
+	UserCircleIcon,
+	UsersThreeIcon,
+	UserGearIcon,
+	IdentificationCardIcon,
+	GlobeIcon,
+	GlobeSimpleIcon,
+	BuildingsIcon,
+	MonitorIcon,
+	NetworkIcon,
+	BookOpenIcon,
+	PlayIcon,
+	RoadHorizonIcon,
+	SpeakerHighIcon,
+	ShieldCheckIcon,
+	KeyIcon,
+	PlugIcon,
+	DatabaseIcon,
+	TableIcon,
+	FileArrowDownIcon,
+	MagnifyingGlassIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
-	DatabaseIcon,
-	EyeIcon,
+	ReceiptIcon,
+	StorefrontIcon,
 	FlagIcon,
 	FunnelIcon,
-	GearIcon,
-	GlobeIcon,
-	HandEyeIcon,
-	HouseIcon,
-	IdentificationCardIcon,
-	KeyIcon,
-	MapPinIcon,
-	PlayIcon,
-	PlugIcon,
-	RabbitIcon,
-	RoadHorizonIcon,
-	ShieldIcon,
-	SparkleIcon,
-	SpeakerHighIcon,
-	TableIcon,
 	TargetIcon,
-	TestTubeIcon,
-	UserCircleIcon,
-	UserIcon,
-	UsersIcon,
-	UsersThreeIcon,
+	RobotIcon,
+	LightningIcon,
+	BugIcon,
+	MapPinIcon,
 	WarningIcon,
+	CalendarIcon,
+	ArrowSquareOutIcon,
 } from '@phosphor-icons/react';
-import type { NavigationSection } from './types';
+import type { Category, NavigationSection } from './types';
+	
+const createNavItem = (
+	name: string,
+	icon: any,
+	href: string,
+	options: Record<string, any> = {}
+) => ({
+	name,
+	icon,
+	href,
+	rootLevel: true,
+	...options,
+});
+
+const createNavSection = (
+	title: string,
+	icon: any,
+	items: NavigationSection['items']
+): NavigationSection => ({
+	title,
+	icon,
+	items,
+});
+
+export const filterCategoriesForRoute = (categories: Category[], pathname: string) => {
+	const isDemo = pathname.startsWith('/demo');
+	return categories.filter(category => !(category.hideFromDemo && isDemo));
+};
+
+const createDynamicNavigation = <T extends { id: string; name: string | null }>(
+	items: T[],
+	title: string,
+	titleIcon: any,
+	overviewName: string,
+	overviewHref: string,
+	itemIcon: any,
+	itemHrefPrefix: string,
+	emptyText: string,
+	extraProps?: (item: T) => Record<string, any>
+): NavigationSection[] => [
+	createNavSection(title, titleIcon, [
+		createNavItem(overviewName, ChartBarIcon, overviewHref, { highlight: true }),
+		...(items.length > 0
+			? items.map(item => 
+				createNavItem(item.name || '', itemIcon, `${itemHrefPrefix}/${item.id}`, {
+					highlight: true,
+					...(extraProps?.(item) || {}),
+				})
+			)
+			: [createNavItem(emptyText, PlusIcon, overviewHref, { highlight: true, disabled: true })]
+		),
+	]),
+];
 
 export const createWebsitesNavigation = (
 	websites: Array<{ id: string; name: string | null; domain: string }>
-): NavigationSection[] => [
-	{
-		title: 'Websites',
-		icon: GlobeIcon,
-		items: [
-			{
-				name: 'All Websites',
-				icon: HouseIcon,
-				href: '/websites',
-				rootLevel: true,
-				highlight: true,
-			},
-			...(websites.length > 0
-				? websites.map((website) => ({
-						name: website.name || website.domain,
-						icon: GlobeIcon,
-						href: `/websites/${website.id}`,
-						rootLevel: true,
-						highlight: true,
-						domain: website.domain,
-					}))
-				: [
-						{
-							name: 'Add Your First Website',
-							icon: GlobeIcon,
-							href: '/websites',
-							rootLevel: true,
-							highlight: true,
-							disabled: true,
-						},
-					]),
-		],
-	},
-];
+): NavigationSection[] => 
+	createDynamicNavigation(
+		websites,
+		'Websites',
+		GlobeSimpleIcon,
+		'Website Overview',
+		'/websites',
+		GlobeIcon,
+		'/websites',
+		'Add Your First Website',
+		(website) => ({ domain: website.domain })
+	);
 
 export const personalNavigation: NavigationSection[] = [
-	{
-		title: 'Personal Settings',
-		icon: UserCircleIcon,
-		items: [
-			{
-				name: 'Profile',
-				icon: IdentificationCardIcon,
-				href: '/settings?tab=profile',
-				rootLevel: true,
-			},
-			{
-				name: 'Account Settings',
-				icon: GearIcon,
-				href: '/settings?tab=account',
-				rootLevel: true,
-			},
-			{
-				name: 'Privacy & Security',
-				icon: ShieldIcon,
-				href: '/settings?tab=security',
-				rootLevel: true,
-			},
-			{
-				name: 'Personal API Keys',
-				icon: KeyIcon,
-				href: '/settings?tab=api-keys',
-				rootLevel: true,
-			},
-			{
-				name: 'Integrations',
-				icon: PlugIcon,
-				href: '/settings?tab=integrations',
-				rootLevel: true,
-			},
-		],
-	},
+	createNavSection('Personal Settings', UserGearIcon, [
+		createNavItem('Profile', IdentificationCardIcon, '/settings?tab=profile'),
+		createNavItem('Account', GearIcon, '/settings?tab=account'),
+		createNavItem('Security', ShieldCheckIcon, '/settings?tab=security'),
+		createNavItem('API Keys', KeyIcon, '/settings?tab=api-keys'),
+		createNavItem('Integrations', PlugIcon, '/settings?tab=integrations'),
+	]),
 ];
 
 export const resourcesNavigation: NavigationSection[] = [
-	{
-		title: 'Resources',
-		icon: BookOpenIcon,
-		items: [
-			{
-				name: 'Documentation',
-				icon: BookOpenIcon,
-				href: 'https://databuddy.cc/docs',
-				rootLevel: true,
-				external: true,
-				highlight: true,
-			},
-			{
-				name: 'Video Guides',
-				icon: PlayIcon,
-				href: 'https://youtube.com/@trydatabuddy',
-				rootLevel: true,
-				external: true,
-				highlight: true,
-			},
-			{
-				name: 'Roadmap',
-				icon: RoadHorizonIcon,
-				href: 'https://trello.com/b/SOUXD4wE/databuddy',
-				rootLevel: true,
-				external: true,
-				highlight: true,
-			},
-			{
-				name: 'Feedback',
-				icon: SpeakerHighIcon,
-				href: 'https://databuddy.featurebase.app/',
-				rootLevel: true,
-				external: true,
-				highlight: true,
-			},
-		],
-	},
+	createNavSection('Resources', BookOpenIcon, [
+		createNavItem('Documentation', BookOpenIcon, 'https://databuddy.cc/docs', { external: true, highlight: true }),
+		createNavItem('Video Guides', PlayIcon, 'https://youtube.com/@trydatabuddy', { external: true, highlight: true }),
+		createNavItem('Roadmap', RoadHorizonIcon, 'https://trello.com/b/SOUXD4wE/databuddy', { external: true, highlight: true }),
+		createNavItem('Feedback', SpeakerHighIcon, 'https://databuddy.featurebase.app/', { external: true, highlight: true }),
+	]),
 ];
 
 export const organizationNavigation: NavigationSection[] = [
-	{
-		title: 'Organizations',
-		icon: BuildingsIcon,
-		items: [
-			{
-				name: 'All Organizations',
-				icon: BuildingsIcon,
-				href: '/organizations',
-				rootLevel: true,
-			},
-		],
-	},
-	{
-		title: 'Team Management',
-		icon: UsersThreeIcon,
-		items: [
-			{
-				name: 'Members',
-				icon: UserIcon,
-				href: '/organizations/members',
-				rootLevel: true,
-			},
-			{
-				name: 'Invitations',
-				icon: ClockIcon,
-				href: '/organizations/invitations',
-				rootLevel: true,
-			},
-		],
-	},
-	{
-		title: 'Organization Settings',
-		icon: GearIcon,
-		items: [
-			{
-				name: 'General',
-				icon: GearIcon,
-				href: '/organizations/settings',
-				rootLevel: true,
-			},
-			{
-				name: 'Website Access',
-				icon: GlobeIcon,
-				href: '/organizations/settings/websites',
-				rootLevel: true,
-			},
-			{
-				name: 'API Keys',
-				icon: KeyIcon,
-				href: '/organizations/settings/api-keys',
-				rootLevel: true,
-			},
-			{
-				name: 'Danger Zone',
-				icon: WarningIcon,
-				href: '/organizations/settings/danger',
-				rootLevel: true,
-			},
-		],
-	},
+	createNavSection('Organizations', BuildingsIcon, [
+		createNavItem('Organization Overview', ChartPieIcon, '/organizations'),
+	]),
+	createNavSection('Team Management', UsersThreeIcon, [
+		createNavItem('Members', UserIcon, '/organizations/members'),
+		createNavItem('Invitations', CalendarIcon, '/organizations/invitations'),
+	]),
+	createNavSection('Organization Settings', GearIcon, [
+		createNavItem('General', GearIcon, '/organizations/settings'),
+		createNavItem('Website Access', GlobeSimpleIcon, '/organizations/settings/websites'),
+		createNavItem('API Keys', KeyIcon, '/organizations/settings/api-keys'),
+		createNavItem('Danger Zone', WarningIcon, '/organizations/settings/danger'),
+	]),
 ];
 
 export const billingNavigation: NavigationSection[] = [
-	{
-		title: 'Billing & Usage',
-		icon: CreditCardIcon,
-		items: [
-			{
-				name: 'Usage & Metrics',
-				icon: ChartBarIcon,
-				href: '/billing?tab=overview',
-				rootLevel: true,
-			},
-			{
-				name: 'Plans & Pricing',
-				icon: CurrencyDollarIcon,
-				href: '/billing?tab=plans',
-				rootLevel: true,
-			},
-			{
-				name: 'Payment History',
-				icon: ClockIcon,
-				href: '/billing?tab=history',
-				rootLevel: true,
-			},
-			{
-				name: 'Cost Breakdown',
-				icon: ChartLineUpIcon,
-				href: '/billing/cost-breakdown',
-				rootLevel: true,
-				badge: {
-					text: 'Experimental',
-					variant: 'purple' as const,
-				},
-			},
-		],
-	},
+	createNavSection('Billing & Usage', CreditCardIcon, [
+		createNavItem('Usage Overview', ActivityIcon, '/billing?tab=overview'),
+		createNavItem('Plans & Pricing', CurrencyDollarIcon, '/billing?tab=plans'),
+		createNavItem('Payment History', ReceiptIcon, '/billing?tab=history'),
+		createNavItem('Cost Breakdown', ChartLineUpIcon, '/billing/cost-breakdown', {
+			badge: { text: 'Experimental', variant: 'purple' as const },
+		}),
+	]),
 ];
 
 export const createDatabasesNavigation = (
 	databases: Array<{ id: string; name: string; type: string }>
-): NavigationSection[] => [
-	{
-		title: 'Database Monitoring',
-		icon: HandEyeIcon,
-		items: [
-			{
-				name: 'All Connections',
-				icon: HouseIcon,
-				href: '/observability/database',
-				rootLevel: true,
-				highlight: true,
-			},
-			...(databases.length > 0
-				? databases.map((database) => ({
-						name: database.name,
-						icon: DatabaseIcon,
-						href: `/observability/database/${database.id}`,
-						rootLevel: true,
-						highlight: true,
-						type: database.type,
-					}))
-				: [
-						{
-							name: 'Add Your First Database',
-							icon: DatabaseIcon,
-							href: '/observability/database',
-							rootLevel: true,
-							highlight: true,
-							disabled: true,
-						},
-					]),
-		],
-	},
-];
+): NavigationSection[] => 
+	createDynamicNavigation(
+		databases,
+		'Database Monitoring',
+		MonitorIcon,
+		'Database Overview',
+		'/observability/database',
+		DatabaseIcon,
+		'/observability/database',
+		'Add Your First Database',
+		(database) => ({ type: database.type })
+	);
 
 export const observabilityNavigation: NavigationSection[] = [
-	{
-		title: 'Database Monitoring',
-		icon: HandEyeIcon,
-		items: [
-			{
-				name: 'Connections',
-				icon: DatabaseIcon,
-				href: '/observability/database',
-				rootLevel: true,
-			},
-		],
-	},
+	createNavSection('Database Monitoring', MonitorIcon, [
+		createNavItem('Database Connections', NetworkIcon, '/observability/database'),
+	]),
 ];
 
 export const databaseNavigation: NavigationSection[] = [
-	{
-		title: 'Database Monitoring',
-		icon: HandEyeIcon,
-		items: [
-			{ name: 'Overview', icon: EyeIcon, href: '' },
-			{ name: 'Performance', icon: ChartLineIcon, href: '/performance' },
-			{ name: 'Queries', icon: DatabaseIcon, href: '/queries' },
-			{ name: 'Tables', icon: TableIcon, href: '/tables' },
-			{ name: 'Online Advisor', icon: SparkleIcon, href: '/online-advisor' },
-		],
-	},
-	{
-		title: 'Configuration',
-		icon: GearIcon,
-		items: [
-			{
-				name: 'Connection Settings',
-				icon: PlugIcon,
-				href: '/settings',
-			},
-			{
-				name: 'Monitoring Config',
-				icon: HandEyeIcon,
-				href: '/monitoring',
-			},
-			{
-				name: 'Plugin Marketplace',
-				icon: SparkleIcon,
-				href: '/plugins',
-			},
-		],
-	},
+	createNavSection('Database Monitoring', MonitorIcon, [
+		createNavItem('Overview', EyeIcon, '', { rootLevel: false }),
+		createNavItem('Performance', PulseIcon, '/performance', { rootLevel: false }),
+		createNavItem('Queries', MagnifyingGlassIcon, '/queries', { rootLevel: false }),
+		createNavItem('Tables', TableIcon, '/tables', { rootLevel: false }),
+		createNavItem('Online Advisor', LightningIcon, '/online-advisor', { rootLevel: false }),
+	]),
+	createNavSection('Configuration', GearIcon, [
+		createNavItem('Connection Settings', PlugIcon, '/settings', { rootLevel: false }),
+		createNavItem('Monitoring Settings', MonitorIcon, '/monitoring', { rootLevel: false }),
+		createNavItem('Plugin Marketplace', StorefrontIcon, '/plugins', { rootLevel: false }),
+	]),
 ];
 
 export const websiteNavigation: NavigationSection[] = [
-	{
-		title: 'Web Analytics',
-		icon: ChartBarIcon,
-		items: [
-			{ name: 'Dashboard', icon: EyeIcon, href: '' },
-			{ name: 'Sessions', icon: UserIcon, href: '/sessions' },
-			{ name: 'Geographic', icon: MapPinIcon, href: '/map' },
-			{ name: 'Errors', icon: BugIcon, href: '/errors' },
-		],
-	},
-	{
-		title: 'Product Analytics',
-		icon: UsersIcon,
-		items: [
-			{
-				name: 'Profiles',
-				icon: UserCircleIcon,
-				href: '/profiles',
-			},
-			{
-				name: 'Funnels',
-				icon: FunnelIcon,
-				href: '/funnels',
-			},
-			{
-				name: 'Goals',
-				icon: TargetIcon,
-				href: '/goals',
-			},
-			{
-				name: 'Feature Flags',
-				icon: FlagIcon,
-				href: '/flags',
-				alpha: true,
-			},
-			{
-				name: 'Databunny AI',
-				icon: RabbitIcon,
-				href: '/assistant',
-				alpha: true,
-			},
-		],
-	},
+	createNavSection('Web Analytics', ChartBarIcon, [
+		createNavItem('Dashboard', EyeIcon, '', { rootLevel: false }),
+		createNavItem('Sessions', UserIcon, '/sessions', { rootLevel: false }),
+		createNavItem('Geographic Data', MapPinIcon, '/map', { rootLevel: false }),
+		createNavItem('Error Tracking', BugIcon, '/errors', { rootLevel: false }),
+	]),
+	createNavSection('Product Analytics', TrendUpIcon, [
+		createNavItem('User Profiles', UserCircleIcon, '/profiles', { rootLevel: false }),
+		createNavItem('Funnels', FunnelIcon, '/funnels', { rootLevel: false }),
+		createNavItem('Goals', TargetIcon, '/goals', { rootLevel: false }),
+		createNavItem('Feature Flags', FlagIcon, '/flags', { alpha: true, rootLevel: false }),
+		createNavItem('Databunny AI', RobotIcon, '/assistant', { alpha: true, hideFromDemo: true, rootLevel: false }),
+	]),
 ];
 
-export const createDemoNavigation = (): NavigationSection[] => [
-	{
-		title: 'Demo Analytics',
-		icon: TestTubeIcon,
-		items: [
-			{ name: 'Live Demo', icon: EyeIcon, href: '' },
-			{ name: 'Sample Sessions', icon: UserIcon, href: '/sessions' },
-			{ name: 'User Profiles', icon: UserCircleIcon, href: '/profiles' },
-			{ name: 'Location Data', icon: MapPinIcon, href: '/map' },
-		],
-	},
+export const websiteSettingsNavigation: NavigationSection[] = [
+	createNavSection('Website Settings', GearIcon, [
+		createNavItem('General Settings', GearIcon, '/settings/general', { rootLevel: false }),
+		createNavItem('Privacy Settings', ShieldCheckIcon, '/settings/privacy', { rootLevel: false }),
+		createNavItem('Transfer Website', ArrowSquareOutIcon, '/settings/transfer', { rootLevel: false }),
+		createNavItem('Data Export', FileArrowDownIcon, '/settings/export', { rootLevel: false }),
+	]),
 ];
+
+const createCategoryConfig = (
+	categories: Category[],
+	defaultCategory: string,
+	navigationMap: Record<string, NavigationSection[]>
+) => ({ categories, defaultCategory, navigationMap });
 
 export const categoryConfig = {
-	main: {
-		categories: [
-			{ id: 'websites', name: 'Websites', icon: GlobeIcon, production: true },
-			{
-				id: 'organizations',
-				name: 'Organizations',
-				icon: UsersIcon,
-				production: true,
-			},
-			{
-				id: 'billing',
-				name: 'Billing',
-				icon: CreditCardIcon,
-				production: true,
-			},
-			{
-				id: 'observability',
-				name: 'Observability BETA',
-				icon: HandEyeIcon,
-				production: false,
-			},
-			{ id: 'settings', name: 'Settings', icon: GearIcon, production: true },
-			{
-				id: 'resources',
-				name: 'Resources',
-				icon: BookOpenIcon,
-				production: true,
-			},
+	main: createCategoryConfig(
+		[
+			{ id: 'websites', name: 'Websites', icon: GlobeSimpleIcon, production: true },
+			{ id: 'organizations', name: 'Organizations', icon: BuildingsIcon, production: true },
+			{ id: 'billing', name: 'Billing', icon: CreditCardIcon, production: true },
+			{ id: 'observability', name: 'Observability BETA', icon: MonitorIcon, production: false },
+			{ id: 'settings', name: 'Settings', icon: GearIcon, production: true, hideFromDemo: true },
+			{ id: 'resources', name: 'Resources', icon: BookOpenIcon, production: true },
 		],
-		defaultCategory: 'websites',
-		navigationMap: {
+		'websites',
+		{
 			websites: [],
 			organizations: organizationNavigation,
 			billing: billingNavigation,
 			observability: observabilityNavigation,
 			settings: personalNavigation,
 			resources: resourcesNavigation,
-		},
-	},
-	website: {
-		categories: [
-			{
-				id: 'analytics',
-				name: 'Analytics',
-				icon: ChartBarIcon,
-				production: true,
-			},
+		}
+	),
+	website: createCategoryConfig(
+		[
+			{ id: 'analytics', name: 'Analytics', icon: ChartBarIcon, production: true },
+			{ id: 'settings', name: 'Settings', icon: GearIcon, production: true, hideFromDemo: true },
 		],
-		defaultCategory: 'analytics',
-		navigationMap: {
-			analytics: websiteNavigation, // All analytics sections in one category
-		},
-	},
-	database: {
-		categories: [
-			{
-				id: 'monitoring',
-				name: 'Monitoring',
-				icon: HandEyeIcon,
-				production: false,
-			},
+		'analytics',
+		{
+			analytics: websiteNavigation,
+			settings: websiteSettingsNavigation,
+		}
+	),
+	database: createCategoryConfig(
+		[
+			{ id: 'monitoring', name: 'Monitoring', icon: MonitorIcon, production: false },
 		],
-		defaultCategory: 'monitoring',
-		navigationMap: {
-			monitoring: databaseNavigation, // All database sections in one category
-		},
-	},
-	demo: {
-		categories: [
-			{ id: 'demo', name: 'Demo', icon: TestTubeIcon, production: true },
-		],
-		defaultCategory: 'demo',
-		navigationMap: {
-			demo: createDemoNavigation(),
-		},
-	},
-} as const;
+		'monitoring',
+		{
+			monitoring: databaseNavigation,
+		}
+	),
+};
+
+const PATH_CONFIG_MAP = [
+	{ pattern: ['/websites/', '/demo/'], config: 'website' as const },
+	{ pattern: ['/observability/database/'], config: 'database' as const, exclude: ['/observability/database', '/observability/database/'] },
+] as const;
+
+const CATEGORY_PATH_MAP = [
+	{ pattern: '/organizations', category: 'organizations' as const },
+	{ pattern: '/billing', category: 'billing' as const },
+	{ pattern: '/observability', category: 'observability' as const },
+	{ pattern: '/settings', category: 'settings' as const },
+] as const;
 
 export const getContextConfig = (pathname: string) => {
-	if (pathname.startsWith('/websites/')) {
-		return categoryConfig.website;
-	}
-	if (
-		pathname.startsWith('/observability/database/') &&
-		pathname !== '/observability/database' &&
-		pathname !== '/observability/database/'
-	) {
-		return categoryConfig.database;
-	}
-	if (pathname.startsWith('/demo/')) {
-		return categoryConfig.demo;
+	for (const item of PATH_CONFIG_MAP) {
+		if (item.pattern.some(p => pathname.startsWith(p))) {
+			if (!('exclude' in item) || !item.exclude.some((e: string) => pathname === e)) {
+				return categoryConfig[item.config];
+			}
+		}
 	}
 	return categoryConfig.main;
 };
 
 export const getDefaultCategory = (pathname: string) => {
-	const config = getContextConfig(pathname);
-
-	if (pathname.startsWith('/organizations')) {
-		return 'organizations';
+	for (const { pattern, category } of CATEGORY_PATH_MAP) {
+		if (pathname.startsWith(pattern)) {
+			return category;
+		}
 	}
-	if (pathname.startsWith('/billing')) {
-		return 'billing';
-	}
-	if (pathname.startsWith('/observability')) {
-		return 'observability';
-	}
-	if (pathname.startsWith('/settings')) {
-		return 'settings';
-	}
-
-	return config.defaultCategory;
+	return getContextConfig(pathname).defaultCategory;
 };
 
-export const createLoadingWebsitesNavigation = (): NavigationSection[] => [
-	{
-		title: 'Websites',
-		icon: GlobeIcon,
-		items: [
-			{
-				name: 'All Websites',
-				icon: HouseIcon,
-				href: '/websites',
-				rootLevel: true,
-				highlight: true,
-			},
-			{
-				name: 'Loading websites...',
-				icon: GlobeIcon,
-				href: '/websites',
-				rootLevel: true,
-				highlight: true,
-				disabled: true,
-			},
-		],
-	},
+const createLoadingNavigation = (
+	title: string,
+	titleIcon: any,
+	overviewName: string,
+	overviewHref: string,
+	loadingName: string,
+	loadingIcon: any
+): NavigationSection[] => [
+	createNavSection(title, titleIcon, [
+		createNavItem(overviewName, ChartBarIcon, overviewHref, { highlight: true }),
+		createNavItem(loadingName, loadingIcon, overviewHref, { highlight: true, disabled: true }),
+	]),
 ];
 
-export const createLoadingDatabasesNavigation = (): NavigationSection[] => [
-	{
-		title: 'Database Monitoring',
-		icon: HandEyeIcon,
-		items: [
-			{
-				name: 'All Connections',
-				icon: HouseIcon,
-				href: '/observability/database',
-				rootLevel: true,
-				highlight: true,
-			},
-			{
-				name: 'Loading databases...',
-				icon: DatabaseIcon,
-				href: '/observability/database',
-				rootLevel: true,
-				highlight: true,
-				disabled: true,
-			},
-		],
-	},
-];
+export const createLoadingWebsitesNavigation = (): NavigationSection[] => 
+	createLoadingNavigation('Websites', GlobeSimpleIcon, 'Website Overview', '/websites', 'Loading websites...', GlobeIcon);
+
+export const createLoadingDatabasesNavigation = (): NavigationSection[] => 
+	createLoadingNavigation('Database Monitoring', MonitorIcon, 'Database Overview', '/observability/database', 'Loading databases...', DatabaseIcon);

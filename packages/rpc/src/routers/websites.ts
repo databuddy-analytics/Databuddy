@@ -2,20 +2,25 @@ import { websitesApi } from '@databuddy/auth';
 import { chQuery } from '@databuddy/db';
 import { createDrizzleCache, redis } from '@databuddy/redis';
 import { logger, type ProcessedMiniChartData } from '@databuddy/shared';
-import { transferWebsiteSchema } from '@databuddy/validation';
+import { transferWebsiteSchema, transferWebsiteToOrgSchema } from '@databuddy/validation';
 import { TRPCError } from '@trpc/server';
+import { Effect, pipe } from 'effect';
 import { z } from 'zod';
 import {
 	buildWebsiteFilter,
+	DuplicateDomainError,
 	domainSchema,
 	subdomainSchema,
+	ValidationError,
+	type WebsiteError,
+	WebsiteNotFoundError,
 	WebsiteService,
 	websiteNameSchema,
-} from '../services/website-service';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
-
-import { invalidateWebsiteCaches } from '../utils/cache-invalidation';
+	type Website,
+} from '../services/website-service.js';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc.js';
+import { authorizeWebsiteAccess } from '../utils/auth.js';
+import { invalidateWebsiteCaches } from '../utils/cache-invalidation.js';
 
 const createWebsiteSchema = z.object({
 	name: websiteNameSchema,
@@ -259,14 +264,35 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const websiteService = new WebsiteService(ctx.db);
-			return await websiteService.createWebsite({
+			const serviceInput = {
 				name: input.name,
 				domain: input.domain,
 				subdomain: input.subdomain,
 				userId: ctx.user.id,
 				organizationId: input.organizationId,
-			});
+			};
+
+			const result = await pipe(
+				new WebsiteService(ctx.db).createWebsite(serviceInput),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof ValidationError) {
+						return new TRPCError({
+							code: 'BAD_REQUEST',
+							message: error.message,
+						});
+					}
+					if (error instanceof DuplicateDomainError) {
+						return new TRPCError({ code: 'CONFLICT', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
+			);
+
+			return result;
 		}),
 
 	update: protectedProcedure
@@ -278,12 +304,37 @@ export const websitesRouter = createTRPCRouter({
 				'update'
 			);
 
-			const websiteService = new WebsiteService(ctx.db);
-			const updatedWebsite = await websiteService.updateWebsite(
-				input.id,
-				{ name: input.name, domain: input.domain },
-				ctx.user.id,
-				websiteToUpdate.organizationId
+			const serviceInput = {
+				name: input.name,
+				domain: input.domain,
+			};
+
+			const updatedWebsite: Website = await pipe(
+				new WebsiteService(ctx.db).updateWebsite(
+					input.id,
+					serviceInput,
+					ctx.user.id,
+					websiteToUpdate.organizationId
+				),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof ValidationError) {
+						return new TRPCError({
+							code: 'BAD_REQUEST',
+							message: error.message,
+						});
+					}
+					if (error instanceof DuplicateDomainError) {
+						return new TRPCError({ code: 'CONFLICT', message: error.message });
+					}
+					if (error instanceof WebsiteNotFoundError) {
+						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
 			);
 
 			const changes: string[] = [];
@@ -311,11 +362,22 @@ export const websitesRouter = createTRPCRouter({
 		.mutation(async ({ ctx, input }) => {
 			const website = await authorizeWebsiteAccess(ctx, input.id, 'update');
 
-			const websiteService = new WebsiteService(ctx.db);
-			const updatedWebsite = await websiteService.toggleWebsitePublic(
-				input.id,
-				input.isPublic,
-				ctx.user.id
+			const updatedWebsite = await pipe(
+				new WebsiteService(ctx.db).toggleWebsitePublic(
+					input.id,
+					input.isPublic,
+					ctx.user.id
+				),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof WebsiteNotFoundError) {
+						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
 			);
 
 			logger.info(
@@ -340,8 +402,16 @@ export const websitesRouter = createTRPCRouter({
 				'delete'
 			);
 
-			const websiteService = new WebsiteService(ctx.db);
-			const result = await websiteService.deleteWebsite(input.id, ctx.user.id);
+			await pipe(
+				new WebsiteService(ctx.db).deleteWebsite(input.id, ctx.user.id),
+				Effect.mapError((error: WebsiteError) => {
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
+			);
 
 			logger.warning(
 				'Website Deleted',
@@ -354,7 +424,7 @@ export const websitesRouter = createTRPCRouter({
 				}
 			);
 
-			return result;
+			return { success: true };
 		}),
 
 	transfer: protectedProcedure
@@ -378,12 +448,65 @@ export const websitesRouter = createTRPCRouter({
 				}
 			}
 
-			const websiteService = new WebsiteService(ctx.db);
-			return await websiteService.transferWebsite(
-				input.websiteId,
-				input.organizationId ?? null,
-				ctx.user.id
+			const result = await pipe(
+				new WebsiteService(ctx.db).transferWebsite(
+					input.websiteId,
+					input.organizationId ?? null,
+					ctx.user.id
+				),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof WebsiteNotFoundError) {
+						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
 			);
+
+			return result;
+		}),
+
+	transferToOrganization: protectedProcedure
+		.input(transferWebsiteToOrgSchema)
+		.mutation(async ({ ctx, input }) => {
+			await authorizeWebsiteAccess(ctx, input.websiteId, 'transfer');
+
+			const { success } = await websitesApi.hasPermission({
+				headers: ctx.headers,
+				body: {
+					organizationId: input.targetOrganizationId,
+					permissions: { website: ['create'] },
+				},
+			});
+			if (!success) {
+				throw new TRPCError({
+					code: 'FORBIDDEN',
+					message: 'Missing permissions to transfer website to target organization.',
+				});
+			}
+
+			const result = await pipe(
+				new WebsiteService(ctx.db).transferWebsiteToOrganization(
+					input.websiteId,
+					input.targetOrganizationId,
+					ctx.user.id
+				),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof WebsiteNotFoundError) {
+						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
+			);
+
+			return result;
 		}),
 
 	invalidateCaches: protectedProcedure
@@ -391,24 +514,22 @@ export const websitesRouter = createTRPCRouter({
 		.mutation(async ({ ctx, input }) => {
 			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
 
-			try {
-				await invalidateWebsiteCaches(input.websiteId, ctx.user.id);
+			await pipe(
+				Effect.tryPromise({
+					try: () => invalidateWebsiteCaches(input.websiteId, ctx.user.id),
+					catch: (error: WebsiteError) => new Error(String(error)),
+				}),
+				Effect.mapError(
+					() =>
+						new TRPCError({
+							code: 'INTERNAL_SERVER_ERROR',
+							message: 'Failed to invalidate caches',
+						})
+				),
+				Effect.runPromise
+			);
 
-				return { success: true };
-			} catch (error) {
-				logger.error(
-					'Failed to invalidate caches',
-					error instanceof Error ? error.message : String(error),
-					{
-						websiteId: input.websiteId,
-						userId: ctx.user.id,
-					}
-				);
-				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to invalidate caches',
-				});
-			}
+			return { success: true };
 		}),
 
 	isTrackingSetup: publicProcedure
@@ -420,8 +541,11 @@ export const websitesRouter = createTRPCRouter({
 				'read'
 			);
 
-			const hasVercelIntegration = !!(website.integrations as any)?.vercel
-				?.environments;
+			const hasVercelIntegration = !!(
+				website.integrations as unknown as {
+					vercel?: { environments: unknown[] };
+				}
+			)?.vercel?.environments?.length;
 
 			const trackingCheckResult = await chQuery<{ count: number }>(
 				`SELECT COUNT(*) as count FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' LIMIT 1`,
@@ -430,7 +554,6 @@ export const websitesRouter = createTRPCRouter({
 
 			const hasTrackingEvents = (trackingCheckResult[0]?.count ?? 0) > 0;
 
-			// Determine integration type
 			let integrationType: 'vercel' | 'manual' | null = null;
 			if (hasVercelIntegration) {
 				integrationType = 'vercel';

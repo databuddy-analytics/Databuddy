@@ -134,6 +134,13 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 					label: 'Visitors',
 					description: 'Unique visitors with this resolution',
 				},
+				{
+					name: 'percentage',
+					type: 'number',
+					label: 'Traffic %',
+					description: 'Percentage of total traffic',
+					unit: '%',
+				},
 			],
 			default_visualization: 'table',
 			supports_granularity: ['hour', 'day'],
@@ -144,6 +151,7 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			'screen_resolution as name',
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
+			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: ["screen_resolution != ''", "event_name = 'screen_view'"],
 		groupBy: ['screen_resolution'],
@@ -349,9 +357,11 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	browser_versions: {
 		table: Analytics.events,
 		fields: [
-			"CONCAT(browser_name, ' ', browser_version) as name",
+			'browser_name',
+			'browser_version',
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
+			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: [
 			"browser_name != ''",

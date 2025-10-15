@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 interface QueryType {
 	name: string;
@@ -55,24 +56,23 @@ export function QueryTypeSelector({
 
 			<ScrollArea className="h-80 lg:h-96">
 				<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
-					{availableTypes.map((type) => (
+					{[...selectedTypes].map((type) => (
 						<Card
-							className={`group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm ${
-								selectedTypes.has(type.name)
-									? 'border-primary/40 bg-primary/5 shadow-inner'
-									: 'border-border/30 bg-card/70'
-							}`}
-							key={type.name}
-							onClick={() => onTypeToggle(type.name)}
+							className={
+								'group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm '
+							}
+							key={type}
+							onClick={() => onTypeToggle(type)}
 						>
 							<CardContent className="p-2">
 								<div className="flex items-center justify-between gap-2">
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
 											<code className="truncate font-medium font-mono text-xs">
-												{type.name}
+												{type}
 											</code>
-											{type.customizable && (
+											{availableTypes.find((t) => t.name === type)
+												?.customizable && (
 												<Badge
 													className="px-1.5 py-0.5 text-[10px] leading-none"
 													variant="outline"
@@ -81,23 +81,68 @@ export function QueryTypeSelector({
 												</Badge>
 											)}
 										</div>
-										{type.defaultLimit && (
+										{availableTypes.find((t) => t.name === type)
+											?.defaultLimit && (
 											<div className="mt-0.5 text-[10px] text-muted-foreground">
-												Limit: {type.defaultLimit}
+												Limit:
+												{
+													availableTypes.find((t) => t.name === type)
+														?.defaultLimit
+												}
 											</div>
 										)}
 									</div>
 									<div
-										className={`h-3 w-3 flex-shrink-0 rounded-full border transition-colors ${
-											selectedTypes.has(type.name)
-												? 'border-primary bg-primary'
-												: 'border-muted-foreground/30'
-										}`}
+										className={
+											'h-3 w-3 flex-shrink-0 rounded-full border border-primary bg-primary transition-colors'
+										}
 									/>
 								</div>
 							</CardContent>
 						</Card>
 					))}
+				</div>
+				{selectedTypes.size > 0 && <Separator className="my-4" />}
+				<div className="grid grid-cols-1 gap-2 pr-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
+					{availableTypes
+						.filter((type) => !selectedTypes.has(type.name))
+						.map((type) => (
+							<Card
+								className={`group 'border-border/30 relative cursor-pointer border bg-card/70 transition-all duration-200 hover:border-border/80 hover:shadow-sm`}
+								key={type.name}
+								onClick={() => onTypeToggle(type.name)}
+							>
+								<CardContent className="p-2">
+									<div className="flex items-center justify-between gap-2">
+										<div className="min-w-0 flex-1">
+											<div className="flex items-center gap-2">
+												<code className="truncate font-medium font-mono text-xs">
+													{type.name}
+												</code>
+												{type.customizable && (
+													<Badge
+														className="px-1.5 py-0.5 text-[10px] leading-none"
+														variant="outline"
+													>
+														Custom
+													</Badge>
+												)}
+											</div>
+											{type.defaultLimit && (
+												<div className="mt-0.5 text-[10px] text-muted-foreground">
+													Limit: {type.defaultLimit}
+												</div>
+											)}
+										</div>
+										<div
+											className={
+												'h-3 w-3 flex-shrink-0 rounded-full border border-muted-foreground/30 transition-colors'
+											}
+										/>
+									</div>
+								</CardContent>
+							</Card>
+						))}
 				</div>
 			</ScrollArea>
 

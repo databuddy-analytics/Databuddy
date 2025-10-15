@@ -41,7 +41,7 @@ import {
 	XAxis,
 	YAxis,
 } from 'recharts';
-import { DataTable } from '@/components/analytics/data-table';
+import { DataTable } from '@/components/table/data-table';
 import { Badge } from '@/components/ui/badge';
 import {
 	ChartContainer,

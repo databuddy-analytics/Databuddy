@@ -40,6 +40,8 @@ import {
 	useOrganizations,
 } from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
+import { EmptyState } from './empty-state';
+import { ListSkeleton } from './list-skeleton';
 
 dayjs.extend(relativeTime);
 
@@ -52,21 +54,21 @@ interface OrganizationsListProps {
 function OrganizationSkeleton() {
 	return (
 		<Card className="group relative overflow-hidden">
-			<CardContent className="p-6">
-				<div className="space-y-6">
-					<div className="flex items-start gap-4">
-						<Skeleton className="h-12 w-12 flex-shrink-0 rounded-full" />
+			<CardContent className="p-4 sm:p-6">
+				<div className="space-y-4 sm:space-y-6">
+					<div className="flex items-start gap-3 sm:gap-4">
+						<Skeleton className="h-10 w-10 flex-shrink-0 rounded-full sm:h-12 sm:w-12" />
 						<div className="min-w-0 flex-1 space-y-2">
-							<Skeleton className="h-5 w-32" />
-							<Skeleton className="h-4 w-24" />
-							<Skeleton className="h-4 w-28" />
+							<Skeleton className="h-3 w-28 sm:h-4 sm:w-32" />
+							<Skeleton className="h-3 w-20 sm:h-3 sm:w-24" />
+							<Skeleton className="h-3 w-24 sm:h-3 sm:w-28" />
 						</div>
 					</div>
 					<div className="space-y-3">
-						<Skeleton className="h-10 w-full" />
-						<div className="flex gap-3">
-							<Skeleton className="h-10 flex-1" />
-							<Skeleton className="h-10 w-10" />
+						<Skeleton className="h-9 w-full sm:h-10" />
+						<div className="flex gap-2 sm:gap-3">
+							<Skeleton className="h-9 flex-1 sm:h-10" />
+							<Skeleton className="h-9 w-9 sm:h-10 sm:w-10" />
 						</div>
 					</div>
 				</div>
@@ -75,38 +77,18 @@ function OrganizationSkeleton() {
 	);
 }
 
-function EmptyState() {
+function OrganizationsEmptyState() {
 	return (
-		<div className="flex h-full flex-col items-center justify-center p-6 text-center">
-			<div className="mx-auto mb-8 w-fit rounded-2xl border border-primary/20 bg-primary/10 p-8">
-				<BuildingsIcon
-					className="h-16 w-16 text-primary"
-					size={64}
-					weight="duotone"
-				/>
-			</div>
-			<h3 className="mb-4 font-bold text-2xl">Start Building Together</h3>
-			<p className="mb-8 max-w-md text-muted-foreground">
-				Organizations help you collaborate with your team and manage projects
-				more effectively. Create your first organization to get started.
-			</p>
-			<div className="rounded-lg border border-dashed bg-muted/20 p-6">
-				<div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
-					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-primary" />
-						<span>Team collaboration</span>
-					</div>
-					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-primary" />
-						<span>Project management</span>
-					</div>
-					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-primary" />
-						<span>Shared resources</span>
-					</div>
-				</div>
-			</div>
-		</div>
+		<EmptyState
+			icon={BuildingsIcon}
+			title="Start Building Together"
+			description="Organizations help you collaborate with your team and manage projects more effectively. Create your first organization to get started."
+			features={[
+				{ label: 'Team collaboration' },
+				{ label: 'Project management' },
+				{ label: 'Shared resources' },
+			]}
+		/>
 	);
 }
 
@@ -152,9 +134,9 @@ export function OrganizationsList({
 
 	if (isLoading) {
 		return (
-			<div className="p-6">
-				<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-					{Array.from({ length: 8 }).map((_, i) => (
+			<div className="p-4 sm:p-6">
+				<div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: 6 }).map((_, i) => (
 						<OrganizationSkeleton key={i.toString()} />
 					))}
 				</div>
@@ -163,12 +145,12 @@ export function OrganizationsList({
 	}
 
 	if (!organizations || organizations.length === 0) {
-		return <EmptyState />;
+		return <OrganizationsEmptyState />;
 	}
 
 	return (
-		<div className="p-6">
-			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+		<div className="p-4 sm:p-6">
+			<div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
 				{organizations.map((org) => {
 					const isActive = activeOrganization?.id === org.id;
 					const isDeleting = deletingId === org.id;
@@ -195,29 +177,29 @@ export function OrganizationsList({
 								</div>
 							)}
 
-							<CardContent className="p-6">
-								<div className="space-y-6">
+							<CardContent className="p-4 sm:p-6">
+								<div className="space-y-4 sm:space-y-6">
 									{/* Organization Info */}
-									<div className="flex items-start gap-4">
-										<Avatar className="h-12 w-12 flex-shrink-0 border border-border/30">
+									<div className="flex items-start gap-3 sm:gap-4">
+										<Avatar className="h-10 w-10 flex-shrink-0 border border-border/30 sm:h-12 sm:w-12">
 											<AvatarImage alt={org.name} src={org.logo || undefined} />
-											<AvatarFallback className="bg-accent font-medium text-sm">
+											<AvatarFallback className="bg-accent font-medium text-xs sm:text-sm">
 												{getOrganizationInitials(org.name)}
 											</AvatarFallback>
 										</Avatar>
 										<div className="min-w-0 flex-1">
-											<h3 className="truncate font-semibold text-base">
+											<h3 className="truncate font-semibold text-sm sm:text-base">
 												{org.name}
 											</h3>
-											<p className="truncate text-muted-foreground text-sm">
+											<p className="truncate text-muted-foreground text-xs sm:text-sm">
 												@{org.slug}
 											</p>
-											<div className="mt-2 flex items-center gap-1">
+											<div className="mt-1 flex items-center gap-1 sm:mt-2">
 												<CalendarIcon
-													className="h-4 w-4 text-muted-foreground"
-													size={16}
+													className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4"
+													size={12}
 												/>
-												<span className="text-muted-foreground text-sm">
+												<span className="text-muted-foreground text-xs sm:text-sm">
 													Created {dayjs(org.createdAt).fromNow()}
 												</span>
 											</div>
@@ -228,48 +210,48 @@ export function OrganizationsList({
 									<div className="space-y-3">
 										{isActive ? (
 											<Button
-												className="h-10 w-full rounded font-medium"
+												className="h-9 w-full rounded font-medium sm:h-10"
 												disabled
 												variant="secondary"
 											>
-												<CheckIcon className="mr-2 h-4 w-4" size={16} />
-												Current Organization
+												<CheckIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
+												<span className="text-xs sm:text-sm">Current Organization</span>
 											</Button>
 										) : (
 											<Button
-												className="h-10 w-full rounded font-medium"
+												className="h-9 w-full rounded font-medium sm:h-10"
 												disabled={isSettingActiveOrganization}
 												onClick={() => handleSetActive(org.id)}
 											>
 												{isSettingActiveOrganization ? (
 													<>
-														<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
-														Switching...
+														<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground sm:h-4 sm:w-4" />
+														<span className="text-xs sm:text-sm">Switching...</span>
 													</>
 												) : (
 													<>
 														<ArrowRightIcon
-															className="mr-2 h-4 w-4"
-															size={16}
+															className="mr-2 h-3 w-3 sm:h-4 sm:w-4"
+															size={12}
 														/>
-														Switch Organization
+														<span className="text-xs sm:text-sm">Switch Organization</span>
 													</>
 												)}
 											</Button>
 										)}
 
-										<div className="flex items-center gap-3">
+										<div className="flex items-center gap-2 sm:gap-3">
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
 														<Button
 															asChild
-															className="h-10 flex-1 rounded font-medium"
+															className="h-9 flex-1 rounded font-medium sm:h-10"
 															variant="outline"
 														>
 															<Link href="/organizations/settings">
-																<GearIcon className="mr-2 h-4 w-4" size={16} />
-																Settings
+																<GearIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
+																<span className="text-xs sm:text-sm">Settings</span>
 															</Link>
 														</Button>
 													</TooltipTrigger>
@@ -283,15 +265,15 @@ export function OrganizationsList({
 												<Tooltip>
 													<TooltipTrigger asChild>
 														<Button
-															className="h-10 w-10 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+															className="h-9 w-9 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive sm:h-10 sm:w-10"
 															disabled={isDeleting || isDeletingOrganization}
 															onClick={() => handleDelete(org.id, org.name)}
 															variant="outline"
 														>
 															{isDeleting ? (
-																<div className="h-4 w-4 animate-spin rounded-full border border-destructive/30 border-t-destructive" />
+																<div className="h-3 w-3 animate-spin rounded-full border border-destructive/30 border-t-destructive sm:h-4 sm:w-4" />
 															) : (
-																<TrashIcon className="h-4 w-4" size={16} />
+																<TrashIcon className="h-3 w-3 sm:h-4 sm:w-4" size={12} />
 															)}
 														</Button>
 													</TooltipTrigger>

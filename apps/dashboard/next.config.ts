@@ -16,16 +16,31 @@ const nextConfig: NextConfig = {
 		ignoreBuildErrors: true,
 	},
 	images: {
-		domains: [
-			'cdn.databuddy.cc',
-			'localhost',
-			'icons.duckduckgo.com',
-			'flagcdn.com',
+		remotePatterns: [
+			{
+				protocol: 'https',
+				hostname: 'cdn.databuddy.cc',
+			},
+			{
+				protocol: 'http',
+				hostname: 'localhost',
+			},
+			{
+				protocol: 'https',
+				hostname: 'icons.duckduckgo.com',
+			},
+			{
+				protocol: 'https',
+				hostname: 'flagcdn.com',
+			},
+			{
+				protocol: 'https',
+				hostname: 'multiavatar.com',
+			},
 		],
 	},
-
+	serverExternalPackages: ['pg', 'pg-pool'],
 	output: 'standalone',
-	transpilePackages: ['@t3-oss/env-nextjs', '@t3-oss/env-core'],
 };
 
 export function headers() {

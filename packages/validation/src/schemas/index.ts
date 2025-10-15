@@ -3,7 +3,6 @@ export * from './batch';
 export * from './custom-events';
 export * from './email';
 export * from './errors';
-export * from './observability';
 export * from './organizations';
 export * from './web-vitals';
 export * from './websites';

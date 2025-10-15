@@ -54,7 +54,7 @@ export const ResourceConsumptionChart = ({
 	}));
 
 	return (
-		<div className="rounded-xl border bg-card shadow-sm">
+		<div className="rounded border bg-card shadow-sm">
 			<div className="border-b px-6 py-4">
 				<h3 className="font-semibold text-lg">Resource Consumption</h3>
 				<p className="text-muted-foreground text-sm">
@@ -125,7 +125,7 @@ export const ResponseTimeChart = ({
 	}));
 
 	return (
-		<div className="rounded-xl border bg-card shadow-sm">
+		<div className="rounded border bg-card shadow-sm">
 			<div className="border-b px-6 py-4">
 				<h3 className="font-semibold text-lg">Response Times</h3>
 				<p className="text-muted-foreground text-sm">

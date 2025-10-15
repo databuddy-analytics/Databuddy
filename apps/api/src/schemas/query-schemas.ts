@@ -52,7 +52,7 @@ export const DynamicQueryRequestSchema = t.Object({
 			t.Literal('day'),
 		])
 	),
-	groupBy: t.Optional(t.String()),
+	groupBy: t.Optional(t.Union([t.String(), t.Array(t.String())])),
 	startDate: t.Optional(t.String()),
 	endDate: t.Optional(t.String()),
 	timeZone: t.Optional(t.String()),
@@ -100,7 +100,7 @@ export type DynamicQueryRequestType = {
 	page?: number;
 	filters?: FilterType[];
 	granularity?: 'hourly' | 'daily' | 'hour' | 'day';
-	groupBy?: string;
+	groupBy?: string | string[];
 	startDate?: string;
 	endDate?: string;
 	timeZone?: string;

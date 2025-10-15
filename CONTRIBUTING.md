@@ -2,59 +2,129 @@
 
 Thank you for your interest in contributing!
 
-## Quick Setup
+## 🚀 Getting Started
 
-1. **Install dependencies:**
+### Installation
 
-   ```bash
-   bun install
-   ```
+1. Clone the repository:
 
-2. **Set up environment:**
+```bash
+git clone https://github.com/databuddy-analytics/Databuddy.git
+cd databuddy
+```
 
-   ```bash
-   cp .env.example .env
-   ```
+2. Install dependencies:
 
-3. **Start services:**
+```bash
+bun install
+```
 
-   Make sure you have Docker running, then:
+3. Set up environment variables:
 
-   ```bash
-   docker-compose up -d
-   ```
+```bash
+cp .env.example .env
+```
 
-4. **Initialize databases:**
+4. Start Docker services (PostgreSQL, Redis, ClickHouse):
 
-   ```bash
-   bun run db:push        # Apply database schema
-   bun run clickhouse:init # Initialize ClickHouse for basket
-   ```
+```bash
+docker-compose up -d
+```
 
-5. **Build SDK:**
+5. Set up the database:
 
-   ```bash
-   bun run sdk:build
-   ```
+```bash
+bun run db:push        # Apply database schema
+bun run clickhouse:init # Initialize ClickHouse basket
+```
 
-6. **Start development:**
-   ```bash
-   bun run dev
-   ```
+6. Build the SDK:
 
-## Essential Commands
+```bash
+bun run sdk:build
+```
 
-- `bun run dev` - Start all applications
-- `bun run db:push` - Apply database changes
-- `bun run sdk:build` - Build the SDK
-- `bun run clickhouse:init` - Initialize ClickHouse for basket
+7. Start development servers:
 
-## How to Contribute
+```bash
+bun run dev
+```
 
-- Fork the repository and create a new branch
-- Make your changes
-- Run `bun run lint` and `bun run format` before committing
-- Open a pull request to the STAGING branch
+8. Seed the database with sample data (optional):
+
+```bash
+bun run db:seed <WEBSITE_ID> [DOMAIN] [EVENT_COUNT]
+```
+
+**Examples:**
+
+```bash
+bun run db:seed g0zlgMtBaXzIP1EGY2ieG onlybuddies.com 10000
+bun run db:seed d7zlgMtBaSzIL1EGR2ieR notmybuddy.cc 5000
+```
+
+**Note:** You can find your website ID in your website overview settings.
+
+## 💻 Development
+
+### Available Scripts
+
+Check the root `package.json` for available scripts. Here are some common ones:
+
+- `bun run dev` - Start all applications in development mode
+- `bun run build` - Build all applications
+- `bun run start` - Start all applications in production mode
+- `bun run lint` - Lint all code with Ultracite
+- `bun run format` - Format all code with Prettier
+- `bun run check-types` - Type check all TypeScript code
+- `bun run db:studio` - Open Drizzle Studio for database management
+- `bun run db:push` - Apply database schema changes
+- `bun run db:migrate` - Run database migrations
+- `bun run db:deploy` - Deploy database migrations
+- `bun run sdk:build` - Build the SDK package
+- `bun run email:dev` - Start the email development server
+
+You can also `cd` into any package and run its scripts directly.
+
+### Development Workflow
+
+1. Create a new branch:
+
+```bash
+git checkout -b feature/your-feature
+```
+
+2. Make your changes
+
+3. Run tests:
+
+```bash
+bun run test
+```
+
+4. Create a changeset:
+
+```bash
+bun run changeset
+```
+
+5. Commit your changes:
+
+```bash
+git add .
+git commit -m "feat: your feature"
+```
+
+6. Push your changes:
+
+```bash
+git push origin feature/your-feature
+```
+
+Note: Open a pull request to the STAGING branch
+
+7. Create a Pull Request
+
 
 ## Code Style
 

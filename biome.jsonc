@@ -54,10 +54,7 @@
         "useExhaustiveDependencies": "off"
       },
       "nursery": {
-        "noShadow": "off",
-        "noNoninteractiveElementInteractions": "off",
-        "noAwaitInLoop": "off",
-        "noBitwiseOperators": "off"
+        "noShadow": "off"
       },
       "a11y": {
         "noStaticElementInteractions": "off"

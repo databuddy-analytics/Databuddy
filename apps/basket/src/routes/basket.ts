@@ -12,7 +12,6 @@ import { redis } from '@databuddy/redis';
 import { Autumn as autumn } from 'autumn-js';
 import { Elysia } from 'elysia';
 import { getWebsiteByIdV2, isValidOrigin } from '../hooks/auth';
-import { logger } from '../lib/logger';
 import {
 	analyticsEventSchema,
 	customEventSchema,
@@ -25,6 +24,7 @@ import { detectBot, parseUserAgent } from '../utils/user-agent';
 import {
 	sanitizeString,
 	VALIDATION_LIMITS,
+	FILTERED_ERROR_MESSAGES,
 	validatePayloadSize,
 	validatePerformanceMetric,
 	validateSessionId,
@@ -235,10 +235,10 @@ async function insertError(
 			format: 'JSONEachRow',
 		});
 	} catch (err) {
-		logger.error('Failed to insert error event', {
-			error: err as Error,
-			eventId,
-		});
+		// logger.error('Failed to insert error event', {
+		// 	error: err as Error,
+		// 	eventId,
+		// });
 		throw err;
 	}
 }
@@ -303,10 +303,10 @@ async function insertWebVitals(
 			format: 'JSONEachRow',
 		});
 	} catch (err) {
-		logger.error('Failed to insert web vitals event', {
-			error: err as Error,
-			eventId,
-		});
+		// logger.error('Failed to insert web vitals event', {
+		// 	error: err as Error,
+		// 	eventId,
+		// });
 		throw err;
 	}
 }
@@ -351,6 +351,12 @@ async function insertCustomEvent(
 			typeof customData.timestamp === 'number' ? customData.timestamp : now,
 	};
 
+	console.log('🔍 INSERTING CUSTOM EVENT TO DATABASE:');
+	console.log('📥 Raw input properties:', JSON.stringify(customData.properties, null, 2));
+	console.log('📤 Final stored properties:', customEvent.properties);
+	console.log('📊 Full event object:', JSON.stringify(customEvent, null, 2));
+	console.log('---');
+
 	try {
 		await clickHouse.insert({
 			table: 'analytics.custom_events',
@@ -358,10 +364,6 @@ async function insertCustomEvent(
 			format: 'JSONEachRow',
 		});
 	} catch (err) {
-		logger.error('Failed to insert custom event', {
-			error: err as Error,
-			eventId,
-		});
 		throw err;
 	}
 }
@@ -411,10 +413,10 @@ async function insertOutgoingLink(
 			format: 'JSONEachRow',
 		});
 	} catch (err) {
-		logger.error('Failed to insert outgoing link event', {
-			error: err as Error,
-			eventId,
-		});
+		// logger.error('Failed to insert outgoing link event', {
+		// 	error: err as Error,
+		// 	eventId,
+		// });
 		throw err;
 	}
 }
@@ -519,27 +521,9 @@ async function insertTrackEvent(
 		dom_interactive: validatePerformanceMetric(trackData.dom_interactive),
 		ttfb: validatePerformanceMetric(trackData.ttfb),
 		connection_time: validatePerformanceMetric(trackData.connection_time),
-		request_time: validatePerformanceMetric(trackData.request_time),
 		render_time: validatePerformanceMetric(trackData.render_time),
 		redirect_time: validatePerformanceMetric(trackData.redirect_time),
 		domain_lookup_time: validatePerformanceMetric(trackData.domain_lookup_time),
-
-		fcp: validatePerformanceMetric(trackData.fcp),
-		lcp: validatePerformanceMetric(trackData.lcp),
-		cls: validatePerformanceMetric(trackData.cls),
-		fid: validatePerformanceMetric(trackData.fid),
-		inp: validatePerformanceMetric(trackData.inp),
-
-		href: trackData.href,
-		text: trackData.text,
-		value: trackData.value,
-
-		error_message: undefined,
-		error_filename: undefined,
-		error_lineno: undefined,
-		error_colno: undefined,
-		error_stack: undefined,
-		error_type: undefined,
 
 		properties: trackData.properties
 			? JSON.stringify(trackData.properties)
@@ -554,10 +538,10 @@ async function insertTrackEvent(
 			format: 'JSONEachRow',
 		});
 	} catch (err) {
-		logger.error('Failed to insert track event', {
-			error: err as Error,
-			eventId,
-		});
+		// logger.error('Failed to insert track event', {
+		// 	error: err as Error,
+		// 	eventId,
+		// });
 		throw err;
 	}
 }
@@ -658,16 +642,18 @@ async function logBlockedTraffic(
 				format: 'JSONEachRow',
 			})
 			.then(() => {
-				logger.info(
-					`Logged blocked traffic, origin: ${blockedEvent.origin}, reason: ${blockedEvent.block_reason}, category: ${blockedEvent.block_category}`,
-					{ blockedEvent }
-				);
+				// logger.info(
+				//	`Logged blocked traffic, origin: ${blockedEvent.origin}, reason: ${blockedEvent.block_reason}, category: ${blockedEvent.block_category}`,
+					// { blockedEvent }
+				// );
 			})
 			.catch((err) => {
-				logger.error('Failed to log blocked traffic', { error: err as Error });
+				// logger.error('Failed to log blocked traffic', { error: err as Error });
+				throw err;
 			});
 	} catch (error) {
-		logger.error('Failed to log blocked traffic', { error: error as Error });
+		// logger.error('Failed to log blocked traffic', { error: error as Error });
+		throw error;
 	}
 }
 
@@ -738,7 +724,10 @@ const app = new Elysia()
 			}
 
 			if (eventType === 'error') {
-				// Check for bots before processing error events
+				if (FILTERED_ERROR_MESSAGES.has(body.payload?.message)) {
+					return { status: 'ignored', type: 'error', reason: 'filtered_message' };
+				}
+
 				const botError = await checkForBot(
 					request,
 					body,
@@ -818,6 +807,12 @@ const app = new Elysia()
 			}
 
 			if (eventType === 'custom') {
+				console.log('📨 RECEIVED SINGLE CUSTOM EVENT:');
+				console.log('🎯 Event name:', body.name);
+				console.log('📋 Properties:', JSON.stringify(body.properties, null, 2));
+				console.log('📏 Properties count:', Object.keys(body.properties || {}).length);
+				console.log('---');
+				
 				const parseResult = customEventSchema.safeParse(body);
 				if (!parseResult.success) {
 					console.error(
@@ -850,7 +845,6 @@ const app = new Elysia()
 			}
 
 			if (eventType === 'outgoing_link') {
-				// Check for bots before processing outgoing link events
 				const botError = await checkForBot(
 					request,
 					body,
@@ -992,6 +986,15 @@ const app = new Elysia()
 					}
 				}
 				if (eventType === 'error') {
+					// Skip filtered error messages as they provide no useful information
+					if (FILTERED_ERROR_MESSAGES.has(event.payload?.message)) {
+						return {
+							status: 'ignored',
+							type: 'error',
+							reason: 'filtered_message',
+						};
+					}
+
 					// Check for bots before processing error events
 					const botError = await checkForBot(
 						request,
@@ -1110,6 +1113,12 @@ const app = new Elysia()
 					}
 				}
 				if (eventType === 'custom') {
+					console.log('📦 RECEIVED BATCH CUSTOM EVENT:');
+					console.log('🎯 Event name:', event.name);
+					console.log('📋 Properties:', JSON.stringify(event.properties, null, 2));
+					console.log('📏 Properties count:', Object.keys(event.properties || {}).length);
+					console.log('---');
+					
 					const parseResult = customEventSchema.safeParse(event);
 					if (!parseResult.success) {
 						console.error(

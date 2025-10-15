@@ -31,11 +31,14 @@ export default function CostBreakdownPage() {
 		[dateRange, activeOrganization?.id]
 	);
 
-	const { data: organizationUsage } = trpc.organizations.getUsage.useQuery();
 	const { data: usageData, isLoading: isLoadingUsage } =
 		trpc.billing.getUsage.useQuery(usageQueryInput, {
 			enabled: !isLoadingOrganizations,
 		});
+
+	const { data: organizationUsage } = trpc.organizations.getUsage.useQuery();
+
+	const isLoading = isLoadingUsage;
 
 	const handleDateRangeChange = (startDate: string, endDate: string) => {
 		setDateRange({ startDate, endDate });
@@ -92,7 +95,7 @@ export default function CostBreakdownPage() {
 				<div className="flex-[3]">
 					<Suspense fallback={<Skeleton className="h-full w-full" />}>
 						<ConsumptionChart
-							isLoading={isLoadingUsage}
+							isLoading={isLoading}
 							onDateRangeChange={handleDateRangeChange}
 							overageInfo={overageInfo}
 							usageData={usageData}
@@ -102,7 +105,7 @@ export default function CostBreakdownPage() {
 				<div className="flex-[2]">
 					<Suspense fallback={<Skeleton className="h-full w-full" />}>
 						<UsageBreakdownTable
-							isLoading={isLoadingUsage}
+							isLoading={isLoading}
 							overageInfo={overageInfo}
 							usageData={usageData}
 						/>

@@ -44,25 +44,31 @@ export const formattedDateRangeAtom = atom((get) => {
 // --- Time Granularity ---
 export type TimeGranularity = 'daily' | 'hourly';
 
+const MAX_HOURLY_DAYS = 7;
+const AUTO_HOURLY_DAYS = 2;
+
 export const timeGranularityAtom = atom<TimeGranularity>('daily');
 
 /**
  * Action atom to update the date range and intelligently adjust granularity.
- * If the new range is <= 2 days, granularity becomes 'hourly', otherwise 'daily'.
+ * - Ranges <= 2 days: auto-set to hourly
+ * - Ranges 3-7 days: preserve current selection
+ * - Ranges > 7 days: force daily (hourly not supported for performance)
  */
 export const setDateRangeAndAdjustGranularityAtom = atom(
 	null,
-	(_get, set, newRange: DateRangeState) => {
+	(get, set, newRange: DateRangeState) => {
 		set(dateRangeAtom, newRange);
-		const diffDays = dayjs(newRange.endDate).diff(
-			dayjs(newRange.startDate),
+		
+		const rangeDays = dayjs(newRange.endDate).diff(
+			newRange.startDate,
 			'day'
 		);
-		if (diffDays <= 2) {
-			// If 2 days or less, set to hourly
-			set(timeGranularityAtom, 'hourly');
-		} else {
+		
+		if (rangeDays > MAX_HOURLY_DAYS) {
 			set(timeGranularityAtom, 'daily');
+		} else if (rangeDays <= AUTO_HOURLY_DAYS) {
+			set(timeGranularityAtom, 'hourly');
 		}
 	}
 );

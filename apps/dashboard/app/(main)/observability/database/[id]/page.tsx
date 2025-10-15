@@ -10,9 +10,9 @@ import {
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { use } from 'react';
-import { DataTable } from '@/components/analytics/data-table';
+import { DataTable } from '@/components/table/data-table';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { useDbConnection } from '@/hooks/use-db-connections';
 import { trpc } from '@/lib/trpc';
 
@@ -333,130 +333,192 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 
 	if (isLoadingConnection) {
 		return (
-			<Card className="rounded">
-				<CardContent className="flex items-center justify-center py-12">
+			<div className="flex h-full flex-col">
+				<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+					<div className="flex items-center gap-4">
+						<div className="rounded border border-primary/20 bg-primary/10 p-3">
+							<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+						</div>
+						<div>
+							<div className="h-8 w-64 animate-pulse rounded bg-muted" />
+							<div className="mt-2 h-4 w-96 animate-pulse rounded bg-muted" />
+						</div>
+					</div>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
 					<div className="flex items-center gap-2 text-muted-foreground">
 						<SpinnerIcon className="h-4 w-4 animate-spin" />
 						<span>Loading database connection...</span>
 					</div>
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 		);
 	}
 
 	if (connectionError) {
 		return (
-			<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
-				<CardContent className="pt-6">
-					<div className="flex items-center gap-3 text-red-600">
-						<DatabaseIcon className="h-5 w-5" weight="duotone" />
-						<p className="font-medium">Failed to load database connection</p>
+			<div className="flex h-full flex-col">
+				<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+					<div className="flex items-center gap-4">
+						<div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
+							<DatabaseIcon className="h-6 w-6 text-red-600" weight="duotone" />
+						</div>
+						<div>
+							<h1 className="font-bold text-2xl tracking-tight">
+								Database Connection
+							</h1>
+							<p className="text-muted-foreground text-sm">
+								Failed to load connection
+							</p>
+						</div>
 					</div>
-					<p className="mt-2 text-red-600/80 text-sm">
-						{connectionError.message}
-					</p>
-				</CardContent>
-			</Card>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
+					<div className="text-center">
+						<div className="flex items-center gap-3 text-red-600">
+							<DatabaseIcon className="h-5 w-5" weight="duotone" />
+							<p className="font-medium">Failed to load database connection</p>
+						</div>
+						<p className="mt-2 text-red-600/80 text-sm">
+							{connectionError.message}
+						</p>
+					</div>
+				</div>
+			</div>
 		);
 	}
 
 	if (!connection) {
 		return (
-			<Card className="rounded">
-				<CardContent className="pt-6">
+			<div className="flex h-full flex-col">
+				<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+					<div className="flex items-center gap-4">
+						<div className="rounded border border-primary/20 bg-primary/10 p-3">
+							<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+						</div>
+						<div>
+							<h1 className="font-bold text-2xl tracking-tight">
+								Database Connection
+							</h1>
+							<p className="text-muted-foreground text-sm">
+								Connection not found
+							</p>
+						</div>
+					</div>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
 					<div className="text-center text-muted-foreground">
 						<DatabaseIcon className="mx-auto mb-4 h-12 w-12" weight="duotone" />
 						<p className="font-medium">Database connection not found</p>
 					</div>
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 		);
 	}
 
 	return (
-		<>
-			{/* Database Stats */}
-			<div className="space-y-4">
-				<div className="flex items-center gap-2">
-					<DatabaseIcon
-						className="h-5 w-5 text-muted-foreground"
-						weight="duotone"
-					/>
-					<h2 className="font-semibold text-lg">Database Overview</h2>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div>
+						<h1 className="font-bold text-2xl tracking-tight">
+							{connection.name}
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Database connection overview and statistics
+						</p>
+					</div>
 				</div>
-
-				<DatabaseStatsOverview
-					databaseStats={databaseStats}
-					error={statsError}
-					isLoading={isLoadingStats}
-				/>
 			</div>
 
-			{/* Table Stats */}
-			<div className="space-y-4">
-				<div className="flex items-center justify-between">
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Database Stats */}
+				<div className="space-y-4">
 					<div className="flex items-center gap-2">
-						<TableIcon
+						<DatabaseIcon
 							className="h-5 w-5 text-muted-foreground"
 							weight="duotone"
 						/>
-						<h2 className="font-semibold text-lg">Table Statistics</h2>
+						<h2 className="font-semibold text-lg">Database Overview</h2>
 					</div>
-					{tableStats && tableStats.length > 0 && (
-						<Badge className="rounded" variant="secondary">
-							{tableStats.length} {tableStats.length === 1 ? 'table' : 'tables'}
-						</Badge>
-					)}
+
+					<DatabaseStatsOverview
+						databaseStats={databaseStats}
+						error={statsError}
+						isLoading={isLoadingStats}
+					/>
 				</div>
 
-				{isLoadingTables ? (
-					<div className="rounded border bg-background p-8">
-						<div className="flex items-center justify-center">
-							<div className="flex items-center gap-2 text-muted-foreground">
-								<SpinnerIcon className="h-4 w-4 animate-spin" />
-								<span>Loading table statistics...</span>
+				{/* Table Stats */}
+				<div className="space-y-4">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<TableIcon
+								className="h-5 w-5 text-muted-foreground"
+								weight="duotone"
+							/>
+							<h2 className="font-semibold text-lg">Table Statistics</h2>
+						</div>
+						{tableStats && tableStats.length > 0 && (
+							<Badge className="rounded" variant="secondary">
+								{tableStats.length}{' '}
+								{tableStats.length === 1 ? 'table' : 'tables'}
+							</Badge>
+						)}
+					</div>
+
+					{isLoadingTables ? (
+						<div className="rounded border bg-background p-8">
+							<div className="flex items-center justify-center">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<SpinnerIcon className="h-4 w-4 animate-spin" />
+									<span>Loading table statistics...</span>
+								</div>
 							</div>
 						</div>
-					</div>
-				) : tablesError ? (
-					<div className="rounded border bg-background p-8">
-						<div className="text-center">
-							<p className="font-medium text-destructive">
-								Failed to load table stats
+					) : tablesError ? (
+						<div className="rounded border bg-background p-8">
+							<div className="text-center">
+								<p className="font-medium text-destructive">
+									Failed to load table stats
+								</p>
+								<p className="mt-1 text-muted-foreground text-sm">
+									{tablesError.message}
+								</p>
+							</div>
+						</div>
+					) : tableStats && tableStats.length > 0 ? (
+						<DataTable
+							columns={tableStatsColumns}
+							data={tableStats.map((table) => ({
+								...table,
+								name: table.tableName, // Required by DataTable
+							}))}
+							description={`${tableStats.length} tables found in this database`}
+							emptyMessage="No tables found in this database"
+							minHeight={400}
+							showSearch={true}
+							title="Database Tables"
+						/>
+					) : (
+						<div className="rounded border bg-background p-12 text-center">
+							<TableIcon
+								className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
+								weight="duotone"
+							/>
+							<p className="font-medium text-muted-foreground">
+								No table statistics available
 							</p>
 							<p className="mt-1 text-muted-foreground text-sm">
-								{tablesError.message}
+								There are no tables to display for this database connection.
 							</p>
 						</div>
-					</div>
-				) : tableStats && tableStats.length > 0 ? (
-					<DataTable
-						columns={tableStatsColumns}
-						data={tableStats.map((table) => ({
-							...table,
-							name: table.tableName, // Required by DataTable
-						}))}
-						description={`${tableStats.length} tables found in this database`}
-						emptyMessage="No tables found in this database"
-						minHeight={400}
-						showSearch={true}
-						title="Database Tables"
-					/>
-				) : (
-					<div className="rounded border bg-background p-12 text-center">
-						<TableIcon
-							className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
-							weight="duotone"
-						/>
-						<p className="font-medium text-muted-foreground">
-							No table statistics available
-						</p>
-						<p className="mt-1 text-muted-foreground text-sm">
-							There are no tables to display for this database connection.
-						</p>
-					</div>
-				)}
+					)}
+				</div>
 			</div>
-		</>
+		</div>
 	);
 }

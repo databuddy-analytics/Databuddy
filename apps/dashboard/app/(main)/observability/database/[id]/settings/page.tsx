@@ -44,28 +44,37 @@ interface ConnectionSettingsPageProps {
 
 function LoadingState() {
 	return (
-		<>
-			<div className="space-y-2">
-				<div className="h-8 w-64 animate-pulse rounded bg-muted" />
-				<div className="h-4 w-96 animate-pulse rounded bg-muted" />
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded border border-primary/20 bg-primary/10 p-3">
+						<GearIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div>
+						<div className="h-8 w-64 animate-pulse rounded bg-muted" />
+						<div className="mt-2 h-4 w-96 animate-pulse rounded bg-muted" />
+					</div>
+				</div>
 			</div>
-			<div className="grid gap-6">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<Card key={i.toString()}>
-						<CardHeader>
-							<div className="h-6 w-48 animate-pulse rounded bg-muted" />
-							<div className="h-4 w-72 animate-pulse rounded bg-muted" />
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-3">
-								<div className="h-4 w-full animate-pulse rounded bg-muted" />
-								<div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-							</div>
-						</CardContent>
-					</Card>
-				))}
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				<div className="grid gap-6">
+					{Array.from({ length: 3 }).map((_, i) => (
+						<Card key={i.toString()}>
+							<CardHeader>
+								<div className="h-6 w-48 animate-pulse rounded bg-muted" />
+								<div className="h-4 w-72 animate-pulse rounded bg-muted" />
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-3">
+									<div className="h-4 w-full animate-pulse rounded bg-muted" />
+									<div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
 			</div>
-		</>
+		</div>
 	);
 }
 
@@ -202,249 +211,259 @@ export default function ConnectionSettingsPage({
 	}
 
 	return (
-		<>
-			{/* Header */}
-			<div className="space-y-2">
-				<div className="flex items-center gap-2">
-					<GearIcon
-						className="h-6 w-6 text-muted-foreground"
-						weight="duotone"
-					/>
-					<h1 className="font-bold text-2xl">Connection Settings</h1>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<GearIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div>
+						<h1 className="font-bold text-2xl tracking-tight">
+							Connection Settings
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Manage your database connection configuration and permissions
+						</p>
+					</div>
 				</div>
-				<p className="text-muted-foreground text-sm">
-					Manage your database connection configuration and permissions
-				</p>
 			</div>
 
-			{/* Success Banner */}
-			{success && (
-				<Alert className="items-center border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
-					<CheckIcon className="h-4 w-4 text-green-600" />
-					<AlertDescription className="flex items-center justify-between">
-						<span className="text-green-800 dark:text-green-200">
-							{success}
-						</span>
-						<Button onClick={() => setSuccess(null)} size="sm" variant="ghost">
-							Dismiss
-						</Button>
-					</AlertDescription>
-				</Alert>
-			)}
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Success Banner */}
+				{success && (
+					<Alert className="items-center border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+						<CheckIcon className="h-4 w-4 text-green-600" />
+						<AlertDescription className="flex items-center justify-between">
+							<span className="text-green-800 dark:text-green-200">
+								{success}
+							</span>
+							<Button
+								onClick={() => setSuccess(null)}
+								size="sm"
+								variant="ghost"
+							>
+								Dismiss
+							</Button>
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Basic Information */}
-			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<div>
-							<CardTitle className="flex items-center gap-2">
-								<DatabaseIcon className="h-5 w-5" />
-								Basic Information
-							</CardTitle>
-							<CardDescription>
-								Basic details about your database connection
-							</CardDescription>
+				{/* Basic Information */}
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle className="flex items-center gap-2">
+									<DatabaseIcon className="h-5 w-5" />
+									Basic Information
+								</CardTitle>
+								<CardDescription>
+									Basic details about your database connection
+								</CardDescription>
+							</div>
+							<Button
+								onClick={() => setEditDialog(true)}
+								size="sm"
+								variant="outline"
+							>
+								<PencilIcon className="h-4 w-4" />
+								Edit
+							</Button>
 						</div>
-						<Button
-							onClick={() => setEditDialog(true)}
-							size="sm"
-							variant="outline"
-						>
-							<PencilIcon className="h-4 w-4" />
-							Edit
-						</Button>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<div>
-							<Label className="font-medium text-sm">Connection Name</Label>
-							<p className="text-muted-foreground text-sm">{connection.name}</p>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="grid gap-4 sm:grid-cols-2">
+							<div>
+								<Label className="font-medium text-sm">Connection Name</Label>
+								<p className="text-muted-foreground text-sm">
+									{connection.name}
+								</p>
+							</div>
+							<div>
+								<Label className="font-medium text-sm">Created</Label>
+								<p className="text-muted-foreground text-sm">
+									{new Date(connection.createdAt).toLocaleDateString('en-US', {
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric',
+									})}
+								</p>
+							</div>
+							<div>
+								<Label className="font-medium text-sm">Last Updated</Label>
+								<p className="text-muted-foreground text-sm">
+									{new Date(connection.updatedAt).toLocaleDateString('en-US', {
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric',
+									})}
+								</p>
+							</div>
 						</div>
-						<div>
-							<Label className="font-medium text-sm">Created</Label>
-							<p className="text-muted-foreground text-sm">
-								{new Date(connection.createdAt).toLocaleDateString('en-US', {
-									year: 'numeric',
-									month: 'long',
-									day: 'numeric',
-								})}
-							</p>
-						</div>
-						<div>
-							<Label className="font-medium text-sm">Last Updated</Label>
-							<p className="text-muted-foreground text-sm">
-								{new Date(connection.updatedAt).toLocaleDateString('en-US', {
-									year: 'numeric',
-									month: 'long',
-									day: 'numeric',
-								})}
-							</p>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
 
-			{/* Connection Details */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2">
-						<DatabaseIcon className="h-5 w-5" />
-						Connection Details
-					</CardTitle>
-					<CardDescription>
-						Technical details and connection information
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<div>
-							<Label className="font-medium text-sm">Connection ID</Label>
-							<p className="break-all font-mono text-muted-foreground text-sm">
-								{connection.id}
-							</p>
+				{/* Connection Details */}
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<DatabaseIcon className="h-5 w-5" />
+							Connection Details
+						</CardTitle>
+						<CardDescription>
+							Technical details and connection information
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="grid gap-4 sm:grid-cols-2">
+							<div>
+								<Label className="font-medium text-sm">Connection ID</Label>
+								<p className="break-all font-mono text-muted-foreground text-sm">
+									{connection.id}
+								</p>
+							</div>
+							<div>
+								<Label className="font-medium text-sm">Organization</Label>
+								<p className="text-muted-foreground text-sm">
+									{connection.organizationId
+										? 'Organization Account'
+										: 'Personal Account'}
+								</p>
+							</div>
+							<div>
+								<Label className="font-medium text-sm">User ID</Label>
+								<p className="break-all font-mono text-muted-foreground text-sm">
+									{connection.userId}
+								</p>
+							</div>
+							<div>
+								<Label className="font-medium text-sm">Database Type</Label>
+								<div className="flex items-center gap-2">
+									<Badge className="capitalize" variant="outline">
+										{connection.type}
+									</Badge>
+								</div>
+							</div>
 						</div>
-						<div>
-							<Label className="font-medium text-sm">Organization</Label>
-							<p className="text-muted-foreground text-sm">
-								{connection.organizationId
-									? 'Organization Account'
-									: 'Personal Account'}
-							</p>
-						</div>
-						<div>
-							<Label className="font-medium text-sm">User ID</Label>
-							<p className="break-all font-mono text-muted-foreground text-sm">
-								{connection.userId}
-							</p>
-						</div>
-						<div>
-							<Label className="font-medium text-sm">Database Type</Label>
-							<div className="flex items-center gap-2">
-								<Badge className="capitalize" variant="outline">
-									{connection.type}
+					</CardContent>
+				</Card>
+
+				{/* Monitoring Configuration */}
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<DatabaseIcon className="h-5 w-5" />
+							Monitoring & Access
+						</CardTitle>
+						<CardDescription>
+							Database monitoring and access capabilities
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="space-y-3">
+							<div className="flex items-center justify-between rounded border p-3">
+								<div className="space-y-1">
+									<p className="font-medium text-sm">Performance Monitoring</p>
+									<p className="text-muted-foreground text-xs">
+										Track query performance, connection pools, and database
+										metrics
+									</p>
+								</div>
+								<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+									Enabled
+								</Badge>
+							</div>
+							<div className="flex items-center justify-between rounded border p-3">
+								<div className="space-y-1">
+									<p className="font-medium text-sm">Query Analysis</p>
+									<p className="text-muted-foreground text-xs">
+										Analyze slow queries and execution plans
+									</p>
+								</div>
+								<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+									Enabled
+								</Badge>
+							</div>
+							<div className="flex items-center justify-between rounded border p-3">
+								<div className="space-y-1">
+									<p className="font-medium text-sm">Extension Management</p>
+									<p className="text-muted-foreground text-xs">
+										Install and manage PostgreSQL extensions
+									</p>
+								</div>
+								<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+									Enabled
+								</Badge>
+							</div>
+							<div className="flex items-center justify-between rounded border p-3">
+								<div className="space-y-1">
+									<p className="font-medium text-sm">Configuration Changes</p>
+									<p className="text-muted-foreground text-xs">
+										Modify database settings and parameters
+									</p>
+								</div>
+								<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+									Enabled
 								</Badge>
 							</div>
 						</div>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
 
-			{/* Monitoring Configuration */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2">
-						<DatabaseIcon className="h-5 w-5" />
-						Monitoring & Access
-					</CardTitle>
-					<CardDescription>
-						Database monitoring and access capabilities
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="space-y-3">
-						<div className="flex items-center justify-between rounded border p-3">
-							<div className="space-y-1">
-								<p className="font-medium text-sm">Performance Monitoring</p>
-								<p className="text-muted-foreground text-xs">
-									Track query performance, connection pools, and database
-									metrics
+				<Separator />
+
+				{/* Danger Zone */}
+				<Card className="border-red-200 dark:border-red-800">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2 text-red-600">
+							<WarningIcon className="h-5 w-5" />
+							Danger Zone
+						</CardTitle>
+						<CardDescription>
+							Irreversible and destructive actions for this connection
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="flex items-center justify-between rounded border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
+							<div>
+								<h4 className="font-medium text-red-800 dark:text-red-200">
+									Delete Connection
+								</h4>
+								<p className="text-red-700 text-sm dark:text-red-300">
+									Permanently delete this connection and all associated
+									monitoring data
 								</p>
 							</div>
-							<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-								Enabled
-							</Badge>
+							<Button
+								onClick={() => setDeleteDialog(true)}
+								size="sm"
+								variant="destructive"
+							>
+								<TrashIcon className="mr-2 h-4 w-4" />
+								Delete
+							</Button>
 						</div>
-						<div className="flex items-center justify-between rounded border p-3">
-							<div className="space-y-1">
-								<p className="font-medium text-sm">Query Analysis</p>
-								<p className="text-muted-foreground text-xs">
-									Analyze slow queries and execution plans
-								</p>
-							</div>
-							<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-								Enabled
-							</Badge>
-						</div>
-						<div className="flex items-center justify-between rounded border p-3">
-							<div className="space-y-1">
-								<p className="font-medium text-sm">Extension Management</p>
-								<p className="text-muted-foreground text-xs">
-									Install and manage PostgreSQL extensions
-								</p>
-							</div>
-							<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-								Enabled
-							</Badge>
-						</div>
-						<div className="flex items-center justify-between rounded border p-3">
-							<div className="space-y-1">
-								<p className="font-medium text-sm">Configuration Changes</p>
-								<p className="text-muted-foreground text-xs">
-									Modify database settings and parameters
-								</p>
-							</div>
-							<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-								Enabled
-							</Badge>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
 
-			<Separator />
+				{/* Dialogs */}
+				<EditConnectionDialog
+					connection={connection}
+					isLoading={updateMutation.isPending}
+					onOpenChange={setEditDialog}
+					onSubmit={(data) => {
+						updateMutation.mutate(data);
+					}}
+					open={editDialog}
+				/>
 
-			{/* Danger Zone */}
-			<Card className="border-red-200 dark:border-red-800">
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2 text-red-600">
-						<WarningIcon className="h-5 w-5" />
-						Danger Zone
-					</CardTitle>
-					<CardDescription>
-						Irreversible and destructive actions for this connection
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="flex items-center justify-between rounded border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
-						<div>
-							<h4 className="font-medium text-red-800 dark:text-red-200">
-								Delete Connection
-							</h4>
-							<p className="text-red-700 text-sm dark:text-red-300">
-								Permanently delete this connection and all associated monitoring
-								data
-							</p>
-						</div>
-						<Button
-							onClick={() => setDeleteDialog(true)}
-							size="sm"
-							variant="destructive"
-						>
-							<TrashIcon className="mr-2 h-4 w-4" />
-							Delete
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-
-			{/* Dialogs */}
-			<EditConnectionDialog
-				connection={connection}
-				isLoading={updateMutation.isPending}
-				onOpenChange={setEditDialog}
-				onSubmit={(data) => {
-					updateMutation.mutate(data);
-				}}
-				open={editDialog}
-			/>
-
-			<DeleteConnectionDialog
-				connection={connection}
-				onOpenChange={setDeleteDialog}
-				onSuccess={handleDeleteSuccess}
-				open={deleteDialog}
-			/>
-		</>
+				<DeleteConnectionDialog
+					connection={connection}
+					onOpenChange={setDeleteDialog}
+					onSuccess={handleDeleteSuccess}
+					open={deleteDialog}
+				/>
+			</div>
+		</div>
 	);
 }

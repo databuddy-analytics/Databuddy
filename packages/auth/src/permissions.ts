@@ -20,7 +20,7 @@ const statement = {
 		'transfer',
 	],
 
-	organization: ['read', 'update', 'manage_logo', 'manage_settings'],
+	organization: ['read', 'update', 'manage_logo', 'manage_settings', 'delete'],
 
 	subscription: ['read', 'update', 'cancel', 'manage_billing', 'view_usage'],
 
@@ -72,7 +72,7 @@ const owner = ac.newRole({
 		'transfer',
 	],
 	subscription: ['read', 'update', 'cancel', 'manage_billing', 'view_usage'],
-	organization: ['read', 'update', 'manage_logo', 'manage_settings'],
+	organization: ['read', 'update', 'manage_logo', 'manage_settings', 'delete'],
 	member: ownerAc.statements.member,
 	invitation: ownerAc.statements.invitation,
 });

@@ -2,7 +2,7 @@
 
 import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useCallback, useMemo, useState } from 'react';
-import { DataTable } from '@/components/analytics';
+import { DataTable } from '@/components/table/data-table';
 import type {
 	CustomEventsSectionProps,
 	EventProperty,

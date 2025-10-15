@@ -1,9 +1,16 @@
 'use client';
 
-import { DatabaseIcon, InfoIcon, TrendDownIcon } from '@phosphor-icons/react';
+import {
+	ArrowClockwiseIcon,
+	DatabaseIcon,
+	InfoIcon,
+	PlusIcon,
+	TrendDownIcon,
+} from '@phosphor-icons/react';
 import { Suspense, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
 	type DbConnection,
@@ -14,7 +21,6 @@ import {
 } from '@/hooks/use-db-connections';
 import { ConnectionsList } from './_components/connections-list';
 import { CreateConnectionDialog } from './_components/create-connection-dialog';
-import { DatabasePageHeader } from './_components/database-page-header';
 import { DeleteConnectionDialog } from './_components/delete-connection-dialog';
 import { EditConnectionDialog } from './_components/edit-connection-dialog';
 
@@ -159,49 +165,72 @@ export default function DatabasePage() {
 	}
 
 	return (
-		<div className="space-y-6" ref={pageRef}>
-			<DatabasePageHeader
-				createActionLabel="Add Connection"
-				description="Monitor your database connections and performance metrics"
-				hasError={!!error}
-				icon={
-					<DatabaseIcon
-						className="h-6 w-6 text-primary"
-						size={16}
-						weight="duotone"
+		<div className="flex h-full flex-col" ref={pageRef}>
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div className="flex-1">
+						<div className="flex items-center gap-3">
+							<h1 className="font-bold text-2xl tracking-tight">
+								Database Monitoring
+							</h1>
+							{!isLoading && (
+								<span className="text-muted-foreground text-sm">
+									{connections.length} connection
+									{connections.length !== 1 ? 's' : ''}
+								</span>
+							)}
+						</div>
+						<p className="text-muted-foreground text-sm">
+							Monitor your database connections and performance metrics
+						</p>
+					</div>
+					<div className="flex flex-row items-stretch gap-3">
+						<Button
+							className="gap-2 border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5"
+							disabled={isRefreshing}
+							onClick={handleRefresh}
+							variant="outline"
+						>
+							<ArrowClockwiseIcon
+								className={isRefreshing ? 'animate-spin' : ''}
+							/>
+							Refresh Data
+						</Button>
+						<Button
+							className="gap-2 bg-gradient-to-r from-primary to-primary/90 shadow-lg transition-all duration-200 hover:from-primary/90 hover:to-primary hover:shadow-xl"
+							onClick={handleCreateConnection}
+						>
+							<PlusIcon />
+							Add Connection
+						</Button>
+					</div>
+				</div>
+			</div>
+
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				<Alert className="rounded border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+					<InfoIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+					<AlertDescription className="text-amber-800 dark:text-amber-200">
+						<strong>Alpha Release - Early Access</strong>
+						Database monitoring is currently in alpha and not intended for
+						production use. This is an early access feature for testing and
+						feedback purposes only.
+					</AlertDescription>
+				</Alert>
+
+				<Suspense fallback={<DatabaseConnectionsSkeleton />}>
+					<ConnectionsList
+						connections={connections}
+						isLoading={isLoading}
+						onCreate={handleCreateConnection}
+						onDelete={handleDeleteConnection}
+						onEdit={handleEditConnection}
 					/>
-				}
-				isLoading={isLoading}
-				isRefreshing={isRefreshing}
-				onCreateAction={handleCreateConnection}
-				onRefresh={handleRefresh}
-				subtitle={
-					isLoading
-						? undefined
-						: `${connections.length} connection${connections.length !== 1 ? 's' : ''}`
-				}
-				title="Database Monitoring"
-			/>
-
-			<Alert className="rounded border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
-				<InfoIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-				<AlertDescription className="text-amber-800 dark:text-amber-200">
-					<strong>Alpha Release - Early Access</strong>
-					Database monitoring is currently in alpha and not intended for
-					production use. This is an early access feature for testing and
-					feedback purposes only.
-				</AlertDescription>
-			</Alert>
-
-			<Suspense fallback={<DatabaseConnectionsSkeleton />}>
-				<ConnectionsList
-					connections={connections}
-					isLoading={isLoading}
-					onCreate={handleCreateConnection}
-					onDelete={handleDeleteConnection}
-					onEdit={handleEditConnection}
-				/>
-			</Suspense>
+				</Suspense>
+			</div>
 
 			{isCreateDialogOpen && (
 				<Suspense fallback={null}>

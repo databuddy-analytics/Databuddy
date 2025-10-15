@@ -1,5 +1,3 @@
-export { AnimatedLoading } from './animated-loading';
-export { DataTable } from './data-table';
 export { DateDisplay } from './date-display';
 export { DeviceTypeCell } from './device-type-cell';
 export { EventLimitIndicator } from './event-limit-indicator';

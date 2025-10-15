@@ -1,12 +1,17 @@
 'use client';
 
 import { useFlags } from '@databuddy/sdk/react';
-import { FlagIcon } from '@phosphor-icons/react';
+import { FlagIcon, InfoIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import { Suspense, useCallback, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useWebsite } from '@/hooks/use-websites';
 import { trpc } from '@/lib/trpc';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
@@ -145,7 +150,7 @@ export default function FlagsPage() {
 				websiteName={website?.name || undefined}
 			/>
 			{experimentFlag.isReady && (
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-3">
 					<FlagIcon
 						className="h-5 w-5"
 						color={experimentFlag.enabled ? 'red' : 'blue'}
@@ -157,6 +162,23 @@ export default function FlagsPage() {
 					) : (
 						<Badge className="bg-blue-500 text-white">Blue Team</Badge>
 					)}
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<InfoIcon className="h-4 w-4" weight="duotone" />
+						</TooltipTrigger>
+						<TooltipContent className="max-w-xs">
+							<div className="space-y-2">
+								<p className="font-medium">A/B Test Experiment</p>
+								<p className="text-xs leading-relaxed">
+									This is a proof-of-concept feature flag demonstrating A/B
+									testing capabilities. Approximately 50% of users are randomly
+									assigned to the "Red Team" experience, while the other 50% see
+									the "Blue Team" experience. This live experiment helps test
+									feature flag functionality and user experience variations.
+								</p>
+							</div>
+						</TooltipContent>
+					</Tooltip>
 				</div>
 			)}
 			<Suspense fallback={<FlagsListSkeleton />}>

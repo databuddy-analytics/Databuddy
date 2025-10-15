@@ -53,3 +53,8 @@ export const transferWebsiteSchema = z.object({
 	websiteId: z.string(),
 	organizationId: z.string().optional(),
 });
+
+export const transferWebsiteToOrgSchema = z.object({
+	websiteId: z.string(),
+	targetOrganizationId: z.string(),
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { DataTable } from '@/components/analytics';
+import { DataTable } from '@/components/table/data-table';
 
 interface StatData {
 	metric: string;

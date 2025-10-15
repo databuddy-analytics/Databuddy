@@ -97,16 +97,18 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			'region as name',
+			'country',
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: ["region != ''", "event_name = 'screen_view'"],
-		groupBy: ['region'],
+		groupBy: ['region', 'country'],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
 		customizable: true,
+		plugins: { normalizeGeo: true, deduplicateGeo: true },
 	},
 
 	timezone: {
@@ -182,15 +184,17 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			'city as name',
+			'country',
 			'COUNT(*) as pageviews',
 			'COUNT(DISTINCT anonymous_id) as visitors',
 			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
 		],
 		where: ["city != ''", "event_name = 'screen_view'"],
-		groupBy: ['city'],
+		groupBy: ['city', 'country'],
 		orderBy: 'pageviews DESC',
 		limit: 100,
 		timeField: 'time',
 		customizable: true,
+		plugins: { normalizeGeo: true, deduplicateGeo: true },
 	},
 };

@@ -122,6 +122,15 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 		if (item.production === false && process.env.NODE_ENV === 'production') {
 			return false;
 		}
+
+		const isDemo = pathname.startsWith('/demo');
+		if (item.hideFromDemo && isDemo) {
+			return false;
+		}
+		if (item.showOnlyOnDemo && !isDemo) {
+			return false;
+		}
+
 		return true;
 	});
 

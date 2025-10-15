@@ -49,7 +49,6 @@ const config = {
 		];
 	},
 
-	// biome-ignore lint/suspicious/useAwait: "redirects is async"
 	async redirects() {
 		return [
 			{
@@ -92,9 +91,13 @@ const config = {
 				protocol: 'https',
 				hostname: 'pbs.twimg.com',
 			},
+			{
+				protocol: 'https',
+				hostname: 'api.producthunt.com',
+			},
 		],
 		formats: ['image/webp', 'image/avif'],
-		minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
+		minimumCacheTTL: 60 * 60 * 24 * 30
 	},
 
 	experimental: {

@@ -127,22 +127,22 @@ export function OrganizationProvider({
 				<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
 					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
 						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-4">
-								<div className="rounded border border-primary/20 bg-primary/10 p-3">
-									<Skeleton className="h-6 w-6" />
+							<div className="flex items-center gap-3 sm:gap-4">
+								<div className="rounded border border-primary/20 bg-primary/10 p-2 sm:p-3">
+									<Skeleton className="h-5 w-5 sm:h-6 sm:w-6" />
 								</div>
 								<div>
-									<Skeleton className="h-8 w-48" />
-									<Skeleton className="mt-1 h-4 w-64" />
+									<Skeleton className="h-6 w-32 sm:h-8 sm:w-48" />
+									<Skeleton className="mt-1 h-3 w-48 sm:h-4 sm:w-64" />
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 				<main className="flex-1 overflow-y-auto p-4 sm:p-6">
-					<Skeleton className="h-48 w-full" />
-					<Skeleton className="h-32 w-full" />
-					<Skeleton className="h-24 w-full" />
+					<Skeleton className="h-32 w-full sm:h-48" />
+					<Skeleton className="h-24 w-full sm:h-32" />
+					<Skeleton className="h-20 w-full sm:h-24" />
 				</main>
 			</div>
 		);
@@ -154,19 +154,19 @@ export function OrganizationProvider({
 				<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
 					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
 						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-4">
-								<div className="rounded border border-primary/20 bg-primary/10 p-3">
+							<div className="flex items-center gap-3 sm:gap-4">
+								<div className="rounded border border-primary/20 bg-primary/10 p-2 sm:p-3">
 									<Icon
-										className="h-6 w-6 text-primary"
-										size={24}
+										className="h-5 w-5 text-primary sm:h-6 sm:w-6"
+										size={20}
 										weight="duotone"
 									/>
 								</div>
 								<div>
-									<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
+									<h1 className="truncate font-bold text-xl text-foreground tracking-tight sm:text-2xl lg:text-3xl">
 										{title}
 									</h1>
-									<p className="mt-1 text-muted-foreground text-sm sm:text-base">
+									<p className="mt-1 text-muted-foreground text-xs sm:text-sm lg:text-base">
 										{description}
 									</p>
 								</div>
@@ -174,37 +174,37 @@ export function OrganizationProvider({
 						</div>
 						{actionButton && (
 							<Button
-								className="w-full rounded sm:w-auto"
+								className="w-full rounded text-xs sm:w-auto sm:text-sm"
 								onClick={actionButton.action}
 								size="sm"
 							>
-								<actionButton.icon className="mr-2 h-4 w-4" size={16} />
+								<actionButton.icon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
 								{actionButton.text}
 							</Button>
 						)}
 					</div>
 				</div>
 
-				<main className="flex flex-1 items-center justify-center p-6">
-					<div className="w-full max-w-md rounded-lg border bg-card p-8 text-center">
+				<main className="flex flex-1 items-center justify-center p-4 sm:p-6">
+					<div className="w-full max-w-md rounded-lg border bg-card p-6 text-center sm:p-8">
 						<Icon
-							className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
-							size={48}
+							className="mx-auto mb-3 h-10 w-10 text-muted-foreground sm:mb-4 sm:h-12 sm:w-12"
+							size={40}
 							weight="duotone"
 						/>
-						<h3 className="mb-2 font-semibold text-lg">
+						<h3 className="mb-2 font-semibold text-base sm:text-lg">
 							Select an Organization
 						</h3>
-						<p className="text-muted-foreground text-sm">
+						<p className="text-muted-foreground text-xs sm:text-sm">
 							This feature requires an active organization.
 						</p>
-						<div className="mt-6">
+						<div className="mt-4 sm:mt-6">
 							<Button
-								className="rounded"
+								className="rounded text-xs sm:text-sm"
 								onClick={() => setShowCreateDialog(true)}
 								size="default"
 							>
-								<BuildingsIcon className="mr-2 h-5 w-5" size={20} />
+								<BuildingsIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" size={16} />
 								Create organization
 							</Button>
 						</div>
@@ -217,36 +217,36 @@ export function OrganizationProvider({
 	return (
 		<div className="flex h-full flex-col">
 			<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
-				<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-4">
-							<div className="rounded border border-primary/20 bg-primary/10 p-3">
-								<Icon
-									className="h-6 w-6 text-primary"
-									size={24}
-									weight="duotone"
-								/>
-							</div>
-							<div>
-								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
-									{title}
-								</h1>
-								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
-									{description}
-								</p>
+					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
+						<div className="min-w-0 flex-1">
+							<div className="flex items-center gap-3 sm:gap-4">
+								<div className="rounded border border-primary/20 bg-primary/10 p-2 sm:p-3">
+									<Icon
+										className="h-5 w-5 text-primary sm:h-6 sm:w-6"
+										size={20}
+										weight="duotone"
+									/>
+								</div>
+								<div>
+									<h1 className="truncate font-bold text-xl text-foreground tracking-tight sm:text-2xl lg:text-3xl">
+										{title}
+									</h1>
+									<p className="mt-1 text-muted-foreground text-xs sm:text-sm lg:text-base">
+										{description}
+									</p>
+								</div>
 							</div>
 						</div>
-					</div>
-					{actionButton && (
-						<Button
-							className="w-full rounded sm:w-auto"
-							onClick={actionButton.action}
-							size="sm"
-						>
-							<actionButton.icon className="mr-2 h-4 w-4" size={16} />
-							{actionButton.text}
-						</Button>
-					)}
+						{actionButton && (
+							<Button
+								className="w-full rounded text-xs sm:w-auto sm:text-sm"
+								onClick={actionButton.action}
+								size="sm"
+							>
+								<actionButton.icon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
+								{actionButton.text}
+							</Button>
+						)}
 				</div>
 			</div>
 

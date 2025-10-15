@@ -23,7 +23,7 @@ export type Usage = {
 export type { Customer, CustomerInvoice as Invoice } from 'autumn-js';
 
 export function useBilling(refetch?: () => void) {
-	const { attach, cancel, check, track, openBillingPortal } = useAutumn();
+	const { attach, cancel, check, track, openBillingPortal } = useCustomer();
 	const [isLoading, setIsLoading] = useState(false);
 	const [showNoPaymentDialog, setShowNoPaymentDialog] = useState(false);
 	const [showCancelDialog, setShowCancelDialog] = useState(false);

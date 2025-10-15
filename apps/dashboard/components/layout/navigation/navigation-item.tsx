@@ -40,7 +40,6 @@ export function NavigationItem({
 			return href === '' ? '/sandbox' : `/sandbox${href}`;
 		}
 
-		// Check if we're on a database page
 		if (
 			pathname.startsWith('/observability/database/') &&
 			pathname !== '/observability/database' &&
@@ -49,6 +48,10 @@ export function NavigationItem({
 			return href === ''
 				? `/observability/database/${currentWebsiteId}`
 				: `/observability/database/${currentWebsiteId}${href}`;
+		}
+
+		if (pathname.startsWith('/demo/')) {
+			return href === '' ? `/demo/${currentWebsiteId}` : `/demo/${currentWebsiteId}${href}`;
 		}
 
 		return `/websites/${currentWebsiteId}${href}`;

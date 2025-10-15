@@ -1,4 +1,5 @@
 import './global.css';
+import { Databuddy } from '@databuddy/sdk';
 import { RootProvider } from 'fumadocs-ui/provider';
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Manrope } from 'next/font/google';
@@ -102,6 +103,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 				src="https://cdn.databuddy.cc/databuddy.js"
 				strategy="afterInteractive"
 			/>
+			<Databuddy clientId="OXmNQsViBT-FOS_wZCTHc" />
 			<Head>
 				<link href="https://icons.duckduckgo.com" rel="preconnect" />
 				<link href="https://icons.duckduckgo.com" rel="dns-prefetch" />

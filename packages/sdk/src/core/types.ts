@@ -212,6 +212,11 @@ export interface DatabuddyConfig {
 	 * Min: 100, Max: 30000
 	 */
 	batchTimeout?: number;
+
+	/** Array of glob patterns to skip tracking on matching paths (e.g., ['/admin/**']) */
+	skipPatterns?: string[];
+
+	maskPatterns?: string[];
 }
 
 /**

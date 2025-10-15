@@ -17,20 +17,22 @@ import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo } from 'react';
 import {
-	DataTable,
 	DeviceTypeCell,
 	EventLimitIndicator,
 	StatCard,
 	UnauthorizedAccessError,
 } from '@/components/analytics';
-import {
-	ReferrerSourceCell,
-	type ReferrerSourceCellData,
-} from '@/components/atomic/ReferrerSourceCell';
-import { MetricsChart } from '@/components/charts/metrics-chart';
+import { MetricsChartWithAnnotations } from '@/components/charts/metrics-chart-with-annotations';
 import { BrowserIcon, OSIcon } from '@/components/icon';
+import { DataTable } from '@/components/table/data-table';
+import {
+	createMetricColumns,
+	createPageColumns,
+	createReferrerColumns,
+} from '@/components/table/rows';
 import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
 import { getUserTimezone } from '@/lib/timezone';
+import { useDateFilters } from '@/hooks/use-date-filters';
 import {
 	metricVisibilityAtom,
 	toggleMetricAtom,
@@ -51,6 +53,7 @@ const CustomEventsSection = dynamic(() =>
 
 interface ChartDataPoint {
 	date: string;
+	rawDate?: string;
 	pageviews?: number;
 	visitors?: number;
 	sessions?: number;
@@ -73,22 +76,21 @@ interface CellInfo {
 	row: { original: unknown };
 }
 
+interface PageRowData {
+	name: string;
+	visitors: number;
+	pageviews: number;
+	percentage: number;
+}
+
 interface AnalyticsRowData {
 	name: string;
-	visitors?: number;
-	pageviews?: number;
-	percentage?: number;
+	visitors: number;
+	pageviews: number;
+	percentage: number;
 	referrer?: string;
 }
 
-interface PageRowData {
-	name: string;
-	visitors?: number;
-	pageviews?: number;
-	percentage?: number;
-}
-
-// Constants
 const MIN_PREVIOUS_SESSIONS_FOR_TREND = 5;
 const MIN_PREVIOUS_VISITORS_FOR_TREND = 5;
 const MIN_PREVIOUS_PAGEVIEWS_FOR_TREND = 10;
@@ -142,10 +144,14 @@ export function WebsiteOverviewTab({
 		[]
 	);
 
+	const { setDateRangeAction } = useDateFilters();
+
 	const previousPeriodRange = useMemo(
 		() => calculatePreviousPeriod(dateRange),
 		[dateRange, calculatePreviousPeriod]
 	);
+
+	const [visibleMetrics] = useAtom(metricVisibilityAtom);
 
 	const queries = [
 		{
@@ -241,34 +247,9 @@ export function WebsiteOverviewTab({
 			getDataForQuery('overview-custom-events', 'outbound_domains') || [],
 	};
 
-	const [visibleMetrics] = useAtom(metricVisibilityAtom);
-	const [, toggleMetricAction] = useAtom(toggleMetricAtom);
-
-	const toggleMetric = useCallback(
-		(metric: string) => {
-			if (metric in visibleMetrics) {
-				toggleMetricAction(metric as keyof typeof visibleMetrics);
-			}
-		},
-		[visibleMetrics, toggleMetricAction]
-	);
-
-	const hiddenMetrics = useMemo(() => {
-		const result: Record<string, boolean> = {};
-		for (const key of Object.keys(visibleMetrics)) {
-			result[key] = !visibleMetrics[key as keyof typeof visibleMetrics];
-		}
-		return result;
-	}, [visibleMetrics]);
-
 	const createPercentageCell = () => (info: CellInfo) => {
 		const percentage = info.getValue() as number;
 		return <PercentageBadge percentage={percentage} />;
-	};
-
-	const referrerCustomCell = (info: CellInfo) => {
-		const cellData = info.row.original as ReferrerSourceCellData;
-		return <ReferrerSourceCell {...cellData} />;
 	};
 
 	const referrerTabs = [
@@ -276,40 +257,10 @@ export function WebsiteOverviewTab({
 			id: 'referrers',
 			label: 'Referrers',
 			data: analytics.top_referrers || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Source',
-					cell: referrerCustomCell,
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<AnalyticsRowData, unknown>[],
+			columns: createReferrerColumns() as ColumnDef<
+				AnalyticsRowData,
+				unknown
+			>[],
 			getFilter: (row: AnalyticsRowData) => {
 				return {
 					field: 'referrer',
@@ -321,47 +272,12 @@ export function WebsiteOverviewTab({
 			id: 'utm_sources',
 			label: 'UTM Sources',
 			data: analytics.utm_sources || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Source',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<AnalyticsRowData, unknown>[],
+			columns: createMetricColumns({
+				includeName: true,
+				nameLabel: 'Source',
+				visitorsLabel: 'Visitors',
+				pageviewsLabel: 'Views',
+			}) as ColumnDef<AnalyticsRowData, unknown>[],
 			getFilter: (row: AnalyticsRowData) => ({
 				field: 'utm_source',
 				value: row.name,
@@ -371,47 +287,12 @@ export function WebsiteOverviewTab({
 			id: 'utm_mediums',
 			label: 'UTM Mediums',
 			data: analytics.utm_mediums || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Medium',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<AnalyticsRowData, unknown>[],
+			columns: createMetricColumns({
+				includeName: true,
+				nameLabel: 'Medium',
+				visitorsLabel: 'Visitors',
+				pageviewsLabel: 'Views',
+			}) as ColumnDef<AnalyticsRowData, unknown>[],
 			getFilter: (row: AnalyticsRowData) => ({
 				field: 'utm_medium',
 				value: row.name,
@@ -421,47 +302,12 @@ export function WebsiteOverviewTab({
 			id: 'utm_campaigns',
 			label: 'UTM Campaigns',
 			data: analytics.utm_campaigns || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Campaign',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<AnalyticsRowData, unknown>[],
+			columns: createMetricColumns({
+				includeName: true,
+				nameLabel: 'Campaign',
+				visitorsLabel: 'Visitors',
+				pageviewsLabel: 'Views',
+			}) as ColumnDef<AnalyticsRowData, unknown>[],
 			getFilter: (row: AnalyticsRowData) => ({
 				field: 'utm_campaign',
 				value: row.name,
@@ -473,95 +319,129 @@ export function WebsiteOverviewTab({
 	const dateTo = dayjs(dateRange.end_date);
 	const dateDiff = dateTo.diff(dateFrom, 'day');
 
-	const filterFutureEvents = useCallback(
-		(events: MetricPoint[]) => {
-			const userTimezone = getUserTimezone();
-			const now = dayjs().tz(userTimezone);
+	const processedEventsData = useMemo(() => {
+		if (!analytics.events_by_date?.length) return [];
+		
+		const userTimezone = getUserTimezone();
+		const now = dayjs().tz(userTimezone);
+		const isHourly = dateRange.granularity === 'hourly';
 
-			return events.filter((event: MetricPoint) => {
-				const eventDate = dayjs.utc(event.date).tz(userTimezone);
+		// Step 1: Filter future events
+		const filteredEvents = analytics.events_by_date.filter((event: MetricPoint) => {
+			const eventDate = dayjs.utc(event.date).tz(userTimezone);
 
-				if (dateRange.granularity === 'hourly') {
-					return eventDate.isBefore(now);
-				}
+			if (isHourly) {
+				return eventDate.isBefore(now);
+			}
 
-				const endOfToday = now.endOf('day');
-				return (
-					eventDate.isBefore(endOfToday) || eventDate.isSame(endOfToday, 'day')
-				);
-			});
-		},
-		[dateRange.granularity]
-	);
-
-	const chartData = useMemo(() => {
-		if (!analytics.events_by_date?.length) {
-			return [];
-		}
-		const filteredEvents = filterFutureEvents(analytics.events_by_date);
-		return filteredEvents.map((event: MetricPoint): ChartDataPoint => {
-			const filtered: ChartDataPoint = {
-				date: formatDateByGranularity(event.date, dateRange.granularity),
-			};
-			if (visibleMetrics.pageviews) {
-				filtered.pageviews = event.pageviews as number;
-			}
-			if (visibleMetrics.visitors) {
-				filtered.visitors =
-					(event.visitors as number) || (event.unique_visitors as number) || 0;
-			}
-			if (visibleMetrics.sessions) {
-				filtered.sessions = event.sessions as number;
-			}
-			if (visibleMetrics.bounce_rate) {
-				filtered.bounce_rate = event.bounce_rate as number;
-			}
-			if (visibleMetrics.avg_session_duration) {
-				filtered.avg_session_duration = event.avg_session_duration as number;
-			}
-			return filtered;
+			const endOfToday = now.endOf('day');
+			return eventDate.isBefore(endOfToday) || eventDate.isSame(endOfToday, 'day');
 		});
+
+		// Step 2: Create lookup map
+		const dataMap = new Map<string, MetricPoint>();
+		for (const item of filteredEvents) {
+			const key = isHourly ? item.date : item.date.slice(0, 10);
+			dataMap.set(key, item);
+		}
+
+		// Step 3: Fill missing dates
+		const startDate = dayjs(dateRange.start_date).tz(userTimezone);
+		const endDate = dayjs(dateRange.end_date).tz(userTimezone);
+		const filled: MetricPoint[] = [];
+		let current = startDate;
+
+		while (current.isBefore(endDate) || current.isSame(endDate, 'day')) {
+			if (isHourly) {
+				for (let hour = 0; hour < 24; hour++) {
+					const hourDate = current.hour(hour);
+					if (hourDate.isAfter(now)) break;
+					
+					const key = hourDate.format('YYYY-MM-DD HH:00:00');
+					const existing = dataMap.get(key);
+					
+					filled.push(existing || {
+						date: key,
+						pageviews: 0,
+						visitors: 0,
+						unique_visitors: 0,
+						sessions: 0,
+						bounce_rate: 0,
+						avg_session_duration: 0,
+						pages_per_session: 0,
+					});
+				}
+				current = current.add(1, 'day');
+				if (current.isAfter(endDate, 'day')) break;
+			} else {
+				const key = current.format('YYYY-MM-DD');
+				const existing = dataMap.get(key);
+				
+				filled.push(existing || {
+					date: key,
+					pageviews: 0,
+					visitors: 0,
+					unique_visitors: 0,
+					sessions: 0,
+					bounce_rate: 0,
+					avg_session_duration: 0,
+					pages_per_session: 0,
+				});
+				
+				current = current.add(1, 'day');
+			}
+		}
+
+		return filled;
 	}, [
 		analytics.events_by_date,
+		dateRange.start_date,
+		dateRange.end_date,
 		dateRange.granularity,
-		visibleMetrics,
-		filterFutureEvents,
 	]);
 
+	const chartData = useMemo(() => {
+		return processedEventsData.map((event: MetricPoint): ChartDataPoint => ({
+			date: formatDateByGranularity(event.date, dateRange.granularity),
+			rawDate: event.date,
+			...(visibleMetrics.pageviews && { pageviews: event.pageviews as number }),
+			...(visibleMetrics.visitors && { 
+				visitors: (event.visitors as number) || (event.unique_visitors as number) || 0 
+			}),
+			...(visibleMetrics.sessions && { sessions: event.sessions as number }),
+			...(visibleMetrics.bounce_rate && { bounce_rate: event.bounce_rate as number }),
+			...(visibleMetrics.avg_session_duration && { 
+				avg_session_duration: event.avg_session_duration as number 
+			}),
+		}));
+	}, [processedEventsData, dateRange.granularity, visibleMetrics]);
+
 	const miniChartData = useMemo(() => {
-		if (!analytics.events_by_date?.length) {
-			return {};
-		}
-		const filteredEvents = filterFutureEvents(analytics.events_by_date);
 		const createChartSeries = (
 			field: keyof MetricPoint,
 			transform?: (value: number) => number
 		) =>
-			filteredEvents.map((event: MetricPoint) => ({
-				date:
-					dateRange.granularity === 'hourly'
-						? event.date
-						: event.date.slice(0, 10),
-				value: transform
-					? transform(event[field] as number)
-					: (event[field] as number) || 0,
+			processedEventsData.map((event: MetricPoint) => ({
+				date: dateRange.granularity === 'hourly' ? event.date : event.date.slice(0, 10),
+				value: transform ? transform(event[field] as number) : (event[field] as number) || 0,
 			}));
+
+		const formatSessionDuration = (value: number) => {
+			if (value < 60) return Math.round(value);
+			const minutes = Math.floor(value / 60);
+			const seconds = Math.round(value % 60);
+			return minutes * 60 + seconds;
+		};
+
 		return {
 			visitors: createChartSeries('visitors'),
 			sessions: createChartSeries('sessions'),
 			pageviews: createChartSeries('pageviews'),
 			pagesPerSession: createChartSeries('pages_per_session'),
 			bounceRate: createChartSeries('bounce_rate'),
-			sessionDuration: createChartSeries('avg_session_duration', (value) => {
-				if (value < 60) {
-					return Math.round(value);
-				}
-				const minutes = Math.floor(value / 60);
-				const seconds = Math.round(value % 60);
-				return minutes * 60 + seconds;
-			}),
+			sessionDuration: createChartSeries('avg_session_duration', formatSessionDuration),
 		};
-	}, [analytics.events_by_date, dateRange.granularity, filterFutureEvents]);
+	}, [processedEventsData, dateRange.granularity]);
 
 	const createTechnologyCell = (type: 'browser' | 'os') => (info: CellInfo) => {
 		const entry = info.row.original as TechnologyData;
@@ -658,47 +538,7 @@ export function WebsiteOverviewTab({
 			id: 'top_pages',
 			label: 'Top Pages',
 			data: analytics.top_pages || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Page',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<PageRowData, unknown>[],
+			columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 			getFilter: (row: PageRowData) => ({
 				field: 'path',
 				value: row.name,
@@ -708,47 +548,7 @@ export function WebsiteOverviewTab({
 			id: 'entry_pages',
 			label: 'Entry Pages',
 			data: analytics.entry_pages || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Page',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<PageRowData, unknown>[],
+			columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 			getFilter: (row: PageRowData) => ({
 				field: 'path',
 				value: row.name,
@@ -758,47 +558,7 @@ export function WebsiteOverviewTab({
 			id: 'exit_pages',
 			label: 'Exit Pages',
 			data: analytics.exit_pages || [],
-			columns: [
-				{
-					id: 'name',
-					accessorKey: 'name',
-					header: 'Page',
-					cell: (info: CellInfo) => {
-						const name = info.getValue() as string;
-						return (
-							<span className="font-medium text-foreground" title={name}>
-								{name}
-							</span>
-						);
-					},
-				},
-				{
-					id: 'visitors',
-					accessorKey: 'visitors',
-					header: 'Visitors',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'pageviews',
-					accessorKey: 'pageviews',
-					header: 'Views',
-					cell: (info: CellInfo) => (
-						<span className="font-medium text-foreground">
-							{formatNumber(info.getValue() as number)}
-						</span>
-					),
-				},
-				{
-					id: 'percentage',
-					accessorKey: 'percentage',
-					header: 'Share',
-					cell: createPercentageCell(),
-				},
-			] as ColumnDef<PageRowData, unknown>[],
+			columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 			getFilter: (row: PageRowData) => ({
 				field: 'path',
 				value: row.name,
@@ -1224,13 +984,18 @@ export function WebsiteOverviewTab({
 					</div>
 				</div>
 				<div>
-					<MetricsChart
+					<MetricsChartWithAnnotations
+						websiteId={websiteId}
 						className="rounded border-0"
 						data={chartData}
 						height={350}
-						hiddenMetrics={hiddenMetrics}
 						isLoading={isLoading}
-						onToggleMetric={toggleMetric}
+						onRangeSelect={setDateRangeAction}
+						dateRange={{
+							startDate: new Date(dateRange.start_date),
+							endDate: new Date(dateRange.end_date),
+							granularity: dateRange.granularity as 'hourly' | 'daily' | 'weekly' | 'monthly',
+						}}
 					/>
 				</div>
 			</div>
