@@ -98,7 +98,7 @@ export function parseSeedArgs(
 			case '--batch-size-events': {
 				const value = Number.parseInt(argv[++index] ?? '', 10);
 				if (!Number.isNaN(value)) {
-					resolved.batchSizeEvents = value;
+					resolved.batchSizeEvents = Math.max(1, value);
 				}
 				break;
 			}

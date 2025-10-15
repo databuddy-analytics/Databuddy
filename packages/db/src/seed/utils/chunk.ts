@@ -1,6 +1,6 @@
 export function chunkArray<T>(items: T[], size: number): T[][] {
 	if (size <= 0) {
-		return [items];
+		throw new Error(`Invalid chunk size: ${size}. Must be greater than 0.`);
 	}
 
 	const chunks: T[][] = [];

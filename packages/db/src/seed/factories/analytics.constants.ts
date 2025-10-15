@@ -133,4 +133,4 @@ export const REFERRERS = [
 	'https://whatsapp.com',
 ] as const;
 
-export const CUSTOM_EVENT_NAMES = new Set<string>(CUSTOM_EVENTS as unknown as string[]);
+export const CUSTOM_EVENT_NAMES = new Set<string>(CUSTOM_EVENTS);

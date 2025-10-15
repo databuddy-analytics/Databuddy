@@ -51,6 +51,7 @@ export async function runDemoScenario(ctx: SeedContext): Promise<ScenarioResult>
 	const outgoingLinks: CustomOutgoingLink[] = [];
 
 	// Generate events per session for realistic flow
+	let reachedTarget = false;
 	for (const session of sessionPool) {
 		const sessionEvents = makeSessionEvents(ctx, {
 			clientId,
@@ -60,6 +61,10 @@ export async function runDemoScenario(ctx: SeedContext): Promise<ScenarioResult>
 		});
 
 		for (const event of sessionEvents) {
+			if (mainEvents.length >= totalEvents) {
+				reachedTarget = true;
+				break;
+			}
 			if (isCustomEvent(event.event_name)) {
 				customEvents.push(toCustomEventRecord(event));
 			} else if (event.event_name === 'link_out') {
@@ -68,6 +73,7 @@ export async function runDemoScenario(ctx: SeedContext): Promise<ScenarioResult>
 				mainEvents.push(event);
 			}
 		}
+		if (reachedTarget) break;
 	}
 
 	mainEvents.sort((a, b) => a.time - b.time);

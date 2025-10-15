@@ -40,11 +40,12 @@ export async function runBaseScenario(ctx: SeedContext): Promise<ScenarioResult>
 			.returning();
 		persistedUser = createdUser ?? adminUserSeed;
 
-		await ctx.db.insert(account).values({
+		const [_] = await ctx.db.insert(account).values({
 			...adminAccountSeed,
 			userId: persistedUser.id,
 			accountId: persistedUser.id,
-		});
+		}).returning();
+		
 
 		const [createdWebsite] = await ctx.db
 			.insert(websites)
