@@ -1,16 +1,20 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.1.78",
+  "version": "2.2.0",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "build": "unbuild"
+    "build": "unbuild",
+    "test": "bun test"
   },
   "dependencies": {
     "jotai": ">=2.0.0"
+  },
+  "optionalDependencies": {
+    "pino": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -42,6 +46,10 @@
     "./vue": {
       "types": "./dist/vue/index.d.ts",
       "import": "./dist/vue/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.mjs"
     }
   },
   "files": [

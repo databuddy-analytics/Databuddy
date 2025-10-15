@@ -7,6 +7,7 @@ export default defineBuildConfig({
 		'./src/core/index.ts',
 		'./src/react/index.ts',
 		'./src/vue/index.ts',
+		'./src/node/index.ts',
 	],
 	externals: ['react', 'react-dom', 'vue', 'jotai'],
 	declaration: true,
