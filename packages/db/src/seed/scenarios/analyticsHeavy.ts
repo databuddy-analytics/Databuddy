@@ -1,4 +1,9 @@
 import { TABLE_NAMES } from '../../clickhouse/client';
+import type {
+	AnalyticsEvent,
+	CustomEvent,
+	CustomOutgoingLink,
+} from '../../clickhouse/schema';
 import type { SeedContext } from '../context';
 import {
 	buildSessionPool,
@@ -10,10 +15,6 @@ import {
 	makeWebVitalsEvent,
 	toCustomEventRecord,
 	toOutgoingLinkRecord,
-	AnalyticsSession,
-	AnalyticsEventRecord,
-	AnalyticsCustomEventRecord,
-	AnalyticsOutgoingLinkRecord,
 } from '../factories/analytics';
 import type { ScenarioResult } from './types';
 import { runBaseScenario } from './base';
@@ -48,9 +49,9 @@ export async function runAnalyticsHeavyScenario(
 
 	ctx.caches.sessions.push(...sessionPool);
 
-	const mainEvents: AnalyticsEventRecord[] = [];
-	const customEvents: AnalyticsCustomEventRecord[] = [];
-	const outgoingLinks: AnalyticsOutgoingLinkRecord[] = [];
+	const mainEvents: AnalyticsEvent[] = [];
+	const customEvents: CustomEvent[] = [];
+	const outgoingLinks: CustomOutgoingLink[] = [];
 
 	// Generate events per session for realistic flow
 	for (const session of sessionPool) {

@@ -1,82 +1,24 @@
 import type { SeedContext } from '../context';
+import type {
+	AnalyticsEvent,
+	CustomEvent,
+	CustomOutgoingLink,
+	ErrorEvent,
+	WebVitalsEvent,
+} from '../../clickhouse/schema';
 import { createId } from '../utils/ids';
 import { addMs, recentDateMs } from '../utils/time';
-
-const BROWSERS = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Opera'];
-const OS_NAMES = ['Windows', 'macOS', 'Linux', 'Android', 'iOS'];
-const DEVICE_TYPES = ['desktop', 'mobile', 'tablet'] as const;
-
-const CUSTOM_EVENTS = [
-	'click',
-	'button_click',
-	'form_submit',
-	'signup',
-	'login',
-	'logout',
-	'purchase',
-	'add_to_cart',		
-	'remove_from_cart',
-	'checkout_started',
-	'search',
-	'filter_applied',
-	'video_play',
-	'video_pause',
-	'download',
-	'newsletter_signup',
-	'contact_form',
-	'feature_toggle',
-	'share',
-	'error_occurred',
-	'api_call',
-	'user_interaction',
-] as const;
-
-const BLOG_CATEGORIES = [
-	'tech',
-	'business',
-	'marketing',
-	'design',
-	'development',
-	'startup',
-	'ai',
-	'saas',
-	'mobile',
-	'web',
-	'data',
-	'security',
-	'cloud',
-	'api',
-	'tutorial',
-] as const;
-
-const PRODUCT_CATEGORIES = [
-	'software',
-	'hardware',
-	'books',
-	'courses',
-	'templates',
-	'tools',
-	'services',
-	'consulting',
-	'hosting',
-	'analytics',
-] as const;
-
-const COMPANY_SECTIONS = [
-	'about',
-	'team',
-	'careers',
-	'investors',
-	'press',
-	'contact',
-	'support',
-	'help',
-	'faq',
-	'terms',
-	'privacy',
-	'security',
-	'status',
-] as const;
+import {
+	BROWSERS,
+	OS_NAMES,
+	DEVICE_TYPES,
+	CUSTOM_EVENTS,
+	CUSTOM_EVENT_NAMES,
+	BLOG_CATEGORIES,
+	PRODUCT_CATEGORIES,
+	COMPANY_SECTIONS,
+	REFERRERS,
+} from './analytics.constants';
 
 export interface AnalyticsUserProfile {
 	anonymousId: string;
@@ -105,140 +47,12 @@ export interface AnalyticsResources {
 	referrers: string[];
 }
 
-export interface AnalyticsEventRecord {
-	id: string;
-	client_id: string;
-	event_name: string;
-	anonymous_id: string;
-	time: number;
-	session_id: string;
-	event_type: string;
-	event_id?: string;
-	session_start_time: number;
-	timestamp?: number;
-	referrer?: string;
-	url: string;
-	path: string;
-	title: string;
-	ip: string;
-	user_agent: string;
-	browser_name?: string | null;
-	browser_version?: string | null;
-	os_name?: string | null;
-	os_version?: string | null;
-	device_type?: string | null;
-	device_brand?: string | null;
-	device_model?: string | null;
-	country?: string | null;
-	region?: string | null;
-	city?: string | null;
-	screen_resolution?: string | null;
-	viewport_size?: string | null;
-	language?: string | null;
-	timezone?: string | null;
-	connection_type?: string | null;
-	rtt?: number | null;
-	downlink?: number | null;
-	time_on_page?: number;
-	scroll_depth?: number;
-	interaction_count?: number;
-	page_count: number;
-	utm_source?: string;
-	utm_medium?: string;
-	utm_campaign?: string;
-	utm_term?: string;
-	utm_content?: string;
-	load_time?: number;
-	dom_ready_time?: number;
-	dom_interactive?: number;
-	ttfb?: number;
-	connection_time?: number;
-	request_time?: number;
-	render_time?: number;
-	redirect_time?: number;
-	domain_lookup_time?: number;
-	properties: string;
-	created_at: number;
-}
-
-export interface AnalyticsCustomEventRecord {
-	id: string;
-	client_id: string;
-	event_name: string;
-	anonymous_id: string;
-	session_id: string;
-	properties: string;
-	timestamp: number;
-}
-
-export interface AnalyticsOutgoingLinkRecord {
-	id: string;
-	client_id: string;
-	anonymous_id: string;
-	session_id: string;
-	href: string;
-	text: string | null;
-	properties: string;
-	timestamp: number;
-}
-
-export interface AnalyticsErrorRecord {
-	id: string;
-	client_id: string;
-	event_id: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	message: string;
-	filename: string;
-	lineno: number;
-	colno: number;
-	stack: string;
-	error_type: string;
-	ip: string;
-	user_agent: string;
-	browser_name?: string | null;
-	browser_version?: string | null;
-	os_name?: string | null;
-	os_version?: string | null;
-	device_type?: string | null;
-	country?: string | null;
-	region?: string | null;
-	created_at: number;
-}
-
-export interface AnalyticsWebVitalsRecord {
-	id: string;
-	client_id: string;
-	event_id: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	fcp: number;
-	lcp: number;
-	cls: number;
-	fid: number;
-	inp: number;
-	ip: string;
-	user_agent: string;
-	browser_name?: string | null;
-	browser_version?: string | null;
-	os_name?: string | null;
-	os_version?: string | null;
-	device_type?: string | null;
-	country?: string | null;
-	region?: string | null;
-	created_at: number;
-}
-
 export function createAnalyticsResources(
 	ctx: Pick<SeedContext, 'faker'>
 ): AnalyticsResources {
 	return {
 		paths: generatePaths(ctx),
-		referrers: generateReferrers(),
+		referrers: REFERRERS.slice(),
 	};
 }
 
@@ -315,12 +129,12 @@ export interface MakeSessionEventsParams {
 export function makeSessionEvents(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,
 	params: MakeSessionEventsParams
-): AnalyticsEventRecord[] {
+): AnalyticsEvent[] {
 	const { clientId, domain, session, resources } = params;
 	const { faker } = ctx;
 	const user = session.user;
 	
-	const events: AnalyticsEventRecord[] = [];
+	const events: AnalyticsEvent[] = [];
 	const targetEventCount = session.eventsInSession;
 	const maxSessionDuration = 2 * 60 * 60 * 1000; // 2 hours max
 	
@@ -354,7 +168,6 @@ export function makeSessionEvents(
 		screenViewEvent.dom_interactive = faker.number.int({ min: 50, max: 2000 });
 		screenViewEvent.ttfb = faker.number.int({ min: 50, max: 1000 });
 		screenViewEvent.connection_time = faker.number.int({ min: 10, max: 200 });
-		screenViewEvent.request_time = faker.number.int({ min: 20, max: 500 });
 		screenViewEvent.render_time = faker.number.int({ min: 50, max: 1000 });
 		screenViewEvent.redirect_time = faker.number.int({ min: 0, max: 100 });
 		screenViewEvent.domain_lookup_time = faker.number.int({ min: 5, max: 100 });
@@ -364,7 +177,7 @@ export function makeSessionEvents(
 		currentTime = addMs(currentTime, faker.number.int({ min: 1000, max: 5000 }));
 		
 		// 2. Interactions on this page (custom events, link_out)
-		const remainingSlots = targetEventCount - events.length - (isLastPage ? 1 : 2); // reserve for exit
+		const remainingSlots = targetEventCount - events.length - (isLastPage ? 1 : 0); // reserve slot for page_exit only on last page
 		const maxInteractions = Math.max(0, Math.min(3, remainingSlots));
 		const interactionsOnPage = isLastPage
 			? Math.max(0, remainingSlots)
@@ -394,9 +207,8 @@ export function makeSessionEvents(
 			currentTime = addMs(currentTime, faker.number.int({ min: 500, max: 3000 }));
 		}
 		
-		// 3. page_exit (always on last page, optional on others)
-		const shouldExit = isLastPage || faker.datatype.boolean({ probability: 0.7 });
-		if (shouldExit) {
+		// 3. page_exit (only on the very last page of the session)
+		if (isLastPage) {
 			const exitEvent = makeEventBase(ctx, {
 				clientId,
 				domain,
@@ -440,7 +252,7 @@ function makeEventBase(
 		time: number;
 		pageCount: number;
 	}
-): AnalyticsEventRecord {
+): AnalyticsEvent {
 	const { faker } = ctx;
 	const { clientId, domain, session, path, eventName, time, pageCount } = options;
 	const user = session.user;
@@ -471,9 +283,9 @@ function makeEventBase(
 		device_brand:
 			user.deviceType === 'mobile'
 				? faker.helpers.arrayElement(['Apple', 'Samsung', 'Google'])
-				: null,
+				: undefined,
 		device_model:
-			user.deviceType === 'mobile' ? faker.commerce.productName() : null,
+			user.deviceType === 'mobile' ? faker.commerce.productName() : undefined,
 		country: user.country,
 		region: user.region,
 		city: user.city,
@@ -519,7 +331,6 @@ function makeEventBase(
 		dom_interactive: undefined,
 		ttfb: undefined,
 		connection_time: undefined,
-		request_time: undefined,
 		render_time: undefined,
 		redirect_time: undefined,
 		domain_lookup_time: undefined,
@@ -528,15 +339,13 @@ function makeEventBase(
 	};
 }
 
-export const CUSTOM_EVENT_NAMES = new Set<string>(CUSTOM_EVENTS as unknown as string[]);
-
 export function isCustomEvent(name: string): boolean {
 	return CUSTOM_EVENT_NAMES.has(name);
 }
 
 export function toCustomEventRecord(
-	event: AnalyticsEventRecord
-): AnalyticsCustomEventRecord {
+	event: AnalyticsEvent
+): CustomEvent {
 	return {
 		id: event.id,
 		client_id: event.client_id,
@@ -549,8 +358,8 @@ export function toCustomEventRecord(
 }
 
 export function toOutgoingLinkRecord(
-	event: AnalyticsEventRecord
-): AnalyticsOutgoingLinkRecord {
+	event: AnalyticsEvent
+): CustomOutgoingLink {
 	let href = '';
 	let text: string | null = null;
 	try {
@@ -571,7 +380,7 @@ export function toOutgoingLinkRecord(
 		anonymous_id: event.anonymous_id,
 		session_id: event.session_id,
 		href,
-		text,
+		text: text ?? undefined,
 		properties: event.properties,
 		timestamp: event.time,
 	};
@@ -587,7 +396,7 @@ export interface MakeErrorEventParams {
 export function makeErrorEvent(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,
 	params: MakeErrorEventParams
-): AnalyticsErrorRecord {
+): ErrorEvent {
 	const { faker, now } = ctx;
 	const session = pickSession(ctx, params.sessions, params.resources);
 	const user = session.user;
@@ -639,7 +448,7 @@ export interface MakeWebVitalsEventParams {
 export function makeWebVitalsEvent(
 	ctx: Pick<SeedContext, 'faker' | 'now'>,
 	params: MakeWebVitalsEventParams
-): AnalyticsWebVitalsRecord {
+): WebVitalsEvent {
 	const { faker, now } = ctx;
 	const session = pickSession(ctx, params.sessions, params.resources);
 	const user = session.user;
