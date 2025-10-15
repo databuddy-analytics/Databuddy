@@ -13,6 +13,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from '../schemas';
+import { databuddy } from '../lib/databuddy';
 
 interface QueryParams {
 	start_date?: string;
@@ -213,6 +214,13 @@ export const query = new Elysia({ prefix: '/v1/query' })
 					: null;
 
 				const result = compileQuery(body as QueryRequest, websiteDomain);
+				databuddy.track({
+					name: 'compile_query',
+					properties: {
+						website_id,
+						website_domain: websiteDomain,
+					},
+				});
 				return {
 					success: true,
 					...result,

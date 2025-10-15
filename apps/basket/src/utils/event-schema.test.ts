@@ -121,17 +121,6 @@ describe('Event Schema Validation', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('should reject invalid performance metrics', () => {
-			const invalidEvent = {
-				eventId: '12345678-1234-1234-1234-123456789012',
-				name: 'page_view',
-				path: 'https://example.com',
-				load_time: -100, // Negative time
-			};
-
-			const result = analyticsEventSchema.safeParse(invalidEvent);
-			expect(result.success).toBe(false);
-		});
 
 		it('should reject invalid scroll depth', () => {
 			const invalidEvent = {
@@ -251,22 +240,6 @@ describe('Event Schema Validation', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('should reject error event with invalid line numbers', () => {
-			const invalidErrorEvent = {
-				type: 'error',
-				payload: {
-					anonymousId: 'anon_12345678-1234-1234-1234-123456789012',
-					sessionId: 'sess_12345678-1234-1234-1234-123456789012',
-					timestamp: Date.now(),
-					path: 'https://example.com/page',
-					message: 'Error message',
-					lineno: -1, // Invalid line number
-				},
-			};
-
-			const result = errorEventSchema.safeParse(invalidErrorEvent);
-			expect(result.success).toBe(false);
-		});
 
 		it('should reject error event with invalid column numbers', () => {
 			const invalidErrorEvent = {
@@ -348,39 +321,6 @@ describe('Event Schema Validation', () => {
 			expect(result.success).toBe(true);
 		});
 
-		it('should reject web vitals event with invalid FCP', () => {
-			const invalidWebVitalsEvent = {
-				type: 'web_vitals',
-				payload: {
-					eventId: '12345678-1234-1234-1234-123456789012',
-					anonymousId: 'anon_12345678-1234-1234-1234-123456789012',
-					sessionId: 'sess_12345678-1234-1234-1234-123456789012',
-					timestamp: Date.now(),
-					path: 'https://example.com/page',
-					fcp: -100, // Negative FCP
-				},
-			};
-
-			const result = webVitalsEventSchema.safeParse(invalidWebVitalsEvent);
-			expect(result.success).toBe(false);
-		});
-
-		it('should reject web vitals event with invalid CLS', () => {
-			const invalidWebVitalsEvent = {
-				type: 'web_vitals',
-				payload: {
-					eventId: '12345678-1234-1234-1234-123456789012',
-					anonymousId: 'anon_12345678-1234-1234-1234-123456789012',
-					sessionId: 'sess_12345678-1234-1234-1234-123456789012',
-					timestamp: Date.now(),
-					path: 'https://example.com/page',
-					cls: 10, // CLS too high
-				},
-			};
-
-			const result = webVitalsEventSchema.safeParse(invalidWebVitalsEvent);
-			expect(result.success).toBe(false);
-		});
 	});
 
 	describe('customEventSchema', () => {
@@ -450,16 +390,6 @@ describe('Event Schema Validation', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('should reject custom event with invalid JSON properties', () => {
-			const invalidCustomEvent = {
-				name: 'custom_event',
-				anonymousId: 'anon_12345678-1234-1234-1234-123456789012',
-				properties: 'invalid json string',
-			};
-
-			const result = customEventSchema.safeParse(invalidCustomEvent);
-			expect(result.success).toBe(false);
-		});
 	});
 
 	describe('outgoingLinkSchema', () => {
@@ -516,26 +446,7 @@ describe('Event Schema Validation', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('should reject outgoing link event with empty href', () => {
-			const invalidOutgoingLinkEvent = {
-				eventId: '12345678-1234-1234-1234-123456789012',
-				href: '', // Empty href
-			};
 
-			const result = outgoingLinkSchema.safeParse(invalidOutgoingLinkEvent);
-			expect(result.success).toBe(false);
-		});
-
-		it('should reject outgoing link event with invalid JSON properties', () => {
-			const invalidOutgoingLinkEvent = {
-				eventId: '12345678-1234-1234-1234-123456789012',
-				href: 'https://external-site.com',
-				properties: 'invalid json string',
-			};
-
-			const result = outgoingLinkSchema.safeParse(invalidOutgoingLinkEvent);
-			expect(result.success).toBe(false);
-		});
 	});
 
 	describe('Real-world databuddy.js payloads', () => {

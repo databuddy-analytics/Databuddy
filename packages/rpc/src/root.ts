@@ -1,3 +1,4 @@
+import { annotationsRouter } from './routers/annotations';
 import { apikeysRouter } from './routers/apikeys';
 import { assistantRouter } from './routers/assistant';
 import { autocompleteRouter } from './routers/autocomplete';
@@ -17,6 +18,7 @@ import { websitesRouter } from './routers/websites';
 import { createTRPCRouter } from './trpc';
 
 export const appRouter = createTRPCRouter({
+	annotations: annotationsRouter,
 	websites: websitesRouter,
 	miniCharts: miniChartsRouter,
 	funnels: funnelsRouter,
