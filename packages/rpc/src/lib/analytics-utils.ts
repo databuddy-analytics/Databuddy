@@ -139,6 +139,15 @@ const buildStepQuery = (
 				AND time >= parseDateTimeBestEffort({startDate:String})
 				AND time <= parseDateTimeBestEffort({endDate:String})
 				AND event_name = {${targetKey}:String}${filterConditions}
+			
+			UNION DISTINCT
+			
+			SELECT DISTINCT session_id
+			FROM analytics.custom_events
+			WHERE client_id = {websiteId:String}
+				AND timestamp >= parseDateTimeBestEffort({startDate:String})
+				AND timestamp <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = {${targetKey}:String}
 		),
 		session_referrers AS (
 			SELECT 
@@ -178,9 +187,9 @@ const buildStepQuery = (
 				AND ce.timestamp >= parseDateTimeBestEffort({startDate:String})
 				AND ce.timestamp <= parseDateTimeBestEffort({endDate:String})
 				AND ce.event_name = {${targetKey}:String}
-		)${includeReferrer ? `
-		LEFT JOIN session_referrers sr ON session_id = sr.session_id` : ''}
-		GROUP BY session_id${includeReferrer ? ', sr.session_referrer' : ''}`;
+		) AS event_union${includeReferrer ? `
+		LEFT JOIN session_referrers sr ON event_union.session_id = sr.session_id` : ''}
+		GROUP BY event_union.session_id${includeReferrer ? ', sr.session_referrer' : ''}`;
 };
 
 const processSessionEvents = (
