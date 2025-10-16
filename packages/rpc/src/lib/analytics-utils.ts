@@ -132,15 +132,35 @@ const buildStepQuery = (
 	const referrerSelectCustom = includeReferrer ? ", '' as referrer" : '';
 
 	return `
+		WITH filtered_sessions AS (
+			SELECT DISTINCT session_id
+			FROM analytics.events
+			WHERE client_id = {websiteId:String}
+				AND time >= parseDateTimeBestEffort({startDate:String})
+				AND time <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = {${targetKey}:String}${filterConditions}
+		),
+		session_referrers AS (
+			SELECT 
+				session_id,
+				argMin(referrer, time) as session_referrer
+			FROM analytics.events
+			WHERE client_id = {websiteId:String}
+				AND time >= parseDateTimeBestEffort({startDate:String})
+				AND time <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = 'screen_view'
+				AND referrer != ''
+			GROUP BY session_id
+		)
 		SELECT 
 			${stepIndex + 1} as step_number,
 			{${stepNameKey}:String} as step_name,
 			session_id,
-			MIN(first_occurrence) as first_occurrence${referrerSelect}
+			MIN(first_occurrence) as first_occurrence${includeReferrer ? ', COALESCE(sr.session_referrer, \'\') as referrer' : ''}
 		FROM (
 			SELECT 
 				session_id,
-				time as first_occurrence${includeReferrer ? ', referrer' : ''}
+				time as first_occurrence
 			FROM analytics.events
 			WHERE client_id = {websiteId:String}
 				AND time >= parseDateTimeBestEffort({startDate:String})
@@ -150,15 +170,17 @@ const buildStepQuery = (
 			UNION ALL
 			
 			SELECT 
-				session_id,
-				timestamp as first_occurrence${referrerSelectCustom}
-			FROM analytics.custom_events
-			WHERE client_id = {websiteId:String}
-				AND timestamp >= parseDateTimeBestEffort({startDate:String})
-				AND timestamp <= parseDateTimeBestEffort({endDate:String})
-				AND event_name = {${targetKey}:String}
-		)
-		GROUP BY session_id`;
+				ce.session_id,
+				ce.timestamp as first_occurrence
+			FROM analytics.custom_events ce
+			INNER JOIN filtered_sessions fs ON ce.session_id = fs.session_id
+			WHERE ce.client_id = {websiteId:String}
+				AND ce.timestamp >= parseDateTimeBestEffort({startDate:String})
+				AND ce.timestamp <= parseDateTimeBestEffort({endDate:String})
+				AND ce.event_name = {${targetKey}:String}
+		)${includeReferrer ? `
+		LEFT JOIN session_referrers sr ON session_id = sr.session_id` : ''}
+		GROUP BY session_id${includeReferrer ? ', sr.session_referrer' : ''}`;
 };
 
 const processSessionEvents = (
@@ -220,7 +242,7 @@ const calculateStepCounts = (
 ): Map<number, Set<string>> => {
 	const stepCounts = new Map<number, Set<string>>();
 
-	for (const [sessionId, events] of sessionEvents) {
+	for (const [sessionId, events] of Array.from(sessionEvents.entries())) {
 		events.sort((a, b) => a.first_occurrence - b.first_occurrence);
 		let currentStep = 1;
 
@@ -674,7 +696,7 @@ const calculateReferrerStepCounts = (
 ): Map<number, Set<string>> => {
 	const stepCounts = new Map<number, Set<string>>();
 
-	for (const sessionId of group.sessionIds) {
+	for (const sessionId of Array.from(group.sessionIds)) {
 		const events = sessionEvents
 			.get(sessionId)
 			?.sort((a, b) => a.first_occurrence - b.first_occurrence);
@@ -863,7 +885,7 @@ export const processFunnelAnalyticsByReferrer = async (
 		}
 	>();
 
-	for (const [sessionId, events] of sessionEvents) {
+	for (const [sessionId, events] of Array.from(sessionEvents.entries())) {
 		if (events.length > 0) {
 			const referrer = events[0].referrer || 'Direct';
 			const parsed = parseReferrer(referrer);
@@ -878,7 +900,7 @@ export const processFunnelAnalyticsByReferrer = async (
 
 	const referrerAnalytics: ReferrerAnalytics[] = [];
 
-	for (const [groupKey, group] of referrerGroups) {
+	for (const [groupKey, group] of Array.from(referrerGroups.entries())) {
 		const analytics = processReferrerGroup(
 			groupKey,
 			group,
