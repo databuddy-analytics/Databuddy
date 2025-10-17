@@ -40,7 +40,6 @@ export function FunnelAnalytics({
 	selectedReferrer,
 	referrerAnalytics,
 }: FunnelAnalyticsProps) {
-	// Derive selected referrer's metrics from referrer_analytics data
 	const selectedReferrerData = useMemo(() => {
 		if (!selectedReferrer || selectedReferrer === 'all' || !referrerAnalytics) {
 			return null;
@@ -56,47 +55,38 @@ export function FunnelAnalytics({
 		return referrer || null;
 	}, [selectedReferrer, referrerAnalytics]);
 
-	// Use selected referrer data if available, otherwise use main analytics data
 	const displayData = selectedReferrerData
 		? {
 				total_users_entered: selectedReferrerData.total_users,
 				total_users_completed: selectedReferrerData.completed_users,
 				overall_conversion_rate: selectedReferrerData.conversion_rate,
-				avg_completion_time: 0, // Not available in referrer analytics
+				avg_completion_time: 0,
 				avg_completion_time_formatted: '0s',
 				biggest_dropoff_step: 1,
 				biggest_dropoff_rate: 100 - selectedReferrerData.conversion_rate,
-				steps_analytics: [
-					{
-						step_number: 1,
-						step_name: 'Landing Page',
-						users: selectedReferrerData.total_users,
-						total_users: selectedReferrerData.total_users,
-						conversion_rate: 100,
-						dropoffs: 0,
-						dropoff_rate: 0,
-						avg_time_to_complete: 0,
-					},
-					{
-						step_number: 2,
-						step_name: 'Completed',
-						users: selectedReferrerData.completed_users,
-						total_users: selectedReferrerData.total_users,
-						conversion_rate: selectedReferrerData.conversion_rate,
-						dropoffs:
-							selectedReferrerData.total_users -
-							selectedReferrerData.completed_users,
-						dropoff_rate: 100 - selectedReferrerData.conversion_rate,
-						avg_time_to_complete: 0,
-					},
-				],
+				steps_analytics: data?.steps_analytics?.map((step, index) => ({
+					...step,
+					users: index === 0 
+						? selectedReferrerData.total_users 
+						: selectedReferrerData.completed_users,
+					total_users: selectedReferrerData.total_users,
+					conversion_rate: index === 0 
+						? 100 
+						: selectedReferrerData.conversion_rate,
+					dropoffs: index === 0 
+						? 0 
+						: selectedReferrerData.total_users - selectedReferrerData.completed_users,
+					dropoff_rate: index === 0 
+						? 0 
+						: 100 - selectedReferrerData.conversion_rate,
+					avg_time_to_complete: 0,
+				})) || [],
 			}
 		: data;
 
 	if (isLoading) {
 		return (
 			<div className="fade-in-50 animate-in space-y-4 duration-500">
-				{/* Loading Summary Stats */}
 				<div className="space-y-2">
 					<div className="flex items-center gap-2">
 						<div className="h-4 w-4 animate-pulse rounded bg-muted" />
@@ -118,7 +108,6 @@ export function FunnelAnalytics({
 					</div>
 				</div>
 
-				{/* Loading Funnel Flow */}
 				<div className="space-y-2">
 					<div className="flex items-center gap-2">
 						<div className="h-4 w-4 animate-pulse rounded bg-muted" />
@@ -185,7 +174,6 @@ export function FunnelAnalytics({
 
 	return (
 		<div className="space-y-4">
-			{/* Summary Stats */}
 			<div className="space-y-2">
 				<div className="flex items-center gap-2">
 					<ChartBarIcon
@@ -230,7 +218,6 @@ export function FunnelAnalytics({
 				</div>
 			</div>
 
-			{/* Funnel Flow */}
 			<FunnelFlow
 				steps={displayData.steps_analytics}
 				totalUsers={displayData.total_users_entered}
