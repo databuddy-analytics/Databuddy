@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
 	},
 	serverExternalPackages: ['pg', 'pg-pool'],
 	output: 'standalone',
+	transpilePackages: [
+		'@t3-oss/env-nextjs',
+		'@t3-oss/env-core',
+		'@databuddy/ai',
+	],
 };
 
 export function headers() {

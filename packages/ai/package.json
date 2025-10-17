@@ -1,0 +1,34 @@
+{
+  "name": "@databuddy/ai",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./providers": "./src/providers.ts",
+    "./lib/utils": "./src/lib/utils.ts",
+    "./types": "./src/types.ts",
+    "./lib/queries": "./src/lib/queries.ts",
+    "./prompts": "./src/prompts/index.ts",
+    "./tools": "./src/tools/index.ts",
+    "./tools/*": "./src/tools/*.ts",
+    "./artifacts": "./src/artifacts/index.ts",
+    "./context": "./src/context.ts",
+    "./models": "./src/models.ts",
+    "./tool-types": "./src/tool-types.ts"
+  },
+  "dependencies": {
+    "@ai-sdk-tools/artifacts": "^0.3.0",
+    "@ai-sdk/openai": "^2.0.30",
+    "@databuddy/auth": "workspace:*",
+    "@databuddy/db": "workspace:*",
+    "@logtail/edge": "^0.5.5",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
+    "ai": "^5.0.44",
+    "dayjs": "^1.11.18",
+    "drizzle-orm": "^0.44.4",
+    "zod": "^4.1.8"
+  }
+}

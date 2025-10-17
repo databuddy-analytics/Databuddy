@@ -27,7 +27,6 @@ import { NavigationSection } from './navigation/navigation-section';
 import { SandboxHeader } from './navigation/sandbox-header';
 import type { NavigationSection as NavigationSectionType } from './navigation/types';
 import { WebsiteHeader } from './navigation/website-header';
-import { OrganizationSelector } from './organization-selector';
 
 type NavigationConfig = {
 	navigation: NavigationSectionType[];
@@ -93,17 +92,17 @@ export function Sidebar() {
 		const populatedConfig =
 			baseConfig === categoryConfig.main
 				? {
-						...baseConfig,
-						navigationMap: {
-							...baseConfig.navigationMap,
-							websites: isLoadingWebsites
-								? createLoadingWebsitesNavigation()
-								: createWebsitesNavigation(websites),
-							observability: isLoadingDatabases
-								? createLoadingDatabasesNavigation()
-								: createDatabasesNavigation(databases),
-						},
-					}
+					...baseConfig,
+					navigationMap: {
+						...baseConfig.navigationMap,
+						websites: isLoadingWebsites
+							? createLoadingWebsitesNavigation()
+							: createWebsitesNavigation(websites),
+						observability: isLoadingDatabases
+							? createLoadingDatabasesNavigation()
+							: createDatabasesNavigation(databases),
+					},
+				}
 				: baseConfig;
 
 		const defaultCat = getDefaultCategory(pathname);
@@ -111,22 +110,20 @@ export function Sidebar() {
 
 		const navSections =
 			populatedConfig.navigationMap[
-				activeCat as keyof typeof populatedConfig.navigationMap
+			activeCat as keyof typeof populatedConfig.navigationMap
 			] ||
 			populatedConfig.navigationMap[
-				populatedConfig.defaultCategory as keyof typeof populatedConfig.navigationMap
+			populatedConfig.defaultCategory as keyof typeof populatedConfig.navigationMap
 			];
 
 		let headerComponent: React.ReactNode;
 		let currentId: string | null | undefined;
 
 		if (isWebsite || isDemo) {
-			headerComponent = (
-				<WebsiteHeader
-					website={currentWebsite}
-					showBackButton={!isDemo}
-				/>
-			);
+			headerComponent = isWebsite ? (
+				<WebsiteHeader website={currentWebsite} />
+			) :
+				null;
 			currentId = websiteId;
 		} else if (isDatabase) {
 			headerComponent = <DatabaseHeader database={currentDatabase} />;
@@ -135,7 +132,7 @@ export function Sidebar() {
 			headerComponent = <SandboxHeader />;
 			currentId = 'sandbox';
 		} else {
-			headerComponent = <OrganizationSelector />;
+			headerComponent = null;
 			currentId = undefined;
 		}
 

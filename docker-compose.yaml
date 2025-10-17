@@ -1,22 +1,22 @@
 services:
-  postgres:
-    image: postgres:17
-    container_name: databuddy-postgres
-    environment:
-      POSTGRES_DB: databuddy
-      POSTGRES_USER: databuddy
-      POSTGRES_PASSWORD: databuddy_dev_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U databuddy -d databuddy"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+  # postgres:
+  #   image: postgres:17
+  #   container_name: databuddy-postgres
+  #   environment:
+  #     POSTGRES_DB: databuddy
+  #     POSTGRES_USER: databuddy
+  #     POSTGRES_PASSWORD: databuddy_dev_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U databuddy -d databuddy"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.1-alpine

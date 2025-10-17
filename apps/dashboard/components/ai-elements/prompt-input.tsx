@@ -2,11 +2,11 @@
 
 import type { ChatStatus, FileUIPart } from 'ai';
 import {
+	ArrowUp,
 	ImageIcon,
 	Loader2Icon,
 	PaperclipIcon,
 	PlusIcon,
-	SendIcon,
 	SquareIcon,
 	XIcon,
 } from 'lucide-react';
@@ -333,12 +333,15 @@ export const PromptInput = ({
 	// Note: File input cannot be programmatically set for security reasons
 	// The syncHiddenInput prop is no longer functional
 	useEffect(() => {
-		if (syncHiddenInput && inputRef.current && items.length === 0) {
-			inputRef.current.value = '';
+		if (syncHiddenInput && inputRef.current) {
+			// Clear the input when items are cleared
+			if (items.length === 0) {
+				inputRef.current.value = '';
+			}
 		}
 	}, [items, syncHiddenInput]);
 
-	// Attach drop handlers on nearest form and document
+	// Attach drop handlers on nearest form and document (opt-in)
 	useEffect(() => {
 		const form = formRef.current;
 		if (!form) {
@@ -609,7 +612,7 @@ export const PromptInputSubmit = ({
 	children,
 	...props
 }: PromptInputSubmitProps) => {
-	let Icon = <SendIcon className="size-4" />;
+	let Icon = <ArrowUp className="size-4" />;
 
 	if (status === 'submitted') {
 		Icon = <Loader2Icon className="size-4 animate-spin" />;

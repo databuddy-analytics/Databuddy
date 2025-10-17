@@ -1,0 +1,57 @@
+{
+  "name": "Bun + ZSH",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "configureZshAsDefaultShell": "true",
+      "installOhMyZsh": "true",
+      "installOhMyZshConfig": "true",
+      "username": "bun",
+      "userUid": "1000",
+      "userGid": "1000",
+      "upgradePackages": "true"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "better-ts-errors.better-ts-errors",
+        "bradlc.vscode-tailwindcss",
+        "streetsidesoftware.code-spell-checker",
+        "biomejs.biome",
+        "aaron-bond.better-comments",
+        "formulahendry.auto-rename-tag",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "debug.internalConsoleOptions": "neverOpen",
+        "editor.formatOnPaste": true,
+        "editor.formatOnSave": true,
+        "editor.guides.bracketPairs": "active",
+        "scm.defaultViewMode": "tree",
+        "diffEditor.diffAlgorithm": "advanced",
+        "diffEditor.experimental.showMoves": true,
+        "diffEditor.renderSideBySide": false,
+        "files.watcherExclude": {
+          "**/node_modules/**": true
+        },
+        "editor.codeActionsOnSave": {
+          "source.fixAll.biome": "explicit",
+          "source.organizeImports.biome": "explicit"
+        },
+        "betterTypeScriptErrors.prettify": true,
+        "editor.cursorSmoothCaretAnimation": "on"
+      }
+    }
+  },
+  "postCreateCommand": "bun install",
+  "remoteUser": "bun"
+}

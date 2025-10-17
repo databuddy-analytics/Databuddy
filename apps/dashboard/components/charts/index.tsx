@@ -26,4 +26,17 @@ export const DistributionChart = dynamic(
 	}
 );
 
+export const BurnRateChart = dynamic(
+	() =>
+		import('./burn-rate-chart').then((mod) => ({
+			default: mod.BurnRateChart,
+		})),
+	{
+		loading: () => (
+			<SkeletonChart className="w-full" height={190} title="Loading chart..." />
+		),
+		ssr: false,
+	}
+);
+
 export { SkeletonChart } from './skeleton-chart';

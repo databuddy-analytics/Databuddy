@@ -49,3 +49,7 @@ export function getDefaultDateRange() {
 export function getDeviceIcon(device: string, size: 'sm' | 'md' | 'lg' = 'md') {
 	return getDeviceTypeIcon(device, size);
 }
+
+export function sanitizeText(text: string) {
+  return text.replace('<has_function_call>', '');
+}

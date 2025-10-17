@@ -20,15 +20,16 @@
   },
   "devDependencies": {
     "@types/pg": "^8.15.4",
-    "drizzle-kit": "^0.31.4",
-    "tsx": "^4.20.3"
+    "drizzle-kit": "^0.31.4"
   },
   "scripts": {
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "tsx src/migrate.ts",
-    "db:deploy": "tsx src/migrate.ts",
-    "db:seed": "tsx src/seed.ts",
-    "clickhouse:init": "tsx src/clickhouse/setup.ts"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run src/migrate.ts",
+    "db:deploy": "bun run src/migrate.ts",
+    "db:seed": "bun run src/seed.ts",
+    "db:reset": "bun run src/reset.ts",
+    "clickhouse:init": "bun run src/clickhouse/setup.ts"
   }
 }

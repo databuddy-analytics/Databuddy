@@ -1,16 +1,19 @@
-import { isNotNull, isNull } from 'drizzle-orm';
+import { type InferSelectModel, isNotNull, isNull } from 'drizzle-orm';
 import {
 	boolean,
 	foreignKey,
 	index,
 	integer,
+	json,
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	unique,
 	uniqueIndex,
+	varchar,
 } from 'drizzle-orm/pg-core';
 
 export const funnelGoalType = pgEnum('FunnelGoalType', [
@@ -761,78 +764,129 @@ export const abGoals = pgTable(
 	]
 );
 
-export const assistantConversations = pgTable(
-	'assistant_conversations',
+export const chats = pgTable(
+	'assistant_chats',
 	{
-		id: text().primaryKey().notNull(),
-		userId: text('user_id'),
-		websiteId: text('website_id').notNull(),
-		title: text(),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at').defaultNow().notNull(),
+		id: text('id').primaryKey().notNull(),
+		websiteId: text('websiteId')
+			.notNull()
+			.references(() => websites.id),
+		createdAt: timestamp('createdAt').defaultNow().notNull(),
+		updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+		title: text('title').notNull(),
+		userId: text('userId')
+			.notNull()
+			.references(() => user.id),
 	},
 	(table) => [
-		index('assistant_conversations_website_id_idx').using(
+		index('chats_websiteId_idx').using(
 			'btree',
 			table.websiteId.asc().nullsLast().op('text_ops')
 		),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: 'assistant_conversations_user_id_fkey',
-		}).onDelete('set null'),
+		index('chats_userId_idx').using(
+			'btree',
+			table.userId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
-			name: 'assistant_conversations_website_id_fkey',
-		}).onDelete('cascade'),
+			name: 'chats_websiteId_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		index('chats_updatedAt_idx').using(
+			'btree',
+			table.updatedAt.asc().nullsLast()
+		),
+		index('chats_createdAt_idx').using(
+			'btree',
+			table.createdAt.asc().nullsLast()
+		),
 	]
 );
 
-export const assistantMessages = pgTable(
+export type Chat = InferSelectModel<typeof chats>;
+
+export const messages = pgTable(
 	'assistant_messages',
 	{
-		id: text().primaryKey().notNull(),
-		conversationId: text('conversation_id').notNull(),
-		role: text('role').notNull(),
-		content: text('content'),
-		modelType: text('model_type').notNull(),
-		sql: text('sql'),
-		chartType: text('chart_type'),
-		responseType: text('response_type'),
-		finalResult: jsonb('final_result'),
-		textResponse: text('text_response'),
-		thinkingSteps: text('thinking_steps').array(),
-		hasError: boolean('has_error').default(false).notNull(),
-		errorMessage: text('error_message'),
-		upvotes: integer('upvotes').default(0).notNull(),
-		downvotes: integer('downvotes').default(0).notNull(),
-		feedbackComments: jsonb('feedback_comments'),
-		aiResponseTime: integer('ai_response_time'),
-		totalProcessingTime: integer('total_processing_time'),
-		promptTokens: integer('prompt_tokens'),
-		completionTokens: integer('completion_tokens'),
-		totalTokens: integer('total_tokens'),
-		debugLogs: text('debug_logs').array(),
-		metadata: jsonb('metadata'),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
+		id: text('id').primaryKey().notNull(),
+		chatId: text('chatId')
+			.notNull()
+			.references(() => chats.id),
+		role: varchar('role').notNull(),
+		parts: json('parts').notNull(),
+		attachments: json('attachments').notNull(),
+		createdAt: timestamp('createdAt').defaultNow().notNull(),
 	},
 	(table) => [
-		index('assistant_messages_conversation_id_idx').using(
+		index('messages_chatId_idx').using(
 			'btree',
-			table.conversationId.asc().nullsLast().op('text_ops')
+			table.chatId.asc().nullsLast().op('text_ops')
 		),
-		index('assistant_messages_createdAt_idx').using(
+		index('messages_role_idx').using(
+			'btree',
+			table.role.asc().nullsLast().op('text_ops')
+		),
+		index('messages_createdAt_idx').using(
 			'btree',
 			table.createdAt.asc().nullsLast()
 		),
 		foreignKey({
-			columns: [table.conversationId],
-			foreignColumns: [assistantConversations.id],
-			name: 'assistant_messages_conversation_id_fkey',
-		}).onDelete('cascade'),
+			columns: [table.chatId],
+			foreignColumns: [chats.id],
+			name: 'messages_chatId_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
 	]
 );
+
+export type DBMessage = InferSelectModel<typeof messages>;
+
+export const votes = pgTable(
+	'assistant_votes',
+	{
+		chatId: text('chatId')
+			.notNull()
+			.references(() => chats.id),
+		messageId: text('messageId')
+			.notNull()
+			.references(() => messages.id),
+		isUpvoted: boolean('isUpvoted').notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.chatId, table.messageId] }),
+		index('votes_chatId_idx').using(
+			'btree',
+			table.chatId.asc().nullsLast().op('text_ops')
+		),
+		index('votes_messageId_idx').using(
+			'btree',
+			table.messageId.asc().nullsLast().op('text_ops')
+		),
+		index('votes_isUpvoted_idx').using(
+			'btree',
+			table.isUpvoted.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.chatId],
+			foreignColumns: [chats.id],
+			name: 'votes_chatId_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.messageId],
+			foreignColumns: [messages.id],
+			name: 'votes_messageId_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+	]
+);
+
+export type Vote = InferSelectModel<typeof votes>;
 
 export const dbPermissionLevel = pgEnum('db_permission_level', [
 	'readonly',

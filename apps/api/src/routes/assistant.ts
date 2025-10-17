@@ -1,8 +1,7 @@
 import { auth, type User, websitesApi } from '@databuddy/auth';
 import type { StreamingUpdate } from '@databuddy/shared';
 import { Elysia } from 'elysia';
-import { processAssistantRequest } from '../agent/processor';
-import { createStreamingResponse } from '../agent/utils/stream-utils';
+import { handleMessage } from '../assistant';
 import { validateWebsite } from '../lib/website-utils';
 import { AssistantRequestSchema, type AssistantRequestType } from '../schemas';
 
@@ -35,7 +34,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 		}
 	})
 	.post(
-		'/stream',
+		'/',
 		async ({
 			body,
 			user,
@@ -47,17 +46,16 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 		}) => {
 			try {
 				const websiteValidation = await validateWebsite(body.websiteId);
+
 				if (!websiteValidation.success) {
-					return createStreamingResponse(
-						createErrorResponse(websiteValidation.error || 'Website not found')
+					return createErrorResponse(
+						websiteValidation.error || 'Website not found'
 					);
 				}
 
 				const { website } = websiteValidation;
 				if (!website) {
-					return createStreamingResponse(
-						createErrorResponse('Website not found')
-					);
+					return createErrorResponse('Website not found');
 				}
 
 				// Authorization: allow public websites, org members with permission, or the owner
@@ -75,19 +73,27 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				}
 
 				if (!authorized) {
-					return createStreamingResponse(
-						createErrorResponse(
-							'You do not have permission to access this website'
-						)
+					return createErrorResponse(
+						'You do not have permission to access this website'
 					);
 				}
 
-				const updates = await processAssistantRequest(body, user, website);
-				return createStreamingResponse(updates);
+				const updates = await handleMessage({
+					id: body.id,
+					message: body.message,
+					selectedChatModel: body.selectedChatModel,
+					requestHints: {
+						websiteId: website.id,
+						websiteHostname: website.domain,
+						timestamp: new Date().toISOString(),
+					},
+					user,
+				});
+				return updates;
 			} catch (error) {
 				const errorMessage =
 					error instanceof Error ? error.message : 'Unknown error occurred';
-				return createStreamingResponse(createErrorResponse(errorMessage));
+				return createErrorResponse(errorMessage);
 			}
 		},
 		{

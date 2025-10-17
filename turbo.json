@@ -32,6 +32,26 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "persistent": false
     },
+    "db:reset": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "persistent": false
+    },
+    "db:generate": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "persistent": false
+    },
+    "clickhouse:init": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "persistent": false
+    },
+    "db:seed": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "persistent": false
+    },
     "db:migrate": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

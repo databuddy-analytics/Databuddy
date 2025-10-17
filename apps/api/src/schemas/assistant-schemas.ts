@@ -2,20 +2,24 @@ import { t } from 'elysia';
 
 export const AssistantRequestSchema = t.Object(
 	{
-		conversationId: t.Optional(t.String()),
-		messages: t.Array(
-			t.Object(
-				{
-					role: t.Union([t.Literal('user'), t.Literal('assistant')]),
-					content: t.String(),
-				},
-				{ additionalProperties: false }
+		id: t.Required(t.String()),
+		message: t.Object({
+			id: t.String(),
+			role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+			parts: t.Array(
+				t.Object({
+					type: t.Literal('text'),
+					text: t.String(),
+				})
 			),
-			{ minItems: 1 }
-		),
-		websiteId: t.String(),
-		model: t.Optional(
-			t.Union([t.Literal('chat'), t.Literal('agent'), t.Literal('agent-max')])
+		}),
+		websiteId: t.Required(t.String()),
+		selectedChatModel: t.Required(
+			t.Union([
+				t.Literal('chat-model'),
+				t.Literal('agent-model'),
+				t.Literal('agent-max-model'),
+			])
 		),
 	},
 	{ additionalProperties: false }

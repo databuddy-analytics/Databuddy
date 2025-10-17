@@ -59,7 +59,7 @@ export function FaviconImage({
 	}
 
 	const isGitHub = hostname === 'github.com';
-	
+
 	return (
 		<Image
 			alt={altText || `${domain} favicon`}

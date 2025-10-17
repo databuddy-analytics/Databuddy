@@ -1,0 +1,30 @@
+- search chats is broken
+- cleanup db queries
+- message metadata
+- split history  into history item and history
+- when upvoting a message it flashes
+- theres no optimistic update for history deletion
+- [x] edit message
+- save chat model
+- attachment
+- feedback modal
+- skeleton
+- do not getVotes when chatting
+- [x] stop is broken
+- chart doesnt update after gen
+- fix chart viz, tooltips are broken, recheck tooltip logic and artifact logic 
+- add abilitiy to close viz canvas
+- fix upvote and copy button (not copying tool data)
+- regenerate message
+- filtering 
+- show chat title
+- question suggestions
+- thinking message fix
+- cleanup the artifact logic and input / output calls. provide actually useful insights for the ai for chartgen and summary gen, cleanup the functions for validatio
+- optimize sql query security, and chart gen
+- weird canvas open / close layout shift for chat
+- migrate to @ai-sdk-tools/store
+- do not allow people to send messages while generating in textare submit
+- add forcedToolCall code to force examples to use tools with metadata
+- cache user context in redis
+- prompt input suggestions

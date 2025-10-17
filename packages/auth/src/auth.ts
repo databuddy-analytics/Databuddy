@@ -18,7 +18,7 @@ import {
 	organization,
 	twoFactor,
 } from 'better-auth/plugins';
-import { Resend } from 'resend';
+import { resend } from './lib/resend';
 import { ac, admin, member, owner, viewer } from './permissions';
 
 function isProduction() {
@@ -37,9 +37,8 @@ export const auth = betterAuth({
 						'User Created',
 						`User ${user.id}, ${user.name}, ${user.email} created`
 					);
-					// const resend = new Resend(process.env.RESEND_API_KEY as string);
 					// await resend.emails.send({
-					//     from: "Databuddy <noreply@databuddy.cc>",
+					//     from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 					//     to: user.email,
 					//     subject: "Welcome to Databuddy",
 					//     react: WelcomeEmail({ username: user.name, url: process.env.BETTER_AUTH_URL as string }),
@@ -129,9 +128,8 @@ export const auth = betterAuth({
 		autoSignIn: false,
 		requireEmailVerification: process.env.NODE_ENV === 'production',
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
-			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: 'noreply@databuddy.cc',
+				from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 				to: user.email,
 				subject: 'Reset your password',
 				react: ResetPasswordEmail({ url }),
@@ -153,9 +151,8 @@ export const auth = betterAuth({
 				'Email Verification',
 				`Sending verification email to ${user.email}`
 			);
-			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: 'noreply@databuddy.cc',
+				from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 				to: user.email,
 				subject: 'Verify your email',
 				react: VerificationEmail({ url }),
@@ -188,9 +185,8 @@ export const auth = betterAuth({
 		emailOTP({
 			async sendVerificationOTP({ email, otp, type }) {
 				logger.info('Email OTP', `Sending OTP to ${email} of type ${type}`);
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 					to: email,
 					subject: 'Your verification code',
 					react: OtpEmail({ otp }),
@@ -200,9 +196,8 @@ export const auth = betterAuth({
 		magicLink({
 			sendMagicLink: async ({ email, url }) => {
 				logger.info('Magic Link', `Sending magic link to ${email}`);
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 					to: email,
 					subject: 'Login to Databuddy',
 					react: MagicLinkEmail({ url }),
@@ -249,9 +244,8 @@ export const auth = betterAuth({
 					{ inviter: inviter.user.name, organizationId: organization.id }
 				);
 				const invitationLink = `https://app.databuddy.cc/invitations/${invitation.id}`;
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: process.env.RESEND_FROM ?? 'no-reply@databuddy.cc',
 					to: email,
 					subject: `You're invited to join ${organization.name}`,
 					react: InvitationEmail({
