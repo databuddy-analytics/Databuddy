@@ -45,7 +45,7 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				new Set(toolCalls.map((c) => c.toolName))
 			);
 
-			const consts = await computeCostUSD({
+			const costs = await computeCostUSD({
 				modelId: model.modelId,
 				provider: model.provider,
 				usage: result.usage,
@@ -59,9 +59,9 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				finishReason: result.finishReason,
 				toolCallCount: toolCalls.length,
 				toolResultCount: toolResults.length,
-				inputTokenCostUSD: consts.inputTokenCostUSD,
-				outputTokenCostUSD: consts.outputTokenCostUSD,
-				totalTokenCostUSD: consts.totalTokenCostUSD,
+				inputTokenCostUSD: costs.inputTokenCostUSD,
+				outputTokenCostUSD: costs.outputTokenCostUSD,
+				totalTokenCostUSD: costs.totalTokenCostUSD,
 				toolCallNames,
 			};
 			buddy.track({name: 'ai.generate', properties: payload});
