@@ -2,7 +2,7 @@ import { websitesApi } from '@databuddy/auth';
 import { chQuery } from '@databuddy/db';
 import { createDrizzleCache, redis } from '@databuddy/redis';
 import { logger, type ProcessedMiniChartData } from '@databuddy/shared';
-import { transferWebsiteSchema } from '@databuddy/validation';
+import { transferWebsiteSchema, transferWebsiteToOrgSchema } from '@databuddy/validation';
 import { TRPCError } from '@trpc/server';
 import { Effect, pipe } from 'effect';
 import { z } from 'zod';
@@ -16,10 +16,11 @@ import {
 	WebsiteNotFoundError,
 	WebsiteService,
 	websiteNameSchema,
-} from '../services/website-service';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
-import { invalidateWebsiteCaches } from '../utils/cache-invalidation';
+	type Website,
+} from '../services/website-service.js';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc.js';
+import { authorizeWebsiteAccess } from '../utils/auth.js';
+import { invalidateWebsiteCaches } from '../utils/cache-invalidation.js';
 
 const createWebsiteSchema = z.object({
 	name: websiteNameSchema,
@@ -308,7 +309,7 @@ export const websitesRouter = createTRPCRouter({
 				domain: input.domain,
 			};
 
-			const updatedWebsite = await pipe(
+			const updatedWebsite: Website = await pipe(
 				new WebsiteService(ctx.db).updateWebsite(
 					input.id,
 					serviceInput,
@@ -468,6 +469,46 @@ export const websitesRouter = createTRPCRouter({
 			return result;
 		}),
 
+	transferToOrganization: protectedProcedure
+		.input(transferWebsiteToOrgSchema)
+		.mutation(async ({ ctx, input }) => {
+			await authorizeWebsiteAccess(ctx, input.websiteId, 'transfer');
+
+			const { success } = await websitesApi.hasPermission({
+				headers: ctx.headers,
+				body: {
+					organizationId: input.targetOrganizationId,
+					permissions: { website: ['create'] },
+				},
+			});
+			if (!success) {
+				throw new TRPCError({
+					code: 'FORBIDDEN',
+					message: 'Missing permissions to transfer website to target organization.',
+				});
+			}
+
+			const result = await pipe(
+				new WebsiteService(ctx.db).transferWebsiteToOrganization(
+					input.websiteId,
+					input.targetOrganizationId,
+					ctx.user.id
+				),
+				Effect.mapError((error: WebsiteError) => {
+					if (error instanceof WebsiteNotFoundError) {
+						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+					}
+					return new TRPCError({
+						code: 'INTERNAL_SERVER_ERROR',
+						message: error.message,
+					});
+				}),
+				Effect.runPromise
+			);
+
+			return result;
+		}),
+
 	invalidateCaches: protectedProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
@@ -513,7 +554,6 @@ export const websitesRouter = createTRPCRouter({
 
 			const hasTrackingEvents = (trackingCheckResult[0]?.count ?? 0) > 0;
 
-			// Determine integration type
 			let integrationType: 'vercel' | 'manual' | null = null;
 			if (hasVercelIntegration) {
 				integrationType = 'vercel';

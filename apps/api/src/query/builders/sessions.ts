@@ -136,29 +136,60 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     ),
-    session_events AS (
+    all_events AS (
       SELECT
+        e.id,
         e.session_id,
-        groupArray(
-          tuple(
-            e.id,
-            e.time,
-            e.event_name,
-            e.path,
-            CASE 
-              WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out') 
-                AND e.properties IS NOT NULL 
-                AND e.properties != '{}' 
-              THEN CAST(e.properties AS String)
-              ELSE NULL
-            END
-          )
-        ) as events
+        e.time,
+        e.event_name,
+        e.path,
+        CASE 
+          WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out') 
+            AND e.properties IS NOT NULL 
+            AND e.properties != '{}' 
+          THEN CAST(e.properties AS String)
+          ELSE NULL
+        END as properties
       FROM analytics.events e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
       WHERE e.client_id = {websiteId:String}
-		${combinedWhereClause}
-      GROUP BY e.session_id
+      
+      UNION ALL
+      
+      SELECT
+        ce.id,
+        ce.session_id,
+        ce.timestamp as time,
+        ce.event_name,
+        '' as path,
+        CASE 
+          WHEN ce.properties IS NOT NULL 
+            AND ce.properties != '{}' 
+          THEN CAST(ce.properties AS String)
+          ELSE NULL
+        END as properties
+      FROM analytics.custom_events ce
+      INNER JOIN session_list sl ON ce.session_id = sl.session_id
+      WHERE ce.client_id = {websiteId:String}
+    ),
+    session_events AS (
+      SELECT
+        session_id,
+        groupArray(
+          tuple(
+            id,
+            time,
+            event_name,
+            path,
+            properties
+          )
+        ) as events
+      FROM (
+        SELECT * FROM all_events
+        ORDER BY time ASC
+      )
+      ${combinedWhereClause}
+      GROUP BY session_id
     )
     SELECT
       sl.session_id,
@@ -174,7 +205,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       COALESCE(se.events, []) as events
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
-    ${combinedWhereClause ? `WHERE ${combinedWhereClause.replace('AND ', '')}` : ''}
+    ${combinedWhereClause}
     ORDER BY sl.first_visit DESC
   `,
 				params: {

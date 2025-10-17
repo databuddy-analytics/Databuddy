@@ -33,9 +33,11 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		pathname.includes('/map') ||
 		pathname.includes('/flags') ||
 		pathname.includes('/databunny') ||
-		pathname.includes('/settings');
+		pathname.includes('/settings') ||
+		pathname.includes('/users');
 
-	const noPadding = pathname.includes('/settings');
+	const noPadding =
+		pathname.includes('/settings') || pathname.includes('/users');
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);

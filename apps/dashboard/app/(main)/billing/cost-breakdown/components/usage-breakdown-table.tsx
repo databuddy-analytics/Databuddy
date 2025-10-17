@@ -88,7 +88,7 @@ export function UsageBreakdownTable({
 		);
 	}
 
-	if (!usageData || usageData.eventTypeBreakdown.length === 0) {
+	if (!usageData || !usageData.eventTypeBreakdown || usageData.eventTypeBreakdown.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="text-center">

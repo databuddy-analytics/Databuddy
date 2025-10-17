@@ -6,9 +6,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface WebsiteHeaderProps {
 	website: Website | null | undefined;
+	showBackButton?: boolean;
 }
 
-export function WebsiteHeader({ website }: WebsiteHeaderProps) {
+export function WebsiteHeader({ website, showBackButton = true }: WebsiteHeaderProps) {
 	return (
 		<div className="border-sidebar-border border-b bg-sidebar-accent">
 			{/* Website info - aligned with logo section */}
@@ -49,20 +50,22 @@ export function WebsiteHeader({ website }: WebsiteHeaderProps) {
 			</div>
 
 			{/* Back navigation - aligned with category buttons */}
-			<button
-				className="group flex w-full cursor-pointer items-center justify-start px-3 py-2.5 transition-colors hover:bg-sidebar-accent/60"
-				type="button"
-			>
-				<Link className="flex items-center gap-2" href="/websites">
-					<CaretLeftIcon
-						className="group-hover:-translate-x-0.5 h-5 w-5 flex-shrink-0 text-sidebar-accent-foreground/80 transition-transform"
-						weight="fill"
-					/>
-					<span className="text-sidebar-accent-foreground/70 text-xs">
-						Back to Websites
-					</span>
-				</Link>
-			</button>
+			{showBackButton && (
+				<button
+					className="group flex w-full cursor-pointer items-center justify-start px-3 py-2.5 transition-colors hover:bg-sidebar-accent/60"
+					type="button"
+				>
+					<Link className="flex items-center gap-2" href="/websites">
+						<CaretLeftIcon
+							className="group-hover:-translate-x-0.5 h-5 w-5 flex-shrink-0 text-sidebar-accent-foreground/80 transition-transform"
+							weight="fill"
+						/>
+						<span className="text-sidebar-accent-foreground/70 text-xs">
+							Back to Websites
+						</span>
+					</Link>
+				</button>
+			)}
 		</div>
 	);
 }

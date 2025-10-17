@@ -21,6 +21,7 @@ import {
 	createLoadingDatabasesNavigation,
 	createLoadingWebsitesNavigation,
 	createWebsitesNavigation,
+	filterCategoriesForRoute,
 	getContextConfig,
 	getDefaultCategory,
 } from './navigation/navigation-config';
@@ -69,8 +70,9 @@ export function CategorySidebar({
 				: baseConfig;
 
 		const defaultCat = getDefaultCategory(pathname);
+		const filteredCategories = filterCategoriesForRoute(config.categories, pathname);
 
-		return { categories: config.categories, defaultCategory: defaultCat };
+		return { categories: filteredCategories, defaultCategory: defaultCat };
 	}, [pathname, websites, isLoadingWebsites, databases, isLoadingDatabases]);
 
 	const activeCategory = selectedCategory || defaultCategory;

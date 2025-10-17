@@ -21,6 +21,7 @@ import {
 	getErrorCategory,
 	getSeverityColor,
 } from './utils';
+import type { RecentError } from './types';
 
 interface InfoProps {
 	label: string;
@@ -63,7 +64,7 @@ const IconRow: React.FC<IconProps> = ({ label, value, icon }) => (
 );
 
 interface ErrorDetailModalProps {
-	error: ErrorEvent;
+	error: RecentError;
 	isOpen: boolean;
 	onClose: () => void;
 }

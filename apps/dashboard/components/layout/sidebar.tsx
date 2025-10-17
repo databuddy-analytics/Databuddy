@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDbConnections } from '@/hooks/use-db-connections';
-import { useAccordionStates } from '@/hooks/use-persistent-state';
+import { useAccordionStates, usePersistentState } from '@/hooks/use-persistent-state';
 import { useWebsites } from '@/hooks/use-websites';
 import { cn } from '@/lib/utils';
 import { CategorySidebar } from './category-sidebar';
@@ -37,7 +37,7 @@ type NavigationConfig = {
 export function Sidebar() {
 	const pathname = usePathname();
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
-	const [selectedCategory, setSelectedCategory] = useState<string>();
+	const [selectedCategory, setSelectedCategory] = usePersistentState<string | undefined>('sidebar-selected-category', undefined);
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
 	const { connections: databases, isLoading: isLoadingDatabases } =
 		useDbConnections();
@@ -92,17 +92,17 @@ export function Sidebar() {
 		const populatedConfig =
 			baseConfig === categoryConfig.main
 				? {
-						...baseConfig,
-						navigationMap: {
-							...baseConfig.navigationMap,
-							websites: isLoadingWebsites
-								? createLoadingWebsitesNavigation()
-								: createWebsitesNavigation(websites),
-							observability: isLoadingDatabases
-								? createLoadingDatabasesNavigation()
-								: createDatabasesNavigation(databases),
-						},
-					}
+					...baseConfig,
+					navigationMap: {
+						...baseConfig.navigationMap,
+						websites: isLoadingWebsites
+							? createLoadingWebsitesNavigation()
+							: createWebsitesNavigation(websites),
+						observability: isLoadingDatabases
+							? createLoadingDatabasesNavigation()
+							: createDatabasesNavigation(databases),
+					},
+				}
 				: baseConfig;
 
 		const defaultCat = getDefaultCategory(pathname);
@@ -110,10 +110,10 @@ export function Sidebar() {
 
 		const navSections =
 			populatedConfig.navigationMap[
-				activeCat as keyof typeof populatedConfig.navigationMap
+			activeCat as keyof typeof populatedConfig.navigationMap
 			] ||
 			populatedConfig.navigationMap[
-				populatedConfig.defaultCategory as keyof typeof populatedConfig.navigationMap
+			populatedConfig.defaultCategory as keyof typeof populatedConfig.navigationMap
 			];
 
 		let headerComponent: React.ReactNode;
@@ -122,8 +122,8 @@ export function Sidebar() {
 		if (isWebsite || isDemo) {
 			headerComponent = isWebsite ? (
 				<WebsiteHeader website={currentWebsite} />
-			) : // <OrganizationSelector />
-			null;
+			) :
+				null;
 			currentId = websiteId;
 		} else if (isDatabase) {
 			headerComponent = <DatabaseHeader database={currentDatabase} />;
@@ -133,7 +133,6 @@ export function Sidebar() {
 			currentId = 'sandbox';
 		} else {
 			headerComponent = null;
-			// <OrganizationSelector />
 			currentId = undefined;
 		}
 
@@ -248,7 +247,7 @@ export function Sidebar() {
 			<nav
 				aria-hidden={!isMobileOpen}
 				className={cn(
-					'fixed inset-y-0 z-40 w-72 bg-sidebar',
+					'fixed inset-y-0 z-40 w-56 sm:w-60 md:w-64 lg:w-72 bg-sidebar',
 					'border-sidebar-border border-r transition-transform duration-200 ease-out',
 					'left-0 md:left-12',
 					'pt-12 md:pt-0',

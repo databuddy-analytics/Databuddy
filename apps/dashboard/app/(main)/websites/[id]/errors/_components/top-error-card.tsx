@@ -1,12 +1,9 @@
 import { BugIcon, UsersIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ErrorType } from './types';
 
 interface TopErrorCardProps {
-	topError: {
-		name: string;
-		count: number;
-		users: number;
-	} | null;
+	topError: ErrorType | null;
 }
 
 export const TopErrorCard = ({ topError }: TopErrorCardProps) => {

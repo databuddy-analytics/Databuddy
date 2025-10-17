@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.events (
   time DateTime64(3, 'UTC'),
   session_id String,
   
-  event_type LowCardinality(String) DEFAULT 'track', -- 'track', 'error', 'web_vitals'
-  event_id Nullable(String), -- UUID from client for deduplication
-  session_start_time Nullable(DateTime64(3, 'UTC')), -- New session tracking
-  timestamp DateTime64(3, 'UTC') DEFAULT time, -- Alias for new format
+  event_type LowCardinality(String) DEFAULT 'track',
+  event_id Nullable(String),
+  session_start_time Nullable(DateTime64(3, 'UTC')),
+  timestamp DateTime64(3, 'UTC') DEFAULT time,
   
   referrer Nullable(String),
   url String,
@@ -68,11 +68,6 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.events (
   render_time Nullable(Int32),
   redirect_time Nullable(Int32),
   domain_lookup_time Nullable(Int32),
-  
-  href Nullable(String),
-  text Nullable(String),
-  
-  value Nullable(String),
   
   properties String,
   
@@ -416,7 +411,6 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
-// Custom outgoing links table with minimal essential fields
 const CREATE_CUSTOM_OUTGOING_LINKS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.outgoing_links (
   id UUID,
@@ -662,7 +656,7 @@ export interface CustomEvent {
 	event_name: string;
 	anonymous_id: string;
 	session_id: string;
-	properties: string;
+	properties: Record<string, unknown>;
 	timestamp: number;
 }
 
@@ -673,7 +667,7 @@ export interface CustomOutgoingLink {
 	session_id: string;
 	href: string;
 	text?: string;
-	properties: string;
+	properties: Record<string, unknown>;
 	timestamp: number;
 }
 
@@ -737,12 +731,7 @@ export interface AnalyticsEvent {
 	redirect_time?: number;
 	domain_lookup_time?: number;
 
-	href?: string;
-	text?: string;
-
-	value?: string;
-
-	properties: string;
+	properties: Record<string, unknown>;
 
 	created_at: number;
 }

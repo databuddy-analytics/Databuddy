@@ -1,10 +1,8 @@
 import './global.css';
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 import { RootProvider } from 'fumadocs-ui/provider';
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Manrope } from 'next/font/google';
-import Head from 'next/head';
-import Script from 'next/script';
 import { ThemeProvider } from 'next-themes';
 import type { ReactNode } from 'react';
 import { Toaster } from '@/components/ui/sonner';
@@ -93,21 +91,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 			lang="en"
 			suppressHydrationWarning
 		>
-			<Script
-				async
-				data-client-id="OXmNQsViBT-FOS_wZCTHc"
-				data-track-attributes={true}
-				data-track-errors={true}
-				data-track-outgoing-links={true}
-				data-track-web-vitals={true}
-				src="https://cdn.databuddy.cc/databuddy.js"
-				strategy="afterInteractive"
-			/>
-			<Databuddy clientId="OXmNQsViBT-FOS_wZCTHc" />
-			<Head>
-				<link href="https://icons.duckduckgo.com" rel="preconnect" />
-				<link href="https://icons.duckduckgo.com" rel="dns-prefetch" />
-			</Head>
+			<Databuddy clientId="OXmNQsViBT-FOS_wZCTHc" trackErrors trackAttributes trackOutgoingLinks trackWebVitals/>
 			<body>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 					<RootProvider>

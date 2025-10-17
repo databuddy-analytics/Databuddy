@@ -150,20 +150,17 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 			return evaluateStringRule(context.email, rule);
 		case 'property': {
 			if (!rule.field) {
+				if (typeof rule.value === 'number') {
+					const userId = context.userId || context.email || 'anonymous';
+					const hash = hashString(`percentage:${userId}`);
+					const percentage = hash % 100;
+					return percentage < rule.value;
+				}
 				return false;
 			}
 			const propertyValue = context.properties?.[rule.field];
 			return evaluateValueRule(propertyValue, rule);
 		}
-		// case 'percentage': {
-		// 	if (typeof rule.value !== 'number') {
-		// 		return false;
-		// 	}
-		// 	const userId = context.userId || context.email || 'anonymous';
-		// 	const hash = hashString(`percentage:${userId}`);
-		// 	const percentage = hash % 100;
-		// 	return percentage < rule.value;
-		// }
 		default:
 			return false;
 	}
@@ -215,13 +212,22 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 		'/evaluate',
 		async ({ query, set }) => {
 			try {
+				if (!query.key || !query.clientId) {
+					set.status = 400;
+					return {
+						enabled: false,
+						value: false,
+						payload: null,
+						reason: 'MISSING_REQUIRED_PARAMS',
+					};
+				}
+
 				const context: UserContext = {
 					userId: query.userId,
 					email: query.email,
 					properties: parseProperties(query.properties),
 				};
 
-				// Temporarily more permissive: check both websiteId and organizationId
 				const scopeCondition = or(
 					eq(flags.websiteId, query.clientId),
 					eq(flags.organizationId, query.clientId)
@@ -302,13 +308,21 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 		'/bulk',
 		async ({ query, set }) => {
 			try {
+				if (!query.clientId) {
+					set.status = 400;
+					return {
+						flags: {},
+						count: 0,
+						error: 'Missing required clientId parameter',
+					};
+				}
+
 				const context: UserContext = {
 					userId: query.userId,
 					email: query.email,
 					properties: parseProperties(query.properties),
 				};
 
-				// Temporarily more permissive: check both websiteId and organizationId
 				const scopeCondition = or(
 					eq(flags.websiteId, query.clientId),
 					eq(flags.organizationId, query.clientId)

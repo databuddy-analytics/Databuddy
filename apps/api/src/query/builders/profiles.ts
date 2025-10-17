@@ -40,7 +40,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         client_id = {websiteId:String}
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
-		${combinedWhereClause}
+	${combinedWhereClause}
       GROUP BY anonymous_id
       ORDER BY last_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
@@ -79,7 +79,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events e
       INNER JOIN visitor_profiles vp ON e.anonymous_id = vp.visitor_id
       WHERE e.client_id = {websiteId:String}
-		${combinedWhereClause}
+	${combinedWhereClause}
       GROUP BY vp.visitor_id, e.session_id
       ORDER BY vp.visitor_id, session_start DESC
     )
@@ -122,6 +122,142 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 					limit: limit || 25,
 					offset: offset || 0,
 					...filterParams,
+				},
+			};
+		},
+	},
+
+	profile_detail: {
+		customSql: (
+			websiteId: string,
+			startDate: string,
+			endDate: string,
+			filters?: Filter[],
+			_granularity?: unknown,
+			_limit?: number,
+			_offset?: number,
+			_timezone?: string,
+			_filterConditions?: string[],
+			_filterParams?: Record<string, Filter['value']>
+		) => {
+			const visitorId = filters?.find((f) => f.field === 'anonymous_id')?.value;
+
+			if (!visitorId || typeof visitorId !== 'string') {
+				throw new Error(
+					'anonymous_id filter is required for profile_detail query'
+				);
+			}
+
+			return {
+				sql: `
+    WITH user_profile AS (
+      SELECT
+        anonymous_id as visitor_id,
+        MIN(time) as first_visit,
+        MAX(time) as last_visit,
+        COUNT(DISTINCT session_id) as total_sessions,
+        COUNT(*) as total_pageviews,
+        SUM(CASE WHEN time_on_page > 0 THEN time_on_page ELSE 0 END) as total_duration,
+        formatReadableTimeDelta(SUM(CASE WHEN time_on_page > 0 THEN time_on_page ELSE 0 END)) as total_duration_formatted,
+        any(device_type) as device,
+        any(browser_name) as browser,
+        any(os_name) as os,
+        any(country) as country,
+        any(region) as region
+      FROM analytics.events
+      WHERE 
+        client_id = {websiteId:String}
+        AND anonymous_id = {visitorId:String}
+        AND time >= parseDateTimeBestEffort({startDate:String})
+        AND time <= parseDateTimeBestEffort({endDate:String})
+      GROUP BY anonymous_id
+    ),
+    user_sessions AS (
+      SELECT
+        e.session_id,
+        CONCAT('Session ', ROW_NUMBER() OVER (ORDER BY MIN(e.time))) as session_name,
+        MIN(e.time) as first_visit,
+        MAX(e.time) as last_visit,
+        LEAST(dateDiff('second', MIN(e.time), MAX(e.time)), 28800) as duration,
+        formatReadableTimeDelta(LEAST(dateDiff('second', MIN(e.time), MAX(e.time)), 28800)) as duration_formatted,
+        COUNT(DISTINCT e.path) as page_views,
+        COUNT(DISTINCT e.path) as unique_pages,
+        any(e.device_type) as device,
+        any(e.browser_name) as browser,
+        any(e.os_name) as os,
+        any(e.country) as country,
+        any(e.region) as region,
+        any(e.referrer) as referrer,
+        groupArray(
+          tuple(
+            e.id,
+            e.time,
+            e.event_name,
+            e.path,
+            CASE 
+              WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out') 
+                AND e.properties IS NOT NULL 
+                AND e.properties != '{}' 
+              THEN CAST(e.properties AS String)
+              ELSE NULL
+            END,
+            NULL,
+            NULL
+          )
+        ) as events
+      FROM analytics.events e
+      WHERE 
+        e.client_id = {websiteId:String}
+        AND e.anonymous_id = {visitorId:String}
+        AND e.time >= parseDateTimeBestEffort({startDate:String})
+        AND e.time <= parseDateTimeBestEffort({endDate:String})
+      GROUP BY e.session_id
+      ORDER BY first_visit DESC
+    )
+    SELECT
+      up.visitor_id,
+      up.first_visit,
+      up.last_visit,
+      up.total_sessions,
+      up.total_pageviews,
+      up.total_duration,
+      up.total_duration_formatted,
+      up.device,
+      up.browser,
+      up.os,
+      up.country,
+      up.region,
+      groupArray(
+        tuple(
+          us.session_id,
+          us.session_name,
+          us.first_visit,
+          us.last_visit,
+          us.duration,
+          us.duration_formatted,
+          us.page_views,
+          us.unique_pages,
+          us.device,
+          us.browser,
+          us.os,
+          us.country,
+          us.region,
+          us.referrer,
+          us.events
+        )
+      ) as sessions
+    FROM user_profile up
+    LEFT JOIN user_sessions us ON 1=1
+    GROUP BY 
+      up.visitor_id, up.first_visit, up.last_visit, up.total_sessions, 
+      up.total_pageviews, up.total_duration, up.total_duration_formatted,
+      up.device, up.browser, up.os, up.country, up.region
+  `,
+				params: {
+					websiteId,
+					visitorId,
+					startDate,
+					endDate: `${endDate} 23:59:59`,
 				},
 			};
 		},
@@ -238,7 +374,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND time >= parseDateTimeBestEffort({startDate:String})
         AND time <= parseDateTimeBestEffort({endDate:String})
         AND event_name = 'screen_view'
-		${combinedWhereClause}
+	${combinedWhereClause}
       GROUP BY anonymous_id
       HAVING session_count > 1
       ORDER BY session_count DESC

@@ -7,6 +7,7 @@ import {
 	createPageColumn,
 	errorColumns,
 } from './error-table-columns';
+import type { ErrorType, ErrorByPage } from './types';
 
 const DataTable = dynamic(
 	() =>
@@ -21,8 +22,8 @@ const DataTable = dynamic(
 
 interface ErrorDataTableProps {
 	processedData: {
-		error_types: Record<string, unknown>[];
-		errors_by_page: Record<string, unknown>[];
+		error_types: ErrorType[];
+		errors_by_page: ErrorByPage[];
 	};
 	isLoading: boolean;
 	isRefreshing: boolean;

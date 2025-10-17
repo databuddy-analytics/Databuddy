@@ -1,5 +1,6 @@
 'use client';
 
+import { authClient } from '@databuddy/auth/client';
 import {
 	CaretDownIcon,
 	CheckIcon,
@@ -7,7 +8,8 @@ import {
 	SpinnerGapIcon,
 	UserIcon,
 } from '@phosphor-icons/react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -19,7 +21,6 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizations } from '@/hooks/use-organizations';
 import { cn } from '@/lib/utils';
 
 const getOrganizationInitials = (name: string) => {
@@ -125,55 +126,39 @@ function OrganizationSelectorTrigger({
 }
 
 export function OrganizationSelector() {
-	const {
-		organizations,
-		activeOrganization,
-		isLoading,
-		setActiveOrganization,
-		isSettingActiveOrganization,
-		hasError,
-		activeOrganizationError,
-	} = useOrganizations();
+	const { data: organizations, isPending: isLoadingOrgs } = authClient.useListOrganizations();
+	const { data: activeOrganization, isPending: isLoadingActive } = authClient.useActiveOrganization();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState('');
+	const [isSwitching, setIsSwitching] = useState(false);
 
-	const [hasHandledMissingOrg, setHasHandledMissingOrg] = useState(false);
+	const isLoading = isLoadingOrgs || isLoadingActive;
 
-	const isActiveOrgNotFound =
-		activeOrganizationError?.message?.includes('ORGANIZATION_NOT_FOUND') ||
-		activeOrganizationError?.message?.includes('Organization not found');
+	const handleSelectOrganization = async (organizationId: string | null) => {
+		if (organizationId === activeOrganization?.id) return;
+		if (organizationId === null && !activeOrganization) return;
 
-	if (
-		isActiveOrgNotFound &&
-		!hasHandledMissingOrg &&
-		!isSettingActiveOrganization
-	) {
-		setHasHandledMissingOrg(true);
-		// Clear the active organization to fall back to personal workspace
-		setActiveOrganization(null);
-	}
+		setIsSwitching(true);
+		setIsOpen(false);
 
-	const handleSelectOrganization = useCallback(
-		(organizationId: string | null) => {
-			if (organizationId === activeOrganization?.id) {
-				return;
-			}
-			if (organizationId === null && !activeOrganization) {
-				return;
-			}
-			setActiveOrganization(organizationId);
-			setIsOpen(false);
-		},
-		[activeOrganization, setActiveOrganization]
-	);
+		const { error } = await authClient.organization.setActive({ organizationId });
+		
+		if (error) {
+			toast.error(error.message || 'Failed to switch workspace');
+		} else {
+			toast.success('Workspace updated');
+		}
+		
+		setIsSwitching(false);
+	};
 
-	const handleCreateOrganization = useCallback(() => {
+	const handleCreateOrganization = () => {
 		setShowCreateDialog(true);
 		setIsOpen(false);
-	}, []);
+	};
 
-	const filteredOrganizations = filterOrganizations(organizations, query);
+	const filteredOrganizations = filterOrganizations(organizations || [], query);
 
 	if (isLoading) {
 		return (
@@ -194,22 +179,6 @@ export function OrganizationSelector() {
 		);
 	}
 
-	if (hasError && !isActiveOrgNotFound) {
-		return (
-			<div className="border-sidebar-border border-b bg-destructive/10 px-3 py-3">
-				<div className="flex items-center gap-3">
-					<div className="rounded bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-destructive/50">
-						<UserIcon className="h-5 w-5 text-destructive" weight="duotone" />
-					</div>
-					<div className="min-w-0 flex-1">
-						<span className="font-semibold text-destructive text-sm">
-							Failed to load workspaces
-						</span>
-					</div>
-				</div>
-			</div>
-		);
-	}
 
 	return (
 		<>
@@ -227,14 +196,14 @@ export function OrganizationSelector() {
 						aria-expanded={isOpen}
 						aria-haspopup="listbox"
 						className="h-auto w-full rounded-none p-0 hover:bg-transparent"
-						disabled={isSettingActiveOrganization}
+						disabled={isSwitching}
 						type="button"
 						variant="ghost"
 					>
 						<OrganizationSelectorTrigger
 							activeOrganization={activeOrganization}
 							isOpen={isOpen}
-							isSettingActiveOrganization={isSettingActiveOrganization}
+							isSettingActiveOrganization={isSwitching}
 						/>
 					</Button>
 				</DropdownMenuTrigger>

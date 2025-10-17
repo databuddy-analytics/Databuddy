@@ -9,7 +9,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
-    "@databuddy/sdk": "^1.2.0",
+    "@databuddy/sdk": "^2.2.0",
     "@hookform/resolvers": "^5.0.1",
     "@icons-pack/react-simple-icons": "^13.7.0",
     "@phosphor-icons/react": "^2.1.10",

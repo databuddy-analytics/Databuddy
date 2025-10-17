@@ -1,12 +1,11 @@
-import { type db as drizzleDb, websites } from '@databuddy/db';
+import { type db as drizzleDb, websites, and, eq, isNull, type InferSelectModel } from '@databuddy/db';
 import { logger } from '@databuddy/shared';
-import { and, eq, type InferSelectModel, isNull } from 'drizzle-orm';
 import { Effect, pipe } from 'effect';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { invalidateWebsiteCaches } from '../utils/cache-invalidation';
+import { invalidateWebsiteCaches } from '../utils/cache-invalidation.js';
 
-type Website = InferSelectModel<typeof websites>;
+export type Website = InferSelectModel<typeof websites>;
 
 type Updates = { name?: string; domain?: string; integrations?: unknown };
 
@@ -215,8 +214,8 @@ export class WebsiteService {
 	): Effect.Effect<Website, WebsiteError> {
 		const { skipDuplicateCheck = false, logContext = {} } = options;
 
-		const insertFn = (tx: any) =>
-			tx
+		const insertFn = async (tx: any) => {
+			return tx
 				.insert(websites)
 				.values({
 					id: nanoid(),
@@ -228,6 +227,7 @@ export class WebsiteService {
 				})
 				.returning()
 				.then(([website]) => website as Website);
+		};
 
 		return pipe(
 			Effect.succeed(input),
@@ -410,6 +410,57 @@ export class WebsiteService {
 										{
 											websiteId: transferredWebsite.id,
 											organizationId,
+											userId,
+										}
+									),
+								catch: (error) =>
+									new Error(`Logging failed: ${String(error)}`) as WebsiteError,
+							}),
+							Effect.flatMap(() =>
+								Effect.tryPromise({
+									try: () => invalidateWebsiteCaches(websiteId, userId),
+									catch: (error) =>
+										new Error(
+											`Cache invalidation failed: ${String(error)}`
+										) as WebsiteError,
+								})
+							),
+							Effect.as(transferredWebsite)
+						)
+					: Effect.fail(new WebsiteNotFoundError())
+			)
+		);
+	}
+
+	transferWebsiteToOrganization(
+		websiteId: string,
+		targetOrganizationId: string,
+		userId: string
+	): Effect.Effect<Website, WebsiteError> {
+		const updateFn = () =>
+			this.db
+				.update(websites)
+				.set({
+					organizationId: targetOrganizationId,
+					updatedAt: new Date(),
+				})
+				.where(eq(websites.id, websiteId))
+				.returning()
+				.then(([w]) => w ?? (null as Website | null));
+
+		return pipe(
+			this.performDBOperation<Website | null>(updateFn),
+			Effect.flatMap((transferredWebsite) =>
+				transferredWebsite
+					? pipe(
+							Effect.try({
+								try: () =>
+									logger.info(
+										'Website Transferred to Organization',
+										`Website "${transferredWebsite.name}" was transferred to organization "${targetOrganizationId}"`,
+										{
+											websiteId: transferredWebsite.id,
+											targetOrganizationId,
 											userId,
 										}
 									),

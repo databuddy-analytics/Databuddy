@@ -288,5 +288,5 @@ export function buildWhereClause(conditions?: string[]): string {
 	const safeClauses = conditions.filter(
 		(clause) => !UNSAFE_CLAUSE_REGEX.test(clause)
 	);
-	return `AND (${safeClauses.join(' AND ')})`;
+	return `WHERE (${safeClauses.join(' AND ')})`;
 }

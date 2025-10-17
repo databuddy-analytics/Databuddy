@@ -63,16 +63,16 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 	const hasChanges = name !== organization.name || slug !== organization.slug;
 
 	return (
-		<div className="h-full p-6">
-			<div className="space-y-8">
+		<div className="h-full p-4 sm:p-6">
+			<div className="space-y-6 sm:space-y-8">
 				{/* Content Sections */}
-				<div className="space-y-8">
+				<div className="space-y-6 sm:space-y-8">
 					{/* Logo Upload Section */}
-					<div className="rounded border bg-card p-6">
-						<div className="space-y-4">
+					<div className="rounded border bg-card p-4 sm:p-6">
+						<div className="space-y-3 sm:space-y-4">
 							<div>
-								<h3 className="font-semibold text-lg">Organization Logo</h3>
-								<p className="text-muted-foreground text-sm">
+								<h3 className="font-semibold text-base sm:text-lg">Organization Logo</h3>
+								<p className="text-muted-foreground text-xs sm:text-sm">
 									Upload a logo to represent your organization
 								</p>
 							</div>
@@ -81,18 +81,18 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 					</div>
 
 					{/* Name and Slug Section */}
-					<div className="rounded border bg-card p-6">
-						<div className="space-y-6">
+					<div className="rounded border bg-card p-4 sm:p-6">
+						<div className="space-y-4 sm:space-y-6">
 							<div>
-								<h3 className="font-semibold text-lg">Basic Information</h3>
-								<p className="text-muted-foreground text-sm">
+								<h3 className="font-semibold text-base sm:text-lg">Basic Information</h3>
+								<p className="text-muted-foreground text-xs sm:text-sm">
 									Configure your organization's name and URL identifier
 								</p>
 							</div>
 
-							<div className="grid gap-6 sm:grid-cols-2">
-								<div className="space-y-3">
-									<Label className="font-medium" htmlFor="name">
+							<div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
+								<div className="space-y-2 sm:space-y-3">
+									<Label className="font-medium text-xs sm:text-sm" htmlFor="name">
 										Organization Name
 									</Label>
 									<Input
@@ -102,8 +102,8 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 										value={name}
 									/>
 								</div>
-								<div className="space-y-3">
-									<Label className="font-medium" htmlFor="slug">
+								<div className="space-y-2 sm:space-y-3">
+									<Label className="font-medium text-xs sm:text-sm" htmlFor="slug">
 										Organization Slug
 									</Label>
 									<Input
@@ -120,20 +120,20 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 
 							{/* Save Button */}
 							{hasChanges && (
-								<div className="flex justify-end border-t pt-4">
+								<div className="flex justify-end border-t pt-3 sm:pt-4">
 									<Button
-										className="px-6"
+										className="px-4 text-xs sm:px-6 sm:text-sm"
 										disabled={isSaving}
 										onClick={handleSave}
 									>
 										{isSaving ? (
 											<>
-												<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+												<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground sm:h-4 sm:w-4" />
 												Saving...
 											</>
 										) : (
 											<>
-												<FloppyDiskIcon className="mr-2 h-4 w-4" size={16} />
+												<FloppyDiskIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
 												Save Changes
 											</>
 										)}

@@ -2,11 +2,24 @@ import { Logtail } from '@logtail/edge';
 
 const token = process.env.LOGTAIL_SOURCE_TOKEN as string;
 const endpoint = process.env.LOGTAIL_ENDPOINT as string;
-export const logger = new Logtail(token || '', {
-	endpoint: endpoint || '',
-	batchSize: 10,
-	batchInterval: 1000,
+
+// Create a no-op logger for testing or when token is missing
+const createNoopLogger = () => ({
+	info: () => {},
+	warn: () => {},
+	error: () => {},
+	debug: () => {},
+	log: () => {},
 });
+
+// Only initialize Logtail if we have a valid token
+export const logger = token && token.trim() !== '' 
+	? new Logtail(token, {
+		endpoint: endpoint || '',
+		batchSize: 10,
+		batchInterval: 1000,
+	})
+	: createNoopLogger();
 
 // Log levels to ensure we only log important events
 // export enum LogLevel {

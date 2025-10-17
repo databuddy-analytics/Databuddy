@@ -84,53 +84,6 @@ const getDailyUsageByTypeQuery = () => `
 	ORDER BY date ASC, event_category ASC
 `;
 
-const getEventTypeBreakdownQuery = () => `
-	WITH all_events AS (
-		SELECT 'event' as event_category
-		FROM analytics.events 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND time >= parseDateTimeBestEffort({startDate:String})
-			AND time <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 'error' as event_category
-		FROM analytics.errors 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 'web_vitals' as event_category
-		FROM analytics.web_vitals 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 'custom_event' as event_category
-		FROM analytics.custom_events 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 'outgoing_link' as event_category
-		FROM analytics.outgoing_links 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-	)
-	SELECT 
-		event_category,
-		count() as event_count
-	FROM all_events
-	GROUP BY event_category
-	ORDER BY event_count DESC
-`;
 
 export const billingRouter = createTRPCRouter({
 	getUsage: protectedProcedure
@@ -186,28 +139,26 @@ export const billingRouter = createTRPCRouter({
 					};
 				}
 
-				// Execute both queries in parallel - ClickHouse does all aggregation
-				const [dailyUsageByTypeResults, eventTypeBreakdownResults] =
-					await Promise.all([
-						chQuery<DailyUsageByTypeRow>(getDailyUsageByTypeQuery(), {
-							websiteIds,
-							startDate,
-							endDate,
-						}),
-						chQuery<EventTypeBreakdown>(getEventTypeBreakdownQuery(), {
-							websiteIds,
-							startDate,
-							endDate,
-						}),
-					]);
+				const dailyUsageByTypeResults = await chQuery<DailyUsageByTypeRow>(
+					getDailyUsageByTypeQuery(),
+					{
+						websiteIds,
+						startDate,
+						endDate,
+					}
+				);
 
-				// Calculate daily usage totals and total events from detailed breakdown
 				const dailyUsageMap = new Map<string, number>();
+				const eventTypeBreakdownMap = new Map<string, number>();
 				let totalEvents = 0;
 
 				for (const row of dailyUsageByTypeResults) {
 					const currentDaily = dailyUsageMap.get(row.date) || 0;
 					dailyUsageMap.set(row.date, currentDaily + row.event_count);
+					
+					const currentTypeTotal = eventTypeBreakdownMap.get(row.event_category) || 0;
+					eventTypeBreakdownMap.set(row.event_category, currentTypeTotal + row.event_count);
+					
 					totalEvents += row.event_count;
 				}
 
@@ -216,6 +167,12 @@ export const billingRouter = createTRPCRouter({
 				)
 					.map(([date, event_count]) => ({ date, event_count }))
 					.sort((a, b) => a.date.localeCompare(b.date));
+
+				const eventTypeBreakdownResults: EventTypeBreakdown[] = Array.from(
+					eventTypeBreakdownMap.entries()
+				)
+					.map(([event_category, event_count]) => ({ event_category, event_count }))
+					.sort((a, b) => b.event_count - a.event_count);
 
 				logger.info(
 					`Billing usage calculated for user ${ctx.user.id}: ${totalEvents} events across ${websiteIds.length} websites`,

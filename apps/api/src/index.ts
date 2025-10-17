@@ -14,7 +14,7 @@ import { publicApi } from './routes/public';
 import { query } from './routes/query';
 
 const app = new Elysia()
-	.use(publicApi) // Mount public API first, without main CORS
+	.use(publicApi)
 	.use(
 		cors({
 			credentials: true,

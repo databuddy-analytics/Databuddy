@@ -1,28 +1,39 @@
-import { ChartLineIcon } from '@phosphor-icons/react';
+import { ChartLineIcon, EyeIcon, EyeSlashIcon, XIcon } from '@phosphor-icons/react';
+import { useAtom } from 'jotai';
+import { useMemo, useState } from 'react';
 import {
 	Area,
 	CartesianGrid,
 	ComposedChart,
 	Legend,
+	ReferenceArea,
+	ReferenceLine,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
 	YAxis,
 } from 'recharts';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { usePersistentState } from '@/hooks/use-persistent-state';
+import { ANNOTATION_STORAGE_KEYS } from '@/lib/annotation-constants';
 import {
 	type ChartDataRow,
 	METRICS,
 	type MetricConfig,
 } from './metrics-constants';
 import { SkeletonChart } from './skeleton-chart';
+import {
+	metricVisibilityAtom,
+	toggleMetricAtom,
+} from '@/stores/jotai/chartAtoms';
+import { RangeSelectionPopup } from './range-selection-popup';
+import { AnnotationsPanel } from './annotations-panel';
+import type { Annotation } from '@/types/annotations';
+import { getChartDisplayDate, isSingleDayAnnotation } from '@/lib/annotation-utils';
+import { CHART_ANNOTATION_STYLES } from '@/lib/annotation-constants';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
 	if (!(active && payload?.length)) {
@@ -76,6 +87,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 	);
 };
 
+interface DateRangeState {
+	startDate: Date;
+	endDate: Date;
+}
+
 interface MetricsChartProps {
 	data: ChartDataRow[] | undefined;
 	isLoading: boolean;
@@ -83,10 +99,24 @@ interface MetricsChartProps {
 	title?: string;
 	description?: string;
 	className?: string;
-	hiddenMetrics?: Record<string, boolean>;
-	onToggleMetric?: (metricKey: string) => void;
 	metricsFilter?: (metric: MetricConfig) => boolean;
 	showLegend?: boolean;
+	onRangeSelect?: (dateRange: DateRangeState) => void;
+	onCreateAnnotation?: (annotation: {
+		annotationType: 'range';
+		xValue: string;
+		xEndValue: string;
+		text: string;
+		tags: string[];
+		color: string;
+		isPublic: boolean;
+	}) => Promise<void> | void;
+	annotations?: Annotation[];
+	onEditAnnotation?: (annotation: Annotation) => void;
+	onDeleteAnnotation?: (id: string) => Promise<void>;
+	showAnnotations?: boolean;
+	onToggleAnnotations?: (show: boolean) => void;
+	websiteId?: string;
 }
 
 export function MetricsChart({
@@ -96,40 +126,126 @@ export function MetricsChart({
 	title,
 	description,
 	className,
-	hiddenMetrics = {},
-	onToggleMetric,
 	metricsFilter,
 	showLegend = true,
+	onRangeSelect,
+	onCreateAnnotation,
+	annotations = [],
+	onEditAnnotation,
+	onDeleteAnnotation,
+	showAnnotations = true,
+	onToggleAnnotations,
+	websiteId,
 }: MetricsChartProps) {
 	const rawData = data || [];
+	const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
+	const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
+	const [showRangePopup, setShowRangePopup] = useState(false);
+	const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+	const [selectedDateRange, setSelectedDateRange] = useState<DateRangeState | null>(null);
 
+	const [tipDismissed, setTipDismissed] = usePersistentState(
+		websiteId ? ANNOTATION_STORAGE_KEYS.tipDismissed(websiteId) : 'chart-tip-dismissed',
+		false
+	);
+
+	const [visibleMetrics] = useAtom(metricVisibilityAtom);
+	const [, toggleMetric] = useAtom(toggleMetricAtom);
+
+	const hiddenMetrics = useMemo(
+		() => Object.fromEntries(
+			Object.entries(visibleMetrics).map(([key, visible]) => [key, !visible])
+		),
+		[visibleMetrics]
+	);
+
+	const DEFAULT_METRICS = ['pageviews', 'visitors', 'sessions', 'bounce_rate', 'avg_session_duration'];
+	
 	const metrics = metricsFilter
 		? METRICS.filter(metricsFilter)
-		: METRICS.filter((metric) =>
-				[
-					'pageviews',
-					'visitors',
-					'sessions',
-					'bounce_rate',
-					'avg_session_duration',
-				].includes(metric.key)
-			);
+		: METRICS.filter((metric) => DEFAULT_METRICS.includes(metric.key));
 
 	const chartData = rawData.map((item, index) => {
-		const isFutureOrCurrent = index === rawData.length - 1;
-		const connectsToFuture = index === rawData.length - 2;
+		const isLastPoint = index === rawData.length - 1;
+		const isSecondToLast = index === rawData.length - 2;
 
 		const result = { ...item };
 		for (const metric of metrics) {
-			result[`${metric.key}_historical`] = isFutureOrCurrent
-				? null
-				: item[metric.key];
-			if (isFutureOrCurrent || connectsToFuture) {
+			result[`${metric.key}_historical`] = isLastPoint ? null : item[metric.key];
+			if (isLastPoint || isSecondToLast) {
 				result[`${metric.key}_future`] = item[metric.key];
 			}
 		}
 		return result;
 	});
+
+	const handleMouseDown = (e: any) => {
+		if (!e?.activeLabel) return;
+		setRefAreaLeft(e.activeLabel);
+		setRefAreaRight(null);
+	};
+
+	const handleMouseMove = (e: any) => {
+		if (!(refAreaLeft && e?.activeLabel)) return;
+		setRefAreaRight(e.activeLabel);
+	};
+
+	const handleMouseUp = (e: any) => {
+		if (!refAreaLeft) {
+			setRefAreaLeft(null);
+			setRefAreaRight(null);
+			return;
+		}
+
+		const rightBoundary = refAreaRight || refAreaLeft;
+		
+		const leftIndex = chartData.findIndex((d) => d.date === refAreaLeft);
+		const rightIndex = chartData.findIndex((d) => d.date === rightBoundary);
+
+		if (leftIndex === -1 || rightIndex === -1) {
+			setRefAreaLeft(null);
+			setRefAreaRight(null);
+			return;
+		}
+
+		const [startIndex, endIndex] = leftIndex < rightIndex 
+			? [leftIndex, rightIndex] 
+			: [rightIndex, leftIndex];
+		
+		const startDateStr = (chartData[startIndex] as any).rawDate || chartData[startIndex].date;
+		const endDateStr = (chartData[endIndex] as any).rawDate || chartData[endIndex].date;
+		
+		const dateRange = { 
+			startDate: new Date(startDateStr), 
+			endDate: new Date(endDateStr) 
+		};
+
+		setSelectedDateRange(dateRange);
+		setShowRangePopup(true);
+
+		setRefAreaLeft(null);
+		setRefAreaRight(null);
+	};
+
+	const handleZoom = (dateRange: DateRangeState) => {
+		if (onRangeSelect) {
+			onRangeSelect(dateRange);
+		}
+	};
+
+	const handleCreateAnnotation = (annotation: {
+		annotationType: 'range';
+		xValue: string;
+		xEndValue: string;
+		text: string;
+		tags: string[];
+		color: string;
+		isPublic: boolean;
+	}) => {
+		if (onCreateAnnotation) {
+			onCreateAnnotation(annotation);
+		}
+	};
 
 	if (isLoading) {
 		return <SkeletonChart className="w-full" height={height} title={title} />;
@@ -176,11 +292,67 @@ export function MetricsChart({
 
 	return (
 		<Card className={cn('w-full overflow-hidden rounded-none p-0', className)}>
+			{/* Annotations Panel */}
+			{annotations.length > 0 && (
+				<div className="border-b border-border bg-muted/30 px-4 py-2 flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<span className="text-sm text-muted-foreground">
+							{annotations.length} annotation{annotations.length !== 1 ? 's' : ''} on this chart
+						</span>
+						{onToggleAnnotations && (
+							<div className="flex items-center gap-2">
+								<Label htmlFor="show-annotations" className="text-xs text-muted-foreground">
+									Show annotations
+								</Label>
+								<Switch
+									id="show-annotations"
+									checked={showAnnotations}
+									onCheckedChange={onToggleAnnotations}
+								/>
+							</div>
+						)}
+					</div>
+					<AnnotationsPanel
+						annotations={annotations}
+						onEdit={onEditAnnotation || (() => {})}
+						onDelete={onDeleteAnnotation || (async () => {})}
+					/>
+				</div>
+			)}
+			
 			<CardContent className="p-0">
 				<div
-					className="relative"
-					style={{ width: '100%', height: height + 20 }}
+					className="relative select-none"
+					style={{ 
+						width: '100%', 
+						height: height + 20,
+						userSelect: refAreaLeft ? 'none' : 'auto',
+						WebkitUserSelect: refAreaLeft ? 'none' : 'auto',
+					}}
 				>
+					{/* Range Selection Instructions */}
+					{refAreaLeft && !refAreaRight && (
+						<div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+							<div className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium shadow-lg">
+								Drag to select range or click to annotate this point
+							</div>
+						</div>
+					)}
+					
+					{!refAreaLeft && annotations.length === 0 && !tipDismissed && (
+						<div className="absolute top-4 right-4 z-10">
+							<div className="bg-muted/80 backdrop-blur-sm border border-border/50 px-3 py-2 rounded-lg text-xs text-muted-foreground shadow-sm flex items-center gap-2">
+								<span>💡 Click or drag on chart to create annotations</span>
+								<button
+									onClick={() => setTipDismissed(true)}
+									className="text-muted-foreground hover:text-foreground transition-colors"
+									aria-label="Dismiss tip"
+								>
+									<XIcon size={12} />
+								</button>
+							</div>
+						</div>
+					)}
 					<ResponsiveContainer height="100%" width="100%">
 						<ComposedChart
 							data={chartData}
@@ -190,6 +362,9 @@ export function MetricsChart({
 								left: 20,
 								bottom: chartData.length > 5 ? 60 : 20,
 							}}
+							onMouseDown={handleMouseDown}
+							onMouseMove={handleMouseMove}
+							onMouseUp={handleMouseUp}
 						>
 							<defs>
 								{metrics.map((metric) => (
@@ -236,6 +411,87 @@ export function MetricsChart({
 								content={<CustomTooltip />}
 								cursor={{ stroke: 'var(--primary)', strokeDasharray: '4 4' }}
 							/>
+							{refAreaLeft && refAreaRight && (
+								<ReferenceArea
+									x1={refAreaLeft}
+									x2={refAreaRight}
+									strokeOpacity={0.3}
+									fill="var(--primary)"
+									fillOpacity={0.15}
+								/>
+							)}
+							
+							{showAnnotations && annotations.map((annotation, index) => {
+								const startDate = getChartDisplayDate(annotation.xValue);
+								
+								if (annotation.annotationType === 'range' && annotation.xEndValue) {
+									const endDate = getChartDisplayDate(annotation.xEndValue);
+									
+									const isSingleDay = isSingleDayAnnotation(annotation);
+									
+									if (isSingleDay) {
+										return (
+											<ReferenceLine
+												key={annotation.id}
+												x={startDate}
+												stroke={annotation.color}
+												strokeWidth={CHART_ANNOTATION_STYLES.strokeWidth}
+												strokeDasharray={CHART_ANNOTATION_STYLES.strokeDasharray}
+												label={{
+													value: annotation.text,
+													position: index % 2 === 0 ? 'top' : 'insideTopLeft',
+													fill: annotation.color,
+													fontSize: CHART_ANNOTATION_STYLES.fontSize,
+													fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
+													offset: CHART_ANNOTATION_STYLES.offset,
+												}}
+											/>
+										);
+									}
+									
+									return (
+										<ReferenceArea
+											key={annotation.id}
+											x1={startDate}
+											x2={endDate}
+											fill={annotation.color}
+											fillOpacity={CHART_ANNOTATION_STYLES.fillOpacity}
+											stroke={annotation.color}
+											strokeOpacity={CHART_ANNOTATION_STYLES.strokeOpacity}
+											strokeWidth={2}
+											strokeDasharray="3 3"
+											label={{
+												value: annotation.text,
+												position: index % 2 === 0 ? 'top' : 'insideTop',
+												fill: annotation.color,
+												fontSize: CHART_ANNOTATION_STYLES.fontSize,
+												fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
+												offset: CHART_ANNOTATION_STYLES.offset,
+											}}
+										/>
+									);
+								}
+								
+								// Point or line annotations
+								return (
+									<ReferenceLine
+										key={annotation.id}
+										x={startDate}
+										stroke={annotation.color}
+										strokeWidth={CHART_ANNOTATION_STYLES.strokeWidth}
+										strokeDasharray={CHART_ANNOTATION_STYLES.strokeDasharray}
+										label={{
+											value: annotation.text,
+											position: index % 2 === 0 ? 'top' : 'insideTopLeft',
+											fill: annotation.color,
+											fontSize: CHART_ANNOTATION_STYLES.fontSize,
+											fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
+											offset: CHART_ANNOTATION_STYLES.offset,
+										}}
+									/>
+								);
+							})}
+							
 							{showLegend && (
 								<Legend
 									align="center"
@@ -258,8 +514,8 @@ export function MetricsChart({
 										const metric = metrics.find(
 											(m) => m.label === payload.value
 										);
-										if (metric && onToggleMetric) {
-											onToggleMetric(metric.key);
+										if (metric) {
+											toggleMetric(metric.key as keyof typeof visibleMetrics);
 										}
 									}}
 									verticalAlign="bottom"
@@ -299,6 +555,18 @@ export function MetricsChart({
 					</ResponsiveContainer>
 				</div>
 			</CardContent>
+
+			{/* Range Selection Popup */}
+			{showRangePopup && selectedDateRange && (
+				<RangeSelectionPopup
+					isOpen={showRangePopup}
+					position={{ x: 0, y: 0 }} // Position is handled by modal overlay
+					dateRange={selectedDateRange}
+					onClose={() => setShowRangePopup(false)}
+					onZoom={handleZoom}
+					onCreateAnnotation={handleCreateAnnotation}
+				/>
+			)}
 		</Card>
 	);
 }

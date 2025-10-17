@@ -857,7 +857,7 @@
 				return;
 			}
 
-			if (this.isBot()) {
+			if (this.isLikelyBot) {
 				return;
 			}
 
@@ -1071,20 +1071,17 @@
 		}
 
 		trackCustomEvent(eventName, properties = {}) {
-			if (this.isServer()) {
+			if (this.shouldSkipTracking()) {
 				return;
 			}
 
-			let finalProperties;
-			if (properties === undefined || properties === null) {
-				finalProperties = {};
-			} else if (typeof properties === 'object') {
-				finalProperties = properties;
-			} else {
-				finalProperties = { value: properties };
-			}
+			const normalizedProperties = this.normalizeProperties(properties);
+			const customEvent = this.createBaseEvent('custom', {
+				name: eventName,
+				properties: normalizedProperties,
+			});
 
-			this.track(eventName, finalProperties);
+			return this.sendEventWithFallback(customEvent);
 		}
 
 	getMaskedPath() {
@@ -1280,6 +1277,49 @@
 
 			return this.send(webVitalsEvent);
 		}
+
+		// Helper methods to reduce code duplication
+		shouldSkipTracking() {
+			return this.options.disabled || this.isLikelyBot || this.isServer();
+		}
+
+		normalizeProperties(properties) {
+			if (properties === undefined || properties === null) {
+				return {};
+			}
+			if (typeof properties === 'object') {
+				return properties;
+			}
+			return { value: properties };
+		}
+
+		createBaseEvent(eventType, additionalData = {}) {
+			return {
+				type: eventType,
+				eventId: generateUUIDv4(),
+				anonymousId: this.anonymousId,
+				sessionId: this.sessionId,
+				timestamp: Date.now(),
+				...additionalData,
+			};
+		}
+
+		async sendEventWithFallback(event) {
+			if (this.options.enableBatching) {
+				return this.send(event);
+			}
+
+			try {
+				const beaconResult = this.sendBeacon(event);
+				if (beaconResult) {
+					return beaconResult;
+				}
+			} catch (_e) {
+				// Beacon failed, continue to regular send
+			}
+
+			return this.send(event);
+		}
 	};
 
 	function h(a) {
@@ -1316,37 +1356,49 @@
 			this.init();
 			this.cleanAttributionParams();
 		}
-		debounce(t, r) {
+		debounce(callback, delay) {
 			clearTimeout(this.debounceTimer);
-			this.debounceTimer = setTimeout(t, r);
+			this.debounceTimer = setTimeout(callback, delay);
 		}
 		trackOutgoingLinks() {
-			this.isServer() ||
-				document.addEventListener('click', (t) => {
-					const r = t.target;
-					const i = r.closest('a');
-					if (i && r) {
-						const n = i.getAttribute('href');
-						if (n) {
-							try {
-								const url = new URL(n, window.location.origin);
-								const isOutgoing = url.origin !== window.location.origin;
+			if (this.isServer()) {
+				return;
+			}
 
-								if (isOutgoing) {
-									this.track('link_out', {
-										href: n,
-										text:
-											i.innerText ||
-											i.getAttribute('title') ||
-											r.getAttribute('alt'),
-									});
-								}
-							} catch (_e) {
-								//
-							}
-						}
+			document.addEventListener('click', (event) => {
+				const target = event.target;
+				const link = target.closest('a');
+				
+				if (!link || !target) {
+					return;
+				}
+
+				const href = link.getAttribute('href');
+				if (!href) {
+					return;
+				}
+
+				try {
+					const url = new URL(href, window.location.origin);
+					const isOutgoing = url.origin !== window.location.origin;
+
+					if (isOutgoing && !this.isLikelyBot) {
+						const linkText = link.innerText ||
+							link.getAttribute('title') ||
+							target.getAttribute('alt') || null;
+
+						const outgoingLinkEvent = this.createBaseEvent('outgoing_link', {
+							href: href,
+							text: linkText,
+							properties: {},
+						});
+
+						this.sendEventWithFallback(outgoingLinkEvent);
 					}
-				});
+				} catch (_e) {
+					// Invalid URL, ignore
+				}
+			});
 		}
 		trackScreenViews() {
 			if (this.isServer()) {
@@ -1390,27 +1442,38 @@
 				: window.addEventListener('locationchange', i);
 		}
 		trackAttributes() {
-			this.isServer() ||
-				document.addEventListener('click', (t) => {
-					const r = t.target;
-					const i = r.closest('button');
-					const n = r.closest('a');
-					const s = i?.getAttribute('data-track')
-						? i
-						: n?.getAttribute('data-track')
-							? n
-							: null;
-					if (s) {
-						const o = {};
-						for (const p of s.attributes) {
-							if (p.name.startsWith('data-') && p.name !== 'data-track') {
-								o[h(p.name.replace(/^data-/, ''))] = p.value;
-							}
-						}
-						const u = s.getAttribute('data-track');
-						u && this.track(u, o);
+			if (this.isServer()) {
+				return;
+			}
+
+			document.addEventListener('click', (event) => {
+				const target = event.target;
+				const button = target.closest('button');
+				const link = target.closest('a');
+				
+				// Find the element with data-track attribute
+				const trackedElement = button?.getAttribute('data-track') ? button
+					: link?.getAttribute('data-track') ? link
+					: null;
+
+				if (!trackedElement) {
+					return;
+				}
+
+				// Extract data attributes as properties
+				const properties = {};
+				for (const attribute of trackedElement.attributes) {
+					if (attribute.name.startsWith('data-') && attribute.name !== 'data-track') {
+						const propertyName = h(attribute.name.replace(/^data-/, ''));
+						properties[propertyName] = attribute.value;
 					}
-				});
+				}
+
+				const eventName = trackedElement.getAttribute('data-track');
+				if (eventName) {
+					this.trackCustomEvent(eventName, properties);
+				}
+			});
 		}
 		screenView(t, r) {
 			if (this.isServer()) {
@@ -1656,7 +1719,7 @@
 			});
 
 			window.db = {
-				track: (...args) => window.databuddy?.track(...args),
+				track: (...args) => window.databuddy?.trackCustomEvent(...args),
 				screenView: (...args) => window.databuddy?.screenView(...args),
 				clear: () => window.databuddy?.clear(),
 				flush: () => window.databuddy?.flush(),
@@ -1676,11 +1739,9 @@
 
 	initializeDatabuddy();
 
-	// Opt-out functionality
 	if (typeof window !== 'undefined') {
 		window.Databuddy = d;
 
-		// Global opt-out functions
 		window.databuddyOptOut = () => {
 			try {
 				localStorage.setItem('databuddy_opt_out', 'true');

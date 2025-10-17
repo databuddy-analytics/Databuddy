@@ -1,6 +1,6 @@
 'use client';
 
-import { GearIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react';
+import { ArrowSquareOutIcon, GearIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -114,6 +114,24 @@ export default function GeneralSettingsPage() {
 								variant="outline"
 							>
 								<PencilSimpleIcon className="mr-2 h-4 w-4" /> Edit
+							</Button>
+						</div>
+					</section>
+
+					<section className="border-b px-4 py-5 sm:px-6">
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<h2 className="font-medium text-sm">Transfer Website</h2>
+								<p className="text-muted-foreground text-xs">
+									Move this website to a different organization
+								</p>
+							</div>
+							<Button
+								onClick={() => router.push(`/websites/${websiteId}/settings/transfer`)}
+								size="sm"
+								variant="outline"
+							>
+								<ArrowSquareOutIcon className="mr-2 h-4 w-4" /> Transfer
 							</Button>
 						</div>
 					</section>

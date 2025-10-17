@@ -1,0 +1,951 @@
+---
+title: Node SDK Reference
+description: Complete reference for the Databuddy Node.js SDK - Server-side analytics tracking
+---
+
+import { Tab, Tabs } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+import { Accordion, Accordions } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
+
+The Databuddy Node SDK provides a lightweight, type-safe way to track server-side analytics events from Node.js, Bun, Deno, and serverless environments.
+
+<Callout type="info">
+  **SDK Version**: 2.0.0+ | **Package**: `@databuddy/sdk` | **API**: basket.databuddy.cc
+</Callout>
+
+## TL;DR
+
+The Node SDK is perfect for tracking server-side events like API calls, background jobs, webhooks, and more. It supports batching, retries, and is optimized for serverless environments.
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true
+});
+
+await client.track({
+  name: 'api_call',
+  properties: { endpoint: '/api/users', method: 'GET' }
+});
+
+await client.flush(); // Important in serverless!
+```
+
+## Installation
+
+<Tabs items={['Bun', 'npm', 'pnpm', 'yarn']}>
+<Tab value="Bun">
+
+```bash
+bun add @databuddy/sdk
+```
+
+</Tab>
+<Tab value="npm">
+
+```bash
+npm install @databuddy/sdk
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @databuddy/sdk
+```
+
+</Tab>
+<Tab value="yarn">
+
+```bash
+yarn add @databuddy/sdk
+```
+
+</Tab>
+</Tabs>
+
+## Quick Start
+
+### Basic Usage
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+// Initialize the client
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+// Track an event
+await client.track({
+  name: 'user_signup',
+  properties: {
+    plan: 'pro',
+    source: 'api'
+  }
+});
+```
+
+### Serverless Usage
+
+In serverless environments, always flush before the function exits:
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true
+});
+
+export async function handler(event) {
+  await client.track({
+    name: 'lambda_invocation',
+    properties: { source: event.source }
+  });
+  
+  // Ensure events are sent before function exits
+  await client.flush();
+  
+  return { statusCode: 200 };
+}
+```
+
+## Configuration
+
+```typescript
+interface DatabuddyConfig {
+  clientId: string;              // Required: Your client ID
+  apiUrl?: string;              // Default: 'https://basket.databuddy.cc'
+  debug?: boolean;              // Enable debug logging
+  logger?: Logger;              // Custom logger instance
+  enableBatching?: boolean;     // Default: true
+  batchSize?: number;           // Default: 10, Max: 100
+  batchTimeout?: number;        // Default: 2000ms
+  maxQueueSize?: number;        // Default: 1000
+}
+```
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true,
+  batchSize: 20,
+  batchTimeout: 5000
+});
+```
+
+## Core Methods
+
+### `track(event)`
+
+Track custom events with optional properties, session IDs, and anonymous IDs:
+
+```typescript
+await client.track({
+  name: 'purchase_completed',
+  anonymousId: 'anon_123',
+  sessionId: 'sess_456',
+  properties: {
+    order_id: 'ORD-789',
+    revenue: 299.99,
+    currency: 'USD',
+    items: 3
+  }
+});
+```
+
+**Response:**
+```typescript
+interface EventResponse {
+  success: boolean;
+  eventId?: string;
+  error?: string;
+}
+```
+
+### `batch(events)`
+
+Send multiple events in a single batch (max 100 events):
+
+```typescript
+await client.batch([
+  {
+    type: 'custom',
+    name: 'event1',
+    properties: { foo: 'bar' }
+  },
+  {
+    type: 'custom',
+    name: 'event2',
+    anonymousId: 'anon_123',
+    sessionId: 'sess_456',
+    properties: { baz: 'qux' }
+  }
+]);
+```
+
+### `flush()`
+
+Manually flush all queued events. **Critical for serverless environments:**
+
+```typescript
+await client.track({ name: 'event1' });
+await client.track({ name: 'event2' });
+await client.track({ name: 'event3' });
+
+// Flush all queued events before function exits
+await client.flush();
+```
+
+## Event Tracking Patterns
+
+### E-commerce Events
+
+```typescript
+// Product viewed
+await client.track({
+  name: 'product_viewed',
+  anonymousId: userId,
+  sessionId: sessionId,
+  properties: {
+    product_id: 'P12345',
+    category: 'Electronics',
+    price: 99.99,
+    currency: 'USD'
+  }
+});
+
+// Purchase completed
+await client.track({
+  name: 'purchase_completed',
+  anonymousId: userId,
+  sessionId: sessionId,
+  properties: {
+    order_id: 'ORD-789',
+    revenue: 299.99,
+    currency: 'USD',
+    items: 3,
+    payment_method: 'credit_card'
+  }
+});
+```
+
+### API & Backend Events
+
+```typescript
+// API call tracking
+await client.track({
+  name: 'api_call',
+  properties: {
+    endpoint: '/api/users',
+    method: 'GET',
+    status_code: 200,
+    duration_ms: 45
+  }
+});
+
+// Background job tracking
+await client.track({
+  name: 'job_completed',
+  properties: {
+    job_name: 'email_digest',
+    duration_ms: 5400,
+    emails_sent: 1250,
+    status: 'success'
+  }
+});
+```
+
+### Webhook Events
+
+```typescript
+// Stripe webhook
+await client.track({
+  name: 'stripe_webhook_received',
+  properties: {
+    event_type: 'payment_intent.succeeded',
+    amount: 2999,
+    currency: 'usd'
+  }
+});
+
+// Generic webhook
+await client.track({
+  name: 'webhook_received',
+  properties: {
+    source: 'github',
+    event_type: 'push',
+    repository: 'my-repo'
+  }
+});
+```
+
+### Authentication Events
+
+```typescript
+// User signup
+await client.track({
+  name: 'user_signup',
+  anonymousId: userId,
+  properties: {
+    method: 'email',
+    plan: 'free',
+    source: 'landing_page'
+  }
+});
+
+// User login
+await client.track({
+  name: 'user_login',
+  anonymousId: userId,
+  sessionId: sessionId,
+  properties: {
+    method: 'oauth',
+    provider: 'google',
+    success: true
+  }
+});
+```
+
+## Session & Anonymous IDs
+
+The Node SDK supports optional `anonymousId` and `sessionId` fields to track user sessions across requests. **These IDs should match the IDs generated by the web SDK** to enable unified tracking across client and server.
+
+<Callout type="warn">
+**Important**: When tracking server-side events for a user session, you must use the **same anonymousId and sessionId** that the web SDK generated on the client. This ensures events are properly attributed to the same user and session.
+</Callout>
+
+### Getting IDs from the Web SDK
+
+The web SDK automatically generates and manages these IDs. You need to pass them to your backend to use in server-side tracking:
+
+<Tabs items={['Client-Side (React/Next.js)', 'Client-Side (Vanilla JS)', 'Server-Side (API Route)']}>
+<Tab value="Client-Side (React/Next.js)">
+
+```typescript title="app/components/checkout-button.tsx"
+import { getTracker } from '@databuddy/sdk';
+
+export function CheckoutButton() {
+  const handleCheckout = async () => {
+    // Get the current tracker instance
+    const tracker = getTracker();
+    
+    if (tracker) {
+      // Get IDs from the web SDK
+      const anonymousId = tracker.anonymousId;
+      const sessionId = tracker.sessionId;
+      
+      // Send to your backend
+      await fetch('/api/checkout', {
+        method: 'POST',
+        body: JSON.stringify({
+          anonymousId,
+          sessionId,
+          cart: [...]
+        })
+      });
+    }
+  };
+  
+  return <button onClick={handleCheckout}>Checkout</button>;
+}
+```
+
+</Tab>
+<Tab value="Client-Side (Vanilla JS)">
+
+```javascript
+// Access IDs via window.databuddy
+const anonymousId = window.databuddy?.anonymousId;
+const sessionId = window.databuddy?.sessionId;
+
+// Or use the global db helper
+const anonymousId = window.db?.anonymousId;
+const sessionId = window.db?.sessionId;
+
+// Send to backend
+fetch('/api/track', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    anonymousId: anonymousId,
+    sessionId: sessionId,
+    event: 'button_click'
+  })
+});
+```
+
+</Tab>
+<Tab value="Server-Side (API Route)">
+
+```typescript title="app/api/checkout/route.ts"
+import { Databuddy } from '@databuddy/sdk/node';
+import { NextResponse } from 'next/server';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  
+  // Use the IDs from the client
+  const { anonymousId, sessionId, cart } = body;
+  
+  // Track server-side event with client IDs
+  await client.track({
+    name: 'checkout_started',
+    anonymousId,  // From web SDK
+    sessionId,    // From web SDK
+    properties: {
+      cart_value: calculateTotal(cart),
+      items_count: cart.length
+    }
+  });
+  
+  return NextResponse.json({ success: true });
+}
+```
+
+</Tab>
+</Tabs>
+
+### Web SDK ID Access Methods
+
+The web SDK provides multiple ways to access the current user's IDs:
+
+```typescript
+import { getTracker } from '@databuddy/sdk';
+
+// Method 1: Via SDK import (React/Next.js)
+const tracker = getTracker();
+const anonymousId = tracker?.anonymousId;
+const sessionId = tracker?.sessionId;
+
+// Method 2: Via window.databuddy (Vanilla JS)
+const anonymousId = window.databuddy?.anonymousId;
+const sessionId = window.databuddy?.sessionId;
+
+// Method 3: Via window.db shorthand
+const anonymousId = window.db?.anonymousId;
+const sessionId = window.db?.sessionId;
+```
+
+<Callout type="info">
+**ID Format**: 
+- Anonymous IDs: `anon_xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`
+- Session IDs: `sess_xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`
+
+These are UUID v4 strings with a prefix. The web SDK stores them in localStorage (anonymousId) and sessionStorage (sessionId).
+</Callout>
+
+### Complete Example: Unified Tracking
+
+Here's a complete example showing client-side and server-side tracking with matching IDs:
+
+<Tabs items={['Client Component', 'API Route', 'Alternative: Cookies']}>
+<Tab value="Client Component">
+
+```typescript title="app/components/product-view.tsx"
+'use client';
+
+import { useEffect } from 'react';
+import { getTracker, track } from '@databuddy/sdk';
+
+export function ProductView({ productId }: { productId: string }) {
+  useEffect(() => {
+    // Track client-side view
+    track('product_viewed', {
+      product_id: productId,
+      view_type: 'client'
+    });
+    
+    // Get IDs for server-side tracking
+    const tracker = getTracker();
+    if (tracker) {
+      // Send to backend for additional processing
+      fetch('/api/product/view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          anonymousId: tracker.anonymousId,
+          sessionId: tracker.sessionId
+        })
+      });
+    }
+  }, [productId]);
+  
+  return <div>Product {productId}</div>;
+}
+```
+
+</Tab>
+<Tab value="API Route">
+
+```typescript title="app/api/product/view/route.ts"
+import { Databuddy } from '@databuddy/sdk/node';
+import { NextResponse } from 'next/server';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+export async function POST(request: Request) {
+  const { productId, anonymousId, sessionId } = await request.json();
+  
+  // Track server-side event with same IDs
+  await client.track({
+    name: 'product_viewed_server',
+    anonymousId,    // Same ID from web SDK
+    sessionId,      // Same ID from web SDK
+    properties: {
+      product_id: productId,
+      view_type: 'server',
+      // Add server-side data
+      ip_address: request.headers.get('x-forwarded-for'),
+      user_agent: request.headers.get('user-agent')
+    }
+  });
+  
+  // Both events now share the same anonymousId and sessionId
+  return NextResponse.json({ success: true });
+}
+```
+
+</Tab>
+<Tab value="Alternative: Cookies">
+
+```typescript title="app/api/track/route.ts"
+import { Databuddy } from '@databuddy/sdk/node';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+export async function POST(request: Request) {
+  // Alternative: Read IDs from cookies (if you set them)
+  const cookieStore = cookies();
+  const anonymousId = cookieStore.get('db_anon_id')?.value;
+  const sessionId = cookieStore.get('db_session_id')?.value;
+  
+  const body = await request.json();
+  
+  await client.track({
+    name: body.eventName,
+    anonymousId,  // From cookie
+    sessionId,    // From cookie
+    properties: body.properties
+  });
+  
+  return NextResponse.json({ success: true });
+}
+```
+
+**Note**: If using cookies, ensure you set them from the client:
+
+```typescript
+import { getTracker } from '@databuddy/sdk';
+
+const tracker = getTracker();
+if (tracker) {
+  // Set cookies for server-side access
+  document.cookie = `db_anon_id=${tracker.anonymousId}; path=/; max-age=31536000`;
+  document.cookie = `db_session_id=${tracker.sessionId}; path=/; max-age=1800`;
+}
+```
+
+</Tab>
+</Tabs>
+
+### Why Match IDs?
+
+Matching IDs between client and server enables:
+
+1. **Unified User Journey**: See complete user behavior across client and server
+2. **Accurate Attribution**: Link server-side conversions to client-side interactions
+3. **Session Continuity**: Track the same session from page view to API call to purchase
+4. **Better Analytics**: Understand the full funnel, not just client or server events
+
+```typescript
+// Client-side: User views product
+// anonymousId: anon_abc123, sessionId: sess_xyz789
+await track('product_viewed', { product_id: 'P123' });
+
+// Server-side: Same user adds to cart (using same IDs)
+// anonymousId: anon_abc123, sessionId: sess_xyz789
+await client.track({
+  name: 'added_to_cart',
+  anonymousId: 'anon_abc123',  // ✅ Same ID
+  sessionId: 'sess_xyz789',     // ✅ Same ID
+  properties: { product_id: 'P123' }
+});
+
+// Server-side: Same user completes purchase (using same IDs)
+// anonymousId: anon_abc123, sessionId: sess_xyz789
+await client.track({
+  name: 'purchase_completed',
+  anonymousId: 'anon_abc123',  // ✅ Same ID
+  sessionId: 'sess_xyz789',     // ✅ Same ID
+  properties: { order_id: 'ORD-456', total: 99.99 }
+});
+
+// Now all three events are linked to the same user and session! 🎉
+```
+
+### Standalone Server Usage (No Web SDK)
+
+If you're tracking purely server-side events without the web SDK, you can generate IDs yourself:
+
+```typescript
+import { randomUUID } from 'crypto';
+
+// Generate IDs (only if NOT using web SDK)
+const anonymousId = `anon_${randomUUID()}`;
+const sessionId = `sess_${randomUUID()}`;
+
+// Store in your session management system
+await redis.set(`session:${sessionId}`, JSON.stringify({
+  anonymousId,
+  sessionId,
+  createdAt: Date.now()
+}));
+
+// Track with generated IDs
+await client.track({
+  name: 'api_call',
+  anonymousId,
+  sessionId,
+  properties: { endpoint: '/api/data' }
+});
+```
+
+<Callout type="warn">
+**Important**: Only generate IDs yourself if you're **not** using the web SDK. If you have the web SDK running on your frontend, always use its IDs to maintain tracking continuity.
+</Callout>
+
+## Environment-Specific Usage
+
+### Next.js API Routes
+
+```typescript title="app/api/track/route.ts"
+import { Databuddy } from '@databuddy/sdk/node';
+import { NextResponse } from 'next/server';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: false // Disable batching for API routes
+});
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  
+  await client.track({
+    name: 'api_endpoint_called',
+    properties: {
+      endpoint: '/api/track',
+      payload_size: JSON.stringify(body).length
+    }
+  });
+  
+  return NextResponse.json({ success: true });
+}
+```
+
+### Express.js Middleware
+
+```typescript
+import express from 'express';
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+const app = express();
+
+// Tracking middleware
+app.use(async (req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', async () => {
+    await client.track({
+      name: 'http_request',
+      properties: {
+        method: req.method,
+        path: req.path,
+        status_code: res.statusCode,
+        duration_ms: Date.now() - start
+      }
+    });
+  });
+  
+  next();
+});
+
+// Flush on shutdown
+process.on('SIGTERM', async () => {
+  await client.flush();
+  process.exit(0);
+});
+```
+
+### AWS Lambda
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true
+});
+
+export const handler = async (event: any) => {
+  try {
+    // Track invocation
+    await client.track({
+      name: 'lambda_invoked',
+      properties: {
+        function_name: process.env.AWS_LAMBDA_FUNCTION_NAME,
+        event_source: event.source
+      }
+    });
+    
+    // Your business logic
+    const result = await processEvent(event);
+    
+    // Track success
+    await client.track({
+      name: 'lambda_success',
+      properties: { result_count: result.length }
+    });
+    
+    return { statusCode: 200, body: JSON.stringify(result) };
+  } catch (error) {
+    // Track error
+    await client.track({
+      name: 'lambda_error',
+      properties: {
+        error: error.message,
+        stack: error.stack
+      }
+    });
+    
+    throw error;
+  } finally {
+    // Always flush in serverless!
+    await client.flush();
+  }
+};
+```
+
+### Cloudflare Workers
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const client = new Databuddy({
+      clientId: env.DATABUDDY_CLIENT_ID,
+      enableBatching: false // Workers need immediate sends
+    });
+    
+    await client.track({
+      name: 'worker_request',
+      properties: {
+        url: request.url,
+        method: request.method
+      }
+    });
+    
+    return new Response('Hello World');
+  }
+};
+```
+
+### Bun Server
+
+```typescript
+import { Databuddy } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+Bun.serve({
+  port: 3000,
+  async fetch(req) {
+    await client.track({
+      name: 'bun_request',
+      properties: {
+        url: req.url,
+        method: req.method
+      }
+    });
+    
+    return new Response('Hello from Bun!');
+  }
+});
+```
+
+## Batching
+
+Events are automatically batched when batch size or timeout is reached:
+
+```typescript
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true,
+  batchSize: 20,
+  batchTimeout: 5000
+});
+
+// These will be batched automatically
+await client.track({ name: 'event1' });
+await client.track({ name: 'event2' });
+await client.track({ name: 'event3' });
+```
+
+## Debugging
+
+Enable debug logging:
+
+```typescript
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  debug: true
+});
+```
+
+## Error Handling
+
+The SDK returns success/failure status instead of throwing errors:
+
+```typescript
+const response = await client.track({
+  name: 'test_event',
+  properties: { test: true }
+});
+
+if (!response.success) {
+  console.error('Failed to track event:', response.error);
+}
+```
+
+## TypeScript Support
+
+The SDK is fully typed:
+
+```typescript
+import { Databuddy, type CustomEventInput } from '@databuddy/sdk/node';
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true
+});
+
+const event: CustomEventInput = {
+  name: 'user_signup',
+  anonymousId: 'anon_123',
+  sessionId: 'sess_456',
+  properties: { plan: 'pro', source: 'api' }
+};
+
+await client.track(event);
+```
+
+## Best Practices
+
+### Always Flush in Serverless
+
+```typescript
+// ✅ Good
+export async function handler(event: any) {
+  await client.track({ name: 'event' });
+  await client.flush(); // Ensures events are sent
+  return { statusCode: 200 };
+}
+
+// ❌ Bad - events may be lost
+export async function handler(event: any) {
+  await client.track({ name: 'event' });
+  return { statusCode: 200 };
+}
+```
+
+### Use Consistent Property Names
+
+```typescript
+// ✅ Good - consistent naming
+await client.track({
+  name: 'api_call',
+  properties: {
+    endpoint: '/api/users',
+    method: 'GET',
+    status_code: 200
+  }
+});
+
+// ❌ Bad - inconsistent naming
+await client.track({
+  name: 'API_CALL',
+  properties: {
+    EndPoint: '/api/users',
+    METHOD: 'GET',
+    statusCode: 200
+  }
+});
+```
+
+### Include Session Context
+
+```typescript
+// ✅ Good - rich session context
+await client.track({
+  name: 'purchase',
+  anonymousId: userId,
+  sessionId: sessionId,
+  properties: {
+    order_id: 'ORD-123',
+    total: 99.99
+  }
+});
+```
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Events not appearing | Verify `clientId`, check network in logs with `debug: true` |
+| TypeScript errors | Ensure TypeScript 4.5+, check `@databuddy/sdk` version |
+| Serverless events missing | Always call `await client.flush()` before function exits |
+| High latency | Enable batching: `enableBatching: true, batchSize: 50` |
+| Memory issues | Reduce `maxQueueSize`, flush more frequently |
+
+## Related Documentation
+
+<Cards>
+  <Card title="Web SDK" href="/docs/sdk" icon="🌐">
+    Client-side tracking with React, Vue, and vanilla JavaScript
+  </Card>
+  <Card title="API Reference" href="/docs/api" icon="📡">
+    Direct HTTP API for custom implementations
+  </Card>
+  <Card title="API Keys" href="/docs/api-keys" icon="🔑">
+    Manage API keys and client IDs
+  </Card>
+  <Card title="Getting Started" href="/docs/getting-started" icon="🚀">
+    Quick setup guide and basic configuration
+  </Card>
+</Cards>
+

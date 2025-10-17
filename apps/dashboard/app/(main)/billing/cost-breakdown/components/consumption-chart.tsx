@@ -210,23 +210,6 @@ export function ConsumptionChart({
 								Daily
 							</Button>
 						</div>
-						<Button
-							className="text-xs"
-							onClick={() => {
-								const allHidden = Object.keys(EVENT_TYPE_COLORS).reduce(
-									(acc, key) => {
-										acc[key] = true;
-										return acc;
-									},
-									{} as Record<string, boolean>
-								);
-								setHiddenTypes(allHidden);
-							}}
-							size="sm"
-							variant="outline"
-						>
-							Select None
-						</Button>
 					</div>
 				</div>
 			</div>

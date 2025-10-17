@@ -151,6 +151,7 @@ function WebsiteMapPage() {
 		() =>
 			locationData.countries
 				.filter((c) => c.country && c.country.trim() !== '')
+				.sort((a, b) => b.visitors - a.visitors)
 				.slice(0, 5),
 		[locationData.countries]
 	);
@@ -180,17 +181,14 @@ function WebsiteMapPage() {
 			}}
 		>
 			<div className="relative h-full w-full">
-				{/* Full-screen Map */}
 				<MapComponent
 					height="100%"
 					isLoading={isLoading}
 					locationData={locationData}
 					mode={mode}
-					onCountrySelect={handleCountrySelect}
 					selectedCountry={selectedCountry}
 				/>
 
-				{/* Top 5 Countries Overlay */}
 				<div className="absolute top-2 right-2 z-20">
 					<Card className="w-56 max-w-[90vw] gap-0 border-sidebar-border bg-background/95 py-0 shadow-xl backdrop-blur-md sm:w-64">
 						<CardHeader className="px-3 pt-2.5 pb-2">
@@ -227,7 +225,6 @@ function WebsiteMapPage() {
 										/>
 									))}
 
-									{/* Total visitors summary */}
 									<div className="border-border/50 border-t px-2 pt-1.5 pb-1.5">
 										<div className="flex items-center justify-between text-xs">
 											<span className="text-muted-foreground">Total</span>
