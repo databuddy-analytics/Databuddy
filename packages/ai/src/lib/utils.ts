@@ -1,6 +1,6 @@
 import type { DBMessage } from '@databuddy/db';
 import type { UIMessagePart } from 'ai';
-import { formatISO } from 'date-fns';
+import dayjs from 'dayjs';
 import type { ChatMessage, ChatTools, CustomUIDataTypes } from '../types';
 
 export function generateUUID(): string {
@@ -17,7 +17,7 @@ export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
 		role: message.role as 'user' | 'assistant' | 'system',
 		parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
 		metadata: {
-			createdAt: formatISO(message.createdAt),
+			createdAt: dayjs(message.createdAt).toISOString(),
 		},
 	}));
 }

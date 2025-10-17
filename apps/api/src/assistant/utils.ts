@@ -1,4 +1,4 @@
-import { provider } from '@databuddy/ai/providers';
+import { provider } from '@databuddy/ai/src/providers';
 import { generateText, type UIMessage } from 'ai';
 
 export async function generateTitleFromUserMessage({

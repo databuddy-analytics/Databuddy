@@ -17,6 +17,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.30",
     "@databuddy/auth": "workspace:*",
+    "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",

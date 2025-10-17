@@ -12,6 +12,7 @@ export const messageMetadataSchema = z.object({
 	createdAt: z.string(),
 });
 
+
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 
 export type ChatMessage = UIMessage<MessageMetadata, UITools>;

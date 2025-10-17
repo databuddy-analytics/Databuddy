@@ -22,11 +22,13 @@
   "dependencies": {
     "@ai-sdk-tools/artifacts": "^0.3.0",
     "@ai-sdk/openai": "^2.0.30",
+    "@databuddy/auth": "workspace:*",
+    "@databuddy/db": "workspace:*",
     "@logtail/edge": "^0.5.5",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "ai": "^5.0.44",
-    "zod": "^4.1.8",
-    "@databuddy/db": "workspace:*",
-    "drizzle-orm": "^0.44.4"
+    "dayjs": "^1.11.18",
+    "drizzle-orm": "^0.44.4",
+    "zod": "^4.1.8"
   }
 }
