@@ -214,13 +214,6 @@ export const query = new Elysia({ prefix: '/v1/query' })
 					: null;
 
 				const result = compileQuery(body as QueryRequest, websiteDomain);
-				databuddy.track({
-					name: 'compile_query',
-					properties: {
-						website_id,
-						website_domain: websiteDomain,
-					},
-				});
 				return {
 					success: true,
 					...result,
