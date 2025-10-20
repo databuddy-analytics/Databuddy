@@ -76,6 +76,13 @@ export function CreateOrganizationDialog({
 		metadata: {},
 	});
 	const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+	const [touchedFields, setTouchedFields] = useState<{
+		name: boolean;
+		slug: boolean;
+	}>({
+		name: false,
+		slug: false,
+	});
 
 	// Image upload state
 	const [preview, setPreview] = useState<string | null>(null);
@@ -106,6 +113,7 @@ export function CreateOrganizationDialog({
 		setPreview(null);
 		setLogoFile(null);
 		setSlugManuallyEdited(false);
+		setTouchedFields({ name: false, slug: false });
 		resetCropState();
 		setIsCropModalOpen(false);
 	};
@@ -299,16 +307,19 @@ export function CreateOrganizationDialog({
 								</Label>
 								{(() => {
 									const isNameValid = formData.name.trim().length >= 2;
+									const hasUserTyped = formData.name.length > 0;
+									const shouldShowError = (touchedFields.name || hasUserTyped) && !isNameValid;
 									return (
 										<>
 											<Input
 												aria-describedby="org-name-help"
-												aria-invalid={!isNameValid}
+												aria-invalid={shouldShowError}
 												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
-													isNameValid ? '' : 'border-destructive'
+													shouldShowError ? 'border-destructive' : ''
 												}`}
 												id="org-name"
 												maxLength={100}
+												onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
 												onChange={(e) =>
 													setFormData((prev) => ({
 														...prev,
@@ -340,16 +351,19 @@ export function CreateOrganizationDialog({
 									const isSlugValid =
 										SLUG_ALLOWED_REGEX.test(formData.slug || '') &&
 										(formData.slug || '').trim().length >= 2;
+									const hasUserTyped = (formData.slug || '').length > 0;
+									const shouldShowError = (touchedFields.slug || hasUserTyped) && !isSlugValid;
 									return (
 										<>
 											<Input
 												aria-describedby="org-slug-help"
-												aria-invalid={!isSlugValid}
+												aria-invalid={shouldShowError}
 												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
-													isSlugValid ? '' : 'border-destructive'
+													shouldShowError ? 'border-destructive' : ''
 												}`}
 												id="org-slug"
 												maxLength={50}
+												onBlur={() => setTouchedFields(prev => ({ ...prev, slug: true }))}
 												onChange={(e) => handleSlugChange(e.target.value)}
 												placeholder="e.g., acme-corp"
 												value={formData.slug}
