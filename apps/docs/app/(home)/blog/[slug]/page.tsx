@@ -179,11 +179,15 @@ export default async function PostPage({
               </Avatar>
 							))}
 						</div>
-						<Link href={post.authors[0]?.socials[0]?.url ?? undefined} target='_blank' rel='noopener noreferrer'>
-							<span>
-								{post.authors[0].name}
-							</span>
-						</Link>
+						{post.authors[0]?.socials?.[0]?.url ? (
+							<Link href={post.authors[0].socials[0].url} target='_blank' rel='noopener noreferrer'>
+								<span>
+									{post.authors[0].name}
+								</span>
+							</Link>
+						) : (
+							<span>{post.authors[0].name}</span>
+						)}
 						{post.authors.length > 1 && (
 							<span> +{post.authors.length - 1}</span>
 						)}
