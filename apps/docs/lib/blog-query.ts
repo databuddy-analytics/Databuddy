@@ -1,12 +1,11 @@
-import { cache } from 'react';
-
 import type {
-	MarbleAuthorList,
-	MarbleCategoryList,
-	MarblePost,
-	MarblePostList,
-	MarbleTagList,
-} from '@/types/post';
+  MarbleAuthorList,
+  MarbleCategoryList,
+  MarblePost,
+  MarblePostList,
+  MarbleTagList,
+} from "@usemarble/core";
+import { cache } from "react";
 
 type FetchError = { error: true; status: number; statusText: string };
 

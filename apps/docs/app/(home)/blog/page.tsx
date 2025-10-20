@@ -14,7 +14,8 @@ import { Spotlight } from '@/components/landing/spotlight';
 import { SciFiCard } from '@/components/scifi-card';
 import { StructuredData } from '@/components/structured-data';
 import { getPosts } from '@/lib/blog-query';
-import type { Post } from '@/types/post';
+import type { Post } from '@usemarble/core';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export const revalidate = 3600;
 
@@ -131,14 +132,10 @@ function BlogPostCard({ post }: { post: Post }) {
 							/>
 							<div className="-space-x-2 flex">
 								{post.authors.slice(0, 2).map((author) => (
-									<Image
-										alt={author.name}
-										className="h-6 w-6 rounded-full border-2 border-background"
-										height={24}
-										key={author.id}
-										src={author.image}
-										width={24}
-									/>
+									<Avatar className="size-6 rounded border-2 border-background" key={author.id}>
+      								  <AvatarImage src={author.image ?? undefined} alt={author.name} />
+      								  <AvatarFallback>{author.name[0]}</AvatarFallback>
+      								</Avatar>
 								))}
 							</div>
 							<span className="text-muted-foreground text-xs">
