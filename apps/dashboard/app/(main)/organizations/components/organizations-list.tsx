@@ -6,7 +6,6 @@ import {
 	CalendarIcon,
 	CheckIcon,
 	GearIcon,
-	PlusIcon,
 	TrashIcon,
 } from '@phosphor-icons/react';
 import dayjs from 'dayjs';
@@ -14,7 +13,6 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -43,7 +41,6 @@ import {
 } from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 import { EmptyState } from './empty-state';
-import { ListSkeleton } from './list-skeleton';
 
 dayjs.extend(relativeTime);
 
@@ -110,7 +107,6 @@ export function OrganizationsList({
 		id: string;
 		name: string;
 	} | null>(null);
-	const [showCreateDialog, setShowCreateDialog] = useState(false);
 
 	const handleSetActive = (organizationId: string) => {
 		setActiveOrganization(organizationId);
@@ -118,10 +114,6 @@ export function OrganizationsList({
 
 	const handleDelete = (organizationId: string, organizationName: string) => {
 		setConfirmDelete({ id: organizationId, name: organizationName });
-	};
-
-	const handleCreateOrganization = () => {
-		setShowCreateDialog(true);
 	};
 
 	const confirmDeleteAction = async () => {
@@ -321,11 +313,6 @@ export function OrganizationsList({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-
-			<CreateOrganizationDialog
-				isOpen={showCreateDialog}
-				onClose={() => setShowCreateDialog(false)}
-			/>
 		</div>
 	);
 }
