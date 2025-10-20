@@ -25,10 +25,10 @@ function MentionCard({ mention }: { mention: HonorableMention }) {
 			rel="noopener noreferrer"
 			target="_blank"
 		>
-			<SciFiCard 
-			className="h-full rounded border border-border bg-card/30 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/50 hover:shadow-lg"
-			cornerOpacity="opacity-50"
-		>
+			<SciFiCard
+				className="h-full rounded border border-border bg-card/30 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/50 hover:shadow-lg"
+				cornerOpacity="opacity-50"
+			>
 				<div className="flex flex-col items-center p-6">
 					{/* Support Type Badge */}
 					<div

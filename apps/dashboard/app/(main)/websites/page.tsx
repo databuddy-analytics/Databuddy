@@ -2,13 +2,12 @@
 
 import {
 	ArrowClockwiseIcon,
-	ChartLineIcon,
 	GlobeIcon,
 	PlusIcon,
-	SparkleIcon,
 	TrendUpIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,7 +17,7 @@ import { useWebsites } from '@/hooks/use-websites';
 import { cn } from '@/lib/utils';
 import { WebsiteCard } from './_components/website-card';
 
-function WebsiteLoadingSkeleton() {
+function LoadingSkeleton() {
 	return (
 		<div className="grid select-none gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 			{[1, 2, 3, 4, 5, 6].map((num) => (
@@ -49,74 +48,6 @@ function WebsiteLoadingSkeleton() {
 					</CardContent>
 				</Card>
 			))}
-		</div>
-	);
-}
-
-function EnhancedEmptyState({ onAddWebsite }: { onAddWebsite: () => void }) {
-	return (
-		<div className="flex select-none flex-col items-center justify-center px-4 py-16 text-center">
-			<div className="relative mb-8">
-				<div className="rounded-full border bg-muted/50 p-8">
-					<GlobeIcon
-						aria-hidden="true"
-						className="h-16 w-16 text-muted-foreground"
-						size={64}
-						weight="duotone"
-					/>
-				</div>
-				<div className="-top-2 -right-2 absolute rounded-full border border-primary/20 bg-primary/10 p-2">
-					<ChartLineIcon
-						aria-hidden="true"
-						className="h-6 w-6 text-primary"
-						size={24}
-						weight="fill"
-					/>
-				</div>
-			</div>
-
-			<h3 className="mb-4 font-bold text-2xl">No Websites Yet</h3>
-			<p className="mb-8 max-w-md text-muted-foreground leading-relaxed">
-				Start tracking your website analytics by adding your first website. Get
-				insights into visitors, pageviews, and performance.
-			</p>
-
-			<Button
-				className={cn(
-					'gap-2 px-8 py-4 font-medium text-base',
-					'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
-					'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
-				)}
-				data-button-type="primary-cta"
-				data-section="empty-state"
-				data-track="websites-add-first-website"
-				onClick={onAddWebsite}
-				size="lg"
-			>
-				<div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-white/0 via-white/20 to-white/0 transition-transform duration-700 group-hover:translate-x-[100%]" />
-				<PlusIcon className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:rotate-90" />
-				<span className="relative z-10">Add First Website</span>
-			</Button>
-
-			<div className="mt-8 max-w-md rounded-xl border bg-muted/50 p-6">
-				<div className="flex items-start gap-3">
-					<div className="rounded-lg bg-primary/10 p-2">
-						<SparkleIcon
-							aria-hidden="true"
-							className="h-5 w-5 text-primary"
-							size={24}
-							weight="fill"
-						/>
-					</div>
-					<div className="text-left">
-						<p className="mb-2 font-semibold text-sm">💡 Quick tip</p>
-						<p className="text-muted-foreground text-sm leading-relaxed">
-							Add your tracking script to start collecting analytics data.
-							You'll see beautiful charts and insights within minutes.
-						</p>
-					</div>
-				</div>
-			</div>
 		</div>
 	);
 }
@@ -245,14 +176,28 @@ export default function WebsitesPage() {
 				)}
 
 				{/* Show loading state */}
-				{isLoading && <WebsiteLoadingSkeleton />}
+				{isLoading && <LoadingSkeleton />}
 
 				{/* Show error state */}
 				{isError && <ErrorState onRetry={handleRetry} />}
 
 				{/* Show empty state */}
 				{!(isLoading || isError) && websites && websites.length === 0 && (
-					<EnhancedEmptyState onAddWebsite={() => setDialogOpen(true)} />
+					<EmptyState
+						action={{
+							label: 'Create Your First Website',
+							onClick: () => setDialogOpen(true),
+						}}
+						description="Start tracking your website analytics by adding your first website. Get insights into visitors, pageviews, and performance."
+						icon={
+							<GlobeIcon
+								className="h-16 w-16 text-primary"
+								size={16}
+								weight="duotone"
+							/>
+						}
+						title="No websites yet"
+					/>
 				)}
 
 				{/* Show website grid */}

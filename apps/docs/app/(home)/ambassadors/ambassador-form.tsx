@@ -101,7 +101,7 @@ export default function AmbassadorForm() {
 			newErrors.xHandle = 'X handle should not include @ or URLs';
 		}
 
-		if (formData.website && formData.website.trim()) {
+		if (formData.website?.trim()) {
 			try {
 				new URL(formData.website);
 			} catch {
@@ -151,10 +151,10 @@ export default function AmbassadorForm() {
 
 			clearTimeout(timeoutId);
 
-			let data;
+			let data: any;
 			try {
 				data = await response.json();
-			} catch (parseError) {
+			} catch (_parseError) {
 				throw new Error('Invalid response from server. Please try again.');
 			}
 

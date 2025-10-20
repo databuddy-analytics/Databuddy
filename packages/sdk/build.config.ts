@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { defineBuildConfig } from 'unbuild';
 
 export default defineBuildConfig({
@@ -7,9 +8,14 @@ export default defineBuildConfig({
 		'./src/core/index.ts',
 		'./src/react/index.ts',
 		'./src/vue/index.ts',
+		'./src/node/index.ts',
+		'./src/ai/vercel/index.ts',
 	],
-	externals: ['react', 'react-dom', 'vue'],
+	externals: ['react', 'react-dom', 'vue', 'jotai', '@ai-sdk/provider', 'ai', 'tokenlens'],
 	declaration: true,
+	alias: {
+		'@': resolve(__dirname, 'src'),
+	},
 	hooks: {
 		'build:done': async () => {
 			const file = await readFile('./dist/react/index.mjs', 'utf-8');

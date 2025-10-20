@@ -87,9 +87,12 @@ export function QueryDemo() {
 					customizable: data.configs[name]?.customizable,
 					allowedFilters: data.configs[name]?.allowedFilters,
 				}));
-				setAvailableTypes(types);
+				const sortedByName = [...types].sort((a, b) =>
+					a.name.localeCompare(b.name)
+				);
+				setAvailableTypes(sortedByName);
 
-				const sortedByUtility = [...types].sort((a, b) => {
+				const sortedByUtility = [...sortedByName].sort((a, b) => {
 					const aScore =
 						(a.customizable ? 1 : 0) * 2 + (a.allowedFilters?.length || 0);
 					const bScore =

@@ -1,0 +1,42 @@
+{
+  "name": "@databuddy/env",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./dashboard": {
+      "types": "./src/dashboard.ts",
+      "default": "./src/dashboard.ts"
+    },
+    "./api": {
+      "types": "./src/api.ts",
+      "default": "./src/api.ts"
+    },
+    "./basket": {
+      "types": "./src/basket.ts",
+      "default": "./src/basket.ts"
+    },
+    "./better-admin": {
+      "types": "./src/better-admin.ts",
+      "default": "./src/better-admin.ts"
+    },
+    "./database": {
+      "types": "./src/database.ts",
+      "default": "./src/database.ts"
+    },
+    "./docs": {
+      "types": "./src/docs.ts",
+      "default": "./src/docs.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,332 @@
+---
+title: Feature Flags
+description: Control feature rollouts and A/B testing with Databuddy's feature flag system
+---
+
+import { Tab, Tabs } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
+
+Feature flags allow you to control feature rollouts and conduct A/B testing without deploying new code. Enable or disable features instantly from your dashboard.
+
+<Callout type="info">
+  **Real-time Updates** | **Client-side Caching** | **User Targeting**
+</Callout>
+
+## Quick Start
+
+<Tabs items={['React/Next.js with Auth', 'React/Next.js Basic', 'Setup']}>
+
+<Tab>
+<CodeBlock language="tsx" filename="app.tsx">
+{`'use client';
+
+import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
+import { useSession } from '@databuddy/auth/client';
+
+function App() {
+  const { data: session, isPending } = useSession();
+
+  return (
+    <FlagsProvider
+      clientId="your-website-id"
+      apiUrl="https://api.databuddy.cc"
+      isPending={isPending}
+      user={session?.user ? {
+        userId: session.user.id,
+        email: session.user.email,
+        properties: {
+          plan: session.user.plan || 'free',
+          role: session.user.role || 'user',
+          organization: session.user.organizationId,
+          region: 'us-east', // or from user location
+        }
+      } : undefined}
+    >
+      <MyComponent />
+    </FlagsProvider>
+  );
+}
+
+function MyComponent() {
+  const { isEnabled } = useFlags();
+
+  const newDashboardFlag = isEnabled('new-dashboard');
+  const betaFeaturesFlag = isEnabled('beta-features');
+
+  return (
+    <div>
+      {newDashboardFlag.isReady && newDashboardFlag.enabled && <NewDashboard />}
+      {betaFeaturesFlag.isReady && betaFeaturesFlag.enabled && <BetaFeatures />}
+      <button>Click me</button>
+    </div>
+  );
+}`}
+</CodeBlock>
+</Tab>
+
+<Tab>
+<CodeBlock language="tsx" filename="app.tsx">
+{`'use client';
+
+import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
+
+function App() {
+  return (
+    <FlagsProvider
+      clientId="your-client-id"
+      apiUrl="https://api.databuddy.cc"
+      user={{
+        userId: "user-123",
+        email: "user@example.com"
+      }}
+    >
+      <MyComponent />
+    </FlagsProvider>
+  );
+}
+
+function MyComponent() {
+  const { isEnabled } = useFlags();
+
+  const newFeatureFlag = isEnabled('new-feature');
+
+  return (
+    <div>
+      {newFeatureFlag.isReady && newFeatureFlag.enabled && <NewFeature />}
+      <button>Click me</button>
+    </div>
+  );
+}`}
+</CodeBlock>
+</Tab>
+
+<Tab>
+<CodeBlock language="bash" filename="terminal">
+{`# Install the SDK
+bun add @databuddy/sdk`}
+</CodeBlock>
+</Tab>
+
+</Tabs>
+
+## Flag Types
+
+### Boolean Flags
+Simple on/off switches for features.
+
+<CodeBlock language="tsx">
+{`const showFeature = isEnabled('my-feature');`}
+</CodeBlock>
+
+### Rollout Flags
+Gradually roll out features to a percentage of users.
+
+<CodeBlock language="tsx">
+{`// Set rollout percentage in dashboard (e.g., 25%)
+const showNewUI = isEnabled('new-ui-rollout');`}
+</CodeBlock>
+
+## Configuration
+
+<CodeBlock language="tsx" filename="provider.tsx">
+{`<FlagsProvider
+  clientId="your-website-id"
+  apiUrl="https://api.databuddy.cc"
+  user={{
+    userId: currentUser.id,
+    email: currentUser.email,
+    properties: {
+      plan: currentUser.plan || 'free',
+      role: currentUser.role || 'user',
+      organization: currentUser.organizationId,
+      region: currentUser.region || 'us-east',
+      signupDate: currentUser.createdAt,
+      featureUsage: {
+        reportsViewed: currentUser.reportsViewed || 0,
+        dashboardsCreated: currentUser.dashboardsCreated || 0,
+      }
+    }
+  }}
+  isPending={isLoadingSession} // from useSession hook
+  debug={process.env.NODE_ENV === 'development'}
+  autoFetch={true} // default: true
+>
+  <App />
+</FlagsProvider>`}
+</CodeBlock>
+
+## Hook API
+
+<CodeBlock language="tsx">
+{`const {
+  isEnabled,
+  fetchAllFlags,
+  updateUser,
+  refresh
+} = useFlags();
+
+// Get flag state with loading information
+const featureFlag = isEnabled('my-feature');
+// Returns: { enabled: boolean, isLoading: boolean, isReady: boolean }
+
+// Conditional rendering - clean and predictable
+{featureFlag.isReady && featureFlag.enabled && <NewFeature />}
+
+// Show loading states explicitly
+{featureFlag.isLoading && <LoadingSpinner />}
+{!featureFlag.isReady && <Skeleton />}
+
+// Refresh all flags
+await fetchAllFlags();`}
+</CodeBlock>
+
+## Flag States
+
+The `isEnabled` function returns a flag state object with loading information:
+
+<CodeBlock language="tsx">
+{`const { isEnabled } = useFlags();
+const myFlag = isEnabled('my-feature');
+
+// Always returns an object with these properties:
+myFlag.enabled  // boolean - the flag value
+myFlag.isReady  // boolean - true when flag has been evaluated
+myFlag.isLoading // boolean - true while fetching from server
+
+// Clean, predictable conditional rendering
+{myFlag.isReady && myFlag.enabled && <MyFeature />}
+
+// Show loading states when needed
+{myFlag.isLoading && <LoadingSpinner />}
+{!myFlag.isReady && <Skeleton />}
+{myFlag.isReady && myFlag.enabled && <Feature />}`}
+</CodeBlock>
+
+**Benefits:**
+- No `undefined` checks required
+- Explicit loading states
+- More predictable behavior
+- Better TypeScript support
+- Cleaner component code
+
+## Why isPending Matters
+
+The `isPending` prop is crucial for preventing race conditions and ensuring consistent user experiences:
+
+- **Prevents Flash of Incorrect Content**: Without `isPending`, flags might evaluate with stale user data during authentication state changes
+- **Avoids Unnecessary API Calls**: The SDK waits for authentication to complete before making flag requests
+- **Consistent User Experience**: Users won't see feature toggles based on anonymous user data when they're actually logged in
+- **Better Performance**: Reduces redundant flag evaluations during session transitions
+
+<CodeBlock language="tsx">
+{`// ❌ Bad: No isPending - flags evaluate with wrong user context
+<FlagsProvider user={undefined}>
+  <App /> // Shows anonymous features briefly, then switches
+</FlagsProvider>
+
+// ✅ Good: Waits for session before evaluating flags
+<FlagsProvider isPending={isPending} user={session?.user ? {...} : undefined}>
+  <App /> // Shows correct features immediately
+</FlagsProvider>`}
+</CodeBlock>
+
+## User Targeting
+
+Target specific users or groups from your dashboard:
+
+- **User ID**: Target specific users by their unique identifier
+- **Email**: Target by email address or domain (e.g., `@company.com`)
+- **Custom Properties**: Target by user attributes like plan tier, role, organization, region, signup date, or feature usage patterns
+
+### Advanced Targeting with Custom Properties
+
+Custom properties enable sophisticated targeting strategies:
+
+- **Plan-based Rollouts**: `plan: 'premium'` → Show premium features only to paying users
+- **Geographic Targeting**: `region: 'us-east'` → Test features in specific regions
+- **Behavioral Targeting**: `featureUsage.reportsViewed > 10` → Target power users
+- **A/B Testing**: `experimentGroup: 'A'` → Segment users for experiments
+- **Time-based**: `signupDate > '2024-01-01'` → Target new vs. existing users
+
+<CodeBlock language="tsx">
+{`<FlagsProvider
+  user={{
+    userId: "user-123",
+    email: "user@example.com",
+    properties: {
+      plan: 'premium',
+      region: 'us-east'
+    }
+  }}
+>`}
+</CodeBlock>
+
+## Debug Mode
+
+<CodeBlock language="tsx">
+{`<FlagsProvider
+  debug={true}
+  // ... other props
+>`}
+</CodeBlock>
+
+Enable debug mode to see flag evaluation in the browser console.
+
+## Performance Benefits
+
+- **Client-side Caching**: Flags are cached in localStorage for instant loading
+- **Intelligent Updates**: Only re-evaluates flags when user context changes
+- **Background Sync**: Fetches flag updates without blocking the UI
+- **Minimal Bundle Size**: Lightweight SDK with zero external dependencies
+
+## Best Practices
+
+1. **Use `isEnabled` for flag states** - returns loading and ready information
+2. **Use `isPending`** with authentication to prevent race conditions
+3. **Pass Custom Properties** for granular targeting and A/B testing
+4. **Enable Debug Mode** during development to monitor flag evaluation
+5. **Check `isReady`** before showing features to avoid flash of incorrect content
+6. **Update User Context** after profile changes to refresh flag evaluation
+
+<CodeBlock language="tsx">
+{`// ✅ Recommended: Check isReady before rendering features
+function FeatureComponent() {
+  const { isEnabled } = useFlags();
+  const featureFlag = isEnabled('new-feature');
+
+  // Always check isReady to avoid flash of wrong content
+  if (!featureFlag.isReady) return <Skeleton />;
+  return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
+}
+
+// ✅ Show loading states explicitly
+function FeatureWithLoading() {
+  const { isEnabled } = useFlags();
+  const featureFlag = isEnabled('new-feature');
+
+  if (featureFlag.isLoading) return <LoadingSpinner />;
+  if (!featureFlag.isReady) return <Skeleton />;
+  return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
+}
+
+// ✅ Multiple flags in one component
+function Dashboard() {
+  const { isEnabled } = useFlags();
+  const darkMode = isEnabled('dark-mode');
+  const newLayout = isEnabled('new-layout');
+
+  // Both flags must be ready before rendering
+  if (!darkMode.isReady || !newLayout.isReady) return <Skeleton />;
+
+  return (
+    <div className={darkMode.enabled ? 'dark' : ''}>
+      {newLayout.enabled ? <NewLayout /> : <OldLayout />}
+    </div>
+  );
+}`}
+</CodeBlock>
+
+---
+
+Ready to get started? [Create your first feature flag in the dashboard →](https://app.databuddy.cc/login)

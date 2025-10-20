@@ -49,6 +49,11 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
+const LOWERCASE_REGEX = /[a-z]/;
+const UPPERCASE_REGEX = /[A-Z]/;
+const NUMBERS_REGEX = /\d/;
+const SPECIAL_CHARS_REGEX = /[!@#$%^&*(),.?":{}|<>]/;
+
 function calculatePasswordStrength(password: string): {
 	score: number;
 	feedback: string;
@@ -61,10 +66,10 @@ function calculatePasswordStrength(password: string): {
 	let score = 0;
 	const checks = {
 		length: password.length >= 8,
-		lowercase: /[a-z]/.test(password),
-		uppercase: /[A-Z]/.test(password),
-		numbers: /\d/.test(password),
-		special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+		lowercase: LOWERCASE_REGEX.test(password),
+		uppercase: UPPERCASE_REGEX.test(password),
+		numbers: NUMBERS_REGEX.test(password),
+		special: SPECIAL_CHARS_REGEX.test(password),
 	};
 
 	score += checks.length ? 20 : 0;

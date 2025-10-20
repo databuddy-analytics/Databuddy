@@ -169,7 +169,7 @@ export const goalsRouter = createTRPCRouter({
 				.update(goals)
 				.set({
 					...updates,
-					updatedAt: new Date().toISOString(),
+					updatedAt: new Date(),
 				})
 				.where(and(eq(goals.id, id), isNull(goals.deletedAt)))
 				.returning();
@@ -199,7 +199,7 @@ export const goalsRouter = createTRPCRouter({
 			await ctx.db
 				.update(goals)
 				.set({
-					deletedAt: new Date().toISOString(),
+					deletedAt: new Date(),
 					isActive: false,
 				})
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)));

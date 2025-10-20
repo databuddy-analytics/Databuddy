@@ -29,7 +29,7 @@ export const preferencesRouter = createTRPCRouter({
 					id: nanoid(),
 					userId: ctx.user.id,
 					...defaultPreferences,
-					updatedAt: new Date().toISOString(),
+					updatedAt: new Date(),
 				})
 				.returning();
 			preferences = inserted[0];
@@ -40,7 +40,7 @@ export const preferencesRouter = createTRPCRouter({
 	updateUserPreferences: protectedProcedure
 		.input(preferencesSchema)
 		.mutation(async ({ ctx, input }) => {
-			const now = new Date().toISOString();
+			const now = new Date();
 
 			const result = await ctx.db
 				.insert(userPreferences)

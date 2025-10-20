@@ -13,7 +13,7 @@ export interface DynamicQueryRequest {
 	page?: number;
 	filters?: DynamicQueryFilter[];
 	granularity?: 'hourly' | 'daily';
-	groupBy?: string;
+	groupBy?: string | string[];
 }
 
 export interface DynamicQueryFilter {

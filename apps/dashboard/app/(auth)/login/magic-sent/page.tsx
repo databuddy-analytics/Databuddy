@@ -42,28 +42,28 @@ export default function MagicSentPage() {
 	return (
 		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
 			<div className="mb-8 text-center">
-				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 p-3">
-					<div className="absolute inset-0 animate-pulse rounded-full bg-blue-50" />
-					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-blue-200 to-blue-100 opacity-70 blur-md" />
-					<div className="relative rounded-full bg-gradient-to-tr from-blue-500 to-blue-400 p-2.5">
-						<MailCheck className="h-8 w-8 text-white" />
+				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-info/10 p-3">
+					<div className="absolute inset-0 animate-pulse rounded-full bg-info/5" />
+					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-info/20 to-info/10 opacity-70 blur-md" />
+					<div className="relative rounded-full bg-gradient-to-tr from-info to-info/80 p-2.5">
+						<MailCheck className="h-8 w-8 text-info-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">Check your email</h1>
 				<p className="mt-2 text-muted-foreground">
 					Magic link sent to{' '}
-					<strong className="font-medium text-blue-600">{email}</strong>
+					<strong className="font-medium text-info">{email}</strong>
 				</p>
 			</div>
 			<div className="space-y-5 py-4">
-				<div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-800">
+				<div className="rounded-lg border border-info/20 bg-info/5 p-4 text-info-foreground">
 					<p className="text-sm">
 						We've sent a magic link to <strong>{email}</strong>. Please check
 						your inbox and click the link to sign in instantly.
 					</p>
 				</div>
 				<Button
-					className="w-full bg-blue-500 text-white hover:bg-blue-600"
+					className="w-full bg-info text-info-foreground hover:bg-info/90"
 					disabled={isLoading}
 					onClick={handleResend}
 					type="button"
@@ -79,7 +79,7 @@ export default function MagicSentPage() {
 				</Button>
 				<Link href="/login">
 					<Button
-						className="w-full border-blue-200 hover:bg-blue-50"
+						className="w-full border-info/20 hover:bg-info/5"
 						type="button"
 						variant="outline"
 					>

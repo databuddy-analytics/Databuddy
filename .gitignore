@@ -28,6 +28,10 @@ out/
 build
 # generated
 # packages/db/generated
+packages/db/src/drizzle/meta/0000_snapshot.json
+packages/db/src/drizzle/meta/_journal.json
+packages/db/src/drizzle/meta
+packages/db/src/drizzle/*.sql
 dist
 
 
@@ -40,4 +44,3 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
-apps/api2/src/query/builder.ts

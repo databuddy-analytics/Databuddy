@@ -2,10 +2,8 @@
 
 import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useCallback, useMemo, useState } from 'react';
-import { DataTable } from '@/components/analytics';
+import { DataTable } from '@/components/table/data-table';
 import type {
-	CustomEventData,
-	CustomEventsData,
 	CustomEventsSectionProps,
 	EventProperty,
 	OutboundDomainData,
@@ -332,10 +330,8 @@ export function CustomEventsSection({
 
 						{isExpanded && (
 							<div
-								aria-labelledby={`property-header-${propertyId}`}
 								className="mt-1 max-h-48 overflow-y-auto rounded border border-sidebar-border/20"
 								id={`property-${propertyId}`}
-								role="region"
 							>
 								{propertyValues.map((valueItem, index) => (
 									<div

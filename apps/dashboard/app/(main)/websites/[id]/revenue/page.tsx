@@ -10,6 +10,7 @@ import { useAtom } from 'jotai';
 import { useParams } from 'next/navigation';
 import { lazy, Suspense, useCallback, useState } from 'react';
 import { useRevenueConfig } from '@/app/(main)/revenue/hooks/use-revenue-config';
+import { EmptyState } from '@/components/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useDateFilters } from '@/hooks/use-date-filters';
@@ -31,16 +32,6 @@ const RevenueChart = lazy(() =>
 const RecentTransactions = lazy(() =>
 	import('./_components/recent-transactions').then((m) => ({
 		default: m.RecentTransactions,
-	}))
-);
-const RevenueNotSetup = lazy(() =>
-	import('./_components/empty-states').then((m) => ({
-		default: m.RevenueNotSetup,
-	}))
-);
-const NoRevenueData = lazy(() =>
-	import('./_components/empty-states').then((m) => ({
-		default: m.NoRevenueData,
 	}))
 );
 
@@ -134,7 +125,7 @@ export default function WebsiteRevenuePage() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [refetch, revenueConfig.refetch]);
+	}, [refetch, revenueConfig.refetch, setIsRefreshing]);
 
 	if (revenueConfig.isLoading) {
 		return (
@@ -164,9 +155,21 @@ export default function WebsiteRevenuePage() {
 					websiteName={websiteData?.name || undefined}
 				/>
 
-				<Suspense fallback={<Skeleton className="h-64 w-full" />}>
-					<RevenueNotSetup websiteName={websiteData?.name || undefined} />
-				</Suspense>
+				<EmptyState
+					action={{
+						label: 'Configure Revenue Tracking',
+						onClick: () => window.open('/revenue', '_self'),
+					}}
+					description={`Configure your Stripe webhook integration to start tracking revenue for ${websiteData?.name || 'this website'}.`}
+					icon={
+						<CreditCardIcon
+							className="h-8 w-8 text-orange-500"
+							size={32}
+							weight="duotone"
+						/>
+					}
+					title="Revenue Tracking Not Set Up"
+				/>
 			</div>
 		);
 	}
@@ -193,9 +196,26 @@ export default function WebsiteRevenuePage() {
 					websiteName={websiteData?.name || undefined}
 				/>
 
-				<Suspense fallback={<Skeleton className="h-64 w-full" />}>
-					<NoRevenueData websiteName={websiteData?.name || undefined} />
-				</Suspense>
+				<EmptyState
+					action={{
+						label: 'View Integration Guide',
+						onClick: () =>
+							window.open(
+								'https://www.databuddy.cc/docs/Integrations/stripe',
+								'_blank',
+								'noopener noreferrer'
+							),
+					}}
+					description={`No revenue has been recorded for ${websiteData?.name || 'this website'} in the selected time period. Make sure your Stripe checkout includes the correct client_id and session_id.`}
+					icon={
+						<CreditCardIcon
+							className="h-8 w-8 text-blue-500"
+							size={32}
+							weight="duotone"
+						/>
+					}
+					title="No Revenue Data"
+				/>
 			</div>
 		);
 	}

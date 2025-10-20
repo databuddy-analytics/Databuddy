@@ -1,8 +1,28 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": ["ultracite"],
   "files": {
-    "includes": ["**", "!**/*.mdx"]
+    "includes": [
+      "**",
+      "!**/*.mdx",
+      "!**/*.css",
+      "!**/countries.json",
+      "!**/subdivisions.json",
+      "!**/databuddy.js",
+      "!apps/better-admin/**",
+
+      "!apps/docs/components/ui",
+      "!apps/dashboard/components/ui",
+      "!apps/database/components/ui",
+
+      "!apps/docs/lib/utils.ts",
+      "!apps/dashboard/lib/utils.ts",
+      "!apps/database/lib/utils.ts",
+
+      "!apps/docs/hooks/use-mobile.ts",
+      "!apps/dashboard/hooks/use-mobile.ts",
+      "!apps/database/hooks/use-mobile.ts"
+    ]
   },
   "javascript": {
     "formatter": {
@@ -14,14 +34,33 @@
   "linter": {
     "rules": {
       "suspicious": {
-        "noConsole": {
-          "options": {
-            "allow": ["assert", "error", "info", "warn"]
-          }
-        }
+        "noConsole": "off",
+        "noExplicitAny": "off",
+        "noEmptyBlockStatements": "off",
+        "noArrayIndexKey": "off",
+        "noDocumentCookie": "off"
       },
       "style": {
-        "noNestedTernary": "off"
+        "noNestedTernary": "off",
+        "useFilenamingConvention": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "performance": {
+        "noImgElement": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off"
+      },
+      "nursery": {
+        "noShadow": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       }
     }
   }

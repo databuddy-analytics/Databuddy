@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.events (
   time DateTime64(3, 'UTC'),
   session_id String,
   
-  event_type LowCardinality(String) DEFAULT 'track', -- 'track', 'error', 'web_vitals'
-  event_id Nullable(String), -- UUID from client for deduplication
-  session_start_time Nullable(DateTime64(3, 'UTC')), -- New session tracking
-  timestamp DateTime64(3, 'UTC') DEFAULT time, -- Alias for new format
+  event_type LowCardinality(String) DEFAULT 'track',
+  event_id Nullable(String),
+  session_start_time Nullable(DateTime64(3, 'UTC')),
+  timestamp DateTime64(3, 'UTC') DEFAULT time,
   
   referrer Nullable(String),
   url String,
@@ -69,16 +69,10 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.events (
   redirect_time Nullable(Int32),
   domain_lookup_time Nullable(Int32),
   
-  href Nullable(String),
-  text Nullable(String),
-  
-  value Nullable(String),
-  
   properties String,
   
   created_at DateTime64(3, 'UTC')
 ) ENGINE = MergeTree()
-INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1
 PARTITION BY toYYYYMM(time)
 ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192
@@ -307,7 +301,7 @@ CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.events (
 
     start_time DateTime64(3, 'UTC') DEFAULT now(),
     end_time DateTime64(3, 'UTC') DEFAULT now(),
-    duration_ms Nullable(UInt32) AS (toUInt32(dateDiff('millisecond', start_time, end_time))),
+    duration_ms Nullable(UInt32) MATERIALIZED (toUInt32(dateDiff('millisecond', start_time, end_time))),
 
     level LowCardinality(String),
     category LowCardinality(String),
@@ -344,13 +338,17 @@ CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.otel_traces (
     Duration Int64 CODEC(ZSTD(1)),
     StatusCode LowCardinality(String) CODEC(ZSTD(1)),
     StatusMessage String CODEC(ZSTD(1)),
-    Events.Timestamp Array(DateTime64(9)) CODEC(ZSTD(1)),
-    Events.Name Array(LowCardinality(String)) CODEC(ZSTD(1)),
-    Events.Attributes Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-    Links.TraceId Array(String) CODEC(ZSTD(1)),
-    Links.SpanId Array(String) CODEC(ZSTD(1)),
-    Links.TraceState Array(String) CODEC(ZSTD(1)),
-    Links.Attributes Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    Events Nested(
+        Timestamp DateTime64(9),
+        Name LowCardinality(String),
+        Attributes Map(LowCardinality(String), String)
+    ),
+    Links Nested(
+        TraceId String,
+        SpanId String,
+        TraceState String,
+        Attributes Map(LowCardinality(String), String)
+    ),
     INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -413,7 +411,6 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
-// Custom outgoing links table with minimal essential fields
 const CREATE_CUSTOM_OUTGOING_LINKS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.outgoing_links (
   id UUID,
@@ -659,7 +656,7 @@ export interface CustomEvent {
 	event_name: string;
 	anonymous_id: string;
 	session_id: string;
-	properties: string;
+	properties: Record<string, unknown>;
 	timestamp: number;
 }
 
@@ -670,7 +667,7 @@ export interface CustomOutgoingLink {
 	session_id: string;
 	href: string;
 	text?: string;
-	properties: string;
+	properties: Record<string, unknown>;
 	timestamp: number;
 }
 
@@ -734,12 +731,7 @@ export interface AnalyticsEvent {
 	redirect_time?: number;
 	domain_lookup_time?: number;
 
-	href?: string;
-	text?: string;
-
-	value?: string;
-
-	properties: string;
+	properties: Record<string, unknown>;
 
 	created_at: number;
 }

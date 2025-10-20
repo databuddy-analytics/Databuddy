@@ -1,5 +1,7 @@
 'use client';
 
+import { authClient } from '@databuddy/auth/client';
+import { FlagsProvider } from '@databuddy/sdk/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink } from '@trpc/client';
 import { AutumnProvider } from 'autumn-js/react';
@@ -7,7 +9,6 @@ import { ThemeProvider } from 'next-themes';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { useState } from 'react';
 import superjson from 'superjson';
-import { SessionProvider } from '@/components/layout/session-provider';
 import { trpc } from '@/lib/trpc';
 
 const defaultQueryClientOptions = {
@@ -64,7 +65,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 			<trpc.Provider client={trpcClient} queryClient={queryClient}>
 				<QueryClientProvider client={queryClient}>
-					<SessionProvider session={null}>
+					<FlagsProviderWrapper>
 						<AutumnProvider
 							backendUrl={
 								process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -72,9 +73,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 						>
 							<NuqsAdapter>{children}</NuqsAdapter>
 						</AutumnProvider>
-					</SessionProvider>
+					</FlagsProviderWrapper>
 				</QueryClientProvider>
 			</trpc.Provider>
 		</ThemeProvider>
+	);
+}
+
+function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
+	const { data: session, isPending } = authClient.useSession();
+	return (
+		<FlagsProvider
+			clientId="3ed1fce1-5a56-4cb6-a977-66864f6d18e3"
+			isPending={isPending}
+			user={
+				session?.user
+					? { userId: session.user.id, email: session.user.email }
+					: undefined
+			}
+		>
+			{children}
+		</FlagsProvider>
 	);
 }

@@ -15,12 +15,12 @@
   "dependencies": {
     "@react-email/components": "0.3.2",
     "@types/node": "^24.0.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "react-email": "^4.0.17"
   }
 }

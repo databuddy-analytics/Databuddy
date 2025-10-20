@@ -11,7 +11,8 @@ import {
 	WarningIcon,
 } from '@phosphor-icons/react';
 import { use, useCallback, useMemo, useState } from 'react';
-import { DataTable, StatCard } from '@/components/analytics';
+import { StatCard } from '@/components/analytics';
+import { DataTable } from '@/components/table/data-table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,36 +38,55 @@ interface PerformancePageProps {
 
 function LoadingState() {
 	return (
-		<div className="space-y-6">
-			<div className="space-y-2">
-				<Skeleton className="h-8 w-64" />
-				<Skeleton className="h-4 w-96" />
-			</div>
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<div
-						className="rounded border border-sidebar-border bg-sidebar p-6 shadow-sm"
-						key={i.toString()}
-					>
-						<Skeleton className="h-8 w-16" />
-						<Skeleton className="mt-2 h-4 w-24" />
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded border border-primary/20 bg-primary/10 p-3">
+						<ChartLineIcon className="h-6 w-6 text-primary" weight="duotone" />
 					</div>
-				))}
-			</div>
-			<div className="grid gap-6 lg:grid-cols-2">
-				{Array.from({ length: 4 }).map((_, cardIndex) => (
-					<div
-						className="rounded border border-sidebar-border bg-sidebar shadow-sm"
-						key={cardIndex.toString()}
-					>
-						<div className="border-sidebar-border border-b px-4 py-3">
-							<Skeleton className="h-6 w-48" />
-						</div>
-						<div className="p-4">
-							<Skeleton className="h-64 w-full" />
-						</div>
+					<div className="flex-1">
+						<Skeleton className="h-8 w-64" />
+						<Skeleton className="mt-2 h-4 w-96" />
 					</div>
-				))}
+					<Skeleton className="h-10 w-32" />
+				</div>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					{Array.from({ length: 4 }).map((_, i) => (
+						<div
+							className="rounded border bg-card p-6 shadow-sm"
+							key={i.toString()}
+						>
+							<Skeleton className="h-8 w-16" />
+							<Skeleton className="mt-2 h-4 w-24" />
+						</div>
+					))}
+				</div>
+				<div className="grid gap-6 lg:grid-cols-2">
+					{Array.from({ length: 2 }).map((_, cardIndex) => (
+						<div
+							className="rounded border bg-card shadow-sm"
+							key={cardIndex.toString()}
+						>
+							<div className="border-b px-4 py-3">
+								<Skeleton className="h-6 w-48" />
+							</div>
+							<div className="p-4">
+								<Skeleton className="h-64 w-full" />
+							</div>
+						</div>
+					))}
+				</div>
+				<div className="rounded border bg-card shadow-sm">
+					<div className="border-b px-6 py-4">
+						<Skeleton className="h-6 w-32" />
+						<Skeleton className="mt-2 h-4 w-64" />
+					</div>
+					<div className="p-6">
+						<Skeleton className="h-96 w-full" />
+					</div>
+				</div>
 			</div>
 		</div>
 	);
@@ -74,47 +94,51 @@ function LoadingState() {
 
 function ExtensionNotEnabledState({ connectionId }: { connectionId: string }) {
 	return (
-		<div className="space-y-6">
-			<div className="space-y-2">
-				<div className="flex items-center gap-2">
-					<ChartLineIcon
-						className="h-6 w-6 text-muted-foreground"
-						weight="duotone"
-					/>
-					<h1 className="font-bold text-2xl">Query Performance</h1>
-				</div>
-				<p className="text-muted-foreground text-sm">
-					Monitor and analyze database query performance with detailed metrics
-					and visualizations
-				</p>
-			</div>
-
-			<Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
-				<WarningIcon className="h-4 w-4 text-amber-600" />
-				<AlertDescription className="text-amber-800 dark:text-amber-200">
-					<div className="space-y-3">
-						<div className="space-y-1">
-							<p className="font-medium">
-								pg_stat_statements Extension Required
-							</p>
-							<p className="text-sm">
-								The pg_stat_statements extension is required to view query
-								performance data. This extension tracks execution statistics for
-								all SQL statements.
-							</p>
-						</div>
-						<Button
-							onClick={() => {
-								window.location.href = `/observability/database/${connectionId}/plugins`;
-							}}
-							size="sm"
-							variant="outline"
-						>
-							Install Extension
-						</Button>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded border border-primary/20 bg-primary/10 p-3">
+						<ChartLineIcon className="h-6 w-6 text-primary" weight="duotone" />
 					</div>
-				</AlertDescription>
-			</Alert>
+					<div>
+						<h1 className="font-bold text-2xl tracking-tight">
+							Performance Analytics
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Monitor and analyze database query performance with detailed
+							metrics
+						</p>
+					</div>
+				</div>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				<Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+					<WarningIcon className="h-4 w-4 text-amber-600" />
+					<AlertDescription className="text-amber-800 dark:text-amber-200">
+						<div className="space-y-3">
+							<div className="space-y-1">
+								<p className="font-medium">
+									pg_stat_statements Extension Required
+								</p>
+								<p className="text-sm">
+									The pg_stat_statements extension is required to view query
+									performance data. This extension tracks execution statistics
+									for all SQL statements.
+								</p>
+							</div>
+							<Button
+								onClick={() => {
+									window.location.href = `/observability/database/${connectionId}/plugins`;
+								}}
+								size="sm"
+								variant="outline"
+							>
+								Install Extension
+							</Button>
+						</div>
+					</AlertDescription>
+				</Alert>
+			</div>
 		</div>
 	);
 }
@@ -342,203 +366,214 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 	}
 
 	return (
-		<div className="space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<div className="flex items-center gap-2">
-						<ChartLineIcon className="h-6 w-6" weight="duotone" />
-						<h1 className="font-bold text-2xl">Performance Analytics</h1>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded border border-primary/20 bg-primary/10 p-3">
+						<ChartLineIcon className="h-6 w-6 text-primary" weight="duotone" />
 					</div>
-					<p className="text-muted-foreground text-sm">
-						Real-time query performance monitoring and optimization insights
-					</p>
+					<div className="flex-1">
+						<h1 className="font-bold text-2xl tracking-tight">
+							Performance Analytics
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Real-time query performance monitoring and optimization insights
+						</p>
+					</div>
+					<Button onClick={() => setResetDialog(true)} variant="outline">
+						<ArrowClockwiseIcon className="mr-2 h-4 w-4" />
+						Reset Stats
+					</Button>
 				</div>
-				<Button onClick={() => setResetDialog(true)} variant="outline">
-					<ArrowClockwiseIcon className="mr-2 h-4 w-4" />
-					Reset Stats
-				</Button>
 			</div>
 
-			{/* Success Banner */}
-			{success && (
-				<Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
-					<DatabaseIcon className="h-4 w-4 text-green-600" />
-					<AlertDescription className="flex items-center justify-between">
-						<span className="text-green-800 dark:text-green-200">
-							{success}
-						</span>
-						<Button onClick={() => setSuccess(null)} size="sm" variant="ghost">
-							Dismiss
-						</Button>
-					</AlertDescription>
-				</Alert>
-			)}
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Success Banner */}
+				{success && (
+					<Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+						<DatabaseIcon className="h-4 w-4 text-green-600" />
+						<AlertDescription className="flex items-center justify-between">
+							<span className="text-green-800 dark:text-green-200">
+								{success}
+							</span>
+							<Button
+								onClick={() => setSuccess(null)}
+								size="sm"
+								variant="ghost"
+							>
+								Dismiss
+							</Button>
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Performance Health Summary */}
-			{metrics.p99_exec_time > 1000 && (
-				<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
-					<WarningIcon className="h-4 w-4 text-red-600" />
-					<AlertDescription className="text-red-800 dark:text-red-200">
-						<strong>Performance Issue Detected:</strong> P99 response time is{' '}
-						{metrics.p99_exec_time.toFixed(0)}ms. Consider optimizing slow
-						queries or adding database indexes.
-					</AlertDescription>
-				</Alert>
-			)}
+				{/* Performance Health Summary */}
+				{metrics.p99_exec_time > 1000 && (
+					<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
+						<WarningIcon className="h-4 w-4 text-red-600" />
+						<AlertDescription className="text-red-800 dark:text-red-200">
+							<strong>Performance Issue Detected:</strong> P99 response time is{' '}
+							{metrics.p99_exec_time.toFixed(0)}ms. Consider optimizing slow
+							queries or adding database indexes.
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Query Text Permission Info */}
-			{metrics.top_queries_by_time.some((q) =>
-				q.query.includes('Query ID:')
-			) && (
-				<Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
-					<DatabaseIcon className="h-4 w-4 text-muted-foreground" />
-					<AlertDescription className="text-muted-foreground">
-						<div className="space-y-2">
-							<div>
-								<strong>Limited Query Visibility:</strong> Query text is hidden
-								due to database permissions. Performance metrics are still
-								accurate.
-							</div>
-							{userInfo && (
-								<div className="space-y-1 text-xs">
-									<div>
-										<strong>Current User:</strong> {userInfo.username}
-									</div>
-									<div>
-										<strong>Has pg_read_all_stats:</strong>{' '}
-										{userInfo.hasReadAllStats ? '✅ Yes' : '❌ No'}
-									</div>
-									{userInfo.roles.length > 0 && (
-										<div>
-											<strong>Roles:</strong> {userInfo.roles.join(', ')}
-										</div>
-									)}
+				{/* Query Text Permission Info */}
+				{metrics.top_queries_by_time.some((q) =>
+					q.query.includes('Query ID:')
+				) && (
+					<Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+						<DatabaseIcon className="h-4 w-4 text-muted-foreground" />
+						<AlertDescription className="text-muted-foreground">
+							<div className="space-y-2">
+								<div>
+									<strong>Limited Query Visibility:</strong> Query text is
+									hidden due to database permissions. Performance metrics are
+									still accurate.
 								</div>
-							)}
-							<div>
-								<strong>To fix:</strong> Run as superuser:
-								<code className="mx-1 rounded bg-blue-100 px-1 text-xs dark:bg-blue-900">
-									GRANT pg_read_all_stats TO {userInfo?.username || 'your_user'}
-								</code>
-								Then <strong>reconnect</strong> to refresh permissions.
+								{userInfo && (
+									<div className="space-y-1 text-xs">
+										<div>
+											<strong>Current User:</strong> {userInfo.username}
+										</div>
+										<div>
+											<strong>Has pg_read_all_stats:</strong>{' '}
+											{userInfo.hasReadAllStats ? '✅ Yes' : '❌ No'}
+										</div>
+										{userInfo.roles.length > 0 && (
+											<div>
+												<strong>Roles:</strong> {userInfo.roles.join(', ')}
+											</div>
+										)}
+									</div>
+								)}
+								<div>
+									<strong>To fix:</strong> Run as superuser:
+									<code className="mx-1 rounded bg-blue-100 px-1 text-xs dark:bg-blue-900">
+										GRANT pg_read_all_stats TO{' '}
+										{userInfo?.username || 'your_user'}
+									</code>
+									Then <strong>reconnect</strong> to refresh permissions.
+								</div>
 							</div>
-						</div>
-					</AlertDescription>
-				</Alert>
-			)}
+						</AlertDescription>
+					</Alert>
+				)}
 
-			{/* Key Performance Metrics */}
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-				<StatCard
-					description="99th percentile response time"
-					icon={ClockIcon}
-					title="P99 RESPONSE"
-					value={`${metrics.p99_exec_time.toFixed(0)}ms`}
-					variant={
-						metrics.p99_exec_time > 1000
-							? 'danger'
-							: metrics.p99_exec_time > 500
-								? 'warning'
-								: 'success'
-					}
-				/>
-				<StatCard
-					description="Median query response time"
-					icon={TrendUpIcon}
-					title="P50 RESPONSE"
-					value={`${metrics.p50_exec_time.toFixed(0)}ms`}
-					variant={metrics.p50_exec_time > 100 ? 'warning' : 'success'}
-				/>
-				<StatCard
-					description="Buffer cache effectiveness"
-					icon={EyeIcon}
-					title="CACHE HIT RATE"
-					value={`${metrics.cache_hit_ratio.toFixed(1)}%`}
-					variant={
-						metrics.cache_hit_ratio > 95
-							? 'success'
-							: metrics.cache_hit_ratio > 85
-								? 'warning'
-								: 'danger'
-					}
-				/>
-				<StatCard
-					description={`${formatMetricNumber(metrics.total_queries)} unique queries`}
-					icon={DatabaseIcon}
-					title="TOTAL CALLS"
-					value={formatMetricNumber(metrics.total_calls)}
-				/>
-			</div>
-
-			{/* Performance Charts */}
-			<div className="grid gap-6 lg:grid-cols-2">
-				<ResourceConsumptionChart
-					onQueryClick={(query) => {
-						const queryWithName = { ...query, name: query.query };
-						handleQueryClick(queryWithName);
-					}}
-					topQueriesByTime={metrics.top_queries_by_time}
-				/>
-				<ResponseTimeChart
-					onQueryClick={(query) => {
-						const queryWithName = { ...query, name: query.query };
-						handleQueryClick(queryWithName);
-					}}
-					slowestQueries={metrics.slowest_queries}
-				/>
-			</div>
-
-			{/* Query Analysis Table */}
-			<div className="rounded-xl border bg-card shadow-sm">
-				<div className="border-b px-6 py-4">
-					<h2 className="font-semibold text-lg">Query Analysis</h2>
-					<p className="text-muted-foreground text-sm">
-						Click on any query to view detailed performance analysis
-					</p>
-				</div>
-				<div className="p-0">
-					<DataTable
-						emptyMessage="No query performance data available"
-						initialPageSize={10}
-						isLoading={metricsLoading}
-						minHeight={400}
-						onRowClick={(_, value) => {
-							const allQueries = [
-								...transformQueryData(metrics?.top_queries_by_time || []),
-								...transformQueryData(metrics?.top_queries_by_calls || []),
-								...transformQueryData(metrics?.slowest_queries || []),
-							];
-							const query = allQueries.find(
-								(q) => q.query === value || q.name === value
-							);
-							if (query) {
-								handleQueryClick(query);
-							}
-						}}
-						showSearch={true}
-						tabs={queryTabs}
-						title=""
+				{/* Key Performance Metrics */}
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					<StatCard
+						description="99th percentile response time"
+						icon={ClockIcon}
+						title="P99 RESPONSE"
+						value={`${metrics.p99_exec_time.toFixed(0)}ms`}
+						variant={
+							metrics.p99_exec_time > 1000
+								? 'danger'
+								: metrics.p99_exec_time > 500
+									? 'warning'
+									: 'success'
+						}
+					/>
+					<StatCard
+						description="Median query response time"
+						icon={TrendUpIcon}
+						title="P50 RESPONSE"
+						value={`${metrics.p50_exec_time.toFixed(0)}ms`}
+						variant={metrics.p50_exec_time > 100 ? 'warning' : 'success'}
+					/>
+					<StatCard
+						description="Buffer cache effectiveness"
+						icon={EyeIcon}
+						title="CACHE HIT RATE"
+						value={`${metrics.cache_hit_ratio.toFixed(1)}%`}
+						variant={
+							metrics.cache_hit_ratio > 95
+								? 'success'
+								: metrics.cache_hit_ratio > 85
+									? 'warning'
+									: 'danger'
+						}
+					/>
+					<StatCard
+						description={`${formatMetricNumber(metrics.total_queries)} unique queries`}
+						icon={DatabaseIcon}
+						title="TOTAL CALLS"
+						value={formatMetricNumber(metrics.total_calls)}
 					/>
 				</div>
+
+				{/* Performance Charts */}
+				<div className="grid gap-6 lg:grid-cols-2">
+					<ResourceConsumptionChart
+						onQueryClick={(query) => {
+							const queryWithName = { ...query, name: query.query };
+							handleQueryClick(queryWithName);
+						}}
+						topQueriesByTime={metrics.top_queries_by_time}
+					/>
+					<ResponseTimeChart
+						onQueryClick={(query) => {
+							const queryWithName = { ...query, name: query.query };
+							handleQueryClick(queryWithName);
+						}}
+						slowestQueries={metrics.slowest_queries}
+					/>
+				</div>
+
+				{/* Query Analysis Table */}
+				<div className="rounded border bg-card shadow-sm">
+					<div className="border-b px-6 py-4">
+						<h2 className="font-semibold text-lg">Query Analysis</h2>
+						<p className="text-muted-foreground text-sm">
+							Click on any query to view detailed performance analysis
+						</p>
+					</div>
+					<div className="p-0">
+						<DataTable
+							className="rounded-none border-0"
+							emptyMessage="No query performance data available"
+							initialPageSize={10}
+							isLoading={metricsLoading}
+							minHeight={400}
+							onRowClick={(_, value) => {
+								const allQueries = [
+									...transformQueryData(metrics?.top_queries_by_time || []),
+									...transformQueryData(metrics?.top_queries_by_calls || []),
+									...transformQueryData(metrics?.slowest_queries || []),
+								];
+								const query = allQueries.find(
+									(q) => q.query === value || q.name === value
+								);
+								if (query) {
+									handleQueryClick(query);
+								}
+							}}
+							showSearch={true}
+							tabs={queryTabs}
+							title=""
+						/>
+					</div>
+				</div>
+
+				{/* Query Detail Sheet */}
+				<QueryDetailSheet
+					isOpen={sheetOpen}
+					onClose={() => setSheetOpen(false)}
+					query={selectedQuery}
+				/>
+
+				{/* Reset Dialog */}
+				<ResetStatsDialog
+					connectionId={connectionId}
+					onOpenChange={setResetDialog}
+					onSuccess={() =>
+						handleSuccess('Performance statistics reset successfully')
+					}
+					open={resetDialog}
+				/>
 			</div>
-
-			{/* Query Detail Sheet */}
-			<QueryDetailSheet
-				isOpen={sheetOpen}
-				onClose={() => setSheetOpen(false)}
-				query={selectedQuery}
-			/>
-
-			{/* Reset Dialog */}
-			<ResetStatsDialog
-				connectionId={connectionId}
-				onOpenChange={setResetDialog}
-				onSuccess={() =>
-					handleSuccess('Performance statistics reset successfully')
-				}
-				open={resetDialog}
-			/>
 		</div>
 	);
 }

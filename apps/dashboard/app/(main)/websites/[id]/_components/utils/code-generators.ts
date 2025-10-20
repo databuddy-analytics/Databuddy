@@ -124,3 +124,49 @@ export function generateNpmComponentCode(
 	return `<Databuddy
   clientId="${websiteId}"${propsString}/>`;
 }
+
+/**
+ * Generate NPM code for Vercel integration (auto-detects clientId)
+ */
+export function generateVercelNpmCode(
+	trackingOptions: TrackingOptions
+): string {
+	const meaningfulProps = Object.entries(trackingOptions)
+		.filter(([key, value]) => {
+			const actualDefault =
+				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === 'boolean' && !value && !actualDefault) {
+				return false;
+			}
+			return true;
+		})
+		.map(([key, value]) => {
+			if (typeof value === 'boolean') {
+				return `        ${key}={${value}}`;
+			}
+			if (typeof value === 'string') {
+				return `        ${key}="${value}"`;
+			}
+			return `        ${key}={${value}}`;
+		});
+
+	const propsString =
+		meaningfulProps.length > 0 ? `\n${meaningfulProps.join('\n')}\n      ` : '';
+
+	return `import { Databuddy } from '@databuddy/sdk/react';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <head>
+        {/* No clientId needed - auto-detected from env vars */}
+        <Databuddy${propsString}/>
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}`;
+}

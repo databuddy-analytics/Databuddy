@@ -265,6 +265,7 @@ export function useFunnelComparison(
 		queries: funnelIds.map((funnelId) => ({
 			queryKey: ['funnels', 'getAnalytics', { websiteId, funnelId, dateRange }],
 			queryFn: () =>
+				// biome-ignore lint/correctness/useHookAtTopLevel: "trpc works this way"
 				trpc.funnels.getAnalytics.useQuery({
 					websiteId,
 					funnelId,
@@ -311,6 +312,7 @@ export function useFunnelPerformance(
 				{ websiteId, funnelId: funnel.id, dateRange },
 			],
 			queryFn: () =>
+				// biome-ignore lint/correctness/useHookAtTopLevel: "trpc works this way"
 				trpc.funnels.getAnalytics.useQuery({
 					websiteId,
 					funnelId: funnel.id,

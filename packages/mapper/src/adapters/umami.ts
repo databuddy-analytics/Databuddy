@@ -63,85 +63,132 @@ function getOrCreateAnonId(original: string): string {
 	return anonIdMap.get(original) || '';
 }
 
+function formatBrowserName(browser: string): string {
+	if (!browser) {
+		return '';
+	}
+
+	// Replace hyphens with spaces and capitalize each word
+	return browser
+		.replace(/-/g, ' ')
+		.split(' ')
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.join(' ');
+}
+
+function determineEventType(
+	_row: UmamiCsvRow,
+	isLastInSession = false
+): 'screen_view' | 'page_exit' {
+	if (isLastInSession) {
+		return 'page_exit';
+	}
+	return 'screen_view';
+}
+
 export const umamiAdapter = (
-	clientId: string
-): AnalyticsEventAdapter<UmamiCsvRow> => ({
-	mapRowToEvent(row: UmamiCsvRow): AnalyticsEvent {
-		return {
-			id: crypto.randomUUID(),
-			client_id: clientId,
-			event_name: 'screen_view',
-			anonymous_id: getOrCreateAnonId(row.distinct_id),
-			time: new Date(row.created_at).getTime(),
-			session_id: getOrCreateSessionId(row.session_id),
-			event_type: 'track',
-			event_id: row.event_id,
-			session_start_time: undefined,
-			timestamp: undefined,
-			referrer:
-				row.referrer_domain && row.referrer_domain.trim() !== ''
-					? row.referrer_domain
-					: 'direct',
-			url: row.url_path,
-			path: row.url_path,
-			title: row.page_title || '',
-			ip: '',
-			user_agent: '',
-			browser_name: row.browser || '',
-			browser_version: undefined,
-			os_name: row.os || '',
-			os_version: undefined,
-			device_type: row.device || '',
-			device_brand: undefined,
-			device_model: undefined,
-			country: row.country || '',
-			region: row.region || '',
-			city: row.city || '',
-			screen_resolution: row.screen || '',
-			viewport_size: undefined,
-			language: row.language || '',
-			timezone: undefined,
-			connection_type: undefined,
-			rtt: undefined,
-			downlink: undefined,
-			time_on_page: undefined,
-			scroll_depth: undefined,
-			interaction_count: undefined,
-			exit_intent: 0,
-			page_count: 1,
-			is_bounce: 0,
-			has_exit_intent: undefined,
-			page_size: undefined,
-			utm_source: row.utm_source || '',
-			utm_medium: row.utm_medium || '',
-			utm_campaign: row.utm_campaign || '',
-			utm_term: row.utm_term || '',
-			utm_content: row.utm_content || '',
-			load_time: undefined,
-			dom_ready_time: undefined,
-			dom_interactive: undefined,
-			ttfb: undefined,
-			connection_time: undefined,
-			request_time: undefined,
-			render_time: undefined,
-			redirect_time: undefined,
-			domain_lookup_time: undefined,
-			fcp: undefined,
-			lcp: undefined,
-			cls: undefined,
-			fid: undefined,
-			inp: undefined,
-			href: undefined,
-			text: undefined,
-			value: undefined,
-			error_message: undefined,
-			error_filename: undefined,
-			error_lineno: undefined,
-			error_colno: undefined,
-			error_stack: undefined,
-			error_type: undefined,
-			properties: '',
-			created_at: new Date(row.created_at).getTime(),
-		};
-	},
-});
+	clientId: string,
+	rows?: UmamiCsvRow[]
+): AnalyticsEventAdapter<UmamiCsvRow> => {
+	// Pre-analyze sessions for page exit detection if rows are provided
+	let isLastInSessionMap: Map<string, boolean> | undefined;
+
+	if (rows && rows.length > 0) {
+		isLastInSessionMap = analyzeSessionsForPageExits(rows);
+	}
+
+	function analyzeSessionsForPageExits(
+		sessionRows: UmamiCsvRow[]
+	): Map<string, boolean> {
+		const sessionGroups = new Map<string, UmamiCsvRow[]>();
+
+		for (const row of sessionRows) {
+			if (!sessionGroups.has(row.session_id)) {
+				sessionGroups.set(row.session_id, []);
+			}
+			sessionGroups.get(row.session_id)?.push(row);
+		}
+
+		const lastInSessionMap = new Map<string, boolean>();
+
+		for (const [_sessionId, sessionEvents] of sessionGroups) {
+			if (sessionEvents.length >= 2) {
+				sessionEvents.sort(
+					(a, b) =>
+						new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+				);
+
+				const lastEvent = sessionEvents.at(-1);
+				lastInSessionMap.set(lastEvent.event_id, true);
+			}
+		}
+
+		return lastInSessionMap;
+	}
+
+	return {
+		mapRowToEvent(row: UmamiCsvRow): AnalyticsEvent {
+			const isLastInSession = isLastInSessionMap?.get(row.event_id);
+
+			return {
+				id: crypto.randomUUID(),
+				client_id: clientId,
+				event_name: determineEventType(row, isLastInSession),
+				anonymous_id: getOrCreateAnonId(row.distinct_id),
+				time: new Date(row.created_at).getTime(),
+				session_id: getOrCreateSessionId(row.session_id),
+				event_type: 'track',
+				event_id: row.event_id,
+				session_start_time: undefined,
+				timestamp: undefined,
+				referrer:
+					row.referrer_domain && row.referrer_domain.trim() !== ''
+						? row.referrer_domain
+						: 'direct',
+				url: row.url_path,
+				path: row.url_path,
+				title: row.page_title || '',
+				ip: '',
+				user_agent: '',
+				browser_name: formatBrowserName(row.browser || ''),
+				browser_version: undefined,
+				os_name: row.os || '',
+				os_version: undefined,
+				device_type: row.device || '',
+				device_brand: undefined,
+				device_model: undefined,
+				country: row.country || '',
+				region: row.region || '',
+				city: row.city || '',
+				screen_resolution: row.screen || '',
+				viewport_size: undefined,
+				language: row.language || '',
+				timezone: undefined,
+				connection_type: undefined,
+				rtt: undefined,
+				downlink: undefined,
+				time_on_page: undefined,
+				scroll_depth: undefined,
+				interaction_count: undefined,
+				page_count: 1,
+				page_size: undefined,
+				utm_source: row.utm_source || '',
+				utm_medium: row.utm_medium || '',
+				utm_campaign: row.utm_campaign || '',
+				utm_term: row.utm_term || '',
+				utm_content: row.utm_content || '',
+				load_time: undefined,
+				dom_ready_time: undefined,
+				dom_interactive: undefined,
+				ttfb: undefined,
+				connection_time: undefined,
+				request_time: undefined,
+				render_time: undefined,
+				redirect_time: undefined,
+				domain_lookup_time: undefined,
+				properties: '',
+				created_at: new Date(row.created_at).getTime(),
+			};
+		},
+	};
+};

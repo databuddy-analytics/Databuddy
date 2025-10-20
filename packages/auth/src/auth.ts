@@ -32,7 +32,7 @@ export const auth = betterAuth({
 	databaseHooks: {
 		user: {
 			create: {
-				after: async (user: { id: string; name: string; email: string }) => {
+				after: (user: { id: string; name: string; email: string }) => {
 					logger.info(
 						'User Created',
 						`User ${user.id}, ${user.name}, ${user.email} created`
@@ -127,14 +127,8 @@ export const auth = betterAuth({
 		minPasswordLength: 8,
 		maxPasswordLength: 32,
 		autoSignIn: false,
-		requireEmailVerification: true,
-		sendResetPasswordEmail: async ({
-			user,
-			url,
-		}: {
-			user: any;
-			url: string;
-		}) => {
+		requireEmailVerification: process.env.NODE_ENV === 'production',
+		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
 				from: 'noreply@databuddy.cc',
@@ -145,10 +139,8 @@ export const auth = betterAuth({
 		},
 	},
 	emailVerification: {
-		sendOnSignUp: true,
-		sendVerificationOnSignUp: true,
-		disableSignUp: true,
-		sendVerificationOnSignIn: true,
+		sendOnSignUp: process.env.NODE_ENV === 'production',
+		sendOnSignIn: process.env.NODE_ENV === 'production',
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async ({
 			user,
@@ -206,7 +198,7 @@ export const auth = betterAuth({
 			},
 		}),
 		magicLink({
-			sendMagicLink: async ({ email, token, url }) => {
+			sendMagicLink: async ({ email, url }) => {
 				logger.info('Magic Link', `Sending magic link to ${email}`);
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
@@ -219,12 +211,11 @@ export const auth = betterAuth({
 		}),
 		twoFactor(),
 		customSession(async ({ user: sessionUser, session }) => {
-			const [dbUser] = await db.query.user.findMany({
-				where: eq(user.id, session.userId),
-				columns: {
-					role: true,
-				},
-			});
+			const [dbUser] = await db
+				.select({ role: user.role })
+				.from(user)
+				.where(eq(user.id, session.userId))
+				.limit(1);
 			return {
 				role: dbUser?.role,
 				user: {

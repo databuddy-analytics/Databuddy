@@ -1,8 +1,9 @@
 'use client';
 
+import { DatabaseIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
+import { EmptyState } from '@/components/empty-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExtensionCard } from './extension-card';
-import { ExtensionEmptyState } from './extension-empty-state';
 
 interface Extension {
 	name: string;
@@ -77,13 +78,56 @@ export function ExtensionTabs({
 				value="installed"
 			>
 				{installedExtensions.length === 0 ? (
-					<ExtensionEmptyState
-						canManage={canManage}
-						onClearSearch={onClearSearch}
-						onInstallExtension={onInstallExtension}
-						searchTerm={searchTerm}
-						type={hasSearchTerm ? 'search' : 'installed'}
-					/>
+					hasSearchTerm ? (
+						<EmptyState
+							action={
+								onClearSearch
+									? {
+											label: 'Clear Search',
+											onClick: onClearSearch,
+											variant: 'outline',
+										}
+									: undefined
+							}
+							description={
+								searchTerm
+									? `No extensions match "${searchTerm}". Try adjusting your search terms.`
+									: 'No extensions match your search criteria.'
+							}
+							icon={
+								<MagnifyingGlassIcon
+									className="h-12 w-12 text-muted-foreground"
+									size={16}
+									weight="duotone"
+								/>
+							}
+							showPlusBadge={false}
+							title="No Extensions Found"
+							variant="simple"
+						/>
+					) : (
+						<EmptyState
+							action={
+								canManage && onInstallExtension
+									? {
+											label: 'Install Extension',
+											onClick: onInstallExtension,
+										}
+									: undefined
+							}
+							description="Get started by installing your first PostgreSQL extension to enhance your database capabilities."
+							icon={
+								<DatabaseIcon
+									className="h-12 w-12 text-muted-foreground"
+									size={16}
+									weight="duotone"
+								/>
+							}
+							showPlusBadge={false}
+							title="No Extensions Installed"
+							variant="simple"
+						/>
+					)
 				) : (
 					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
 						{installedExtensions.map((ext) => (
@@ -109,12 +153,49 @@ export function ExtensionTabs({
 				value="available"
 			>
 				{availableExtensions.length === 0 ? (
-					<ExtensionEmptyState
-						canManage={canManage}
-						onClearSearch={onClearSearch}
-						searchTerm={searchTerm}
-						type={hasSearchTerm ? 'search' : 'available'}
-					/>
+					hasSearchTerm ? (
+						<EmptyState
+							action={
+								onClearSearch
+									? {
+											label: 'Clear Search',
+											onClick: onClearSearch,
+											variant: 'outline',
+										}
+									: undefined
+							}
+							description={
+								searchTerm
+									? `No extensions match "${searchTerm}". Try adjusting your search terms.`
+									: 'No extensions match your search criteria.'
+							}
+							icon={
+								<MagnifyingGlassIcon
+									className="h-12 w-12 text-muted-foreground"
+									size={16}
+									weight="duotone"
+								/>
+							}
+							showPlusBadge={false}
+							title="No Extensions Found"
+							variant="simple"
+						/>
+					) : (
+						<EmptyState
+							action={undefined}
+							description="All available extensions have been installed or there are no extensions available for installation."
+							icon={
+								<DatabaseIcon
+									className="h-12 w-12 text-muted-foreground"
+									size={16}
+									weight="duotone"
+								/>
+							}
+							showPlusBadge={false}
+							title="No Available Extensions"
+							variant="simple"
+						/>
+					)
 				) : (
 					<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
 						{availableExtensions.map((ext) => (

@@ -15,6 +15,17 @@ async function fetchFromMarble<T>(
 	options?: { returnStatusOnError?: boolean }
 ): Promise<T | FetchError> {
 	try {
+		if (!process.env.MARBLE_API_URL || !process.env.MARBLE_WORKSPACE_KEY) {
+			if (options?.returnStatusOnError) {
+				return {
+					error: true,
+					status: 500,
+					statusText: 'Environment variables not configured',
+				};
+			}
+			throw new Error('MARBLE_API_URL and MARBLE_WORKSPACE_KEY environment variables are required');
+		}
+
 		const response = await fetch(
 			`${process.env.MARBLE_API_URL}/${process.env.MARBLE_WORKSPACE_KEY}/${endpoint}`
 		);
@@ -45,11 +56,11 @@ async function fetchFromMarble<T>(
 }
 
 export const getPosts = cache(() => {
-	return fetchFromMarble<MarblePostList>('posts');
+	return fetchFromMarble<MarblePostList>('posts', { returnStatusOnError: true });
 });
 
 export const getTags = cache(() => {
-	return fetchFromMarble<MarbleTagList>('tags');
+	return fetchFromMarble<MarbleTagList>('tags', { returnStatusOnError: true });
 });
 
 export const getSinglePost = cache((slug: string) => {

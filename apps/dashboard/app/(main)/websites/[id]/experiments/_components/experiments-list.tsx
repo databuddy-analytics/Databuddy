@@ -1,9 +1,9 @@
 'use client';
 
-import { FlaskIcon, PlusIcon } from '@phosphor-icons/react';
+import { FlaskIcon } from '@phosphor-icons/react';
 import { memo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/empty-state';
+import { Card } from '@/components/ui/card';
 import type { Experiment } from '@/hooks/use-experiments';
 import { ExperimentCard } from './experiment-card';
 
@@ -19,36 +19,6 @@ interface ExperimentsListProps {
 	) => void;
 	websiteId: string;
 }
-
-const EmptyState = memo(function EmptyExperimentsState({
-	onCreateExperiment,
-}: {
-	onCreateExperiment: () => void;
-}) {
-	return (
-		<Card className="rounded border-border/50">
-			<CardContent className="flex flex-col items-center justify-center py-16 text-center">
-				<div className="mb-4 rounded border border-primary/20 bg-primary/10 p-4">
-					<FlaskIcon
-						className="h-8 w-8 text-primary"
-						size={32}
-						weight="duotone"
-					/>
-				</div>
-				<h3 className="mb-2 font-semibold text-foreground text-lg">
-					No experiments yet
-				</h3>
-				<p className="mb-6 max-w-md text-muted-foreground text-sm">
-					Create your first A/B experiment to start testing different variants.
-				</p>
-				<Button onClick={onCreateExperiment}>
-					<PlusIcon className="mr-2 h-4 w-4" size={16} />
-					Create Experiment
-				</Button>
-			</CardContent>
-		</Card>
-	);
-});
 
 const LoadingSkeleton = memo(function ExperimentsLoadingSkeleton() {
 	return (
@@ -94,7 +64,23 @@ export const ExperimentsList = memo(function ExperimentsListComponent({
 	}
 
 	if (!experiments.length) {
-		return <EmptyState onCreateExperiment={onCreateExperiment} />;
+		return (
+			<EmptyState
+				action={{
+					label: 'Create Experiment',
+					onClick: onCreateExperiment,
+				}}
+				description="Create your first A/B experiment to start testing different variants."
+				icon={
+					<FlaskIcon
+						className="h-8 w-8 text-primary"
+						size={32}
+						weight="duotone"
+					/>
+				}
+				title="No experiments yet"
+			/>
+		);
 	}
 
 	return (

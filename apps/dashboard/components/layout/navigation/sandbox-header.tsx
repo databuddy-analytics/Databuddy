@@ -31,7 +31,7 @@ export function SandboxHeader() {
 			>
 				<Link className="flex items-center gap-2" href="/">
 					<CaretLeftIcon
-						className="hover:-translate-x-0.5 h-5 w-5 flex-shrink-0 transition-transform text-sidebar-accent-foreground/80"
+						className="hover:-translate-x-0.5 h-5 w-5 flex-shrink-0 text-sidebar-accent-foreground/80 transition-transform"
 						weight="fill"
 					/>
 					<span className="text-sidebar-accent-foreground/70 text-xs">

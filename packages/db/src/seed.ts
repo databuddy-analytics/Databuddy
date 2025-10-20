@@ -427,7 +427,6 @@ const SESSION_POOL = Array.from({ length: TOTAL_SESSIONS }, () => {
 	};
 });
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Seed script needs comprehensive data generation
 function createSingleEvent(
 	client: string,
 	websiteDomain: string,

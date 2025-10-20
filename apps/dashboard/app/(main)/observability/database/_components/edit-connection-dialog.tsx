@@ -13,19 +13,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-	userId: string;
-	organizationId?: string;
-	createdAt: string;
-	updatedAt: string;
-}
+import type { DbConnection } from '@/hooks/use-db-connections';
 
 interface EditConnectionDialogProps {
-	connection: DatabaseConnection | null;
+	connection: DbConnection;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (data: { id: string; name: string }) => void;

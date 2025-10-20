@@ -16,7 +16,7 @@ export function useDbConnections() {
 	const { data: activeOrganization, isPending: isLoadingOrganization } =
 		authClient.useActiveOrganization();
 
-	const { data, isLoading, isError, refetch, isFetching } =
+	const { data, isLoading, isError, error, refetch, isFetching } =
 		trpc.dbConnections.list.useQuery(
 			{ organizationId: activeOrganization?.id },
 			{ enabled: !isLoadingOrganization }
@@ -27,6 +27,7 @@ export function useDbConnections() {
 		isLoading: isLoading || isLoadingOrganization,
 		isFetching,
 		isError,
+		error,
 		refetch,
 	};
 }
@@ -35,7 +36,13 @@ export function useDbConnection(id: string) {
 	return trpc.dbConnections.getById.useQuery({ id }, { enabled: !!id });
 }
 
-export function useCreateDbConnection() {
+export function useCreateDbConnection({
+	onSuccess,
+	onError,
+}: {
+	onSuccess?: () => void;
+	onError?: (errorMessage: string) => void;
+}) {
 	const utils = trpc.useUtils();
 	return trpc.dbConnections.create.useMutation({
 		onSuccess: (newConnection, variables) => {
@@ -50,14 +57,22 @@ export function useCreateDbConnection() {
 				const exists = old.some((c) => c.id === newConnection.id);
 				return exists ? old : [...old, newConnection];
 			});
+			onSuccess?.();
 		},
 		onError: (error) => {
 			console.error('Failed to create database connection:', error);
+			onError?.(error.message);
 		},
 	});
 }
 
-export function useUpdateDbConnection() {
+export function useUpdateDbConnection({
+	onSuccess,
+	onError,
+}: {
+	onSuccess?: () => void;
+	onError?: (errorMessage: string) => void;
+} = {}) {
 	const utils = trpc.useUtils();
 	return trpc.dbConnections.update.useMutation({
 		onSuccess: (updatedConnection) => {
@@ -78,14 +93,22 @@ export function useUpdateDbConnection() {
 			});
 
 			utils.dbConnections.getById.setData(getByIdKey, updatedConnection);
+			onSuccess?.();
 		},
 		onError: (error) => {
 			console.error('Failed to update database connection:', error);
+			onError?.(error.message);
 		},
 	});
 }
 
-export function useDeleteDbConnection() {
+export function useDeleteDbConnection({
+	onSuccess,
+	onError,
+}: {
+	onSuccess?: () => void;
+	onError?: (errorMessage: string) => void;
+}) {
 	const utils = trpc.useUtils();
 	return trpc.dbConnections.delete.useMutation({
 		onMutate: async ({ id }) => {
@@ -109,13 +132,15 @@ export function useDeleteDbConnection() {
 
 			return { previousData, listKey };
 		},
-		onError: (_, __, context) => {
+		onError: (error, __, context) => {
 			if (context?.previousData && context.listKey) {
 				utils.dbConnections.list.setData(context.listKey, context.previousData);
 			}
+			onError?.(error.message);
 		},
 		onSuccess: (_, { id }) => {
 			utils.dbConnections.getById.setData({ id }, undefined);
+			onSuccess?.();
 		},
 	});
 }

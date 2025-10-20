@@ -1,9 +1,10 @@
 'use client';
 
+import { FunnelIcon } from '@phosphor-icons/react';
+import { EmptyState } from '@/components/empty-state';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Funnel } from '@/hooks/use-funnels';
-import { EmptyState } from './empty-state';
 import { FunnelCard } from './funnel-card';
 
 interface FunnelsListProps {
@@ -64,7 +65,24 @@ export function FunnelsList({
 	}
 
 	if (funnels.length === 0) {
-		return <EmptyState onCreateFunnel={onCreateFunnel} />;
+		return (
+			<EmptyState
+				action={{
+					label: 'Create Your First Funnel',
+					onClick: onCreateFunnel,
+				}}
+				description="Create your first funnel to start tracking user conversion journeys and identify optimization opportunities in your user flow."
+				icon={
+					<FunnelIcon
+						className="h-16 w-16 text-primary"
+						size={16}
+						weight="duotone"
+					/>
+				}
+				title="No funnels yet"
+				variant="default"
+			/>
+		);
 	}
 
 	return (

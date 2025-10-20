@@ -71,6 +71,13 @@ export default function Iridescence({
 		const ctn = ctnDom.current;
 		const renderer = new Renderer();
 		const gl = renderer.gl;
+
+		// Check if WebGL context was created successfully
+		if (!gl) {
+			console.error('WebGL context not available');
+			return;
+		}
+
 		gl.clearColor(1, 1, 1, 1);
 
 		let program: Program | null = null;
@@ -122,7 +129,9 @@ export default function Iridescence({
 			}
 		}
 		animateId = requestAnimationFrame(update);
-		ctn.appendChild(gl.canvas);
+		if (gl.canvas) {
+			ctn.appendChild(gl.canvas);
+		}
 
 		function handleMouseMove(e: MouseEvent) {
 			const rect = ctn.getBoundingClientRect();
@@ -144,7 +153,9 @@ export default function Iridescence({
 			if (mouseReact) {
 				ctn.removeEventListener('mousemove', handleMouseMove);
 			}
-			ctn.removeChild(gl.canvas);
+			if (gl.canvas && ctn.contains(gl.canvas)) {
+				ctn.removeChild(gl.canvas);
+			}
 			gl.getExtension('WEBGL_lose_context')?.loseContext();
 		};
 	}, [color, speed, amplitude, mouseReact]);

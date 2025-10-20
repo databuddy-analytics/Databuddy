@@ -45,6 +45,9 @@ const BROWSER_ICONS = [
 	'HeyTap',
 	'360',
 	'Brave',
+	'Twitter',
+	'GSA',
+	'LinkedIn',
 ] as const;
 
 const OS_ICONS = [
@@ -118,7 +121,7 @@ function getOSMappedName(normalizedName: string): string {
 }
 
 function getIconSrc(iconName: string, folder: string): string {
-	if (iconName === 'Brave' && folder === 'browsers') {
+	if ((iconName === 'Brave' || iconName === 'QQ') && folder === 'browsers') {
 		return `/${folder}/${iconName}.webp`;
 	}
 	return `/${folder}/${iconName}.svg`;
@@ -174,8 +177,16 @@ export function PublicIcon({
 
 	return (
 		<div
-			className={cn('relative flex-shrink-0', className)}
-			style={{ width: iconSize, height: iconSize }}
+			className={cn(
+				'relative flex-shrink-0 overflow-hidden rounded',
+				className
+			)}
+			style={{
+				width: iconSize,
+				height: iconSize,
+				minWidth: iconSize,
+				minHeight: iconSize,
+			}}
 		>
 			<Image
 				alt={name}
@@ -255,16 +266,24 @@ export function CountryFlag({
 	}
 
 	return (
-		<Image
-			alt={`${country} flag`}
-			className={cn('h-4 w-6 rounded-sm object-cover', className)}
-			height={iconSize}
-			onError={(e) => {
-				const img = e.target as HTMLImageElement;
-				img.style.display = 'none';
-			}}
-			src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${country.toUpperCase()}.svg`}
-			width={24}
-		/>
+		<div
+			className={cn(
+				'relative flex-shrink-0 overflow-hidden rounded-sm',
+				className
+			)}
+			style={{ width: 24, height: iconSize, minWidth: 24, minHeight: iconSize }}
+		>
+			<Image
+				alt={`${country} flag`}
+				className={cn('object-cover')}
+				height={iconSize}
+				onError={(e) => {
+					const img = e.target as HTMLImageElement;
+					img.style.display = 'none';
+				}}
+				src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${country.toUpperCase()}.svg`}
+				width={24}
+			/>
+		</div>
 	);
 }

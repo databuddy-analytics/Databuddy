@@ -256,3 +256,159 @@ export async function getCurrentUserInfo(connectionUrl: string): Promise<{
 		await client.end();
 	}
 }
+
+// Online Advisor Extension Functions
+
+export async function checkOnlineAdvisorEnabled(
+	connectionUrl: string
+): Promise<boolean> {
+	const client = await createClient(connectionUrl);
+	try {
+		// Check extension exists
+		const extensionResult = await client.query(
+			`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'online_advisor') as extension_exists`
+		);
+
+		if (!extensionResult.rows[0].extension_exists) {
+			return false;
+		}
+
+		// Test access to views
+		await client.query('SELECT COUNT(*) FROM proposed_indexes LIMIT 1');
+		return true;
+	} catch {
+		return false;
+	} finally {
+		await client.end();
+	}
+}
+
+export async function getOnlineAdvisorIndexes(
+	connectionUrl: string
+): Promise<any[]> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		const query = `
+			SELECT 
+				create_index,
+				n_filtered,
+				n_called,
+				elapsed_sec,
+				-- Extract table name from CREATE INDEX statement
+				CASE 
+					WHEN create_index ~ ' ON ([^\\(\\s]+)' 
+					THEN regexp_replace(create_index, '.* ON ([^\\(\\s]+).*', '\\1')
+					ELSE 'unknown'
+				END as table_name,
+				-- Extract columns from CREATE INDEX statement  
+				CASE 
+					WHEN create_index ~ '\\(([^\\)]+)\\)'
+					THEN regexp_replace(create_index, '.*\\(([^\\)]+)\\).*', '\\1')
+					ELSE 'unknown'
+				END as column_names
+			FROM proposed_indexes 
+			ORDER BY elapsed_sec DESC
+		`;
+
+		const result = await client.query(query);
+		return result.rows;
+	} finally {
+		await client.end();
+	}
+}
+
+export async function getOnlineAdvisorStatistics(
+	connectionUrl: string
+): Promise<any[]> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		const query = `
+			SELECT 
+				create_statistics,
+				misestimation,
+				n_called,
+				elapsed_sec
+			FROM proposed_statistics 
+			ORDER BY misestimation DESC
+		`;
+
+		const result = await client.query(query);
+		return result.rows;
+	} finally {
+		await client.end();
+	}
+}
+
+export async function getExecutorStats(
+	connectionUrl: string,
+	reset = false
+): Promise<any> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		const result = await client.query('SELECT * FROM get_executor_stats($1)', [
+			reset,
+		]);
+		return result.rows[0];
+	} finally {
+		await client.end();
+	}
+}
+
+export async function applyIndexRecommendation(
+	connectionUrl: string,
+	createIndexSQL: string
+): Promise<{ success: boolean; message?: string }> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		// Execute the CREATE INDEX statement
+		await client.query(createIndexSQL);
+		return { success: true };
+	} catch (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
+		return { success: false, message: errorMessage };
+	} finally {
+		await client.end();
+	}
+}
+
+export async function applyStatisticsRecommendation(
+	connectionUrl: string,
+	createStatsSQL: string
+): Promise<{ success: boolean; message?: string }> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		// Execute the CREATE STATISTICS statement
+		await client.query(createStatsSQL);
+		return { success: true };
+	} catch (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
+		return { success: false, message: errorMessage };
+	} finally {
+		await client.end();
+	}
+}
+
+export async function activateOnlineAdvisor(
+	connectionUrl: string
+): Promise<{ success: boolean; message?: string }> {
+	const client = await createClient(connectionUrl);
+
+	try {
+		// Activate online_advisor by calling get_executor_stats()
+		await client.query('SELECT get_executor_stats()');
+		return { success: true };
+	} catch (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error';
+		return { success: false, message: errorMessage };
+	} finally {
+		await client.end();
+	}
+}

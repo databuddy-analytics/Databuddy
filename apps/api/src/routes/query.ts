@@ -1,8 +1,9 @@
+import { auth } from '@databuddy/auth';
+import { and, apikeyAccess, db, eq, isNull, websites } from '@databuddy/db';
 import { filterOptions } from '@databuddy/shared';
 import { Elysia, t } from 'elysia';
+import { getApiKeyFromHeader, isApiKeyPresent } from '../lib/api-key';
 import { getCachedWebsiteDomain, getWebsiteDomain } from '../lib/website-utils';
-// import { createRateLimitMiddleware } from '../middleware/rate-limit';
-import { websiteAuth } from '../middleware/website-auth';
 import { compileQuery, executeQuery } from '../query';
 import { QueryBuilders } from '../query/builders';
 import type { QueryRequest } from '../query/types';
@@ -12,6 +13,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from '../schemas';
+// import { databuddy } from '../lib/databuddy';
 
 interface QueryParams {
 	start_date?: string;
@@ -22,36 +24,179 @@ interface QueryParams {
 	timezone?: string;
 }
 
+async function checkAuth(request: Request): Promise<Response | null> {
+	const apiKeyPresent = isApiKeyPresent(request.headers);
+	const apiKey = apiKeyPresent
+		? await getApiKeyFromHeader(request.headers)
+		: null;
+	const session = await auth.api.getSession({ headers: request.headers });
+	const sessionUser = session?.user ?? null;
+
+	if (sessionUser || apiKey) {
+		return null; // Auth passed
+	}
+
+	return new Response(
+		JSON.stringify({
+			success: false,
+			error: 'Authentication required',
+			code: 'AUTH_REQUIRED',
+		}),
+		{
+			status: 401,
+			headers: { 'Content-Type': 'application/json' },
+		}
+	);
+}
+
+async function getAccessibleWebsites(request: Request) {
+	const apiKeyPresent = isApiKeyPresent(request.headers);
+	const apiKey = apiKeyPresent
+		? await getApiKeyFromHeader(request.headers)
+		: null;
+	const session = await auth.api.getSession({ headers: request.headers });
+	const sessionUser = session?.user ?? null;
+
+	const baseSelect = {
+		id: websites.id,
+		name: websites.name,
+		domain: websites.domain,
+		isPublic: websites.isPublic,
+		createdAt: websites.createdAt,
+	};
+
+	if (sessionUser) {
+		return db
+			.select(baseSelect)
+			.from(websites)
+			.where(
+				and(
+					eq(websites.userId, sessionUser.id),
+					isNull(websites.organizationId)
+				)
+			)
+			.orderBy((table) => table.createdAt);
+	}
+
+	if (apiKey) {
+		// Check for global access first
+		const hasGlobalAccess = await db
+			.select({ count: apikeyAccess.apikeyId })
+			.from(apikeyAccess)
+			.where(
+				and(
+					eq(apikeyAccess.apikeyId, apiKey.id),
+					eq(apikeyAccess.resourceType, 'global')
+				)
+			)
+			.limit(1);
+
+		if (hasGlobalAccess.length > 0) {
+			// Global access - return all websites for the API key's scope
+			const filter = apiKey.organizationId
+				? eq(websites.organizationId, apiKey.organizationId)
+				: apiKey.userId
+					? and(
+							eq(websites.userId, apiKey.userId),
+							isNull(websites.organizationId)
+						)
+					: eq(websites.id, ''); // No matches if no user/org
+
+			return db
+				.select(baseSelect)
+				.from(websites)
+				.where(filter)
+				.orderBy((table) => table.createdAt);
+		}
+
+		// Specific website access - join with access table
+		return db
+			.select(baseSelect)
+			.from(websites)
+			.innerJoin(
+				apikeyAccess,
+				and(
+					eq(apikeyAccess.resourceId, websites.id),
+					eq(apikeyAccess.resourceType, 'website'),
+					eq(apikeyAccess.apikeyId, apiKey.id)
+				)
+			)
+			.orderBy((table) => table.createdAt);
+	}
+
+	return [];
+}
+
 export const query = new Elysia({ prefix: '/v1/query' })
-	// .use(createRateLimitMiddleware({ type: 'api' }))
-	.use(websiteAuth())
-	.get('/types', ({ query: params }: { query: { include_meta?: string } }) => {
-		const includeMeta = params.include_meta === 'true';
+	.get('/websites', async ({ request }: { request: Request }) => {
+		const authResult = await checkAuth(request);
+		if (authResult) {
+			return authResult;
+		}
 
-		const configs = Object.fromEntries(
-			Object.entries(QueryBuilders).map(([key, config]) => {
-				const baseConfig = {
-					allowedFilters:
-						config.allowedFilters ??
-						filterOptions.map((filter) => filter.value),
-					customizable: config.customizable,
-					defaultLimit: config.limit,
-				};
-
-				if (includeMeta) {
-					return [key, { ...baseConfig, meta: config.meta }];
+		try {
+			const websites = await getAccessibleWebsites(request);
+			return {
+				success: true,
+				websites,
+				total: websites.length,
+			};
+		} catch (error) {
+			return new Response(
+				JSON.stringify({
+					success: false,
+					error:
+						error instanceof Error ? error.message : 'Failed to fetch websites',
+					code: 'INTERNAL_SERVER_ERROR',
+				}),
+				{
+					status: 500,
+					headers: { 'Content-Type': 'application/json' },
 				}
-
-				return [key, baseConfig];
-			})
-		);
-
-		return {
-			success: true,
-			types: Object.keys(QueryBuilders),
-			configs,
-		};
+			);
+		}
 	})
+	.get(
+		'/types',
+		async ({
+			query: params,
+			request,
+		}: {
+			query: { include_meta?: string };
+			request: Request;
+		}) => {
+			const authResult = await checkAuth(request);
+			if (authResult) {
+				return authResult;
+			}
+
+			const includeMeta = params.include_meta === 'true';
+
+			const configs = Object.fromEntries(
+				Object.entries(QueryBuilders).map(([key, config]) => {
+					const baseConfig = {
+						allowedFilters:
+							config.allowedFilters ??
+							filterOptions.map((filter) => filter.value),
+						customizable: config.customizable,
+						defaultLimit: config.limit,
+					};
+
+					if (includeMeta) {
+						return [key, { ...baseConfig, meta: config.meta }];
+					}
+
+					return [key, baseConfig];
+				})
+			);
+
+			return {
+				success: true,
+				types: Object.keys(QueryBuilders),
+				configs,
+			};
+		}
+	)
 
 	.post(
 		'/compile',
@@ -173,10 +318,35 @@ async function executeDynamicQuery(
 		? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
 		: null;
 
-	const getTimeUnit = (granularity?: string): 'hour' | 'day' => {
-		if (['hourly', 'hour'].includes(granularity || '')) {
+	const MAX_HOURLY_DAYS = 7;
+	const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+	const validateHourlyDateRange = (start: string, end: string) => {
+		const rangeDays = Math.ceil(
+			(new Date(end).getTime() - new Date(start).getTime()) / MS_PER_DAY
+		);
+		
+		if (rangeDays > MAX_HOURLY_DAYS) {
+			throw new Error(
+				`Hourly granularity only supports ranges up to ${MAX_HOURLY_DAYS} days. Use daily granularity for longer periods.`
+			);
+		}
+	};
+
+	const getTimeUnit = (
+		granularity?: string,
+		startDate?: string,
+		endDate?: string
+	): 'hour' | 'day' => {
+		const isHourly = ['hourly', 'hour'].includes(granularity || '');
+		
+		if (isHourly) {
+			if (startDate && endDate) {
+				validateHourlyDateRange(startDate, endDate);
+			}
 			return 'hour';
 		}
+		
 		return 'day';
 	};
 
@@ -261,7 +431,11 @@ async function executeDynamicQuery(
 				type: parameterName,
 				from: validation.start,
 				to: validation.end,
-				timeUnit: getTimeUnit(paramGranularity),
+				timeUnit: getTimeUnit(
+					paramGranularity,
+					validation.start,
+					validation.end
+				),
 				filters: dynamicRequest.filters || [],
 				limit: dynamicRequest.limit || 100,
 				offset: dynamicRequest.page

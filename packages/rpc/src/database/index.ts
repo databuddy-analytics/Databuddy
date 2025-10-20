@@ -14,8 +14,15 @@ export {
 } from './monitoring';
 
 export {
+	activateOnlineAdvisor,
+	applyIndexRecommendation,
+	applyStatisticsRecommendation,
+	checkOnlineAdvisorEnabled,
 	checkPgStatStatementsEnabled,
 	getCurrentUserInfo,
+	getExecutorStats,
+	getOnlineAdvisorIndexes,
+	getOnlineAdvisorStatistics,
 	getPerformanceMetrics,
 	getPerformanceStatements,
 	resetPerformanceStats,

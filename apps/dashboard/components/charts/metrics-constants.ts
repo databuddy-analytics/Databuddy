@@ -67,12 +67,6 @@ export const METRIC_COLORS = {
 		'#e0f2fe',
 		'from-sky-500/20 to-sky-600/5'
 	),
-	p95_fcp: createColorSet(
-		'#3b82f6',
-		'#2563eb',
-		'#dbeafe',
-		'from-blue-500/20 to-blue-600/5'
-	),
 	avg_lcp: createColorSet(
 		'#10b981',
 		'#059669',
@@ -84,18 +78,6 @@ export const METRIC_COLORS = {
 		'#16a34a',
 		'#dcfce7',
 		'from-green-500/20 to-green-600/5'
-	),
-	p95_lcp: createColorSet(
-		'#65a30d',
-		'#4d7c0f',
-		'#ecfccb',
-		'from-lime-500/20 to-lime-600/5'
-	),
-	p99_lcp: createColorSet(
-		'#84cc16',
-		'#65a30d',
-		'#f7fee7',
-		'from-lime-400/20 to-lime-500/5'
 	),
 	avg_cls: createColorSet(
 		'#f59e0b',
@@ -109,19 +91,13 @@ export const METRIC_COLORS = {
 		'#fefce8',
 		'from-yellow-500/20 to-yellow-600/5'
 	),
-	p95_cls: createColorSet(
-		'#f97316',
-		'#ea580c',
-		'#fed7aa',
-		'from-orange-500/20 to-orange-600/5'
-	),
 	avg_fid: createColorSet(
 		'#8b5cf6',
 		'#7c3aed',
 		'#ede9fe',
 		'from-violet-500/20 to-violet-600/5'
 	),
-	p95_fid: createColorSet(
+	p50_fid: createColorSet(
 		'#a855f7',
 		'#9333ea',
 		'#f3e8ff',
@@ -133,7 +109,7 @@ export const METRIC_COLORS = {
 		'#fce7f3',
 		'from-pink-500/20 to-pink-600/5'
 	),
-	p95_inp: createColorSet(
+	p50_inp: createColorSet(
 		'#f43f5e',
 		'#e11d48',
 		'#ffe4e6',
@@ -152,18 +128,6 @@ export const METRIC_COLORS = {
 		'#cffafe',
 		'from-cyan-500/20 to-cyan-600/5'
 	),
-	p95_load_time: createColorSet(
-		'#f59e0b',
-		'#d97706',
-		'#fef3c7',
-		'from-amber-500/20 to-amber-600/5'
-	),
-	p99_load_time: createColorSet(
-		'#ef4444',
-		'#dc2626',
-		'#fee2e2',
-		'from-red-500/20 to-red-600/5'
-	),
 } as const;
 
 export interface ChartDataRow {
@@ -178,39 +142,19 @@ export interface ChartDataRow {
 	// Load time metrics
 	avg_load_time?: number;
 	p50_load_time?: number;
-	p75_load_time?: number;
-	p90_load_time?: number;
-	p95_load_time?: number;
-	p99_load_time?: number;
 	// TTFB metrics
 	avg_ttfb?: number;
-	p95_ttfb?: number;
-	p99_ttfb?: number;
 	// Core Web Vitals
 	avg_fcp?: number;
 	p50_fcp?: number;
-	p75_fcp?: number;
-	p90_fcp?: number;
-	p95_fcp?: number;
-	p99_fcp?: number;
 	avg_lcp?: number;
 	p50_lcp?: number;
-	p75_lcp?: number;
-	p90_lcp?: number;
-	p95_lcp?: number;
-	p99_lcp?: number;
 	avg_cls?: number;
 	p50_cls?: number;
-	p75_cls?: number;
-	p90_cls?: number;
-	p95_cls?: number;
-	p99_cls?: number;
 	avg_fid?: number;
-	p95_fid?: number;
-	p99_fid?: number;
+	p50_fid?: number;
 	avg_inp?: number;
-	p95_inp?: number;
-	p99_inp?: number;
+	p50_inp?: number;
 	measurements?: number;
 	[key: string]: unknown;
 }
@@ -312,22 +256,6 @@ export const PERFORMANCE_METRICS: MetricConfig[] = [
 		formatPerformanceTime,
 		'performance'
 	),
-	createMetric(
-		'p95_load_time',
-		'P95 Load Time',
-		'p95_load_time',
-		Clock,
-		formatPerformanceTime,
-		'performance'
-	),
-	createMetric(
-		'p99_load_time',
-		'P99 Load Time',
-		'p99_load_time',
-		Clock,
-		formatPerformanceTime,
-		'performance'
-	),
 ];
 
 export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
@@ -344,14 +272,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		'p50_fcp',
 		'FCP (P50)',
 		'p50_fcp',
-		Zap,
-		formatPerformanceTime,
-		'core_web_vitals'
-	),
-	createMetric(
-		'p95_fcp',
-		'FCP (P95)',
-		'p95_fcp',
 		Zap,
 		formatPerformanceTime,
 		'core_web_vitals'
@@ -373,22 +293,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatPerformanceTime,
 		'core_web_vitals'
 	),
-	createMetric(
-		'p95_lcp',
-		'LCP (P95)',
-		'p95_lcp',
-		Activity,
-		formatPerformanceTime,
-		'core_web_vitals'
-	),
-	createMetric(
-		'p99_lcp',
-		'LCP (P99)',
-		'p99_lcp',
-		Activity,
-		formatPerformanceTime,
-		'core_web_vitals'
-	),
 	// CLS metrics
 	createMetric(
 		'avg_cls',
@@ -406,14 +310,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatCLS,
 		'core_web_vitals'
 	),
-	createMetric(
-		'p95_cls',
-		'CLS (P95)',
-		'p95_cls',
-		Gauge,
-		formatCLS,
-		'core_web_vitals'
-	),
 	// FID metrics
 	createMetric(
 		'avg_fid',
@@ -424,9 +320,9 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		'core_web_vitals'
 	),
 	createMetric(
-		'p95_fid',
-		'FID (P95)',
-		'p95_fid',
+		'p50_fid',
+		'FID (P50)',
+		'p50_fid',
 		MousePointer,
 		formatPerformanceTime,
 		'core_web_vitals'
@@ -441,9 +337,9 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		'core_web_vitals'
 	),
 	createMetric(
-		'p95_inp',
-		'INP (P95)',
-		'p95_inp',
+		'p50_inp',
+		'INP (P50)',
+		'p50_inp',
 		Activity,
 		formatPerformanceTime,
 		'core_web_vitals'

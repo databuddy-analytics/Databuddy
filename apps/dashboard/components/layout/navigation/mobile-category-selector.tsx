@@ -19,6 +19,7 @@ import {
 	createLoadingDatabasesNavigation,
 	createLoadingWebsitesNavigation,
 	createWebsitesNavigation,
+	filterCategoriesForRoute,
 	getContextConfig,
 	getDefaultCategory,
 } from './navigation-config';
@@ -56,7 +57,9 @@ export function MobileCategorySelector({
 				: baseConfig;
 
 		const defaultCat = getDefaultCategory(pathname);
-		return { categories: config.categories, defaultCategory: defaultCat };
+		const filteredCategories = filterCategoriesForRoute(config.categories, pathname);
+
+		return { categories: filteredCategories, defaultCategory: defaultCat };
 	}, [pathname, websites, isLoadingWebsites, databases, isLoadingDatabases]);
 
 	const activeCategory = selectedCategory || defaultCategory;

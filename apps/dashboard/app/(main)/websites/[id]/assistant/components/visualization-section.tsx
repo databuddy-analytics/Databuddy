@@ -41,7 +41,7 @@ import {
 	XAxis,
 	YAxis,
 } from 'recharts';
-import { DataTable } from '@/components/analytics/data-table';
+import { DataTable } from '@/components/table/data-table';
 import { Badge } from '@/components/ui/badge';
 import {
 	ChartContainer,
@@ -1377,7 +1377,7 @@ const transformDataForMetricsChart = (
 						(a, b) =>
 							new Date(a[_timeCol]).getTime() - new Date(b[_timeCol]).getTime()
 					);
-				} catch (e) {
+				} catch (_e) {
 					/* ignore sort error for non-standard time keys */
 				}
 			}

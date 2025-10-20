@@ -7,14 +7,12 @@ import type { Experiment } from '@/hooks/use-experiments';
 
 interface ExperimentResultsHeaderProps {
 	experiment: Experiment;
-	onDeclareWinner: () => void;
 	onPauseExperiment: () => void;
 	onExportResults: () => void;
 }
 
 export function ExperimentResultsHeader({
 	experiment,
-	onDeclareWinner,
 	onPauseExperiment,
 	onExportResults,
 }: ExperimentResultsHeaderProps) {

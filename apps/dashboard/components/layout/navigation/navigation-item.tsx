@@ -28,6 +28,7 @@ export function NavigationItem({
 	domain,
 	disabled,
 	sectionName,
+	badge,
 }: NavigationItemProps) {
 	const pathname = usePathname();
 
@@ -39,7 +40,6 @@ export function NavigationItem({
 			return href === '' ? '/sandbox' : `/sandbox${href}`;
 		}
 
-		// Check if we're on a database page
 		if (
 			pathname.startsWith('/observability/database/') &&
 			pathname !== '/observability/database' &&
@@ -48,6 +48,10 @@ export function NavigationItem({
 			return href === ''
 				? `/observability/database/${currentWebsiteId}`
 				: `/observability/database/${currentWebsiteId}${href}`;
+		}
+
+		if (pathname.startsWith('/demo/')) {
+			return href === '' ? `/demo/${currentWebsiteId}` : `/demo/${currentWebsiteId}${href}`;
 		}
 
 		return `/websites/${currentWebsiteId}${href}`;
@@ -128,6 +132,20 @@ export function NavigationItem({
 				{alpha && (
 					<span className="font-mono text-sidebar-foreground/50 text-xs">
 						ALPHA
+					</span>
+				)}
+				{badge && (
+					<span
+						className={cn(
+							'rounded px-1.5 py-0.5 font-medium text-xs',
+							badge.variant === 'purple' && 'bg-accent text-accent-foreground',
+							badge.variant === 'blue' && 'bg-accent text-accent-foreground',
+							badge.variant === 'green' && 'bg-accent text-accent-foreground',
+							badge.variant === 'orange' && 'bg-muted text-muted-foreground',
+							badge.variant === 'red' && 'bg-destructive/10 text-destructive'
+						)}
+					>
+						{badge.text}
 					</span>
 				)}
 				{isExternal && (

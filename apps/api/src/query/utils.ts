@@ -190,7 +190,7 @@ function applyReferrerParsing(
 
 function applyGeoNormalization(data: DataRow[]): DataRow[] {
 	return data.map((row) => {
-		const currentName = getString(row.name) || getString(row.country);
+		const currentName = getString(row.country) || getString(row.name);
 		if (!currentName) {
 			return row;
 		}
@@ -288,5 +288,5 @@ export function buildWhereClause(conditions?: string[]): string {
 	const safeClauses = conditions.filter(
 		(clause) => !UNSAFE_CLAUSE_REGEX.test(clause)
 	);
-	return `AND (${safeClauses.join(' AND ')})`;
+	return `WHERE (${safeClauses.join(' AND ')})`;
 }

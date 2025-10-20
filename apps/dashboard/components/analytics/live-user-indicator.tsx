@@ -42,16 +42,14 @@ export function LiveUserIndicator({ websiteId }: LiveUserIndicatorProps) {
 	};
 
 	return (
-		<div className="flex items-center gap-2">
-			<div className="flex items-center gap-2.5 rounded border bg-card px-3.5 py-2 font-medium text-sm shadow-sm">
-				<span className="relative flex h-2.5 w-2.5">
-					<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-					<span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-				</span>
-				<span className={getChangeColor()}>
-					{count} {count === 1 ? 'user' : 'users'} live
-				</span>
-			</div>
+		<div className="flex h-8 items-center gap-2 rounded border bg-background px-3 py-2 font-medium text-xs shadow-sm transition-colors hover:bg-accent/50">
+			<span className="relative flex h-2 w-2">
+				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+				<span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+			</span>
+			<span className={getChangeColor()}>
+				{count} {count === 1 ? 'user' : 'users'}
+			</span>
 		</div>
 	);
 }

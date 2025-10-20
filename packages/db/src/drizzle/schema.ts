@@ -1,4 +1,4 @@
-import { isNotNull, isNull, sql } from 'drizzle-orm';
+import { isNotNull, isNull } from 'drizzle-orm';
 import {
 	boolean,
 	foreignKey,
@@ -73,21 +73,25 @@ export const account = pgTable(
 		accessToken: text('access_token'),
 		refreshToken: text('refresh_token'),
 		idToken: text('id_token'),
-		accessTokenExpiresAt: timestamp('access_token_expires_at', {
-			mode: 'string',
-		}),
-		refreshTokenExpiresAt: timestamp('refresh_token_expires_at', {
-			mode: 'string',
-		}),
+		accessTokenExpiresAt: timestamp('access_token_expires_at'),
+		refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
 		scope: text(),
 		password: text(),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at').notNull(),
+		updatedAt: timestamp('updated_at').notNull(),
 	},
 	(table) => [
 		index('accounts_userId_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
+		),
+		index('accounts_accountId_idx').using(
+			'btree',
+			table.accountId.asc().nullsLast().op('text_ops')
+		),
+		index('accounts_providerId_idx').using(
+			'btree',
+			table.providerId.asc().nullsLast().op('text_ops')
 		),
 		uniqueIndex('accounts_provider_account_unique').using(
 			'btree',
@@ -109,7 +113,7 @@ export const session = pgTable(
 		expiresAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 		token: text().notNull(),
 		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
+			.defaultNow()
 			.notNull(),
 		updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 		ipAddress: text(),
@@ -125,10 +129,6 @@ export const session = pgTable(
 		index('sessions_userId_idx').using(
 			'btree',
 			table.userId.asc().nullsLast().op('text_ops')
-		),
-		index('sessions_expiresAt_idx').using(
-			'btree',
-			table.expiresAt.asc().nullsLast()
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -149,7 +149,7 @@ export const invitation = pgTable(
 		role: text().default('member'),
 		teamId: text('team_id'),
 		status: text().default('pending').notNull(),
-		expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
+		expiresAt: timestamp('expires_at').notNull(),
 		inviterId: text('inviter_id').notNull(),
 	},
 	(table) => [
@@ -160,6 +160,10 @@ export const invitation = pgTable(
 		index('invitations_organizationId_idx').using(
 			'btree',
 			table.organizationId.asc().nullsLast().op('text_ops')
+		),
+		index('invitations_teamId_idx').using(
+			'btree',
+			table.teamId.asc().nullsLast().op('text_ops')
 		),
 		foreignKey({
 			columns: [table.organizationId],
@@ -182,7 +186,7 @@ export const member = pgTable(
 		userId: text('user_id').notNull(),
 		role: text().default('member').notNull(),
 		teamId: text('team_id'),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at').notNull(),
 	},
 	(table) => [
 		index('members_userId_idx').using(
@@ -212,9 +216,9 @@ export const verification = pgTable(
 		id: text().primaryKey().notNull(),
 		identifier: text().notNull(),
 		value: text().notNull(),
-		expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
-		createdAt: timestamp('created_at', { mode: 'string' }),
-		updatedAt: timestamp('updated_at', { mode: 'string' }),
+		expiresAt: timestamp('expires_at').notNull(),
+		createdAt: timestamp('created_at'),
+		updatedAt: timestamp('updated_at'),
 	},
 	(table) => [
 		index('verifications_identifier_idx').using(
@@ -257,10 +261,8 @@ export const userPreferences = pgTable(
 		timezone: text().default('auto').notNull(),
 		dateFormat: text().default('MMM D, YYYY').notNull(),
 		timeFormat: text().default('h:mm a').notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).notNull(),
 	},
 	(table) => [
 		uniqueIndex('user_preferences_userId_key').using(
@@ -286,14 +288,11 @@ export const websites = pgTable(
 		status: websiteStatus().default('ACTIVE').notNull(),
 		userId: text(),
 		isPublic: boolean().default(false).notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		deletedAt: timestamp({ precision: 3, mode: 'string' }),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp({ precision: 3 }),
 		organizationId: text('organization_id'),
+		integrations: jsonb(),
 	},
 	(table) => [
 		uniqueIndex('websites_user_domain_unique')
@@ -302,10 +301,6 @@ export const websites = pgTable(
 		uniqueIndex('websites_org_domain_unique')
 			.on(table.organizationId, table.domain)
 			.where(isNotNull(table.organizationId)),
-		index('websites_userId_idx').using(
-			'btree',
-			table.userId.asc().nullsLast().op('text_ops')
-		),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -332,13 +327,19 @@ export const user = pgTable(
 		firstName: text(),
 		lastName: text(),
 		status: userStatus().default('ACTIVE').notNull(),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at').notNull(),
+		updatedAt: timestamp('updated_at').notNull(),
 		deletedAt: timestamp({ precision: 3, mode: 'string' }),
 		role: role().default('USER').notNull(),
 		twoFactorEnabled: boolean('two_factor_enabled'),
 	},
-	(table) => [unique('users_email_unique').on(table.email)]
+	(table) => [
+		unique('users_email_unique').on(table.email),
+		index('users_emailVerified_idx').using(
+			'btree',
+			table.emailVerified.asc().nullsLast()
+		),
+	]
 );
 
 export const userStripeConfig = pgTable(
@@ -352,10 +353,10 @@ export const userStripeConfig = pgTable(
 		webhookSecret: text('webhook_secret').notNull(),
 		isLiveMode: boolean('is_live_mode').default(false).notNull(),
 		isActive: boolean('is_active').default(true).notNull(),
-		lastWebhookAt: timestamp('last_webhook_at', { mode: 'string' }),
+		lastWebhookAt: timestamp('last_webhook_at'),
 		webhookFailureCount: integer('webhook_failure_count').default(0).notNull(),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at').notNull(),
+		updatedAt: timestamp('updated_at').notNull(),
 	},
 	(table) => [
 		uniqueIndex('user_stripe_config_userId_key').using(
@@ -385,18 +386,10 @@ export const funnelGoals = pgTable(
 		targetValue: text(),
 		description: text(),
 		isActive: boolean().default(true).notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
 	},
 	(table) => [
-		index('funnel_goals_funnelId_idx').using(
-			'btree',
-			table.funnelId.asc().nullsLast().op('text_ops')
-		),
 		foreignKey({
 			columns: [table.funnelId],
 			foreignColumns: [funnelDefinitions.id],
@@ -418,19 +411,11 @@ export const funnelDefinitions = pgTable(
 		filters: jsonb(),
 		isActive: boolean().default(true).notNull(),
 		createdBy: text().notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		deletedAt: timestamp({ precision: 3, mode: 'string' }),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp({ precision: 3 }),
 	},
 	(table) => [
-		index('funnel_definitions_createdBy_idx').using(
-			'btree',
-			table.createdBy.asc().nullsLast().op('text_ops')
-		),
 		index('funnel_definitions_websiteId_idx').using(
 			'btree',
 			table.websiteId.asc().nullsLast().op('text_ops')
@@ -464,32 +449,16 @@ export const goals = pgTable(
 		filters: jsonb(),
 		isActive: boolean().default(true).notNull(),
 		createdBy: text().notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		deletedAt: timestamp({ precision: 3, mode: 'string' }),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp({ precision: 3 }),
 	},
 	(table) => [
-		index('goals_websiteId_idx').using(
-			'btree',
-			table.websiteId.asc().nullsLast().op('text_ops')
-		),
-		index('goals_createdBy_idx').using(
-			'btree',
-			table.createdBy.asc().nullsLast().op('text_ops')
-		),
 		index('goals_websiteId_deletedAt_createdAt_idx').using(
 			'btree',
 			table.websiteId.asc().nullsLast().op('text_ops'),
 			table.deletedAt.asc().nullsLast(),
 			table.createdAt.desc().nullsLast()
-		),
-		index('goals_deletedAt_idx').using(
-			'btree',
-			table.deletedAt.asc().nullsLast()
 		),
 		foreignKey({
 			columns: [table.websiteId],
@@ -514,10 +483,14 @@ export const team = pgTable(
 		id: text().primaryKey().notNull(),
 		name: text().notNull(),
 		organizationId: text('organization_id').notNull(),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' }),
+		createdAt: timestamp('created_at').notNull(),
+		updatedAt: timestamp('updated_at'),
 	},
 	(table) => [
+		index('team_organizationId_idx').using(
+			'btree',
+			table.organizationId.asc().nullsLast().op('text_ops')
+		),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -578,7 +551,7 @@ export const apikey = pgTable(
 		scopes: apiScope('scopes').array().notNull().default([]),
 		enabled: boolean('enabled').notNull().default(true),
 		// Optional lifecycle field to complement `enabled`
-		revokedAt: timestamp('revoked_at', { mode: 'string' }),
+		revokedAt: timestamp('revoked_at'),
 		rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(true),
 		rateLimitTimeWindow: integer('rate_limit_time_window'),
 		rateLimitMax: integer('rate_limit_max'),
@@ -590,12 +563,8 @@ export const apikey = pgTable(
 		refillAmount: integer('refill_amount'),
 		expiresAt: timestamp('expires_at', { mode: 'string' }),
 		metadata: jsonb('metadata').default({}),
-		createdAt: timestamp('created_at', { mode: 'string' })
-			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
-		updatedAt: timestamp('updated_at', { mode: 'string' })
-			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		updatedAt: timestamp('updated_at').notNull().defaultNow(),
 	},
 	(table) => [
 		foreignKey({
@@ -624,10 +593,6 @@ export const apikey = pgTable(
 			'btree',
 			table.prefix.asc().nullsLast().op('text_ops')
 		),
-		index('apikey_key_hash_idx').using(
-			'btree',
-			table.keyHash.asc().nullsLast().op('text_ops')
-		),
 		index('apikey_enabled_idx').using('btree', table.enabled.asc().nullsLast()),
 	]
 );
@@ -642,12 +607,8 @@ export const apikeyAccess = pgTable(
 		// Nullable when resourceType = 'global'
 		resourceId: text('resource_id'),
 		scopes: apiScope('scopes').array().notNull().default([]),
-		createdAt: timestamp('created_at', { mode: 'string' })
-			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
-		updatedAt: timestamp('updated_at', { mode: 'string' })
-			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		updatedAt: timestamp('updated_at').notNull().defaultNow(),
 	},
 	(table) => [
 		foreignKey({
@@ -679,16 +640,10 @@ export const organization = pgTable(
 		name: text().notNull(),
 		slug: text(),
 		logo: text(),
-		createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+		createdAt: timestamp('created_at').notNull(),
 		metadata: text(),
 	},
-	(table) => [
-		unique('organizations_slug_unique').on(table.slug),
-		index('organizations_slug_idx').using(
-			'btree',
-			table.slug.asc().nullsLast().op('text_ops')
-		),
-	]
+	(table) => [unique('organizations_slug_unique').on(table.slug)]
 );
 
 export const abTestStatus = pgEnum('ab_test_status', [
@@ -713,26 +668,18 @@ export const abExperiments = pgTable(
 		description: text(),
 		status: abTestStatus().default('draft').notNull(),
 		trafficAllocation: integer().default(100).notNull(),
-		startDate: timestamp({ precision: 3, mode: 'string' }),
-		endDate: timestamp({ precision: 3, mode: 'string' }),
+		startDate: timestamp({ precision: 3 }),
+		endDate: timestamp({ precision: 3 }),
 		primaryGoal: text(),
 		createdBy: text().notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		deletedAt: timestamp({ precision: 3, mode: 'string' }),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp({ precision: 3 }),
 	},
 	(table) => [
 		index('ab_experiments_websiteId_idx').using(
 			'btree',
 			table.websiteId.asc().nullsLast()
-		),
-		index('ab_experiments_createdBy_idx').using(
-			'btree',
-			table.createdBy.asc().nullsLast()
 		),
 		index('ab_experiments_status_idx').using(
 			'btree',
@@ -765,12 +712,8 @@ export const abVariants = pgTable(
 		content: jsonb().notNull(),
 		trafficWeight: integer().default(50).notNull(),
 		isControl: boolean().default(false).notNull(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
 	},
 	(table) => [
 		index('ab_variants_experimentId_idx').using(
@@ -796,17 +739,17 @@ export const abGoals = pgTable(
 		type: text().notNull(),
 		target: text().notNull(),
 		description: text(),
-		createdAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp({ precision: 3, mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
 	},
 	(table) => [
 		index('ab_goals_experimentId_idx').using(
 			'btree',
 			table.experimentId.asc().nullsLast()
+		),
+		index('ab_goals_type_idx').using(
+			'btree',
+			table.type.asc().nullsLast().op('text_ops')
 		),
 		foreignKey({
 			columns: [table.experimentId],
@@ -825,12 +768,8 @@ export const assistantConversations = pgTable(
 		userId: text('user_id'),
 		websiteId: text('website_id').notNull(),
 		title: text(),
-		createdAt: timestamp('created_at', { mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull(),
 	},
 	(table) => [
 		index('assistant_conversations_website_id_idx').using(
@@ -876,14 +815,16 @@ export const assistantMessages = pgTable(
 		totalTokens: integer('total_tokens'),
 		debugLogs: text('debug_logs').array(),
 		metadata: jsonb('metadata'),
-		createdAt: timestamp('created_at', { mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => [
 		index('assistant_messages_conversation_id_idx').using(
 			'btree',
 			table.conversationId.asc().nullsLast().op('text_ops')
+		),
+		index('assistant_messages_createdAt_idx').using(
+			'btree',
+			table.createdAt.asc().nullsLast()
 		),
 		foreignKey({
 			columns: [table.conversationId],
@@ -898,6 +839,24 @@ export const dbPermissionLevel = pgEnum('db_permission_level', [
 	'admin',
 ]);
 
+export const flagType = pgEnum('flag_type', ['boolean', 'rollout']);
+
+export const flagStatus = pgEnum('flag_status', [
+	'active',
+	'inactive',
+	'archived',
+]);
+
+export const annotationType = pgEnum('annotation_type', [
+	'point',
+	'line',
+	'range',
+]);
+
+export const chartType = pgEnum('chart_type', [
+	'metrics',
+]);
+
 export const dbConnections = pgTable(
 	'db_connections',
 	{
@@ -910,12 +869,8 @@ export const dbConnections = pgTable(
 			.notNull()
 			.default('admin'),
 		organizationId: text('organization_id'),
-		createdAt: timestamp('created_at', { mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
-		updatedAt: timestamp('updated_at', { mode: 'string' })
-			.default(sql`CURRENT_TIMESTAMP`)
-			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull(),
 	},
 	(table) => [
 		index('db_connections_user_id_idx').using(
@@ -942,5 +897,114 @@ export const dbConnections = pgTable(
 			foreignColumns: [organization.id],
 			name: 'db_connections_organization_id_fkey',
 		}).onDelete('cascade'),
+	]
+);
+
+export const flags = pgTable(
+	'flags',
+	{
+		id: text().primaryKey().notNull(),
+		key: text().notNull(),
+		name: text(),
+		description: text(),
+		type: flagType().default('boolean').notNull(),
+		status: flagStatus().default('active').notNull(),
+		defaultValue: jsonb('default_value').default(false).notNull(),
+		payload: jsonb('payload'),
+		rules: jsonb('rules').default([]),
+		persistAcrossAuth: boolean('persist_across_auth').default(false).notNull(),
+		rolloutPercentage: integer('rollout_percentage').default(0),
+		websiteId: text('website_id'),
+		organizationId: text('organization_id'),
+		userId: text('user_id'),
+		createdBy: text('created_by').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull(),
+		deletedAt: timestamp('deleted_at'),
+	},
+	(table) => [
+		uniqueIndex('flags_key_website_unique')
+			.on(table.key, table.websiteId)
+			.where(isNotNull(table.websiteId)),
+		uniqueIndex('flags_key_org_unique')
+			.on(table.key, table.organizationId)
+			.where(isNotNull(table.organizationId)),
+		uniqueIndex('flags_key_user_unique')
+			.on(table.key, table.userId)
+			.where(isNotNull(table.userId)),
+		index('flags_website_id_idx').using(
+			'btree',
+			table.websiteId.asc().nullsLast().op('text_ops')
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: 'flags_website_id_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: 'flags_organization_id_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: 'flags_user_id_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: 'flags_created_by_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('restrict'),
+	]
+);
+
+export const annotations = pgTable(
+	'annotations',
+	{
+		id: text().primaryKey().notNull(),
+		websiteId: text('website_id').notNull(),
+		chartType: chartType('chart_type').notNull(),
+		chartContext: jsonb('chart_context').notNull(),
+		annotationType: annotationType('annotation_type').notNull(),
+		xValue: timestamp('x_value', { precision: 3 }).notNull(),
+		xEndValue: timestamp('x_end_value', { precision: 3 }),
+		yValue: integer('y_value'),
+		text: text().notNull(),
+		tags: text('tags').array(),
+		color: text().default('#3B82F6').notNull(),
+		isPublic: boolean('is_public').default(false).notNull(),
+		createdBy: text('created_by').notNull(),
+		createdAt: timestamp('created_at', { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp('deleted_at', { precision: 3 }),
+	},
+	(table) => [
+		index('annotations_website_id_idx').using(
+			'btree',
+			table.websiteId.asc().nullsLast().op('text_ops')
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: 'annotations_website_id_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('cascade'),
+		foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: 'annotations_created_by_fkey',
+		})
+			.onUpdate('cascade')
+			.onDelete('restrict'),
 	]
 );

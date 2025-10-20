@@ -214,8 +214,8 @@ export const experimentsRouter = createTRPCRouter({
 							id: experimentId,
 							...experimentData,
 							createdBy: ctx.user.id,
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
+							createdAt: new Date(),
+							updatedAt: new Date(),
 						})
 						.returning();
 
@@ -226,8 +226,8 @@ export const experimentsRouter = createTRPCRouter({
 								id: crypto.randomUUID(),
 								...variant,
 								experimentId: experiment.id,
-								createdAt: new Date().toISOString(),
-								updatedAt: new Date().toISOString(),
+								createdAt: new Date(),
+								updatedAt: new Date(),
 							}))
 						);
 					}
@@ -239,8 +239,8 @@ export const experimentsRouter = createTRPCRouter({
 								id: crypto.randomUUID(),
 								...goal,
 								experimentId: experiment.id,
-								createdAt: new Date().toISOString(),
-								updatedAt: new Date().toISOString(),
+								createdAt: new Date(),
+								updatedAt: new Date(),
 							}))
 						);
 					}
@@ -297,7 +297,7 @@ export const experimentsRouter = createTRPCRouter({
 					.update(abExperiments)
 					.set({
 						...updateData,
-						updatedAt: new Date().toISOString(),
+						updatedAt: new Date(),
 					})
 					.where(eq(abExperiments.id, id))
 					.returning();
@@ -361,8 +361,8 @@ export const experimentsRouter = createTRPCRouter({
 				await ctx.db
 					.update(abExperiments)
 					.set({
-						deletedAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
+						deletedAt: new Date(),
+						updatedAt: new Date(),
 					})
 					.where(eq(abExperiments.id, input.id));
 
@@ -432,8 +432,8 @@ export const experimentsRouter = createTRPCRouter({
 						.values({
 							id: crypto.randomUUID(),
 							...input,
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
+							createdAt: new Date(),
+							updatedAt: new Date(),
 						})
 						.returning();
 
@@ -489,7 +489,7 @@ export const experimentsRouter = createTRPCRouter({
 						.update(abVariants)
 						.set({
 							...updateData,
-							updatedAt: new Date().toISOString(),
+							updatedAt: new Date(),
 						})
 						.where(eq(abVariants.id, id))
 						.returning();
@@ -594,8 +594,8 @@ export const experimentsRouter = createTRPCRouter({
 						.values({
 							id: crypto.randomUUID(),
 							...input,
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
+							createdAt: new Date(),
+							updatedAt: new Date(),
 						})
 						.returning();
 
@@ -651,7 +651,7 @@ export const experimentsRouter = createTRPCRouter({
 						.update(abGoals)
 						.set({
 							...updateData,
-							updatedAt: new Date().toISOString(),
+							updatedAt: new Date(),
 						})
 						.where(eq(abGoals.id, id))
 						.returning();

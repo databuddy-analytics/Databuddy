@@ -42,7 +42,6 @@ export function Prose({ children, html, className }: ProseProps) {
 				className
 			)}
 		>
-			{/** biome-ignore lint/security/noDangerouslySetInnerHtml: Needed to render markdown */}
 			{html ? (
 				<div dangerouslySetInnerHTML={{ __html: enhancedHtml }} />
 			) : (

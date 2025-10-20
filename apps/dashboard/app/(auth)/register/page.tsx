@@ -33,6 +33,7 @@ function RegisterPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const selectedPlan = searchParams.get('plan');
+	const callbackUrl = searchParams.get('callback');
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: '',
@@ -51,6 +52,18 @@ function RegisterPageContent() {
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value } = e.target;
 		setFormData((prev) => ({ ...prev, [name]: value }));
+	};
+
+	const handleAuthSuccess = () => {
+		if (callbackUrl) {
+			toast.success('Account created! Completing integration...');
+			router.push(callbackUrl);
+		} else if (selectedPlan) {
+			localStorage.setItem('pendingPlanSelection', selectedPlan);
+			router.push(`/billing?tab=plans&plan=${selectedPlan}`);
+		} else {
+			router.push('/websites');
+		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -78,21 +91,18 @@ function RegisterPageContent() {
 			password: formData.password,
 			name: formData.name,
 			fetchOptions: {
-				onSuccess: (ctx) => {
-					const authToken = ctx.response.headers.get('set-auth-token');
-					if (authToken) {
-						localStorage.setItem('authToken', authToken);
+				onSuccess: () => {
+					if (callbackUrl) {
+						handleAuthSuccess();
+					} else {
+						toast.success(
+							'Account created! Please check your email to verify your account.'
+						);
+						setRegistrationStep('verification-needed');
+						if (selectedPlan) {
+							localStorage.setItem('pendingPlanSelection', selectedPlan);
+						}
 					}
-					toast.success(
-						'Account created! Please check your email to verify your account.'
-					);
-					setRegistrationStep('verification-needed');
-
-					// Store plan selection for post-verification redirect
-					if (selectedPlan) {
-						localStorage.setItem('pendingPlanSelection', selectedPlan);
-					}
-					// router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
 				},
 			},
 		});
@@ -128,31 +138,27 @@ function RegisterPageContent() {
 	const handleSocialLogin = async (provider: 'github' | 'google') => {
 		setIsLoading(true);
 
-		await authClient.signIn.social({
-			provider,
-			fetchOptions: {
-				onSuccess: (ctx) => {
-					const authToken = ctx.response.headers.get('set-auth-token');
-					if (authToken) {
-						localStorage.setItem('authToken', authToken);
-					}
-					toast.success('Registration successful!');
-
-					// Redirect to billing with plan selection if plan was specified
-					if (selectedPlan) {
-						localStorage.setItem('pendingPlanSelection', selectedPlan);
-						router.push(`/billing?tab=plans&plan=${selectedPlan}`);
-					} else {
-						router.push('/home');
-					}
+		try {
+			await authClient.signIn.social({
+				provider,
+				callbackURL: callbackUrl || '/websites',
+				fetchOptions: {
+					onSuccess: () => {
+						toast.success('Registration successful!');
+						handleAuthSuccess();
+					},
+					onError: () => {
+						toast.error(
+							`${provider === 'github' ? 'GitHub' : 'Google'} login failed. Please try again.`
+						);
+						setIsLoading(false);
+					},
 				},
-				onError: () => {
-					toast.error('Login failed. Please try again.');
-				},
-			},
-		});
-
-		setIsLoading(false);
+			});
+		} catch (_error) {
+			toast.error('Login failed. Please try again.');
+			setIsLoading(false);
+		}
 	};
 
 	// Render header content based on current registration step
@@ -161,11 +167,11 @@ function RegisterPageContent() {
 			case 'verification-needed':
 				return (
 					<>
-						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 p-3">
-							<div className="absolute inset-0 animate-pulse rounded-full bg-amber-50" />
-							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-amber-200 to-amber-100 opacity-70 blur-md" />
-							<div className="relative rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 p-2.5">
-								<WarningCircleIcon className="h-8 w-8 text-white" />
+						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-warning/10 p-3">
+							<div className="absolute inset-0 animate-pulse rounded-full bg-warning/5" />
+							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-warning/20 to-warning/10 opacity-70 blur-md" />
+							<div className="relative rounded-full bg-gradient-to-tr from-warning to-warning/80 p-2.5">
+								<WarningCircleIcon className="h-8 w-8 text-warning-foreground" />
 							</div>
 						</div>
 						<h1 className="font-bold text-2xl text-foreground">
@@ -173,7 +179,7 @@ function RegisterPageContent() {
 						</h1>
 						<p className="mt-2 text-muted-foreground">
 							We've sent a verification link to{' '}
-							<strong className="font-medium text-amber-600">
+							<strong className="font-medium text-warning">
 								{formData.email}
 							</strong>
 						</p>
@@ -182,11 +188,11 @@ function RegisterPageContent() {
 			case 'success':
 				return (
 					<>
-						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 p-3">
-							<div className="absolute inset-0 animate-pulse rounded-full bg-green-50" />
-							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-green-200 to-green-100 opacity-70 blur-md" />
-							<div className="relative rounded-full bg-gradient-to-tr from-green-500 to-green-400 p-2.5">
-								<CheckCircleIcon className="h-8 w-8 text-white" />
+						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/10 p-3">
+							<div className="absolute inset-0 animate-pulse rounded-full bg-success/5" />
+							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-success/20 to-success/10 opacity-70 blur-md" />
+							<div className="relative rounded-full bg-gradient-to-tr from-success to-success/80 p-2.5">
+								<CheckCircleIcon className="h-8 w-8 text-success-foreground" />
 							</div>
 						</div>
 						<h1 className="font-bold text-2xl text-foreground">Success!</h1>
@@ -212,7 +218,7 @@ function RegisterPageContent() {
 	// Split render content into smaller components
 	const renderVerificationContent = () => (
 		<div className="space-y-5 py-4">
-			<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+			<div className="rounded-lg border border-warning/20 bg-warning/5 p-4 text-warning-foreground">
 				<p className="text-sm">
 					Please check your email inbox and click the verification link to
 					activate your account. If you don't see the email, check your spam
@@ -222,7 +228,7 @@ function RegisterPageContent() {
 
 			<div className="flex flex-col space-y-3">
 				<Button
-					className="w-full bg-amber-500 text-sm text-white hover:bg-amber-600 sm:text-base"
+					className="w-full bg-warning text-sm text-warning-foreground hover:bg-warning/90 sm:text-base"
 					disabled={isLoading}
 					onClick={resendVerificationEmail}
 				>
@@ -242,7 +248,7 @@ function RegisterPageContent() {
 				</Button>
 
 				<Button
-					className="w-full border-amber-200 text-amber-700 text-sm hover:bg-amber-50 sm:text-base"
+					className="w-full border-warning/20 text-sm text-warning hover:bg-warning/5 sm:text-base"
 					onClick={() => setRegistrationStep('form')}
 					variant="outline"
 				>
@@ -256,7 +262,7 @@ function RegisterPageContent() {
 
 	const renderSuccessContent = () => (
 		<div className="space-y-5 py-4">
-			<div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+			<div className="rounded-lg border border-success/20 bg-success/5 p-4 text-success-foreground">
 				<p className="text-sm">
 					Your account has been created successfully. You can now sign in to
 					access your dashboard.
@@ -264,7 +270,7 @@ function RegisterPageContent() {
 			</div>
 
 			<Button
-				className="w-full bg-green-500 text-sm text-white hover:bg-green-600 sm:text-base"
+				className="w-full bg-success text-sm text-success-foreground hover:bg-success/90 sm:text-base"
 				onClick={() => router.push('/login')}
 			>
 				<span className="hidden sm:inline">Continue to login</span>
@@ -275,7 +281,7 @@ function RegisterPageContent() {
 
 	const renderFormContent = () => (
 		<div className="space-y-4">
-			<div className="-mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+			<div className="-mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
 				<Button
 					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
@@ -284,7 +290,7 @@ function RegisterPageContent() {
 					variant="outline"
 				>
 					<GithubLogoIcon className="mr-2 h-5 w-5" />
-					Sign up with GitHub
+					<span>Sign up with GitHub</span>
 				</Button>
 
 				<Button
@@ -295,7 +301,7 @@ function RegisterPageContent() {
 					variant="outline"
 				>
 					<GoogleLogoIcon className="mr-2 h-5 w-5" />
-					Sign up with Google
+					<span>Sign up with Google</span>
 				</Button>
 			</div>
 
@@ -313,7 +319,7 @@ function RegisterPageContent() {
 			<form className="space-y-4" onSubmit={handleSubmit}>
 				<div className="space-y-2">
 					<Label className="font-medium text-foreground" htmlFor="name">
-						Full name<span className="text-blue-700">*</span>
+						Full name<span className="text-primary">*</span>
 					</Label>
 					<Input
 						autoComplete="name"
@@ -331,7 +337,7 @@ function RegisterPageContent() {
 
 				<div className="space-y-2">
 					<Label className="font-medium text-foreground" htmlFor="email">
-						Email address<span className="text-blue-700">*</span>
+						Email address<span className="text-primary">*</span>
 					</Label>
 					<Input
 						autoComplete="email"
@@ -351,7 +357,7 @@ function RegisterPageContent() {
 					<div className="space-y-2">
 						<div className="flex items-center gap-2">
 							<Label className="font-medium text-foreground" htmlFor="password">
-								Password<span className="text-blue-700">*</span>
+								Password<span className="text-primary">*</span>
 							</Label>
 							<TooltipProvider>
 								<Tooltip>
@@ -398,10 +404,10 @@ function RegisterPageContent() {
 
 					<div className="space-y-2">
 						<Label
-							className="font-medium text-foreground"
+							className="whitespace-nowrap font-medium text-foreground"
 							htmlFor="confirmPassword"
 						>
-							Confirm password<span className="text-blue-700">*</span>
+							Confirm password<span className="text-primary">*</span>
 						</Label>
 						<div className="relative">
 							<Input
@@ -448,35 +454,57 @@ function RegisterPageContent() {
 					</div>
 				</VisuallyHidden>
 
-				<div className="flex items-center gap-2 space-y-2 sm:flex-row sm:items-center sm:space-x-2 sm:space-y-0">
-					<Checkbox
-						checked={acceptTerms}
-						className="mt-1 cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input sm:mt-0"
-						disabled={isLoading}
-						id="terms"
-						onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-					/>
-					<Label
-						className="text-muted-foreground text-xs leading-tight tracking-tighter sm:text-sm"
-						htmlFor="terms"
-					>
-						I agree to the{''}
-						<Link
-							className="font-medium text-primary text-xs tracking-tighter hover:text-primary/80 sm:text-sm"
-							href="https://www.databuddy.cc/terms"
-							target="_blank"
+				<div className="space-y-2">
+					<div className="flex items-start gap-2">
+						<Checkbox
+							checked={acceptTerms}
+							className="mt-1 cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+							disabled={isLoading}
+							id="terms"
+							onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+						/>
+						<Label
+							className="text-muted-foreground text-xs leading-relaxed sm:text-sm"
+							htmlFor="terms"
 						>
-							Terms of Service
-						</Link>
-						{''}and{''}
-						<Link
-							className="font-medium text-primary text-xs tracking-tighter hover:text-primary/80 sm:text-sm"
-							href="https://www.databuddy.cc/privacy"
-							target="_blank"
-						>
-							Privacy Policy
-						</Link>
-					</Label>
+							<span className="hidden sm:inline">
+								I agree to the{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/terms"
+									target="_blank"
+								>
+									Terms of Service
+								</Link>{' '}
+								and{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/privacy"
+									target="_blank"
+								>
+									Privacy Policy
+								</Link>
+							</span>
+							<span className="sm:hidden">
+								I agree to{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/terms"
+									target="_blank"
+								>
+									Terms
+								</Link>{' '}
+								&{' '}
+								<Link
+									className="font-medium text-primary hover:text-primary/80"
+									href="https://www.databuddy.cc/privacy"
+									target="_blank"
+								>
+									Privacy
+								</Link>
+							</span>
+						</Label>
+					</div>
 				</div>
 
 				<Button
@@ -527,7 +555,11 @@ function RegisterPageContent() {
 						Already have an account?{' '}
 						<Link
 							className="font-medium text-primary hover:text-primary/80"
-							href="/login"
+							href={
+								callbackUrl
+									? `/login?callback=${encodeURIComponent(callbackUrl)}`
+									: '/login'
+							}
 						>
 							Sign in
 						</Link>

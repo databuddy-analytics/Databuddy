@@ -90,7 +90,7 @@ class DiscordWebhook {
 		content: string,
 		options: Partial<DiscordWebhookMessage> = {}
 	): Promise<boolean> {
-		return this.send({
+		return await this.send({
 			content,
 			username: this.defaultUsername,
 			avatar_url: this.defaultAvatarUrl,
@@ -105,7 +105,7 @@ class DiscordWebhook {
 		embed: DiscordEmbed,
 		options: Partial<DiscordWebhookMessage> = {}
 	): Promise<boolean> {
-		return this.send({
+		return await this.send({
 			embeds: [embed],
 			username: this.defaultUsername,
 			avatar_url: this.defaultAvatarUrl,
@@ -165,7 +165,7 @@ class DiscordWebhook {
 			text: `Environment: ${process.env.NODE_ENV || 'unknown'} | ${new Date().toLocaleString()}`,
 		};
 
-		return this.sendEmbed(embed);
+		return await this.sendEmbed(embed);
 	}
 
 	/**
@@ -176,7 +176,7 @@ class DiscordWebhook {
 		message: string,
 		metadata?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({ level: 'info', title, message, metadata });
+		return await this.sendLog({ level: 'info', title, message, metadata });
 	}
 
 	async logSuccess(
@@ -184,7 +184,7 @@ class DiscordWebhook {
 		message: string,
 		metadata?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({ level: 'success', title, message, metadata });
+		return await this.sendLog({ level: 'success', title, message, metadata });
 	}
 
 	async logWarning(
@@ -192,7 +192,7 @@ class DiscordWebhook {
 		message: string,
 		metadata?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({ level: 'warning', title, message, metadata });
+		return await this.sendLog({ level: 'warning', title, message, metadata });
 	}
 
 	async logError(
@@ -200,7 +200,7 @@ class DiscordWebhook {
 		message: string,
 		metadata?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({ level: 'error', title, message, metadata });
+		return await this.sendLog({ level: 'error', title, message, metadata });
 	}
 
 	async logDebug(
@@ -208,7 +208,7 @@ class DiscordWebhook {
 		message: string,
 		metadata?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({ level: 'debug', title, message, metadata });
+		return await this.sendLog({ level: 'debug', title, message, metadata });
 	}
 
 	/**
@@ -219,7 +219,7 @@ class DiscordWebhook {
 		userId: string,
 		details?: Record<string, unknown>
 	): Promise<boolean> {
-		return this.sendLog({
+		return await this.sendLog({
 			level: 'info',
 			title: 'User Activity',
 			message: action,
@@ -241,7 +241,7 @@ class DiscordWebhook {
 			...context,
 		};
 
-		return this.sendLog({
+		return await this.sendLog({
 			level: 'error',
 			title: 'Application Error',
 			message: error.message,
@@ -267,14 +267,14 @@ class DiscordWebhook {
 			},
 		};
 
-		return this.sendEmbed(embed);
+		return await this.sendEmbed(embed);
 	}
 
 	/**
 	 * Core send method with rate limiting
 	 */
 	private async send(payload: DiscordWebhookMessage): Promise<boolean> {
-		return new Promise((resolve) => {
+		return await new Promise((resolve) => {
 			this.rateLimitQueue.push(async () => {
 				try {
 					const response = await fetch(this.webhookUrl, {

@@ -339,7 +339,7 @@ export const apikeysRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createApiKeySchema)
 		.mutation(async ({ ctx, input }) => {
-			const nowIso = new Date().toISOString();
+			const nowIso = new Date();
 			const { secret, prefix, start } = generateKeyMaterial();
 			const keyHash = hashSecretScrypt(secret);
 
@@ -435,7 +435,7 @@ export const apikeysRouter = createTRPCRouter({
 								? key.expiresAt
 								: (input.expiresAt as string | null),
 						metadata: input.metadata ?? key.metadata,
-						updatedAt: new Date().toISOString(),
+						updatedAt: new Date(),
 					})
 					.where(eq(apikey.id, input.id))
 					.returning();
@@ -475,8 +475,8 @@ export const apikeysRouter = createTRPCRouter({
 					.update(apikey)
 					.set({
 						enabled: false,
-						revokedAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
+						revokedAt: new Date(),
+						updatedAt: new Date(),
 					})
 					.where(eq(apikey.id, input.id));
 				return { success: true };
@@ -519,7 +519,7 @@ export const apikeysRouter = createTRPCRouter({
 						start,
 						key: secret,
 						keyHash,
-						updatedAt: new Date().toISOString(),
+						updatedAt: new Date(),
 					})
 					.where(eq(apikey.id, input.id))
 					.returning();
@@ -562,7 +562,7 @@ export const apikeysRouter = createTRPCRouter({
 						.delete(apikeyAccess)
 						.where(eq(apikeyAccess.apikeyId, input.apikeyId));
 					if (input.access.length > 0) {
-						const nowIso = new Date().toISOString();
+						const now = new Date();
 						const rows: InferInsertModel<typeof apikeyAccess>[] =
 							input.access.map((a) => ({
 								id: nanoid(),
@@ -570,8 +570,8 @@ export const apikeysRouter = createTRPCRouter({
 								resourceType: a.resourceType,
 								resourceId: a.resourceId ?? null,
 								scopes: a.scopes,
-								createdAt: nowIso,
-								updatedAt: nowIso,
+								createdAt: now,
+								updatedAt: now,
 							}));
 						await tx.insert(apikeyAccess).values(rows);
 					}
@@ -598,7 +598,7 @@ export const apikeysRouter = createTRPCRouter({
 			try {
 				const key = await fetchKeyOrThrow(ctx, input.apikeyId);
 				await assertCanManageKey(ctx, key);
-				const nowIso = new Date().toISOString();
+				const now = new Date();
 				const [row] = await ctx.db
 					.insert(apikeyAccess)
 					.values({
@@ -607,8 +607,8 @@ export const apikeysRouter = createTRPCRouter({
 						resourceType: input.resourceType,
 						resourceId: input.resourceId ?? null,
 						scopes: input.scopes,
-						createdAt: nowIso,
-						updatedAt: nowIso,
+						createdAt: now,
+						updatedAt: now,
 					})
 					.onConflictDoUpdate({
 						target: [
@@ -616,7 +616,7 @@ export const apikeysRouter = createTRPCRouter({
 							apikeyAccess.resourceType,
 							apikeyAccess.resourceId,
 						],
-						set: { scopes: input.scopes, updatedAt: nowIso },
+						set: { scopes: input.scopes, updatedAt: now },
 					})
 					.returning();
 				return row;

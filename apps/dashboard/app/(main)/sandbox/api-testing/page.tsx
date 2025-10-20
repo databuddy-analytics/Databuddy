@@ -34,7 +34,7 @@ export default function ApiTestingPage() {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			// Mock response based on endpoint
-			let mockResponse;
+			let mockResponse: any;
 			if (endpoint.includes('analytics')) {
 				mockResponse = {
 					status: 200,

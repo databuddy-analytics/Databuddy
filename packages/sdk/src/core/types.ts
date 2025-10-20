@@ -4,11 +4,12 @@
  */
 export interface DatabuddyConfig {
 	/**
-	 * Your Databuddy project client ID (required).
+	 * Your Databuddy project client ID.
+	 * If not provided, will automatically detect from NEXT_PUBLIC_DATABUDDY_CLIENT_ID environment variable.
 	 * Get this from your Databuddy dashboard.
 	 * Example: '3ed1fce1-5a56-4cbc-a917-66864f6d18e3'
 	 */
-	clientId: string;
+	clientId?: string;
 
 	/**
 	 * (Advanced) Your Databuddy client secret for server-side operations.
@@ -45,6 +46,11 @@ export interface DatabuddyConfig {
 	 * If true, no events will be sent.
 	 */
 	disabled?: boolean;
+
+	/**
+	 * Enable debug logging (default: false).
+	 */
+	debug?: boolean;
 
 	/**
 	 * Wait for user profile before sending events (advanced, default: false).
@@ -206,6 +212,11 @@ export interface DatabuddyConfig {
 	 * Min: 100, Max: 30000
 	 */
 	batchTimeout?: number;
+
+	/** Array of glob patterns to skip tracking on matching paths (e.g., ['/admin/**']) */
+	skipPatterns?: string[];
+
+	maskPatterns?: string[];
 }
 
 /**

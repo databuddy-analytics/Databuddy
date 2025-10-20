@@ -2,14 +2,14 @@
 
 import { trpc } from '@/lib/trpc';
 
-export function useWebsiteTransfer(organizationId: string) {
+export function useWebsiteTransfer(organizationId?: string) {
 	// Fetch personal websites (no organizationId)
 	const { data: personalWebsites, isLoading: isLoadingPersonal } =
 		trpc.websites.list.useQuery({
 			organizationId: undefined,
 		});
 
-	// Fetch organization websites
+	// Fetch organization websites (only if organizationId is provided)
 	const { data: organizationWebsites, isLoading: isLoadingOrg } =
 		trpc.websites.list.useQuery(
 			{
@@ -23,10 +23,10 @@ export function useWebsiteTransfer(organizationId: string) {
 	const utils = trpc.useUtils();
 
 	const transferMutation = trpc.websites.transfer.useMutation({
-		onSuccess: () => {
-			// Invalidate both queries to refresh the data
-			utils.websites.list.invalidate({ organizationId: undefined });
-			utils.websites.list.invalidate({ organizationId });
+		onSuccess: (_, variables) => {
+			utils.websites.list.invalidate();
+			utils.websites.listWithCharts.invalidate();
+			utils.websites.getById.invalidate({ id: variables.websiteId });
 		},
 	});
 

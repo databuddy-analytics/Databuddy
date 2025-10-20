@@ -17,19 +17,29 @@ interface QueriesPageProps {
 
 // Loading State
 const LoadingState = () => (
-	<div className="space-y-6">
-		<div className="flex items-center justify-between">
-			<Skeleton className="h-8 w-48" />
-			<Skeleton className="h-6 w-32" />
+	<div className="flex h-full flex-col">
+		<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+			<div className="flex items-center gap-4">
+				<div className="rounded border border-primary/20 bg-primary/10 p-3">
+					<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+				</div>
+				<div className="flex-1">
+					<Skeleton className="h-8 w-48" />
+					<Skeleton className="mt-2 h-4 w-64" />
+				</div>
+				<Skeleton className="h-6 w-32" />
+			</div>
 		</div>
-		<Skeleton className="h-10 w-full" />
-		<div className="space-y-4">
-			{Array.from({ length: 6 }, (_, i) => (
-				<Skeleton
-					className="h-32 w-full rounded-lg"
-					key={`query-skeleton-${i.toString()}`}
-				/>
-			))}
+		<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+			<Skeleton className="h-10 w-full" />
+			<div className="space-y-4">
+				{Array.from({ length: 6 }, (_, i) => (
+					<Skeleton
+						className="h-32 w-full rounded-lg"
+						key={`query-skeleton-${i.toString()}`}
+					/>
+				))}
+			</div>
 		</div>
 	</div>
 );
@@ -110,164 +120,173 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 	}
 
 	return (
-		<div className="space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="font-bold text-2xl">Database Queries</h1>
-					<p className="text-muted-foreground">
-						Comprehensive view of all database queries with performance metrics
-					</p>
+		<div className="flex h-full flex-col">
+			<div className="border-b bg-gradient-to-r from-background to-muted/20 px-6 py-6">
+				<div className="flex items-center gap-4">
+					<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<DatabaseIcon className="h-6 w-6 text-primary" weight="duotone" />
+					</div>
+					<div className="flex-1">
+						<h1 className="font-bold text-2xl tracking-tight">
+							Database Queries
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Comprehensive view of all database queries with performance
+							metrics
+						</p>
+					</div>
+					<Badge variant="outline">{queryData.all.length} Total Queries</Badge>
 				</div>
-				<Badge variant="outline">{queryData.all.length} Total Queries</Badge>
 			</div>
 
-			{/* Tabs for different query views */}
-			<Tabs
-				className="space-y-4"
-				onValueChange={(value) => setActiveTab(value as TabId)}
-				value={activeTab}
-			>
-				<div className="relative border-b">
-					<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="most-called"
-						>
-							Most Called
-							{activeTab === 'most-called' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
-						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="slowest"
-						>
-							Slowest
-							{activeTab === 'slowest' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
-						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="resource-hogs"
-						>
-							Resource Hogs
-							{activeTab === 'resource-hogs' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
-						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
-							value="all"
-						>
-							All Queries
-							{activeTab === 'all' && (
-								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-							)}
-						</TabsTrigger>
-					</TabsList>
-				</div>
-
-				<TabsContent
-					className="animate-fadeIn space-y-4 transition-all duration-200"
-					key="most-called"
-					value="most-called"
+			<div className="flex min-h-0 flex-1 flex-col space-y-6 p-6">
+				{/* Tabs for different query views */}
+				<Tabs
+					className="space-y-4"
+					onValueChange={(value) => setActiveTab(value as TabId)}
+					value={activeTab}
 				>
-					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-lg">
-							Most Frequently Called Queries
-						</h2>
-						<span className="text-muted-foreground text-sm">
-							{queryData.mostCalled.length} queries
-						</span>
+					<div className="relative border-b">
+						<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="most-called"
+							>
+								Most Called
+								{activeTab === 'most-called' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
+							</TabsTrigger>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="slowest"
+							>
+								Slowest
+								{activeTab === 'slowest' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
+							</TabsTrigger>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="resource-hogs"
+							>
+								Resource Hogs
+								{activeTab === 'resource-hogs' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
+							</TabsTrigger>
+							<TabsTrigger
+								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								value="all"
+							>
+								All Queries
+								{activeTab === 'all' && (
+									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
+								)}
+							</TabsTrigger>
+						</TabsList>
 					</div>
-					<div className="space-y-4">
-						{queryData.mostCalled.map((query) => (
-							<QueryRow
-								key={query.queryid}
-								onClick={() => handleQueryClick(query)}
-								query={query}
-							/>
-						))}
-					</div>
-				</TabsContent>
 
-				<TabsContent
-					className="animate-fadeIn space-y-4 transition-all duration-200"
-					key="slowest"
-					value="slowest"
-				>
-					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-lg">Slowest Queries</h2>
-						<span className="text-muted-foreground text-sm">
-							{queryData.slowest.length} queries
-						</span>
-					</div>
-					<div className="space-y-4">
-						{queryData.slowest.map((query) => (
-							<QueryRow
-								key={query.queryid}
-								onClick={() => handleQueryClick(query)}
-								query={query}
-							/>
-						))}
-					</div>
-				</TabsContent>
+					<TabsContent
+						className="animate-fadeIn space-y-4 transition-all duration-200"
+						key="most-called"
+						value="most-called"
+					>
+						<div className="flex items-center justify-between">
+							<h2 className="font-semibold text-lg">
+								Most Frequently Called Queries
+							</h2>
+							<span className="text-muted-foreground text-sm">
+								{queryData.mostCalled.length} queries
+							</span>
+						</div>
+						<div className="space-y-4">
+							{queryData.mostCalled.map((query) => (
+								<QueryRow
+									key={query.queryid}
+									onClick={() => handleQueryClick(query)}
+									query={query}
+								/>
+							))}
+						</div>
+					</TabsContent>
 
-				<TabsContent
-					className="animate-fadeIn space-y-4 transition-all duration-200"
-					key="resource-hogs"
-					value="resource-hogs"
-				>
-					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-lg">
-							Resource Intensive Queries
-						</h2>
-						<span className="text-muted-foreground text-sm">
-							{queryData.resourceHogs.length} queries
-						</span>
-					</div>
-					<div className="space-y-4">
-						{queryData.resourceHogs.map((query) => (
-							<QueryRow
-								key={query.queryid}
-								onClick={() => handleQueryClick(query)}
-								query={query}
-							/>
-						))}
-					</div>
-				</TabsContent>
+					<TabsContent
+						className="animate-fadeIn space-y-4 transition-all duration-200"
+						key="slowest"
+						value="slowest"
+					>
+						<div className="flex items-center justify-between">
+							<h2 className="font-semibold text-lg">Slowest Queries</h2>
+							<span className="text-muted-foreground text-sm">
+								{queryData.slowest.length} queries
+							</span>
+						</div>
+						<div className="space-y-4">
+							{queryData.slowest.map((query) => (
+								<QueryRow
+									key={query.queryid}
+									onClick={() => handleQueryClick(query)}
+									query={query}
+								/>
+							))}
+						</div>
+					</TabsContent>
 
-				<TabsContent
-					className="animate-fadeIn space-y-4 transition-all duration-200"
-					key="all"
-					value="all"
-				>
-					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-lg">All Queries</h2>
-						<span className="text-muted-foreground text-sm">
-							{queryData.all.length} queries
-						</span>
-					</div>
-					<div className="space-y-4">
-						{queryData.all.map((query) => (
-							<QueryRow
-								key={query.queryid}
-								onClick={() => handleQueryClick(query)}
-								query={query}
-							/>
-						))}
-					</div>
-				</TabsContent>
-			</Tabs>
+					<TabsContent
+						className="animate-fadeIn space-y-4 transition-all duration-200"
+						key="resource-hogs"
+						value="resource-hogs"
+					>
+						<div className="flex items-center justify-between">
+							<h2 className="font-semibold text-lg">
+								Resource Intensive Queries
+							</h2>
+							<span className="text-muted-foreground text-sm">
+								{queryData.resourceHogs.length} queries
+							</span>
+						</div>
+						<div className="space-y-4">
+							{queryData.resourceHogs.map((query) => (
+								<QueryRow
+									key={query.queryid}
+									onClick={() => handleQueryClick(query)}
+									query={query}
+								/>
+							))}
+						</div>
+					</TabsContent>
 
-			{/* Query Detail Sheet */}
-			<QueryDetailSheet
-				isOpen={sheetOpen}
-				onClose={() => setSheetOpen(false)}
-				query={selectedQuery}
-			/>
+					<TabsContent
+						className="animate-fadeIn space-y-4 transition-all duration-200"
+						key="all"
+						value="all"
+					>
+						<div className="flex items-center justify-between">
+							<h2 className="font-semibold text-lg">All Queries</h2>
+							<span className="text-muted-foreground text-sm">
+								{queryData.all.length} queries
+							</span>
+						</div>
+						<div className="space-y-4">
+							{queryData.all.map((query) => (
+								<QueryRow
+									key={query.queryid}
+									onClick={() => handleQueryClick(query)}
+									query={query}
+								/>
+							))}
+						</div>
+					</TabsContent>
+				</Tabs>
+
+				{/* Query Detail Sheet */}
+				<QueryDetailSheet
+					isOpen={sheetOpen}
+					onClose={() => setSheetOpen(false)}
+					query={selectedQuery}
+				/>
+			</div>
 		</div>
 	);
 }

@@ -154,8 +154,8 @@ export const dbConnectionsRouter = createTRPCRouter({
 					type: input.type,
 					url: encryptConnectionUrl(input.url),
 					organizationId: input.organizationId,
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					createdAt: new Date(),
+					updatedAt: new Date(),
 				})
 				.returning({
 					id: dbConnections.id,
@@ -179,7 +179,7 @@ export const dbConnectionsRouter = createTRPCRouter({
 				.update(dbConnections)
 				.set({
 					name: input.name,
-					updatedAt: new Date().toISOString(),
+					updatedAt: new Date(),
 				})
 				.where(eq(dbConnections.id, input.id))
 				.returning({

@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
 						value={email}
 					/>
 				</div>
-				<div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-800 text-sm">
+				<div className="rounded-lg border border-info/20 bg-info/5 p-3 text-info-foreground text-sm">
 					Enter your email address and we'll send you a link to reset your
 					password.
 				</div>

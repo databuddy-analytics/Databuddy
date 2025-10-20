@@ -2,9 +2,9 @@
 
 import { LightningIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { DataTable } from '@/components/analytics/data-table';
 import { MetricsChart } from '@/components/charts/metrics-chart';
 import type { ChartDataRow } from '@/components/charts/metrics-constants';
+import { DataTable } from '@/components/table/data-table';
 
 interface WebVitalsData {
 	date: string;
@@ -88,13 +88,9 @@ export function WebVitalsChart({
 	const chartData = hasData
 		? data.map((item) => {
 				const result: Record<string, unknown> = { date: item.date };
-				// Add all percentiles for the selected metric
+				// Add avg and p50 for the selected metric
 				result[`avg_${selectedMetric}`] = item[`avg_${selectedMetric}`];
 				result[`p50_${selectedMetric}`] = item[`p50_${selectedMetric}`];
-				result[`p75_${selectedMetric}`] = item[`p75_${selectedMetric}`];
-				result[`p90_${selectedMetric}`] = item[`p90_${selectedMetric}`];
-				result[`p95_${selectedMetric}`] = item[`p95_${selectedMetric}`];
-				result[`p99_${selectedMetric}`] = item[`p99_${selectedMetric}`];
 				return result;
 			})
 		: [];
@@ -122,10 +118,10 @@ export function WebVitalsChart({
 				<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
 					{WEB_VITALS_METRICS.map((metric) => {
 						const isSelected = selectedMetric === metric.key;
-						const p95Value = hasData
-							? (latestData?.[`p95_${metric.key}`] as number | undefined)
+						const p50Value = hasData
+							? (latestData?.[`p50_${metric.key}`] as number | undefined)
 							: undefined;
-						const status = p95Value ? getStatus(p95Value, metric) : null;
+						const status = p50Value ? getStatus(p50Value, metric) : null;
 
 						return (
 							<button
@@ -157,10 +153,10 @@ export function WebVitalsChart({
 										<div className="mb-1 h-6 rounded bg-muted" />
 										<div className="h-4 w-16 rounded bg-muted" />
 									</div>
-								) : p95Value ? (
+								) : p50Value ? (
 									<div>
 										<div className="font-mono font-semibold text-base">
-											{Math.round(p95Value)}ms
+											{Math.round(p50Value)}ms
 										</div>
 										{status && (
 											<div className={`font-medium text-xs ${status.color}`}>
@@ -183,6 +179,11 @@ export function WebVitalsChart({
 						description={`${WEB_VITALS_METRICS.find((m) => m.key === selectedMetric)?.desc || 'Performance metric'} showing percentile distributions over time`}
 						height={400}
 						isLoading={isLoading || isRefreshing}
+						metricsFilter={(metric) =>
+							metric.category === 'performance' ||
+							metric.category === 'core_web_vitals'
+						}
+						showLegend={false}
 						title={`${WEB_VITALS_METRICS.find((m) => m.key === selectedMetric)?.label || 'Core Web Vitals'} Performance`}
 					/>
 				) : (

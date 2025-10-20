@@ -36,6 +36,14 @@ export const VALIDATION_LIMITS = {
 	EVENT_ID_MAX_LENGTH: 512,
 } as const;
 
+export const FILTERED_ERROR_MESSAGES = new Set([
+	'Script error.',
+	'Non-Error promise rejection captured',
+	'ResizeObserver loop limit exceeded',
+	'Loading chunk',
+	'ChunkLoadError',
+]);
+
 export const SAFE_HEADERS = new Set([
 	'user-agent',
 	'referer',
@@ -78,11 +86,12 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 			);
 		})
 		.join('')
+		.replace(/<[^>]*>/g, '') // Remove HTML tags
 		.replace(/[<>'"&]/g, '')
 		.replace(/\s+/g, ' ');
 }
 
-const timezoneRegex = /^[A-Za-z_/+-]{1,64}$/;
+const timezoneRegex = /^[A-Za-z0-9_/+-]{1,64}$/;
 const languageRegex = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
 const sessionIdRegex = /^[a-zA-Z0-9_-]+$/;
 const resolutionRegex = /^\d{1,5}x\d{1,5}$/;
@@ -326,7 +335,8 @@ export function validatePayloadSize(
  * Performance metrics validation
  */
 export function validatePerformanceMetric(value: unknown): number | undefined {
-	return validateNumeric(value, 0, 300_000) as number | undefined;
+	const result = validateNumeric(value, 0, 300_000);
+	return result === null ? undefined : result;
 }
 
 /**

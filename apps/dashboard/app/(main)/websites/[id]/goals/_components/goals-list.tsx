@@ -1,15 +1,9 @@
 'use client';
 
+import { TargetIcon } from '@phosphor-icons/react';
+import { EmptyState } from '@/components/empty-state';
 import type { Goal } from '@/hooks/use-goals';
-import { EmptyState } from './empty-state';
 import { GoalCard } from './goal-card';
-
-interface GoalAnalytics {
-	goalId: string;
-	conversionRate: number;
-	totalUsers: number;
-	completions: number;
-}
 
 interface GoalsListProps {
 	goals: Goal[];
@@ -35,7 +29,24 @@ export function GoalsList({
 	}
 
 	if (goals.length === 0) {
-		return <EmptyState onCreateGoal={onCreateGoal} />;
+		return (
+			<EmptyState
+				action={{
+					label: 'Create Your First Goal',
+					onClick: onCreateGoal,
+				}}
+				description="Track conversions like sign-ups, purchases, or button clicks to measure key user actions and optimize your conversion rates."
+				icon={
+					<TargetIcon
+						className="h-16 w-16 text-primary"
+						size={16}
+						weight="duotone"
+					/>
+				}
+				title="No goals yet"
+				variant="default"
+			/>
+		);
 	}
 
 	return (

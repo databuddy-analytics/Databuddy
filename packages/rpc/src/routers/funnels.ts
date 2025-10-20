@@ -232,7 +232,7 @@ export const funnelsRouter = createTRPCRouter({
 					.update(funnelDefinitions)
 					.set({
 						...updates,
-						updatedAt: new Date().toISOString(),
+						updatedAt: new Date(),
 					})
 					.where(
 						and(
@@ -285,7 +285,7 @@ export const funnelsRouter = createTRPCRouter({
 				await ctx.db
 					.update(funnelDefinitions)
 					.set({
-						deletedAt: new Date().toISOString(),
+						deletedAt: new Date(),
 						isActive: false,
 					})
 					.where(

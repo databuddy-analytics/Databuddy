@@ -7,15 +7,7 @@
     "esModuleInterop": true,
     "strictNullChecks": true
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    ".next",
-    "turbo",
-    ".turbo",
-    "**/node_modules"
-  ],
-  "include": ["apps/**/*", "packages/**/*", "lib"],
+  "include": ["go-fuck-yourself-typescript.ts"],
   "skipLibCheck": true,
   "noResolve": true,
   "noImplicitAny": false

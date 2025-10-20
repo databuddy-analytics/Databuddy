@@ -1,22 +1,15 @@
 'use client';
 
+import { DatabaseIcon } from '@phosphor-icons/react';
+import { EmptyState } from '@/components/empty-state';
+import type { DbConnection } from '@/hooks/use-db-connections';
 import { ConnectionCard } from './connection-card';
-import { EmptyState } from './empty-state';
-
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-	userId: string;
-	createdAt: string;
-	updatedAt: string;
-}
 
 interface ConnectionsListProps {
-	connections: DatabaseConnection[];
+	connections: DbConnection[];
 	isLoading: boolean;
-	onEdit: (connection: DatabaseConnection) => void;
-	onDelete: (connection: DatabaseConnection) => void;
+	onEdit: (connection: DbConnection) => void;
+	onDelete: (connection: DbConnection) => void;
 	onCreate: () => void;
 }
 
@@ -32,7 +25,24 @@ export function ConnectionsList({
 	}
 
 	if (connections.length === 0) {
-		return <EmptyState onCreateConnection={onCreate} />;
+		return (
+			<EmptyState
+				action={{
+					label: 'Create Your First Connection',
+					onClick: onCreate,
+				}}
+				description="Connect your databases to start monitoring performance, tracking queries, and gaining insights into your database health across all environments."
+				icon={
+					<DatabaseIcon
+						className="h-16 w-16 text-primary"
+						size={16}
+						weight="duotone"
+					/>
+				}
+				title="No connections yet"
+				variant="default"
+			/>
+		);
 	}
 
 	return (

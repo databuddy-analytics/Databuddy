@@ -20,7 +20,7 @@ describe('drizzle-cache', () => {
 			key: 'a',
 			queryFn: async () => {
 				calls++;
-				return 'foo';
+				return await Promise.resolve('foo');
 			},
 		});
 		expect(result).toBe('foo');
@@ -29,7 +29,7 @@ describe('drizzle-cache', () => {
 			key: 'a',
 			queryFn: async () => {
 				calls++;
-				return 'bar';
+				return await Promise.resolve('bar');
 			},
 		});
 		expect(hit).toBe('foo');
@@ -43,7 +43,7 @@ describe('drizzle-cache', () => {
 			ttl: 1,
 			queryFn: async () => {
 				calls++;
-				return 'baz';
+				return await Promise.resolve('baz');
 			},
 		});
 		await new Promise((r) => setTimeout(r, 1100));
@@ -52,7 +52,7 @@ describe('drizzle-cache', () => {
 			ttl: 1,
 			queryFn: async () => {
 				calls++;
-				return 'qux';
+				return await Promise.resolve('qux');
 			},
 		});
 		expect(result).toBe('qux');
@@ -129,7 +129,7 @@ describe('drizzle-cache', () => {
 			queryFn: async () => 'v',
 		});
 		await cache.invalidateByKey('i');
-		await cache.cleanupDeps();
+		await cache.cleanupEmptySets();
 		const depMembers = await redis.smembers('test:dep:t3');
 		const tagMembers = await redis.smembers('test:tag:tag3');
 		expect(depMembers).toEqual([]);

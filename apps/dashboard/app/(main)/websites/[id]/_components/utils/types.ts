@@ -4,39 +4,27 @@ import type {
 	Website,
 } from '@databuddy/shared';
 
-// Extended date range with granularity
 export interface DateRange extends BaseDateRange {
 	granularity?: 'daily' | 'hourly';
 }
 
-// Settings tab specific types
-export type SettingsTab =
-	| 'tracking'
-	| 'basic'
-	| 'advanced'
-	| 'optimization'
-	| 'privacy'
-	| 'export';
+export type SettingsTab = 'privacy' | 'export';
 
-// Base tab props shared across all tabs
 export interface BaseTabProps {
 	websiteId: string;
 	dateRange: DateRange;
 }
 
-// Tab props with refresh functionality
 export interface RefreshableTabProps extends BaseTabProps {
 	isRefreshing: boolean;
 	setIsRefreshing: (value: boolean) => void;
 }
 
-// Tab props with website data
 export interface WebsiteDataTabProps extends BaseTabProps {
 	websiteData: Website | undefined;
 	onWebsiteUpdated?: () => void;
 }
 
-// Combined tab props that include all features
 export interface FullTabProps extends BaseTabProps {
 	websiteData: Website | undefined;
 	isRefreshing: boolean;
@@ -45,7 +33,6 @@ export interface FullTabProps extends BaseTabProps {
 	addFilter: (filter: DynamicQueryFilter) => void;
 }
 
-// Common analytics data types
 export interface MetricPoint {
 	date: string;
 	pageviews?: number;
@@ -67,48 +54,40 @@ export interface TableColumn {
 	className?: string;
 }
 
-// Settings-related types
 export interface WebsiteFormData {
 	name?: string;
 	domain?: string;
 }
 
 export interface TrackingOptions {
-	// Core tracking
 	disabled: boolean;
 	trackScreenViews: boolean;
 	trackHashChanges: boolean;
 	trackSessions: boolean;
 
-	// Interaction tracking
 	trackAttributes: boolean;
 	trackOutgoingLinks: boolean;
 	trackInteractions: boolean;
 
-	// Advanced tracking
 	trackEngagement: boolean;
 	trackScrollDepth: boolean;
 	trackExitIntent: boolean;
 	trackBounceRate: boolean;
 
-	// Performance tracking
 	trackPerformance: boolean;
 	trackWebVitals: boolean;
 	trackErrors: boolean;
 
-	// Optimization
 	samplingRate: number;
 	enableRetries: boolean;
 	maxRetries: number;
 	initialRetryDelay: number;
 
-	// Batching
 	enableBatching: boolean;
 	batchSize: number;
 	batchTimeout: number;
 }
 
-// Component-specific prop interfaces
 export interface WebsiteHeaderProps {
 	websiteData: Website;
 	websiteId: string;
@@ -119,7 +98,6 @@ export interface SettingsNavigationProps {
 	activeTab: SettingsTab;
 	setActiveTab: (tab: SettingsTab) => void;
 	onDeleteClick: () => void;
-	trackingOptions: TrackingOptions;
 }
 
 export interface TrackingCodeTabProps {

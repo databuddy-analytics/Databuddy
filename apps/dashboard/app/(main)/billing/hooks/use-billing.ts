@@ -23,7 +23,7 @@ export type Usage = {
 export type { Customer, CustomerInvoice as Invoice } from 'autumn-js';
 
 export function useBilling(refetch?: () => void) {
-	const { attach, cancel, check, track, openBillingPortal } = useAutumn();
+	const { attach, cancel, check, track, openBillingPortal } = useCustomer();
 	const [isLoading, setIsLoading] = useState(false);
 	const [showNoPaymentDialog, setShowNoPaymentDialog] = useState(false);
 	const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -197,6 +197,11 @@ export function useBillingData() {
 		refetch: refetchCustomer,
 	} = useCustomer({
 		expand: ['invoices'],
+		swrConfig: {
+			revalidateOnFocus: false,
+			revalidateOnMount: true,
+			dedupingInterval: 5 * 60 * 1000, // 5 minutes
+		},
 	});
 
 	const {

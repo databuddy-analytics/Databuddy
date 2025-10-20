@@ -1,6 +1,5 @@
 import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig } from '../types';
-import { buildWhereClause } from '../utils';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
 export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
@@ -100,8 +99,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
@@ -112,9 +111,10 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-			const combinedWhereClause = buildWhereClause(filterConditions);
+			const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
-			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE('time')},`
 				: '';
@@ -220,8 +220,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
@@ -232,9 +232,10 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-			const combinedWhereClause = buildWhereClause(filterConditions);
+			const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
-			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE('time')},`
 				: '';
@@ -367,8 +368,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
@@ -379,11 +380,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-			const combinedWhereClause = buildWhereClause(filterConditions);
+			const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
-			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')},`
+				? `${helpers.sessionAttributionCTE('time')}`
 				: '';
 
 			const baseQuery = helpers?.sessionAttributionCTE

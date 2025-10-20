@@ -11,7 +11,6 @@ interface CodeBlockProps extends React.ComponentProps<'div'> {
 	children?: React.ReactNode;
 }
 
-// Create a singleton highlighter instance following Shiki best practices
 const getShikiHighlighter = cache(async () => {
 	return await createHighlighter({
 		themes: ['github-dark', 'github-light'],
@@ -115,25 +114,24 @@ async function CodeBlock({
 				{highlightedCode ? (
 					<div
 						className={cn(
-							'overflow-x-auto font-mono text-sm leading-relaxed',
-							'[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:font-mono [&>pre]:text-sm [&>pre]:leading-relaxed',
-							'[&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:font-mono [&>pre>code]:text-sm [&>pre>code]:leading-relaxed',
+							'overflow-x-auto font-geist-mono text-sm leading-relaxed',
+							'[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:font-geist-mono [&>pre]:text-sm [&>pre]:leading-relaxed',
+							'[&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:font-geist-mono [&>pre>code]:text-sm [&>pre>code]:leading-relaxed',
 							'[&_.line]:min-h-[1.25rem] [&_.line]:px-0',
 							className
 						)}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: Required for syntax highlighting
 						dangerouslySetInnerHTML={{ __html: highlightedCode }}
 					/>
 				) : (
 					<pre
 						className={cn(
-							'overflow-x-auto p-4 font-mono text-foreground text-sm leading-relaxed',
+							'overflow-x-auto p-4 font-geist-mono text-foreground text-sm leading-relaxed',
 							'[&>code]:block [&>code]:w-full [&>code]:p-0 [&>code]:text-inherit',
 							className
 						)}
 						tabIndex={-1}
 					>
-						<code className="font-mono">{content}</code>
+						<code className="font-geist-mono">{content}</code>
 					</pre>
 				)}
 			</div>
@@ -147,7 +145,7 @@ function InlineCode({ className, ...props }: InlineCodeProps) {
 	return (
 		<code
 			className={cn(
-				'relative rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium font-mono text-primary text-sm',
+				'relative rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-geist-mono font-medium text-primary text-sm',
 				className
 			)}
 			{...props}

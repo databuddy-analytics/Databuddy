@@ -1,11 +1,6 @@
 'use client';
 
-import { DataTable } from '@/components/analytics';
-import type { Experiment } from '@/hooks/use-experiments';
-
-interface MetricsTableProps {
-	experiment: Experiment;
-}
+import { DataTable } from '@/components/table/data-table';
 
 interface MetricResult {
 	metric: string;
@@ -52,7 +47,7 @@ const mockMetrics: MetricResult[] = [
 	},
 ];
 
-const formatNumber = (value: number | null | undefined): string => {
+const _formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
 		return '0';
 	}
@@ -62,7 +57,7 @@ const formatNumber = (value: number | null | undefined): string => {
 	}).format(value);
 };
 
-export function MetricsTable({ experiment }: MetricsTableProps) {
+export function MetricsTable() {
 	const columns = [
 		{
 			id: 'metric',

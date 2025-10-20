@@ -129,7 +129,7 @@ export default function ExperimentsPage() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [refetchExperiments]);
+	}, [refetchExperiments, setIsRefreshing]);
 
 	const handleSaveExperiment = async (
 		data: Experiment | Omit<CreateExperimentData, 'websiteId'>
@@ -189,19 +189,19 @@ export default function ExperimentsPage() {
 	if (experimentsError) {
 		return (
 			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
-				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+				<Card className="rounded border-destructive/20 bg-destructive/10">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
 							<FlaskIcon
-								className="h-5 w-5 text-red-600"
+								className="h-5 w-5 text-destructive"
 								size={16}
 								weight="duotone"
 							/>
-							<p className="font-medium text-red-600">
+							<p className="font-medium text-destructive">
 								Error loading experiment data
 							</p>
 						</div>
-						<p className="mt-2 text-red-600/80 text-sm">
+						<p className="mt-2 text-destructive/80 text-sm">
 							{experimentsError.message}
 						</p>
 					</CardContent>

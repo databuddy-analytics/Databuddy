@@ -2,7 +2,6 @@
 
 import { GripVerticalIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
-// biome-ignore lint: false positive
 import * as ResizablePrimitive from 'react-resizable-panels';
 
 import { cn } from '@/lib/utils';

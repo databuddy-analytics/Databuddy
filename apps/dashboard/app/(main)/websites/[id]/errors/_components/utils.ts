@@ -43,5 +43,7 @@ export const getSeverityColor = (
 		medium: 'bg-chart-2/10 text-chart-2 border-chart-2/20',
 		low: 'bg-chart-3/10 text-chart-3 border-chart-3/20',
 	};
-	return colors[severity] || 'bg-muted/10 text-muted-foreground border-muted/20';
+	return (
+		colors[severity] || 'bg-muted/10 text-muted-foreground border-muted/20'
+	);
 };

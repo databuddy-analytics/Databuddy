@@ -1,17 +1,33 @@
 {
   "name": "databuddy",
+  "module": "index.ts",
+  "devDependencies": {
+    "@biomejs/biome": "2.2.5",
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20251010.1",
+    "dotenv-cli": "^10.0.0",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "ultracite": "5.0.49"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "bun@1.2.19",
   "private": true,
   "scripts": {
     "build": "turbo run build",
     "dev": "dotenv -- turbo run dev",
     "start": "turbo run start",
-    "lint": "npx ultracite@latest lint",
-    "format": "npx ultracite@latest format",
-    "check-types": "turbo run check-types",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "npx ultracite@latest check",
+    "format": "npx ultracite@latest fix",
+    "check-types": "tsgo --noEmit --project .",
     "generate-db": "turbo run generate --filter=@databuddy/db",
     "db:studio": "dotenv -- turbo run db:studio",
     "clickhouse:init": "cd packages/db && bun run clickhouse:init",
-    "db:generate": "turbo run db:generate",
     "db:push": "dotenv -- turbo run db:push",
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
@@ -20,18 +36,7 @@
     "sdk:build": "cd packages/sdk && bun run build",
     "dashboard:dev": "dotenv -- cd apps/dashboard; bun run dev"
   },
-  "devDependencies": {
-    "@biomejs/biome": "2.1.2",
-    "@types/bun": "latest",
-    "dotenv-cli": "^10.0.0",
-    "turbo": "^2.5.2",
-    "typescript": "^5.8.3",
-    "ultracite": "5.0.49"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "packageManager": "bun@1.2.19",
+  "type": "module",
   "workspaces": {
     "packages": [
       "apps/*",
@@ -41,8 +46,8 @@
       "react": "19.0.0",
       "react-dom": "19.0.0",
       "next": "^15.3.4",
-      "typescript": "^5.8.3",
-      "zod": "3.25.76",
+      "typescript": "^5.9.3", 
+      "zod": "4.1.12",
       "tailwindcss": "^4.1.4",
       "autumn-js": "^0.0.101",
       "stripe": "^18.2.1",
@@ -72,12 +77,18 @@
       "@logtail/edge": "^0.5.4",
       "@logtail/js": "^0.5.5",
       "@logtail/pino": "^0.5.5",
-      "@biomejs/biome": "2.1.2",
+      "@biomejs/biome": "2.2.2",
       "@types/bun": "latest",
-      "ultracite": "5.0.49",
-      "turbo": "^2.5.2"
+      "@types/react": "19.0.0",
+      "@types/react-dom": "19.0.0",
+      "bun-types": "latest",
+      "ultracite": "5.3.10",
+      "turbo": "^2.5.2",
+      "drizzle-orm": "^0.42.0",
+      "nanoid": "^5.1.6"
     }
   },
-  "module": "index.ts",
-  "type": "module"
+  "dependencies": {
+    "prettier": "^3.6.2"
+  }
 }

@@ -52,6 +52,19 @@ export default function HomePage() {
 					<Hero />
 				</Section>
 
+				<div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+					<div className="flex justify-center">
+						<a
+							className="text-muted-foreground text-sm underline underline-offset-4 transition-colors hover:text-foreground"
+							href="https://chatgpt.com/?hints=search&prompt=Read+these+3+pages%3A%0A%0A-+https%3A%2F%2Fwww.databuddy.cc%0A-+https%3A%2F%2Fwww.databuddy.cc%2Fdocs%0A-+https%3A%2F%2Fwww.databuddy.cc%2Fpricing%0A%0AThen+explain+in+simple+terms+what+this+app+does%2C+and+why+i+should+care"
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							Don't understand what this does? Ask ChatGPT
+						</a>
+					</div>
+				</div>
+
 				{/* Trusted By Section */}
 				<Section
 					className="border-border border-t border-b bg-background/50"

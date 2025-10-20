@@ -40,6 +40,63 @@ const verifyFormDefaultValues = {
 	trustDevice: false,
 };
 
+type BackupCodesDisplayProps = {
+	backupCodes: string[] | null;
+	downloadBackupCodes: () => void;
+	copyBackupCodes: () => void;
+	copied: boolean;
+};
+
+// Show backup codes component
+const BackupCodesDisplay = ({
+	backupCodes,
+	downloadBackupCodes,
+	copyBackupCodes,
+	copied,
+}: BackupCodesDisplayProps) => {
+	if (!backupCodes || backupCodes.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="rounded-md border bg-muted/50 p-4">
+			<div className="mb-2 flex items-center justify-between">
+				<h4 className="font-medium">Your Backup Codes</h4>
+				<div className="flex gap-2">
+					<Button onClick={downloadBackupCodes} size="sm" variant="outline">
+						<DownloadIcon className="mr-2 h-4 w-4" size={16} weight="duotone" />
+						Download
+					</Button>
+					<Button onClick={copyBackupCodes} size="sm" variant="outline">
+						{copied ? (
+							<>
+								<CheckCircleIcon
+									className="mr-2 h-4 w-4"
+									size={16}
+									weight="duotone"
+								/>
+								Copied
+							</>
+						) : (
+							<>
+								<CopyIcon className="mr-2 h-4 w-4" size={16} weight="duotone" />
+								Copy
+							</>
+						)}
+					</Button>
+				</div>
+			</div>
+			<div className="grid grid-cols-2 gap-2">
+				{backupCodes.map((code, index) => (
+					<code className="rounded bg-muted p-1 text-xs" key={index + code}>
+						{code}
+					</code>
+				))}
+			</div>
+		</div>
+	);
+};
+
 export function TwoFactorForm() {
 	const { data: session } = useSession();
 	const [isLoading, setIsLoading] = useState(false);
@@ -64,7 +121,7 @@ export function TwoFactorForm() {
 
 	// Check if 2FA is already enabled
 	useEffect(() => {
-		const checkTwoFactorStatus = async () => {
+		const checkTwoFactorStatus = () => {
 			try {
 				// As a fallback, we'll just check if we can find any property that might indicate 2FA is enabled
 				// Different auth implementations might use different property names
@@ -257,59 +314,6 @@ export function TwoFactorForm() {
 		verifyForm.setValue('code', truncated);
 	};
 
-	// Show backup codes component
-	const BackupCodesDisplay = () => {
-		if (!backupCodes || backupCodes.length === 0) {
-			return null;
-		}
-
-		return (
-			<div className="rounded-md border bg-muted/50 p-4">
-				<div className="mb-2 flex items-center justify-between">
-					<h4 className="font-medium">Your Backup Codes</h4>
-					<div className="flex gap-2">
-						<Button onClick={downloadBackupCodes} size="sm" variant="outline">
-							<DownloadIcon
-								className="mr-2 h-4 w-4"
-								size={16}
-								weight="duotone"
-							/>
-							Download
-						</Button>
-						<Button onClick={copyBackupCodes} size="sm" variant="outline">
-							{copied ? (
-								<>
-									<CheckCircleIcon
-										className="mr-2 h-4 w-4"
-										size={16}
-										weight="duotone"
-									/>
-									Copied
-								</>
-							) : (
-								<>
-									<CopyIcon
-										className="mr-2 h-4 w-4"
-										size={16}
-										weight="duotone"
-									/>
-									Copy
-								</>
-							)}
-						</Button>
-					</div>
-				</div>
-				<div className="grid grid-cols-2 gap-2">
-					{backupCodes.map((code, index) => (
-						<code className="rounded bg-muted p-1 text-xs" key={index + code}>
-							{code}
-						</code>
-					))}
-				</div>
-			</div>
-		);
-	};
-
 	if (setupStep === 'qrcode') {
 		return (
 			<div className="space-y-4">
@@ -416,7 +420,12 @@ export function TwoFactorForm() {
 					</AlertDescription>
 				</Alert>
 
-				<BackupCodesDisplay />
+				<BackupCodesDisplay
+					backupCodes={backupCodes}
+					copied={copied}
+					copyBackupCodes={copyBackupCodes}
+					downloadBackupCodes={downloadBackupCodes}
+				/>
 			</div>
 		);
 	}
@@ -436,7 +445,12 @@ export function TwoFactorForm() {
 					</AlertDescription>
 				</Alert>
 
-				<BackupCodesDisplay />
+				<BackupCodesDisplay
+					backupCodes={backupCodes}
+					copied={copied}
+					copyBackupCodes={copyBackupCodes}
+					downloadBackupCodes={downloadBackupCodes}
+				/>
 
 				<Button
 					disabled={isLoading}

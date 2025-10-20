@@ -187,16 +187,25 @@
 		}
 
 		getOrCreateAnonymousId() {
-			if (typeof window !== 'undefined' && window.localStorage) {
-				const storedId = localStorage.getItem('did');
-				if (storedId) {
-					return storedId;
-				}
-				const newId = this.generateAnonymousId();
-				localStorage.setItem('did', newId);
-				return newId;
+			if (this.isServer()) {
+				return this.generateAnonymousId();
 			}
-			return this.generateAnonymousId();
+			if (typeof window === 'undefined') {
+				return this.generateAnonymousId();
+			}
+			const urlParams = new URLSearchParams(window.location.search);
+			let anonId = urlParams.get('anonId');
+			if (anonId && window.localStorage) {
+				localStorage.setItem('did', anonId);
+				return anonId;
+			}
+			const storedId = localStorage.getItem('did');
+			if (storedId) {
+				return storedId;
+			}
+			const newId = this.generateAnonymousId();
+			localStorage.setItem('did', newId);
+			return newId;
 		}
 
 		generateAnonymousId() {
@@ -206,6 +215,14 @@
 		getOrCreateSessionId() {
 			if (this.isServer()) {
 				return this.generateSessionId();
+			}
+
+			const urlParams = new URLSearchParams(window.location.search);
+			let sessionIdFromUrl = urlParams.get('sessionId');
+			if (sessionIdFromUrl && sessionStorage) {
+				sessionStorage.setItem('did_session', sessionIdFromUrl);
+				sessionStorage.setItem('did_session_timestamp', Date.now().toString());
+				return sessionIdFromUrl;
 			}
 
 			const storedId = sessionStorage.getItem('did_session');
@@ -251,6 +268,58 @@
 			sessionStorage.setItem('did_session_start', now.toString());
 			return now;
 		}
+
+		cleanAttributionParams() {
+			if (this.isServer() || typeof window === 'undefined' || !window.history) {
+				return;
+			}
+			const urlParams = new URLSearchParams(window.location.search);
+			const hadAnonId = urlParams.has('anonId');
+			const hadSessionId = urlParams.has('sessionId');
+
+			if (!hadAnonId && !hadSessionId) {
+				return;
+			}
+
+			if (hadAnonId) urlParams.delete('anonId');
+			if (hadSessionId) urlParams.delete('sessionId');
+
+			const newSearch = urlParams.toString();
+			const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+			window.history.replaceState({}, document.title, newUrl);
+		}
+
+	compileGlobToRegex(pattern) {
+		const doubleAsteriskToken = "__DOUBLE_ASTERISK_TOKEN__";
+		const singleAsteriskToken = "__SINGLE_ASTERISK_TOKEN__";
+
+		let regexString = pattern
+			.replace(/\*\*/g, doubleAsteriskToken)
+			.replace(/\*/g, singleAsteriskToken);
+
+		regexString = regexString.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+
+		regexString = regexString.replace(new RegExp(`/${doubleAsteriskToken}/`, "g"), "/(?:.+/)?");
+		regexString = regexString.replace(new RegExp(doubleAsteriskToken, "g"), ".*");
+		regexString = regexString.replace(/\//g, "\\/");
+
+		const finalRegexString = regexString.replace(new RegExp(singleAsteriskToken, "g"), "[^/]+");
+
+		return new RegExp("^" + finalRegexString + "$");
+	}
+
+	matchPath(path, patterns) {
+		for (let pattern of patterns) {
+			try {
+				if (this.compileGlobToRegex(pattern).test(path)) {
+					return pattern;
+				}
+			} catch (error) {
+				console.error(`Invalid pattern: ${pattern}`, error);
+			}
+		}
+		return null;
+	}
 
 		init() {
 			if (this.isServer()) {
@@ -425,7 +494,6 @@
 
 				if (isNetworkError) {
 					for (const event of batchEvents) {
-						// Re-wrap the event for retry
 						const originalEvent = {
 							type: 'track',
 							payload: event,
@@ -475,10 +543,21 @@
 			};
 		}
 
-		async track(eventName, properties) {
+		track(eventName, properties) {
 			if (this.options.disabled || this.isLikelyBot) {
 				return;
 			}
+
+			if (this.isLikelyBot) {
+				return;
+			}
+
+		if (this.options.skipPatterns && this.options.skipPatterns.length > 0) {
+			const currentPath = window.location.pathname;
+			if (this.matchPath(currentPath, this.options.skipPatterns) !== null) {
+				return;
+			}
+		}
 
 			if (this.options.samplingRate < 1.0) {
 				const samplingValue = Math.random();
@@ -497,10 +576,8 @@
 				finalProperties = { value: properties };
 			}
 
-			// Collect base context data
 			const baseContext = this.getBaseContext();
 
-			// Collect performance data for page views
 			let performanceData = {};
 			if (
 				(eventName === 'screen_view' || eventName === 'page_view') &&
@@ -534,7 +611,7 @@
 			}
 
 			try {
-				const beaconResult = await this.sendBeacon(payload);
+				const beaconResult = this.sendBeacon(payload);
 				if (beaconResult) {
 					return beaconResult;
 				}
@@ -678,16 +755,16 @@
 				utm_content: urlParams.get('utm_content'),
 			};
 		}
-
+		
 		detectBot() {
-			if (typeof window === 'undefined') {
-				return false;
-			}
-			return (
+			if (typeof window === 'undefined') return false;
+
+			const ua = navigator.userAgent || '';
+			const isHeadless = /\bHeadlessChrome\b/i.test(ua) || /\bPhantomJS\b/i.test(ua);
+
+			return Boolean(
 				navigator.webdriver ||
-				!navigator.languages.length ||
-				navigator.userAgent.includes('HeadlessChrome') ||
-				navigator.userAgent.includes('PhantomJS') ||
+				isHeadless ||
 				window.callPhantom ||
 				window._phantom ||
 				window.selenium ||
@@ -780,7 +857,7 @@
 				return;
 			}
 
-			if (this.isBot()) {
+			if (this.isLikelyBot) {
 				return;
 			}
 
@@ -994,21 +1071,38 @@
 		}
 
 		trackCustomEvent(eventName, properties = {}) {
-			if (this.isServer()) {
+			if (this.shouldSkipTracking()) {
 				return;
 			}
 
-			let finalProperties;
-			if (properties === undefined || properties === null) {
-				finalProperties = {};
-			} else if (typeof properties === 'object') {
-				finalProperties = properties;
-			} else {
-				finalProperties = { value: properties };
-			}
+			const normalizedProperties = this.normalizeProperties(properties);
+			const customEvent = this.createBaseEvent('custom', {
+				name: eventName,
+				properties: normalizedProperties,
+			});
 
-			this.track(eventName, finalProperties);
+			return this.sendEventWithFallback(customEvent);
 		}
+
+	getMaskedPath() {
+		const pathname = window.location.pathname;
+		for (const pattern of this.options.maskPatterns || []) {
+			const starIndex = pattern.indexOf('*');
+			if (starIndex === -1) continue;
+			
+			const prefix = pattern.substring(0, starIndex);
+			if (pathname.startsWith(prefix)) {
+				if (pattern.substring(starIndex, starIndex + 2) === '**') {
+					return prefix + '*';
+				}
+				const remainder = pathname.substring(prefix.length);
+				const nextSlash = remainder.indexOf('/');
+				const afterStar = nextSlash === -1 ? '' : remainder.substring(nextSlash);
+				return prefix + '*' + afterStar;
+			}
+		}
+		return pathname;
+	}
 
 		getBaseContext() {
 			if (this.isServer()) {
@@ -1033,7 +1127,6 @@
 			}
 			const viewport_size = width && height ? `${width}x${height}` : null;
 
-			// Clamp screen resolution
 			let screenWidth = window.screen.width;
 			let screenHeight = window.screen.height;
 			if (
@@ -1050,7 +1143,6 @@
 			const screen_resolution =
 				screenWidth && screenHeight ? `${screenWidth}x${screenHeight}` : null;
 
-			// Validate referrer and path as URLs
 			let referrer = this.global?.referrer || document.referrer || 'direct';
 			try {
 				if (referrer && referrer !== 'direct') {
@@ -1059,16 +1151,10 @@
 			} catch {
 				referrer = null;
 			}
-			let path = window.location.href;
-			try {
-				if (path) {
-					new URL(path);
-				}
-			} catch {
-				path = null;
-			}
 
-			// Get timezone safely to handle browser extension interference
+			const maskedPathname = this.getMaskedPath();
+			const path = window.location.origin + maskedPathname + window.location.search + window.location.hash;
+
 			let timezone = null;
 			try {
 				const resolvedOptions = Intl.DateTimeFormat().resolvedOptions();
@@ -1076,37 +1162,41 @@
 					timezone = resolvedOptions.timeZone;
 				}
 			} catch (_e) {
-				// Fallback if Intl API is not available or interfered with
 				timezone = null;
 			}
 
 			return {
-				// Page context
 				path,
 				title: document.title,
 				referrer,
-				// User context
 				screen_resolution,
 				viewport_size,
 				timezone,
 				language: navigator.language,
-				// Connection info
 				connection_type: connectionInfo.connection_type,
 				rtt: connectionInfo.rtt,
 				downlink: connectionInfo.downlink,
-				// UTM parameters
 				utm_source: utmParams.utm_source,
 				utm_medium: utmParams.utm_medium,
 				utm_campaign: utmParams.utm_campaign,
 				utm_term: utmParams.utm_term,
 				utm_content: utmParams.utm_content,
+				dbid: this.dbid,
 			};
 		}
 
-		async trackError(errorData) {
+		trackError(errorData) {
+			
+			if (this.isLikelyBot) {
+				return;
+			}
+
 			if (this.isServer()) {
 				return;
 			}
+
+			const maskedPathname = this.getMaskedPath();
+			const path = window.location.origin + maskedPathname + window.location.search + window.location.hash;
 
 			const errorEvent = {
 				type: 'error',
@@ -1115,7 +1205,7 @@
 					anonymousId: this.anonymousId,
 					sessionId: this.sessionId,
 					timestamp: errorData.timestamp || Date.now(),
-					path: window.location.pathname,
+					path,
 					message: errorData.message,
 					filename: errorData.filename,
 					lineno: errorData.lineno,
@@ -1130,7 +1220,7 @@
 			}
 
 			try {
-				const beaconResult = await this.sendBeacon(errorEvent);
+				const beaconResult = this.sendBeacon(errorEvent);
 				if (beaconResult) {
 					return beaconResult;
 				}
@@ -1141,14 +1231,20 @@
 			return this.send(errorEvent);
 		}
 
-		async trackWebVitals(vitalsData) {
+		trackWebVitals(vitalsData) {
 			if (this.isServer()) {
 				return;
 			}
 
-			// Clamp fcp and lcp to 60000
+			if (this.isLikelyBot) {
+				return;
+			}
+
 			const clamp = (v) =>
 				typeof v === 'number' ? Math.min(60_000, Math.max(0, v)) : v;
+
+			const maskedPathname = this.getMaskedPath();
+			const path = window.location.origin + maskedPathname + window.location.search + window.location.hash;
 
 			const webVitalsEvent = {
 				type: 'web_vitals',
@@ -1157,7 +1253,7 @@
 					anonymousId: this.anonymousId,
 					sessionId: this.sessionId,
 					timestamp: vitalsData.timestamp || Date.now(),
-					path: window.location.pathname,
+					path,
 					fcp: clamp(vitalsData.fcp),
 					lcp: clamp(vitalsData.lcp),
 					cls: vitalsData.cls,
@@ -1171,7 +1267,7 @@
 			}
 
 			try {
-				const beaconResult = await this.sendBeacon(webVitalsEvent);
+				const beaconResult = this.sendBeacon(webVitalsEvent);
 				if (beaconResult) {
 					return beaconResult;
 				}
@@ -1180,6 +1276,49 @@
 			}
 
 			return this.send(webVitalsEvent);
+		}
+
+		// Helper methods to reduce code duplication
+		shouldSkipTracking() {
+			return this.options.disabled || this.isLikelyBot || this.isServer();
+		}
+
+		normalizeProperties(properties) {
+			if (properties === undefined || properties === null) {
+				return {};
+			}
+			if (typeof properties === 'object') {
+				return properties;
+			}
+			return { value: properties };
+		}
+
+		createBaseEvent(eventType, additionalData = {}) {
+			return {
+				type: eventType,
+				eventId: generateUUIDv4(),
+				anonymousId: this.anonymousId,
+				sessionId: this.sessionId,
+				timestamp: Date.now(),
+				...additionalData,
+			};
+		}
+
+		async sendEventWithFallback(event) {
+			if (this.options.enableBatching) {
+				return this.send(event);
+			}
+
+			try {
+				const beaconResult = this.sendBeacon(event);
+				if (beaconResult) {
+					return beaconResult;
+				}
+			} catch (_e) {
+				// Beacon failed, continue to regular send
+			}
+
+			return this.send(event);
 		}
 	};
 
@@ -1215,38 +1354,51 @@
 			}
 
 			this.init();
+			this.cleanAttributionParams();
 		}
-		debounce(t, r) {
+		debounce(callback, delay) {
 			clearTimeout(this.debounceTimer);
-			this.debounceTimer = setTimeout(t, r);
+			this.debounceTimer = setTimeout(callback, delay);
 		}
 		trackOutgoingLinks() {
-			this.isServer() ||
-				document.addEventListener('click', (t) => {
-					const r = t.target;
-					const i = r.closest('a');
-					if (i && r) {
-						const n = i.getAttribute('href');
-						if (n) {
-							try {
-								const url = new URL(n, window.location.origin);
-								const isOutgoing = url.origin !== window.location.origin;
+			if (this.isServer()) {
+				return;
+			}
 
-								if (isOutgoing) {
-									this.track('link_out', {
-										href: n,
-										text:
-											i.innerText ||
-											i.getAttribute('title') ||
-											r.getAttribute('alt'),
-									});
-								}
-							} catch (_e) {
-								//
-							}
-						}
+			document.addEventListener('click', (event) => {
+				const target = event.target;
+				const link = target.closest('a');
+				
+				if (!link || !target) {
+					return;
+				}
+
+				const href = link.getAttribute('href');
+				if (!href) {
+					return;
+				}
+
+				try {
+					const url = new URL(href, window.location.origin);
+					const isOutgoing = url.origin !== window.location.origin;
+
+					if (isOutgoing && !this.isLikelyBot) {
+						const linkText = link.innerText ||
+							link.getAttribute('title') ||
+							target.getAttribute('alt') || null;
+
+						const outgoingLinkEvent = this.createBaseEvent('outgoing_link', {
+							href: href,
+							text: linkText,
+							properties: {},
+						});
+
+						this.sendEventWithFallback(outgoingLinkEvent);
 					}
-				});
+				} catch (_e) {
+					// Invalid URL, ignore
+				}
+			});
 		}
 		trackScreenViews() {
 			if (this.isServer()) {
@@ -1290,27 +1442,38 @@
 				: window.addEventListener('locationchange', i);
 		}
 		trackAttributes() {
-			this.isServer() ||
-				document.addEventListener('click', (t) => {
-					const r = t.target;
-					const i = r.closest('button');
-					const n = r.closest('a');
-					const s = i?.getAttribute('data-track')
-						? i
-						: n?.getAttribute('data-track')
-							? n
-							: null;
-					if (s) {
-						const o = {};
-						for (const p of s.attributes) {
-							if (p.name.startsWith('data-') && p.name !== 'data-track') {
-								o[h(p.name.replace(/^data-/, ''))] = p.value;
-							}
-						}
-						const u = s.getAttribute('data-track');
-						u && this.track(u, o);
+			if (this.isServer()) {
+				return;
+			}
+
+			document.addEventListener('click', (event) => {
+				const target = event.target;
+				const button = target.closest('button');
+				const link = target.closest('a');
+				
+				// Find the element with data-track attribute
+				const trackedElement = button?.getAttribute('data-track') ? button
+					: link?.getAttribute('data-track') ? link
+					: null;
+
+				if (!trackedElement) {
+					return;
+				}
+
+				// Extract data attributes as properties
+				const properties = {};
+				for (const attribute of trackedElement.attributes) {
+					if (attribute.name.startsWith('data-') && attribute.name !== 'data-track') {
+						const propertyName = h(attribute.name.replace(/^data-/, ''));
+						properties[propertyName] = attribute.value;
 					}
-				});
+				}
+
+				const eventName = trackedElement.getAttribute('data-track');
+				if (eventName) {
+					this.trackCustomEvent(eventName, properties);
+				}
+			});
 		}
 		screenView(t, r) {
 			if (this.isServer()) {
@@ -1349,7 +1512,6 @@
 
 				this.isInternalNavigation = false;
 
-				// Clamp page_count
 				const pageData = {
 					page_count: Math.min(10_000, this.pageCount),
 					...(n ?? {}),
@@ -1365,7 +1527,6 @@
 			return;
 		}
 
-		// Check for opt-out flags
 		try {
 			if (
 				localStorage.getItem('databuddy_opt_out') === 'true' ||
@@ -1416,20 +1577,33 @@
 			const dataAttributes = {};
 			for (const attr of currentScript.attributes) {
 				if (attr.name.startsWith('data-')) {
-					const key = attr.name
-						.substring(5)
-						.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-
+					let key = attr.name.substring(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 					const value = attr.value;
 
-					if (value === 'true') {
-						dataAttributes[key] = true;
-					} else if (value === 'false') {
-						dataAttributes[key] = false;
-					} else if (/^\d+$/.test(value)) {
-						dataAttributes[key] = Number(value);
+					if (attr.name === 'data-skip-patterns') {
+						try {
+							dataAttributes.skipPatterns = JSON.parse(value);
+						} catch (e) {
+							console.error('Invalid skip patterns JSON:', e);
+							dataAttributes.skipPatterns = [];
+						}
+					} else if (attr.name === 'data-mask-patterns') {
+						try {
+							dataAttributes.maskPatterns = JSON.parse(value);
+						} catch (e) {
+							console.error('Invalid mask patterns JSON:', e);
+							dataAttributes.maskPatterns = [];
+						}
 					} else {
-						dataAttributes[key] = value;
+						if (value === 'true') {
+							dataAttributes[key] = true;
+						} else if (value === 'false') {
+							dataAttributes[key] = false;
+						} else if (/^\d+$/.test(value)) {
+							dataAttributes[key] = Number(value);
+						} else {
+							dataAttributes[key] = value;
+						}
 					}
 				}
 			}
@@ -1510,6 +1684,9 @@
 				config.apiUrl = 'https://basket.databuddy.cc';
 			}
 
+			if (dataAttributes.skipPatterns !== undefined) config.skipPatterns = dataAttributes.skipPatterns;
+			if (dataAttributes.maskPatterns !== undefined) config.maskPatterns = dataAttributes.maskPatterns;
+
 			return config;
 		}
 
@@ -1542,7 +1719,7 @@
 			});
 
 			window.db = {
-				track: (...args) => window.databuddy?.track(...args),
+				track: (...args) => window.databuddy?.trackCustomEvent(...args),
 				screenView: (...args) => window.databuddy?.screenView(...args),
 				clear: () => window.databuddy?.clear(),
 				flush: () => window.databuddy?.flush(),
@@ -1562,11 +1739,9 @@
 
 	initializeDatabuddy();
 
-	// Opt-out functionality
 	if (typeof window !== 'undefined') {
 		window.Databuddy = d;
 
-		// Global opt-out functions
 		window.databuddyOptOut = () => {
 			try {
 				localStorage.setItem('databuddy_opt_out', 'true');

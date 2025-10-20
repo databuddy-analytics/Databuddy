@@ -15,19 +15,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-interface DatabaseConnection {
-	id: string;
-	name: string;
-	type: string;
-	userId: string;
-	organizationId?: string;
-	createdAt: string;
-	updatedAt: string;
-}
+import type { DbConnection } from '@/hooks/use-db-connections';
 
 interface ConnectionCardProps {
-	connection: DatabaseConnection;
+	connection: DbConnection;
 	onEdit: () => void;
 	onDelete: () => void;
 }
@@ -113,7 +104,7 @@ export function ConnectionCard({
 									onDelete();
 								}}
 							>
-								<TrashIcon className="mr-2 h-4 w-4" />
+								<TrashIcon className="mr-2 h-4 w-4" color="red" />
 								Delete
 							</DropdownMenuItem>
 						</DropdownMenuContent>

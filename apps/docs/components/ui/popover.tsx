@@ -1,6 +1,5 @@
 'use client';
 
-// biome-ignore lint: false positive
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import type { ComponentProps } from 'react';
 
