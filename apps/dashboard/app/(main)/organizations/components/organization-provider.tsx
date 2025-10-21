@@ -210,11 +210,6 @@ export function OrganizationProvider({
 						</div>
 					</div>
 				</main>
-
-				<CreateOrganizationDialog
-					isOpen={showCreateDialog}
-					onClose={() => setShowCreateDialog(false)}
-				/>
 			</div>
 		);
 	}
@@ -256,6 +251,11 @@ export function OrganizationProvider({
 			</div>
 
 			<main className="flex-1 overflow-y-auto">{children}</main>
+
+			<CreateOrganizationDialog
+				isOpen={showCreateDialog}
+				onClose={() => setShowCreateDialog(false)}
+			/>
 
 			{activeOrganization && (
 				<InviteMemberDialog
