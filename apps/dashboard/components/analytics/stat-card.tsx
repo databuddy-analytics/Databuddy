@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import TrendArrow from '@/components/atomic/TrendArrow';
 import TrendPercentage from '@/components/atomic/TrendPercentage';
-import { Card } from '@/components/ui/card';
+import { CornerCard } from '@/components/ui/corner-card';
 import {
 	HoverCard,
 	HoverCardContent,
@@ -223,14 +223,13 @@ export function StatCard({
 
 	if (isLoading) {
 		return (
-			<Card
+			<CornerCard
 				className={cn(
-					'group overflow-hidden pt-0',
-					'border-border/50',
-					'bg-card',
+					'pt-0',
 					className
 				)}
 				id={id}
+				animated={false}
 			>
 				<div className="relative p-3 sm:p-4">
 					<div className="relative z-10 space-y-1.5 sm:space-y-2">
@@ -259,7 +258,7 @@ export function StatCard({
 						<Skeleton className="h-7 w-full rounded-sm" />
 					</div>
 				)}
-			</Card>
+			</CornerCard>
 		);
 	}
 
@@ -274,145 +273,164 @@ export function StatCard({
 	const hasValidChartData = showChart && chartData && chartData.length > 0;
 
 	const cardContent = (
-		<Card
-			className={cn(
-				'group overflow-hidden pt-0',
-				'border-border/50 hover:border-primary/20',
-				'bg-card',
-				getVariantClasses(),
-				className
-			)}
-			id={id}
-		>
-			<div className="relative p-3 sm:p-4">
-				<div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100" />
+		<div className="relative p-3 sm:p-4">
+			<div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100" />
 
-				<div className="relative z-10 space-y-1.5 sm:space-y-2">
-					<div className="flex items-start justify-between">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-2">
-								<p className="line-clamp-1 font-semibold text-[9px] text-muted-foreground uppercase tracking-wider sm:text-[10px] md:text-xs">
-									{title}
-								</p>
-								{titleExtra}
-							</div>
-							<div
-								className={cn(
-									'font-bold text-foreground leading-tight group-hover:text-primary',
-									isTimeValue
-										? 'text-base sm:text-lg md:text-xl'
-										: 'text-lg sm:text-xl md:text-2xl',
-									typeof value === 'string' && value.length > 8
-										? 'text-base sm:text-lg md:text-xl'
-										: ''
-								)}
-							>
-								{displayValue}
-							</div>
+			<div className="relative z-10 space-y-1.5 sm:space-y-2">
+				<div className="flex items-start justify-between">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-2">
+							<p className="line-clamp-1 font-semibold text-[9px] text-muted-foreground uppercase tracking-wider sm:text-[10px] md:text-xs">
+								{title}
+							</p>
+							{titleExtra}
 						</div>
-						{Icon && (
-							<div className="ml-1.5 flex-shrink-0 rounded-lg bg-primary/5 p-1 group-hover:bg-primary/10 sm:ml-2 sm:p-1.5">
-								<Icon className="h-3 w-3 text-primary/70 group-hover:text-primary sm:h-4 sm:w-4" />
-							</div>
-						)}
-					</div>
-
-					<div className="flex items-center justify-between text-[9px] sm:text-[10px] md:text-xs">
-						<div className="flex min-h-[12px] items-center sm:min-h-[14px]">
-							{trendValue !== undefined && !Number.isNaN(trendValue) && (
-								<div className="flex items-center">
-									<TrendArrow invertColor={invertTrend} value={trendValue} />
-									<TrendPercentage
-										className="ml-0.5"
-										invertColor={invertTrend}
-										value={trendValue}
-									/>
-								</div>
+						<div
+							className={cn(
+								'font-bold text-foreground leading-tight group-hover:text-primary',
+								isTimeValue
+									? 'text-base sm:text-lg md:text-xl'
+									: 'text-lg sm:text-xl md:text-2xl',
+								typeof value === 'string' && value.length > 8
+									? 'text-base sm:text-lg md:text-xl'
+									: ''
 							)}
-							{description &&
-								(trendValue === undefined || Number.isNaN(trendValue)) && (
-									<span className="font-medium text-muted-foreground">
-										{description}
-									</span>
-								)}
+						>
+							{displayValue}
 						</div>
-						{trendLabel &&
-							trendValue !== undefined &&
-							!Number.isNaN(trendValue) && (
-								<span className="hidden text-right font-medium text-muted-foreground md:block">
-									{trendLabel}
-								</span>
-							)}
 					</div>
-
-					{hasValidChartData && (
-						<div className="-mb-0.5 sm:-mb-1 [--chart-color:theme(colors.primary.DEFAULT)] group-hover:[--chart-color:theme(colors.primary.500)]">
-							<MiniChart
-								data={chartData}
-								formatChartValue={formatChartValue}
-								id={id || `chart-${Math.random()}`}
-							/>
+					{Icon && (
+						<div className="ml-1.5 flex-shrink-0 rounded-lg bg-primary/5 p-1 group-hover:bg-primary/10 sm:ml-2 sm:p-1.5">
+							<Icon className="h-3 w-3 text-primary/70 group-hover:text-primary sm:h-4 sm:w-4" />
 						</div>
 					)}
 				</div>
+
+				<div className="flex items-center justify-between text-[9px] sm:text-[10px] md:text-xs">
+					<div className="flex min-h-[12px] items-center sm:min-h-[14px]">
+						{trendValue !== undefined && !Number.isNaN(trendValue) && (
+							<div className="flex items-center">
+								<TrendArrow invertColor={invertTrend} value={trendValue} />
+								<TrendPercentage
+									className="ml-0.5"
+									invertColor={invertTrend}
+									value={trendValue}
+								/>
+							</div>
+						)}
+						{description &&
+							(trendValue === undefined || Number.isNaN(trendValue)) && (
+								<span className="font-medium text-muted-foreground">
+									{description}
+								</span>
+							)}
+					</div>
+					{trendLabel &&
+						trendValue !== undefined &&
+						!Number.isNaN(trendValue) && (
+							<span className="hidden text-right font-medium text-muted-foreground md:block">
+								{trendLabel}
+							</span>
+						)}
+				</div>
+
+				{hasValidChartData && (
+					<div className="-mb-0.5 sm:-mb-1 [--chart-color:theme(colors.primary.DEFAULT)] group-hover:[--chart-color:theme(colors.primary.500)]">
+						<MiniChart
+							data={chartData}
+							formatChartValue={formatChartValue}
+							id={id || `chart-${Math.random()}`}
+						/>
+					</div>
+				)}
 			</div>
-		</Card>
+		</div>
 	);
 
-	return typeof trend === 'object' &&
+	const hasDetailedTrend = typeof trend === 'object' &&
 		trend !== null &&
 		trend.currentPeriod &&
-		trend.previousPeriod ? (
-		<HoverCard>
-			<HoverCardTrigger asChild>{cardContent}</HoverCardTrigger>
+		trend.previousPeriod;
+
+	return hasDetailedTrend ? (
+		<HoverCard openDelay={200} closeDelay={100} defaultOpen={false}>
+			<HoverCardTrigger asChild>
+				<div className="w-full">
+					<CornerCard
+						className={cn(
+							'pt-0',
+							getVariantClasses(),
+							className
+						)}
+						id={id}
+						animated={false}
+					>
+						{cardContent}
+					</CornerCard>
+				</div>
+			</HoverCardTrigger>
 			<HoverCardContent className="w-80" sideOffset={10}>
 				<div className="space-y-3">
 					<div className="mb-2 flex items-center gap-2">
 						{Icon && <Icon className="h-4 w-4 text-primary" />}
 						<h4 className="font-semibold text-foreground">{title}</h4>
 					</div>
-					<div className="grid grid-cols-2 gap-4">
-						<div className="space-y-1">
-							<p className="text-muted-foreground text-xs">Previous</p>
-							<p className="text-muted-foreground/80 text-xs">
-								{dayjs(trend.previousPeriod.start).format('MMM D')} -{' '}
-								{dayjs(trend.previousPeriod.end).format('MMM D')}
-							</p>
-							<p className="font-bold text-foreground text-lg">
-								{formatTrendValue(trend.previous, formatValue)}
-							</p>
-						</div>
-						<div className="space-y-1">
-							<p className="text-muted-foreground text-xs">Current</p>
-							<p className="text-muted-foreground/80 text-xs">
-								{dayjs(trend.currentPeriod.start).format('MMM D')} -{' '}
-								{dayjs(trend.currentPeriod.end).format('MMM D')}
-							</p>
-							<p className="font-bold text-foreground text-lg">
-								{formatTrendValue(trend.current, formatValue)}
-							</p>
-						</div>
-					</div>
-					<div className="border-border/50 border-t pt-3">
-						<div className="flex items-center justify-between">
-							<div className="text-muted-foreground text-sm">Change</div>
-							<div className="flex items-center font-bold text-base">
-								<TrendArrow
-									invertColor={invertTrend}
-									value={trend.change || 0}
-								/>
-								<TrendPercentage
-									className="ml-1"
-									invertColor={invertTrend}
-									value={trend.change || 0}
-								/>
+					{hasDetailedTrend && trend && typeof trend === 'object' && 'currentPeriod' in trend ? (
+						<>
+							<div className="grid grid-cols-2 gap-4">
+								<div className="space-y-1">
+									<p className="text-muted-foreground text-xs">Previous</p>
+									<p className="text-muted-foreground/80 text-xs">
+										{dayjs(trend.previousPeriod.start).format('MMM D')} -{' '}
+										{dayjs(trend.previousPeriod.end).format('MMM D')}
+									</p>
+									<p className="font-bold text-foreground text-lg">
+										{formatTrendValue(trend.previous, formatValue)}
+									</p>
+								</div>
+								<div className="space-y-1">
+									<p className="text-muted-foreground text-xs">Current</p>
+									<p className="text-muted-foreground/80 text-xs">
+										{dayjs(trend.currentPeriod.start).format('MMM D')} -{' '}
+										{dayjs(trend.currentPeriod.end).format('MMM D')}
+									</p>
+									<p className="font-bold text-foreground text-lg">
+										{formatTrendValue(trend.current, formatValue)}
+									</p>
+								</div>
 							</div>
-						</div>
-					</div>
+							<div className="border-border/50 border-t pt-3">
+								<div className="flex items-center justify-between">
+									<div className="text-muted-foreground text-sm">Change</div>
+									<div className="flex items-center font-bold text-base">
+										<TrendArrow
+											invertColor={invertTrend}
+											value={trend.change || 0}
+										/>
+										<TrendPercentage
+											className="ml-1"
+											invertColor={invertTrend}
+											value={trend.change || 0}
+										/>
+									</div>
+								</div>
+							</div>
+						</>
+					) : null}
 				</div>
 			</HoverCardContent>
 		</HoverCard>
 	) : (
-		cardContent
+		<CornerCard
+			className={cn(
+				'pt-0',
+				getVariantClasses(),
+				className
+			)}
+			id={id}
+			animated={false}
+		>
+			{cardContent}
+		</CornerCard>
 	);
 }

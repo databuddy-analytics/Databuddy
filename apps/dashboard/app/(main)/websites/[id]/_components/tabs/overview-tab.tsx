@@ -30,6 +30,7 @@ import {
 	createPageColumns,
 	createReferrerColumns,
 } from '@/components/table/rows';
+import { CornerCard } from '@/components/ui/corner-card';
 import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
 import { getUserTimezone } from '@/lib/timezone';
 import { useDateFilters } from '@/hooks/use-date-filters';
@@ -961,7 +962,7 @@ export function WebsiteOverviewTab({
 			</div>
 
 			{/* Chart */}
-			<div className="rounded border border-sidebar-border border-b-0 bg-sidebar shadow-sm">
+			<CornerCard className="overflow-hidden" cornerSize="md" animated={false}>
 				<div className="flex flex-col items-start justify-between gap-3 border-sidebar-border border-b px-4 py-3 sm:flex-row">
 					<div>
 						<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
@@ -986,7 +987,7 @@ export function WebsiteOverviewTab({
 				<div>
 					<MetricsChartWithAnnotations
 						websiteId={websiteId}
-						className="rounded border-0"
+						className="rounded border-0 shadow-none"
 						data={chartData}
 						height={350}
 						isLoading={isLoading}
@@ -998,116 +999,134 @@ export function WebsiteOverviewTab({
 						}}
 					/>
 				</div>
-			</div>
+			</CornerCard>
 
 			{/* Tables */}
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-				<DataTable
-					description="Referrers and campaign data"
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={referrerTabs}
-					title="Traffic Sources"
-				/>
+				<CornerCard className="overflow-hidden" cornerSize="sm" animated={false}>
+					<DataTable
+						description="Referrers and campaign data"
+						className="rounded border-0 shadow-none"
+						isLoading={isLoading}
+						minHeight={350}
+						onAddFilter={onAddFilter}
+						tabs={referrerTabs}
+						title="Traffic Sources"
+					/>
+				</CornerCard>
 
-				<DataTable
-					description="Top pages and entry/exit points"
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={pagesTabs}
-					title="Pages"
-				/>
+				<CornerCard className="overflow-hidden" cornerSize="sm" animated={false}>
+					<DataTable
+						description="Top pages and entry/exit points"
+						className="rounded border-0 shadow-none"
+						isLoading={isLoading}
+						minHeight={350}
+						onAddFilter={onAddFilter}
+						tabs={pagesTabs}
+						title="Pages"
+					/>
+				</CornerCard>
 			</div>
 
 			{/* Custom Events Table */}
-			<CustomEventsSection
-				customEventsData={customEventsData}
-				isLoading={isLoading}
-				onAddFilter={onAddFilter}
-			/>
+			<CornerCard className="overflow-hidden" cornerSize="md" animated={false}>
+				<CustomEventsSection
+					className="rounded border-0 shadow-none"
+					customEventsData={customEventsData}
+					isLoading={isLoading}
+					onAddFilter={onAddFilter}
+				/>
+			</CornerCard>
 
 			{/* Technology */}
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-				<DataTable
-					columns={deviceColumns}
-					data={analytics.device_types || []}
-					description="Device breakdown"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					showSearch={false}
-					tabs={[
-						{
-							id: 'devices',
-							label: 'Devices',
-							data: analytics.device_types || [],
-							columns: deviceColumns,
-							getFilter: (row: TechnologyData) => {
-								const deviceDisplayToFilterMap: Record<string, string> = {
-									laptop: 'mobile',
-									tablet: 'tablet',
-									desktop: 'desktop',
-								};
-								return {
-									field: 'device_type',
-									value: deviceDisplayToFilterMap[row.name] || row.name,
-								};
+				<CornerCard className="overflow-hidden" cornerSize="sm" animated={false}>
+					<DataTable
+						columns={deviceColumns}
+						data={analytics.device_types || []}
+						description="Device breakdown"
+						className="rounded border-0 shadow-none"
+						initialPageSize={8}
+						isLoading={isLoading}
+						minHeight={350}
+						onAddFilter={onAddFilter}
+						showSearch={false}
+						tabs={[
+							{
+								id: 'devices',
+								label: 'Devices',
+								data: analytics.device_types || [],
+								columns: deviceColumns,
+								getFilter: (row: TechnologyData) => {
+									const deviceDisplayToFilterMap: Record<string, string> = {
+										laptop: 'mobile',
+										tablet: 'tablet',
+										desktop: 'desktop',
+									};
+									return {
+										field: 'device_type',
+										value: deviceDisplayToFilterMap[row.name] || row.name,
+									};
+								},
 							},
-						},
-					]}
-					title="Devices"
-				/>
+						]}
+						title="Devices"
+					/>
+				</CornerCard>
 
-				<DataTable
-					columns={browserColumns}
-					data={analytics.browser_versions || []}
-					description="Browser breakdown"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					showSearch={false}
-					tabs={[
-						{
-							id: 'browsers',
-							label: 'Browsers',
-							data: analytics.browser_versions || [],
-							columns: browserColumns,
-							getFilter: (row: TechnologyData) => ({
-								field: 'browser_name',
-								value: row.name,
-							}),
-						},
-					]}
-					title="Browsers"
-				/>
+				<CornerCard className="overflow-hidden" cornerSize="sm" animated={false}>
+					<DataTable
+						columns={browserColumns}
+						data={analytics.browser_versions || []}
+						description="Browser breakdown"
+						className="rounded border-0 shadow-none"
+						initialPageSize={8}
+						isLoading={isLoading}
+						minHeight={350}
+						onAddFilter={onAddFilter}
+						showSearch={false}
+						tabs={[
+							{
+								id: 'browsers',
+								label: 'Browsers',
+								data: analytics.browser_versions || [],
+								columns: browserColumns,
+								getFilter: (row: TechnologyData) => ({
+									field: 'browser_name',
+									value: row.name,
+								}),
+							},
+						]}
+						title="Browsers"
+					/>
+				</CornerCard>
 
-				<DataTable
-					columns={osColumns}
-					data={analytics.operating_systems || []}
-					description="OS breakdown"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					showSearch={false}
-					tabs={[
-						{
-							id: 'operating_systems',
-							label: 'Operating Systems',
-							data: analytics.operating_systems || [],
-							columns: osColumns,
-							getFilter: (row: TechnologyData) => ({
-								field: 'os_name',
-								value: row.name,
-							}),
-						},
-					]}
-					title="Operating Systems"
-				/>
+				<CornerCard className="overflow-hidden" cornerSize="sm" animated={false}>
+					<DataTable
+						columns={osColumns}
+						data={analytics.operating_systems || []}
+						description="OS breakdown"
+						className="rounded border-0 shadow-none"
+						initialPageSize={8}
+						isLoading={isLoading}
+						minHeight={350}
+						onAddFilter={onAddFilter}
+						showSearch={false}
+						tabs={[
+							{
+								id: 'operating_systems',
+								label: 'Operating Systems',
+								data: analytics.operating_systems || [],
+								columns: osColumns,
+								getFilter: (row: TechnologyData) => ({
+									field: 'os_name',
+									value: row.name,
+								}),
+							},
+						]}
+						title="Operating Systems"
+					/>
+				</CornerCard>
 			</div>
 		</div>
 	);

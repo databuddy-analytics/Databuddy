@@ -61,14 +61,9 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	};
 
 	return (
-		<div
-			className={cn(
-				'mx-auto flex h-full max-w-[1600px] flex-col',
-				noPadding ? 'p-0' : 'p-3 sm:p-4 lg:p-6'
-			)}
-		>
+		<div className="mx-auto flex h-full max-w-[1600px] flex-col">
 			{isTrackingSetup && !isAssistantPage && (
-				<div className="flex-shrink-0 space-y-4">
+				<div className="flex-shrink-0">
 					<AnalyticsToolbar
 						isRefreshing={isRefreshing}
 						onRefresh={handleRefresh}
@@ -78,7 +73,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 				</div>
 			)}
 
-			<div className={isAssistantPage ? 'min-h-0 flex-1' : ''}>{children}</div>
+			<div className={isAssistantPage ? 'min-h-0 flex-1' : 'p-3 sm:p-4 lg:p-6'}>{children}</div>
 		</div>
 	);
 }

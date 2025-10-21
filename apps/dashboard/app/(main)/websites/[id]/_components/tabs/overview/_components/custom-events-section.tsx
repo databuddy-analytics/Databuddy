@@ -54,6 +54,7 @@ export function CustomEventsSection({
 	customEventsData,
 	isLoading,
 	onAddFilter,
+	className,
 }: CustomEventsSectionProps) {
 	const [expandedProperties, setExpandedProperties] = useState<Set<string>>(
 		new Set()
@@ -260,6 +261,7 @@ export function CustomEventsSection({
 
 	return (
 		<DataTable
+			className={className}
 			description="User-defined events, interactions, and outbound link tracking"
 			expandable
 			getSubRows={(row: ProcessedCustomEvent): any[] => {

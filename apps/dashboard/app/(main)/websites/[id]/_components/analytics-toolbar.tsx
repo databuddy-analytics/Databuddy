@@ -114,8 +114,8 @@ export function AnalyticsToolbar({
 	);
 
 	return (
-		<div className="mt-3 flex flex-col gap-2 rounded border bg-card p-3 shadow-sm">
-			<div className="flex items-center justify-between gap-3">
+		<div className="h-32 flex flex-col justify-center  border-b ">
+			<div className="flex items-center justify-between gap-3 px-6">
 				<div className="flex h-8 overflow-hidden rounded border bg-background shadow-sm">
 					<Button
 						className={getGranularityButtonClass('daily')}
@@ -161,38 +161,40 @@ export function AnalyticsToolbar({
 				</div>
 			</div>
 
-			<div className="flex items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
-				{QUICK_RANGES.map((range) => {
-					const isActive = isQuickRangeActive(range);
-					return (
-						<Button
-							className={`h-8 cursor-pointer touch-manipulation whitespace-nowrap px-2 font-medium text-xs ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-							key={range.label}
-							onClick={() => handleQuickRangeSelect(range)}
-							size="sm"
-							title={range.fullLabel}
-							variant={isActive ? 'secondary' : 'ghost'}
-						>
-							{range.label}
-						</Button>
-					);
-				})}
+			<div className="flex items-center gap-1 overflow-x-auto px-6 py-2">
+				<div className="flex items-center gap-1 rounded border bg-background p-1 shadow-sm">
+					{QUICK_RANGES.map((range) => {
+						const isActive = isQuickRangeActive(range);
+						return (
+							<Button
+								className={`h-8 cursor-pointer touch-manipulation whitespace-nowrap px-2 font-medium text-xs ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+								key={range.label}
+								onClick={() => handleQuickRangeSelect(range)}
+								size="sm"
+								title={range.fullLabel}
+								variant={isActive ? 'secondary' : 'ghost'}
+							>
+								{range.label}
+							</Button>
+						);
+					})}
 
-				<div className="ml-1 border-border/50 border-l pl-2">
-					<DateRangePicker
-						className="w-auto"
-						maxDate={new Date()}
-						minDate={new Date(2020, 0, 1)}
-						onChange={(range) => {
-							if (range?.from && range?.to) {
-								setDateRangeAction({
-									startDate: range.from,
-									endDate: range.to,
-								});
-							}
-						}}
-						value={selectedRange}
-					/>
+					<div className="ml-1 border-border/50 border-l pl-2">
+						<DateRangePicker
+							className="w-auto"
+							maxDate={new Date()}
+							minDate={new Date(2020, 0, 1)}
+							onChange={(range) => {
+								if (range?.from && range?.to) {
+									setDateRangeAction({
+										startDate: range.from,
+										endDate: range.to,
+									});
+								}
+							}}
+							value={selectedRange}
+						/>
+					</div>
 				</div>
 			</div>
 		</div>

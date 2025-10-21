@@ -46,6 +46,7 @@ export interface CustomEventsSectionProps {
 	customEventsData: CustomEventsData;
 	isLoading: boolean;
 	onAddFilter: (field: string, value: string) => void;
+	className?: string;
 }
 
 export interface PropertySubRow {

@@ -110,12 +110,12 @@ export function DateRangePicker({
 				<PopoverTrigger asChild>
 					<Button
 						className={cn(
-							'h-8 justify-start gap-2 whitespace-nowrap border px-3 text-left font-normal text-sm shadow-xs transition-[color,box-shadow]',
+							'h-8 justify-start gap-2 whitespace-nowrap px-3 text-left font-normal text-sm transition-[color,box-shadow] hover:cursor-pointer',
 							!hasSelection && 'text-muted-foreground'
 						)}
 						disabled={disabled}
 						size="sm"
-						variant="outline"
+						variant="ghost"
 					>
 						<CalendarDotsIcon className="h-4 w-4" weight="duotone" />
 						<span className="truncate font-medium text-sm">
@@ -185,7 +185,7 @@ export function DateRangePicker({
 
 					<div className="flex items-center justify-between border-t bg-muted/20 p-4">
 						<Button
-							className="h-8 text-muted-foreground transition-[color,box-shadow] hover:text-foreground"
+							className="h-8 text-muted-foreground transition-[color,box-shadow] hover:text-foreground hover:cursor-pointer"
 							onClick={handleClear}
 							size="sm"
 							variant="ghost"
@@ -195,7 +195,7 @@ export function DateRangePicker({
 
 						<div className="flex gap-2">
 							<Button
-								className="h-8 transition-[color,box-shadow]"
+								className="h-8 transition-[color,box-shadow] hover:cursor-pointer"
 								onClick={handleCancel}
 								size="sm"
 								variant="ghost"
@@ -203,7 +203,7 @@ export function DateRangePicker({
 								Cancel
 							</Button>
 							<Button
-								className="h-8 shadow-xs transition-[color,box-shadow]"
+								className="h-8 shadow-xs transition-[color,box-shadow] hover:cursor-pointer"
 								disabled={!hasValidTempSelection}
 								onClick={handleApply}
 								size="sm"

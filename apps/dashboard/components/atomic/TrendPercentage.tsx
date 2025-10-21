@@ -34,10 +34,10 @@ export const TrendPercentage: React.FC<TrendPercentageProps> = ({
 	}
 
 	if (value > 0) {
-		colorClass = invertColor ? 'text-destructive' : 'text-success';
+		colorClass = invertColor ? 'text-red-500' : 'text-green-500';
 	}
 	if (value < 0) {
-		colorClass = invertColor ? 'text-success' : 'text-destructive';
+		colorClass = invertColor ? 'text-green-500' : 'text-red-500';
 	}
 
 	return (

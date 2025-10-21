@@ -95,6 +95,27 @@
       height: 0;
     }
   }
+
+  @keyframes cornerGlitch {
+    0% {
+      opacity: 1;
+    }
+    15% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    45% {
+      opacity: 0;
+    }
+    60% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
 }
 
 /* ==========================================================================
@@ -434,4 +455,17 @@
   .sidebar-backdrop {
     background-color: rgba(0, 0, 0, 0.8);
   }
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+/* Success and destructive text colors */
+.text-success {
+  color: var(--success) !important;
+}
+
+.text-destructive {
+  color: var(--destructive) !important;
 }
