@@ -2,6 +2,7 @@
 
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
+import { disconnectProducer } from './lib/producer';
 import basketRouter from './routes/basket';
 import emailRouter from './routes/email';
 import stripeRouter from './routes/stripe';
@@ -38,7 +39,26 @@ const app = new Elysia()
 	.use(emailRouter)
 	.get('/health', () => ({ status: 'ok', version: '1.0.0' }));
 
+const port = process.env.PORT || 4000;
+
+await new Promise(resolve => setTimeout(resolve, 400));
+
+console.log(`Starting basket service on port ${port}`);
+console.log(`Basket service running on http://localhost:${port}`);
+
+process.on('SIGINT', async () => {
+	console.log('Received SIGINT, shutting down...');
+	await disconnectProducer();
+	process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+	console.log('Received SIGTERM, shutting down...');
+	await disconnectProducer();
+	process.exit(0);
+});
+
 export default {
-	port: process.env.PORT || 4000,
 	fetch: app.fetch,
+	port: parseInt(port.toString()),
 };

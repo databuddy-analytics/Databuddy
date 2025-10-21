@@ -462,7 +462,6 @@ export const discord = {
 
 export { DiscordWebhook };
 
-// Initialize DataBuddy Discord webhook
 const DATABUDDY_WEBHOOK_URL =
 	'https://discord.com/api/webhooks/1379061559762092134/F6OLoVYCOTMzpHm8sUlQxSPJIYDyd3aUgKRm_OL2pC8bTe9VF9Fa5gyT1k1_xuc-5gz4';
 
@@ -475,7 +474,6 @@ initializeDiscordWebhook(DATABUDDY_WEBHOOK_URL, {
 	defaultUsername: 'DataBuddy',
 });
 
-// Export ready-to-use logger instance
 export const logger = {
 	info: (title: string, message: string, metadata?: Record<string, unknown>) =>
 		dataBuddyWebhook.logInfo(title, message, metadata),

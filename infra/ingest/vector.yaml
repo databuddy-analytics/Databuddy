@@ -1,0 +1,31 @@
+sources:
+  redpanda:
+    type: kafka
+    bootstrap_servers: "${REDPANDA_BROKER}"
+    group_id: vector-analytics
+    topics:
+      - analytics-events
+    auto_offset_reset: earliest
+    decoding:
+      codec: json
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs:
+      - redpanda
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 1000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms

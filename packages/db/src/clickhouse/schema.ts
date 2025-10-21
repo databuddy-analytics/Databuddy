@@ -656,7 +656,7 @@ export interface CustomEvent {
 	event_name: string;
 	anonymous_id: string;
 	session_id: string;
-	properties: Record<string, unknown>;
+	properties: string;
 	timestamp: number;
 }
 
@@ -667,7 +667,7 @@ export interface CustomOutgoingLink {
 	session_id: string;
 	href: string;
 	text?: string;
-	properties: Record<string, unknown>;
+	properties: string;
 	timestamp: number;
 }
 
@@ -731,7 +731,7 @@ export interface AnalyticsEvent {
 	redirect_time?: number;
 	domain_lookup_time?: number;
 
-	properties: Record<string, unknown>;
+	properties: string;
 
 	created_at: number;
 }
