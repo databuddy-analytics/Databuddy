@@ -41,7 +41,6 @@ import {
 } from '@/hooks/use-organizations';
 import { cn, getOrganizationInitials } from '@/lib/utils';
 import { EmptyState } from './empty-state';
-import { ListSkeleton } from './list-skeleton';
 
 dayjs.extend(relativeTime);
 
