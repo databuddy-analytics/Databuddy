@@ -1,6 +1,6 @@
 'use client';
 
-import { MoonIcon, SunIcon } from '@phosphor-icons/react';
+import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -10,11 +10,18 @@ type ThemeTogglerProps = {
 };
 
 export function ThemeToggle({ className }: ThemeTogglerProps) {
-	const { resolvedTheme, setTheme } = useTheme();
+	const { theme, setTheme } = useTheme();
 
 	const switchTheme = () => {
-		setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+		if (theme === 'system') {
+			setTheme('light');
+		} else if (theme === 'light') {
+			setTheme('dark');
+		} else {
+			setTheme('system');
+		}
 	};
+
 	return (
 		<Button
 			aria-label="Toggle theme"
@@ -27,12 +34,26 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 			variant="ghost"
 		>
 			<SunIcon
-				className="dark:-rotate-90 h-5 w-5 rotate-0 scale-100 not-dark:text-primary transition-all duration-300 dark:scale-0"
+				className={cn(
+					'h-5 w-5 transition-all duration-300',
+					theme === 'light' ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'
+				)}
 				size={32}
 				weight="duotone"
 			/>
 			<MoonIcon
-				className="absolute h-5 w-5 rotate-90 scale-0 not-dark:text-primary transition-all duration-300 dark:rotate-0 dark:scale-100"
+				className={cn(
+					'absolute h-5 w-5 transition-all duration-300',
+					theme === 'dark' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+				)}
+				size={32}
+				weight="duotone"
+			/>
+			<MonitorIcon
+				className={cn(
+					'absolute h-5 w-5 transition-all duration-300',
+					theme === 'system' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+				)}
 				size={32}
 				weight="duotone"
 			/>
