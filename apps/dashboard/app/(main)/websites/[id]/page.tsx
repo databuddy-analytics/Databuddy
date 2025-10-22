@@ -103,7 +103,7 @@ function WebsiteDetailsPage() {
 			const settingsProps: WebsiteDataTabProps = {
 				websiteId: id as string,
 				dateRange,
-				websiteData: data as Website,
+				websiteData: data,
 			};
 
 			const tabProps: FullTabProps = {
