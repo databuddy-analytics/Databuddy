@@ -35,7 +35,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 		>
 			<SunIcon
 				className={cn(
-					'h-5 w-5 transition-all duration-300',
+					'h-5 w-5 transition-all duration-300 not-dark:text-primary',
 					theme === 'light' ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'
 				)}
 				size={32}
@@ -43,7 +43,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 			/>
 			<MoonIcon
 				className={cn(
-					'absolute h-5 w-5 transition-all duration-300',
+					'absolute h-5 w-5 transition-all duration-300 not-dark:text-primary',
 					theme === 'dark' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
 				)}
 				size={32}
@@ -51,7 +51,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 			/>
 			<MonitorIcon
 				className={cn(
-					'absolute h-5 w-5 transition-all duration-300',
+					'absolute h-5 w-5 transition-all duration-300 not-dark:text-primary',
 					theme === 'system' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
 				)}
 				size={32}
