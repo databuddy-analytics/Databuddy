@@ -2,7 +2,6 @@
 
 import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -12,38 +11,17 @@ type ThemeTogglerProps = {
 
 export function ThemeToggle({ className }: ThemeTogglerProps) {
 	const { theme, setTheme } = useTheme();
-	const [mounted, setMounted] = useState(false);
-
-	useEffect(() => {
-		setMounted(true);
-	}, []);
+	const currentTheme = theme ?? 'system';
 
 	const switchTheme = () => {
-		if (theme === 'system') {
+		if (currentTheme === 'system') {
 			setTheme('light');
-		} else if (theme === 'light') {
+		} else if (currentTheme === 'light') {
 			setTheme('dark');
 		} else {
 			setTheme('system');
 		}
 	};
-
-	if (!mounted) {
-		return (
-			<Button
-				aria-label="Toggle theme"
-				className={cn(
-					'relative hidden h-8 w-8 transition-all duration-200 hover:bg-accent/50 md:flex',
-					className
-				)}
-				type="button"
-				variant="ghost"
-			>
-				<SunIcon className="h-5 w-5 opacity-0" size={32} weight="duotone" />
-				<span className="sr-only">Toggle theme</span>
-			</Button>
-		);
-	}
 
 	return (
 		<Button
@@ -53,31 +31,35 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 				className
 			)}
 			onClick={switchTheme}
+			suppressHydrationWarning
 			type="button"
 			variant="ghost"
 		>
 			<SunIcon
 				className={cn(
-					'h-5 w-5 transition-all duration-300 not-dark:text-primary',
-					theme === 'light' ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'
+					'size-5 transition-all duration-300 not-dark:text-primary',
+					currentTheme === 'light' ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'
 				)}
 				size={32}
+				suppressHydrationWarning
 				weight="duotone"
 			/>
 			<MoonIcon
 				className={cn(
-					'absolute h-5 w-5 transition-all duration-300 not-dark:text-primary',
-					theme === 'dark' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+					'absolute size-5 transition-all duration-300 not-dark:text-primary',
+					currentTheme === 'dark' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
 				)}
 				size={32}
+				suppressHydrationWarning
 				weight="duotone"
 			/>
 			<MonitorIcon
 				className={cn(
-					'absolute h-5 w-5 transition-all duration-300 not-dark:text-primary',
-					theme === 'system' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+					'absolute size-5 transition-all duration-300 not-dark:text-primary',
+					currentTheme === 'system' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
 				)}
 				size={32}
+				suppressHydrationWarning
 				weight="duotone"
 			/>
 			<span className="sr-only">Toggle theme</span>
