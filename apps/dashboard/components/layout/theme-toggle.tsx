@@ -2,6 +2,7 @@
 
 import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
 import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +12,11 @@ type ThemeTogglerProps = {
 
 export function ThemeToggle({ className }: ThemeTogglerProps) {
 	const { theme, setTheme } = useTheme();
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const switchTheme = () => {
 		if (theme === 'system') {
@@ -21,6 +27,23 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 			setTheme('system');
 		}
 	};
+
+	if (!mounted) {
+		return (
+			<Button
+				aria-label="Toggle theme"
+				className={cn(
+					'relative hidden h-8 w-8 transition-all duration-200 hover:bg-accent/50 md:flex',
+					className
+				)}
+				type="button"
+				variant="ghost"
+			>
+				<SunIcon className="h-5 w-5 opacity-0" size={32} weight="duotone" />
+				<span className="sr-only">Toggle theme</span>
+			</Button>
+		);
+	}
 
 	return (
 		<Button
