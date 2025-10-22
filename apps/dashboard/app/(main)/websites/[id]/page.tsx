@@ -1,6 +1,6 @@
 'use client';
 
-import type { DynamicQueryFilter } from '@databuddy/shared';
+import type { DynamicQueryFilter, Website } from '@databuddy/shared';
 import { WarningIcon } from '@phosphor-icons/react';
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
@@ -103,7 +103,7 @@ function WebsiteDetailsPage() {
 			const settingsProps: WebsiteDataTabProps = {
 				websiteId: id as string,
 				dateRange,
-				websiteData: data,
+				websiteData: data as Website,
 			};
 
 			const tabProps: FullTabProps = {
@@ -176,24 +176,20 @@ function WebsiteDetailsPage() {
 	return (
 		<div>
 			<Tabs
-				className="space-y-4 py-6"
 				defaultValue="overview"
 				onValueChange={(value) => setActiveTab(value as TabId)}
 				value={activeTab}
 			>
-				<div className="relative border-b">
-					<TabsList className="h-10 w-full justify-start overflow-x-auto bg-transparent p-0">
+				<div className="flex h-10 w-full border-b">
+					<TabsList className="h-full w-full justify-start overflow-x-auto rounded-none border-0 bg-transparent p-0">
 						{tabs.map((tab) => (
 							<TabsTrigger
-								className="relative h-10 cursor-pointer touch-manipulation whitespace-nowrap rounded-none px-2 text-xs transition-colors hover:bg-muted/50 sm:px-4 sm:text-sm"
+								className="h-full cursor-pointer rounded-none border-b-2 border-transparent px-4 text-sm data-[state=active]:border-primary data-[state=active]:font-medium data-[state=active]:text-foreground"
 								key={tab.id}
 								onClick={() => setActiveTab(tab.id)}
 								value={tab.id}
 							>
 								{tab.label}
-								{activeTab === tab.id && (
-									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
-								)}
 							</TabsTrigger>
 						))}
 					</TabsList>
