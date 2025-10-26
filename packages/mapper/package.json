@@ -7,14 +7,14 @@
     "test": "bun run src/test.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "catalog:"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "catalog:"
   },
   "dependencies": {
     "csv-parse": "^6.1.0",
-    "zod": "4",
+    "zod": "catalog:",
     "@databuddy/db": "workspace:*"
   }
 }

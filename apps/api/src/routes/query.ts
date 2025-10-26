@@ -205,15 +205,16 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			query: queryParams,
 		}: {
 			body: CompileRequestType;
-			query: { website_id?: string };
+			query: { website_id?: string; timezone?: string };
 		}) => {
 			try {
 				const { website_id } = queryParams;
+				const timezone = queryParams.timezone || 'UTC';
 				const websiteDomain = website_id
 					? await getWebsiteDomain(website_id)
 					: null;
 
-				const result = compileQuery(body as QueryRequest, websiteDomain);
+				const result = compileQuery(body as QueryRequest, websiteDomain, timezone);
 				return {
 					success: true,
 					...result,
@@ -235,12 +236,12 @@ export const query = new Elysia({ prefix: '/v1/query' })
 		async ({
 			body,
 			query: queryParams,
-			timezone,
 		}: {
 			body: DynamicQueryRequestType | DynamicQueryRequestType[];
-			query: { website_id?: string };
-			timezone: string;
+			query: { website_id?: string; timezone?: string };
 		}) => {
+			const timezone = queryParams.timezone || 'UTC';
+			
 			try {
 				if (Array.isArray(body)) {
 					const uniqueWebsiteIds = [

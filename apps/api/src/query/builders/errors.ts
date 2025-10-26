@@ -1,5 +1,5 @@
 import { Analytics } from '../../types/tables';
-import type { SimpleQueryConfig } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
 export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	recent_errors: {
@@ -109,13 +109,13 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, unknown>
+			filterParams?: Record<string, Filter['value']>
 		) => {
 			const combinedWhereClause = filterConditions?.length
 				? `AND ${filterConditions.join(' AND ')}`

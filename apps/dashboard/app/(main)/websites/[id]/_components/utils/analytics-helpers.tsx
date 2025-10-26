@@ -66,13 +66,11 @@ export const safeParseDate = (
 	}
 };
 
-// Format date for display based on granularity with timezone conversion
 export const formatDateByGranularity = (
 	date: string | Date,
 	granularity: Granularity = 'daily'
 ): string => {
-	const userTimezone = getUserTimezone();
-	const dateObj = dayjs.utc(date).tz(userTimezone);
+	const dateObj = dayjs(date);
 	return granularity === 'hourly'
 		? dateObj.format('MMM D, h:mm A')
 		: dateObj.format('MMM D');

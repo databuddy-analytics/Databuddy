@@ -1,6 +1,5 @@
 import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig } from '../types';
-import { buildWhereClause } from '../utils';
+import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
 
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
@@ -103,15 +102,17 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			limit = 25,
 			offset = 0,
 			_timezone?: string,
 			filterConditions?: string[],
 			filterParams?: Record<string, Filter['value']>
 		) => {
-			const combinedWhereClause = buildWhereClause(filterConditions);
+			const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
 			return {
 				sql: `

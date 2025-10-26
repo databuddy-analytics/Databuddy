@@ -1,20 +1,39 @@
 'use client';
 
-import { ArrowLeftIcon, SpinnerIcon, UserIcon } from '@phosphor-icons/react';
+import {
+	ArrowLeftIcon,
+	SpinnerIcon,
+	UserIcon,
+	ClockIcon,
+	CalendarIcon,
+	ChartLineIcon,
+	EyeIcon,
+	CursorClickIcon,
+	MapPinIcon,
+	DevicesIcon,
+	GlobeIcon,
+} from '@phosphor-icons/react';
 import dayjs from 'dayjs';
 import { useParams, useRouter } from 'next/navigation';
-import { FaviconImage } from '@/components/analytics/favicon-image';
+import { useState, useCallback } from 'react';
 import { BrowserIcon, CountryFlag, OSIcon } from '@/components/icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useDateFilters } from '@/hooks/use-date-filters';
 import { useUserProfile } from '@/hooks/use-dynamic-query';
 import { getDeviceIcon } from '@/lib/utils';
+import { SessionRow } from './_components/session-row';
+import { generateProfileName } from './_components/generate-profile-name';
+import { getCountryCode } from '@databuddy/shared';
+import type { Session } from '@databuddy/shared';
 
 export default function UserDetailPage() {
 	const { id: websiteId, userId } = useParams();
 	const router = useRouter();
 	const { dateRange } = useDateFilters();
+	const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
+		new Set()
+	);
 
 	const { userProfile, isLoading, isError, error } = useUserProfile(
 		websiteId as string,
@@ -22,29 +41,37 @@ export default function UserDetailPage() {
 		dateRange
 	);
 
-	function getReferrerInfo(referrer?: string) {
-		if (!referrer || referrer === 'direct') {
-			return { name: 'Direct', domain: null } as {
-				name: string;
-				domain: string | null;
-			};
-		}
-		try {
-			const url = new URL(
-				referrer.startsWith('http') ? referrer : `https://${referrer}`
-			);
-			const domain = url.hostname.replace('www.', '');
-			return { name: domain, domain } as {
-				name: string;
-				domain: string | null;
-			};
-		} catch {
-			return { name: referrer, domain: null } as {
-				name: string;
-				domain: string | null;
-			};
-		}
-	}
+	const handleToggleSession = useCallback((sessionId: string) => {
+		setExpandedSessions((prev) => {
+			const next = new Set(prev);
+			if (next.has(sessionId)) {
+				next.delete(sessionId);
+			} else {
+				next.add(sessionId);
+			}
+			return next;
+		});
+	}, []);
+
+	const transformSession = useCallback((session: any): Session => {
+		const countryCode = getCountryCode(session.country || '');
+		return {
+			session_id: session.session_id,
+			first_visit: session.first_visit,
+			last_visit: session.last_visit,
+			page_views: session.page_views,
+			visitor_id: userId as string,
+			country: countryCode,
+			country_name: session.country || '',
+			country_code: countryCode,
+			referrer: session.referrer || '',
+			device_type: session.device || '',
+			browser_name: session.browser || '',
+			os_name: session.os || '',
+			events: session.events || [],
+			session_name: session.session_name,
+		} as Session;
+	}, [userId]);
 
 	const totalEvents =
 		userProfile?.sessions?.reduce(
@@ -68,28 +95,26 @@ export default function UserDetailPage() {
 	if (isLoading) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="flex items-center gap-4">
-							<Button onClick={handleBack} size="sm" variant="outline">
-								<ArrowLeftIcon className="mr-2 h-4 w-4" />
-								Back to Users
+				<div className="h-12 border-b bg-background">
+					<div className="flex h-full items-center justify-between">
+						<div className="flex h-full items-center">
+							<Button
+								className="h-full w-24 cursor-pointer rounded-none border-r px-0"
+								onClick={handleBack}
+								variant="ghost"
+							>
+								<ArrowLeftIcon className="h-4 w-4" />
 							</Button>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-										<UserIcon className="h-5 w-5 text-primary" />
-									</div>
-									<div className="min-w-0 flex-1">
-										<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-											User Details
-										</h1>
-										<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-											Loading user profile...
-										</p>
-									</div>
+							<div className="flex items-center gap-2 px-3">
+								<div className="h-4 w-6 animate-pulse rounded bg-muted" />
+								<div>
+									<div className="h-4 w-32 animate-pulse rounded bg-muted" />
+									<div className="mt-1 h-3 w-24 animate-pulse rounded bg-muted" />
 								</div>
 							</div>
+						</div>
+						<div className="px-3">
+							<div className="h-5 w-16 animate-pulse rounded bg-muted" />
 						</div>
 					</div>
 				</div>
@@ -107,28 +132,26 @@ export default function UserDetailPage() {
 	if (isError) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="flex items-center gap-4">
-							<Button onClick={handleBack} size="sm" variant="outline">
-								<ArrowLeftIcon className="mr-2 h-4 w-4" />
-								Back to Users
+				<div className="h-12 border-b bg-background">
+					<div className="flex h-full items-center justify-between">
+						<div className="flex h-full items-center">
+							<Button
+								className="h-full w-24 cursor-pointer rounded-none border-r px-0"
+								onClick={handleBack}
+								variant="ghost"
+							>
+								<ArrowLeftIcon className="h-4 w-4" />
 							</Button>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-										<UserIcon className="h-5 w-5 text-primary" />
-									</div>
-									<div className="min-w-0 flex-1">
-										<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-											User Details
-										</h1>
-										<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-											Error loading user profile
-										</p>
-									</div>
+							<div className="flex items-center gap-2 px-3">
+								<div className="h-4 w-6 rounded bg-muted" />
+								<div>
+									<div className="h-4 w-32 rounded bg-muted" />
+									<div className="mt-1 h-3 w-24 rounded bg-muted" />
 								</div>
 							</div>
+						</div>
+						<div className="px-3">
+							<div className="h-5 w-16 rounded bg-muted" />
 						</div>
 					</div>
 				</div>
@@ -147,28 +170,26 @@ export default function UserDetailPage() {
 	if (!userProfile) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="flex items-center gap-4">
-							<Button onClick={handleBack} size="sm" variant="outline">
-								<ArrowLeftIcon className="mr-2 h-4 w-4" />
-								Back to Users
+				<div className="h-12 border-b bg-background">
+					<div className="flex h-full items-center justify-between">
+						<div className="flex h-full items-center">
+							<Button
+								className="h-full w-24 cursor-pointer rounded-none border-r px-0"
+								onClick={handleBack}
+								variant="ghost"
+							>
+								<ArrowLeftIcon className="h-4 w-4" />
 							</Button>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-										<UserIcon className="h-5 w-5 text-primary" />
-									</div>
-									<div className="min-w-0 flex-1">
-										<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-											User Details
-										</h1>
-										<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-											User not found
-										</p>
-									</div>
+							<div className="flex items-center gap-2 px-3">
+								<div className="h-4 w-6 rounded bg-muted" />
+								<div>
+									<div className="h-4 w-32 rounded bg-muted" />
+									<div className="mt-1 h-3 w-24 rounded bg-muted" />
 								</div>
 							</div>
+						</div>
+						<div className="px-3">
+							<div className="h-5 w-16 rounded bg-muted" />
 						</div>
 					</div>
 				</div>
@@ -187,150 +208,214 @@ export default function UserDetailPage() {
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header */}
-			<div className="h-[89px] border-b">
-				<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-					<div className="flex items-center gap-4">
-						<Button onClick={handleBack} size="sm" variant="outline">
-							<ArrowLeftIcon className="mr-2 h-4 w-4" />
-							Back to Users
+			<div className="h-12 border-b bg-background">
+				<div className="flex h-full items-center justify-between">
+					<div className="flex h-full items-center">
+						<Button
+							className="h-full w-24 cursor-pointer rounded-none border-r px-0"
+							onClick={handleBack}
+							variant="ghost"
+						>
+							<ArrowLeftIcon className="h-4 w-4" />
 						</Button>
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3">
-								<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-									<UserIcon className="h-5 w-5 text-primary" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-											User Details
-										</h1>
-										<Badge
-											className="px-2 py-1 font-semibold text-xs"
-											variant={
-												userProfile.total_sessions > 1 ? 'default' : 'secondary'
-											}
-										>
-											{userProfile.total_sessions > 1 ? 'Returning' : 'New'}
-										</Badge>
-									</div>
-									<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-										Visitor ID: {userProfile.visitor_id}
-									</p>
-								</div>
+						<div className="flex items-center gap-2 px-3">
+							<CountryFlag country={getCountryCode(userProfile.country || '')} size="sm" />
+							<div>
+								<h1 className="font-semibold text-foreground text-sm">
+									{generateProfileName(userProfile.visitor_id)}
+								</h1>
+								<p className="text-muted-foreground text-xs">
+									{userProfile.region && userProfile.region !== 'Unknown'
+										? `${userProfile.region}, `
+										: ''}
+									{userProfile.country || 'Unknown'}
+								</p>
 							</div>
 						</div>
+					</div>
+					<div className="px-3">
+						<Badge
+							className="px-2 py-0.5 font-semibold text-xs"
+							variant={
+								userProfile.total_sessions > 1 ? 'default' : 'secondary'
+							}
+						>
+							{userProfile.total_sessions > 1 ? 'Returning' : 'New'}
+						</Badge>
 					</div>
 				</div>
 			</div>
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="grid grid-cols-1 gap-0 lg:grid-cols-3">
+				<div className="grid min-h-0 grid-cols-1 lg:grid-cols-3">
 					{/* User Overview */}
-					<div className="border-b bg-background lg:sticky lg:top-[89px] lg:h-[calc(100vh-89px)] lg:overflow-auto lg:border-r lg:border-b-0">
-						<div className="px-4 py-6">
-							<h2 className="mb-4 font-semibold text-foreground text-lg">
-								User Overview
-							</h2>
-
-							<div className="space-y-6">
-								{/* Basic Info */}
-								<div className="space-y-4">
-									<div className="flex items-center gap-3">
-										<CountryFlag country={userProfile.country} size="lg" />
-										{getDeviceIcon(userProfile.device)}
-										<BrowserIcon name={userProfile.browser} size="md" />
-										<OSIcon name={userProfile.os} size="md" />
+					<div className="border-b bg-background lg:h-[calc(100vh-89px)] lg:overflow-auto lg:border-r lg:border-b-0">
+						{/* Hero Stats */}
+						<div className="border-b">
+							<div className="grid grid-cols-2">
+								<div className="border-r px-4 py-3">
+									<div className="mb-1 flex items-center gap-1.5 text-muted-foreground">
+										<ChartLineIcon className="h-3.5 w-3.5" />
+										<span className="text-xs">Sessions</span>
 									</div>
+									<div className="font-bold text-2xl text-foreground">
+										{userProfile.total_sessions}
+									</div>
+								</div>
+								<div className="px-4 py-3">
+									<div className="mb-1 flex items-center gap-1.5 text-muted-foreground">
+										<EyeIcon className="h-3.5 w-3.5" />
+										<span className="text-xs">Pageviews</span>
+									</div>
+									<div className="font-bold text-2xl text-foreground">
+										{userProfile.total_pageviews}
+									</div>
+								</div>
+							</div>
+						</div>
 
-									<div>
-										<div className="text-muted-foreground text-sm">
-											Location
-										</div>
-										<div className="font-medium">
-											{userProfile.region && userProfile.region !== 'Unknown'
-												? `${userProfile.region}, `
-												: ''}
-											{userProfile.country || 'Unknown'}
+						{/* Quick Stats */}
+						<div className="grid grid-cols-2 border-b">
+							<div className="border-r px-4 py-3">
+								<div className="mb-2 flex items-center gap-2">
+									<CursorClickIcon className="h-4 w-4 text-muted-foreground" />
+									<span className="font-medium text-muted-foreground text-xs">
+										Events
+									</span>
+								</div>
+								<div className="font-bold text-foreground text-xl">
+									{totalEvents}
+								</div>
+							</div>
+
+							<div className="px-4 py-3">
+								<div className="mb-2 flex items-center gap-2">
+									<ChartLineIcon className="h-4 w-4 text-muted-foreground" />
+									<span className="font-medium text-muted-foreground text-xs">
+										Avg Pages
+									</span>
+								</div>
+								<div className="font-bold text-foreground text-xl">
+									{avgPagesPerSession.toFixed(1)}
+								</div>
+							</div>
+						</div>
+
+						{/* Location */}
+						<div className="border-b px-4 py-3">
+							<div className="mb-3 flex items-center gap-2">
+								<MapPinIcon className="h-4 w-4 text-muted-foreground" />
+								<span className="font-semibold text-foreground text-sm">
+									Location
+								</span>
+							</div>
+							<div className="flex items-center gap-3">
+								<CountryFlag country={getCountryCode(userProfile.country || '')} size="md" />
+								<div className="font-medium text-foreground">
+									{userProfile.region && userProfile.region !== 'Unknown'
+										? `${userProfile.region}, `
+										: ''}
+									{userProfile.country || 'Unknown'}
+								</div>
+							</div>
+						</div>
+
+						{/* Tech Stack */}
+						<div className="border-b px-4 py-3">
+							<div className="mb-3 flex items-center gap-2">
+								<DevicesIcon className="h-4 w-4 text-muted-foreground" />
+								<span className="font-semibold text-foreground text-sm">
+									Technology
+								</span>
+							</div>
+							<div className="space-y-3">
+								<div className="flex items-center gap-3">
+									{getDeviceIcon(userProfile.device)}
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">Device</div>
+										<div className="truncate font-medium text-sm">
+											{userProfile.device}
 										</div>
 									</div>
-
-									<div>
-										<div className="text-muted-foreground text-sm">
-											Device & Browser
+								</div>
+								<div className="flex items-center gap-3">
+									<BrowserIcon name={userProfile.browser} size="md" />
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">Browser</div>
+										<div className="truncate font-medium text-sm">
+											{userProfile.browser}
 										</div>
-										<div className="font-medium">
-											{userProfile.device} • {userProfile.browser} •{' '}
+									</div>
+								</div>
+								<div className="flex items-center gap-3">
+									<OSIcon name={userProfile.os} size="md" />
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">
+											Operating System
+										</div>
+										<div className="truncate font-medium text-sm">
 											{userProfile.os}
 										</div>
 									</div>
 								</div>
+							</div>
+						</div>
 
-								{/* Stats Grid */}
-								<div className="grid grid-cols-2 gap-4">
-									<div className="rounded-lg border bg-muted/20 p-4 text-center">
-										<div className="font-bold text-2xl text-foreground">
-											{userProfile.total_sessions}
+						{/* Timeline */}
+						<div className="px-4 py-3">
+							<div className="mb-3 flex items-center gap-2">
+								<ClockIcon className="h-4 w-4 text-muted-foreground" />
+								<span className="font-semibold text-foreground text-sm">
+									Timeline
+								</span>
+							</div>
+							<div className="space-y-3">
+								<div className="flex items-start gap-3">
+									<CalendarIcon className="mt-1 h-4 w-4 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">
+											First Visit
 										</div>
-										<div className="text-muted-foreground text-sm">
-											Sessions
+										<div className="font-medium text-sm">
+											{userProfile.first_visit
+												? dayjs(userProfile.first_visit).format('MMM D, YYYY')
+												: 'Unknown'}
 										</div>
-									</div>
-									<div className="rounded-lg border bg-muted/20 p-4 text-center">
-										<div className="font-bold text-2xl text-foreground">
-											{userProfile.total_pageviews}
-										</div>
-										<div className="text-muted-foreground text-sm">
-											Pageviews
-										</div>
-									</div>
-									<div className="rounded-lg border bg-muted/20 p-4 text-center">
-										<div className="font-bold text-2xl text-foreground">
-											{totalEvents}
-										</div>
-										<div className="text-muted-foreground text-sm">Events</div>
-									</div>
-									<div className="rounded-lg border bg-muted/20 p-4 text-center">
-										<div className="font-bold text-2xl text-foreground">
-											{avgPagesPerSession.toFixed(1)}
-										</div>
-										<div className="text-muted-foreground text-sm">
-											Pages / Session
+										<div className="text-muted-foreground text-xs">
+											{userProfile.first_visit
+												? dayjs(userProfile.first_visit).format('HH:mm')
+												: ''}
 										</div>
 									</div>
 								</div>
 
-								{/* Visit Info */}
-								<div className="space-y-3">
-									<div>
-										<div className="text-muted-foreground text-sm">
-											First Visit
-										</div>
-										<div className="font-medium">
-											{userProfile.first_visit
-												? dayjs(userProfile.first_visit).format(
-														'MMM D, YYYY [at] HH:mm'
-													)
-												: 'Unknown'}
-										</div>
-									</div>
-									<div>
-										<div className="text-muted-foreground text-sm">
+								<div className="flex items-start gap-3">
+									<CalendarIcon className="mt-1 h-4 w-4 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">
 											Last Visit
 										</div>
-										<div className="font-medium">
+										<div className="font-medium text-sm">
 											{userProfile.last_visit
-												? dayjs(userProfile.last_visit).format(
-														'MMM D, YYYY [at] HH:mm'
-													)
+												? dayjs(userProfile.last_visit).format('MMM D, YYYY')
 												: 'Unknown'}
 										</div>
-									</div>
-									<div>
-										<div className="text-muted-foreground text-sm">
-											Total Time
+										<div className="text-muted-foreground text-xs">
+											{userProfile.last_visit
+												? dayjs(userProfile.last_visit).format('HH:mm')
+												: ''}
 										</div>
-										<div className="font-medium">
+									</div>
+								</div>
+
+								<div className="flex items-start gap-3">
+									<ClockIcon className="mt-1 h-4 w-4 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<div className="text-muted-foreground text-xs">
+											Total Time Spent
+										</div>
+										<div className="font-medium text-sm">
 											{userProfile.total_duration_formatted || '0s'}
 										</div>
 									</div>
@@ -340,136 +425,22 @@ export default function UserDetailPage() {
 					</div>
 
 					{/* Sessions List */}
-					<div className="lg:col-span-2">
-						<div className="px-4 py-6">
-							<div className="mb-6 flex items-center justify-between">
-								<h2 className="font-semibold text-foreground text-lg">
-									Sessions ({userProfile.sessions?.length || 0})
-								</h2>
-							</div>
-
+					<div className="lg:col-span-2 lg:h-[calc(100vh-89px)] lg:overflow-auto">
+						<div>
 							{userProfile.sessions && userProfile.sessions.length > 0 ? (
-								<div className="space-y-4">
-									{userProfile.sessions.map((session: any, index: number) => (
-										<div
-											className="rounded-lg border bg-muted/10 p-4"
+								<div className="divide-y">
+									{userProfile.sessions.map((session, index: number) => (
+										<SessionRow
 											key={session.session_id}
-										>
-											<div className="mb-4 flex items-start justify-between">
-												<div className="flex items-center gap-3">
-													<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-semibold text-primary text-sm">
-														{index + 1}
-													</div>
-													<div>
-														<h4 className="font-medium">
-															{session.session_name || `Session ${index + 1}`}
-														</h4>
-														<p className="text-muted-foreground text-sm">
-															{session.first_visit
-																? dayjs(session.first_visit).format(
-																		'MMM D, YYYY [at] HH:mm'
-																	)
-																: 'Unknown time'}
-														</p>
-													</div>
-												</div>
-												<div className="flex gap-6 text-sm">
-													<div className="text-center">
-														<div className="font-medium">
-															{session.duration_formatted || '0s'}
-														</div>
-														<div className="text-muted-foreground text-xs">
-															Duration
-														</div>
-													</div>
-													<div className="text-center">
-														<div className="font-medium">
-															{session.page_views}
-														</div>
-														<div className="text-muted-foreground text-xs">
-															Pages
-														</div>
-													</div>
-													<div className="text-center">
-														<div className="font-medium">
-															{session.events?.length || 0}
-														</div>
-														<div className="text-muted-foreground text-xs">
-															Events
-														</div>
-													</div>
-												</div>
-											</div>
-
-											{/* Referrer chip */}
-											{(session.referrer || session.referrer_parsed) && (
-												<div className="mb-3 inline-flex items-center gap-2 rounded border bg-background px-2 py-1 text-xs">
-													{(() => {
-														const info = getReferrerInfo(session.referrer);
-														return info.domain ? (
-															<FaviconImage
-																className="flex-shrink-0"
-																domain={info.domain}
-																size={14}
-															/>
-														) : null;
-													})()}
-													<span className="text-muted-foreground">
-														Referrer:
-													</span>
-													<span className="font-medium">
-														{getReferrerInfo(session.referrer).name}
-													</span>
-												</div>
-											)}
-
-											{/* Event Timeline */}
-											{session.events && session.events.length > 0 && (
-												<div>
-													<h5 className="mb-3 font-medium text-sm">
-														Event Timeline ({session.events.length})
-													</h5>
-													<div className="max-h-64 space-y-2 overflow-y-auto">
-														{session.events
-															.slice(0, 15)
-															.map((event: any, eventIndex: number) => (
-																<div
-																	className="flex items-center justify-between rounded bg-background p-3 text-xs"
-																	key={event.event_id || eventIndex}
-																>
-																	<div className="flex items-center gap-3">
-																		<div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 font-medium text-primary text-xs">
-																			{eventIndex + 1}
-																		</div>
-																		<div className="flex items-center gap-2">
-																			<span className="font-medium">
-																				{event.event_name}
-																			</span>
-																			{event.path && (
-																				<span className="text-muted-foreground">
-																					{event.path}
-																				</span>
-																			)}
-																		</div>
-																	</div>
-																	<span className="text-muted-foreground">
-																		{dayjs(event.time).format('HH:mm:ss')}
-																	</span>
-																</div>
-															))}
-														{session.events.length > 15 && (
-															<div className="py-2 text-center text-muted-foreground text-xs">
-																+{session.events.length - 15} more events
-															</div>
-														)}
-													</div>
-												</div>
-											)}
-										</div>
+											session={transformSession(session)}
+											index={index}
+											isExpanded={expandedSessions.has(session.session_id)}
+											onToggle={handleToggleSession}
+										/>
 									))}
 								</div>
-							) : (
-								<div className="py-12 text-center text-muted-foreground">
+							) : (	
+								<div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center text-muted-foreground">
 									<UserIcon className="mx-auto mb-4 h-8 w-8 opacity-50" />
 									<p className="text-sm">
 										No sessions data available for this user

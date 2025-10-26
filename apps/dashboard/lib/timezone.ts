@@ -2,8 +2,11 @@
  * Shared timezone utilities for dashboard components
  */
 
-// Get user's timezone
 export const getUserTimezone = (): string => {
-	// Hardcode GMT+2 for testing
-	return 'Europe/Athens';
+	try {
+		const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		return browserTz;
+	} catch {
+		return 'UTC';
+	}
 };

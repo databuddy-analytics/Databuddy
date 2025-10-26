@@ -1,31 +1,31 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import app from './index';
 
 // Mock external dependencies
 const mockLogger = {
-	info: mock(() => {}),
-	warn: mock(() => {}),
-	error: mock(() => {}),
+	info: vi.fn(() => {}),
+	warn: vi.fn(() => {}),
+	error: vi.fn(() => {}),
 };
 
 const mockClickHouse = {
-	insert: mock(() => Promise.resolve()),
+	insert: vi.fn(() => Promise.resolve()),
 };
 
 const mockRedis = {
-	get: mock(() => Promise.resolve(null)),
-	setex: mock(() => Promise.resolve()),
-	exists: mock(() => Promise.resolve(false)),
+	get: vi.fn(() => Promise.resolve(null)),
+	setex: vi.fn(() => Promise.resolve()),
+	exists: vi.fn(() => Promise.resolve(false)),
 };
 
 const mockAutumn = {
-	check: mock(() => Promise.resolve({ data: { allowed: true } })),
+	check: vi.fn(() => Promise.resolve({ data: { allowed: true } })),
 };
 
 const mockDb = {
 	query: {
 		websites: {
-			findFirst: mock(() => Promise.resolve({
+			findFirst: vi.fn(() => Promise.resolve({
 				id: 'test-client-id',
 				domain: 'example.com',
 				status: 'ACTIVE',
@@ -35,46 +35,85 @@ const mockDb = {
 		},
 	},
 };
-
-// Mock modules
-mock.module('./lib/logger', () => ({
+	
+vi.mock('./lib/logger', () => ({
 	logger: mockLogger,
 }));
 
-mock.module('@databuddy/db', () => ({
+vi.mock('@databuddy/db', () => ({
 	clickHouse: mockClickHouse,
 	db: mockDb,
 }));
 
-mock.module('@databuddy/redis', () => ({
+vi.mock('@databuddy/redis', () => ({
 	redis: mockRedis,
 }));
 
-mock.module('autumn-js', () => ({
+vi.mock('autumn-js', () => ({
 	Autumn: mockAutumn,
 }));
 
-mock.module('./routes/basket', () => ({
+vi.mock('./routes/basket', () => ({
 	default: {
-		fetch: mock(() => Promise.resolve(new Response(JSON.stringify({ status: 'success' }), { status: 200 }))),
+		fetch: vi.fn((request: Request) => {
+			const url = new URL(request.url);
+			const isBatch = url.pathname.includes('/batch');
+			
+			if (isBatch) {
+				return request.json().then((body) => {
+					const eventCount = Array.isArray(body) ? body.length : 1;
+					const results = Array(eventCount).fill(null).map((_, index) => {
+						const event = Array.isArray(body) ? body[index] : body;
+						const eventType = event?.type || 'track';
+						return { status: 'success', type: eventType };
+					});
+					
+					return Promise.resolve(new Response(JSON.stringify({ 
+						status: 'success', 
+						batch: true,
+						processed: eventCount,
+						results
+					}), { status: 200 }));
+				}).catch(() => {
+					return Promise.resolve(new Response(JSON.stringify({ 
+						status: 'success', 
+						batch: true,
+						processed: 1,
+						results: [{ status: 'success', type: 'track' }]
+					}), { status: 200 }));
+				});
+			}
+			
+			return request.json().then((body) => {
+				const eventType = body.type || 'track';
+				return Promise.resolve(new Response(JSON.stringify({ 
+					status: 'success', 
+					type: eventType 
+				}), { status: 200 }));
+			}).catch(() => {
+				return Promise.resolve(new Response(JSON.stringify({ 
+					status: 'success', 
+					type: 'track' 
+				}), { status: 200 }));
+			});
+		}),
 	},
 }));
 
-mock.module('./routes/email', () => ({
+vi.mock('./routes/email', () => ({
 	default: {
-		fetch: mock(() => Promise.resolve(new Response(JSON.stringify({ status: 'success' }), { status: 200 }))),
+		fetch: vi.fn(() => Promise.resolve(new Response(JSON.stringify({ status: 'success' }), { status: 200 }))),
 	},
 }));
 
-mock.module('./routes/stripe', () => ({
+vi.mock('./routes/stripe', () => ({
 	default: {
-		fetch: mock(() => Promise.resolve(new Response(JSON.stringify({ status: 'success' }), { status: 200 }))),
+		fetch: vi.fn(() => Promise.resolve(new Response(JSON.stringify({ status: 'success' }), { status: 200 }))),
 	},
 }));
 
 describe('Basket App', () => {
 	beforeEach(() => {
-		// Reset all mocks
 		mockLogger.info.mockClear();
 		mockLogger.warn.mockClear();
 		mockLogger.error.mockClear();
@@ -110,6 +149,17 @@ describe('Basket App', () => {
 			expect(data).toEqual({
 				status: 'ok',
 				version: '1.0.0',
+				producer_stats: {
+					kafkaSent: 0,
+					kafkaFailed: 0,
+					buffered: 0,
+					flushed: 0,
+					dropped: 0,
+					errors: 0,
+					bufferSize: 0,
+					connected: false,
+					failed: false,
+				},
 			});
 		});
 
@@ -158,7 +208,6 @@ describe('Basket App', () => {
 		it('should handle requests without origin', async () => {
 			const response = await app.fetch(new Request('http://localhost:4000/health'));
 			expect(response.status).toBe(200);
-			// Should not crash when no origin is provided
 		});
 
 		it('should include custom headers in CORS', async () => {
@@ -186,13 +235,11 @@ describe('Basket App', () => {
 				body: 'invalid json',
 			}));
 			
-			// Should not crash the server
 			expect([200, 400, 500]).toContain(response.status);
 		});
 
 		it('should handle requests to non-existent endpoints', async () => {
 			const response = await app.fetch(new Request('http://localhost:4000/non-existent'));
-			// Should handle gracefully without crashing
 			expect([200, 404, 405]).toContain(response.status);
 		});
 

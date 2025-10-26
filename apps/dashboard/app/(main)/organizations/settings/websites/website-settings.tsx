@@ -1,7 +1,6 @@
 'use client';
 
 import {
-	ArrowRightIcon,
 	ChartLineIcon,
 	GlobeIcon,
 	PlusIcon,
@@ -9,9 +8,8 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { FaviconImage } from '@/components/analytics/favicon-image';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Organization } from '@/hooks/use-organizations';
 import { trpc } from '@/lib/trpc';
@@ -23,25 +21,18 @@ interface WebsiteSettingsProps {
 
 function WebsiteLoadingSkeleton() {
 	return (
-		<div className="grid select-none gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{[1, 2, 3].map((num) => (
-				<Card
-					className="animate-pulse overflow-hidden"
-					key={`website-skeleton-${num}`}
-				>
-					<CardHeader className="pb-3">
-						<div className="flex items-center gap-3">
-							<Skeleton className="h-6 w-6 rounded" />
-							<div className="min-w-0 flex-1 space-y-1">
-								<Skeleton className="h-4 w-24 rounded" />
-								<Skeleton className="h-3 w-32 rounded" />
+				<Card className="group relative overflow-hidden" key={`website-skeleton-${num}`}>
+					<CardContent className="p-4">
+						<div className="space-y-3">
+							<div className="flex items-start gap-3">
+								<Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
+								<div className="min-w-0 flex-1 space-y-1.5">
+									<Skeleton className="h-3 w-32" />
+									<Skeleton className="h-3 w-24" />
+								</div>
 							</div>
-						</div>
-					</CardHeader>
-					<CardContent className="pt-0 pb-4">
-						<div className="flex items-center justify-between">
-							<Skeleton className="h-5 w-12 rounded-full" />
-							<Skeleton className="h-4 w-4 rounded" />
 						</div>
 					</CardContent>
 				</Card>
@@ -126,8 +117,8 @@ export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
 		});
 
 	return (
-		<div className="h-full p-6">
-			<div className="space-y-6">
+		<div className="h-full p-4 sm:p-6">
+			<div className="space-y-4 sm:space-y-6">
 				{/* Website count indicator */}
 				{!isLoadingWebsites && websites && websites.length > 0 && (
 					<div className="flex items-center gap-2 rounded-lg border border-muted bg-muted/30 px-3 py-2 text-muted-foreground text-sm">
@@ -165,49 +156,35 @@ export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
 								href={`/websites/${website.id}`}
 								key={website.id}
 							>
-								<Card className="h-full overflow-hidden transition-all duration-300 ease-in-out group-hover:border-primary/50 group-hover:shadow-lg group-hover:shadow-primary/5">
-									<CardHeader className="pb-3">
-										<div className="flex items-center justify-between gap-2">
-											<div className="flex min-w-0 flex-1 items-center gap-3">
+								<Card className="group relative cursor-pointer overflow-hidden transition-all duration-200 hover:border-border/60 hover:bg-muted/30">
+									<CardContent className="p-4">
+										<div className="space-y-3">
+											{/* Website Info */}
+											<div className="flex items-start gap-3">
 												<FaviconImage
 													altText={`${website.name} favicon`}
-													className="flex-shrink-0 rounded"
+													className="h-10 w-10 flex-shrink-0 rounded border border-border/30"
 													domain={website.domain}
 													fallbackIcon={
-														<div className="rounded bg-primary/10 p-1">
+														<div className="flex h-10 w-10 items-center justify-center rounded border border-border/30 bg-accent">
 															<GlobeIcon
-																className="h-4 w-4 text-primary"
-																size={16}
+																className="h-5 w-5 text-muted-foreground"
+																size={20}
 																weight="duotone"
 															/>
 														</div>
 													}
-													size={24}
+													size={40}
 												/>
 												<div className="min-w-0 flex-1">
-													<h4 className="truncate font-semibold text-foreground text-sm transition-colors group-hover:text-primary">
+													<h3 className="truncate font-semibold text-sm">
 														{website.name}
-													</h4>
+													</h3>
 													<p className="truncate text-muted-foreground text-xs">
 														{website.domain}
 													</p>
 												</div>
 											</div>
-											<ArrowRightIcon
-												aria-hidden="true"
-												className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-all duration-200 group-hover:translate-x-1 group-hover:text-primary"
-												weight="fill"
-											/>
-										</div>
-									</CardHeader>
-									<CardContent className="pt-0 pb-4">
-										<div className="flex items-center justify-between">
-											<Badge
-												className="border-primary/20 bg-primary/10 text-primary"
-												variant="secondary"
-											>
-												Active
-											</Badge>
 										</div>
 									</CardContent>
 								</Card>

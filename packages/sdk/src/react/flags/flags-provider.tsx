@@ -1,9 +1,9 @@
 import { atom, createStore, Provider, useAtom } from 'jotai';
 import type { ReactNode } from 'react';
 import { createElement, useEffect, useRef } from 'react';
-import type { FlagResult, FlagState, FlagsConfig } from '../../core/flags';
-import { BrowserFlagStorage, CoreFlagsManager } from '../../core/flags';
-import { logger } from '../../logger';
+import type { FlagResult, FlagState, FlagsConfig } from '@/core/flags';
+import { BrowserFlagStorage, CoreFlagsManager } from '@/core/flags';
+import { logger } from '@/logger';
 
 const flagsStore = createStore();
 

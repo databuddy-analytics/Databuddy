@@ -46,8 +46,10 @@ export const track: TrackFunction = async <T extends EventName>(
 	}
 
 	try {
-		await tracker(eventName, properties as any);
-	} catch (_error) {}
+		await tracker(eventName, properties);
+	} catch (error) {
+		console.error('Databuddy tracking error:', error);
+	}
 };
 /**
  * Clear the current session
@@ -65,7 +67,9 @@ export function clear(): void {
 
 	try {
 		tracker();
-	} catch (_error) {}
+	} catch (error) {
+		console.error('Databuddy clear error:', error);
+	}
 }
 
 /**
@@ -84,7 +88,9 @@ export function flush(): void {
 
 	try {
 		tracker();
-	} catch (_error) {}
+	} catch (error) {
+		console.error('Databuddy flush error:', error);
+	}
 }
 
 /**
@@ -98,7 +104,7 @@ export function trackError(
 		colno?: number;
 		stack?: string;
 		error_type?: string;
-		[key: string]: any;
+		[key: string]: string | number | boolean | null | undefined;
 	}
 ): Promise<void> {
 	return track('error', { message, ...properties });

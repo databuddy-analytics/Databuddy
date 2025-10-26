@@ -199,12 +199,11 @@ export const databaseNavigation: NavigationSection[] = [
 export const websiteNavigation: NavigationSection[] = [
 	createNavSection('Web Analytics', ChartBarIcon, [
 		createNavItem('Dashboard', EyeIcon, '', { rootLevel: false }),
-		createNavItem('Sessions', UserIcon, '/sessions', { rootLevel: false }),
 		createNavItem('Geographic Data', MapPinIcon, '/map', { rootLevel: false }),
 		createNavItem('Error Tracking', BugIcon, '/errors', { rootLevel: false }),
 	]),
 	createNavSection('Product Analytics', TrendUpIcon, [
-		createNavItem('User Profiles', UserCircleIcon, '/profiles', { rootLevel: false }),
+		createNavItem('Users', UsersThreeIcon, '/users', { rootLevel: false }),
 		createNavItem('Funnels', FunnelIcon, '/funnels', { rootLevel: false }),
 		createNavItem('Goals', TargetIcon, '/goals', { rootLevel: false }),
 		createNavItem('Feature Flags', FlagIcon, '/flags', { alpha: true, rootLevel: false }),

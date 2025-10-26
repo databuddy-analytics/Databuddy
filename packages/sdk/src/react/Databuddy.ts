@@ -1,6 +1,6 @@
-import { createScript, isScriptInjected } from '../core/script';
-import type { DatabuddyConfig } from '../core/types';
-import { detectClientId } from '../utils';
+import { createScript, isScriptInjected } from '@/core/script';
+import type { DatabuddyConfig } from '@/core/types';
+import { detectClientId } from '@/utils';
 
 /**
  * <Databuddy /> component for Next.js/React apps

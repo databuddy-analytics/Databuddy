@@ -1,8 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { useTheme } from 'next-themes';
 import DemoContainer from './demo';
 import { SciFiButton } from './scifi-btn';
 import { Spotlight } from './spotlight';
@@ -28,8 +26,6 @@ export default function Hero() {
 		}
 	};
 
-	const { resolvedTheme } = useTheme();
-	const isDarkMode = resolvedTheme === 'dark';
 
 	return (
 		<section className="relative flex min-h-[100svh] w-full flex-col items-center overflow-hidden">
@@ -39,21 +35,6 @@ export default function Hero() {
 				<div className="grid grid-cols-1 items-center gap-8 pt-12 pb-6 sm:pt-16 sm:pb-8 lg:grid-cols-2 lg:gap-12 lg:pt-20 lg:pb-12 xl:gap-16">
 					{/* Text Content */}
 					<div className="order-2 flex flex-col items-center gap-6 text-center lg:order-1 lg:items-start lg:gap-8 lg:text-left">
-						<div>
-							<a
-								className="block transition-transform hover:scale-105"
-								href="https://www.producthunt.com/products/databuddy-analytics"
-								rel="noopener noreferrer"
-								target="_blank"
-							>
-								<Image
-									alt="Databuddy Analytics on Product Hunt"
-									height={40}
-									src={`https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1021633&theme=${isDarkMode ? 'dark' : 'light'}`}
-									width={250}
-								/>
-							</a>
-						</div>
 						<div className="self-center lg:self-start">
 							<div className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1 font-medium text-muted-foreground text-xs shadow backdrop-blur">
 								<span>Rejected by</span>

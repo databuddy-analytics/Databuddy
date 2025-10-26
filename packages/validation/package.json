@@ -8,9 +8,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^4.0.10"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "typescript": "catalog:"
   }
 }

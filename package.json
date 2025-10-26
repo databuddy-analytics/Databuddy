@@ -27,7 +27,7 @@
     "check-types": "tsgo --noEmit --project .",
     "generate-db": "turbo run generate --filter=@databuddy/db",
     "db:studio": "dotenv -- turbo run db:studio",
-    "clickhouse:init": "cd packages/db && bun run clickhouse:init",
+    "clickhouse:init": "dotenv -- turbo run clickhouse:init",
     "db:push": "dotenv -- turbo run db:push",
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
@@ -46,8 +46,8 @@
       "react": "19.0.0",
       "react-dom": "19.0.0",
       "next": "^15.3.4",
-      "typescript": "^5.8.3",
-      "zod": "3.25.76",
+      "typescript": "^5.9.3",
+      "zod": "4.1.12",
       "tailwindcss": "^4.1.4",
       "autumn-js": "^0.0.101",
       "stripe": "^18.2.1",
@@ -79,11 +79,18 @@
       "@logtail/pino": "^0.5.5",
       "@biomejs/biome": "2.2.2",
       "@types/bun": "latest",
+      "@types/react": "19.0.0",
+      "@types/react-dom": "19.0.0",
+      "bun-types": "latest",
       "ultracite": "5.3.10",
-      "turbo": "^2.5.2"
+      "turbo": "^2.5.2",
+      "drizzle-orm": "^0.42.0",
+      "nanoid": "^5.1.6"
     }
   },
   "dependencies": {
+    "pg": "^8.16.3",
+    "pg-pool": "^3.10.1",
     "prettier": "^3.6.2"
   }
 }

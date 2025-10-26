@@ -1,6 +1,6 @@
 import { type App, reactive } from 'vue';
-import type { FlagResult, FlagState, FlagsConfig } from '../../core/flags';
-import { BrowserFlagStorage, CoreFlagsManager } from '../../core/flags';
+import type { FlagResult, FlagState, FlagsConfig } from '@/core/flags';
+import { BrowserFlagStorage, CoreFlagsManager } from '@/core/flags';
 
 const FLAGS_SYMBOL = Symbol('flags');
 

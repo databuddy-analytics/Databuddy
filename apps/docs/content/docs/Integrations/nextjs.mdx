@@ -25,7 +25,7 @@ yarn add @databuddy/sdk
 
 ```tsx
 // app/layout.tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 
 export default function RootLayout({
   children,
@@ -81,7 +81,7 @@ Then add to your root layout:
 
 ```tsx
 // app/layout.tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 import { Analytics } from './analytics';
 
 export default function RootLayout({
@@ -111,7 +111,7 @@ export default function RootLayout({
 ```tsx
 // pages/_app.tsx
 import type { AppProps } from 'next/app';
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { track } from '@databuddy/sdk';
@@ -279,7 +279,7 @@ You can configure Databuddy with various options:
 
 ```tsx
 // app/layout.tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 
 export default function RootLayout({
   children,
@@ -326,7 +326,7 @@ Only load in production:
 
 ```tsx
 // app/layout.tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 
 export default function RootLayout({
   children,
@@ -361,7 +361,7 @@ Replace Vercel Analytics with Databuddy for better privacy:
 import { Analytics } from '@vercel/analytics/react';
 
 // After (with Databuddy)
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 ```
 
 ### Environment Variables on Vercel
