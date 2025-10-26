@@ -54,9 +54,6 @@ bun run dev
 
 - The seeding system lives in `packages/db/src/seed`.
 - Run via root script: `bun run db:seed` (uses defaults) or run package script in `packages/db`.
-- Scenarios: `base`, `demo`, `analyticsHeavy`.
-- Useful options: `scenario`, `fakerSeed`, `users`, `events`, `dryRun`, `reset=append|truncate`, `batchSizeEvents`.
-- Architecture: pure factories (no IO) + small scenarios that insert via existing db/ClickHouse clients.
 - See [`packages/db/README.md`](./packages/db/README.md) (Seeding quickstart) for details and a short recipe to add new scenarios.
 
 ## 💻 Development
