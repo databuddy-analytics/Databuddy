@@ -21,7 +21,7 @@ services:
     image: clickhouse/clickhouse-server:25.5.1-alpine
     container_name: databuddy-clickhouse
     environment:
-      CLICKHOUSE_DB: databuddy_analytics
+      CLICKHOUSE_DB: analytics
       CLICKHOUSE_USER: default
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
