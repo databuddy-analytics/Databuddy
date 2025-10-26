@@ -1,0 +1,90 @@
+services:
+  redpanda:
+    image: redpandadata/redpanda:v25.2.9
+    container_name: redpanda
+    restart: unless-stopped
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    environment:
+      REDPANDA_LOG_LEVEL: ${REDPANDA_LOG_LEVEL:-info}
+      REDPANDA_ADVERTISED_HOST: ${REDPANDA_ADVERTISED_HOST:-localhost}
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        if [ -z "$$REDPANDA_ADVERTISED_HOST" ]; then
+          REDPANDA_ADVERTISED_HOST=$$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || hostname -i)
+        fi
+        echo "Advertising Kafka at: $$REDPANDA_ADVERTISED_HOST:19092"
+        exec /entrypoint.sh redpanda start \
+          --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092 \
+          --advertise-kafka-addr internal://redpanda:9092,external://$$REDPANDA_ADVERTISED_HOST:19092 \
+          --pandaproxy-addr internal://0.0.0.0:8082 \
+          --advertise-pandaproxy-addr internal://redpanda:8082 \
+          --rpc-addr redpanda:33145 \
+          --advertise-rpc-addr redpanda:33145 \
+          --overprovisioned \
+          --smp 2 \
+          --memory 2G \
+          --reserve-memory 0M \
+          --default-log-level=info
+    networks:
+      - databuddy
+    healthcheck:
+      test: [ "CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true' && rpk topic list" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: redpanda-console
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    networks:
+      - databuddy
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  vector:
+    image: timberio/vector:0.50.0-alpine
+    container_name: vector
+    restart: unless-stopped
+    volumes:
+      - ./vector.yaml:/etc/vector/vector.yaml:ro
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-defaultpass}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://clickhouse:8123}
+      VECTOR_LOG: ${VECTOR_LOG:-info}
+      VECTOR_KAFKA_USER: ${VECTOR_KAFKA_USER:-vector-agent}
+      VECTOR_KAFKA_PASSWORD: ${VECTOR_KAFKA_PASSWORD:-super_secret_password}
+      REDPANDA_BROKER: ${REDPANDA_BROKER:-redpanda:9092}
+    networks:
+      - databuddy
+    depends_on:
+      redpanda:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [ "CMD", "vector", "validate", "/etc/vector/vector.yaml" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  redpanda_data:
+
+
+networks:
+  databuddy:
+    name: databuddy
+    driver: bridge

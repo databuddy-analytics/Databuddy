@@ -2,16 +2,9 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
 	experimental: {
-		viewTransition: true,
 		optimizePackageImports: ['@phosphor-icons/react'],
-		clientSegmentCache: true,
-		reactCompiler: true,
-		useCache: true,
-		staleTimes: {
-			dynamic: 30,
-			static: 180,
-		},
 	},
+	reactCompiler: true,
 	typescript: {
 		ignoreBuildErrors: true,
 	},

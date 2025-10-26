@@ -1,19 +1,43 @@
-import { BellIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { BellIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from '@/components/ui/popover';
-import { NotificationEmpty } from './notification-empty';
-import { NotificationList } from './notification-list';
-import type { AuditNotification } from './types';
+} from "@/components/ui/popover";
+import { NotificationEmpty } from "./notification-empty";
+import { NotificationList } from "./notification-list";
+import type { AuditNotification } from "./types";
 
 const Notifications: AuditNotification[] = [];
 
 export function NotificationsPopover() {
 	const [open, setOpen] = useState(false);
+	const [mounted, setMounted] = useState(false);
+
+	// Fix hydration mismatch by only rendering after mount
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted) {
+		return (
+			<Button
+				aria-label="Notifications"
+				className="relative"
+				size="icon"
+				type="button"
+				variant="ghost"
+			>
+				<BellIcon
+					className="h-6 w-6 not-dark:text-primary"
+					size={32}
+					weight="duotone"
+				/>
+			</Button>
+		);
+	}
 
 	return (
 		<Popover onOpenChange={setOpen} open={open}>

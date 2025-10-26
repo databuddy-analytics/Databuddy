@@ -1,9 +1,17 @@
-// Shared Website types for consistency across the codebase
 
-import type { websites } from '@databuddy/db';
-import type { InferSelectModel } from 'drizzle-orm';
-
-export type Website = InferSelectModel<typeof websites>;
+export type Website = {
+	id: string;
+	domain: string;
+	name: string | null;
+	status: 'ACTIVE' | 'HEALTHY' | 'UNHEALTHY';
+	userId: string | null;
+	isPublic: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+	deletedAt: Date | null;
+	organizationId: string | null;
+	integrations: unknown | null;
+};
 
 export interface MiniChartDataPoint {
 	date: string;

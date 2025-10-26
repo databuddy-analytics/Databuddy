@@ -1,8 +1,9 @@
 'use client';
 
-import { TrashIcon } from '@phosphor-icons/react';
+import { authClient } from '@databuddy/auth/client';
+import { SignOutIcon, TrashIcon } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
 	AlertDialog,
@@ -25,22 +26,61 @@ export function DangerZoneSettings({
 	organization: Organization;
 }) {
 	const router = useRouter();
+	const { data: session } = authClient.useSession();
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isLeaving, setIsLeaving] = useState(false);
+	const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
-	const { deleteOrganizationAsync } = useOrganizations();
+	const { deleteOrganizationAsync, leaveOrganizationAsync } = useOrganizations();
+
+	useEffect(() => {
+		const checkOwnership = async () => {
+			if (!session?.user?.id) {
+				return;
+			}
+
+			try {
+				const { data: fullOrgData } =
+					await authClient.organization.getFullOrganization({
+						query: { organizationId: organization.id },
+					});
+				const member = fullOrgData?.members?.find(
+					(m) => m.userId === session.user.id
+				);
+				setIsOwner(member?.role === 'owner');
+			} catch {
+				setIsOwner(false);
+			}
+		};
+
+		checkOwnership();
+	}, [organization.id, session?.user?.id]);
 
 	const handleDelete = async () => {
 		setIsDeleting(true);
 		try {
 			await deleteOrganizationAsync(organization.id);
-			toast.success('Organization deleted successfully');
 			router.push('/organizations');
 		} catch (_error) {
 			toast.error('Failed to delete organization');
 		} finally {
 			setIsDeleting(false);
 			setShowDeleteDialog(false);
+		}
+	};
+
+	const handleLeave = async () => {
+		setIsLeaving(true);
+		try {
+			await leaveOrganizationAsync(organization.id);
+			router.push('/organizations');
+		} catch (_error) {
+			toast.error('Failed to leave organization');
+		} finally {
+			setIsLeaving(false);
+			setShowLeaveDialog(false);
 		}
 	};
 
@@ -62,29 +102,52 @@ export function DangerZoneSettings({
 						</div>
 					</div>
 
-					{/* Delete Organization Section */}
+					{/* Leave/Delete Organization Section */}
 					<div className="rounded-lg border border-destructive/20 bg-destructive/5">
 						<div className="p-6">
 							<div className="space-y-4">
 								<div>
 									<h3 className="font-semibold text-destructive text-lg">
-										Delete Organization
+										{isOwner === null
+											? 'Loading...'
+											: isOwner
+												? 'Delete Organization'
+												: 'Leave Organization'}
 									</h3>
 									<p className="text-destructive/80 text-sm">
-										Once you delete an organization, there is no going back.
-										Please be certain.
+										{isOwner === null
+											? 'Checking permissions...'
+											: isOwner
+												? 'Once you delete an organization, there is no going back. Please be certain.'
+												: 'You will lose access to this organization and all its resources.'}
 									</p>
 								</div>
 
 								<div className="flex justify-end">
-									<Button
-										onClick={() => setShowDeleteDialog(true)}
-										size="default"
-										variant="destructive"
-									>
-										<TrashIcon className="mr-2 h-4 w-4" size={16} />
-										Delete Organization
-									</Button>
+									{isOwner === null ? (
+										<Button disabled size="default" variant="destructive">
+											<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
+											Loading...
+										</Button>
+									) : isOwner ? (
+										<Button
+											onClick={() => setShowDeleteDialog(true)}
+											size="default"
+											variant="destructive"
+										>
+											<TrashIcon className="mr-2 h-4 w-4" size={16} />
+											Delete Organization
+										</Button>
+									) : (
+										<Button
+											onClick={() => setShowLeaveDialog(true)}
+											size="default"
+											variant="destructive"
+										>
+											<SignOutIcon className="mr-2 h-4 w-4" size={16} />
+											Leave Organization
+										</Button>
+									)}
 								</div>
 							</div>
 						</div>
@@ -115,6 +178,35 @@ export function DangerZoneSettings({
 								</>
 							) : (
 								'Delete Organization'
+							)}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog onOpenChange={setShowLeaveDialog} open={showLeaveDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Leave organization?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to leave "{organization.name}"? You will lose
+							access to this organization and all its resources.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							disabled={isLeaving}
+							onClick={handleLeave}
+						>
+							{isLeaving ? (
+								<>
+									<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
+									Leaving...
+								</>
+							) : (
+								'Leave Organization'
 							)}
 						</AlertDialogAction>
 					</AlertDialogFooter>

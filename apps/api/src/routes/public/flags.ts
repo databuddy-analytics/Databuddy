@@ -150,20 +150,17 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 			return evaluateStringRule(context.email, rule);
 		case 'property': {
 			if (!rule.field) {
+				if (typeof rule.value === 'number') {
+					const userId = context.userId || context.email || 'anonymous';
+					const hash = hashString(`percentage:${userId}`);
+					const percentage = hash % 100;
+					return percentage < rule.value;
+				}
 				return false;
 			}
 			const propertyValue = context.properties?.[rule.field];
 			return evaluateValueRule(propertyValue, rule);
 		}
-		// case 'percentage': {
-		// 	if (typeof rule.value !== 'number') {
-		// 		return false;
-		// 	}
-		// 	const userId = context.userId || context.email || 'anonymous';
-		// 	const hash = hashString(`percentage:${userId}`);
-		// 	const percentage = hash % 100;
-		// 	return percentage < rule.value;
-		// }
 		default:
 			return false;
 	}

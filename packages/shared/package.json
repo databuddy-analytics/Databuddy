@@ -8,8 +8,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@logtail/edge": "^0.5.5",
-    "dayjs": "^1.11.18",
-    "nanoid": "^5.1.6"
+    "@databuddy/db": "workspace:*",
+    "@logtail/edge": "catalog:",
+    "dayjs": "catalog:",
+    "drizzle-orm": "catalog:",
+    "nanoid": "catalog:"
   }
 }

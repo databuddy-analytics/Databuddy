@@ -5,12 +5,10 @@ import {
 	formattedDateRangeAtom,
 	setDateRangeAndAdjustGranularityAtom,
 	timeGranularityAtom,
-	timezoneAtom,
 } from '@/stores/jotai/filterAtoms';
 
 export function useDateFilters() {
 	const [currentDateRange, setCurrentDateRange] = useAtom(dateRangeAtom);
-	const [timezone] = useAtom(timezoneAtom);
 	const [formattedDateRangeState] = useAtom(formattedDateRangeAtom);
 	const [currentGranularity, setCurrentGranularityAtomState] =
 		useAtom(timeGranularityAtom);
@@ -21,9 +19,8 @@ export function useDateFilters() {
 			start_date: formattedDateRangeState.startDate,
 			end_date: formattedDateRangeState.endDate,
 			granularity: currentGranularity,
-			timezone,
 		}),
-		[formattedDateRangeState, currentGranularity, timezone]
+		[formattedDateRangeState, currentGranularity]
 	);
 
 	return {

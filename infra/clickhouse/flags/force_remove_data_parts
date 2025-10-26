@@ -1,0 +1,3 @@
+# ClickHouse flag file to enable force removal of data parts
+# This file enables the force_remove_data_parts setting
+# When this file exists, ClickHouse will allow forced removal of data parts

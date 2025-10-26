@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { clickHouse, type EmailEvent } from '@databuddy/db';
+import { type EmailEvent } from '@databuddy/db';
 import { redis } from '@databuddy/redis';
 import {
 	batchEmailEventSchema,
 	type EmailEventInput,
 	emailEventSchema,
 } from '@databuddy/validation';
+import { sendEvent } from '../lib/producer';
 import { Elysia } from 'elysia';
 import { logger } from '../lib/logger';
 
@@ -43,19 +44,15 @@ async function insertEmailEvent(emailData: EmailEventInput): Promise<void> {
 	};
 
 	try {
-		await clickHouse.insert({
-			table: 'analytics.email_events',
-			values: [emailEvent],
-			format: 'JSONEachRow',
-		});
+		sendEvent('analytics-email-events', emailEvent);
 
-		logger.info('Email event inserted successfully', {
+		logger.info('Email event sent to Kafka successfully', {
 			domain: emailEvent.domain,
 			labels: emailEvent.labels,
 			eventId: emailEvent.event_id,
 		});
 	} catch (err) {
-		logger.error('Failed to insert email event', {
+		logger.error('Failed to send email event to Kafka', {
 			error: err as Error,
 			domain: emailEvent.domain,
 			eventId: emailEvent.event_id,

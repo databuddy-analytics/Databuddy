@@ -1,6 +1,5 @@
 import { Analytics } from '../../types/tables';
 import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
-import { buildWhereClause } from '../utils';
 
 export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 	summary_metrics: {
@@ -70,8 +69,10 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-			const tz = timezone || 'UTC';
-			const combinedWhereClause = buildWhereClause(filterConditions);
+		const tz = timezone || 'UTC';
+		const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
 			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
@@ -281,8 +282,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+		_filters?: Filter[],
+		_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			timezone?: string,
@@ -293,9 +294,11 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-			const tz = timezone || 'UTC';
-			const isHourly = _granularity === 'hour' || _granularity === 'hourly';
-			const combinedWhereClause = buildWhereClause(filterConditions);
+		const tz = timezone || 'UTC';
+		const isHourly = _granularity === 'hour' || _granularity === 'hourly';
+		const combinedWhereClause = filterConditions?.length
+			? `AND ${filterConditions.join(' AND ')}`
+			: '';
 
 			if (isHourly) {
 				// Use session attribution if helpers are provided
@@ -529,15 +532,17 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			_startDate: string,
 			_endDate: string,
-			_filters?: unknown[],
-			_granularity?: unknown,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
 			filterParams?: Record<string, Filter['value']>
 		) => {
-			const combinedWhereClause = buildWhereClause(filterConditions);
+			const combinedWhereClause = filterConditions?.length
+				? `AND ${filterConditions.join(' AND ')}`
+				: '';
 			return {
 				sql: `
           SELECT

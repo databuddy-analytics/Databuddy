@@ -43,8 +43,7 @@ export default function FunnelAnalyticsByReferrer({
 		setSelectedReferrer(referrer);
 		onReferrerChange?.(referrer);
 	};
-
-	// Group referrers strictly by domain (lowercased, fallback to 'direct')
+	
 	const referrers = useMemo(() => {
 		if (!data?.referrer_analytics) {
 			return [];

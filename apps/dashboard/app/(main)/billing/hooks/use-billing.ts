@@ -19,7 +19,6 @@ export type Usage = {
 	features: FeatureUsage[];
 };
 
-// Re-export types for compatibility
 export type { Customer, CustomerInvoice as Invoice } from 'autumn-js';
 
 export function useBilling(refetch?: () => void) {

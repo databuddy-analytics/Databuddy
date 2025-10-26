@@ -15,7 +15,8 @@ import { SciFiButton } from '@/components/landing/scifi-btn';
 import { Prose } from '@/components/prose';
 import { SciFiCard } from '@/components/scifi-card';
 import { getPosts, getSinglePost } from '@/lib/blog-query';
-import type { Post } from '@/types/post';
+import type { Post } from '@usemarble/core';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const STRIP_HTML_REGEX = /<[^>]+>/g;
 const WORD_SPLIT_REGEX = /\s+/;
@@ -107,7 +108,6 @@ export default async function PostPage({
 		return (
 			<>
 				<div className="relative flex min-h-[60vh] w-full items-center justify-center overflow-hidden px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">
-					{/* Main Content */}
 					<div className="relative z-10 mx-auto w-full max-w-lg text-center">
 						<SciFiCard>
 							<div className="relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
@@ -163,32 +163,34 @@ export default async function PostPage({
 						Back to blog
 					</Link>
 				</div>
-				{/* Title */}
+
 				<h1 className="mb-3 text-balance font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl">
 					{post.title}
 				</h1>
 
-				{/* Metadata */}
 				<div className="mb-4 flex flex-wrap items-center gap-4 text-muted-foreground text-xs sm:text-sm">
 					<div className="flex items-center gap-2">
 						<UserIcon className="h-4 w-4" weight="duotone" />
 						<div className="-space-x-2 flex">
 							{post.authors.slice(0, 3).map((author) => (
-								<Image
-									alt={author.name}
-									className="h-6 w-6 rounded border-2 border-background"
-									height={24}
-									key={author.id}
-									src={author.image}
-									width={24}
-								/>
+              <Avatar className="size-6 rounded border-2 border-background" key={author.id}>
+                <AvatarImage src={author.image ?? undefined} alt={author.name} />
+                <AvatarFallback>{author.name[0]}</AvatarFallback>
+              </Avatar>
 							))}
 						</div>
-						<span>
-							{post.authors.length === 1
-								? post.authors[0].name
-								: `${post.authors[0].name} +${post.authors.length - 1}`}
-						</span>
+						{post.authors[0]?.socials?.[0]?.url ? (
+							<Link href={post.authors[0].socials[0].url} target='_blank' rel='noopener noreferrer'>
+								<span>
+									{post.authors[0].name}
+								</span>
+							</Link>
+						) : (
+							<span>{post.authors[0].name}</span>
+						)}
+						{post.authors.length > 1 && (
+							<span> +{post.authors.length - 1}</span>
+						)}
 					</div>
 					<div className="flex items-center gap-2">
 						<CalendarIcon className="h-4 w-4" weight="duotone" />

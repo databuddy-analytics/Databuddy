@@ -59,7 +59,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run tests
         env:
@@ -81,11 +81,26 @@ jobs:
           # Test environment
           NODE_ENV: test
           
-          # Auth secrets (use dummy values for tests)
-          AUTH_SECRET: test-auth-secret-for-ci-testing-only
-          NEXTAUTH_SECRET: test-auth-secret-for-ci-testing-only
+          # Better Auth secrets (use dummy values for tests)
+          BETTER_AUTH_SECRET: test-auth-secret-for-ci-testing-only
+          BETTER_AUTH_URL: http://localhost:3000
           
-          # API keys (use dummy values for tests)
+          # OAuth providers (use dummy values for tests)
+          GITHUB_CLIENT_ID: test-github-client-id
+          GITHUB_CLIENT_SECRET: test-github-client-secret
+          GOOGLE_CLIENT_ID: test-google-client-id
+          GOOGLE_CLIENT_SECRET: test-google-client-secret
+          
+          # External services (use dummy values for tests)
+          RESEND_API_KEY: test-resend-api-key
+          VERCEL_CLIENT_ID: test-vercel-client-id
+          VERCEL_CLIENT_SECRET: test-vercel-client-secret
+          
+          # Dashboard-specific (use dummy values for tests)
+          AUTUMN_SECRET_KEY: test-autumn-secret-key
+          NEXT_PUBLIC_API_URL: http://localhost:3000/api
+          
+          # Other API keys (use dummy values for tests)
           EMAIL_API_KEY: test-email-api-key
           IP_HASH_SALT: test-ip-hash-salt
           

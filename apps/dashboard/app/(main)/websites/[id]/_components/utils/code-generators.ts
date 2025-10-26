@@ -76,7 +76,7 @@ export function generateNpmCode(
 	const propsString =
 		meaningfulProps.length > 0 ? `\n${meaningfulProps.join('\n')}\n      ` : '';
 
-	return `import { Databuddy } from '@databuddy/sdk';
+	return `import { Databuddy } from '@databuddy/sdk/react';
 
 function AppLayout({ children }) {
   return (
