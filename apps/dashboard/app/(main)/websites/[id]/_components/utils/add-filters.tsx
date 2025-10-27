@@ -313,7 +313,7 @@ export function AddFilterForm({
 					aria-expanded={isOpen}
 					aria-haspopup="menu"
 					aria-label="Add filter"
-					className={className || 'h-8'}
+					className={`${className || 'h-8'} cursor-pointer`}
 					onClick={() => setIsOpen(!isOpen)}
 					variant="outline"
 				>

@@ -147,7 +147,7 @@ export function AnalyticsToolbar({
 					<LiveUserIndicator websiteId={websiteId} />
 					<Button
 						aria-label="Refresh data"
-						className="h-8 w-8"
+						className="h-8 w-8 cursor-pointer"
 						disabled={isRefreshing}
 						onClick={onRefresh}
 						size="icon"

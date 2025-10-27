@@ -293,7 +293,7 @@ export function StatCard({
 									: 'text-lg sm:text-xl md:text-2xl',
 								typeof value === 'string' && value.length > 8
 									? 'text-base sm:text-lg md:text-xl'
-									: ''
+									: 'text-lg sm:text-xl md:text-2xl'
 							)}
 						>
 							{displayValue}

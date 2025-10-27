@@ -928,7 +928,7 @@ export function WebsiteOverviewTab({
 				].map((metric) => (
 					<StatCard
 						chartData={isLoading ? undefined : metric.chartData}
-						className="h-full"
+						className="flex h-full min-h-[140px] flex-col"
 						description={
 							metric.description &&
 							metric.id !== 'pages-per-session-chart' &&
