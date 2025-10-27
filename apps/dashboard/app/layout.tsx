@@ -86,7 +86,16 @@ export const metadata: Metadata = {
 		icon: '/favicon.ico',
 		shortcut: '/favicon.ico',
 		apple: '/favicon.ico',
-		other: { rel: 'icon', url: '/favicon.ico' },
+		other: [
+			{ rel: 'icon', url: '/favicon.ico' },
+			{ rel: 'apple-touch-icon', url: '/web-app-manifest-192x192.png' },
+		],
+	},
+	manifest: '/manifest.json',
+	appleWebApp: {
+		capable: true,
+		statusBarStyle: 'default',
+		title: 'Databuddy Dashboard',
 	},
 };
 
@@ -141,6 +150,22 @@ export default function RootLayout({
 					<main className="flex-1">{children}</main>
 				</Providers>
 				<Toaster closeButton duration={1500} position="top-center" richColors />
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `
+							if ('serviceWorker' in navigator) {
+								window.addEventListener('load', function() {
+									navigator.serviceWorker.register('/sw.js')
+										.then(function(registration) {
+											console.log('ServiceWorker registration successful with scope: ', registration.scope);
+										}, function(err) {
+											console.log('ServiceWorker registration failed: ', err);
+										});
+								});
+							}
+						`,
+					}}
+				/>
 			</body>
 		</html>
 	);
