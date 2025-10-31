@@ -82,7 +82,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	if (error) {
 		return (
-			<div className="mx-auto max-w-[1600px] p-6 text-center">
+			<div className="p-6 text-center">
 				<div className="rounded border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950">
 					<div className="mx-auto mb-4 w-fit rounded-full border border-destructive/20 bg-destructive/10 p-3">
 						<BugIcon className="h-6 w-6 text-destructive" weight="duotone" />
@@ -100,7 +100,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	}
 
 	return (
-		<div className="mx-auto max-w-[1600px] space-y-6 py-6">
+		<div className="space-y-6 p-6">
 			{isLoading ? (
 				<ErrorsLoadingSkeleton />
 			) : (

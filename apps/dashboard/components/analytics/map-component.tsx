@@ -14,7 +14,7 @@ import { CountryFlag } from './icons/CountryFlag';
 const MapContainer = dynamic(
 	() => import('react-leaflet').then((mod) => mod.MapContainer),
 	{ ssr: false }
-);
+)
 const GeoJSON = dynamic(
 	() => import('react-leaflet').then((mod) => mod.GeoJSON),
 	{ ssr: false }
@@ -35,6 +35,13 @@ interface TooltipPosition {
 
 const roundToTwo = (num: number): number => {
 	return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+const mapApiToGeoJson = (code: string): string => (code === 'TW' ? 'CN-TW' : code);
+const mapGeoJsonToApi = (code: string): string => {
+	if (!code) return code;
+	const upperCode = code.toUpperCase();
+	return upperCode === 'CN-TW' ? 'TW' : code;
 };
 
 export function MapComponent({
@@ -195,8 +202,10 @@ export function MapComponent({
 			}
 
 			const dataKey = feature?.properties?.ISO_A2;
+			// Convert GeoJSON code to API code for data lookup
+			const apiCode = mapGeoJsonToApi(dataKey ?? '');
 			const foundData = processedCountryData?.find(
-				({ value }: { value: string }) => value === dataKey
+				({ value }: { value: string }) => value === apiCode
 			);
 
 			const metricValue =
@@ -276,8 +285,10 @@ export function MapComponent({
 					setHoveredId(code);
 
 					const name = feature.properties?.ADMIN;
+					// Convert GeoJSON code to API code for data lookup
+					const apiCode = mapGeoJsonToApi(code ?? '');
 					const foundData = processedCountryData?.find(
-						({ value }) => value === code
+						({ value }) => value === apiCode
 					);
 					const count = foundData?.count || 0;
 					const percentage = foundData?.percentage || 0;
@@ -285,7 +296,7 @@ export function MapComponent({
 
 					setTooltipContent({
 						name,
-						code,
+						code: apiCode, // Use API code for flag display
 						count,
 						percentage,
 						perCapita,
@@ -302,8 +313,8 @@ export function MapComponent({
 							Math.min(mapRef.current.getZoom() + 2, 12),
 							{
 								animate: true,
-								duration: 1.5,
-								easeLinearity: 0.25,
+								duration: 1.2,
+								easeLinearity: 0.5,
 							}
 						);
 					}
@@ -388,8 +399,9 @@ export function MapComponent({
 			return;
 		}
 
+		const geoJsonCode = mapApiToGeoJson(selectedCountry);
 		const countryFeature = countriesGeoData.features?.find(
-			(feature) => feature.properties?.ISO_A2 === selectedCountry
+			(feature) => feature.properties?.ISO_A2 === geoJsonCode
 		);
 
 		if (!countryFeature?.geometry) {
@@ -400,8 +412,8 @@ export function MapComponent({
 		if (centroid) {
 			mapRef.current.flyTo([centroid.lat, centroid.lng], 7, {
 				animate: true,
-				duration: 2,
-				easeLinearity: 0.25,
+				duration: 1.5,
+				easeLinearity: 0.5,
 			});
 		}
 	}, [selectedCountry, countriesGeoData, calculateCountryCentroid]);
@@ -438,12 +450,12 @@ export function MapComponent({
 					center={[40, 3]}
 					className={resolvedTheme === 'dark' ? 'map-dark' : 'map-light'}
 					maxBounds={[
-						[-120, -400],
-						[120, 400],
+						[-90, -200],
+						[90, 200],
 					]}
-					maxBoundsViscosity={0.1}
-					maxZoom={8}
-					minZoom={1.5}
+					maxBoundsViscosity={0.5}
+					maxZoom={12}
+					minZoom={0.5}
 					preferCanvas
 					ref={mapRef}
 					style={{
@@ -455,6 +467,9 @@ export function MapComponent({
 					}}
 					zoom={zoom}
 					zoomControl={false}
+					zoomSnap={0.25}
+					zoomDelta={0.5}
+					wheelPxPerZoomLevel={60}
 				>
 					{mapView === 'countries' && countriesGeoData && (
 						<GeoJSON
@@ -482,7 +497,7 @@ export function MapComponent({
 				>
 					<div className="mb-1 flex items-center gap-2 font-medium">
 						{tooltipContent.code && (
-							<CountryFlag country={tooltipContent.code.slice(0, 2)} />
+							<CountryFlag country={tooltipContent.code} />
 						)}
 						<span className="text-foreground">{tooltipContent.name}</span>
 					</div>

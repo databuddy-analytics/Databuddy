@@ -345,12 +345,6 @@ export function WebsiteAudienceTab({
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h2 className="mb-2 font-semibold text-lg">Audience Insights</h2>
-				<p className="text-muted-foreground text-sm">
-					Detailed information about your website visitors
-				</p>
-			</div>
 
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 				<DataTable

@@ -9,6 +9,7 @@ export { createClient } from '@clickhouse/client';
 export const TABLE_NAMES = {
 	events: 'analytics.events',
 	errors: 'analytics.errors',
+	outgoing_links: 'analytics.outgoing_links',
 	custom_events: 'analytics.custom_events',
 	web_vitals: 'analytics.web_vitals',
 	stripe_payment_intents: 'analytics.stripe_payment_intents',

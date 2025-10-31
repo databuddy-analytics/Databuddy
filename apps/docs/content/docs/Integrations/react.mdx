@@ -27,13 +27,13 @@ Add the `<Databuddy />` component to inject the tracking script:
 
 ```tsx
 // App.tsx
-import { Databuddy } from '@databuddy/sdk';
+import { Databuddy } from '@databuddy/sdk/react';
 
 function App() {
   return (
     <>
       <Databuddy 
-        clientId="YOUR_SITE_ID"
+        clientId="YOUR_SITE_ID" 
         trackScreenViews={true}
         trackAttributes={true}
       />

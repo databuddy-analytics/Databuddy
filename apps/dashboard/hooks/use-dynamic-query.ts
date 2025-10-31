@@ -18,7 +18,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { formatDuration } from '@/lib/utils';
-import { usePreferences } from './use-preferences';
+import { getUserTimezone } from '@/lib/timezone';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -70,31 +70,6 @@ const defaultQueryOptions = {
 	placeholderData: undefined, // Don't use placeholder data to ensure loading states show
 };
 
-/**
- * Hook to get the user's effective timezone
- */
-function useUserTimezone(): string {
-	const { preferences } = usePreferences();
-
-	// Get browser timezone as fallback
-	const browserTimezone = useMemo(() => {
-		try {
-			return Intl.DateTimeFormat().resolvedOptions().timeZone;
-		} catch {
-			return 'UTC';
-		}
-	}, []);
-
-	// Return user's preferred timezone or browser timezone if 'auto'
-	if (!preferences) {
-		return browserTimezone;
-	}
-
-	return preferences.timezone === 'auto'
-		? browserTimezone
-		: preferences.timezone;
-}
-
 function transformFilters(filters?: DynamicQueryRequest['filters']) {
 	return filters?.map(({ field, operator, value }) => ({
 		field,
@@ -108,10 +83,9 @@ async function fetchDynamicQuery(
 	websiteId: string,
 	dateRange: DateRange,
 	queryData: DynamicQueryRequest | DynamicQueryRequest[],
-	signal?: AbortSignal,
-	userTimezone?: string
+	signal?: AbortSignal
 ): Promise<DynamicQueryResponse | BatchQueryResponse> {
-	const timezone = userTimezone || 'UTC';
+	const timezone = getUserTimezone();
 	const params = buildParams(websiteId, dateRange, { timezone });
 	const url = `${API_BASE_URL}/v1/query?${params}`;
 
@@ -174,24 +148,21 @@ export function useDynamicQuery<T extends (keyof ParameterDataMap)[]>(
 	queryData: DynamicQueryRequest,
 	options?: Partial<UseQueryOptions<DynamicQueryResponse>>
 ) {
-	const userTimezone = useUserTimezone();
-
 	const fetchData = useCallback(
 		async ({ signal }: { signal?: AbortSignal }) => {
 			const result = await fetchDynamicQuery(
 				websiteId,
 				dateRange,
 				queryData,
-				signal,
-				userTimezone
+				signal
 			);
 			return result as DynamicQueryResponse;
 		},
-		[websiteId, dateRange, queryData, userTimezone]
+		[websiteId, dateRange, queryData]
 	);
 
 	const query = useQuery({
-		queryKey: ['dynamic-query', websiteId, dateRange, queryData, userTimezone],
+		queryKey: ['dynamic-query', websiteId, dateRange, queryData],
 		queryFn: fetchData,
 		...defaultQueryOptions,
 		...options,
@@ -250,21 +221,18 @@ export function useBatchDynamicQuery(
 	queries: DynamicQueryRequest[],
 	options?: Partial<UseQueryOptions<BatchQueryResponse>>
 ) {
-	const userTimezone = useUserTimezone();
-
 	const fetchData = useCallback(
 		async ({ signal }: { signal?: AbortSignal }) => {
 			const result = await fetchDynamicQuery(
 				websiteId,
 				dateRange,
 				queries,
-				signal,
-				userTimezone
+				signal
 			);
 			// Ensure we return a batch query response
 			return result as BatchQueryResponse;
 		},
-		[websiteId, dateRange, queries, userTimezone]
+		[websiteId, dateRange, queries]
 	);
 
 	const query = useQuery({
@@ -955,7 +923,7 @@ export function useProfilesData(
 
 /**
  * Hook for fetching a single user's complete profile with sessions and events
- * Much more efficient than useProfilesData for individual user pages
+ * Uses two separate queries: one for profile info, one for sessions list
  */
 export function useUserProfile(
 	websiteId: string,
@@ -963,7 +931,7 @@ export function useUserProfile(
 	dateRange: DateRange,
 	options?: Partial<UseQueryOptions<DynamicQueryResponse>>
 ) {
-	const queryResult = useDynamicQuery(
+	const profileQuery = useDynamicQuery(
 		websiteId,
 		dateRange,
 		{
@@ -979,19 +947,72 @@ export function useUserProfile(
 		},
 		{
 			...options,
-			staleTime: 5 * 60 * 1000, // 5 minutes
-			gcTime: 10 * 60 * 1000, // 10 minutes
-			enabled: Boolean(userId && websiteId), // Only run if we have both IDs
+			staleTime: 5 * 60 * 1000,
+			gcTime: 10 * 60 * 1000,
+			enabled: Boolean(userId && websiteId),
+		}
+	);
+
+	const sessionsQuery = useDynamicQuery(
+		websiteId,
+		dateRange,
+		{
+			id: `user-sessions-${userId}`,
+			parameters: ['profile_sessions'],
+			filters: [
+				{
+					field: 'anonymous_id',
+					operator: 'eq',
+					value: userId,
+				},
+			],
+			limit: 100,
+		},
+		{
+			...options,
+			staleTime: 5 * 60 * 1000,
+			gcTime: 10 * 60 * 1000,
+			enabled: Boolean(userId && websiteId),
 		}
 	);
 
 	const userProfile = useMemo(() => {
-		const rawProfile = (queryResult.data as any)?.profile_detail?.[0];
+		const rawProfile = (profileQuery.data as any)?.profile_detail?.[0];
 		if (!rawProfile) {
 			return null;
 		}
 
-		// Transform the raw profile data to match expected structure
+		const rawSessions = (sessionsQuery.data as any)?.profile_sessions || [];
+
+		const sessions = Array.isArray(rawSessions)
+			? rawSessions.map((session: any) => ({
+					session_id: session.session_id,
+					session_name: session.session_name || 'Session',
+					first_visit: session.first_visit,
+					last_visit: session.last_visit,
+					duration: session.duration || 0,
+					duration_formatted: session.duration_formatted || '0s',
+					page_views: session.page_views || 0,
+					unique_pages: session.unique_pages || 0,
+					device: session.device || '',
+					browser: session.browser || '',
+					os: session.os || '',
+					country: session.country || '',
+					region: session.region || '',
+					referrer: session.referrer || 'direct',
+					events:
+						Array.isArray(session.events) && session.events.length > 0
+							? session.events.map((eventTuple: any[]) => ({
+									event_id: eventTuple[0],
+									time: eventTuple[1],
+									event_name: eventTuple[2],
+									path: eventTuple[3],
+									properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
+								}))
+							: [],
+				}))
+			: [];
+
 		return {
 			visitor_id: rawProfile.visitor_id,
 			first_visit: rawProfile.first_visit,
@@ -1005,39 +1026,15 @@ export function useUserProfile(
 			os: rawProfile.os,
 			country: rawProfile.country,
 			region: rawProfile.region,
-			sessions:
-				rawProfile.sessions?.map((sessionTuple: any[]) => ({
-					session_id: sessionTuple[0],
-					session_name: sessionTuple[1],
-					first_visit: sessionTuple[2],
-					last_visit: sessionTuple[3],
-					duration: sessionTuple[4],
-					duration_formatted: sessionTuple[5],
-					page_views: sessionTuple[6],
-					unique_pages: sessionTuple[7],
-					device: sessionTuple[8],
-					browser: sessionTuple[9],
-					os: sessionTuple[10],
-					country: sessionTuple[11],
-					region: sessionTuple[12],
-					referrer: sessionTuple[13],
-					events:
-						sessionTuple[14]?.map((eventTuple: any[]) => ({
-							event_id: eventTuple[0],
-							time: eventTuple[1],
-							event_name: eventTuple[2],
-							path: eventTuple[3],
-							properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
-							error_message: eventTuple[5],
-							error_type: eventTuple[6],
-						})) || [],
-				})) || [],
+			sessions,
 		};
-	}, [queryResult.data]);
+	}, [profileQuery.data, sessionsQuery.data]);
 
 	return {
-		...queryResult,
 		userProfile,
+		isLoading: profileQuery.isLoading || sessionsQuery.isLoading,
+		isError: profileQuery.isError || sessionsQuery.isError,
+		error: profileQuery.error || sessionsQuery.error,
 	};
 }
 

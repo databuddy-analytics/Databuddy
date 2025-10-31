@@ -23,7 +23,7 @@ export default function SessionsPage() {
 	const { id: websiteId } = useParams();
 
 	return (
-		<div className="mt-6">
+		<div className="p-6">
 			<SessionsList websiteId={websiteId as string} />
 		</div>
 	);

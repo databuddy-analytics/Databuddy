@@ -69,7 +69,7 @@ export const annotationsRouter = createTRPCRouter({
 			})
 		)
 		.query(({ ctx, input }) => {
-			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}:${JSON.stringify(input.chartContext)}`;
+			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}`;
 
 			return annotationsCache.withCache({
 				key: cacheKey,

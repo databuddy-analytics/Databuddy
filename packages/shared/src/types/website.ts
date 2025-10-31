@@ -3,7 +3,7 @@ export type Website = {
 	id: string;
 	domain: string;
 	name: string | null;
-	status: 'ACTIVE' | 'HEALTHY' | 'UNHEALTHY';
+	status: 'ACTIVE' | 'HEALTHY' | 'UNHEALTHY' | 'INACTIVE' | 'PENDING';
 	userId: string | null;
 	isPublic: boolean;
 	createdAt: Date;

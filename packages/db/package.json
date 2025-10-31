@@ -14,7 +14,7 @@
     "@neondatabase/serverless": "^1.0.1",
     "@types/sqlstring": "^2.3.2",
     "dotenv": "^17.2.1",
-    "drizzle-orm": "catalog:",
+    "drizzle-orm": "^0.44.7",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"
   },

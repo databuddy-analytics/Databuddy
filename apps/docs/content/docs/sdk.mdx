@@ -503,6 +503,27 @@ import { clear } from "@databuddy/sdk";
 clear();
 ```
 
+### Tracking ID Helpers
+
+Get anonymous and session IDs for attribution tracking across redirects:
+
+```javascript
+import { getAnonymousId, getSessionId, getTrackingParams } from "@databuddy/sdk";
+
+// Get individual IDs
+const anonId = getAnonymousId();
+const sessionId = getSessionId();
+
+// Get as URL params string (for redirects)
+const trackingParams = getTrackingParams();
+const signupUrl = `https://app.databuddy.cc/register?${trackingParams}`;
+window.location.href = signupUrl;
+```
+
+**Priority order**: URL params → tracker instance → localStorage/sessionStorage
+
+These helpers automatically fall back through multiple sources to find the IDs, perfect for preserving user attribution across signup flows and redirects.
+
 ### `flush()`
 
 Force immediate sending of queued events:

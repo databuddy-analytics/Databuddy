@@ -12,13 +12,6 @@ import {
 } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -155,87 +148,85 @@ export function RangeSelectionPopup({
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar-foreground/5">
 			<div className="mx-4 w-full max-w-md">
-				<Card 
-					className="shadow-2xl border-2 bg-card/95 backdrop-blur-sm"
+				<div 
+					className="rounded border border-sidebar-border bg-sidebar shadow-sm"
 					role="dialog"
 					aria-labelledby="range-selection-title"
 					aria-describedby="range-selection-description"
 				>
-					<CardHeader className="pb-4">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-3">
-								<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-									<CalendarIcon className="h-5 w-5 text-primary" />
-								</div>
-								<div>
-									<CardTitle id="range-selection-title" className="text-xl">
-										{showAnnotationForm ? 'Add Annotation' : 'Point Selected'}
-									</CardTitle>
-									<CardDescription id="range-selection-description" className="text-sm">
-										{dateRange.startDate.toLocaleDateString('en-US', { 
-											month: 'short', 
-											day: 'numeric' 
-										})}{dateRange.startDate.getTime() !== dateRange.endDate.getTime() ? ` - ${dateRange.endDate.toLocaleDateString('en-US', { 
-											month: 'short', 
-											day: 'numeric' 
-										})}` : ''}
-									</CardDescription>
-								</div>
+					<div className="flex items-center justify-between border-sidebar-border border-b px-4 py-3">
+						<div className="flex items-center gap-3">
+							<div className="flex h-10 w-10 items-center justify-center rounded bg-sidebar-accent">
+								<CalendarIcon className="h-5 w-5 text-sidebar-ring" weight="duotone" />
 							</div>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={onClose}
-								className="h-8 w-8 p-0 hover:bg-muted"
-							>
-								<XIcon className="h-4 w-4" />
-							</Button>
+							<div>
+								<h2 id="range-selection-title" className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+									{showAnnotationForm ? 'Add Annotation' : 'Point Selected'}
+								</h2>
+								<p id="range-selection-description" className="text-sidebar-foreground/70 text-sm">
+									{dateRange.startDate.toLocaleDateString('en-US', { 
+										month: 'short', 
+										day: 'numeric' 
+									})}{dateRange.startDate.getTime() !== dateRange.endDate.getTime() ? ` - ${dateRange.endDate.toLocaleDateString('en-US', { 
+										month: 'short', 
+										day: 'numeric' 
+									})}` : ''}
+								</p>
+							</div>
 						</div>
-					</CardHeader>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onClose}
+							className="h-8 w-8 p-0 hover:bg-sidebar-accent"
+						>
+							<XIcon className="h-4 w-4" />
+						</Button>
+					</div>
 
-				<CardContent className="space-y-6">
+					<div className="space-y-6 p-4">
 					{!showAnnotationForm ? (
 						<>
 							{/* Action Buttons */}
 							<div className="space-y-3">
 								<Button 
 									onClick={handleZoom} 
-									className="w-full h-auto py-4 flex items-center justify-start gap-4"
+									className="w-full h-auto py-3 flex items-center justify-start gap-3 border-sidebar-border hover:bg-sidebar-accent"
 									variant="outline"
 									size="lg"
 									aria-label="Zoom to range (Ctrl+Z)"
 								>
-									<div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-										<MagnifyingGlassIcon className="h-6 w-6 text-primary" />
+									<div className="flex h-10 w-10 items-center justify-center rounded bg-sidebar-accent">
+										<MagnifyingGlassIcon className="h-5 w-5 text-sidebar-ring" weight="duotone" />
 									</div>
 									<div className="text-left flex-1">
-										<div className="font-semibold text-base">Zoom to Range</div>
-										<div className="text-xs text-muted-foreground font-normal">
+										<div className="font-semibold text-sm text-sidebar-foreground">Zoom to Range</div>
+										<div className="text-xs text-sidebar-foreground/70 font-normal">
 											Focus on this period for detailed analysis
 										</div>
 									</div>
-									<div className="text-xs text-muted-foreground">Ctrl+Z</div>
+									<div className="text-xs text-sidebar-foreground/50">Ctrl+Z</div>
 								</Button>
 
 								<Button 
 									onClick={() => setShowAnnotationForm(true)} 
-									className="w-full h-auto py-4 flex items-center justify-start gap-4"
+									className="w-full h-auto py-3 flex items-center justify-start gap-3 border-sidebar-border hover:bg-sidebar-accent"
 									variant="outline"
 									size="lg"
 									aria-label="Add annotation (Ctrl+A)"
 								>
-									<div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-										<NoteIcon className="h-6 w-6 text-primary" />
+									<div className="flex h-10 w-10 items-center justify-center rounded bg-sidebar-accent">
+										<NoteIcon className="h-5 w-5 text-sidebar-ring" weight="duotone" />
 									</div>
 									<div className="text-left flex-1">
-										<div className="font-semibold text-base">Add Annotation</div>
-										<div className="text-xs text-muted-foreground font-normal">
+										<div className="font-semibold text-sm text-sidebar-foreground">Add Annotation</div>
+										<div className="text-xs text-sidebar-foreground/70 font-normal">
 											Mark this period with a note or label
 										</div>
 									</div>
-									<div className="text-xs text-muted-foreground">Ctrl+A</div>
+									<div className="text-xs text-sidebar-foreground/50">Ctrl+A</div>
 								</Button>
 							</div>
 						</>
@@ -256,8 +247,8 @@ export function RangeSelectionPopup({
 							{/* Annotation Text */}
 							<div className="space-y-3">
 								<div className="flex items-center gap-2">
-									<NoteIcon className="h-4 w-4 text-primary" />
-									<Label htmlFor="annotation-text" className="font-medium">What happened during this period?</Label>
+									<NoteIcon className="h-4 w-4 text-sidebar-ring" weight="duotone" />
+									<Label htmlFor="annotation-text" className="font-medium text-sidebar-foreground">What happened during this period?</Label>
 								</div>
 								<Textarea
 									id="annotation-text"
@@ -271,7 +262,7 @@ export function RangeSelectionPopup({
 									autoFocus
 									aria-describedby="annotation-text-help annotation-text-count"
 								/>
-								<div className="flex justify-between items-center text-xs text-muted-foreground">
+								<div className="flex justify-between items-center text-xs text-sidebar-foreground/70">
 									<span id="annotation-text-help">Keep it concise and descriptive</span>
 									<span id="annotation-text-count" className={annotationText.length > DEFAULT_ANNOTATION_VALUES.maxTextLength * 0.9 ? 'text-warning' : ''}>
 										{annotationText.length}/{DEFAULT_ANNOTATION_VALUES.maxTextLength}
@@ -283,7 +274,7 @@ export function RangeSelectionPopup({
 									<div className="space-y-1">
 										{validationErrors.map((error, index) => (
 											<div key={index} className="text-xs text-destructive flex items-center gap-1">
-												<span className="text-destructive">⚠</span>
+												<span>⚠</span>
 												{error}
 											</div>
 										))}
@@ -294,8 +285,8 @@ export function RangeSelectionPopup({
 							{/* Tags */}
 							<div className="space-y-3">
 								<div className="flex items-center gap-2">
-									<TagIcon className="h-4 w-4 text-primary" />
-									<Label className="font-medium">Tags (optional)</Label>
+									<TagIcon className="h-4 w-4 text-sidebar-ring" weight="duotone" />
+									<Label className="font-medium text-sidebar-foreground">Tags (optional)</Label>
 								</div>
 								
 								{selectedTags.length > 0 && (
@@ -339,13 +330,13 @@ export function RangeSelectionPopup({
 									</div>
 									
 									<div className="space-y-2">
-										<div className="text-xs text-muted-foreground">Quick add:</div>
+										<div className="text-xs text-sidebar-foreground/70">Quick add:</div>
 								<div className="flex flex-wrap gap-2">
 									{COMMON_ANNOTATION_TAGS.filter(tag => !selectedTags.includes(tag.value)).map((tag) => (
 												<button
 													key={tag.value}
 													onClick={() => addTag(tag.value)}
-													className="flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+													className="flex items-center gap-1 rounded border border-sidebar-border bg-sidebar px-3 py-1 text-xs text-sidebar-foreground hover:bg-sidebar-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 													style={{ borderColor: tag.color }}
 													disabled={isSubmitting}
 												>
@@ -363,7 +354,7 @@ export function RangeSelectionPopup({
 
 							{/* Color Selection */}
 							<div className="space-y-3">
-								<Label className="font-medium">Annotation Color</Label>
+								<Label className="font-medium text-sidebar-foreground">Annotation Color</Label>
 								<div className="flex gap-2">
 									{ANNOTATION_COLORS.map((color) => (
 										<button
@@ -371,8 +362,8 @@ export function RangeSelectionPopup({
 											className={cn(
 												"w-10 h-10 rounded-full border-2 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
 												selectedColor === color.value
-													? "border-foreground scale-110 shadow-lg"
-													: "border-border hover:border-foreground/50"
+													? "border-sidebar-ring scale-110 shadow-sm"
+													: "border-sidebar-border hover:border-sidebar-ring/50"
 											)}
 											style={{ backgroundColor: color.value }}
 											onClick={() => setSelectedColor(color.value)}
@@ -384,18 +375,18 @@ export function RangeSelectionPopup({
 							</div>
 
 							{/* Visibility */}
-							<div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+							<div className="flex items-center justify-between rounded border border-sidebar-border bg-sidebar-accent p-3">
 								<div className="flex items-center gap-2">
 									{isPublic ? (
-										<EyeIcon className="h-4 w-4 text-primary" />
+										<EyeIcon className="h-4 w-4 text-sidebar-ring" weight="duotone" />
 									) : (
-										<EyeSlashIcon className="h-4 w-4 text-muted-foreground" />
+										<EyeSlashIcon className="h-4 w-4 text-sidebar-foreground/70" weight="duotone" />
 									)}
 									<div>
-										<Label htmlFor="is-public" className="font-medium text-sm">
+										<Label htmlFor="is-public" className="font-medium text-sm text-sidebar-foreground">
 											Public annotation
 										</Label>
-										<div className="text-xs text-muted-foreground">
+										<div className="text-xs text-sidebar-foreground/70">
 											Visible to other team members
 										</div>
 									</div>
@@ -443,8 +434,8 @@ export function RangeSelectionPopup({
 						</div>
 						</>
 					)}
-				</CardContent>
-			</Card>
+					</div>
+				</div>
 			</div>
 		</div>
 	);

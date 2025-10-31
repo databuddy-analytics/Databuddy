@@ -170,16 +170,7 @@ function WebsiteMapPage() {
 	}
 
 	return (
-		<div
-			className="h-screen overflow-hidden"
-			style={{
-				width: 'calc(100% + 3rem)',
-				marginTop: '-1.5rem',
-				marginLeft: '-1.5rem',
-				marginRight: '-1.5rem',
-				marginBottom: '-1.5rem',
-			}}
-		>
+		<div className="h-screen overflow-hidden">
 			<div className="relative h-full w-full">
 				<MapComponent
 					height="100%"
@@ -261,7 +252,7 @@ export default function Page() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex h-[calc(100vh-7rem)] items-center justify-center">
+				<div className="flex h-screen items-center justify-center">
 					<div className="flex flex-col items-center gap-3">
 						<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 						<span className="font-medium text-muted-foreground text-sm">

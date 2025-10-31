@@ -1,30 +1,48 @@
+import dayjs from 'dayjs';
 import type { Annotation } from '@/types/annotations';
+
+type Granularity = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
 /**
  * Formats a date to a readable string
+	 * Shows time if the date is within a 24-hour period or spans less than a day
  */
-export function formatAnnotationDate(date: Date | string): string {
-	return new Date(date).toLocaleDateString('en-US', {
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric',
-	});
+export function formatAnnotationDate(date: Date | string, showTime = false): string {
+	const dateObj = dayjs(date);
+	if (showTime) {
+		return dateObj.format('MMM D, h:mm A');
+	}
+	return dateObj.format('MMM D, YYYY');
 }
 
 /**
  * Formats a date range for annotations
+ * Automatically detects if hourly format is needed based on granularity or date range
  */
 export function formatAnnotationDateRange(
 	start: Date | string,
-	end: Date | string | null
+	end: Date | string | null,
+	granularity: Granularity = 'daily'
 ): string {
-	const startDate = new Date(start);
-	const endDate = end ? new Date(end) : null;
+	const startDate = dayjs(start);
+	const endDate = end ? dayjs(end) : null;
 	
-	if (!endDate || startDate.getTime() === endDate.getTime()) {
-		return formatAnnotationDate(startDate);
+	// If hourly granularity, always show time
+	const isHourly = granularity === 'hourly';
+	
+	if (!endDate || startDate.isSame(endDate)) {
+		// For single date, show time if hourly or if time is not midnight
+		const showTime = isHourly || !startDate.isSame(startDate.startOf('day'));
+		return formatAnnotationDate(start, showTime);
 	}
-	return `${formatAnnotationDate(startDate)} - ${formatAnnotationDate(endDate)}`;
+	
+	// Check if the range spans less than 24 hours or if times differ on same day
+	const isHourlyRange = startDate.isSame(endDate, 'day') || endDate.diff(startDate, 'hour') < 24;
+	
+	// If hourly granularity or range is within same day, show time
+	const showTime = isHourly || isHourlyRange || startDate.isSame(endDate, 'day');
+	
+	return `${formatAnnotationDate(start, showTime)} - ${formatAnnotationDate(end as Date | string, showTime)}`;
 }
 
 /**
@@ -43,12 +61,13 @@ export function isSingleDayAnnotation(annotation: Annotation): boolean {
 
 /**
  * Gets the display date for chart rendering
+ * Matches the format used by formatDateByGranularity
  */
-export function getChartDisplayDate(date: Date | string): string {
-	return new Date(date).toLocaleDateString('en-US', {
-		month: 'short',
-		day: 'numeric',
-	});
+export function getChartDisplayDate(date: Date | string, granularity: Granularity = 'daily'): string {
+	const dateObj = dayjs(date);
+	return granularity === 'hourly'
+		? dateObj.format('MMM D, h:mm A')
+		: dateObj.format('MMM D');
 }
 
 /**

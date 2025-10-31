@@ -32,7 +32,7 @@ export function FunnelsList({
 		return (
 			<div className="space-y-4">
 				{new Array(3).fill(null).map((_, index) => (
-					<Card className="rounded" key={index.toString()}>
+					<Card key={index.toString()}>
 						<CardHeader className="pb-4">
 							<div className="flex items-center justify-between">
 								<div className="flex-1">

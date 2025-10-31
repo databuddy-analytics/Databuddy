@@ -58,7 +58,7 @@ export function MetricsChartWithAnnotations({
 			dateRange: {
 				start_date: dateRange.startDate.toISOString(),
 				end_date: dateRange.endDate.toISOString(),
-				granularity: dateRange.granularity,
+				granularity: 'daily',
 			},
 			metrics: ['pageviews', 'visitors', 'sessions'],
 		};
@@ -202,6 +202,7 @@ export function MetricsChartWithAnnotations({
 				showAnnotations={showAnnotations}
 				onToggleAnnotations={setShowAnnotations}
 				websiteId={websiteId}
+				granularity={dateRange?.granularity}
 			/>
 			
 			<EditAnnotationModal

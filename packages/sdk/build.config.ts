@@ -11,15 +11,19 @@ export default defineBuildConfig({
 		'./src/node/index.ts',
 		'./src/ai/vercel/index.ts',
 	],
-	externals: ['react', 'react-dom', 'vue', 'jotai', '@ai-sdk/provider', 'ai', 'tokenlens'],
+	externals: ['react', 'react-dom', 'vue', 'jotai', '@ai-sdk/provider', 'ai', 'tokenlens', 'msw'],
 	declaration: true,
 	alias: {
 		'@': resolve(__dirname, 'src'),
 	},
 	hooks: {
 		'build:done': async () => {
-			const file = await readFile('./dist/react/index.mjs', 'utf-8');
-			await writeFile('./dist/react/index.mjs', `'use client';\n\n${file}`);
+			try {
+				const file = await readFile('./dist/react/index.mjs', 'utf-8');
+				await writeFile('./dist/react/index.mjs', `'use client';\n\n${file}`);
+			} catch (error) {
+				console.error('Failed to add "use client" directive:', error);
+			}
 		},
 	},
 });

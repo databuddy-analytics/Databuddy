@@ -11,8 +11,6 @@ import {
 } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
 import { useAtom } from 'jotai';
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo } from 'react';
@@ -31,7 +29,6 @@ import {
 	createReferrerColumns,
 } from '@/components/table/rows';
 import { useBatchDynamicQuery } from '@/hooks/use-dynamic-query';
-import { getUserTimezone } from '@/lib/timezone';
 import { useDateFilters } from '@/hooks/use-date-filters';
 import {
 	metricVisibilityAtom,
@@ -322,15 +319,13 @@ export function WebsiteOverviewTab({
 	const processedEventsData = useMemo(() => {
 		if (!analytics.events_by_date?.length) return [];
 		
-		const userTimezone = getUserTimezone();
-		const now = dayjs().tz(userTimezone);
+		const now = dayjs();
 		const isHourly = dateRange.granularity === 'hourly';
 
-		// Step 1: Filter future events
 		const filteredEvents = analytics.events_by_date.filter((event: MetricPoint) => {
-			const eventDate = dayjs.utc(event.date).tz(userTimezone);
+			const eventDate = dayjs(event.date);
 
-			if (isHourly) {
+			if (isHourly) {	
 				return eventDate.isBefore(now);
 			}
 
@@ -346,8 +341,8 @@ export function WebsiteOverviewTab({
 		}
 
 		// Step 3: Fill missing dates
-		const startDate = dayjs(dateRange.start_date).tz(userTimezone);
-		const endDate = dayjs(dateRange.end_date).tz(userTimezone);
+		const startDate = dayjs(dateRange.start_date);
+		const endDate = dayjs(dateRange.end_date);
 		const filled: MetricPoint[] = [];
 		let current = startDate;
 
@@ -676,13 +671,10 @@ export function WebsiteOverviewTab({
 		},
 	];
 
-	const userTimezone = getUserTimezone();
-	dayjs.extend(utc);
-	dayjs.extend(timezone);
-	const todayDate = dayjs().tz(userTimezone).format('YYYY-MM-DD');
+	const todayDate = dayjs().format('YYYY-MM-DD');
 	const todayEvent = analytics.events_by_date.find(
 		(event: MetricPoint) =>
-			dayjs(event.date).tz(userTimezone).format('YYYY-MM-DD') === todayDate
+			dayjs(event.date).format('YYYY-MM-DD') === todayDate
 	);
 	const todayVisitors = todayEvent?.visitors ?? 0;
 	const todaySessions = todayEvent?.sessions ?? 0;

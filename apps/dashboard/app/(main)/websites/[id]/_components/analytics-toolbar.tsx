@@ -87,7 +87,7 @@ export function AnalyticsToolbar({
 	const getGranularityButtonClass = (type: 'daily' | 'hourly') => {
 		const isActive = currentGranularity === type;
 		const baseClass =
-			'h-8 cursor-pointer touch-manipulation rounded-none px-3 text-sm';
+			'h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm';
 		const activeClass = isActive
 			? 'bg-primary/10 font-medium text-primary'
 			: 'text-muted-foreground';
@@ -114,23 +114,22 @@ export function AnalyticsToolbar({
 	);
 
 	return (
-		<div className="mt-3 flex flex-col gap-2 rounded border bg-card p-3 shadow-sm">
-			<div className="flex items-center justify-between gap-3">
-				<div className="flex h-8 overflow-hidden rounded border bg-background shadow-sm">
+		<div className="flex h-22 flex-col border-b bg-card">
+			<div className="flex h-12 items-center justify-between border-b border-border pr-4">
+				<div className="flex h-full items-center">
 					<Button
 						className={getGranularityButtonClass('daily')}
 						onClick={() => setCurrentGranularityAtomState('daily')}
-						size="sm"
 						title="View daily aggregated data"
 						variant="ghost"
 					>
 						Daily
 					</Button>
+					<div className="h-full w-px bg-border/50" />
 					<Button
 						className={getGranularityButtonClass('hourly')}
 						disabled={isHourlyDisabled}
 						onClick={() => setCurrentGranularityAtomState('hourly')}
-						size="sm"
 						title={
 							isHourlyDisabled
 								? `Hourly view is only available for ${MAX_HOURLY_DAYS} days or less`
@@ -143,14 +142,13 @@ export function AnalyticsToolbar({
 				</div>
 
 				<div className="flex items-center gap-2">
-					<AddFilterForm addFilter={addFilter} buttonText="Filter" />
+					<AddFilterForm addFilter={addFilter} buttonText="Filter" className="h-8" />
 					<LiveUserIndicator websiteId={websiteId} />
 					<Button
 						aria-label="Refresh data"
 						className="h-8 w-8"
 						disabled={isRefreshing}
 						onClick={onRefresh}
-						size="icon"
 						variant="outline"
 					>
 						<ArrowClockwiseIcon
@@ -161,24 +159,25 @@ export function AnalyticsToolbar({
 				</div>
 			</div>
 
-			<div className="flex items-center gap-1 overflow-x-auto rounded border bg-background p-1 shadow-sm">
-				{QUICK_RANGES.map((range) => {
+			<div className="flex h-10 items-center overflow-x-auto pr-4">
+				{QUICK_RANGES.map((range, index) => {
 					const isActive = isQuickRangeActive(range);
 					return (
-						<Button
-							className={`h-8 cursor-pointer touch-manipulation whitespace-nowrap px-2 font-medium text-xs ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-							key={range.label}
-							onClick={() => handleQuickRangeSelect(range)}
-							size="sm"
-							title={range.fullLabel}
-							variant={isActive ? 'secondary' : 'ghost'}
-						>
-							{range.label}
-						</Button>
+						<div className="flex h-full items-center" key={range.label}>
+							{index > 0 && <div className="h-full w-px bg-border/50" />}
+							<Button
+								className={`h-full w-12 cursor-pointer rounded-none touch-manipulation whitespace-nowrap px-0 font-medium text-xs ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+								onClick={() => handleQuickRangeSelect(range)}
+								title={range.fullLabel}
+								variant={isActive ? 'secondary' : 'ghost'}
+							>
+								{range.label}
+							</Button>
+						</div>
 					);
 				})}
 
-				<div className="ml-1 border-border/50 border-l pl-2">
+				<div className="border-border/50 border-l pl-2">
 					<DateRangePicker
 						className="w-auto"
 						maxDate={new Date()}

@@ -86,7 +86,7 @@ export function FunnelCard({
 
 	return (
 		<Card
-			className="mb-4 cursor-pointer select-none overflow-hidden rounded border bg-background transition focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+			className="mb-4 cursor-pointer select-none overflow-hidden border bg-background transition focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
 			onClick={handleCardClick}
 			onKeyDown={(e) => {
 				if (e.key === 'Enter' || e.key === ' ') {

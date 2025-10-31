@@ -102,7 +102,7 @@ export default function FlagsPage() {
 
 	if (flagsError) {
 		return (
-			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+			<div className="p-6">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
@@ -123,7 +123,7 @@ export default function FlagsPage() {
 	}
 
 	return (
-		<div className="mx-auto mt-6 max-w-[1600px] space-y-4">
+		<div className="space-y-4 p-6">
 			<WebsitePageHeader
 				createActionLabel="Create Flag"
 				description="Control feature rollouts and A/B testing"

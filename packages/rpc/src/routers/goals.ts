@@ -214,7 +214,7 @@ export const goalsRouter = createTRPCRouter({
 			return { success: true };
 		}),
 
-	getAnalytics: publicProcedure
+		getAnalytics: publicProcedure
 		.input(analyticsDateRangeSchema)
 		.query(({ ctx, input }) => {
 			const { startDate, endDate } =

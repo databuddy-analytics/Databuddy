@@ -349,6 +349,16 @@ export type PropertiesForEvent<T extends EventName> =
  */
 export interface DatabuddyTracker {
 	/**
+	 * Current anonymous user ID
+	 */
+	anonymousId: string;
+
+	/**
+	 * Current session ID
+	 */
+	sessionId: string;
+
+	/**
 	 * Track a custom event
 	 */
 	track<T extends EventName>(

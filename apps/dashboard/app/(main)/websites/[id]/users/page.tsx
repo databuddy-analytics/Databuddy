@@ -22,5 +22,9 @@ const UsersList = dynamic(
 export default function UsersPage() {
 	const { id: websiteId } = useParams();
 
-	return <UsersList websiteId={websiteId as string} />;
+	return (
+		<div>
+			<UsersList websiteId={websiteId as string} />
+		</div>
+	);
 }

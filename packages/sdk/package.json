@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
@@ -8,7 +8,11 @@
   "private": false,
   "scripts": {
     "build": "unbuild",
-    "test": "bun test"
+    "test": "bun test",
+    "vscode:prepublish": "bun run build"
+  },
+  "dependencies": {
+    "jotai": ">=2.12.5"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^2.0.0",

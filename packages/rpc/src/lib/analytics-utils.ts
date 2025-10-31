@@ -71,11 +71,12 @@ export const getTotalWebsiteUsers = async (
 	};
 
 	const query = `
-		SELECT COUNT(DISTINCT session_id) as total_users
+		SELECT COUNT(DISTINCT anonymous_id) as total_users
 		FROM analytics.events
 		WHERE client_id = {websiteId:String}
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
+			AND event_name = 'screen_view'
 	`;
 
 	const result = await chQuery<{ total_users: number }>(query, params);
@@ -111,20 +112,20 @@ const buildStepQuery = (
 	const whereCondition = buildWhereCondition(step, params);
 	const referrerSelect = includeReferrer ? ', any(referrer) as referrer' : '';
 
-	// For PAGE_VIEW, only query analytics.events
 	if (step.type === 'PAGE_VIEW') {
 		return `
 			SELECT 
 				${stepIndex + 1} as step_number,
 				{${stepNameKey}:String} as step_name,
-				session_id,
+				any(session_id) as session_id,
+				anonymous_id,
 				MIN(time) as first_occurrence${referrerSelect}
 			FROM analytics.events
 			WHERE client_id = {websiteId:String}
 				AND time >= parseDateTimeBestEffort({startDate:String})
 				AND time <= parseDateTimeBestEffort({endDate:String})
 				AND ${whereCondition}${filterConditions}
-			GROUP BY session_id`;
+			GROUP BY anonymous_id`;
 	}
 
 	// For custom EVENT, query both analytics.events and analytics.custom_events
@@ -132,42 +133,27 @@ const buildStepQuery = (
 	const referrerSelectCustom = includeReferrer ? ", '' as referrer" : '';
 
 	return `
-		WITH filtered_sessions AS (
-			SELECT DISTINCT session_id
-			FROM analytics.events
-			WHERE client_id = {websiteId:String}
-				AND time >= parseDateTimeBestEffort({startDate:String})
-				AND time <= parseDateTimeBestEffort({endDate:String})
-				AND event_name = {${targetKey}:String}${filterConditions}
-			
-			UNION DISTINCT
-			
-			SELECT DISTINCT session_id
-			FROM analytics.custom_events
-			WHERE client_id = {websiteId:String}
-				AND timestamp >= parseDateTimeBestEffort({startDate:String})
-				AND timestamp <= parseDateTimeBestEffort({endDate:String})
-				AND event_name = {${targetKey}:String}
-		),
-		session_referrers AS (
+		WITH visitor_referrers AS (
 			SELECT 
-				session_id,
-				argMin(referrer, time) as session_referrer
+				anonymous_id,
+				argMin(referrer, time) as visitor_referrer
 			FROM analytics.events
 			WHERE client_id = {websiteId:String}
 				AND time >= parseDateTimeBestEffort({startDate:String})
 				AND time <= parseDateTimeBestEffort({endDate:String})
 				AND event_name = 'screen_view'
 				AND referrer != ''
-			GROUP BY session_id
+			GROUP BY anonymous_id
 		)
 		SELECT 
 			${stepIndex + 1} as step_number,
 			{${stepNameKey}:String} as step_name,
-			session_id,
-			MIN(first_occurrence) as first_occurrence${includeReferrer ? ', COALESCE(sr.session_referrer, \'\') as referrer' : ''}
+			any(session_id) as session_id,
+			anonymous_id,
+			MIN(first_occurrence) as first_occurrence${includeReferrer ? ', COALESCE(vr.visitor_referrer, \'\') as referrer' : ''}
 		FROM (
 			SELECT 
+				anonymous_id,
 				session_id,
 				time as first_occurrence
 			FROM analytics.events
@@ -179,24 +165,25 @@ const buildStepQuery = (
 			UNION ALL
 			
 			SELECT 
-				ce.session_id,
-				ce.timestamp as first_occurrence
-			FROM analytics.custom_events ce
-			INNER JOIN filtered_sessions fs ON ce.session_id = fs.session_id
-			WHERE ce.client_id = {websiteId:String}
-				AND ce.timestamp >= parseDateTimeBestEffort({startDate:String})
-				AND ce.timestamp <= parseDateTimeBestEffort({endDate:String})
-				AND ce.event_name = {${targetKey}:String}
+				anonymous_id,
+				session_id,
+				timestamp as first_occurrence
+			FROM analytics.custom_events
+			WHERE client_id = {websiteId:String}
+				AND timestamp >= parseDateTimeBestEffort({startDate:String})
+				AND timestamp <= parseDateTimeBestEffort({endDate:String})
+				AND event_name = {${targetKey}:String}
 		) AS event_union${includeReferrer ? `
-		LEFT JOIN session_referrers sr ON event_union.session_id = sr.session_id` : ''}
-		GROUP BY event_union.session_id${includeReferrer ? ', sr.session_referrer' : ''}`;
+		LEFT JOIN visitor_referrers vr ON event_union.anonymous_id = vr.anonymous_id` : ''}
+		GROUP BY anonymous_id${includeReferrer ? ', vr.visitor_referrer' : ''}`;
 };
 
-const processSessionEvents = (
+const processVisitorEvents = (
 	rawResults: Array<{
 		step_number: number;
 		step_name: string;
 		session_id: string;
+		anonymous_id: string;
 		first_occurrence: number;
 		referrer?: string;
 	}>
@@ -209,7 +196,7 @@ const processSessionEvents = (
 		referrer?: string;
 	}>
 > => {
-	const sessionEvents = new Map<
+	const visitorEvents = new Map<
 		string,
 		Array<{
 			step_number: number;
@@ -220,7 +207,8 @@ const processSessionEvents = (
 	>();
 
 	for (const event of rawResults) {
-		const existing = sessionEvents.get(event.session_id);
+		const visitorId = event.anonymous_id;
+		const existing = visitorEvents.get(visitorId);
 		const eventData = {
 			step_number: event.step_number,
 			step_name: event.step_name,
@@ -231,15 +219,15 @@ const processSessionEvents = (
 		if (existing) {
 			existing.push(eventData);
 		} else {
-			sessionEvents.set(event.session_id, [eventData]);
+			visitorEvents.set(visitorId, [eventData]);
 		}
 	}
 
-	return sessionEvents;
+	return visitorEvents;
 };
 
 const calculateStepCounts = (
-	sessionEvents: Map<
+	visitorEvents: Map<
 		string,
 		Array<{
 			step_number: number;
@@ -251,7 +239,7 @@ const calculateStepCounts = (
 ): Map<number, Set<string>> => {
 	const stepCounts = new Map<number, Set<string>>();
 
-	for (const [sessionId, events] of Array.from(sessionEvents.entries())) {
+	for (const [visitorId, events] of Array.from(visitorEvents.entries())) {
 		events.sort((a, b) => a.first_occurrence - b.first_occurrence);
 		let currentStep = 1;
 
@@ -259,9 +247,9 @@ const calculateStepCounts = (
 			if (event.step_number === currentStep) {
 				const stepSet = stepCounts.get(event.step_number);
 				if (stepSet) {
-					stepSet.add(sessionId);
+					stepSet.add(visitorId);
 				} else {
-					stepCounts.set(event.step_number, new Set([sessionId]));
+					stepCounts.set(event.step_number, new Set([visitorId]));
 				}
 				currentStep++;
 			}
@@ -297,23 +285,25 @@ export const processGoalAnalytics = async (
 		WITH all_step_events AS (
 			${stepQuery}
 		)
-		SELECT 
+		SELECT DISTINCT
 			step_number,
 			step_name,
 			session_id,
+			anonymous_id,
 			first_occurrence
 		FROM all_step_events
-		ORDER BY session_id, first_occurrence`;
+		ORDER BY anonymous_id, first_occurrence`;
 
 	const rawResults = await chQuery<{
 		step_number: number;
 		step_name: string;
 		session_id: string;
+		anonymous_id: string;
 		first_occurrence: number;
 	}>(analysisQuery, params);
 
-	const sessionEvents = processSessionEvents(rawResults);
-	const stepCounts = calculateStepCounts(sessionEvents);
+	const visitorEvents = processVisitorEvents(rawResults);
+	const stepCounts = calculateStepCounts(visitorEvents);
 
 	const goalCompletions = stepCounts.get(1)?.size ?? 0;
 	const conversion_rate =
@@ -613,23 +603,25 @@ export const processFunnelAnalytics = async (
 		WITH all_step_events AS (
 			${stepQueries.join('\n			UNION ALL\n')}
 		)
-		SELECT 
+		SELECT DISTINCT
 			step_number,
 			step_name,
 			session_id,
+			anonymous_id,
 			first_occurrence
 		FROM all_step_events
-		ORDER BY session_id, first_occurrence`;
+		ORDER BY anonymous_id, first_occurrence`;
 
 	const rawResults = await chQuery<{
 		step_number: number;
 		step_name: string;
 		session_id: string;
+		anonymous_id: string;
 		first_occurrence: number;
 	}>(analysisQuery, params);
 
-	const sessionEvents = processSessionEvents(rawResults);
-	const stepCounts = calculateStepCounts(sessionEvents);
+	const visitorEvents = processVisitorEvents(rawResults);
+	const stepCounts = calculateStepCounts(visitorEvents);
 
 	const analyticsResults = steps.map((step, index) => {
 		const stepNumber = index + 1;
@@ -691,9 +683,9 @@ export const processFunnelAnalytics = async (
 const calculateReferrerStepCounts = (
 	group: {
 		parsed: { name: string; type: string; domain: string; url: string };
-		sessionIds: Set<string>;
+		visitorIds: Set<string>;
 	},
-	sessionEvents: Map<
+	visitorEvents: Map<
 		string,
 		Array<{
 			step_number: number;
@@ -705,9 +697,9 @@ const calculateReferrerStepCounts = (
 ): Map<number, Set<string>> => {
 	const stepCounts = new Map<number, Set<string>>();
 
-	for (const sessionId of Array.from(group.sessionIds)) {
-		const events = sessionEvents
-			.get(sessionId)
+	for (const visitorId of Array.from(group.visitorIds)) {
+		const events = visitorEvents
+			.get(visitorId)
 			?.sort((a, b) => a.first_occurrence - b.first_occurrence);
 
 		if (!events) {
@@ -719,9 +711,9 @@ const calculateReferrerStepCounts = (
 			if (event.step_number === currentStep) {
 				const stepSet = stepCounts.get(currentStep);
 				if (stepSet) {
-					stepSet.add(sessionId);
+					stepSet.add(visitorId);
 				} else {
-					stepCounts.set(currentStep, new Set([sessionId]));
+					stepCounts.set(currentStep, new Set([visitorId]));
 				}
 				currentStep++;
 			}
@@ -745,9 +737,9 @@ const processReferrerGroup = (
 	groupKey: string,
 	group: {
 		parsed: { name: string; type: string; domain: string; url: string };
-		sessionIds: Set<string>;
+		visitorIds: Set<string>;
 	},
-	sessionEvents: Map<
+	visitorEvents: Map<
 		string,
 		Array<{
 			step_number: number;
@@ -758,7 +750,7 @@ const processReferrerGroup = (
 	>,
 	steps: AnalyticsStep[]
 ): ReferrerAnalytics | null => {
-	const stepCounts = calculateReferrerStepCounts(group, sessionEvents);
+	const stepCounts = calculateReferrerStepCounts(group, visitorEvents);
 
 	const total_users = stepCounts.get(1)?.size || 0;
 	if (total_users === 0) {
@@ -867,43 +859,45 @@ export const processFunnelAnalyticsByReferrer = async (
 		WITH all_step_events AS (
 			${stepQueries.join('\n			UNION ALL\n')}
 		)
-		SELECT 
+		SELECT DISTINCT
 			step_number,
 			step_name,
 			session_id,
+			anonymous_id,
 			first_occurrence,
 			referrer
 		FROM all_step_events
-		ORDER BY session_id, first_occurrence`;
+		ORDER BY anonymous_id, first_occurrence`;
 
 	const rawResults = await chQuery<{
 		step_number: number;
 		step_name: string;
 		session_id: string;
+		anonymous_id: string;
 		first_occurrence: number;
 		referrer: string;
 	}>(sessionReferrerQuery, params);
 
-	const sessionEvents = processSessionEvents(rawResults);
+	const visitorEvents = processVisitorEvents(rawResults);
 
 	const referrerGroups = new Map<
 		string,
 		{
 			parsed: { name: string; type: string; domain: string; url: string };
-			sessionIds: Set<string>;
+			visitorIds: Set<string>;
 		}
 	>();
 
-	for (const [sessionId, events] of Array.from(sessionEvents.entries())) {
+	for (const [visitorId, events] of Array.from(visitorEvents.entries())) {
 		if (events.length > 0) {
 			const referrer = events[0].referrer || 'Direct';
 			const parsed = parseReferrer(referrer);
 			const groupKey = parsed.domain ? parsed.domain.toLowerCase() : 'direct';
 
 			if (!referrerGroups.has(groupKey)) {
-				referrerGroups.set(groupKey, { parsed, sessionIds: new Set() });
+				referrerGroups.set(groupKey, { parsed, visitorIds: new Set() });
 			}
-			referrerGroups.get(groupKey)?.sessionIds.add(sessionId);
+			referrerGroups.get(groupKey)?.visitorIds.add(visitorId);
 		}
 	}
 
@@ -913,7 +907,7 @@ export const processFunnelAnalyticsByReferrer = async (
 		const analytics = processReferrerGroup(
 			groupKey,
 			group,
-			sessionEvents,
+			visitorEvents,
 			steps
 		);
 		if (analytics) {

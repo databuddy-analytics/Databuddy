@@ -11,6 +11,7 @@ export type WithCacheArgs<T> = {
 	tables?: string[];
 	tag?: string;
 	autoInvalidate?: boolean;
+	disabled?: boolean;
 	queryFn: () => Promise<T>;
 };
 
@@ -104,8 +105,13 @@ export function createDrizzleCache({
 			tables = [],
 			tag,
 			autoInvalidate = true,
+			disabled = false,
 			queryFn,
 		}: WithCacheArgs<T>): Promise<T> {
+			if (disabled) {
+				return queryFn();
+			}
+
 			const cacheKey = formatCacheKey(key);
 			const start = Date.now();
 

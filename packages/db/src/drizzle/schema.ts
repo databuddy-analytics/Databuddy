@@ -857,6 +857,13 @@ export const chartType = pgEnum('chart_type', [
 	'metrics',
 ]);
 
+export const widgetType = pgEnum('widget_type', [
+	'chart',
+	'metric',
+	'table',
+	'text',
+]);
+
 export const dbConnections = pgTable(
 	'db_connections',
 	{

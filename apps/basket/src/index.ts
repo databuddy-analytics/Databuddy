@@ -2,11 +2,38 @@
 
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
-import { disconnectProducer } from './lib/producer';
 import basketRouter from './routes/basket';
 import emailRouter from './routes/email';
 import stripeRouter from './routes/stripe';
+import { getProducerStats } from './lib/producer';
 import './polyfills/compression';
+
+function getKafkaHealth() {
+	const stats = getProducerStats();
+	
+	if (!stats.kafkaEnabled) {
+		return {
+			status: 'disabled',
+			enabled: false,
+		};
+	}
+
+	if (stats.connected) {
+		return {
+			status: 'healthy',
+			enabled: true,
+			connected: true,
+		};
+	}
+
+	return {
+		status: 'unhealthy',
+		enabled: true,
+		connected: false,
+		failed: stats.failed,
+		lastErrorTime: stats.lastErrorTime,
+	};
+}
 // import { checkBotId } from "botid/server";
 
 const app = new Elysia()
@@ -37,26 +64,17 @@ const app = new Elysia()
 	.use(basketRouter)
 	.use(stripeRouter)
 	.use(emailRouter)
-	.get('/health', () => ({ status: 'ok', version: '1.0.0' }));
+	.get('/health', () => ({
+		status: 'ok',
+		version: '1.0.0',
+		producer_stats: getProducerStats(),
+		kafka: getKafkaHealth(),
+	}));
 
 const port = process.env.PORT || 4000;
 
-await new Promise(resolve => setTimeout(resolve, 400));
-
 console.log(`Starting basket service on port ${port}`);
 console.log(`Basket service running on http://localhost:${port}`);
-
-process.on('SIGINT', async () => {
-	console.log('Received SIGINT, shutting down...');
-	await disconnectProducer();
-	process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-	console.log('Received SIGTERM, shutting down...');
-	await disconnectProducer();
-	process.exit(0);
-});
 
 export default {
 	fetch: app.fetch,

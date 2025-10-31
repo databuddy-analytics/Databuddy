@@ -68,6 +68,11 @@ export const contents: SidebarSection[] = [
 				icon: AtomIcon,
 			},
 			{
+				title: 'Vanilla JavaScript',
+				href: '/docs/vanilla-js',
+				icon: FileTextIcon,
+			},
+			{
 				title: 'Node SDK',
 				href: '/docs/node-sdk',
 				icon: CodeIcon,

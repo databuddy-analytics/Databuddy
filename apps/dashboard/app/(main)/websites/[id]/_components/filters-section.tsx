@@ -225,7 +225,7 @@ export function FiltersSection() {
 	}
 
 	return (
-		<div className="slide-in-from-top-2 animate-in overflow-hidden rounded-lg border bg-card shadow-sm duration-300">
+		<div className="slide-in-from-top-2 animate-in overflow-hidden border-x border-b bg-card shadow-sm duration-300">
 			{editingFilter && (
 				<div className="border-amber-200/50 border-b bg-gradient-to-r from-amber-50/80 to-amber-50/40 px-4 py-3 text-amber-900 text-sm">
 					<div className="flex items-center justify-between">

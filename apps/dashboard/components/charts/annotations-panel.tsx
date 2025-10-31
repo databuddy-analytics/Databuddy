@@ -37,6 +37,7 @@ interface AnnotationsPanelProps {
 	onEdit: (annotation: Annotation) => void;
 	onDelete: (id: string) => Promise<void>;
 	isDeleting?: boolean;
+	granularity?: 'hourly' | 'daily' | 'weekly' | 'monthly';
 }
 
 export function AnnotationsPanel({
@@ -44,6 +45,7 @@ export function AnnotationsPanel({
 	onEdit,
 	onDelete,
 	isDeleting = false,
+	granularity = 'daily',
 }: AnnotationsPanelProps) {
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
@@ -60,29 +62,29 @@ export function AnnotationsPanel({
 		<>
 			<Sheet open={isOpen} onOpenChange={setIsOpen}>
 				<SheetTrigger asChild>
-					<Button variant="outline" size="sm" className="gap-2">
-						<NoteIcon className="h-4 w-4" />
+					<Button variant="outline" size="sm" className="gap-2 border-sidebar-border hover:bg-sidebar-accent">
+						<NoteIcon className="h-4 w-4" weight="duotone" />
 						Annotations ({annotations.length})
 					</Button>
 				</SheetTrigger>
 				<SheetContent
-					className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[600px]"
+					className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[600px] bg-sidebar border-sidebar-border"
 					side="right"
 				>
-					<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
+					<SheetHeader className="space-y-3 border-sidebar-border border-b pb-6">
 						<div className="flex items-center gap-3">
-							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+							<div className="rounded border border-sidebar-border bg-sidebar-accent p-3">
 								<NoteIcon
-									className="h-6 w-6 text-primary"
+									className="h-6 w-6 text-sidebar-ring"
 									size={16}
 									weight="duotone"
 								/>
 							</div>
 							<div>
-								<SheetTitle className="font-semibold text-foreground text-xl">
+								<SheetTitle className="font-semibold text-sidebar-foreground text-xl tracking-tight">
 									Chart Annotations ({annotations.length})
 								</SheetTitle>
-								<SheetDescription className="mt-1 text-muted-foreground">
+								<SheetDescription className="mt-1 text-sidebar-foreground/70">
 									Manage your chart annotations. Click to edit or delete.
 								</SheetDescription>
 							</div>
@@ -92,11 +94,11 @@ export function AnnotationsPanel({
 					<div className="space-y-6 pt-6">
 						{annotations.length === 0 ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center">
-								<div className="rounded-full bg-muted p-4 mb-4">
-									<NoteIcon className="h-8 w-8 text-muted-foreground" />
+								<div className="rounded bg-sidebar-accent p-4 mb-4">
+									<NoteIcon className="h-8 w-8 text-sidebar-foreground/70" weight="duotone" />
 								</div>
-								<p className="font-medium text-foreground">No annotations yet</p>
-								<p className="text-sm text-muted-foreground mt-1">
+								<p className="font-medium text-sidebar-foreground">No annotations yet</p>
+								<p className="text-sm text-sidebar-foreground/70 mt-1">
 									Drag on the chart to create your first annotation
 								</p>
 							</div>
@@ -104,18 +106,22 @@ export function AnnotationsPanel({
 							annotations.map((annotation) => (
 								<div
 									key={annotation.id}
-									className="group rounded-lg border border-border bg-background p-4 transition-all hover:border-primary/50 hover:shadow-sm"
+									className="group rounded border border-sidebar-border bg-sidebar p-4 transition-all hover:border-sidebar-ring/50 hover:shadow-sm"
 								>
 									<div className="flex items-start justify-between gap-3">
 										<div className="flex-1 min-w-0">
 											{/* Color indicator and date */}
 											<div className="flex items-center gap-2 mb-2">
 												<div
-													className="h-3 w-3 rounded-full border-2 border-white shadow-sm"
+													className="h-3 w-3 rounded-full border-2 border-sidebar shadow-sm"
 													style={{ backgroundColor: annotation.color }}
 												/>
-												<span className="text-xs text-muted-foreground">
-													{formatAnnotationDateRange(annotation.xValue, annotation.xEndValue)}
+												<span className="text-xs text-sidebar-foreground/70">
+													{formatAnnotationDateRange(
+														annotation.xValue,
+														annotation.xEndValue,
+														granularity
+													)}
 												</span>
 												{annotation.annotationType === 'range' &&
 													annotation.xEndValue &&
@@ -127,7 +133,7 @@ export function AnnotationsPanel({
 											</div>
 
 											{/* Text */}
-											<p className="text-sm text-foreground mb-2 break-words">
+											<p className="text-sm text-sidebar-foreground mb-2 break-words">
 												{annotation.text}
 											</p>
 
@@ -159,7 +165,7 @@ export function AnnotationsPanel({
 													setIsOpen(false);
 												}}
 											>
-												<PencilIcon className="h-4 w-4" />
+												<PencilIcon className="h-4 w-4" weight="duotone" />
 											</Button>
 											<Button
 												variant="ghost"
@@ -167,7 +173,7 @@ export function AnnotationsPanel({
 												className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
 												onClick={() => setDeleteId(annotation.id)}
 											>
-												<TrashIcon className="h-4 w-4" />
+												<TrashIcon className="h-4 w-4" weight="duotone" />
 											</Button>
 										</div>
 									</div>

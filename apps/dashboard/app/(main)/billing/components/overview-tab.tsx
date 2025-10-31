@@ -16,6 +16,7 @@ import {
 	WarningIcon,
 } from '@phosphor-icons/react';
 import type { Product } from 'autumn-js';
+import dayjs from 'dayjs';
 import React, { memo, useMemo } from 'react';
 import { useBilling } from '@/app/(main)/billing/hooks/use-billing';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +30,7 @@ import { type FeatureUsage, useBillingData } from '../hooks/use-billing';
 import { CancelSubscriptionDialog } from './cancel-subscription-dialog';
 import { NoPaymentMethodDialog } from './no-payment-method-dialog';
 
-interface UsageCardProps {
+	interface UsageCardProps {
 	feature: FeatureUsage;
 	onUpgrade: () => void;
 }
@@ -38,10 +39,14 @@ const UsageCard = memo(function UsageCardComponent({
 	feature,
 	onUpgrade,
 }: UsageCardProps) {
-	const percentage =
-		feature.limit > 0 ? Math.min((feature.used / feature.limit) * 100, 100) : 0;
-	const isNearLimit = !feature.unlimited && percentage > 80;
-	const isOverLimit = !feature.unlimited && percentage >= 100;
+	const percentage = feature.unlimited
+		? 0
+		: feature.limit > 0
+			? Math.min((feature.used / feature.limit) * 100, 100)
+			: 0;
+
+	const isNearLimit = !feature.unlimited && (percentage > 80 || feature.balance < feature.limit * 0.2);
+	const isOverLimit = !feature.unlimited && (percentage >= 100 || feature.balance <= 0);
 
 	const getIcon = () => {
 		if (feature.name.toLowerCase().includes('event')) {
@@ -60,19 +65,17 @@ const UsageCard = memo(function UsageCardComponent({
 	};
 
 	const getIntervalText = () => {
-		if (!feature.interval) {
-			return `Resets ${feature.nextReset}`;
+		const intervals: Record<string, string> = {
+			day: 'Resets daily',
+			month: 'Resets monthly',
+			year: 'Resets yearly',
+		};
+
+		if (feature.interval && intervals[feature.interval]) {
+			return intervals[feature.interval];
 		}
-		switch (feature.interval) {
-			case 'day':
-				return 'Resets daily';
-			case 'month':
-				return 'Resets monthly';
-			case 'year':
-				return 'Resets yearly';
-			default:
-				return `Resets ${feature.nextReset}`;
-		}
+
+		return feature.nextReset ? `Resets ${feature.nextReset}` : 'No reset scheduled';
 	};
 
 	const getUsageTextColor = () => {
@@ -189,11 +192,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 		if (isCanceled) {
 			return (
 				<Badge variant="destructive">
-					<WarningIcon
-						className="mr-1 font-bold not-dark:text-primary"
-						size={12}
-						weight="duotone"
-					/>
+					<WarningIcon className="mr-1" size={12} weight="duotone" />
 					Cancelled
 				</Badge>
 			);
@@ -201,49 +200,37 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 		if (isScheduled) {
 			return (
 				<Badge variant="secondary">
-					<CalendarIcon
-						className="mr-1 font-bold not-dark:text-primary"
-						size={12}
-						weight="duotone"
-					/>
+					<CalendarIcon className="mr-1" size={12} weight="duotone" />
 					Scheduled
 				</Badge>
 			);
 		}
 		return (
 			<Badge>
-				<CheckIcon
-					className="mr-1 text-white dark:text-black"
-					size={12}
-					weight="bold"
-				/>
+				<CheckIcon className="mr-1" size={12} weight="bold" />
 				Active
 			</Badge>
 		);
 	};
 
 	const getFeatureText = (item: Product['items'][0]) => {
-		let mainText = item.display?.primary_text || '';
+		let text = item.display?.primary_text ?? '';
+		const intervals: Record<string, string> = {
+			day: ' per day',
+			month: ' per month',
+			year: ' per year',
+		};
+
 		if (
 			item.interval &&
-			!mainText.toLowerCase().includes('per ') &&
-			!mainText.toLowerCase().includes('/')
+			intervals[item.interval] &&
+			!text.toLowerCase().includes('per ') &&
+			!text.toLowerCase().includes('/')
 		) {
-			switch (item.interval) {
-				case 'day':
-					mainText += ' per day';
-					break;
-				case 'month':
-					mainText += ' per month';
-					break;
-				case 'year':
-					mainText += ' per year';
-					break;
-				default:
-					break;
-			}
+			text += intervals[item.interval];
 		}
-		return mainText;
+
+		return text;
 	};
 
 	return (
@@ -279,16 +266,16 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 						</div>
 					</div>
 
-					<div className="flex-shrink-0 text-right">
-						<div className="font-bold text-2xl sm:text-3xl">
-							{isFree
-								? 'Free'
-								: plan?.items[0]?.display?.primary_text || 'Free'}
+						<div className="flex-shrink-0 text-right">
+							<div className="font-bold text-2xl sm:text-3xl">
+								{isFree
+									? 'Free'
+									: plan?.items[0]?.display?.primary_text || 'Free'}
+							</div>
+							<div className="text-muted-foreground text-sm">
+								{!isFree && plan?.items[0]?.display?.secondary_text}
+							</div>
 						</div>
-						<div className="text-muted-foreground text-sm">
-							{!isFree && plan?.items[0]?.display?.secondary_text}
-						</div>
-					</div>
 				</div>
 			</CardHeader>
 
@@ -391,7 +378,7 @@ interface OverviewTabProps {
 export const OverviewTab = memo(function OverviewTabComponent({
 	onNavigateToPlans,
 }: OverviewTabProps) {
-	const { products, usage, customer, isLoading, refetch } = useBillingData();
+	const { products, usage, customer, isLoading, error, refetch } = useBillingData();
 	const {
 		onCancelClick,
 		onCancelConfirm,
@@ -405,21 +392,20 @@ export const OverviewTab = memo(function OverviewTabComponent({
 	} = useBilling(refetch);
 
 	const { currentPlan, usageStats, statusDetails } = useMemo(() => {
-		const activePlan = products?.find(
-			(p: Product) =>
-				p.scenario !== 'upgrade' &&
-				p.scenario !== 'downgrade' &&
-				p.scenario !== 'new'
-		);
-		const featureUsage = usage?.features || [];
+		const activeCustomerProduct = customer?.products?.find((p) => {
+			if (p.canceled_at && p.current_period_end) {
+				return dayjs(p.current_period_end).isAfter(dayjs());
+			}
+			return !p.canceled_at || p.status === 'scheduled';
+		});
 
-		const customerProduct = activePlan
-			? customer?.products?.find((p) => p.id === activePlan.id)
-			: undefined;
+		const activePlan = activeCustomerProduct
+			? products?.find((p: Product) => p.id === activeCustomerProduct.id)
+			: products?.find((p: Product) => !p.scenario || (p.scenario !== 'upgrade' && p.scenario !== 'downgrade'));
 
-		const planStatusDetails = customerProduct
+		const planStatusDetails = activeCustomerProduct
 			? getSubscriptionStatusDetails(
-					customerProduct as unknown as Parameters<
+					activeCustomerProduct as unknown as Parameters<
 						typeof getSubscriptionStatusDetails
 					>[0]
 				)
@@ -427,22 +413,15 @@ export const OverviewTab = memo(function OverviewTabComponent({
 
 		return {
 			currentPlan: activePlan,
-			usageStats: featureUsage,
+			usageStats: usage?.features ?? [],
 			statusDetails: planStatusDetails,
 		};
-	}, [
-		products,
-		usage?.features,
-		customer?.products,
-		getSubscriptionStatusDetails,
-	]);
+	}, [products, usage?.features, customer?.products, getSubscriptionStatusDetails]);
 
 	if (isLoading) {
 		return (
 			<div className="space-y-8">
-				{/* Header Section Skeleton */}
 				<div className="grid gap-8 lg:grid-cols-3">
-					{/* Usage Overview Header Skeleton */}
 					<div className="lg:col-span-2">
 						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 							<div className="space-y-2">
@@ -453,7 +432,6 @@ export const OverviewTab = memo(function OverviewTabComponent({
 						</div>
 					</div>
 
-					{/* Current Plan Header Skeleton */}
 					<div className="lg:col-span-1">
 						<div className="space-y-2">
 							<Skeleton className="h-8 w-32" />
@@ -462,19 +440,39 @@ export const OverviewTab = memo(function OverviewTabComponent({
 					</div>
 				</div>
 
-				{/* Main Content Grid Skeleton */}
 				<div className="grid gap-8 lg:grid-cols-3">
-					{/* Usage Overview Section Skeleton */}
 					<div className="space-y-6 lg:col-span-2">
 						<Skeleton className="h-96 w-full" />
 					</div>
 
-					{/* Current Plan Section Skeleton */}
 					<div className="space-y-6 lg:col-span-1">
 						<Skeleton className="h-96 w-full" />
 					</div>
 				</div>
 			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<Card className="h-full">
+				<CardContent className="flex h-full flex-col items-center justify-center py-16">
+					<div className="mb-6 flex h-16 w-16 items-center justify-center rounded border bg-destructive/10">
+						<WarningIcon
+							className="text-destructive"
+							size={32}
+							weight="duotone"
+						/>
+					</div>
+					<h3 className="mb-2 font-semibold text-xl">Error Loading Billing Data</h3>
+					<p className="mb-4 max-w-sm text-center text-muted-foreground">
+						{error instanceof Error ? error.message : 'Failed to load customer data. Please try again.'}
+					</p>
+					<Button onClick={() => refetch()} size="lg" type="button">
+						Retry
+					</Button>
+				</CardContent>
+			</Card>
 		);
 	}
 
@@ -496,9 +494,7 @@ export const OverviewTab = memo(function OverviewTabComponent({
 			/>
 
 			<div className="space-y-8">
-				{/* Header Section */}
 				<div className="grid gap-8 lg:grid-cols-3">
-					{/* Usage Overview Header */}
 					<div className="lg:col-span-2">
 						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 							<div>
@@ -516,7 +512,6 @@ export const OverviewTab = memo(function OverviewTabComponent({
 						</div>
 					</div>
 
-					{/* Current Plan Header */}
 					<div className="lg:col-span-1">
 						<div>
 							<h2 className="font-bold text-2xl tracking-tight">
@@ -529,9 +524,7 @@ export const OverviewTab = memo(function OverviewTabComponent({
 					</div>
 				</div>
 
-				{/* Main Content Grid */}
 				<div className="grid gap-8 lg:grid-cols-3">
-					{/* Usage Overview Section */}
 					<div className="space-y-6 lg:col-span-2">
 						{usageStats.length === 0 ? (
 							<Card className="h-full">
@@ -562,7 +555,6 @@ export const OverviewTab = memo(function OverviewTabComponent({
 						)}
 					</div>
 
-					{/* Current Plan Section */}
 					<div className="space-y-6 lg:col-span-1">
 						<div className="h-full">
 							<PlanStatusCard

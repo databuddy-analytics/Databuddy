@@ -206,6 +206,23 @@ export function useOrganizations() {
 		},
 	});
 
+	const leaveOrganizationMutation = useMutation(
+		createMutation(
+			async (organizationId: string) => {
+				const { data: result, error: apiError } =
+					await authClient.organization.leave({
+						organizationId,
+					});
+				if (apiError) {
+					throw new Error(apiError.message || 'Failed to leave organization');
+				}
+				return result;
+			},
+			'Left organization successfully',
+			'Failed to leave organization'
+		)
+	);
+
 	return {
 		organizations,
 		activeOrganization,
@@ -224,6 +241,8 @@ export function useOrganizations() {
 		deleteOrganizationAsync: deleteOrganizationMutation.mutateAsync,
 		setActiveOrganization: setActiveOrganizationMutation.mutate,
 		setActiveOrganizationAsync: setActiveOrganizationMutation.mutateAsync,
+		leaveOrganization: leaveOrganizationMutation.mutate,
+		leaveOrganizationAsync: leaveOrganizationMutation.mutateAsync,
 		uploadOrganizationLogo: uploadOrganizationLogoMutation.mutate,
 		uploadOrganizationLogoAsync: uploadOrganizationLogoMutation.mutateAsync,
 		deleteOrganizationLogo: deleteOrganizationLogoMutation.mutate,
@@ -233,6 +252,7 @@ export function useOrganizations() {
 		isUpdatingOrganization: updateOrganizationMutation.isPending,
 		isDeletingOrganization: deleteOrganizationMutation.isPending,
 		isSettingActiveOrganization: setActiveOrganizationMutation.isPending,
+		isLeavingOrganization: leaveOrganizationMutation.isPending,
 		isUploadingOrganizationLogo: uploadOrganizationLogoMutation.isPending,
 		isDeletingOrganizationLogo: deleteOrganizationLogoMutation.isPending,
 	};

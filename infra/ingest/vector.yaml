@@ -5,15 +5,40 @@ sources:
     group_id: vector-analytics
     topics:
       - analytics-events
+      - analytics-errors
+      - analytics-web-vitals
+      - analytics-custom-events
+      - analytics-outgoing-links
+      - analytics-email-events
+      - analytics-blocked-traffic
     auto_offset_reset: earliest
+    sasl:
+      enabled: true
+      mechanism: SCRAM-SHA-256
+      username: "${VECTOR_KAFKA_USER}"
+      password: "${VECTOR_KAFKA_PASSWORD}"
     decoding:
       codec: json
 
-sinks:
-  clickhouse:
-    type: clickhouse
+transforms:
+  route_analytics:
+    type: route
     inputs:
       - redpanda
+    route:
+      events: '.topic == "analytics-events"'
+      errors: '.topic == "analytics-errors"'
+      web_vitals: '.topic == "analytics-web-vitals"'
+      custom_events: '.topic == "analytics-custom-events"'
+      outgoing_links: '.topic == "analytics-outgoing-links"'
+      email_events: '.topic == "analytics-email-events"'
+      blocked_traffic: '.topic == "analytics-blocked-traffic"'
+
+sinks:
+  clickhouse_events:
+    type: clickhouse
+    inputs:
+      - route_analytics.events
     endpoint: "${CLICKHOUSE_URL}"
     database: analytics
     table: events
@@ -22,10 +47,138 @@ sinks:
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
     batch:
-      max_events: 1000
+      max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
       timestamp_format: unix_ms
+
+  clickhouse_errors:
+    type: clickhouse
+    inputs:
+      - route_analytics.errors
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: errors
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_web_vitals:
+    type: clickhouse
+    inputs:
+      - route_analytics.web_vitals
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: web_vitals
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_custom_events:
+    type: clickhouse
+    inputs:
+      - route_analytics.custom_events
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: custom_events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_outgoing_links:
+    type: clickhouse
+    inputs:
+      - route_analytics.outgoing_links
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: outgoing_links
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_email_events:
+    type: clickhouse
+    inputs:
+      - route_analytics.email_events
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: email_events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_blocked_traffic:
+    type: clickhouse
+    inputs:
+      - route_analytics.blocked_traffic
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: blocked_traffic
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  dead_letters:
+    type: file
+    inputs:
+      - route_analytics._unmatched
+    path: /var/log/vector/dead_letters.log
+    encoding:
+      codec: json

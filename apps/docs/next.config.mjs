@@ -5,8 +5,7 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
 	reactStrictMode: true,
-	compress: true,
-	poweredByHeader: false,
+	reactCompiler: true,
 
 	// biome-ignore lint/suspicious/useAwait: "headers is async"
 	async headers() {

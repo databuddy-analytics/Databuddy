@@ -1,8 +1,13 @@
-FROM oven/bun AS build
+FROM oven/bun:1.3.0-debian AS build
 
 WORKDIR /app
 
-# Cache packages installation
+RUN apt-get update && apt-get install -y \
+	python3 \
+	make \
+	g++ \
+	&& rm -rf /var/lib/apt/lists/*
+
 COPY package.json package.json
 COPY apps/basket/package.json ./apps/basket/package.json
 COPY packages/*/package.json ./packages/
@@ -21,8 +26,8 @@ RUN bun build \
 	--minify-syntax \
 	--target bun \
 	--outfile server \
-    --sourcemap \
-    --bytecode \
+	--sourcemap \
+	--bytecode \
 	./apps/basket/src/index.ts
 
 FROM gcr.io/distroless/base

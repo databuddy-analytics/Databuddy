@@ -129,7 +129,7 @@ export default function WebsiteRevenuePage() {
 
 	if (revenueConfig.isLoading) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<PageHeaderSkeleton />
 			</div>
 		);
@@ -137,7 +137,7 @@ export default function WebsiteRevenuePage() {
 
 	if (!revenueConfig.isSetupComplete) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<WebsitePageHeader
 					description="Track revenue and transaction data for this website"
 					icon={
@@ -176,7 +176,7 @@ export default function WebsiteRevenuePage() {
 
 	if (!(summaryStats.hasData || revenueLoading)) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<WebsitePageHeader
 					description="Track revenue and transaction data for this website"
 					errorMessage={revenueError?.message}
@@ -221,7 +221,7 @@ export default function WebsiteRevenuePage() {
 	}
 
 	return (
-		<div className="mx-auto mt-6 max-w-[1600px]">
+		<div className="p-6">
 			<WebsitePageHeader
 				description="Track revenue and transaction data for this website"
 				errorMessage={revenueError?.message}

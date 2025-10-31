@@ -6,7 +6,6 @@ import { useParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import NotFound from '@/app/not-found';
 import { useTrackingSetup } from '@/hooks/use-tracking-setup';
-import { cn } from '@/lib/utils';
 import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
 import { AnalyticsToolbar } from './_components/analytics-toolbar';
 import { FiltersSection } from './_components/filters-section';
@@ -36,9 +35,6 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		pathname.includes('/settings') ||
 		pathname.includes('/users');
 
-	const noPadding =
-		pathname.includes('/settings') || pathname.includes('/users');
-
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
 		try {
@@ -61,14 +57,9 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	};
 
 	return (
-		<div
-			className={cn(
-				'mx-auto flex h-full max-w-[1600px] flex-col',
-				noPadding ? 'p-0' : 'p-3 sm:p-4 lg:p-6'
-			)}
-		>
+		<div className="flex h-full flex-col">
 			{isTrackingSetup && !isAssistantPage && (
-				<div className="flex-shrink-0 space-y-4">
+				<div className="sticky top-0 z-50 flex-shrink-0 space-y-4 bg-background">
 					<AnalyticsToolbar
 						isRefreshing={isRefreshing}
 						onRefresh={handleRefresh}
