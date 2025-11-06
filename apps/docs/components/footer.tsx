@@ -1,6 +1,6 @@
 "use client";
 
-import { getTrackingParams } from "@databuddy/sdk";
+import { getTracker } from "@databuddy/sdk";
 import Link from "next/link";
 import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
@@ -12,7 +12,7 @@ export function Footer() {
 	const handleGetStarted = () => {
 		if (typeof window === "undefined") return;
 
-		const trackingParams = getTrackingParams();
+		const trackingParams = getTracker();
 		const url = trackingParams
 			? `https://app.databuddy.cc/login?${trackingParams}`
 			: "https://app.databuddy.cc/login";
