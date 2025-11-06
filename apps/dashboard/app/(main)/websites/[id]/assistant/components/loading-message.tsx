@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { RobotIcon } from '@phosphor-icons/react';
+import { RobotIcon } from "@phosphor-icons/react";
 
 export function LoadingMessage() {
 	return (

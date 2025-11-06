@@ -1,14 +1,21 @@
-import { assistantConversations, assistantMessages, db } from '@databuddy/db';
-import { createId } from '@databuddy/shared';
-import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import {
+	and,
+	asc,
+	assistantConversations,
+	assistantMessages,
+	db,
+	desc,
+	eq,
+} from "@databuddy/db";
+import { createId } from "@databuddy/shared/utils/ids";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 const messageSchema = z.object({
 	messageId: z.string().optional(),
 	conversationId: z.string(),
-	role: z.enum(['user', 'assistant']),
+	role: z.enum(["user", "assistant"]),
 	content: z.string().optional(),
 	modelType: z.string(),
 	sql: z.string().optional(),
@@ -85,8 +92,8 @@ export const assistantRouter = createTRPCRouter({
 
 			if (!conversation[0]) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Conversation not found or access denied',
+					code: "NOT_FOUND",
+					message: "Conversation not found or access denied",
 				});
 			}
 
@@ -164,8 +171,8 @@ export const assistantRouter = createTRPCRouter({
 
 			if (!conversation[0]) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Conversation not found',
+					code: "NOT_FOUND",
+					message: "Conversation not found",
 				});
 			}
 
@@ -187,11 +194,11 @@ export const assistantRouter = createTRPCRouter({
 			z
 				.object({
 					messageId: z.string(),
-					type: z.enum(['upvote', 'downvote']).optional(),
+					type: z.enum(["upvote", "downvote"]).optional(),
 					comment: z.string().optional(),
 				})
 				.refine((v) => v.type || v.comment, {
-					message: 'Either type or comment must be provided',
+					message: "Either type or comment must be provided",
 				})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -216,8 +223,8 @@ export const assistantRouter = createTRPCRouter({
 
 			if (!result[0]) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Message not found or access denied',
+					code: "NOT_FOUND",
+					message: "Message not found or access denied",
 				});
 			}
 
@@ -225,9 +232,9 @@ export const assistantRouter = createTRPCRouter({
 
 			// Update vote counts
 			const updates: Partial<typeof assistantMessages.$inferInsert> = {};
-			if (input.type === 'upvote') {
+			if (input.type === "upvote") {
 				updates.upvotes = message.upvotes + 1;
-			} else if (input.type === 'downvote') {
+			} else if (input.type === "downvote") {
 				updates.downvotes = message.downvotes + 1;
 			}
 

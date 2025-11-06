@@ -1,5 +1,5 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import {
 	activateOnlineAdvisor,
 	applyIndexRecommendation,
@@ -13,19 +13,19 @@ import {
 	getPerformanceMetrics,
 	getPerformanceStatements,
 	resetPerformanceStats,
-} from '../database';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { authorizeDbConnectionAccess } from '../utils/auth';
-import { decryptConnectionUrl } from '../utils/encryption';
+} from "../database";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { authorizeDbConnectionAccess } from "../utils/auth";
+import { decryptConnectionUrl } from "../utils/encryption";
 
 const performanceFiltersSchema = z.object({
 	limit: z.number().min(1).max(1000).optional(),
 	min_calls: z.number().min(0).optional(),
 	min_exec_time: z.number().min(0).optional(),
 	order_by: z
-		.enum(['total_exec_time', 'calls', 'mean_exec_time', 'rows'])
+		.enum(["total_exec_time", "calls", "mean_exec_time", "rows"])
 		.optional(),
-	order_direction: z.enum(['asc', 'desc']).optional(),
+	order_direction: z.enum(["asc", "desc"]).optional(),
 });
 
 export const performanceRouter = createTRPCRouter({
@@ -41,7 +41,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -51,9 +51,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkPgStatStatementsEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'pg_stat_statements extension is not installed or configured. Please install and configure the extension first.',
+							"pg_stat_statements extension is not installed or configured. Please install and configure the extension first.",
 					});
 				}
 
@@ -67,8 +67,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get performance statements: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get performance statements: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -80,7 +80,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -90,9 +90,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkPgStatStatementsEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'pg_stat_statements extension is not installed or configured. Please install and configure the extension first.',
+							"pg_stat_statements extension is not installed or configured. Please install and configure the extension first.",
 					});
 				}
 
@@ -103,8 +103,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get performance metrics: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get performance metrics: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -115,15 +115,15 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'update'
+				"update"
 			);
 
 			// Only admin connections can reset stats
-			if (connection.permissionLevel !== 'admin') {
+			if (connection.permissionLevel !== "admin") {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'Resetting performance statistics requires admin database access.',
+						"Resetting performance statistics requires admin database access.",
 				});
 			}
 
@@ -134,9 +134,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkPgStatStatementsEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'pg_stat_statements extension is not installed or configured. Please install and configure the extension first.',
+							"pg_stat_statements extension is not installed or configured. Please install and configure the extension first.",
 					});
 				}
 
@@ -147,8 +147,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to reset performance statistics: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to reset performance statistics: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -160,7 +160,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -169,8 +169,8 @@ export const performanceRouter = createTRPCRouter({
 				return { enabled: isEnabled };
 			} catch (error) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to check pg_stat_statements status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to check pg_stat_statements status: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -182,7 +182,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -191,8 +191,8 @@ export const performanceRouter = createTRPCRouter({
 				return userInfo;
 			} catch (error) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get user info: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get user info: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -204,7 +204,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -213,8 +213,8 @@ export const performanceRouter = createTRPCRouter({
 				return { enabled: isEnabled };
 			} catch (error) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to check online_advisor status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to check online_advisor status: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -225,7 +225,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -235,9 +235,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -248,8 +248,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to activate online_advisor: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to activate online_advisor: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -260,7 +260,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -270,9 +270,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -283,8 +283,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get index recommendations: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get index recommendations: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -295,7 +295,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -305,9 +305,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -318,8 +318,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get statistics recommendations: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get statistics recommendations: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -330,7 +330,7 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'read'
+				"read"
 			);
 
 			try {
@@ -340,9 +340,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -356,8 +356,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to get executor stats: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to get executor stats: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -368,15 +368,15 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'update'
+				"update"
 			);
 
 			// Only admin connections can apply recommendations
-			if (connection.permissionLevel !== 'admin') {
+			if (connection.permissionLevel !== "admin") {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'Applying index recommendations requires admin database access.',
+						"Applying index recommendations requires admin database access.",
 				});
 			}
 
@@ -387,9 +387,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -400,8 +400,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to apply index recommendation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to apply index recommendation: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),
@@ -412,15 +412,15 @@ export const performanceRouter = createTRPCRouter({
 			const connection = await authorizeDbConnectionAccess(
 				ctx,
 				input.id,
-				'update'
+				"update"
 			);
 
 			// Only admin connections can apply recommendations
-			if (connection.permissionLevel !== 'admin') {
+			if (connection.permissionLevel !== "admin") {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'Applying statistics recommendations requires admin database access.',
+						"Applying statistics recommendations requires admin database access.",
 				});
 			}
 
@@ -431,9 +431,9 @@ export const performanceRouter = createTRPCRouter({
 				const isEnabled = await checkOnlineAdvisorEnabled(decryptedUrl);
 				if (!isEnabled) {
 					throw new TRPCError({
-						code: 'PRECONDITION_FAILED',
+						code: "PRECONDITION_FAILED",
 						message:
-							'online_advisor extension is not installed or configured. Please install the extension first.',
+							"online_advisor extension is not installed or configured. Please install the extension first.",
 					});
 				}
 
@@ -447,8 +447,8 @@ export const performanceRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: `Failed to apply statistics recommendation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Failed to apply statistics recommendation: ${error instanceof Error ? error.message : "Unknown error"}`,
 				});
 			}
 		}),

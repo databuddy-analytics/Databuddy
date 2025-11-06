@@ -2,9 +2,9 @@
  * Annotation types and interfaces for the chart annotations system
  */
 
-export type AnnotationType = 'point' | 'line' | 'range';
+export type AnnotationType = "point" | "line" | "range";
 
-export type ChartType = 'metrics';
+export type ChartType = "metrics";
 
 export interface Annotation {
 	id: string;
@@ -29,11 +29,11 @@ export interface ChartContext {
 	dateRange: {
 		start_date: string;
 		end_date: string;
-		granularity: 'hourly' | 'daily' | 'weekly' | 'monthly';
+		granularity: "hourly" | "daily" | "weekly" | "monthly";
 	};
 	filters?: Array<{
 		field: string;
-		operator: 'eq' | 'ne' | 'gt' | 'lt' | 'contains';
+		operator: "eq" | "ne" | "gt" | "lt" | "contains";
 		value: string;
 	}>;
 	metrics?: string[];

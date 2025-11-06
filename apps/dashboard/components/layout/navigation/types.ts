@@ -1,4 +1,4 @@
-import type { Icon } from '@phosphor-icons/react';
+import type { Icon } from "@phosphor-icons/react";
 
 export interface NavigationItem {
 	name: string;
@@ -15,7 +15,7 @@ export interface NavigationItem {
 	showOnlyOnDemo?: boolean;
 	badge?: {
 		text: string;
-		variant: 'purple' | 'blue' | 'green' | 'orange' | 'red';
+		variant: "purple" | "blue" | "green" | "orange" | "red";
 	};
 }
 

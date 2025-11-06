@@ -1,6 +1,6 @@
-import { BugIcon, UsersIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ErrorType } from './types';
+import { BugIcon, UsersIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ErrorType } from "./types";
 
 interface TopErrorCardProps {
 	topError: ErrorType | null;

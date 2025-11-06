@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { TargetIcon } from '@phosphor-icons/react';
+import { TargetIcon } from "@phosphor-icons/react";
 
 interface FunnelStep {
 	step_number: number;
@@ -86,9 +86,9 @@ export function FunnelFlow({ steps, totalUsers }: FunnelFlowProps) {
 											style={{
 												width: `${relConversion}%`,
 												backgroundImage:
-													'repeating-linear-gradient(135deg, var(--color-success) 0 4px, transparent 4px 8px)',
+													"repeating-linear-gradient(135deg, var(--color-success) 0 4px, transparent 4px 8px)",
 												opacity: 0.18,
-												pointerEvents: 'none',
+												pointerEvents: "none",
 											}}
 										/>
 									)}
@@ -130,7 +130,7 @@ export function FunnelFlow({ steps, totalUsers }: FunnelFlowProps) {
 				<div>
 					<div className="font-medium text-foreground">Overall Conversion</div>
 					<div className="text-muted-foreground text-xs">
-						{lastStep?.users?.toLocaleString() || 0} of{' '}
+						{lastStep?.users?.toLocaleString() || 0} of{" "}
 						{totalUsers.toLocaleString()} users completed the funnel
 					</div>
 				</div>

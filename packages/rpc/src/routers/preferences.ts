@@ -1,8 +1,8 @@
-import { userPreferences } from '@databuddy/db';
-import { eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { userPreferences } from "@databuddy/db";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 const preferencesSchema = z.object({
 	timezone: z.string().optional(),
@@ -11,9 +11,9 @@ const preferencesSchema = z.object({
 });
 
 const defaultPreferences = {
-	timezone: 'auto',
-	dateFormat: 'MMM D, YYYY',
-	timeFormat: 'h:mm a',
+	timezone: "auto",
+	dateFormat: "MMM D, YYYY",
+	timeFormat: "h:mm a",
 } as const;
 
 export const preferencesRouter = createTRPCRouter({

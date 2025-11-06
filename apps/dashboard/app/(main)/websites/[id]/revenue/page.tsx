@@ -1,36 +1,36 @@
-'use client';
+"use client";
 
 import {
 	ChartLineIcon,
 	CreditCardIcon,
 	ReceiptIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useParams } from 'next/navigation';
-import { lazy, Suspense, useCallback, useState } from 'react';
-import { useRevenueConfig } from '@/app/(main)/revenue/hooks/use-revenue-config';
-import { EmptyState } from '@/components/empty-state';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useWebsite } from '@/hooks/use-websites';
-import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
-import { WebsitePageHeader } from '../_components/website-page-header';
-import { useWebsiteRevenue } from './hooks/use-website-revenue';
+} from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useParams } from "next/navigation";
+import { lazy, Suspense, useCallback, useState } from "react";
+import { useRevenueConfig } from "@/app/(main)/revenue/hooks/use-revenue-config";
+import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useWebsite } from "@/hooks/use-websites";
+import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
+import { WebsitePageHeader } from "../_components/website-page-header";
+import { useWebsiteRevenue } from "./hooks/use-website-revenue";
 
 const RevenueMetrics = lazy(() =>
-	import('./_components/revenue-metrics').then((m) => ({
+	import("./_components/revenue-metrics").then((m) => ({
 		default: m.RevenueMetrics,
 	}))
 );
 const RevenueChart = lazy(() =>
-	import('./_components/revenue-chart').then((m) => ({
+	import("./_components/revenue-chart").then((m) => ({
 		default: m.RevenueChart,
 	}))
 );
 const RecentTransactions = lazy(() =>
-	import('./_components/recent-transactions').then((m) => ({
+	import("./_components/recent-transactions").then((m) => ({
 		default: m.RecentTransactions,
 	}))
 );
@@ -101,7 +101,7 @@ const RevenueMetricsSkeleton = () => (
 export default function WebsiteRevenuePage() {
 	const { id } = useParams();
 	const websiteId = id as string;
-	const [activeTab, setActiveTab] = useState('overview');
+	const [activeTab, setActiveTab] = useState("overview");
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 
 	const { dateRange } = useDateFilters();
@@ -121,7 +121,7 @@ export default function WebsiteRevenuePage() {
 		try {
 			await Promise.all([refetch(), revenueConfig.refetch?.()]);
 		} catch (error) {
-			console.error('Failed to refresh revenue data:', error);
+			console.error("Failed to refresh revenue data:", error);
 		} finally {
 			setIsRefreshing(false);
 		}
@@ -129,7 +129,7 @@ export default function WebsiteRevenuePage() {
 
 	if (revenueConfig.isLoading) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<PageHeaderSkeleton />
 			</div>
 		);
@@ -137,7 +137,7 @@ export default function WebsiteRevenuePage() {
 
 	if (!revenueConfig.isSetupComplete) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<WebsitePageHeader
 					description="Track revenue and transaction data for this website"
 					icon={
@@ -157,10 +157,10 @@ export default function WebsiteRevenuePage() {
 
 				<EmptyState
 					action={{
-						label: 'Configure Revenue Tracking',
-						onClick: () => window.open('/revenue', '_self'),
+						label: "Configure Revenue Tracking",
+						onClick: () => window.open("/revenue", "_self"),
 					}}
-					description={`Configure your Stripe webhook integration to start tracking revenue for ${websiteData?.name || 'this website'}.`}
+					description={`Configure your Stripe webhook integration to start tracking revenue for ${websiteData?.name || "this website"}.`}
 					icon={
 						<CreditCardIcon
 							className="h-8 w-8 text-orange-500"
@@ -176,7 +176,7 @@ export default function WebsiteRevenuePage() {
 
 	if (!(summaryStats.hasData || revenueLoading)) {
 		return (
-			<div className="mx-auto max-w-[1600px] space-y-4 p-3 sm:p-4 lg:p-6">
+			<div className="space-y-4 p-6">
 				<WebsitePageHeader
 					description="Track revenue and transaction data for this website"
 					errorMessage={revenueError?.message}
@@ -198,15 +198,15 @@ export default function WebsiteRevenuePage() {
 
 				<EmptyState
 					action={{
-						label: 'View Integration Guide',
+						label: "View Integration Guide",
 						onClick: () =>
 							window.open(
-								'https://www.databuddy.cc/docs/Integrations/stripe',
-								'_blank',
-								'noopener noreferrer'
+								"https://www.databuddy.cc/docs/Integrations/stripe",
+								"_blank",
+								"noopener noreferrer"
 							),
 					}}
-					description={`No revenue has been recorded for ${websiteData?.name || 'this website'} in the selected time period. Make sure your Stripe checkout includes the correct client_id and session_id.`}
+					description={`No revenue has been recorded for ${websiteData?.name || "this website"} in the selected time period. Make sure your Stripe checkout includes the correct client_id and session_id.`}
 					icon={
 						<CreditCardIcon
 							className="h-8 w-8 text-blue-500"
@@ -221,7 +221,7 @@ export default function WebsiteRevenuePage() {
 	}
 
 	return (
-		<div className="mx-auto mt-6 max-w-[1600px]">
+		<div className="p-6">
 			<WebsitePageHeader
 				description="Track revenue and transaction data for this website"
 				errorMessage={revenueError?.message}
@@ -262,7 +262,7 @@ export default function WebsiteRevenuePage() {
 						>
 							<ChartLineIcon size={16} />
 							Overview
-							{activeTab === 'overview' && (
+							{activeTab === "overview" && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 							)}
 						</TabsTrigger>
@@ -272,7 +272,7 @@ export default function WebsiteRevenuePage() {
 						>
 							<ReceiptIcon size={16} />
 							Transactions
-							{activeTab === 'transactions' && (
+							{activeTab === "transactions" && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 							)}
 						</TabsTrigger>
@@ -291,7 +291,7 @@ export default function WebsiteRevenuePage() {
 									Revenue Trends
 								</h2>
 								<p className="text-muted-foreground text-sm">
-									{dateRange.granularity === 'hourly' ? 'Hourly' : 'Daily'}{' '}
+									{dateRange.granularity === "hourly" ? "Hourly" : "Daily"}{" "}
 									revenue data
 								</p>
 							</div>

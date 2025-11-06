@@ -1,11 +1,11 @@
-import { useAtom } from 'jotai';
-import { useMemo } from 'react';
+import { useAtom } from "jotai";
+import { useMemo } from "react";
 import {
 	dateRangeAtom,
 	formattedDateRangeAtom,
 	setDateRangeAndAdjustGranularityAtom,
 	timeGranularityAtom,
-} from '@/stores/jotai/filterAtoms';
+} from "@/stores/jotai/filterAtoms";
 
 export function useDateFilters() {
 	const [currentDateRange, setCurrentDateRange] = useAtom(dateRangeAtom);

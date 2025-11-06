@@ -1,14 +1,14 @@
 // File generation and ZIP creation
 
-import JSZip from 'jszip';
-import type { ExportData } from './data-fetcher';
-import { formatData, getFileExtension } from './formatters';
+import JSZip from "jszip";
+import type { ExportData } from "./data-fetcher";
+import { formatData, getFileExtension } from "./formatters";
 import type {
 	ExportFile,
 	ExportFormat,
 	ExportMetadata,
 	ExportRequest,
-} from './types';
+} from "./types";
 
 export function generateExportFiles(
 	data: ExportData,
@@ -19,15 +19,15 @@ export function generateExportFiles(
 	return [
 		{
 			name: `events.${extension}`,
-			content: formatData(data.events, format, 'Event'),
+			content: formatData(data.events, format, "Event"),
 		},
 		{
 			name: `errors.${extension}`,
-			content: formatData(data.errors, format, 'Error'),
+			content: formatData(data.errors, format, "Error"),
 		},
 		{
 			name: `web_vitals.${extension}`,
-			content: formatData(data.webVitals, format, 'WebVital'),
+			content: formatData(data.webVitals, format, "WebVital"),
 		},
 	];
 }
@@ -40,10 +40,10 @@ export function generateMetadataFile(
 		export_date: new Date().toISOString(),
 		website_id: request.website_id,
 		date_range: {
-			start: request.start_date || 'all_time',
-			end: request.end_date || 'all_time',
+			start: request.start_date || "all_time",
+			end: request.end_date || "all_time",
 		},
-		format: request.format || 'json',
+		format: request.format || "json",
 		counts: {
 			events: data.events.length,
 			errors: data.errors.length,
@@ -52,7 +52,7 @@ export function generateMetadataFile(
 	};
 
 	return {
-		name: 'metadata.json',
+		name: "metadata.json",
 		content: JSON.stringify(metadata, null, 2),
 	};
 }
@@ -64,7 +64,7 @@ export async function createZipBuffer(files: ExportFile[]): Promise<Buffer> {
 		zip.file(file.name, file.content);
 	}
 
-	return await zip.generateAsync({ type: 'nodebuffer' });
+	return await zip.generateAsync({ type: "nodebuffer" });
 }
 
 export function generateExportFilename(websiteId: string): string {

@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import { StatCard } from '@/components/analytics/stat-card';
-import { formatCurrency, formatNumber } from '@/lib/formatters';
+} from "@phosphor-icons/react";
+import { StatCard } from "@/components/analytics/stat-card";
+import { formatCurrency, formatNumber } from "@/lib/formatters";
 
 interface RevenueMetricsProps {
 	summary: {

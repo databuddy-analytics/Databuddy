@@ -4,4 +4,4 @@ export type {
 	FlagState,
 	FlagsConfig,
 	FlagsContext,
-} from '@/core/flags';
+} from "@/core/flags";

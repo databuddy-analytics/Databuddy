@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowSquareOutIcon,
@@ -7,15 +7,15 @@ import {
 	ClockIcon,
 	EyeIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { Badge } from '@/components/ui/badge';
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { Badge } from "@/components/ui/badge";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from "@/components/ui/collapsible";
 
 type ProfileData = {
 	visitor_id: string;
@@ -57,8 +57,8 @@ type ProfileData = {
 	}>;
 };
 
-import { BrowserIcon, CountryFlag, OSIcon } from '@/components/icon';
-import { formatDuration, getDeviceIcon } from '@/lib/utils';
+import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+import { formatDuration, getDeviceIcon } from "@/lib/utils";
 
 interface ProfileRowProps {
 	profile: ProfileData;
@@ -74,7 +74,7 @@ function getReferrerDisplayInfo(session: any) {
 			name:
 				session.referrer_parsed.name ||
 				session.referrer_parsed.domain ||
-				'Unknown',
+				"Unknown",
 			domain: session.referrer_parsed.domain,
 			type: session.referrer_parsed.type,
 		};
@@ -83,33 +83,33 @@ function getReferrerDisplayInfo(session: any) {
 	// Fallback to raw referrer
 	if (
 		session.referrer &&
-		session.referrer !== 'direct' &&
-		session.referrer !== ''
+		session.referrer !== "direct" &&
+		session.referrer !== ""
 	) {
 		try {
 			const url = new URL(
-				session.referrer.startsWith('http')
+				session.referrer.startsWith("http")
 					? session.referrer
 					: `https://${session.referrer}`
 			);
 			return {
-				name: url.hostname.replace('www.', ''),
+				name: url.hostname.replace("www.", ""),
 				domain: url.hostname,
-				type: 'referrer',
+				type: "referrer",
 			};
 		} catch {
 			return {
 				name: session.referrer,
 				domain: null,
-				type: 'referrer',
+				type: "referrer",
 			};
 		}
 	}
 
 	return {
-		name: 'Direct',
+		name: "Direct",
 		domain: null,
-		type: 'direct',
+		type: "direct",
 	};
 }
 
@@ -161,7 +161,7 @@ export function ProfileRow({
 							<div className="flex items-center gap-2 text-muted-foreground text-sm">
 								<span>{profile.browser}</span>
 								<span className="text-muted-foreground/60">•</span>
-								<span>{profile.country || 'Unknown'}</span>
+								<span>{profile.country || "Unknown"}</span>
 							</div>
 						</div>
 
@@ -226,9 +226,9 @@ export function ProfileRow({
 							<div className="text-muted-foreground text-xs">Type</div>
 							<Badge
 								className="px-2 py-1 font-semibold text-xs"
-								variant={profile.total_sessions > 1 ? 'default' : 'secondary'}
+								variant={profile.total_sessions > 1 ? "default" : "secondary"}
 							>
-								{profile.total_sessions > 1 ? 'Return' : 'New'}
+								{profile.total_sessions > 1 ? "Return" : "New"}
 							</Badge>
 						</div>
 					</div>
@@ -245,8 +245,8 @@ export function ProfileRow({
 							</div>
 							<div className="font-medium">
 								{profile.first_visit
-									? dayjs(profile.first_visit).format('MMM D, YYYY')
-									: 'Unknown'}
+									? dayjs(profile.first_visit).format("MMM D, YYYY")
+									: "Unknown"}
 							</div>
 						</div>
 						<div>
@@ -255,17 +255,17 @@ export function ProfileRow({
 							</div>
 							<div className="font-medium">
 								{profile.last_visit
-									? dayjs(profile.last_visit).format('MMM D, YYYY')
-									: 'Unknown'}
+									? dayjs(profile.last_visit).format("MMM D, YYYY")
+									: "Unknown"}
 							</div>
 						</div>
 						<div>
 							<div className="mb-1 text-muted-foreground text-xs">Location</div>
 							<div className="font-medium">
-								{profile.region && profile.region !== 'Unknown'
+								{profile.region && profile.region !== "Unknown"
 									? `${profile.region}, `
-									: ''}
-								{profile.country || 'Unknown'}
+									: ""}
+								{profile.country || "Unknown"}
 							</div>
 						</div>
 						<div>
@@ -301,8 +301,8 @@ export function ProfileRow({
 												</div>
 												<div className="text-muted-foreground text-xs">
 													{session.first_visit
-														? dayjs(session.first_visit).format('MMM D, HH:mm')
-														: 'Unknown'}
+														? dayjs(session.first_visit).format("MMM D, HH:mm")
+														: "Unknown"}
 												</div>
 											</div>
 										</div>

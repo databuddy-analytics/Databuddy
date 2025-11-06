@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { RocketLaunchIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import { RocketLaunchIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 import {
 	CreateWebsiteDialog,
 	type Domain,
@@ -12,7 +12,7 @@ import {
 	LoadingSkeleton,
 	type Project,
 	ProjectRow,
-} from './_components';
+} from "./_components";
 
 export default function VercelConfigPage() {
 	const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
@@ -31,7 +31,7 @@ export default function VercelConfigPage() {
 		error: projectsError,
 	} = trpc.vercel.getProjects.useQuery(
 		{
-			limit: '20',
+			limit: "20",
 			includeIntegrationStatus: true,
 			organizationId: activeOrganization?.id,
 		},
@@ -67,7 +67,7 @@ export default function VercelConfigPage() {
 	const handleSaveWebsites = async (configs: any[]) => {
 		try {
 			const result = await integrateWebsitesMutation.mutateAsync({
-				projectId: selectedProject?.id || selectedDomains[0]?.projectId || '',
+				projectId: selectedProject?.id || selectedDomains[0]?.projectId || "",
 				websites: configs.map((config) => ({
 					domainName: config.domain.name,
 					websiteName: config.name,
@@ -82,7 +82,7 @@ export default function VercelConfigPage() {
 			if (result.success) {
 				await utils.vercel.getProjects.invalidate();
 				toast.success(
-					`Successfully integrated ${configs.length} website${configs.length > 1 ? 's' : ''}`
+					`Successfully integrated ${configs.length} website${configs.length > 1 ? "s" : ""}`
 				);
 			}
 
@@ -91,18 +91,18 @@ export default function VercelConfigPage() {
 			setSelectedProject(null);
 		} catch (error: any) {
 			// Handle specific error cases
-			if (error?.data?.code === 'UNAUTHORIZED') {
+			if (error?.data?.code === "UNAUTHORIZED") {
 				toast.error(
-					'Missing organization permissions. Please check your Vercel integration settings.'
+					"Missing organization permissions. Please check your Vercel integration settings."
 				);
-			} else if (error?.data?.code === 'FORBIDDEN') {
-				toast.error('Insufficient permissions to integrate websites.');
-			} else if (error?.data?.code === 'NOT_FOUND') {
-				toast.error('Project not found. It may have been deleted.');
+			} else if (error?.data?.code === "FORBIDDEN") {
+				toast.error("Insufficient permissions to integrate websites.");
+			} else if (error?.data?.code === "NOT_FOUND") {
+				toast.error("Project not found. It may have been deleted.");
 			} else if (error?.message) {
 				toast.error(error.message);
 			} else {
-				toast.error('Failed to integrate websites. Please try again.');
+				toast.error("Failed to integrate websites. Please try again.");
 			}
 		}
 	};
@@ -114,7 +114,7 @@ export default function VercelConfigPage() {
 	};
 
 	// Handle no Vercel account case through error handling in getProjects
-	if (projectsError?.data?.code === 'UNAUTHORIZED') {
+	if (projectsError?.data?.code === "UNAUTHORIZED") {
 		return (
 			<div className="space-y-6">
 				<div className="space-y-3">

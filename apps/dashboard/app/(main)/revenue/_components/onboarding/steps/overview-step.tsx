@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CheckCircleIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 
 interface OverviewStepProps {
 	onNext: () => void;

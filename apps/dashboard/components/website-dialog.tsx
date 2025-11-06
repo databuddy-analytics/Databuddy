@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { LoaderCircle } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
+import { authClient } from "@databuddy/auth/client";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LoaderCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -15,7 +15,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
 	Form,
 	FormControl,
@@ -23,10 +23,10 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import type { CreateWebsiteData, Website } from '@/hooks/use-websites';
-import { useCreateWebsite, useUpdateWebsite } from '@/hooks/use-websites';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import type { CreateWebsiteData, Website } from "@/hooks/use-websites";
+import { useCreateWebsite, useUpdateWebsite } from "@/hooks/use-websites";
 
 interface UpdateWebsiteInput {
 	id: string;
@@ -40,11 +40,11 @@ const domainRegex =
 const wwwRegex = /^www\./;
 
 const formSchema = z.object({
-	name: z.string().min(1, 'Name is required'),
+	name: z.string().min(1, "Name is required"),
 	domain: z
 		.string()
-		.min(1, 'Domain is required')
-		.regex(domainRegex, 'Invalid domain format'),
+		.min(1, "Domain is required")
+		.regex(domainRegex, "Invalid domain format"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -72,21 +72,21 @@ export function WebsiteDialog({
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			name: '',
-			domain: '',
+			name: "",
+			domain: "",
 		},
 	});
 
 	useEffect(() => {
 		if (website) {
-			form.reset({ name: website.name || '', domain: website.domain || '' });
+			form.reset({ name: website.name || "", domain: website.domain || "" });
 		} else {
-			form.reset({ name: '', domain: '' });
+			form.reset({ name: "", domain: "" });
 		}
 	}, [website, form]);
 
 	const getErrorMessage = (error: unknown, isEditingMode: boolean): string => {
-		const defaultMessage = `Failed to ${isEditingMode ? 'update' : 'create'} website.`;
+		const defaultMessage = `Failed to ${isEditingMode ? "update" : "create"} website.`;
 
 		// Type guard for TRPC error
 		const trpcError = error as {
@@ -96,18 +96,18 @@ export function WebsiteDialog({
 
 		if (trpcError?.data?.code) {
 			switch (trpcError.data.code) {
-				case 'CONFLICT':
-					return 'A website with this domain already exists.';
-				case 'FORBIDDEN':
+				case "CONFLICT":
+					return "A website with this domain already exists.";
+				case "FORBIDDEN":
 					return (
 						trpcError.message ||
-						'You do not have permission to perform this action.'
+						"You do not have permission to perform this action."
 					);
-				case 'UNAUTHORIZED':
-					return 'You must be logged in to perform this action.';
-				case 'BAD_REQUEST':
+				case "UNAUTHORIZED":
+					return "You must be logged in to perform this action.";
+				case "BAD_REQUEST":
 					return (
-						trpcError.message || 'Invalid request. Please check your input.'
+						trpcError.message || "Invalid request. Please check your input."
 					);
 				default:
 					return trpcError.message || defaultMessage;
@@ -135,13 +135,13 @@ export function WebsiteDialog({
 				if (onSave) {
 					onSave(result);
 				}
-				toast.success('Website updated successfully!');
+				toast.success("Website updated successfully!");
 			} else {
 				const result = await createWebsiteMutation.mutateAsync(submissionData);
 				if (onSave) {
 					onSave(result);
 				}
-				toast.success('Website created successfully!');
+				toast.success("Website created successfully!");
 			}
 			onOpenChange(false);
 		} catch (error: unknown) {
@@ -155,12 +155,12 @@ export function WebsiteDialog({
 			<DialogContent className="w-[95vw] max-w-md sm:w-full">
 				<DialogHeader>
 					<DialogTitle>
-						{isEditing ? 'Edit Website' : 'Create a new website'}
+						{isEditing ? "Edit Website" : "Create a new website"}
 					</DialogTitle>
 					<DialogDescription>
 						{isEditing
-							? 'Update the details of your existing website.'
-							: 'Create a new website to start tracking analytics.'}
+							? "Update the details of your existing website."
+							: "Create a new website to start tracking analytics."}
 					</DialogDescription>
 				</DialogHeader>
 				<Form {...form}>
@@ -203,8 +203,8 @@ export function WebsiteDialog({
 													onChange={(e) => {
 														let domain = e.target.value.trim();
 														if (
-															domain.startsWith('http://') ||
-															domain.startsWith('https://')
+															domain.startsWith("http://") ||
+															domain.startsWith("https://")
 														) {
 															try {
 																domain = new URL(domain).hostname;
@@ -212,7 +212,7 @@ export function WebsiteDialog({
 																// Do nothing
 															}
 														}
-														field.onChange(domain.replace(wwwRegex, ''));
+														field.onChange(domain.replace(wwwRegex, ""));
 													}}
 												/>
 											</div>
@@ -238,7 +238,7 @@ export function WebsiteDialog({
 							updateWebsiteMutation.isPending) && (
 							<LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
 						)}
-						{isEditing ? 'Save changes' : 'Create website'}
+						{isEditing ? "Save changes" : "Create website"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

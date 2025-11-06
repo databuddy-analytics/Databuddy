@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -6,23 +6,23 @@ import {
 	InfoIcon,
 	PlusIcon,
 	TrendDownIcon,
-} from '@phosphor-icons/react';
-import { Suspense, useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { Suspense, useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	type DbConnection,
 	useCreateDbConnection,
 	useDbConnections,
 	useDeleteDbConnection,
 	useUpdateDbConnection,
-} from '@/hooks/use-db-connections';
-import { ConnectionsList } from './_components/connections-list';
-import { CreateConnectionDialog } from './_components/create-connection-dialog';
-import { DeleteConnectionDialog } from './_components/delete-connection-dialog';
-import { EditConnectionDialog } from './_components/edit-connection-dialog';
+} from "@/hooks/use-db-connections";
+import { ConnectionsList } from "./_components/connections-list";
+import { CreateConnectionDialog } from "./_components/create-connection-dialog";
+import { DeleteConnectionDialog } from "./_components/delete-connection-dialog";
+import { EditConnectionDialog } from "./_components/edit-connection-dialog";
 
 const DatabaseConnectionsSkeleton = () => (
 	<div className="space-y-3">
@@ -68,31 +68,31 @@ export default function DatabasePage() {
 	// Mutations
 	const createMutation = useCreateDbConnection({
 		onSuccess: () => {
-			toast.success('Database connection created successfully');
+			toast.success("Database connection created successfully");
 			setIsCreateDialogOpen(false);
 		},
 		onError: (errorMessage) => {
-			toast.error(errorMessage || 'Failed to create database connection');
+			toast.error(errorMessage || "Failed to create database connection");
 		},
 	});
 
 	const editMutation = useUpdateDbConnection({
 		onSuccess: () => {
-			toast.success('Database connection updated successfully');
+			toast.success("Database connection updated successfully");
 			setConnectionToEdit(null);
 		},
 		onError: (errorMessage) => {
-			toast.error(errorMessage || 'Failed to update database connection');
+			toast.error(errorMessage || "Failed to update database connection");
 		},
 	});
 
 	const deleteMutation = useDeleteDbConnection({
 		onSuccess: () => {
-			toast.success('Database connection deleted successfully');
+			toast.success("Database connection deleted successfully");
 			setConnectionToDelete(null);
 		},
 		onError: (errorMessage) => {
-			toast.error(errorMessage || 'Failed to delete database connection');
+			toast.error(errorMessage || "Failed to delete database connection");
 		},
 	});
 
@@ -101,7 +101,7 @@ export default function DatabasePage() {
 		try {
 			await refetch();
 		} catch (err) {
-			console.error('Failed to refresh database connections:', err);
+			console.error("Failed to refresh database connections:", err);
 		} finally {
 			setIsRefreshing(false);
 		}
@@ -179,7 +179,7 @@ export default function DatabasePage() {
 							{!isLoading && (
 								<span className="text-muted-foreground text-sm">
 									{connections.length} connection
-									{connections.length !== 1 ? 's' : ''}
+									{connections.length !== 1 ? "s" : ""}
 								</span>
 							)}
 						</div>
@@ -195,7 +195,7 @@ export default function DatabasePage() {
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? 'animate-spin' : ''}
+								className={isRefreshing ? "animate-spin" : ""}
 							/>
 							Refresh Data
 						</Button>

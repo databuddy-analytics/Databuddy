@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Menu, X } from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { Logo } from './logo';
-import { NavLink } from './nav-link';
+import { Menu, X } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "./logo";
+import { NavLink } from "./nav-link";
 
 export type NavbarProps = {
 	stars?: number | null;
@@ -58,7 +58,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 												fill="currentColor"
 											/>
 										</svg>
-										{typeof stars === 'number' && (
+										{typeof stars === "number" && (
 											<span
 												className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
 												title="GitHub stars"
@@ -85,15 +85,15 @@ export const Navbar = ({ stars }: NavbarProps) => {
 								<Menu
 									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
-											? 'rotate-90 scale-90 opacity-0'
-											: 'rotate-0 scale-100 opacity-100'
+											? "rotate-90 scale-90 opacity-0"
+											: "rotate-0 scale-100 opacity-100"
 									}`}
 								/>
 								<X
 									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
-											? 'rotate-0 scale-100 opacity-100'
-											: '-rotate-90 scale-90 opacity-0'
+											? "rotate-0 scale-100 opacity-100"
+											: "-rotate-90 scale-90 opacity-0"
 									}`}
 								/>
 							</div>
@@ -106,8 +106,8 @@ export const Navbar = ({ stars }: NavbarProps) => {
 			<div
 				className={`overflow-hidden transition-all duration-300 ease-out md:hidden ${
 					isMobileMenuOpen
-						? 'max-h-96 border-border/50 border-b opacity-100'
-						: 'max-h-0 opacity-0'
+						? "max-h-96 border-border/50 border-b opacity-100"
+						: "max-h-0 opacity-0"
 				}`}
 			>
 				<div className="bg-background/95 backdrop-blur-sm">
@@ -116,18 +116,18 @@ export const Navbar = ({ stars }: NavbarProps) => {
 							<Link
 								className={`block transform rounded-lg px-4 py-3 font-medium text-base transition-all duration-200 hover:translate-x-1 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70 ${
 									isMobileMenuOpen
-										? 'translate-x-0 opacity-100'
-										: '-translate-x-4 opacity-0'
+										? "translate-x-0 opacity-100"
+										: "-translate-x-4 opacity-0"
 								}`}
 								href={menu.path}
 								key={menu.name}
 								onClick={() => setIsMobileMenuOpen(false)}
 								style={{
-									transitionDelay: isMobileMenuOpen ? `${index * 50}ms` : '0ms',
+									transitionDelay: isMobileMenuOpen ? `${index * 50}ms` : "0ms",
 								}}
 								{...(menu.external && {
-									target: '_blank',
-									rel: 'noopener noreferrer',
+									target: "_blank",
+									rel: "noopener noreferrer",
 								})}
 							>
 								{menu.name}
@@ -136,8 +136,8 @@ export const Navbar = ({ stars }: NavbarProps) => {
 						<Link
 							className={`flex transform items-center gap-3 rounded-lg border border-border/30 px-4 py-3 font-medium text-base transition-all duration-200 hover:translate-x-1 hover:border-border/50 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70 ${
 								isMobileMenuOpen
-									? 'translate-x-0 opacity-100'
-									: '-translate-x-4 opacity-0'
+									? "translate-x-0 opacity-100"
+									: "-translate-x-4 opacity-0"
 							}`}
 							href="https://github.com/databuddy-analytics"
 							onClick={() => setIsMobileMenuOpen(false)}
@@ -145,7 +145,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 							style={{
 								transitionDelay: isMobileMenuOpen
 									? `${navMenu.length * 50}ms`
-									: '0ms',
+									: "0ms",
 							}}
 							target="_blank"
 						>
@@ -164,7 +164,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 							</svg>
 							<span className="flex items-center gap-2">
 								GitHub
-								{typeof stars === 'number' && (
+								{typeof stars === "number" && (
 									<span
 										className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
 										title="GitHub stars"
@@ -183,20 +183,20 @@ export const Navbar = ({ stars }: NavbarProps) => {
 
 export const navMenu = [
 	{
-		name: 'Docs',
-		path: '/docs',
+		name: "Docs",
+		path: "/docs",
 	},
 	{
-		name: 'Blog',
-		path: '/blog',
+		name: "Blog",
+		path: "/blog",
 	},
 	{
-		name: 'Pricing',
-		path: '/pricing',
+		name: "Pricing",
+		path: "/pricing",
 	},
 	{
-		name: 'Dashboard',
-		path: 'https://app.databuddy.cc/login',
+		name: "Dashboard",
+		path: "https://app.databuddy.cc/login",
 		external: true,
 	},
 ];

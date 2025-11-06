@@ -21,7 +21,7 @@ export interface SessionMetrics {
 }
 
 export interface SessionDurationRange {
-	duration_range: '0-30s' | '30s-1m' | '1m-5m' | '5m-15m' | '15m-1h' | '1h+';
+	duration_range: "0-30s" | "30s-1m" | "1m-5m" | "5m-15m" | "15m-1h" | "1h+";
 	sessions: number;
 	visitors: number;
 }

@@ -1,4 +1,4 @@
-import { authClient } from '@databuddy/auth/client';
+import { authClient } from "@databuddy/auth/client";
 import {
 	ArrowRightIcon,
 	CaretRightIcon,
@@ -9,24 +9,24 @@ import {
 	TrashIcon,
 	WarningIcon,
 	XCircleIcon,
-} from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'framer-motion';
-import Link from 'next/link';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+} from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import { trpc } from '@/lib/trpc';
-import type { Domain, Project, TriageAction } from './types';
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { trpc } from "@/lib/trpc";
+import type { Domain, Project, TriageAction } from "./types";
 
 interface ProjectRowProps {
 	project: Project;
@@ -100,30 +100,30 @@ const TriageMenu = ({
 	const getTriageActions = (domainStatus: any) => {
 		const actions: any[] = [];
 
-		if (domainStatus.status === 'orphaned') {
+		if (domainStatus.status === "orphaned") {
 			actions.push({
-				label: 'Remove',
+				label: "Remove",
 				icon: TrashIcon,
-				action: 'remove_orphaned' as const,
+				action: "remove_orphaned" as const,
 			});
 		}
 
 		if (
-			domainStatus.status === 'invalid' &&
-			domainStatus.issues[0]?.includes('Multiple')
+			domainStatus.status === "invalid" &&
+			domainStatus.issues[0]?.includes("Multiple")
 		) {
 			actions.push({
-				label: 'Remove Duplicates',
+				label: "Remove Duplicates",
 				icon: TrashIcon,
-				action: 'remove_duplicates' as const,
+				action: "remove_duplicates" as const,
 			});
 		}
 
-		if (domainStatus.status === 'integrated') {
+		if (domainStatus.status === "integrated") {
 			actions.push({
-				label: 'Unintegrate',
+				label: "Unintegrate",
 				icon: TrashIcon,
-				action: 'unintegrate' as const,
+				action: "unintegrate" as const,
 			});
 		}
 
@@ -272,7 +272,7 @@ const DomainRow = ({
 								<div className="flex items-center gap-2">
 									<span className="text-destructive">
 										{domainStatus.length > 1
-											? domainStatus.issues.join(', ')
+											? domainStatus.issues.join(", ")
 											: domainStatus.issues[0]}
 									</span>
 									<TriageMenu
@@ -316,10 +316,10 @@ const DomainRow = ({
 						onCreateWebsite(domain);
 					}}
 					size="sm"
-					variant={isIntegrated ? 'secondary' : 'outline'}
+					variant={isIntegrated ? "secondary" : "outline"}
 				>
 					<PlusIcon className="mr-1 h-2 w-2" />
-					{isIntegrated ? 'Integrated' : 'Integrate'}
+					{isIntegrated ? "Integrated" : "Integrate"}
 				</Button>
 			</div>
 		</div>
@@ -400,10 +400,10 @@ export function ProjectRow({
 		websiteId?: string
 	) => {
 		try {
-			if (action === 'unintegrate') {
+			if (action === "unintegrate") {
 				if (!envVarId) {
 					toast.error(
-						'Environment variable ID is required for unintegrate action'
+						"Environment variable ID is required for unintegrate action"
 					);
 					return;
 				}
@@ -432,18 +432,18 @@ export function ProjectRow({
 			await utils.vercel.getProjects.invalidate();
 		} catch (error: any) {
 			// Handle specific error cases
-			if (error?.data?.code === 'UNAUTHORIZED') {
+			if (error?.data?.code === "UNAUTHORIZED") {
 				toast.error(
-					'Missing organization permissions. Please check your Vercel integration settings.'
+					"Missing organization permissions. Please check your Vercel integration settings."
 				);
-			} else if (error?.data?.code === 'FORBIDDEN') {
-				toast.error('Insufficient permissions to perform this action.');
-			} else if (error?.data?.code === 'NOT_FOUND') {
-				toast.error('Project or domain not found. It may have been deleted.');
+			} else if (error?.data?.code === "FORBIDDEN") {
+				toast.error("Insufficient permissions to perform this action.");
+			} else if (error?.data?.code === "NOT_FOUND") {
+				toast.error("Project or domain not found. It may have been deleted.");
 			} else if (error?.message) {
 				toast.error(error.message);
 			} else {
-				toast.error('An unexpected error occurred. Please try again.');
+				toast.error("An unexpected error occurred. Please try again.");
 			}
 		}
 	};
@@ -452,8 +452,8 @@ export function ProjectRow({
 		<motion.div
 			animate={{
 				backgroundColor: isExpanded
-					? 'hsl(var(--muted) / 0.3)'
-					: 'hsl(var(--card))',
+					? "hsl(var(--muted) / 0.3)"
+					: "hsl(var(--card))",
 			}}
 			className="overflow-hidden border-b bg-card transition-colors hover:bg-muted/20"
 			initial={false}
@@ -463,7 +463,7 @@ export function ProjectRow({
 				className="flex cursor-pointer items-center justify-between p-4"
 				onClick={onToggle}
 				onKeyUp={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
+					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
 						onToggle();
 					}
@@ -553,7 +553,7 @@ export function ProjectRow({
 			<AnimatePresence>
 				{isExpanded && (
 					<motion.div
-						animate={{ height: 'auto', opacity: 1 }}
+						animate={{ height: "auto", opacity: 1 }}
 						className="overflow-hidden"
 						exit={{ height: 0, opacity: 0 }}
 						initial={{ height: 0, opacity: 0 }}
@@ -583,7 +583,7 @@ export function ProjectRow({
 														className="flex cursor-pointer items-center gap-2"
 														onClick={handleSelectAll}
 														onKeyUp={(e) => {
-															if (e.key === 'Enter' || e.key === ' ') {
+															if (e.key === "Enter" || e.key === " ") {
 																e.preventDefault();
 																handleSelectAll();
 															}
@@ -609,20 +609,20 @@ export function ProjectRow({
 															{filteredDomains.length} domains found
 															{integrationStatus?.summary && (
 																<>
-																	{' • '}
+																	{" • "}
 																	<span className="text-accent-foreground">
-																		{integrationStatus.summary.integratedCount}{' '}
+																		{integrationStatus.summary.integratedCount}{" "}
 																		integrated
 																	</span>
 																	{integrationStatus.summary.orphanedCount >
 																		0 && (
 																		<>
-																			{' • '}
+																			{" • "}
 																			<span className="text-muted-foreground">
 																				{
 																					integrationStatus.summary
 																						.orphanedCount
-																				}{' '}
+																				}{" "}
 																				orphaned
 																			</span>
 																		</>
@@ -630,9 +630,9 @@ export function ProjectRow({
 																	{integrationStatus.summary.invalidCount >
 																		0 && (
 																		<>
-																			{' • '}
+																			{" • "}
 																			<span className="text-destructive">
-																				{integrationStatus.summary.invalidCount}{' '}
+																				{integrationStatus.summary.invalidCount}{" "}
 																				invalid
 																			</span>
 																		</>
@@ -684,7 +684,7 @@ export function ProjectRow({
 											integrationStatus?.integrationStatus?.find(
 												(status: any) => status.domain === domain.name
 											);
-										const isIntegrated = domainStatus?.status === 'integrated';
+										const isIntegrated = domainStatus?.status === "integrated";
 
 										return (
 											<DomainRow

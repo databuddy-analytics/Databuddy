@@ -1,1 +1,1 @@
-export { wrapVercelLanguageModel as withBuddy } from './middleware';
+export { wrapVercelLanguageModel as withBuddy } from "./middleware";

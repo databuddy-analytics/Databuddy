@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { PencilSimpleIcon } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -10,10 +10,10 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import type { DbConnection } from '@/hooks/use-db-connections';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { DbConnection } from "@/hooks/use-db-connections";
 
 interface EditConnectionDialogProps {
 	connection: DbConnection;
@@ -30,13 +30,13 @@ export function EditConnectionDialog({
 	onSubmit,
 	isLoading,
 }: EditConnectionDialogProps) {
-	const [name, setName] = useState('');
+	const [name, setName] = useState("");
 
 	useEffect(() => {
 		if (connection) {
 			setName(connection.name);
 		} else {
-			setName('');
+			setName("");
 		}
 	}, [connection]);
 
@@ -54,7 +54,7 @@ export function EditConnectionDialog({
 
 	const handleOpenChange = (newOpen: boolean) => {
 		if (!newOpen) {
-			setName('');
+			setName("");
 		}
 		onOpenChange(newOpen);
 	};
@@ -84,7 +84,7 @@ export function EditConnectionDialog({
 					<div className="space-y-2">
 						<Label>Database Type</Label>
 						<div className="rounded bg-muted px-3 py-2 text-muted-foreground text-sm">
-							{connection?.type || 'postgres'}
+							{connection?.type || "postgres"}
 						</div>
 						<p className="text-muted-foreground text-xs">
 							Database type cannot be changed after creation
@@ -112,7 +112,7 @@ export function EditConnectionDialog({
 						</Button>
 						<Button disabled={isLoading || !name.trim()} type="submit">
 							{isLoading ? (
-								'Updating...'
+								"Updating..."
 							) : (
 								<>
 									<PencilSimpleIcon className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { getRedisCache } from './redis';
+import { getRedisCache } from "./redis";
 
 const logger = console;
 
@@ -17,7 +17,7 @@ interface CacheOptions {
 const defaultSerialize = (data: unknown): string => JSON.stringify(data);
 const defaultDeserialize = (data: string): unknown =>
 	JSON.parse(data, (_, value) => {
-		if (typeof value === 'string' && stringifyRegex.test(value)) {
+		if (typeof value === "string" && stringifyRegex.test(value)) {
 			return new Date(value);
 		}
 		return value;
@@ -35,7 +35,7 @@ export async function getCache<T>(
 		staleWhileRevalidate = false,
 		staleTime = 0,
 		maxRetries = 3,
-	} = typeof options === 'number' ? { expireInSec: options } : options;
+	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	let retries = 0;
 	while (retries < maxRetries) {
@@ -101,39 +101,39 @@ export function cacheable<T extends (...args: any) => any>(
 		staleWhileRevalidate = false,
 		staleTime = 0,
 		maxRetries = 3,
-	} = typeof options === 'number' ? { expireInSec: options } : options;
+	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	const cachePrefix = `cacheable:${prefix}`;
 
 	function stringify(obj: unknown): string {
 		if (obj === null) {
-			return 'null';
+			return "null";
 		}
 		if (obj === undefined) {
-			return 'undefined';
+			return "undefined";
 		}
-		if (typeof obj === 'boolean') {
-			return obj ? 'true' : 'false';
+		if (typeof obj === "boolean") {
+			return obj ? "true" : "false";
 		}
-		if (typeof obj === 'number') {
+		if (typeof obj === "number") {
 			return String(obj);
 		}
-		if (typeof obj === 'string') {
+		if (typeof obj === "string") {
 			return obj;
 		}
-		if (typeof obj === 'function') {
+		if (typeof obj === "function") {
 			return obj.toString();
 		}
 
 		if (Array.isArray(obj)) {
-			return `[${obj.map(stringify).join(',')}]`;
+			return `[${obj.map(stringify).join(",")}]`;
 		}
 
-		if (typeof obj === 'object') {
+		if (typeof obj === "object") {
 			const pairs = Object.entries(obj)
 				.sort(([a], [b]) => a.localeCompare(b))
 				.map(([key, value]) => `${key}:${stringify(value)}`);
-			return pairs.join(':');
+			return pairs.join(":");
 		}
 
 		return String(obj);

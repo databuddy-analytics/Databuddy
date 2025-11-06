@@ -1,4 +1,4 @@
-import type { NormalizedPlan } from './types';
+import type { NormalizedPlan } from "./types";
 
 export function selectBestPlan(
 	monthlyEvents: number,
@@ -24,7 +24,7 @@ export function computeEnterpriseThreshold(plans: NormalizedPlan[]): number {
 	}
 	let highest = 0;
 	for (const tier of maxPlan.eventTiers) {
-		if (tier.to === 'inf') {
+		if (tier.to === "inf") {
 			continue;
 		}
 		const toNum = Number(tier.to);
@@ -42,7 +42,7 @@ export function displayNameForPlan(
 ): string {
 	const threshold = computeEnterpriseThreshold(plans);
 	if (monthlyEvents > threshold) {
-		return 'Enterprise';
+		return "Enterprise";
 	}
-	return bestPlan ? bestPlan.name : 'Free';
+	return bestPlan ? bestPlan.name : "Free";
 }

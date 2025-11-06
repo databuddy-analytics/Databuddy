@@ -1,5 +1,5 @@
-import stream from 'node:stream';
-import zlib from 'node:zlib';
+import stream from "node:stream";
+import zlib from "node:zlib";
 
 const make = (ctx, handle) =>
 	Object.assign(ctx, {
@@ -13,9 +13,9 @@ globalThis.CompressionStream ??= class CompressionStream {
 
 	constructor(format) {
 		let handle;
-		if (format === 'deflate') {
+		if (format === "deflate") {
 			handle = zlib.createDeflate();
-		} else if (format === 'gzip') {
+		} else if (format === "gzip") {
 			handle = zlib.createGzip();
 		} else {
 			handle = zlib.createDeflateRaw();
@@ -30,9 +30,9 @@ globalThis.DecompressionStream ??= class DecompressionStream {
 
 	constructor(format) {
 		let handle;
-		if (format === 'deflate') {
+		if (format === "deflate") {
 			handle = zlib.createInflate();
-		} else if (format === 'gzip') {
+		} else if (format === "gzip") {
 			handle = zlib.createGunzip();
 		} else {
 			handle = zlib.createInflateRaw();

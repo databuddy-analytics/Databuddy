@@ -1,25 +1,22 @@
 import {
 	type ColumnDef,
 	getCoreRowModel,
-	getFilteredRowModel,
-	getSortedRowModel,
-	type SortingState,
 	useReactTable,
-} from '@tanstack/react-table';
-import type React from 'react';
-import { useMemo, useState } from 'react';
-import ReactDOM from 'react-dom';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { FullScreenModal } from './fullscreen-modal';
-import { useFullScreen } from './hooks/use-fullscreen';
-import { TableContent } from './table-content';
-import { TableTabs } from './table-tabs';
-import { TableToolbar } from './table-toolbar';
+} from "@tanstack/react-table";
+import type React from "react";
+import { useState } from "react";
+import ReactDOM from "react-dom";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { FullScreenModal } from "./fullscreen-modal";
+import { useFullScreen } from "./hooks/use-fullscreen";
+import { TableContent } from "./table-content";
+import { TableTabs } from "./table-tabs";
+import { TableToolbar } from "./table-toolbar";
 
 const DEFAULT_MIN_HEIGHT = 200;
-const FULLSCREEN_HEIGHT = 'h-[92vh]';
-const FULLSCREEN_WIDTH = 'w-[92vw]';
+const FULLSCREEN_HEIGHT = "h-[92vh]";
+const FULLSCREEN_WIDTH = "w-[92vw]";
 
 interface TabConfig<TData> {
 	id: string;
@@ -50,7 +47,6 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 		index: number
 	) => React.ReactNode;
 	expandable?: boolean;
-	showSearch?: boolean;
 }
 
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
@@ -91,7 +87,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	title,
 	description,
 	isLoading = false,
-	emptyMessage = 'No data available',
+	emptyMessage = "No data available",
 	className,
 	onRowClick,
 	minHeight = DEFAULT_MIN_HEIGHT,
@@ -100,66 +96,32 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	expandable = false,
 	onAddFilter,
 	onRowAction,
-	showSearch = true,
 }: DataTableProps<TData, TValue>) {
-	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id || '');
-	const [isTransitioning, setIsTransitioning] = useState(false);
-	const [sorting, setSorting] = useState<SortingState>([]);
-	const [globalFilter, setGlobalFilter] = useState('');
+	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id || "");
 
 	const { fullScreen, setFullScreen, hasMounted, modalRef } = useFullScreen();
 
 	const currentTabData = tabs?.find((tab) => tab.id === activeTab);
-	const tableData = useMemo(
-		() => currentTabData?.data || data || [],
-		[currentTabData?.data, data]
-	);
-	const tableColumns = useMemo(
-		() =>
-			(currentTabData?.columns || columns || []) as ColumnDef<TData, TValue>[],
-		[currentTabData?.columns, columns]
-	);
+	const tableData = currentTabData?.data || data || [];
+	const tableColumns = currentTabData?.columns || columns || [];
 
 	const table = useReactTable({
 		data: tableData,
 		columns: tableColumns,
-		getRowId: (row, index) => {
-			if ((row as any)._uniqueKey) {
-				return (row as any)._uniqueKey;
-			}
-			return activeTab ? `${activeTab}-${index}` : `row-${index}`;
-		},
-		state: {
-			sorting,
-			globalFilter,
-		},
-		onSortingChange: setSorting,
-		onGlobalFilterChange: setGlobalFilter,
+		getRowId: (_row, index) => `${activeTab || "row"}-${index}`,
 		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		globalFilterFn: 'includesString',
 	});
 
 	const handleTabChange = (tabId: string) => {
-		if (tabId === activeTab) {
-			return;
-		}
-
-		setIsTransitioning(true);
-		setSorting([]);
-		setGlobalFilter('');
-		setTimeout(() => {
-			setActiveTab(tabId);
-			setIsTransitioning(false);
-		}, 150);
+		if (tabId === activeTab) return;
+		setActiveTab(tabId);
 	};
 
 	if (isLoading) {
 		return (
 			<div
 				className={cn(
-					'w-full overflow-hidden rounded border-sidebar-border bg-sidebar/50 shadow-sm backdrop-blur-sm',
+					"w-full overflow-hidden rounded border-sidebar-border bg-sidebar/50 shadow-sm backdrop-blur-sm",
 					className
 				)}
 			>
@@ -192,7 +154,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		<>
 			<div
 				className={cn(
-					'w-full overflow-hidden rounded border bg-card/50 shadow-sm backdrop-blur-sm',
+					"w-full overflow-hidden rounded border bg-card/50 shadow-sm backdrop-blur-sm",
 					className
 				)}
 			>
@@ -200,9 +162,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 				<TableToolbar
 					description={description}
 					onFullScreenToggle={() => setFullScreen(true)}
-					onSearchChange={setGlobalFilter}
-					searchValue={globalFilter}
-					showSearch={showSearch}
 					title={title}
 				/>
 
@@ -216,38 +175,20 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 				)}
 
 				<div className="overflow-hidden">
-					<div
-						className={cn(
-							'relative transition-all duration-300 ease-out',
-							isTransitioning && 'scale-[0.98] opacity-40'
-						)}
-					>
-						{isTransitioning && (
-							<div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
-								<div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/80 px-3 py-2 shadow-sm">
-									<div className="h-3 w-3 animate-pulse rounded-full bg-primary/60" />
-									<span className="font-medium text-muted-foreground text-xs">
-										Loading...
-									</span>
-								</div>
-							</div>
-						)}
-
-						<TableContent
-							activeTab={activeTab}
-							emptyMessage={emptyMessage}
-							expandable={expandable}
-							getSubRows={getSubRows}
-							minHeight={minHeight}
-							onAddFilter={onAddFilter}
-							onRowAction={onRowAction}
-							onRowClick={onRowClick}
-							renderSubRow={renderSubRow}
-							table={table}
-							tabs={tabs}
-							title={title}
-						/>
-					</div>
+					<TableContent
+						activeTab={activeTab}
+						emptyMessage={emptyMessage}
+						expandable={expandable}
+						getSubRows={getSubRows}
+						minHeight={minHeight}
+						onAddFilter={onAddFilter}
+						onRowAction={onRowAction}
+						onRowClick={onRowClick}
+						renderSubRow={renderSubRow}
+						table={table}
+						tabs={tabs}
+						title={title}
+					/>
 				</div>
 			</div>
 
@@ -262,14 +203,14 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 						<div className="absolute inset-0 animate-fadein bg-black/70 backdrop-blur-[3px] transition-opacity" />
 						<div
 							className={cn(
-								'relative flex scale-100 animate-scalein flex-col overflow-hidden rounded border border-border bg-background shadow-2xl',
+								"relative flex scale-100 animate-scalein flex-col overflow-hidden rounded border border-border bg-background shadow-2xl",
 								FULLSCREEN_HEIGHT,
 								FULLSCREEN_WIDTH
 							)}
 						>
 							<FullScreenModal
 								activeTab={activeTab}
-								columns={tableColumns}
+								columns={tableColumns as ColumnDef<TData, unknown>[]}
 								data={tableData}
 								description={description}
 								expandable={expandable}
@@ -278,10 +219,8 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 								onClose={() => setFullScreen(false)}
 								onRowAction={onRowAction}
 								onRowClick={onRowClick}
-								onSearchChange={setGlobalFilter}
 								onTabChange={handleTabChange}
 								renderSubRow={renderSubRow}
-								searchValue={globalFilter}
 								tabs={tabs}
 								title={title}
 							/>

@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from "zod";
 import {
 	authEnvSchema,
 	commonEnvSchema,
 	createEnv,
 	shouldSkipValidation,
-} from './base';
+} from "./base";
 
 /**
  * Better Admin-specific environment schema

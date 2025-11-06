@@ -1,5 +1,5 @@
-import crypto, { createHash } from 'node:crypto';
-import { redis } from '@databuddy/redis';
+import crypto, { createHash } from "node:crypto";
+import { redis } from "@databuddy/redis";
 
 /**
  * Get or generate a daily salt for anonymizing user IDs
@@ -9,7 +9,7 @@ export async function getDailySalt(): Promise<string> {
 	const saltKey = `salt:${Math.floor(Date.now() / (24 * 60 * 60 * 1000))}`;
 	let salt = await redis.get(saltKey);
 	if (!salt) {
-		salt = crypto.randomBytes(32).toString('hex');
+		salt = crypto.randomBytes(32).toString("hex");
 		await redis.setex(saltKey, 60 * 60 * 24, salt);
 	}
 	return salt;
@@ -19,9 +19,9 @@ export async function getDailySalt(): Promise<string> {
  * Salt and hash an anonymous ID for privacy
  */
 export function saltAnonymousId(anonymousId: string, salt: string): string {
-	return createHash('sha256')
+	return createHash("sha256")
 		.update(anonymousId + salt)
-		.digest('hex');
+		.digest("hex");
 }
 
 /**
@@ -37,8 +37,7 @@ export async function checkDuplicate(
 		return true;
 	}
 
-	const ttl = eventId.startsWith('exit_') ? 172_800 : 86_400;
-	await redis.setex(key, ttl, '1');
+	const ttl = eventId.startsWith("exit_") ? 172_800 : 86_400;
+	await redis.setex(key, ttl, "1");
 	return false;
 }
-

@@ -1,15 +1,15 @@
-import { CaretDownIcon } from '@phosphor-icons/react';
-import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
-import { memo } from 'react';
-import type { useAccordionStates } from '@/hooks/use-persistent-state';
-import { NavigationItem } from './navigation-item';
-import type { NavigationSection as NavigationSectionType } from './types';
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { useSearchParams } from "next/navigation";
+import { memo } from "react";
+import type { useAccordionStates } from "@/hooks/use-persistent-state";
+import { NavigationItem } from "./navigation-item";
+import type { NavigationSection as NavigationSectionType } from "./types";
 
 interface NavigationSectionProps {
 	title: string;
-	icon: NavigationSectionType['icon'];
-	items: NavigationSectionType['items'];
+	icon: NavigationSectionType["icon"];
+	items: NavigationSectionType["items"];
 	pathname: string;
 	currentWebsiteId?: string | null;
 	accordionStates: ReturnType<typeof useAccordionStates>;
@@ -19,20 +19,19 @@ const buildCurrentUrl = (
 	pathname: string,
 	searchParams: URLSearchParams | null
 ) => {
-	const search = searchParams ? `?${searchParams.toString()}` : '';
+	const search = searchParams ? `?${searchParams.toString()}` : "";
 	return `${pathname}${search}`;
 };
 
-const buildFullPath = (basePath: string, itemHref: string) => {
-	return itemHref === '' ? basePath : `${basePath}${itemHref}`;
-};
+const buildFullPath = (basePath: string, itemHref: string) =>
+	itemHref === "" ? basePath : `${basePath}${itemHref}`;
 
 const checkRootLevelMatch = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string,
 	searchParams: URLSearchParams | null
 ) => {
-	if (item.href.includes('?')) {
+	if (item.href.includes("?")) {
 		const currentUrl = buildCurrentUrl(pathname, searchParams);
 		return currentUrl === item.href;
 	}
@@ -40,15 +39,15 @@ const checkRootLevelMatch = (
 };
 
 const checkSandboxMatch = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string
 ) => {
-	const fullPath = buildFullPath('/sandbox', item.href);
+	const fullPath = buildFullPath("/sandbox", item.href);
 	return pathname === fullPath;
 };
 
 const checkDemoMatch = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string,
 	currentWebsiteId: string | null | undefined
 ) => {
@@ -57,7 +56,7 @@ const checkDemoMatch = (
 };
 
 const checkWebsiteMatch = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string,
 	currentWebsiteId: string | null | undefined
 ) => {
@@ -66,7 +65,7 @@ const checkWebsiteMatch = (
 };
 
 const checkDatabaseMatch = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string,
 	currentDatabaseId: string | null | undefined
 ) => {
@@ -78,7 +77,7 @@ const checkDatabaseMatch = (
 };
 
 const getPathInfo = (
-	item: NavigationSectionType['items'][0],
+	item: NavigationSectionType["items"][0],
 	pathname: string,
 	searchParams: URLSearchParams | null,
 	currentWebsiteId?: string | null
@@ -87,18 +86,18 @@ const getPathInfo = (
 		return { isActive: checkRootLevelMatch(item, pathname, searchParams) };
 	}
 
-	if (currentWebsiteId === 'sandbox') {
+	if (currentWebsiteId === "sandbox") {
 		return { isActive: checkSandboxMatch(item, pathname) };
 	}
 
-	if (pathname.startsWith('/demo')) {
+	if (pathname.startsWith("/demo")) {
 		return { isActive: checkDemoMatch(item, pathname, currentWebsiteId) };
 	}
 
 	if (
-		pathname.startsWith('/observability/database/') &&
-		pathname !== '/observability/database' &&
-		pathname !== '/observability/database/'
+		pathname.startsWith("/observability/database/") &&
+		pathname !== "/observability/database" &&
+		pathname !== "/observability/database/"
 	) {
 		return { isActive: checkDatabaseMatch(item, pathname, currentWebsiteId) };
 	}
@@ -119,11 +118,11 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	const searchParams = useSearchParams();
 
 	const visibleItems = items.filter((item) => {
-		if (item.production === false && process.env.NODE_ENV === 'production') {
+		if (item.production === false && process.env.NODE_ENV === "production") {
 			return false;
 		}
 
-		const isDemo = pathname.startsWith('/demo');
+		const isDemo = pathname.startsWith("/demo");
 		if (item.hideFromDemo && isDemo) {
 			return false;
 		}
@@ -165,12 +164,12 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 			</button>
 
 			<MotionConfig
-				transition={{ duration: 0.2, type: 'tween', ease: 'easeOut' }}
+				transition={{ duration: 0.2, type: "tween", ease: "easeOut" }}
 			>
 				<AnimatePresence initial={false}>
 					{isExpanded && (
 						<motion.div
-							animate={{ opacity: 1, height: 'auto' }}
+							animate={{ opacity: 1, height: "auto" }}
 							className="overflow-hidden"
 							exit={{ opacity: 0, height: 0 }}
 							initial={{ opacity: 0, height: 0 }}

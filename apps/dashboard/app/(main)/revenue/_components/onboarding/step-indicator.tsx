@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CheckCircleIcon } from '@phosphor-icons/react';
-import type { OnboardingStep } from '../../utils/types';
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import type { OnboardingStep } from "../../utils/types";
 
 interface StepIndicatorProps {
 	currentStep: OnboardingStep;
@@ -16,10 +16,10 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
 					<div
 						className={`flex h-8 w-8 items-center justify-center rounded-full font-medium text-sm ${
 							currentStep === step
-								? 'bg-blue-500 text-white'
+								? "bg-blue-500 text-white"
 								: index < steps.indexOf(currentStep)
-									? 'bg-green-500 text-white'
-									: 'bg-muted text-muted-foreground'
+									? "bg-green-500 text-white"
+									: "bg-muted text-muted-foreground"
 						}`}
 					>
 						{index < steps.indexOf(currentStep) ? (

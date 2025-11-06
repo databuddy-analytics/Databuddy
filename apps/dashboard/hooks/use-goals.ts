@@ -1,12 +1,12 @@
-import type { GoalFilter } from '@databuddy/shared';
-import { useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { trpc } from '@/lib/trpc';
+import type { GoalFilter } from "@databuddy/shared/types/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface Goal {
 	id: string;
 	websiteId: string;
-	type: 'PAGE_VIEW' | 'EVENT' | 'CUSTOM';
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 	target: string;
 	name: string;
 	description?: string | null;
@@ -20,7 +20,7 @@ export interface Goal {
 
 export interface CreateGoalData {
 	websiteId: string;
-	type: 'PAGE_VIEW' | 'EVENT' | 'CUSTOM';
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 	target: string;
 	name: string;
 	description?: string;
@@ -37,7 +37,7 @@ export function useGoals(websiteId: string, enabled = true) {
 		() =>
 			(query.data || []).map((goal) => ({
 				...goal,
-				type: goal.type as 'PAGE_VIEW' | 'EVENT' | 'CUSTOM',
+				type: goal.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
 				filters: (goal.filters as GoalFilter[]) || [],
 			})),
 		[query.data]
@@ -45,19 +45,19 @@ export function useGoals(websiteId: string, enabled = true) {
 
 	const createMutation = trpc.goals.create.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['goals', 'list']] });
+			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
 		},
 	});
 	const updateMutation = trpc.goals.update.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['goals', 'list']] });
-			queryClient.invalidateQueries({ queryKey: [['goals', 'getAnalytics']] });
+			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
+			queryClient.invalidateQueries({ queryKey: [["goals", "getAnalytics"]] });
 		},
 	});
 	const deleteMutation = trpc.goals.delete.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['goals', 'list']] });
-			queryClient.invalidateQueries({ queryKey: [['goals', 'getAnalytics']] });
+			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
+			queryClient.invalidateQueries({ queryKey: [["goals", "getAnalytics"]] });
 		},
 	});
 
@@ -66,21 +66,16 @@ export function useGoals(websiteId: string, enabled = true) {
 		isLoading: query.isLoading,
 		error: query.error,
 		refetch: query.refetch,
-		createGoal: (goalData: CreateGoalData) => {
-			return createMutation.mutateAsync(goalData);
-		},
+		createGoal: (goalData: CreateGoalData) =>
+			createMutation.mutateAsync(goalData),
 		updateGoal: ({
 			goalId,
 			updates,
 		}: {
 			goalId: string;
 			updates: Partial<CreateGoalData>;
-		}) => {
-			return updateMutation.mutateAsync({ id: goalId, ...updates });
-		},
-		deleteGoal: (goalId: string) => {
-			return deleteMutation.mutateAsync({ id: goalId });
-		},
+		}) => updateMutation.mutateAsync({ id: goalId, ...updates }),
+		deleteGoal: (goalId: string) => deleteMutation.mutateAsync({ id: goalId }),
 		isCreating: createMutation.isPending,
 		isUpdating: updateMutation.isPending,
 		isDeleting: deleteMutation.isPending,

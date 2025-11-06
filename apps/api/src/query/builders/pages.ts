@@ -1,95 +1,95 @@
-import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import { Analytics } from "../../types/tables";
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
-			'COUNT(*) as pageviews',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage',
+			"COUNT(*) as pageviews",
+			"COUNT(DISTINCT anonymous_id) as visitors",
+			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
 		],
 		where: ["event_name = 'screen_view'"],
 		groupBy: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
 		],
-		orderBy: 'pageviews DESC',
+		orderBy: "visitors DESC",
 		limit: 100,
-		timeField: 'time',
+		timeField: "time",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
 		],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
 		},
 		meta: {
-			title: 'Top Pages',
+			title: "Top Pages",
 			description:
-				'Most visited pages on your website, ranked by total pageviews with visitor counts and traffic percentage.',
-			category: 'Content',
-			tags: ['pages', 'content', 'traffic'],
+				"Most visited pages on your website, ranked by total pageviews with visitor counts and traffic percentage.",
+			category: "Content",
+			tags: ["pages", "content", "traffic"],
 			output_fields: [
 				{
-					name: 'name',
-					type: 'string',
-					label: 'Page Path',
-					description: 'The URL path of the page',
-					example: '/home',
+					name: "name",
+					type: "string",
+					label: "Page Path",
+					description: "The URL path of the page",
+					example: "/home",
 				},
 				{
-					name: 'pageviews',
-					type: 'number',
-					label: 'Pageviews',
-					description: 'Total number of page views',
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews",
+					description: "Total number of page views",
 					example: 1234,
 				},
 				{
-					name: 'visitors',
-					type: 'number',
-					label: 'Unique Visitors',
-					description: 'Number of unique visitors',
+					name: "visitors",
+					type: "number",
+					label: "Unique Visitors",
+					description: "Number of unique visitors",
 					example: 456,
 				},
 				{
-					name: 'percentage',
-					type: 'number',
-					label: 'Traffic %',
-					description: 'Percentage of total traffic',
-					unit: '%',
+					name: "percentage",
+					type: "number",
+					label: "Traffic %",
+					description: "Percentage of total traffic",
+					unit: "%",
 					example: 12.5,
 				},
 			],
 			output_example: [
-				{ name: '/home', pageviews: 1234, visitors: 456, percentage: 12.5 },
-				{ name: '/about', pageviews: 987, visitors: 321, percentage: 10.2 },
+				{ name: "/home", pageviews: 1234, visitors: 456, percentage: 12.5 },
+				{ name: "/about", pageviews: 987, visitors: 321, percentage: 10.2 },
 			],
-			default_visualization: 'table',
-			supports_granularity: ['hour', 'day'],
-			version: '1.0',
+			default_visualization: "table",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
 		},
 	},
 
 	entry_pages: {
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
 		],
 		customizable: true,
 		plugins: {
@@ -99,25 +99,25 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>,
+			filterParams?: Record<string, Filter["value"]>,
 			helpers?: {
 				sessionAttributionCTE: (timeField?: string) => string;
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
 			const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')},`
-				: '';
+				? `${helpers.sessionAttributionCTE("time")},`
+				: "";
 
 			const sessionEntryQuery = helpers?.sessionAttributionCTE
 				? `
@@ -137,7 +137,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     sa.session_browser_name as browser_name,
                     sa.session_os_name as os_name
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin('e')}
+                ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
                     AND e.time <= parseDateTimeBestEffort({endDate:String})
@@ -169,11 +169,11 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 entry_page as name,
                 COUNT(*) as pageviews,
                 COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage
+                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
             FROM session_entry
             WHERE page_rank = 1
             GROUP BY entry_page
-            ORDER BY pageviews DESC
+            ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`
 					: `
             WITH ${sessionEntryQuery}
@@ -181,11 +181,11 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 entry_page as name,
                 COUNT(*) as pageviews,
                 COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage
+                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
             FROM session_entry
             WHERE page_rank = 1
             GROUP BY entry_page
-            ORDER BY pageviews DESC
+            ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}
             `,
 				params: {
@@ -202,15 +202,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 
 	exit_pages: {
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
 		],
 		customizable: true,
 		plugins: {
@@ -220,25 +220,25 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>,
+			filterParams?: Record<string, Filter["value"]>,
 			helpers?: {
 				sessionAttributionCTE: (timeField?: string) => string;
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
 			const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')},`
-				: '';
+				? `${helpers.sessionAttributionCTE("time")},`
+				: "";
 
 			const sessionsQuery = helpers?.sessionAttributionCTE
 				? `
@@ -255,7 +255,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     sa.session_browser_name as browser_name,
                     sa.session_os_name as os_name
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin('e')}
+                ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
                     AND e.time <= parseDateTimeBestEffort({endDate:String})
@@ -298,10 +298,10 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 path as name,
                 COUNT(DISTINCT session_id) as pageviews,
                 COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(DISTINCT session_id) / SUM(COUNT(DISTINCT session_id)) OVER()) * 100, 2) as percentage
+                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
             FROM exit_pages
             GROUP BY path
-            ORDER BY pageviews DESC
+            ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}
             `,
 				params: {
@@ -320,27 +320,27 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name",
-			'COUNT(*) as pageviews',
-			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page',
-			'COUNT(DISTINCT anonymous_id) as visitors',
+			"COUNT(*) as pageviews",
+			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page",
+			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'"],
 		groupBy: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
 		],
-		orderBy: 'pageviews DESC',
+		orderBy: "visitors DESC",
 		limit: 100,
-		timeField: 'time',
+		timeField: "time",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
 		],
 		customizable: true,
 		plugins: {
@@ -350,15 +350,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 
 	page_time_analysis: {
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
 		],
 		customizable: true,
 		plugins: {
@@ -368,36 +368,36 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>,
+			filterParams?: Record<string, Filter["value"]>,
 			helpers?: {
 				sessionAttributionCTE: (timeField?: string) => string;
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
 			const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')}`
-				: '';
+				? `${helpers.sessionAttributionCTE("time")}`
+				: "";
 
 			const baseQuery = helpers?.sessionAttributionCTE
 				? `
             SELECT 
-                CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END as name,
+                decodeURLComponent(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END) as name,
                 COUNT(*) as sessions_with_time,
                 COUNT(DISTINCT e.anonymous_id) as visitors,
                 ROUND(quantile(0.5)(e.time_on_page), 2) as median_time_on_page,
-                ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage_of_sessions
+                ROUND((COUNT(DISTINCT e.anonymous_id) / SUM(COUNT(DISTINCT e.anonymous_id)) OVER()) * 100, 2) as percentage
             FROM analytics.events e
-            ${helpers.sessionAttributionJoin('e')}
+            ${helpers.sessionAttributionJoin("e")}
             WHERE e.client_id = {websiteId:String}
                 AND e.time >= parseDateTimeBestEffort({startDate:String})
                 AND e.time <= parseDateTimeBestEffort({endDate:String})
@@ -408,15 +408,15 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 ${combinedWhereClause}
             GROUP BY name
             HAVING COUNT(*) >= 1
-            ORDER BY median_time_on_page DESC
+            ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`
 				: `
             SELECT 
-                CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name,
+                decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name,
                 COUNT(*) as sessions_with_time,
                 COUNT(DISTINCT anonymous_id) as visitors,
                 ROUND(quantile(0.5)(time_on_page), 2) as median_time_on_page,
-                ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage_of_sessions
+                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
             FROM analytics.events
             WHERE client_id = {websiteId:String}
                 AND time >= parseDateTimeBestEffort({startDate:String})
@@ -428,7 +428,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 ${combinedWhereClause}
             GROUP BY name
             HAVING COUNT(*) >= 1
-            ORDER BY median_time_on_page DESC
+            ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`;
 
 			return {
@@ -448,69 +448,69 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		meta: {
-			title: 'Page Time Analysis',
+			title: "Page Time Analysis",
 			description:
-				'Analysis of time spent on each page, showing median time with quality filters to ensure reliable data.',
-			category: 'Engagement',
-			tags: ['time', 'engagement', 'pages', 'performance'],
+				"Analysis of time spent on each page, showing median time with quality filters to ensure reliable data.",
+			category: "Engagement",
+			tags: ["time", "engagement", "pages", "performance"],
 			output_fields: [
 				{
-					name: 'name',
-					type: 'string',
-					label: 'Page Path',
-					description: 'The URL path of the page',
-					example: '/home',
+					name: "name",
+					type: "string",
+					label: "Page Path",
+					description: "The URL path of the page",
+					example: "/home",
 				},
 				{
-					name: 'sessions_with_time',
-					type: 'number',
-					label: 'Sessions with Time Data',
-					description: 'Number of sessions with valid time measurements',
+					name: "sessions_with_time",
+					type: "number",
+					label: "Sessions with Time Data",
+					description: "Number of sessions with valid time measurements",
 					example: 245,
 				},
 				{
-					name: 'visitors',
-					type: 'number',
-					label: 'Unique Visitors',
-					description: 'Number of unique visitors with time data',
+					name: "visitors",
+					type: "number",
+					label: "Unique Visitors",
+					description: "Number of unique visitors with time data",
 					example: 189,
 				},
 				{
-					name: 'median_time_on_page',
-					type: 'number',
-					label: 'Median Time (seconds)',
-					description: 'Median time spent on the page in seconds',
-					unit: 'seconds',
+					name: "median_time_on_page",
+					type: "number",
+					label: "Median Time (seconds)",
+					description: "Median time spent on the page in seconds",
+					unit: "seconds",
 					example: 32.5,
 				},
 				{
-					name: 'percentage_of_sessions',
-					type: 'number',
-					label: 'Session %',
-					description: 'Percentage of total sessions with time data',
-					unit: '%',
+					name: "percentage",
+					type: "number",
+					label: "Share",
+					description: "Percentage of total visitors",
+					unit: "%",
 					example: 15.8,
 				},
 			],
 			output_example: [
 				{
-					name: '/home',
+					name: "/home",
 					sessions_with_time: 245,
 					visitors: 189,
 					median_time_on_page: 32.5,
-					percentage_of_sessions: 15.8,
+					percentage: 15.8,
 				},
 				{
-					name: '/about',
+					name: "/about",
 					sessions_with_time: 156,
 					visitors: 134,
 					median_time_on_page: 54.2,
-					percentage_of_sessions: 10.1,
+					percentage: 10.1,
 				},
 			],
-			default_visualization: 'table',
-			supports_granularity: ['hour', 'day'],
-			version: '1.0',
+			default_visualization: "table",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
 		},
 	},
 };

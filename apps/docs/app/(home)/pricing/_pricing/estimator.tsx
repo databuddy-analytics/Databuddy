@@ -1,13 +1,13 @@
-import Link from 'next/link';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Slider } from '@/components/ui/slider';
-import { eventsToSliderValue, sliderValueToEvents } from './estimator-scale';
-import { formatCompact, formatInteger, formatMoney } from './estimator-utils';
-import type { NormalizedPlan } from './types';
+import Link from "next/link";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { eventsToSliderValue, sliderValueToEvents } from "./estimator-scale";
+import { formatCompact, formatInteger, formatMoney } from "./estimator-utils";
+import type { NormalizedPlan } from "./types";
 
 type Props = {
 	monthlyEvents: number;
@@ -192,8 +192,8 @@ export function Estimator({
 										{tiers.map((tier, i, arr) => {
 											const from = i === 0 ? 0 : (arr[i - 1].to as number) + 1;
 											const to =
-												tier.to === 'inf'
-													? '∞'
+												tier.to === "inf"
+													? "∞"
 													: Number(tier.to).toLocaleString();
 											return (
 												<tr

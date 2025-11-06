@@ -2,7 +2,7 @@ export interface ParameterWithDates {
 	name: string;
 	start_date?: string;
 	end_date?: string;
-	granularity?: 'hourly' | 'daily';
+	granularity?: "hourly" | "daily";
 	id?: string;
 }
 
@@ -12,24 +12,24 @@ export interface DynamicQueryRequest {
 	limit?: number;
 	page?: number;
 	filters?: DynamicQueryFilter[];
-	granularity?: 'hourly' | 'daily';
+	granularity?: "hourly" | "daily";
 	groupBy?: string | string[];
 }
 
 export interface DynamicQueryFilter {
 	field: string;
 	operator:
-		| 'eq'
-		| 'ne'
-		| 'gt'
-		| 'gte'
-		| 'lt'
-		| 'lte'
-		| 'in'
-		| 'not_in'
-		| 'contains'
-		| 'starts_with'
-		| 'like';
+		| "eq"
+		| "ne"
+		| "gt"
+		| "gte"
+		| "lt"
+		| "lte"
+		| "in"
+		| "not_in"
+		| "contains"
+		| "starts_with"
+		| "like";
 	value: string | number | (string | number)[];
 }
 
@@ -57,8 +57,8 @@ export interface DynamicQueryResponse {
 
 export interface GoalFilter {
 	field: string;
-	operator: 'equals' | 'contains' | 'not_equals' | 'in' | 'not_in';
-	value: DynamicQueryFilter['value'];
+	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
+	value: DynamicQueryFilter["value"];
 }
 
 export interface BatchQueryResponse {

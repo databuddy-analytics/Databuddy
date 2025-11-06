@@ -1,10 +1,10 @@
-import z from 'zod';
-import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from '../constants';
+import z from "zod";
+import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from "../constants";
 import {
 	LANGUAGE_REGEX,
 	LOCALHOST_URL_REGEX,
 	RESOLUTION_REGEX,
-} from '../regexes';
+} from "../regexes";
 
 const resolutionSchema = z
 	.string()
@@ -22,24 +22,24 @@ const resolutionSchema = z
 			height >= VALIDATION_LIMITS.RESOLUTION_MIN &&
 			height <= VALIDATION_LIMITS.RESOLUTION_MAX
 		);
-	}, 'Width/height out of range (240-10000)');
+	}, "Width/height out of range (240-10000)");
 
-const languageSchema = z.string().regex(LANGUAGE_REGEX, 'Invalid language tag');
+const languageSchema = z.string().regex(LANGUAGE_REGEX, "Invalid language tag");
 
 const connectionTypeSchema = z
 	.enum([
-		'bluetooth',
-		'cellular',
-		'ethernet',
-		'none',
-		'wifi',
-		'wimax',
-		'other',
-		'unknown',
-		'slow-2g',
-		'2g',
-		'3g',
-		'4g',
+		"bluetooth",
+		"cellular",
+		"ethernet",
+		"none",
+		"wifi",
+		"wimax",
+		"other",
+		"unknown",
+		"slow-2g",
+		"2g",
+		"3g",
+		"4g",
 	])
 	.nullable()
 	.optional();
@@ -51,7 +51,7 @@ const timestampSchema = z
 	.nullable()
 	.optional()
 	.refine((val) => val == null || val <= Date.now() + MAX_FUTURE_MS, {
-		message: 'Timestamp too far in the future (max 1 hour ahead)',
+		message: "Timestamp too far in the future (max 1 hour ahead)",
 	});
 
 export const analyticsEventSchema = z.object({
@@ -61,11 +61,11 @@ export const analyticsEventSchema = z.object({
 	sessionId: z.string().nullable().optional(),
 	timestamp: timestampSchema,
 	sessionStartTime: timestampSchema,
-	referrer: (process.env.NODE_ENV === 'development'
+	referrer: (process.env.NODE_ENV === "development"
 		? z.any()
 		: z.union([
 				z.url({ protocol: /^https?$/, hostname: z.regexes.domain }),
-				z.literal('direct'),
+				z.literal("direct"),
 			])
 	)
 		.nullable()

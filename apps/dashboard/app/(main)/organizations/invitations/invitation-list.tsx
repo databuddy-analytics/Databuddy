@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { ClockIcon, EnvelopeIcon, TrashIcon } from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { useState } from 'react';
+import { ClockIcon, EnvelopeIcon, TrashIcon } from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -13,9 +13,9 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import type { CancelInvitation, Invitation } from '@/hooks/use-organizations';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import type { CancelInvitation, Invitation } from "@/hooks/use-organizations";
 
 dayjs.extend(relativeTime);
 
@@ -69,15 +69,15 @@ export function InvitationList({
 								</p>
 								<div className="flex items-center gap-2">
 									<p className="text-muted-foreground text-xs">
-										Invited as {invitation.role || 'member'}
+										Invited as {invitation.role || "member"}
 									</p>
 									<span
 										className={`inline-flex rounded-full px-2 py-0.5 font-medium text-xs ${
-											invitation.status === 'pending'
-												? 'bg-yellow-100 text-yellow-800'
-												: invitation.status === 'accepted'
-													? 'bg-green-100 text-green-800'
-													: 'bg-gray-100 text-gray-800'
+											invitation.status === "pending"
+												? "bg-yellow-100 text-yellow-800"
+												: invitation.status === "accepted"
+													? "bg-green-100 text-green-800"
+													: "bg-gray-100 text-gray-800"
 										}`}
 									>
 										{invitation.status}
@@ -85,13 +85,13 @@ export function InvitationList({
 								</div>
 								<p className="mt-1 flex items-center gap-1 text-muted-foreground text-xs">
 									<ClockIcon className="h-3 w-3 flex-shrink-0" size={12} />
-									{invitation.status === 'pending' ? 'Expires' : 'Expired'}{' '}
+									{invitation.status === "pending" ? "Expires" : "Expired"}{" "}
 									{dayjs(invitation.expiresAt).fromNow()}
 								</p>
 							</div>
 						</div>
 						<div className="flex flex-shrink-0 items-center gap-2">
-							{invitation.status === 'pending' &&
+							{invitation.status === "pending" &&
 								dayjs(invitation.expiresAt).isAfter(dayjs()) && (
 									<Button
 										className="h-7 w-7 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"

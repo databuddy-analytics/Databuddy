@@ -1,1 +1,1 @@
-export { default } from '../../../(main)/websites/[id]/profiles/page';
+export { default } from "../../../(main)/websites/[id]/profiles/page";

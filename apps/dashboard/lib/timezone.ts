@@ -7,6 +7,6 @@ export const getUserTimezone = (): string => {
 		const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		return browserTz;
 	} catch {
-		return 'UTC';
+		return "UTC";
 	}
 };

@@ -1,21 +1,21 @@
-import { ArrowLeftIcon, CheckIcon, XIcon } from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
-import { SciFiCard } from '@/components/scifi-card';
-import { StructuredData } from '@/components/structured-data';
-import { Badge } from '@/components/ui/badge';
+import { ArrowLeftIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
+import { SciFiCard } from "@/components/scifi-card";
+import { StructuredData } from "@/components/structured-data";
+import { Badge } from "@/components/ui/badge";
 import type {
 	ComparisonFeature,
 	CompetitorInfo,
-} from '@/lib/comparison-config';
+} from "@/lib/comparison-config";
 import {
 	getAllCompetitorSlugs,
 	getComparisonData,
-} from '@/lib/comparison-config';
+} from "@/lib/comparison-config";
 
 interface PageProps {
 	params: Promise<{
@@ -38,7 +38,7 @@ export async function generateMetadata({
 
 	if (!data) {
 		return {
-			title: 'Comparison Not Found | Databuddy',
+			title: "Comparison Not Found | Databuddy",
 		};
 	}
 
@@ -49,15 +49,15 @@ export async function generateMetadata({
 			title: data.seo.title,
 			description: data.seo.description,
 			url: `https://www.databuddy.cc/compare/${slug}`,
-			siteName: 'Databuddy',
-			type: 'website',
-			images: ['/og-image.png'],
+			siteName: "Databuddy",
+			type: "website",
+			images: ["/og-image.png"],
 		},
 		twitter: {
-			card: 'summary_large_image',
+			card: "summary_large_image",
 			title: data.seo.title,
 			description: data.seo.description,
-			images: ['/og-image.png'],
+			images: ["/og-image.png"],
 		},
 		alternates: {
 			canonical: `https://www.databuddy.cc/compare/${slug}`,
@@ -313,12 +313,12 @@ export default async function ComparisonPage({ params }: PageProps) {
 						<div className="mb-12 text-center">
 							<h1 className="mb-4 font-semibold text-3xl leading-tight tracking-tight sm:text-5xl md:text-6xl lg:text-7xl xl:text-[72px]">
 								<span className="block">
-									{hero.title.split(' vs ')[0]}{' '}
+									{hero.title.split(" vs ")[0]}{" "}
 									<span className="text-muted-foreground">vs</span>
 								</span>
 								<span className="block">
 									<span className="text-muted-foreground">
-										{hero.title.split(' vs ')[1]}
+										{hero.title.split(" vs ")[1]}
 									</span>
 								</span>
 							</h1>

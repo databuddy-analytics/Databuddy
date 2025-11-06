@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import type { QueryBuilderMeta } from '@databuddy/shared';
-import { CheckCircleIcon, CopyIcon } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
+import { CheckCircleIcon, CopyIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	Sheet,
 	SheetContent,
@@ -13,7 +13,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,
-} from '@/components/ui/sheet';
+} from "@/components/ui/sheet";
 import {
 	Table,
 	TableBody,
@@ -21,7 +21,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 
 interface Props {
 	typeKey: string;
@@ -56,7 +56,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 function UsageSection({ typeKey }: { typeKey: string }) {
-	const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.databuddy.cc';
+	const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.databuddy.cc";
 	const snippetCopy = `curl -sS -X POST '${baseUrl}/v1/query?website_id=YOUR_WEBSITE_ID' -H 'Content-Type: application/json' -H 'X-Api-Key: YOUR_API_KEY' -d '{"id":"example","parameters":["${typeKey}"],"limit":100}'`;
 	const snippetDisplay = `curl -X POST "${baseUrl}/v1/query?website_id=YOUR_WEBSITE_ID" \\\n  -H "Content-Type: application/json" \\\n  -H "X-Api-Key: YOUR_API_KEY" \\\n  -d '{\n  "id": "example",\n  "parameters": ["${typeKey}"],\n  "limit": 100\n}'`;
 
@@ -100,19 +100,19 @@ function OutputFieldsTable({ meta }: { meta?: QueryBuilderMeta }) {
 							</div>
 							{field.label && (
 								<div className="text-sm">
-									<span className="text-muted-foreground">Label:</span>{' '}
+									<span className="text-muted-foreground">Label:</span>{" "}
 									{field.label}
 								</div>
 							)}
 							{field.description && (
 								<div className="text-sm">
-									<span className="text-muted-foreground">Description:</span>{' '}
+									<span className="text-muted-foreground">Description:</span>{" "}
 									{field.description}
 								</div>
 							)}
 							{field.unit && (
 								<div className="text-sm">
-									<span className="text-muted-foreground">Unit:</span>{' '}
+									<span className="text-muted-foreground">Unit:</span>{" "}
 									{field.unit}
 								</div>
 							)}
@@ -148,15 +148,15 @@ function OutputFieldsTable({ meta }: { meta?: QueryBuilderMeta }) {
 										</span>
 									</TableCell>
 									<TableCell className="text-muted-foreground">
-										{field.label || '-'}
+										{field.label || "-"}
 									</TableCell>
 									<TableCell className="max-w-[20rem] text-muted-foreground">
 										<div className="truncate" title={field.description}>
-											{field.description || '-'}
+											{field.description || "-"}
 										</div>
 									</TableCell>
 									<TableCell className="text-muted-foreground">
-										{field.unit || '-'}
+										{field.unit || "-"}
 									</TableCell>
 								</TableRow>
 							))}
@@ -214,7 +214,7 @@ export function QueryTypeDialog({
 												Customizable
 											</Badge>
 										)}
-										{typeof defaultLimit === 'number' && (
+										{typeof defaultLimit === "number" && (
 											<Badge variant="secondary">
 												Default limit: {defaultLimit.toLocaleString()}
 											</Badge>
@@ -255,7 +255,7 @@ export function QueryTypeDialog({
 											{meta?.supports_granularity?.length && (
 												<DetailRow label="Granularity Support">
 													<div className="text-muted-foreground">
-														{meta.supports_granularity.join(', ')}
+														{meta.supports_granularity.join(", ")}
 													</div>
 												</DetailRow>
 											)}
@@ -307,8 +307,8 @@ function CopyButton({ text }: { text: string }) {
 		<Button
 			className={
 				copied
-					? 'border-green-500 bg-green-100 text-green-600 hover:bg-green-200'
-					: 'border-border bg-background hover:bg-muted'
+					? "border-green-500 bg-green-100 text-green-600 hover:bg-green-200"
+					: "border-border bg-background hover:bg-muted"
 			}
 			onClick={() => {
 				navigator.clipboard
@@ -318,7 +318,7 @@ function CopyButton({ text }: { text: string }) {
 			}}
 			size="sm"
 			type="button"
-			variant={copied ? 'secondary' : 'outline'}
+			variant={copied ? "secondary" : "outline"}
 		>
 			{copied ? (
 				<span className="inline-flex items-center gap-1.5">

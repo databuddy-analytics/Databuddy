@@ -1,1 +1,1 @@
-export * from './vercel';
+export * from "./vercel";

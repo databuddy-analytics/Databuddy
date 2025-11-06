@@ -1,41 +1,41 @@
-'use client';
+"use client";
 
 import {
 	BuildingsIcon,
 	UploadSimpleIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import Image from 'next/image';
+} from "@phosphor-icons/react";
+import Image from "next/image";
 // import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactCrop, {
 	type Crop,
 	centerCrop,
 	makeAspectCrop,
 	type PixelCrop,
-} from 'react-image-crop';
-import { toast } from 'sonner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+} from "react-image-crop";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { getCroppedImage } from '@/lib/canvas-utils';
-import 'react-image-crop/dist/ReactCrop.css';
+} from "@/components/ui/sheet";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { getCroppedImage } from "@/lib/canvas-utils";
+import "react-image-crop/dist/ReactCrop.css";
 
 // Top-level regex literals for performance and lint compliance
 const SLUG_ALLOWED_REGEX = /^[a-z0-9-]+$/;
@@ -70,9 +70,9 @@ export function CreateOrganizationDialog({
 
 	// Form state
 	const [formData, setFormData] = useState<CreateOrganizationData>({
-		name: '',
-		slug: '',
-		logo: '',
+		name: "",
+		slug: "",
+		logo: "",
 		metadata: {},
 	});
 	const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
@@ -99,17 +99,17 @@ export function CreateOrganizationDialog({
 		if (!(slugManuallyEdited && formData.slug)) {
 			const generatedSlug = formData.name
 				.toLowerCase()
-				.replace(REGEX_NON_SLUG_NAME_CHARS, '')
-				.replace(REGEX_SPACES_TO_DASH, '-')
-				.replace(REGEX_MULTI_DASH, '-')
-				.replace(REGEX_TRIM_DASH, '');
+				.replace(REGEX_NON_SLUG_NAME_CHARS, "")
+				.replace(REGEX_SPACES_TO_DASH, "-")
+				.replace(REGEX_MULTI_DASH, "-")
+				.replace(REGEX_TRIM_DASH, "");
 			setFormData((prev) => ({ ...prev, slug: generatedSlug }));
 		}
 	}, [formData.name, formData.slug, slugManuallyEdited]);
 
 	// Reset form
 	const resetForm = () => {
-		setFormData({ name: '', slug: '', logo: '', metadata: {} });
+		setFormData({ name: "", slug: "", logo: "", metadata: {} });
 		setPreview(null);
 		setLogoFile(null);
 		setSlugManuallyEdited(false);
@@ -129,11 +129,11 @@ export function CreateOrganizationDialog({
 		setSlugManuallyEdited(true);
 		const cleanSlug = value
 			.toLowerCase()
-			.replace(REGEX_INVALID_SLUG_CHARS, '')
-			.replace(REGEX_MULTI_DASH, '-')
-			.replace(REGEX_TRIM_DASH, '');
+			.replace(REGEX_INVALID_SLUG_CHARS, "")
+			.replace(REGEX_MULTI_DASH, "-")
+			.replace(REGEX_TRIM_DASH, "");
 		setFormData((prev) => ({ ...prev, slug: cleanSlug }));
-		if (cleanSlug === '') {
+		if (cleanSlug === "") {
 			setSlugManuallyEdited(false);
 		}
 	};
@@ -142,8 +142,8 @@ export function CreateOrganizationDialog({
 	const isFormValid = useMemo(
 		() =>
 			formData.name.trim().length >= 2 &&
-			(formData.slug || '').trim().length >= 2 &&
-			SLUG_ALLOWED_REGEX.test(formData.slug || ''),
+			(formData.slug || "").trim().length >= 2 &&
+			SLUG_ALLOWED_REGEX.test(formData.slug || ""),
 		[formData.name, formData.slug]
 	);
 
@@ -153,7 +153,7 @@ export function CreateOrganizationDialog({
 		setCrop(undefined);
 		setCompletedCrop(undefined);
 		if (fileInputRef.current) {
-			fileInputRef.current.value = '';
+			fileInputRef.current.value = "";
 		}
 	};
 
@@ -168,13 +168,13 @@ export function CreateOrganizationDialog({
 		const width = img.naturalWidth;
 		const height = img.naturalHeight;
 		const percentCrop = centerCrop(
-			makeAspectCrop({ unit: '%', width: 90 }, 1, width, height),
+			makeAspectCrop({ unit: "%", width: 90 }, 1, width, height),
 			width,
 			height
 		);
 		setCrop(percentCrop);
 		setCompletedCrop({
-			unit: 'px',
+			unit: "px",
 			x: Math.round((percentCrop.x / 100) * width),
 			y: Math.round((percentCrop.y / 100) * height),
 			width: Math.round((percentCrop.width / 100) * width),
@@ -197,14 +197,14 @@ export function CreateOrganizationDialog({
 
 	const handleCropSave = async () => {
 		if (!(imageSrc && completedCrop && imageRef.current)) {
-			toast.error('Please crop the image before saving.');
+			toast.error("Please crop the image before saving.");
 			return;
 		}
 		try {
 			const croppedFile = await getCroppedImage(
 				imageRef.current,
 				completedCrop,
-				'logo.png'
+				"logo.png"
 			);
 
 			setLogoFile(croppedFile);
@@ -214,19 +214,19 @@ export function CreateOrganizationDialog({
 				const dataUrl = reader.result as string;
 				setPreview(dataUrl);
 				handleCropModalOpenChange(false);
-				toast.success('Logo saved successfully!');
+				toast.success("Logo saved successfully!");
 			};
 			reader.readAsDataURL(croppedFile);
 		} catch {
-			toast.error('Failed to crop image.');
+			toast.error("Failed to crop image.");
 		}
 	};
 
 	const getOrganizationInitials = (name: string) =>
 		name
-			.split(' ')
+			.split(" ")
 			.map((n) => n[0])
-			.join('')
+			.join("")
 			.toUpperCase()
 			.slice(0, 2);
 
@@ -257,9 +257,9 @@ export function CreateOrganizationDialog({
 					});
 				} catch (logoError) {
 					toast.warning(
-						'Organization created, but logo upload failed. You can upload it later from settings.'
+						"Organization created, but logo upload failed. You can upload it later from settings."
 					);
-					console.error('Logo upload failed:', logoError);
+					console.error("Logo upload failed:", logoError);
 				}
 			}
 
@@ -308,18 +308,21 @@ export function CreateOrganizationDialog({
 								{(() => {
 									const isNameValid = formData.name.trim().length >= 2;
 									const hasUserTyped = formData.name.length > 0;
-									const shouldShowError = (touchedFields.name || hasUserTyped) && !isNameValid;
+									const shouldShowError =
+										(touchedFields.name || hasUserTyped) && !isNameValid;
 									return (
 										<>
 											<Input
 												aria-describedby="org-name-help"
 												aria-invalid={shouldShowError}
 												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
-													shouldShowError ? 'border-destructive' : ''
+													shouldShowError ? "border-destructive" : ""
 												}`}
 												id="org-name"
 												maxLength={100}
-												onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
+												onBlur={() =>
+													setTouchedFields((prev) => ({ ...prev, name: true }))
+												}
 												onChange={(e) =>
 													setFormData((prev) => ({
 														...prev,
@@ -349,21 +352,24 @@ export function CreateOrganizationDialog({
 								</Label>
 								{(() => {
 									const isSlugValid =
-										SLUG_ALLOWED_REGEX.test(formData.slug || '') &&
-										(formData.slug || '').trim().length >= 2;
-									const hasUserTyped = (formData.slug || '').length > 0;
-									const shouldShowError = (touchedFields.slug || hasUserTyped) && !isSlugValid;
+										SLUG_ALLOWED_REGEX.test(formData.slug || "") &&
+										(formData.slug || "").trim().length >= 2;
+									const hasUserTyped = (formData.slug || "").length > 0;
+									const shouldShowError =
+										(touchedFields.slug || hasUserTyped) && !isSlugValid;
 									return (
 										<>
 											<Input
 												aria-describedby="org-slug-help"
 												aria-invalid={shouldShowError}
 												className={`rounded border-border/50 focus:border-primary/50 focus:ring-primary/20 ${
-													shouldShowError ? 'border-destructive' : ''
+													shouldShowError ? "border-destructive" : ""
 												}`}
 												id="org-slug"
 												maxLength={50}
-												onBlur={() => setTouchedFields(prev => ({ ...prev, slug: true }))}
+												onBlur={() =>
+													setTouchedFields((prev) => ({ ...prev, slug: true }))
+												}
 												onChange={(e) => handleSlugChange(e.target.value)}
 												placeholder="e.g., acme-corp"
 												value={formData.slug}
@@ -384,7 +390,7 @@ export function CreateOrganizationDialog({
 								<Label className="font-medium text-foreground text-sm">
 									Organization Logo
 									<span className="font-normal text-muted-foreground">
-										{' '}
+										{" "}
 										(optional)
 									</span>
 								</Label>
@@ -392,11 +398,11 @@ export function CreateOrganizationDialog({
 									<div className="group relative self-start">
 										<Avatar className="h-16 w-16 border border-border/50">
 											<AvatarImage
-												alt={formData.name || 'Organization'}
+												alt={formData.name || "Organization"}
 												src={preview || undefined}
 											/>
 											<AvatarFallback className="bg-accent font-medium text-sm">
-												{getOrganizationInitials(formData.name || 'O')}
+												{getOrganizationInitials(formData.name || "O")}
 											</AvatarFallback>
 										</Avatar>
 										<button
@@ -404,7 +410,7 @@ export function CreateOrganizationDialog({
 											className="absolute inset-0 flex cursor-pointer items-center justify-center rounded bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100"
 											onClick={() => fileInputRef.current?.click()}
 											onKeyDown={(e) => {
-												if (e.key === 'Enter' || e.key === ' ') {
+												if (e.key === "Enter" || e.key === " ") {
 													e.preventDefault();
 													fileInputRef.current?.click();
 												}
@@ -472,10 +478,10 @@ export function CreateOrganizationDialog({
 										<div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
 									</div>
 								)}
-								<span className={isCreatingOrganization ? 'ml-6' : ''}>
+								<span className={isCreatingOrganization ? "ml-6" : ""}>
 									{isCreatingOrganization
-										? 'Creating...'
-										: 'Create Organization'}
+										? "Creating..."
+										: "Create Organization"}
 								</span>
 							</Button>
 						</div>

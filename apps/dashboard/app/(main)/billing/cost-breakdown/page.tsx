@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { ChartLineUpIcon, FlaskIcon } from '@phosphor-icons/react';
-import { Suspense, useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { trpc } from '@/lib/trpc';
-import { ConsumptionChart } from './components/consumption-chart';
-import { UsageBreakdownTable } from './components/usage-breakdown-table';
+import { ChartLineUpIcon, FlaskIcon } from "@phosphor-icons/react";
+import { Suspense, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { trpc } from "@/lib/trpc";
+import { ConsumptionChart } from "./components/consumption-chart";
+import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 
 const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split('T')[0];
+	const endDate = new Date().toISOString().split("T")[0];
 	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		.toISOString()
-		.split('T')[0];
+		.split("T")[0];
 	return { startDate, endDate };
 };
 

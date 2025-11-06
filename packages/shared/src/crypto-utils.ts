@@ -2,9 +2,9 @@ import crypto, {
 	createCipheriv,
 	createDecipheriv,
 	randomBytes,
-} from 'node:crypto';
+} from "node:crypto";
 
-const ALGORITHM = 'aes-256-gcm';
+const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 const SALT_LENGTH = 32;
@@ -13,7 +13,7 @@ const SALT_LENGTH = 32;
  * Derives a key from the Better Auth secret using PBKDF2
  */
 function deriveKey(secret: string, salt: Buffer): Buffer {
-	return crypto.pbkdf2Sync(secret, salt, 100_000, 32, 'sha512');
+	return crypto.pbkdf2Sync(secret, salt, 100_000, 32, "sha512");
 }
 
 /**
@@ -27,8 +27,8 @@ export function encryptToken(token: string, secret: string): string {
 
 		const cipher = createCipheriv(ALGORITHM, key, iv);
 
-		let encrypted = cipher.update(token, 'utf8', 'hex');
-		encrypted += cipher.final('hex');
+		let encrypted = cipher.update(token, "utf8", "hex");
+		encrypted += cipher.final("hex");
 
 		const tag = cipher.getAuthTag();
 
@@ -37,13 +37,13 @@ export function encryptToken(token: string, secret: string): string {
 			salt,
 			iv,
 			tag,
-			Buffer.from(encrypted, 'hex'),
+			Buffer.from(encrypted, "hex"),
 		]);
 
-		return combined.toString('base64');
+		return combined.toString("base64");
 	} catch (error) {
-		console.error('Token encryption failed:', error);
-		throw new Error('Failed to encrypt token');
+		console.error("Token encryption failed:", error);
+		throw new Error("Failed to encrypt token");
 	}
 }
 
@@ -52,7 +52,7 @@ export function encryptToken(token: string, secret: string): string {
  */
 export function decryptToken(encryptedToken: string, secret: string): string {
 	try {
-		const combined = Buffer.from(encryptedToken, 'base64');
+		const combined = Buffer.from(encryptedToken, "base64");
 
 		// Extract components
 		const salt = combined.subarray(0, SALT_LENGTH);
@@ -68,12 +68,12 @@ export function decryptToken(encryptedToken: string, secret: string): string {
 		const decipher = createDecipheriv(ALGORITHM, key, iv);
 		decipher.setAuthTag(tag);
 
-		let decrypted = decipher.update(encrypted, undefined, 'utf8');
-		decrypted += decipher.final('utf8');
+		let decrypted = decipher.update(encrypted, undefined, "utf8");
+		decrypted += decipher.final("utf8");
 
 		return decrypted;
 	} catch (error) {
-		console.error('Token decryption failed:', error);
-		throw new Error('Failed to decrypt token');
+		console.error("Token decryption failed:", error);
+		throw new Error("Failed to decrypt token");
 	}
 }

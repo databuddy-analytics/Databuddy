@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { Client } from "pg";
 
 export interface PostgresConnectionInfo {
 	host: string;
@@ -18,7 +18,7 @@ export function parsePostgresUrl(url: string): PostgresConnectionInfo {
 			database: urlObj.pathname.slice(1),
 			username: urlObj.username,
 			password: urlObj.password,
-			ssl: urlObj.searchParams.get('sslmode') === 'require',
+			ssl: urlObj.searchParams.get("sslmode") === "require",
 		};
 	} catch (error) {
 		throw new Error(`Invalid PostgreSQL URL: ${error.message}`);
@@ -26,7 +26,7 @@ export function parsePostgresUrl(url: string): PostgresConnectionInfo {
 }
 
 export function buildPostgresUrl(info: PostgresConnectionInfo): string {
-	const url = new URL('postgresql://');
+	const url = new URL("postgresql://");
 	url.hostname = info.host;
 	url.port = info.port.toString();
 	url.username = info.username;
@@ -34,7 +34,7 @@ export function buildPostgresUrl(info: PostgresConnectionInfo): string {
 	url.pathname = `/${info.database}`;
 
 	if (info.ssl) {
-		url.searchParams.set('sslmode', 'require');
+		url.searchParams.set("sslmode", "require");
 	}
 
 	return url.toString();
@@ -49,7 +49,7 @@ export async function testConnection(url: string): Promise<void> {
 
 	try {
 		await client.connect();
-		await client.query('SELECT 1');
+		await client.query("SELECT 1");
 	} catch (error) {
 		throw new Error(`Failed to connect: ${error.message}`);
 	} finally {

@@ -4,23 +4,23 @@ import {
 	RESOLUTION_SIMPLE_REGEX,
 	SESSION_ID_REGEX,
 	TIMEZONE_REGEX,
-} from './regexes';
+} from "./regexes";
 
 export const SAFE_HEADERS = new Set([
-	'user-agent',
-	'referer',
-	'accept-language',
-	'accept-encoding',
-	'accept',
-	'origin',
-	'host',
-	'content-type',
-	'content-length',
-	'cf-connecting-ip',
-	'cf-ipcountry',
-	'cf-ray',
-	'x-forwarded-for',
-	'x-real-ip',
+	"user-agent",
+	"referer",
+	"accept-language",
+	"accept-encoding",
+	"accept",
+	"origin",
+	"host",
+	"content-type",
+	"content-length",
+	"cf-connecting-ip",
+	"cf-ipcountry",
+	"cf-ray",
+	"x-forwarded-for",
+	"x-real-ip",
 ]);
 
 export function parseDurationToSeconds(duration: string): number {
@@ -47,8 +47,8 @@ export function parseDurationToSeconds(duration: string): number {
 }
 
 export function sanitizeString(input: unknown, maxLength?: number): string {
-	if (typeof input !== 'string') {
-		return '';
+	if (typeof input !== "string") {
+		return "";
 	}
 
 	const actualMaxLength = maxLength ?? 2048;
@@ -56,7 +56,7 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 	return input
 		.trim()
 		.slice(0, actualMaxLength)
-		.split('')
+		.split("")
 		.filter((char) => {
 			const code = char.charCodeAt(0);
 			return !(
@@ -67,27 +67,27 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 				code === 127
 			);
 		})
-		.join('')
-		.replace(/[<>'"&]/g, '')
-		.replace(/\s+/g, ' ');
+		.join("")
+		.replace(/[<>'"&]/g, "")
+		.replace(/\s+/g, " ");
 }
 
 export function validateTimezone(timezone: unknown): string {
-	if (typeof timezone !== 'string') {
-		return '';
+	if (typeof timezone !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(timezone, 64);
 
 	if (!TIMEZONE_REGEX.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized;
 }
 
 export function validateTimezoneOffset(offset: unknown): number | null {
-	if (typeof offset === 'number') {
+	if (typeof offset === "number") {
 		if (offset >= -12 * 60 && offset <= 14 * 60) {
 			return Math.round(offset);
 		}
@@ -97,36 +97,36 @@ export function validateTimezoneOffset(offset: unknown): number | null {
 }
 
 export function validateLanguage(language: unknown): string {
-	if (typeof language !== 'string') {
-		return '';
+	if (typeof language !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(language, 35);
 
 	if (!LANGUAGE_REGEX.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized.toLowerCase();
 }
 
 export function validateSessionId(sessionId: unknown): string {
-	if (typeof sessionId !== 'string') {
-		return '';
+	if (typeof sessionId !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(sessionId, 128);
 
 	if (!SESSION_ID_REGEX.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized;
 }
 
 export function validateUtmParameter(utm: unknown): string {
-	if (typeof utm !== 'string') {
-		return '';
+	if (typeof utm !== "string") {
+		return "";
 	}
 
 	return sanitizeString(utm, 512);
@@ -138,14 +138,14 @@ export function validateNumeric(
 	max = Number.MAX_SAFE_INTEGER
 ): number | null {
 	if (
-		typeof value === 'number' &&
+		typeof value === "number" &&
 		!Number.isNaN(value) &&
 		Number.isFinite(value)
 	) {
 		const rounded = Math.round(value);
 		return rounded >= min && rounded <= max ? rounded : null;
 	}
-	if (typeof value === 'string') {
+	if (typeof value === "string") {
 		const parsed = Number.parseFloat(value);
 		if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
 			const rounded = Math.round(parsed);
@@ -156,20 +156,20 @@ export function validateNumeric(
 }
 
 export function validateUrl(url: unknown): string {
-	if (typeof url !== 'string') {
-		return '';
+	if (typeof url !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(url);
 
 	try {
 		const parsed = new URL(sanitized);
-		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-			return '';
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return "";
 		}
 		return parsed.toString();
 	} catch {
-		return '';
+		return "";
 	}
 }
 
@@ -196,7 +196,7 @@ export function validateProperties(
 ): Record<string, unknown> {
 	if (
 		!properties ||
-		typeof properties !== 'object' ||
+		typeof properties !== "object" ||
 		Array.isArray(properties)
 	) {
 		return {};
@@ -215,11 +215,11 @@ export function validateProperties(
 
 		const value = props[key];
 
-		if (typeof value === 'string') {
+		if (typeof value === "string") {
 			validated[sanitizedKey] = sanitizeString(value);
-		} else if (typeof value === 'number') {
+		} else if (typeof value === "number") {
 			validated[sanitizedKey] = validateNumeric(value);
-		} else if (typeof value === 'boolean') {
+		} else if (typeof value === "boolean") {
 			validated[sanitizedKey] = value;
 		} else if (value === null || value === undefined) {
 			validated[sanitizedKey] = null;
@@ -246,13 +246,13 @@ export function validatePerformanceMetric(value: unknown): number | undefined {
 }
 
 export function validateScreenResolution(resolution: unknown): string {
-	if (typeof resolution !== 'string') {
-		return '';
+	if (typeof resolution !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(resolution, 32);
 
-	return RESOLUTION_SIMPLE_REGEX.test(sanitized) ? sanitized : '';
+	return RESOLUTION_SIMPLE_REGEX.test(sanitized) ? sanitized : "";
 }
 
 export function validateViewportSize(viewport: unknown): string {

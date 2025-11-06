@@ -1,2 +1,2 @@
-export { Databuddy } from './Databuddy';
-export * from './flags';
+export { Databuddy } from "./Databuddy";
+export * from "./flags";

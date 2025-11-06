@@ -1,10 +1,10 @@
-import type { InferSelectModel } from '@databuddy/db';
-import { and, apikey, apikeyAccess, db, eq, isNull } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { logger } from './logger';
+import type { InferSelectModel } from "@databuddy/db";
+import { and, apikey, apikeyAccess, db, eq, isNull } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
+import { logger } from "./logger";
 
 export type ApiKeyRow = InferSelectModel<typeof apikey>;
-export type ApiScope = InferSelectModel<typeof apikey>['scopes'][number];
+export type ApiScope = InferSelectModel<typeof apikey>["scopes"][number];
 
 const getCachedApiKeyBySecret = cacheable(
 	async (secret: string): Promise<ApiKeyRow | null> => {
@@ -23,7 +23,7 @@ const getCachedApiKeyBySecret = cacheable(
 	},
 	{
 		expireInSec: 60,
-		prefix: 'api-key-by-secret',
+		prefix: "api-key-by-secret",
 		staleWhileRevalidate: true,
 		staleTime: 30,
 	}
@@ -42,7 +42,7 @@ const getCachedAccessEntries = cacheable(
 	},
 	{
 		expireInSec: 60,
-		prefix: 'api-key-access-entries',
+		prefix: "api-key-access-entries",
 		staleWhileRevalidate: true,
 		staleTime: 30,
 	}
@@ -51,9 +51,9 @@ const getCachedAccessEntries = cacheable(
 export async function getApiKeyFromHeader(
 	headers: Headers
 ): Promise<ApiKeyRow | null> {
-	const xApiKey = headers.get('x-api-key')?.trim();
-	const auth = headers.get('authorization');
-	const bearer = auth?.toLowerCase()?.startsWith('bearer ')
+	const xApiKey = headers.get("x-api-key")?.trim();
+	const auth = headers.get("authorization");
+	const bearer = auth?.toLowerCase()?.startsWith("bearer ")
 		? auth.slice(7).trim()
 		: null;
 	const secret =
@@ -67,31 +67,31 @@ export async function getApiKeyFromHeader(
 	}
 	const key = await getCachedApiKeyBySecret(secret);
 	if (!key) {
-		logger.warn('API key authentication failed: invalid key', {
-			userAgent: headers.get('user-agent'),
-			ip: headers.get('x-forwarded-for') || headers.get('x-real-ip'),
-			method: 'getApiKeyFromHeader',
+		logger.warn("API key authentication failed: invalid key", {
+			userAgent: headers.get("user-agent"),
+			ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
+			method: "getApiKeyFromHeader",
 		});
 		return null;
 	}
 	if (key.expiresAt && new Date(key.expiresAt) <= new Date()) {
-		logger.warn('API key authentication failed: expired key', {
+		logger.warn("API key authentication failed: expired key", {
 			apikeyId: key.id,
 			expiresAt: key.expiresAt,
-			userAgent: headers.get('user-agent'),
-			ip: headers.get('x-forwarded-for') || headers.get('x-real-ip'),
+			userAgent: headers.get("user-agent"),
+			ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
 		});
 		return null;
 	}
 
 	// Audit log successful API key usage
-	logger.info('API key used successfully', {
+	logger.info("API key used successfully", {
 		apikeyId: key.id,
 		userId: key.userId,
 		organizationId: key.organizationId,
 		scopes: key.scopes,
-		userAgent: headers.get('user-agent'),
-		ip: headers.get('x-forwarded-for') || headers.get('x-real-ip'),
+		userAgent: headers.get("user-agent"),
+		ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
 		keyPrefix: key.prefix,
 	});
 
@@ -99,12 +99,12 @@ export async function getApiKeyFromHeader(
 }
 
 export function isApiKeyPresent(headers: Headers): boolean {
-	const xApiKey = headers.get('x-api-key');
+	const xApiKey = headers.get("x-api-key");
 	if (xApiKey) {
 		return true;
 	}
-	const auth = headers.get('authorization');
-	return auth?.toLowerCase().startsWith('bearer ') ?? false;
+	const auth = headers.get("authorization");
+	return auth?.toLowerCase().startsWith("bearer ") ?? false;
 }
 
 export async function resolveEffectiveScopesForWebsite(
@@ -112,7 +112,7 @@ export async function resolveEffectiveScopesForWebsite(
 	websiteId: string
 ): Promise<Set<ApiScope>> {
 	if (!key) {
-		logger.debug('Cannot resolve scopes for null API key', { websiteId });
+		logger.debug("Cannot resolve scopes for null API key", { websiteId });
 		return new Set();
 	}
 
@@ -123,9 +123,9 @@ export async function resolveEffectiveScopesForWebsite(
 
 	const entries = await getCachedAccessEntries(key.id);
 	for (const entry of entries) {
-		const isGlobal = entry.resourceType === 'global';
+		const isGlobal = entry.resourceType === "global";
 		const isWebsiteMatch =
-			entry.resourceType === 'website' && entry.resourceId === websiteId;
+			entry.resourceType === "website" && entry.resourceId === websiteId;
 		if (isGlobal || isWebsiteMatch) {
 			for (const s of entry.scopes) {
 				effective.add(s as ApiScope);
@@ -134,7 +134,7 @@ export async function resolveEffectiveScopesForWebsite(
 	}
 
 	// Audit log scope resolution for website access
-	logger.debug('Resolved effective scopes for website', {
+	logger.debug("Resolved effective scopes for website", {
 		apikeyId: key.id,
 		websiteId,
 		effectiveScopes: Array.from(effective),
@@ -151,7 +151,7 @@ export async function hasWebsiteScope(
 	required: ApiScope
 ): Promise<boolean> {
 	if (!key) {
-		logger.debug('Scope check failed: null API key', {
+		logger.debug("Scope check failed: null API key", {
 			websiteId,
 			requiredScope: required,
 		});
@@ -159,23 +159,23 @@ export async function hasWebsiteScope(
 	}
 
 	if ((key.scopes || []).includes(required)) {
-		logger.debug('Scope check passed via global scope', {
+		logger.debug("Scope check passed via global scope", {
 			apikeyId: key.id,
 			websiteId,
 			requiredScope: required,
-			source: 'global',
+			source: "global",
 		});
 		return true;
 	}
 	const effective = await resolveEffectiveScopesForWebsite(key, websiteId);
 	const hasScope = effective.has(required);
 
-	logger.debug('Scope check result', {
+	logger.debug("Scope check result", {
 		apikeyId: key.id,
 		websiteId,
 		requiredScope: required,
 		hasScope,
-		source: hasScope ? 'effective' : 'denied',
+		source: hasScope ? "effective" : "denied",
 		effectiveScopes: Array.from(effective),
 	});
 

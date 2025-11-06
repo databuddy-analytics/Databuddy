@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { ArrowClockwiseIcon, WarningIcon } from '@phosphor-icons/react';
-import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowClockwiseIcon, WarningIcon } from "@phosphor-icons/react";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type ErrorPageProps = {
 	error: Error & { digest?: string };
@@ -30,7 +30,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 						persists, please contact support.
 					</p>
 					<pre className="max-h-[150px] overflow-auto rounded bg-muted p-3 font-mono text-xs">
-						{error.message || 'An unknown error occurred.'}
+						{error.message || "An unknown error occurred."}
 					</pre>
 					<Button onClick={() => reset()} size="sm">
 						<ArrowClockwiseIcon className="mr-2 h-4 w-4" size={16} />

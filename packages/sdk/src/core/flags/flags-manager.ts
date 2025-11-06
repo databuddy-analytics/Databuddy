@@ -1,4 +1,4 @@
-import { logger } from '@/logger';
+import { logger } from "@/logger";
 import type {
 	FlagResult,
 	FlagState,
@@ -6,7 +6,7 @@ import type {
 	FlagsManager,
 	FlagsManagerOptions,
 	StorageInterface,
-} from './types';
+} from "./types";
 
 export class CoreFlagsManager implements FlagsManager {
 	private config: FlagsConfig;
@@ -23,7 +23,7 @@ export class CoreFlagsManager implements FlagsManager {
 		this.onConfigUpdate = options.onConfigUpdate;
 
 		logger.setDebug(this.config.debug ?? false);
-		logger.debug('CoreFlagsManager initialized with config:', {
+		logger.debug("CoreFlagsManager initialized with config:", {
 			clientId: this.config.clientId,
 			debug: this.config.debug,
 			isPending: this.config.isPending,
@@ -36,7 +36,7 @@ export class CoreFlagsManager implements FlagsManager {
 	private withDefaults(config: FlagsConfig): FlagsConfig {
 		return {
 			clientId: config.clientId,
-			apiUrl: config.apiUrl ?? 'https://api.databuddy.cc',
+			apiUrl: config.apiUrl ?? "https://api.databuddy.cc",
 			user: config.user,
 			disabled: config.disabled ?? false,
 			debug: config.debug ?? false,
@@ -67,29 +67,29 @@ export class CoreFlagsManager implements FlagsManager {
 			if (Object.keys(cachedFlags).length > 0) {
 				this.memoryFlags = cachedFlags as Record<string, FlagResult>;
 				this.notifyFlagsUpdate();
-				logger.debug('Loaded cached flags:', Object.keys(cachedFlags));
+				logger.debug("Loaded cached flags:", Object.keys(cachedFlags));
 			}
 		} catch (err) {
-			logger.warn('Error loading cached flags:', err);
+			logger.warn("Error loading cached flags:", err);
 		}
 	}
 
 	async fetchAllFlags(): Promise<void> {
 		if (this.config.isPending) {
-			logger.debug('Session pending, skipping bulk fetch');
+			logger.debug("Session pending, skipping bulk fetch");
 			return;
 		}
 
 		const params = new URLSearchParams();
-		params.set('clientId', this.config.clientId);
+		params.set("clientId", this.config.clientId);
 		if (this.config.user?.userId) {
-			params.set('userId', this.config.user.userId);
+			params.set("userId", this.config.user.userId);
 		}
 		if (this.config.user?.email) {
-			params.set('email', this.config.user.email);
+			params.set("email", this.config.user.email);
 		}
 		if (this.config.user?.properties) {
-			params.set('properties', JSON.stringify(this.config.user.properties));
+			params.set("properties", JSON.stringify(this.config.user.properties));
 		}
 
 		const url = `${this.config.apiUrl}/public/v1/flags/bulk?${params.toString()}`;
@@ -102,7 +102,7 @@ export class CoreFlagsManager implements FlagsManager {
 
 			const result = await response.json();
 
-			logger.debug('Bulk fetch response:', result);
+			logger.debug("Bulk fetch response:", result);
 
 			if (result.flags) {
 				this.memoryFlags = result.flags;
@@ -111,14 +111,14 @@ export class CoreFlagsManager implements FlagsManager {
 				if (!this.config.skipStorage && this.storage) {
 					try {
 						this.storage.setAll(result.flags);
-						logger.debug('Bulk flags synced to cache');
+						logger.debug("Bulk flags synced to cache");
 					} catch (err) {
-						logger.warn('Bulk storage error:', err);
+						logger.warn("Bulk storage error:", err);
 					}
 				}
 			}
 		} catch (err) {
-			logger.error('Bulk fetch error:', err);
+			logger.error("Bulk fetch error:", err);
 		}
 	}
 
@@ -131,7 +131,7 @@ export class CoreFlagsManager implements FlagsManager {
 				enabled: false,
 				value: false,
 				payload: null,
-				reason: 'SESSION_PENDING',
+				reason: "SESSION_PENDING",
 			};
 		}
 
@@ -146,7 +146,7 @@ export class CoreFlagsManager implements FlagsManager {
 				enabled: false,
 				value: false,
 				payload: null,
-				reason: 'FETCHING',
+				reason: "FETCHING",
 			};
 		}
 
@@ -171,16 +171,16 @@ export class CoreFlagsManager implements FlagsManager {
 		this.pendingFlags.add(key);
 
 		const params = new URLSearchParams();
-		params.set('key', key);
-		params.set('clientId', this.config.clientId);
+		params.set("key", key);
+		params.set("clientId", this.config.clientId);
 		if (this.config.user?.userId) {
-			params.set('userId', this.config.user.userId);
+			params.set("userId", this.config.user.userId);
 		}
 		if (this.config.user?.email) {
-			params.set('email', this.config.user.email);
+			params.set("email", this.config.user.email);
 		}
 		if (this.config.user?.properties) {
-			params.set('properties', JSON.stringify(this.config.user.properties));
+			params.set("properties", JSON.stringify(this.config.user.properties));
 		}
 
 		const url = `${this.config.apiUrl}/public/v1/flags/evaluate?${params.toString()}`;
@@ -217,7 +217,7 @@ export class CoreFlagsManager implements FlagsManager {
 				enabled: false,
 				value: false,
 				payload: null,
-				reason: 'ERROR',
+				reason: "ERROR",
 			};
 			this.memoryFlags[key] = fallback;
 			this.notifyFlagsUpdate();
@@ -252,7 +252,7 @@ export class CoreFlagsManager implements FlagsManager {
 	}
 
 	refresh(forceClear = false): void {
-		logger.debug('Refreshing', { forceClear });
+		logger.debug("Refreshing", { forceClear });
 
 		if (forceClear) {
 			this.memoryFlags = {};
@@ -260,9 +260,9 @@ export class CoreFlagsManager implements FlagsManager {
 			if (!this.config.skipStorage && this.storage) {
 				try {
 					this.storage.clear();
-					logger.debug('Storage cleared');
+					logger.debug("Storage cleared");
 				} catch (err) {
-					logger.warn('Storage clear error:', err);
+					logger.warn("Storage clear error:", err);
 				}
 			}
 		}
@@ -270,7 +270,7 @@ export class CoreFlagsManager implements FlagsManager {
 		this.fetchAllFlags();
 	}
 
-	updateUser(user: FlagsConfig['user']): void {
+	updateUser(user: FlagsConfig["user"]): void {
 		this.config = { ...this.config, user };
 		this.onConfigUpdate?.(this.config);
 		this.refresh();

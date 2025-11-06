@@ -1,4 +1,4 @@
-import { BellIcon } from '@phosphor-icons/react';
+import { BellIcon } from "@phosphor-icons/react";
 
 export function NotificationEmpty() {
 	return (

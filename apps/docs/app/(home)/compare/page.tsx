@@ -1,36 +1,36 @@
-import { ArrowLeftIcon, CheckIcon } from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
-import { SciFiCard } from '@/components/scifi-card';
-import { StructuredData } from '@/components/structured-data';
-import { Badge } from '@/components/ui/badge';
-import { competitors } from '@/lib/comparison-config';
+import { ArrowLeftIcon, CheckIcon } from "@phosphor-icons/react/ssr";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
+import { SciFiCard } from "@/components/scifi-card";
+import { StructuredData } from "@/components/structured-data";
+import { Badge } from "@/components/ui/badge";
+import { competitors } from "@/lib/comparison-config";
 
 export const metadata: Metadata = {
-	title: 'Analytics Platform Comparisons | Databuddy',
+	title: "Analytics Platform Comparisons | Databuddy",
 	description:
-		'Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.',
+		"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
 	openGraph: {
-		title: 'Analytics Platform Comparisons | Databuddy',
+		title: "Analytics Platform Comparisons | Databuddy",
 		description:
-			'Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.',
-		url: 'https://www.databuddy.cc/compare',
-		siteName: 'Databuddy',
-		type: 'website',
-		images: ['/og-image.png'],
+			"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
+		url: "https://www.databuddy.cc/compare",
+		siteName: "Databuddy",
+		type: "website",
+		images: ["/og-image.png"],
 	},
 	twitter: {
-		card: 'summary_large_image',
-		title: 'Analytics Platform Comparisons | Databuddy',
+		card: "summary_large_image",
+		title: "Analytics Platform Comparisons | Databuddy",
 		description:
-			'Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.',
-		images: ['/og-image.png'],
+			"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
+		images: ["/og-image.png"],
 	},
 	alternates: {
-		canonical: 'https://www.databuddy.cc/compare',
+		canonical: "https://www.databuddy.cc/compare",
 	},
 };
 
@@ -150,10 +150,10 @@ function CompetitorCard({
 export default function ComparePage() {
 	const competitorEntries = Object.entries(competitors);
 
-	const title = 'Analytics Platform Comparisons | Databuddy';
+	const title = "Analytics Platform Comparisons | Databuddy";
 	const description =
-		'Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.';
-	const url = 'https://www.databuddy.cc/compare';
+		"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.";
+	const url = "https://www.databuddy.cc/compare";
 
 	return (
 		<div className="overflow-hidden">
@@ -187,7 +187,7 @@ export default function ComparePage() {
 						<div className="text-center">
 							<h1 className="mb-4 font-semibold text-3xl leading-tight tracking-tight sm:text-5xl md:text-6xl lg:text-7xl xl:text-[72px]">
 								<span className="block">
-									Compare{' '}
+									Compare{" "}
 									<span className="text-muted-foreground">analytics</span>
 								</span>
 								<span className="block">
@@ -212,7 +212,7 @@ export default function ComparePage() {
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<div className="mb-12 text-center">
 						<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-							Choose Your{' '}
+							Choose Your{" "}
 							<span className="text-muted-foreground">Comparison</span>
 						</h2>
 						<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">

@@ -1,5 +1,5 @@
-import { CaretLeftIcon, TestTubeIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
+import { CaretLeftIcon, TestTubeIcon } from "@phosphor-icons/react";
+import Link from "next/link";
 
 export function SandboxHeader() {
 	return (

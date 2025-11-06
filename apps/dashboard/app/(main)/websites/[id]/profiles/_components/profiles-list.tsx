@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { SpinnerIcon, UsersIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useProfilesData } from '@/hooks/use-dynamic-query';
-import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
+import { SpinnerIcon, UsersIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useProfilesData } from "@/hooks/use-dynamic-query";
+import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 
 type ProfileData = {
 	visitor_id: string;
@@ -50,7 +50,7 @@ type ProfileData = {
 };
 
 const ProfileRow = dynamic(
-	() => import('./profile-row').then((mod) => ({ default: mod.ProfileRow })),
+	() => import("./profile-row").then((mod) => ({ default: mod.ProfileRow })),
 	{
 		loading: () => (
 			<div className="flex items-center justify-center p-4">
@@ -116,7 +116,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 
 		const observer = new IntersectionObserver(handleIntersection, {
 			threshold: 0.1,
-			rootMargin: '300px',
+			rootMargin: "300px",
 		});
 
 		observer.observe(loadMoreRef);
@@ -180,7 +180,7 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 						<UsersIcon className="mb-4 h-12 w-12 opacity-50" />
 						<p className="mb-2 font-medium text-lg">Failed to load profiles</p>
 						<p className="text-sm">
-							{error?.message || 'There was an error loading the profiles'}
+							{error?.message || "There was an error loading the profiles"}
 						</p>
 					</div>
 				</CardContent>
@@ -232,8 +232,8 @@ export function ProfilesList({ websiteId }: ProfilesListProps) {
 					) : (
 						<div className="text-center text-muted-foreground text-sm">
 							{allProfiles.length > 0
-								? 'All profiles loaded'
-								: 'No more profiles'}
+								? "All profiles loaded"
+								: "No more profiles"}
 						</div>
 					)}
 				</div>

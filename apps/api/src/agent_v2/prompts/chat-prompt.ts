@@ -1,10 +1,10 @@
-import type { AssistantRequestType } from '../../schemas/assistant-schemas';
-import { getBasePrompt } from './base-prompt';
+import type { AssistantRequestType } from "../../schemas/assistant-schemas";
+import { getBasePrompt } from "./base-prompt";
 
 export const chatPrompt = (
 	websiteId: string,
 	websiteHostname: string,
-	_model?: AssistantRequestType['model']
+	_model?: AssistantRequestType["model"]
 ) => `${getBasePrompt(websiteId, websiteHostname, _model)}
 
 <workflow_instructions>

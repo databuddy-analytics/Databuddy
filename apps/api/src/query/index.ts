@@ -1,19 +1,19 @@
-import { z } from 'zod';
-import { QueryBuilders } from './builders';
-import { SimpleQueryBuilder } from './simple-builder';
-import type { QueryRequest } from './types';
+import { z } from "zod";
+import { QueryBuilders } from "./builders";
+import { SimpleQueryBuilder } from "./simple-builder";
+import type { QueryRequest } from "./types";
 
 const QuerySchema = z.object({
 	projectId: z.string(),
 	type: z.string(),
 	from: z.string(),
 	to: z.string(),
-	timeUnit: z.enum(['minute', 'hour', 'day', 'week', 'month']).default('day'),
+	timeUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
 	filters: z
 		.array(
 			z.object({
 				field: z.string(),
-				op: z.enum(['eq', 'ne', 'like', 'gt', 'lt', 'in', 'notIn']),
+				op: z.enum(["eq", "ne", "like", "gt", "lt", "in", "notIn"]),
 				value: z.union([
 					z.string(),
 					z.number(),
@@ -69,5 +69,5 @@ export const compileQuery = (
 	return builder.compile();
 };
 
-export * from './builders';
-export * from './types';
+export * from "./builders";
+export * from "./types";

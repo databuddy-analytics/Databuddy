@@ -6,10 +6,10 @@ import {
 	multiSessionClient,
 	organizationClient,
 	twoFactorClient,
-} from 'better-auth/client/plugins';
-import { createAuthClient } from 'better-auth/react';
-import type { auth } from '../auth';
-import { ac, admin, member, owner } from '../permissions';
+} from "better-auth/client/plugins";
+import { createAuthClient } from "better-auth/react";
+import type { auth } from "../auth";
+import { ac, admin, member, owner } from "../permissions";
 
 export type AuthClientConfig = {
 	baseURL?: string;
@@ -18,7 +18,7 @@ export type AuthClientConfig = {
 
 const defaultConfig: AuthClientConfig = {
 	baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL as string,
-	debug: process.env.NODE_ENV !== 'production',
+	debug: process.env.NODE_ENV !== "production",
 };
 
 export const authClient = createAuthClient({

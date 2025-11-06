@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
-import type { AnalyticsEvent, AnalyticsEventAdapter } from '../types';
+import crypto from "node:crypto";
+import type { AnalyticsEvent, AnalyticsEventAdapter } from "../types";
 
 export interface UmamiCsvRow {
 	website_id: string;
@@ -45,45 +45,45 @@ const anonIdMap = new Map<string, string>();
 
 function getOrCreateSessionId(original: string): string {
 	if (!original) {
-		return '';
+		return "";
 	}
 	if (!sessionIdMap.has(original)) {
 		sessionIdMap.set(original, `sess_${crypto.randomUUID()}`);
 	}
-	return sessionIdMap.get(original) || '';
+	return sessionIdMap.get(original) || "";
 }
 
 function getOrCreateAnonId(original: string): string {
-	if (!original || original.trim() === '') {
+	if (!original || original.trim() === "") {
 		return `anon_${crypto.randomUUID()}`;
 	}
 	if (!anonIdMap.has(original)) {
 		anonIdMap.set(original, `anon_${crypto.randomUUID()}`);
 	}
-	return anonIdMap.get(original) || '';
+	return anonIdMap.get(original) || "";
 }
 
 function formatBrowserName(browser: string): string {
 	if (!browser) {
-		return '';
+		return "";
 	}
 
 	// Replace hyphens with spaces and capitalize each word
 	return browser
-		.replace(/-/g, ' ')
-		.split(' ')
+		.replace(/-/g, " ")
+		.split(" ")
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-		.join(' ');
+		.join(" ");
 }
 
 function determineEventType(
 	_row: UmamiCsvRow,
 	isLastInSession = false
-): 'screen_view' | 'page_exit' {
+): "screen_view" | "page_exit" {
 	if (isLastInSession) {
-		return 'page_exit';
+		return "page_exit";
 	}
-	return 'screen_view';
+	return "screen_view";
 }
 
 export const umamiAdapter = (
@@ -137,32 +137,32 @@ export const umamiAdapter = (
 				anonymous_id: getOrCreateAnonId(row.distinct_id),
 				time: new Date(row.created_at).getTime(),
 				session_id: getOrCreateSessionId(row.session_id),
-				event_type: 'track',
+				event_type: "track",
 				event_id: row.event_id,
 				session_start_time: undefined,
 				timestamp: undefined,
 				referrer:
-					row.referrer_domain && row.referrer_domain.trim() !== ''
+					row.referrer_domain && row.referrer_domain.trim() !== ""
 						? row.referrer_domain
-						: 'direct',
+						: "direct",
 				url: row.url_path,
 				path: row.url_path,
-				title: row.page_title || '',
-				ip: '',
-				user_agent: '',
-				browser_name: formatBrowserName(row.browser || ''),
+				title: row.page_title || "",
+				ip: "",
+				user_agent: "",
+				browser_name: formatBrowserName(row.browser || ""),
 				browser_version: undefined,
-				os_name: row.os || '',
+				os_name: row.os || "",
 				os_version: undefined,
-				device_type: row.device || '',
+				device_type: row.device || "",
 				device_brand: undefined,
 				device_model: undefined,
-				country: row.country || '',
-				region: row.region || '',
-				city: row.city || '',
-				screen_resolution: row.screen || '',
+				country: row.country || "",
+				region: row.region || "",
+				city: row.city || "",
+				screen_resolution: row.screen || "",
 				viewport_size: undefined,
-				language: row.language || '',
+				language: row.language || "",
 				timezone: undefined,
 				connection_type: undefined,
 				rtt: undefined,
@@ -172,11 +172,11 @@ export const umamiAdapter = (
 				interaction_count: undefined,
 				page_count: 1,
 				page_size: undefined,
-				utm_source: row.utm_source || '',
-				utm_medium: row.utm_medium || '',
-				utm_campaign: row.utm_campaign || '',
-				utm_term: row.utm_term || '',
-				utm_content: row.utm_content || '',
+				utm_source: row.utm_source || "",
+				utm_medium: row.utm_medium || "",
+				utm_campaign: row.utm_campaign || "",
+				utm_term: row.utm_term || "",
+				utm_content: row.utm_content || "",
 				load_time: undefined,
 				dom_ready_time: undefined,
 				dom_interactive: undefined,
@@ -186,7 +186,7 @@ export const umamiAdapter = (
 				render_time: undefined,
 				redirect_time: undefined,
 				domain_lookup_time: undefined,
-				properties: '',
+				properties: "",
 				created_at: new Date(row.created_at).getTime(),
 			};
 		},

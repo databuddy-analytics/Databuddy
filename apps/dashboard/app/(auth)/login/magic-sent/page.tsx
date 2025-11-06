@@ -1,37 +1,37 @@
-'use client';
+"use client";
 
-import { signIn } from '@databuddy/auth/client';
-import { ChevronLeft, Loader2, MailCheck } from 'lucide-react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { signIn } from "@databuddy/auth/client";
+import { ChevronLeft, Loader2, MailCheck } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export default function MagicSentPage() {
 	const searchParams = useSearchParams();
-	const email = searchParams.get('email') || '';
+	const email = searchParams.get("email") || "";
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleResend = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		if (!email) {
-			toast.error('No email found');
+			toast.error("No email found");
 			return;
 		}
 		setIsLoading(true);
 
 		await signIn.magicLink({
 			email,
-			callbackURL: '/home',
+			callbackURL: "/home",
 			fetchOptions: {
 				onSuccess: () => {
 					setIsLoading(false);
-					toast.success('Magic link sent! Please check your email.');
+					toast.success("Magic link sent! Please check your email.");
 				},
 				onError: () => {
 					setIsLoading(false);
-					toast.error('Failed to send magic link. Please try again.');
+					toast.error("Failed to send magic link. Please try again.");
 				},
 			},
 		});
@@ -51,7 +51,7 @@ export default function MagicSentPage() {
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">Check your email</h1>
 				<p className="mt-2 text-muted-foreground">
-					Magic link sent to{' '}
+					Magic link sent to{" "}
 					<strong className="font-medium text-info">{email}</strong>
 				</p>
 			</div>
@@ -74,7 +74,7 @@ export default function MagicSentPage() {
 							Sending...
 						</>
 					) : (
-						'Resend magic link'
+						"Resend magic link"
 					)}
 				</Button>
 				<Link href="/login">

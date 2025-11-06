@@ -1,19 +1,22 @@
-'use client';
+"use client";
 
-import { ListIcon, XIcon } from '@phosphor-icons/react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useDbConnections } from '@/hooks/use-db-connections';
-import { useAccordionStates, usePersistentState } from '@/hooks/use-persistent-state';
-import { useWebsites } from '@/hooks/use-websites';
-import { cn } from '@/lib/utils';
-import { CategorySidebar } from './category-sidebar';
-import { DatabaseHeader } from './navigation/database-header';
-import { MobileCategorySelector } from './navigation/mobile-category-selector';
+import { ListIcon, XIcon } from "@phosphor-icons/react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useDbConnections } from "@/hooks/use-db-connections";
+import {
+	useAccordionStates,
+	usePersistentState,
+} from "@/hooks/use-persistent-state";
+import { useWebsites } from "@/hooks/use-websites";
+import { cn } from "@/lib/utils";
+import { CategorySidebar } from "./category-sidebar";
+import { DatabaseHeader } from "./navigation/database-header";
+import { MobileCategorySelector } from "./navigation/mobile-category-selector";
 import {
 	categoryConfig,
 	createDatabasesNavigation,
@@ -22,12 +25,12 @@ import {
 	createWebsitesNavigation,
 	getContextConfig,
 	getDefaultCategory,
-} from './navigation/navigation-config';
-import { NavigationSection } from './navigation/navigation-section';
-import { SandboxHeader } from './navigation/sandbox-header';
-import type { NavigationSection as NavigationSectionType } from './navigation/types';
-import { WebsiteHeader } from './navigation/website-header';
-import { OrganizationSelector } from './organization-selector';
+} from "./navigation/navigation-config";
+import { NavigationSection } from "./navigation/navigation-section";
+import { SandboxHeader } from "./navigation/sandbox-header";
+import type { NavigationSection as NavigationSectionType } from "./navigation/types";
+import { WebsiteHeader } from "./navigation/website-header";
+import { OrganizationSelector } from "./organization-selector";
 
 type NavigationConfig = {
 	navigation: NavigationSectionType[];
@@ -38,7 +41,9 @@ type NavigationConfig = {
 export function Sidebar() {
 	const pathname = usePathname();
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
-	const [selectedCategory, setSelectedCategory] = usePersistentState<string | undefined>('sidebar-selected-category', undefined);
+	const [selectedCategory, setSelectedCategory] = usePersistentState<
+		string | undefined
+	>("sidebar-selected-category", undefined);
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
 	const { connections: databases, isLoading: isLoadingDatabases } =
 		useDbConnections();
@@ -46,29 +51,33 @@ export function Sidebar() {
 	const sidebarRef = useRef<HTMLDivElement>(null);
 	const previousFocusRef = useRef<HTMLElement | null>(null);
 
-	const isDemo = pathname.startsWith('/demo');
-	const isSandbox = pathname.startsWith('/sandbox');
-	const isWebsite = pathname.startsWith('/websites/');
+	const isDemo = pathname.startsWith("/demo");
+	const isSandbox = pathname.startsWith("/sandbox");
+	const isWebsite = pathname.startsWith("/websites/");
 	const isDatabase =
-		pathname.startsWith('/observability/database/') &&
-		pathname !== '/observability/database' &&
-		pathname !== '/observability/database/';
+		pathname.startsWith("/observability/database/") &&
+		pathname !== "/observability/database" &&
+		pathname !== "/observability/database/";
 
-	const websiteId = useMemo(() => {
-		return isDemo || isWebsite ? pathname.split('/')[2] : null;
-	}, [isDemo, isWebsite, pathname]);
+	const websiteId = useMemo(
+		() => (isDemo || isWebsite ? pathname.split("/")[2] : null),
+		[isDemo, isWebsite, pathname]
+	);
 
-	const databaseId = useMemo(() => {
-		return isDatabase ? pathname.split('/')[3] : null;
-	}, [isDatabase, pathname]);
+	const databaseId = useMemo(
+		() => (isDatabase ? pathname.split("/")[3] : null),
+		[isDatabase, pathname]
+	);
 
-	const currentWebsite = useMemo(() => {
-		return websiteId ? websites?.find((site) => site.id === websiteId) : null;
-	}, [websiteId, websites]);
+	const currentWebsite = useMemo(
+		() => (websiteId ? websites?.find((site) => site.id === websiteId) : null),
+		[websiteId, websites]
+	);
 
-	const currentDatabase = useMemo(() => {
-		return databaseId ? databases?.find((db) => db.id === databaseId) : null;
-	}, [databaseId, databases]);
+	const currentDatabase = useMemo(
+		() => (databaseId ? databases?.find((db) => db.id === databaseId) : null),
+		[databaseId, databases]
+	);
 
 	const closeSidebar = useCallback(() => {
 		setIsMobileOpen(false);
@@ -122,10 +131,7 @@ export function Sidebar() {
 
 		if (isWebsite || isDemo) {
 			headerComponent = (
-				<WebsiteHeader
-					website={currentWebsite}
-					showBackButton={!isDemo}
-				/>
+				<WebsiteHeader showBackButton={!isDemo} website={currentWebsite} />
 			);
 			currentId = websiteId;
 		} else if (isDatabase) {
@@ -133,7 +139,7 @@ export function Sidebar() {
 			currentId = databaseId;
 		} else if (isSandbox) {
 			headerComponent = <SandboxHeader />;
-			currentId = 'sandbox';
+			currentId = "sandbox";
 		} else {
 			headerComponent = <OrganizationSelector />;
 			currentId = undefined;
@@ -163,13 +169,13 @@ export function Sidebar() {
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && isMobileOpen) {
+			if (e.key === "Escape" && isMobileOpen) {
 				closeSidebar();
 			}
 		};
 
-		document.addEventListener('keydown', handleKeyDown);
-		return () => document.removeEventListener('keydown', handleKeyDown);
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, [isMobileOpen, closeSidebar]);
 
 	useEffect(() => {
@@ -238,7 +244,7 @@ export function Sidebar() {
 					className="fixed inset-0 z-30 bg-black/20 md:hidden"
 					onClick={closeSidebar}
 					onKeyDown={(e) => {
-						if (e.key === 'Escape') {
+						if (e.key === "Escape") {
 							closeSidebar();
 						}
 					}}
@@ -250,12 +256,12 @@ export function Sidebar() {
 			<nav
 				aria-hidden={!isMobileOpen}
 				className={cn(
-					'fixed inset-y-0 z-40 w-56 sm:w-60 md:w-64 lg:w-72 bg-sidebar',
-					'border-sidebar-border border-r transition-transform duration-200 ease-out',
-					'left-0 md:left-12',
-					'pt-12 md:pt-0',
-					'md:translate-x-0',
-					isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+					"fixed inset-y-0 z-40 w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
+					"border-sidebar-border border-r transition-transform duration-200 ease-out",
+					"left-0 md:left-12",
+					"pt-12 md:pt-0",
+					"md:translate-x-0",
+					isMobileOpen ? "translate-x-0" : "-translate-x-full"
 				)}
 				ref={sidebarRef}
 			>

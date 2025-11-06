@@ -4,15 +4,15 @@ import {
 	ShieldCheckIcon,
 	ShieldIcon,
 	UserIcon,
-} from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import { Footer } from '@/components/footer';
-import { StructuredData } from '@/components/structured-data';
+} from "@phosphor-icons/react/ssr";
+import type { Metadata } from "next";
+import { Footer } from "@/components/footer";
+import { StructuredData } from "@/components/structured-data";
 
-const title = 'Privacy Policy — Cookie-less, GDPR by default | Databuddy';
+const title = "Privacy Policy — Cookie-less, GDPR by default | Databuddy";
 const description =
 	"Databuddy's comprehensive privacy policy for our privacy-first analytics service. Learn how we protect both customer and end user data with GDPR compliance and no user identification.";
-const url = 'https://www.databuddy.cc/privacy';
+const url = "https://www.databuddy.cc/privacy";
 
 export const metadata: Metadata = {
 	title,
@@ -24,12 +24,12 @@ export const metadata: Metadata = {
 		title,
 		description,
 		url,
-		images: ['/og-image.png'],
+		images: ["/og-image.png"],
 	},
 };
 
 export default function PrivacyPage() {
-	const lastUpdated = new Date('2025-06-03');
+	const lastUpdated = new Date("2025-06-03");
 
 	return (
 		<>
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
 					title,
 					description,
 					url,
-					datePublished: new Date('2025-06-03').toISOString(),
+					datePublished: new Date("2025-06-03").toISOString(),
 					dateModified: lastUpdated.toISOString(),
 				}}
 			/>
@@ -52,12 +52,12 @@ export default function PrivacyPage() {
 						Privacy Policy
 					</h1>
 					<p className="mb-4 text-muted-foreground">
-						Last Updated{' '}
+						Last Updated{" "}
 						<span className="font-medium text-foreground">
-							{lastUpdated.toLocaleDateString('en-US', {
-								year: 'numeric',
-								month: 'long',
-								day: 'numeric',
+							{lastUpdated.toLocaleDateString("en-US", {
+								year: "numeric",
+								month: "long",
+								day: "numeric",
 							})}
 						</span>
 					</p>

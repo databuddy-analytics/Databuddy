@@ -1,4 +1,4 @@
-import { websitesApi } from '@databuddy/auth';
+import { websitesApi } from "@databuddy/auth";
 import {
 	db,
 	invitation,
@@ -6,24 +6,24 @@ import {
 	organization,
 	session,
 	user,
-} from '@databuddy/db';
-import { getPendingInvitationsSchema } from '@databuddy/validation';
-import { TRPCError } from '@trpc/server';
-import { Autumn as autumn } from 'autumn-js';
-import { and, desc, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { s3 } from '../utils/s3';
+} from "@databuddy/db";
+import { getPendingInvitationsSchema } from "@databuddy/validation";
+import { TRPCError } from "@trpc/server";
+import { Autumn as autumn } from "autumn-js";
+import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { s3 } from "../utils/s3";
 
 const deleteOrganizationLogoSchema = z.object({
-	organizationId: z.string().min(1, 'Organization ID is required'),
+	organizationId: z.string().min(1, "Organization ID is required"),
 });
 
 const uploadOrganizationLogoSchema = z.object({
-	organizationId: z.string().min(1, 'Organization ID is required'),
-	fileData: z.string().min(1, 'File data is required'),
-	fileName: z.string().min(1, 'File name is required'),
-	fileType: z.string().min(1, 'File type is required'),
+	organizationId: z.string().min(1, "Organization ID is required"),
+	fileData: z.string().min(1, "File data is required"),
+	fileName: z.string().min(1, "File name is required"),
+	fileType: z.string().min(1, "File type is required"),
 });
 
 export const organizationsRouter = createTRPCRouter({
@@ -32,13 +32,13 @@ export const organizationsRouter = createTRPCRouter({
 		.mutation(async ({ input, ctx }) => {
 			const { success } = await websitesApi.hasPermission({
 				headers: ctx.headers,
-				body: { permissions: { organization: ['manage_logo'] } },
+				body: { permissions: { organization: ["manage_logo"] } },
 			});
 			if (!success) {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'You do not have permission to manage this organization logo.',
+						"You do not have permission to manage this organization logo.",
 				});
 			}
 
@@ -51,8 +51,8 @@ export const organizationsRouter = createTRPCRouter({
 
 			if (!org) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Organization not found.',
+					code: "NOT_FOUND",
+					message: "Organization not found.",
 				});
 			}
 
@@ -64,24 +64,24 @@ export const organizationsRouter = createTRPCRouter({
 
 				// Type check the input since it's extended
 				if (
-					typeof input.fileData !== 'string' ||
-					typeof input.fileName !== 'string' ||
-					typeof input.fileType !== 'string'
+					typeof input.fileData !== "string" ||
+					typeof input.fileName !== "string" ||
+					typeof input.fileType !== "string"
 				) {
 					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'Invalid file data format',
+						code: "BAD_REQUEST",
+						message: "Invalid file data format",
 					});
 				}
 
-				const base64Data = input.fileData.split(',')[1];
+				const base64Data = input.fileData.split(",")[1];
 				if (!base64Data) {
 					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'Invalid file data format',
+						code: "BAD_REQUEST",
+						message: "Invalid file data format",
 					});
 				}
-				const buffer = Buffer.from(base64Data, 'base64');
+				const buffer = Buffer.from(base64Data, "base64");
 				const file = new File([buffer], input.fileName, {
 					type: input.fileType,
 				});
@@ -107,8 +107,8 @@ export const organizationsRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to upload organization logo',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to upload organization logo",
 					cause: error,
 				});
 			}
@@ -119,13 +119,13 @@ export const organizationsRouter = createTRPCRouter({
 		.mutation(async ({ input, ctx }) => {
 			const { success } = await websitesApi.hasPermission({
 				headers: ctx.headers,
-				body: { permissions: { organization: ['manage_logo'] } },
+				body: { permissions: { organization: ["manage_logo"] } },
 			});
 			if (!success) {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'You do not have permission to manage this organization logo.',
+						"You do not have permission to manage this organization logo.",
 				});
 			}
 
@@ -138,8 +138,8 @@ export const organizationsRouter = createTRPCRouter({
 
 			if (!org) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Organization not found.',
+					code: "NOT_FOUND",
+					message: "Organization not found.",
 				});
 			}
 
@@ -165,8 +165,8 @@ export const organizationsRouter = createTRPCRouter({
 					throw error;
 				}
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to delete organization logo',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete organization logo",
 					cause: error,
 				});
 			}
@@ -177,13 +177,13 @@ export const organizationsRouter = createTRPCRouter({
 		.query(async ({ input, ctx }) => {
 			const { success } = await websitesApi.hasPermission({
 				headers: ctx.headers,
-				body: { permissions: { organization: ['read'] } },
+				body: { permissions: { organization: ["read"] } },
 			});
 			if (!success) {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
+					code: "FORBIDDEN",
 					message:
-						'You do not have permission to view invitations for this organization.',
+						"You do not have permission to view invitations for this organization.",
 				});
 			}
 
@@ -195,8 +195,8 @@ export const organizationsRouter = createTRPCRouter({
 
 			if (!org) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Organization not found.',
+					code: "NOT_FOUND",
+					message: "Organization not found.",
 				});
 			}
 
@@ -206,7 +206,7 @@ export const organizationsRouter = createTRPCRouter({
 				];
 
 				if (!input.includeExpired) {
-					conditions.push(eq(invitation.status, 'pending'));
+					conditions.push(eq(invitation.status, "pending"));
 				}
 
 				const invitations = await db
@@ -225,8 +225,8 @@ export const organizationsRouter = createTRPCRouter({
 				return invitations;
 			} catch (error) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch pending invitations',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to fetch pending invitations",
 					cause: error,
 				});
 			}
@@ -245,7 +245,7 @@ export const organizationsRouter = createTRPCRouter({
 			)
 			.innerJoin(member, eq(organization.id, member.organizationId))
 			.innerJoin(user, eq(member.userId, user.id))
-			.where(and(eq(session.userId, ctx.user.id), eq(member.role, 'owner')))
+			.where(and(eq(session.userId, ctx.user.id), eq(member.role, "owner")))
 			.limit(1);
 
 		// Determine customer ID: organization owner or current user
@@ -254,7 +254,7 @@ export const organizationsRouter = createTRPCRouter({
 		try {
 			const checkResult = await autumn.check({
 				customer_id: customerId,
-				feature_id: 'events',
+				feature_id: "events",
 			});
 
 			const data = checkResult.data;
@@ -278,10 +278,10 @@ export const organizationsRouter = createTRPCRouter({
 					!orgResult?.activeOrgId || orgResult.ownerId === ctx.user.id,
 			};
 		} catch (error) {
-			console.error('Failed to check usage:', error);
+			console.error("Failed to check usage:", error);
 			throw new TRPCError({
-				code: 'INTERNAL_SERVER_ERROR',
-				message: 'Failed to retrieve usage data',
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to retrieve usage data",
 				cause: error,
 			});
 		}

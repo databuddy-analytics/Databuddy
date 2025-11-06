@@ -1,16 +1,16 @@
-import type { DynamicQueryFilter } from '@databuddy/shared';
-import { useCallback } from 'react';
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { useCallback } from "react";
 
 export const operatorOptions = [
-	{ value: 'equals', label: 'equals' },
-	{ value: 'contains', label: 'contains' },
-	{ value: 'not_equals', label: 'does not equal' },
+	{ value: "equals", label: "equals" },
+	{ value: "contains", label: "contains" },
+	{ value: "not_equals", label: "does not equal" },
 ] as const;
 
 type BaseFilterType = {
-	field: DynamicQueryFilter['field'];
+	field: DynamicQueryFilter["field"];
 	operator: string;
-	value: DynamicQueryFilter['value'];
+	value: DynamicQueryFilter["value"];
 };
 
 interface UseFiltersProps<T extends BaseFilterType> {

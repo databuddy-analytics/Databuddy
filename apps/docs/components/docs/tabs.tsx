@@ -1,13 +1,13 @@
-import React from 'react';
+import React from "react";
 import {
 	Tabs as BaseTabs,
 	TabsList as BaseTabsList,
 	TabsTrigger as BaseTabsTrigger,
 	TabsContent,
-} from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
-export { TabsContent } from '@/components/ui/tabs';
+export { TabsContent } from "@/components/ui/tabs";
 
 interface TabsProps extends React.ComponentProps<typeof BaseTabs> {
 	items?: string[];
@@ -21,7 +21,7 @@ function Tabs({ className, items, children, ...props }: TabsProps) {
 
 		return (
 			<BaseTabs
-				className={cn('w-full', className)}
+				className={cn("w-full", className)}
 				defaultValue={defaultValue}
 				{...props}
 			>
@@ -57,7 +57,7 @@ function Tabs({ className, items, children, ...props }: TabsProps) {
 
 	return (
 		<BaseTabs
-			className={cn('w-full', className)}
+			className={cn("w-full", className)}
 			defaultValue={defaultValue}
 			{...props}
 		>
@@ -73,7 +73,7 @@ function TabsList({
 	return (
 		<BaseTabsList
 			className={cn(
-				'inline-flex h-10 w-fit items-center justify-center rounded border border-border bg-card/50 p-1 backdrop-blur-sm',
+				"inline-flex h-10 w-fit items-center justify-center rounded border border-border bg-card/50 p-1 backdrop-blur-sm",
 				className
 			)}
 			{...props}
@@ -88,7 +88,7 @@ function TabsTrigger({
 	return (
 		<BaseTabsTrigger
 			className={cn(
-				'relative inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded px-3 py-1 font-medium text-muted-foreground text-sm transition-all duration-200 hover:bg-background/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+				"relative inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded px-3 py-1 font-medium text-muted-foreground text-sm transition-all duration-200 hover:bg-background/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
 				className
 			)}
 			{...props}

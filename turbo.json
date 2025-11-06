@@ -20,7 +20,9 @@
         "RESEND_AUDIENCE_ID",
         "AUTUMN_SECRET_KEY",
         "REDIS_URL",
-        "KAFKA_BROKERS"
+        "REDPANDA_BROKER",
+        "REDPANDA_USER",
+        "REDPANDA_PASSWORD"
       ]
     },
     "start": {

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -8,16 +8,16 @@ import {
 	GlobeIcon,
 	MapPinIcon,
 	SparkleIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
+} from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePreferences } from '@/hooks/use-preferences';
-import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePreferences } from "@/hooks/use-preferences";
+import { cn } from "@/lib/utils";
 
 function getBrowserTimezone() {
 	return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -27,17 +27,17 @@ function formatDate(
 	date: Date,
 	options: { timezone?: string; dateFormat?: string; timeFormat?: string }
 ) {
-	const { timezone = getBrowserTimezone(), timeFormat = 'h:mm a' } = options;
+	const { timezone = getBrowserTimezone(), timeFormat = "h:mm a" } = options;
 
 	try {
-		const formatter = new Intl.DateTimeFormat('en-US', {
+		const formatter = new Intl.DateTimeFormat("en-US", {
 			timeZone: timezone,
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: timeFormat?.includes('H') ? '2-digit' : 'numeric',
-			minute: '2-digit',
-			hour12: !timeFormat?.includes('H'),
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+			hour: timeFormat?.includes("H") ? "2-digit" : "numeric",
+			minute: "2-digit",
+			hour12: !timeFormat?.includes("H"),
 		});
 
 		return formatter.format(date);
@@ -49,58 +49,58 @@ function formatDate(
 // Timezone data
 const TIMEZONES = [
 	{
-		region: 'America/New_York',
-		label: 'New York (EST/EDT)',
-		offset: 'UTC-5/-4',
+		region: "America/New_York",
+		label: "New York (EST/EDT)",
+		offset: "UTC-5/-4",
 	},
-	{ region: 'America/Chicago', label: 'Chicago (CST/CDT)', offset: 'UTC-6/-5' },
-	{ region: 'America/Denver', label: 'Denver (MST/MDT)', offset: 'UTC-7/-6' },
+	{ region: "America/Chicago", label: "Chicago (CST/CDT)", offset: "UTC-6/-5" },
+	{ region: "America/Denver", label: "Denver (MST/MDT)", offset: "UTC-7/-6" },
 	{
-		region: 'America/Los_Angeles',
-		label: 'Los Angeles (PST/PDT)',
-		offset: 'UTC-8/-7',
+		region: "America/Los_Angeles",
+		label: "Los Angeles (PST/PDT)",
+		offset: "UTC-8/-7",
 	},
-	{ region: 'Europe/London', label: 'London (GMT/BST)', offset: 'UTC+0/+1' },
-	{ region: 'Europe/Paris', label: 'Paris (CET/CEST)', offset: 'UTC+1/+2' },
-	{ region: 'Europe/Berlin', label: 'Berlin (CET/CEST)', offset: 'UTC+1/+2' },
-	{ region: 'Asia/Tokyo', label: 'Tokyo (JST)', offset: 'UTC+9' },
-	{ region: 'Asia/Shanghai', label: 'Shanghai (CST)', offset: 'UTC+8' },
-	{ region: 'Asia/Kolkata', label: 'Mumbai (IST)', offset: 'UTC+5:30' },
+	{ region: "Europe/London", label: "London (GMT/BST)", offset: "UTC+0/+1" },
+	{ region: "Europe/Paris", label: "Paris (CET/CEST)", offset: "UTC+1/+2" },
+	{ region: "Europe/Berlin", label: "Berlin (CET/CEST)", offset: "UTC+1/+2" },
+	{ region: "Asia/Tokyo", label: "Tokyo (JST)", offset: "UTC+9" },
+	{ region: "Asia/Shanghai", label: "Shanghai (CST)", offset: "UTC+8" },
+	{ region: "Asia/Kolkata", label: "Mumbai (IST)", offset: "UTC+5:30" },
 	{
-		region: 'Australia/Sydney',
-		label: 'Sydney (AEST/AEDT)',
-		offset: 'UTC+10/+11',
+		region: "Australia/Sydney",
+		label: "Sydney (AEST/AEDT)",
+		offset: "UTC+10/+11",
 	},
 	{
-		region: 'Pacific/Auckland',
-		label: 'Auckland (NZST/NZDT)',
-		offset: 'UTC+12/+13',
+		region: "Pacific/Auckland",
+		label: "Auckland (NZST/NZDT)",
+		offset: "UTC+12/+13",
 	},
 ];
 
 const DATE_FORMATS = [
-	{ value: 'MMM D, YYYY', label: 'Jan 15, 2024' },
-	{ value: 'DD/MM/YYYY', label: '15/01/2024' },
-	{ value: 'MM/DD/YYYY', label: '01/15/2024' },
-	{ value: 'YYYY-MM-DD', label: '2024-01-15' },
-	{ value: 'D MMM YYYY', label: '15 Jan 2024' },
-	{ value: 'MMMM D, YYYY', label: 'January 15, 2024' },
+	{ value: "MMM D, YYYY", label: "Jan 15, 2024" },
+	{ value: "DD/MM/YYYY", label: "15/01/2024" },
+	{ value: "MM/DD/YYYY", label: "01/15/2024" },
+	{ value: "YYYY-MM-DD", label: "2024-01-15" },
+	{ value: "D MMM YYYY", label: "15 Jan 2024" },
+	{ value: "MMMM D, YYYY", label: "January 15, 2024" },
 ];
 
 const TIME_FORMATS = [
-	{ value: 'h:mm a', label: '1:30 PM' },
-	{ value: 'HH:mm', label: '13:30' },
+	{ value: "h:mm a", label: "1:30 PM" },
+	{ value: "HH:mm", label: "13:30" },
 ];
 
 export function TimezonePreferences() {
 	const { preferences, loading, updatePreferences, refetch } = usePreferences();
 	const [localPreferences, setLocalPreferences] = useState({
-		timezone: preferences?.timezone || 'auto',
-		dateFormat: preferences?.dateFormat || 'MMM D, YYYY',
-		timeFormat: preferences?.timeFormat || 'h:mm a',
+		timezone: preferences?.timezone || "auto",
+		dateFormat: preferences?.dateFormat || "MMM D, YYYY",
+		timeFormat: preferences?.timeFormat || "h:mm a",
 	});
 	const [saving, setSaving] = useState(false);
-	const [activeTab, setActiveTab] = useState('timezone');
+	const [activeTab, setActiveTab] = useState("timezone");
 	const [hasChanges, setHasChanges] = useState(false);
 	const [originalPreferences, setOriginalPreferences] =
 		useState(localPreferences);
@@ -109,9 +109,9 @@ export function TimezonePreferences() {
 	useEffect(() => {
 		if (preferences) {
 			const prefs = {
-				timezone: preferences.timezone || 'auto',
-				dateFormat: preferences.dateFormat || 'MMM D, YYYY',
-				timeFormat: preferences.timeFormat || 'h:mm a',
+				timezone: preferences.timezone || "auto",
+				dateFormat: preferences.dateFormat || "MMM D, YYYY",
+				timeFormat: preferences.timeFormat || "h:mm a",
 			};
 			setLocalPreferences(prefs);
 			setOriginalPreferences(prefs);
@@ -130,12 +130,12 @@ export function TimezonePreferences() {
 		try {
 			setSaving(true);
 			await updatePreferences(localPreferences);
-			toast.success('Preferences saved successfully');
+			toast.success("Preferences saved successfully");
 			setOriginalPreferences(localPreferences);
 			setHasChanges(false);
 			refetch();
 		} catch (_error) {
-			toast.error('Failed to save preferences');
+			toast.error("Failed to save preferences");
 		} finally {
 			setSaving(false);
 		}
@@ -149,7 +149,7 @@ export function TimezonePreferences() {
 	// Current date/time for examples
 	const now = new Date();
 	const currentTimezone =
-		localPreferences.timezone === 'auto'
+		localPreferences.timezone === "auto"
 			? getBrowserTimezone()
 			: localPreferences.timezone;
 	const dateExample = formatDate(now, {
@@ -173,12 +173,11 @@ export function TimezonePreferences() {
 			},
 			{} as Record<string, typeof TIMEZONES>
 		)
-	).sort((a, b) => {
-		return (
-			Number.parseFloat(a[0].replace('UTC', '').replace('+', '')) -
-			Number.parseFloat(b[0].replace('UTC', '').replace('+', ''))
-		);
-	});
+	).sort(
+		(a, b) =>
+			Number.parseFloat(a[0].replace("UTC", "").replace("+", "")) -
+			Number.parseFloat(b[0].replace("UTC", "").replace("+", ""))
+	);
 
 	if (loading) {
 		return (
@@ -223,7 +222,7 @@ export function TimezonePreferences() {
 									size={16}
 									weight="duotone"
 								/>
-								{currentTimezone.split('/').pop()?.replace('_', ' ')}
+								{currentTimezone.split("/").pop()?.replace("_", " ")}
 							</Badge>
 						</div>
 					</div>
@@ -256,24 +255,24 @@ export function TimezonePreferences() {
 							<Button
 								className="w-full justify-start gap-2"
 								onClick={() =>
-									setLocalPreferences({ ...localPreferences, timezone: 'auto' })
+									setLocalPreferences({ ...localPreferences, timezone: "auto" })
 								}
 								onKeyDown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') {
+									if (e.key === "Enter" || e.key === " ") {
 										setLocalPreferences({
 											...localPreferences,
-											timezone: 'auto',
+											timezone: "auto",
 										});
 									}
 								}}
 								size="sm"
 								variant={
-									localPreferences.timezone === 'auto' ? 'default' : 'outline'
+									localPreferences.timezone === "auto" ? "default" : "outline"
 								}
 							>
 								<GlobeIcon className="h-4 w-4" size={16} weight="duotone" />
 								Auto-detect ({getBrowserTimezone()})
-								{localPreferences.timezone === 'auto' && (
+								{localPreferences.timezone === "auto" && (
 									<CheckCircleIcon
 										className="ml-auto h-4 w-4"
 										size={16}
@@ -298,10 +297,10 @@ export function TimezonePreferences() {
 											{zones.map((tz) => (
 												<div
 													className={cn(
-														'mx-1 my-0.5 cursor-pointer rounded-md px-3 py-2 text-sm transition-all duration-200',
-														'hover:bg-accent hover:text-accent-foreground',
+														"mx-1 my-0.5 cursor-pointer rounded-md px-3 py-2 text-sm transition-all duration-200",
+														"hover:bg-accent hover:text-accent-foreground",
 														localPreferences.timezone === tz.region &&
-															'bg-primary text-primary-foreground'
+															"bg-primary text-primary-foreground"
 													)}
 													key={tz.region}
 													onClick={() =>
@@ -311,7 +310,7 @@ export function TimezonePreferences() {
 														})
 													}
 													onKeyDown={(e) => {
-														if (e.key === 'Enter' || e.key === ' ') {
+														if (e.key === "Enter" || e.key === " ") {
 															setLocalPreferences({
 																...localPreferences,
 																timezone: tz.region,
@@ -346,11 +345,11 @@ export function TimezonePreferences() {
 							{DATE_FORMATS.map((option) => (
 								<div
 									className={cn(
-										'cursor-pointer rounded-lg border border-muted/50 p-3 transition-all duration-200',
-										'hover:border-accent-foreground/20 hover:bg-accent',
+										"cursor-pointer rounded-lg border border-muted/50 p-3 transition-all duration-200",
+										"hover:border-accent-foreground/20 hover:bg-accent",
 										localPreferences.dateFormat === option.value
-											? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-											: ''
+											? "border-primary bg-primary/5 ring-1 ring-primary/20"
+											: ""
 									)}
 									key={option.value}
 									onClick={() =>
@@ -360,7 +359,7 @@ export function TimezonePreferences() {
 										})
 									}
 									onKeyDown={(e) => {
-										if (e.key === 'Enter' || e.key === ' ') {
+										if (e.key === "Enter" || e.key === " ") {
 											setLocalPreferences({
 												...localPreferences,
 												dateFormat: option.value,
@@ -396,11 +395,11 @@ export function TimezonePreferences() {
 							{TIME_FORMATS.map((option) => (
 								<div
 									className={cn(
-										'cursor-pointer rounded-lg border border-muted/50 p-3 transition-all duration-200',
-										'hover:border-accent-foreground/20 hover:bg-accent',
+										"cursor-pointer rounded-lg border border-muted/50 p-3 transition-all duration-200",
+										"hover:border-accent-foreground/20 hover:bg-accent",
 										localPreferences.timeFormat === option.value
-											? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-											: ''
+											? "border-primary bg-primary/5 ring-1 ring-primary/20"
+											: ""
 									)}
 									key={option.value}
 									onClick={() =>
@@ -410,7 +409,7 @@ export function TimezonePreferences() {
 										})
 									}
 									onKeyDown={(e) => {
-										if (e.key === 'Enter' || e.key === ' ') {
+										if (e.key === "Enter" || e.key === " ") {
 											setLocalPreferences({
 												...localPreferences,
 												timeFormat: option.value,

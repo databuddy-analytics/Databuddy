@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { ArrowLeft, Home } from 'lucide-react';
-import { Geist } from 'next/font/google';
-import Link from 'next/link';
-import LiquidChrome from '@/components/bits/liquid';
-import { Navbar } from '@/components/navbar';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft, Home } from "lucide-react";
+import { Geist } from "next/font/google";
+import Link from "next/link";
+import LiquidChrome from "@/components/bits/liquid";
+import { Navbar } from "@/components/navbar";
+import { Button } from "@/components/ui/button";
 
-const geist = Geist({ subsets: ['latin'] });
+const geist = Geist({ subsets: ["latin"] });
 
 export default function NotFound() {
 	return (

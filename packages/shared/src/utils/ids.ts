@@ -1,14 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import { nanoid } from 'nanoid';
+import { randomUUID } from "node:crypto";
+import { nanoid } from "nanoid";
 
-export type IdType = 'UUID' | 'NANOID';
+export type IdType = "UUID" | "NANOID";
 
-export function createId(type: IdType = 'UUID') {
-	if (type === 'UUID') {
+export function createId(type: IdType = "UUID") {
+	if (type === "UUID") {
 		return randomUUID();
 	}
-	if (type === 'NANOID') {
+	if (type === "NANOID") {
 		return nanoid(10);
 	}
-	throw new Error('Invalid ID type');
+	throw new Error("Invalid ID type");
 }

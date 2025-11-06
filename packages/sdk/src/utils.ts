@@ -15,7 +15,7 @@ export function detectClientId(providedClientId?: string): string | undefined {
 	}
 
 	// Try to get from environment variables
-	if (typeof process !== 'undefined' && process.env) {
+	if (typeof process !== "undefined" && process.env) {
 		return (
 			process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ||
 			process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID ||
@@ -25,7 +25,7 @@ export function detectClientId(providedClientId?: string): string | undefined {
 	}
 
 	// Fallback for browser environments where process.env might not be available
-	if (typeof window !== 'undefined') {
+	if (typeof window !== "undefined") {
 		// Next.js runtime config
 		// @ts-expect-error - This might be injected by build tools
 		const nextEnv = window.__NEXT_DATA__?.env?.NEXT_PUBLIC_DATABUDDY_CLIENT_ID;

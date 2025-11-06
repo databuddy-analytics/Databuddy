@@ -1,13 +1,13 @@
-import { ArrowSquareOutIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useMemo } from 'react';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { cn } from '@/lib/utils';
-import type { NavigationItem as NavigationItemType } from './types';
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useMemo } from "react";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { cn } from "@/lib/utils";
+import type { NavigationItem as NavigationItemType } from "./types";
 
-interface NavigationItemProps extends Omit<NavigationItemType, 'icon'> {
-	icon: NavigationItemType['icon'];
+interface NavigationItemProps extends Omit<NavigationItemType, "icon"> {
+	icon: NavigationItemType["icon"];
 	isActive: boolean;
 	isRootLevel: boolean;
 	isExternal?: boolean;
@@ -36,35 +36,37 @@ export function NavigationItem({
 		if (isRootLevel) {
 			return href;
 		}
-		if (currentWebsiteId === 'sandbox') {
-			return href === '' ? '/sandbox' : `/sandbox${href}`;
+		if (currentWebsiteId === "sandbox") {
+			return href === "" ? "/sandbox" : `/sandbox${href}`;
 		}
 
 		if (
-			pathname.startsWith('/observability/database/') &&
-			pathname !== '/observability/database' &&
-			pathname !== '/observability/database/'
+			pathname.startsWith("/observability/database/") &&
+			pathname !== "/observability/database" &&
+			pathname !== "/observability/database/"
 		) {
-			return href === ''
+			return href === ""
 				? `/observability/database/${currentWebsiteId}`
 				: `/observability/database/${currentWebsiteId}${href}`;
 		}
 
-		if (pathname.startsWith('/demo/')) {
-			return href === '' ? `/demo/${currentWebsiteId}` : `/demo/${currentWebsiteId}${href}`;
+		if (pathname.startsWith("/demo/")) {
+			return href === ""
+				? `/demo/${currentWebsiteId}`
+				: `/demo/${currentWebsiteId}${href}`;
 		}
 
 		return `/websites/${currentWebsiteId}${href}`;
 	}, [href, isRootLevel, currentWebsiteId, pathname]);
 
-	const LinkComponent = isExternal ? 'a' : Link;
+	const LinkComponent = isExternal ? "a" : Link;
 
-	if (production === false && process.env.NODE_ENV === 'production') {
+	if (production === false && process.env.NODE_ENV === "production") {
 		return null;
 	}
 
 	const linkProps = isExternal
-		? { href, target: '_blank', rel: 'noopener noreferrer' }
+		? { href, target: "_blank", rel: "noopener noreferrer" }
 		: {
 				href: fullPath,
 				prefetch: true,
@@ -101,8 +103,8 @@ export function NavigationItem({
 			<div
 				aria-disabled="true"
 				className={cn(
-					'group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
-					'cursor-not-allowed text-sidebar-foreground/30'
+					"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+					"cursor-not-allowed text-sidebar-foreground/30"
 				)}
 			>
 				{content}
@@ -113,17 +115,17 @@ export function NavigationItem({
 	return (
 		<LinkComponent
 			{...linkProps}
-			aria-current={isActive ? 'page' : undefined}
-			aria-label={`${name}${isExternal ? ' (opens in new tab)' : ''}`}
+			aria-current={isActive ? "page" : undefined}
+			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				'group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+				"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
 				isActive
-					? 'border-sidebar-ring border-r-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-					: 'text-sidebar-foreground/70'
+					? "border-sidebar-ring border-r-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+					: "text-sidebar-foreground/70"
 			)}
 			data-nav-href={href}
 			data-nav-item={name}
-			data-nav-section={sectionName || 'main'}
+			data-nav-section={sectionName || "main"}
 			data-track="navigation-item-click"
 			role="menuitem"
 		>
@@ -137,12 +139,12 @@ export function NavigationItem({
 				{badge && (
 					<span
 						className={cn(
-							'rounded px-1.5 py-0.5 font-medium text-xs',
-							badge.variant === 'purple' && 'bg-accent text-accent-foreground',
-							badge.variant === 'blue' && 'bg-accent text-accent-foreground',
-							badge.variant === 'green' && 'bg-accent text-accent-foreground',
-							badge.variant === 'orange' && 'bg-muted text-muted-foreground',
-							badge.variant === 'red' && 'bg-destructive/10 text-destructive'
+							"rounded px-1.5 py-0.5 font-medium text-xs",
+							badge.variant === "purple" && "bg-accent text-accent-foreground",
+							badge.variant === "blue" && "bg-accent text-accent-foreground",
+							badge.variant === "green" && "bg-accent text-accent-foreground",
+							badge.variant === "orange" && "bg-muted text-muted-foreground",
+							badge.variant === "red" && "bg-destructive/10 text-destructive"
 						)}
 					>
 						{badge.text}

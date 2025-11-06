@@ -1,21 +1,21 @@
-import { randomUUID } from 'node:crypto';
-import {
-	type AnalyticsEvent,
-	type CustomEvent,
-	type CustomOutgoingLink,
-	type ErrorEvent,
-	type WebVitalsEvent,
-} from '@databuddy/db';
-import { checkDuplicate } from './security';
-import { sendEvent, sendEventBatch } from './producer';
-import { getGeo } from '../utils/ip-geo';
-import { parseUserAgent } from '../utils/user-agent';
+import { randomUUID } from "node:crypto";
+import type {
+	AnalyticsEvent,
+	CustomEvent,
+	CustomOutgoingLink,
+	ErrorEvent,
+	WebVitalsEvent,
+} from "@databuddy/db";
+import { getGeo } from "../utils/ip-geo";
+import { parseUserAgent } from "../utils/user-agent";
 import {
 	sanitizeString,
 	VALIDATION_LIMITS,
 	validatePerformanceMetric,
 	validateSessionId,
-} from '../utils/validation';
+} from "../utils/validation";
+import { sendEvent, sendEventBatch } from "./producer";
+import { checkDuplicate } from "./security";
 
 /**
  * Insert an error event into the database
@@ -35,7 +35,7 @@ export async function insertError(
 		eventId = randomUUID();
 	}
 
-	if (await checkDuplicate(eventId, 'error')) {
+	if (await checkDuplicate(eventId, "error")) {
 		return;
 	}
 
@@ -55,7 +55,7 @@ export async function insertError(
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		),
 		session_id: validateSessionId(payload.sessionId),
-		timestamp: typeof payload.timestamp === 'number' ? payload.timestamp : now,
+		timestamp: typeof payload.timestamp === "number" ? payload.timestamp : now,
 		path: sanitizeString(payload.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		message: sanitizeString(
 			payload.message,
@@ -73,25 +73,24 @@ export async function insertError(
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		),
 		// Enriched fields
-		ip: anonymizedIP || '',
-		country: country || '',
-		region: region || '',
-		browser_name: browserName || '',
-		browser_version: browserVersion || '',
-		os_name: osName || '',
-		os_version: osVersion || '',
-		device_type: deviceType || '',
+		ip: anonymizedIP || "",
+		country: country || "",
+		region: region || "",
+		browser_name: browserName || "",
+		browser_version: browserVersion || "",
+		os_name: osName || "",
+		os_version: osVersion || "",
+		device_type: deviceType || "",
 		created_at: now,
 	};
 
 	try {
-		sendEvent('analytics-errors', errorEvent);
+		sendEvent("analytics-errors", errorEvent);
 	} catch (err) {
-		console.error('Failed to queue error event', {
+		console.error("Failed to queue error event", {
 			error: err as Error,
 			eventId,
 		});
-		// Don't throw - event is buffered or sent async
 	}
 }
 
@@ -113,7 +112,7 @@ export async function insertWebVitals(
 		eventId = randomUUID();
 	}
 
-	if (await checkDuplicate(eventId, 'web_vitals')) {
+	if (await checkDuplicate(eventId, "web_vitals")) {
 		return;
 	}
 
@@ -133,7 +132,7 @@ export async function insertWebVitals(
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		),
 		session_id: validateSessionId(payload.sessionId),
-		timestamp: typeof payload.timestamp === 'number' ? payload.timestamp : now,
+		timestamp: typeof payload.timestamp === "number" ? payload.timestamp : now,
 		path: sanitizeString(payload.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		fcp: validatePerformanceMetric(payload.fcp),
 		lcp: validatePerformanceMetric(payload.lcp),
@@ -141,20 +140,20 @@ export async function insertWebVitals(
 		fid: validatePerformanceMetric(payload.fid),
 		inp: validatePerformanceMetric(payload.inp),
 		// Enriched fields
-		country: country || '',
-		region: region || '',
-		browser_name: browserName || '',
-		browser_version: browserVersion || '',
-		os_name: osName || '',
-		os_version: osVersion || '',
-		device_type: deviceType || '',
+		country: country || "",
+		region: region || "",
+		browser_name: browserName || "",
+		browser_version: browserVersion || "",
+		os_name: osName || "",
+		os_version: osVersion || "",
+		device_type: deviceType || "",
 		created_at: now,
 	};
 
 	try {
-		sendEvent('analytics-web-vitals', webVitalsEvent);
+		sendEvent("analytics-web-vitals", webVitalsEvent);
 	} catch (err) {
-		console.error('Failed to queue web vitals event', {
+		console.error("Failed to queue web vitals event", {
 			error: err as Error,
 			eventId,
 		});
@@ -180,7 +179,7 @@ export async function insertCustomEvent(
 		eventId = randomUUID();
 	}
 
-	if (await checkDuplicate(eventId, 'custom')) {
+	if (await checkDuplicate(eventId, "custom")) {
 		return;
 	}
 
@@ -200,15 +199,15 @@ export async function insertCustomEvent(
 		session_id: validateSessionId(customData.sessionId),
 		properties: customData.properties
 			? JSON.stringify(customData.properties)
-			: '{}',
+			: "{}",
 		timestamp:
-			typeof customData.timestamp === 'number' ? customData.timestamp : now,
+			typeof customData.timestamp === "number" ? customData.timestamp : now,
 	};
 
 	try {
-		sendEvent('analytics-custom-events', customEvent);
+		sendEvent("analytics-custom-events", customEvent);
 	} catch (err) {
-		console.error('Failed to queue custom event', {
+		console.error("Failed to queue custom event", {
 			error: err as Error,
 			eventId,
 		});
@@ -234,7 +233,7 @@ export async function insertOutgoingLink(
 		eventId = randomUUID();
 	}
 
-	if (await checkDuplicate(eventId, 'outgoing_link')) {
+	if (await checkDuplicate(eventId, "outgoing_link")) {
 		return;
 	}
 
@@ -252,19 +251,18 @@ export async function insertOutgoingLink(
 		text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
 		properties: linkData.properties
 			? JSON.stringify(linkData.properties)
-			: '{}',
+			: "{}",
 		timestamp:
-			typeof linkData.timestamp === 'number' ? linkData.timestamp : now,
+			typeof linkData.timestamp === "number" ? linkData.timestamp : now,
 	};
 
 	try {
-		sendEvent('analytics-outgoing-links', outgoingLinkEvent);
+		sendEvent("analytics-outgoing-links", outgoingLinkEvent);
 	} catch (err) {
-		console.error('Failed to queue outgoing link event', {
+		console.error("Failed to queue outgoing link event", {
 			error: err as Error,
 			eventId,
 		});
-		// Don't throw - event is buffered or sent async
 	}
 }
 
@@ -286,7 +284,7 @@ export async function insertTrackEvent(
 		eventId = randomUUID();
 	}
 
-	if (await checkDuplicate(eventId, 'track')) {
+	if (await checkDuplicate(eventId, "track")) {
 		return;
 	}
 
@@ -313,16 +311,16 @@ export async function insertTrackEvent(
 			trackData.anonymousId,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		),
-		time: typeof trackData.timestamp === 'number' ? trackData.timestamp : now,
+		time: typeof trackData.timestamp === "number" ? trackData.timestamp : now,
 		session_id: validateSessionId(trackData.sessionId),
-		event_type: 'track',
+		event_type: "track",
 		event_id: eventId,
 		session_start_time:
-			typeof trackData.sessionStartTime === 'number'
+			typeof trackData.sessionStartTime === "number"
 				? trackData.sessionStartTime
 				: now,
 		timestamp:
-			typeof trackData.timestamp === 'number' ? trackData.timestamp : now,
+			typeof trackData.timestamp === "number" ? trackData.timestamp : now,
 
 		referrer: sanitizeString(
 			trackData.referrer,
@@ -332,18 +330,18 @@ export async function insertTrackEvent(
 		path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 
-		ip: anonymizedIP || '',
-		user_agent: '',
-		browser_name: browserName || '',
-		browser_version: browserVersion || '',
-		os_name: osName || '',
-		os_version: osVersion || '',
-		device_type: deviceType || '',
-		device_brand: deviceBrand || '',
-		device_model: deviceModel || '',
-		country: country || '',
-		region: region || '',
-		city: city || '',
+		ip: anonymizedIP || "",
+		user_agent: "",
+		browser_name: browserName || "",
+		browser_version: browserVersion || "",
+		os_name: osName || "",
+		os_version: osVersion || "",
+		device_type: deviceType || "",
+		device_brand: deviceBrand || "",
+		device_model: deviceModel || "",
+		country: country || "",
+		region: region || "",
+		city: city || "",
 
 		screen_resolution: trackData.screen_resolution,
 		viewport_size: trackData.viewport_size,
@@ -376,18 +374,17 @@ export async function insertTrackEvent(
 
 		properties: trackData.properties
 			? JSON.stringify(trackData.properties)
-			: '{}',
+			: "{}",
 		created_at: now,
 	};
 
 	try {
-		sendEvent('analytics-events', trackEvent);
+		sendEvent("analytics-events", trackEvent);
 	} catch (err) {
-		console.error('Failed to queue track event', {
+		console.error("Failed to queue track event", {
 			error: err as Error,
 			eventId,
 		});
-		// Don't throw - event is buffered or sent async
 	}
 }
 
@@ -397,9 +394,9 @@ export async function insertTrackEventsBatch(
 	if (events.length === 0) return;
 
 	try {
-		await sendEventBatch('analytics-events', events);
+		await sendEventBatch("analytics-events", events);
 	} catch (err) {
-		console.error('Failed to queue track events batch', {
+		console.error("Failed to queue track events batch", {
 			error: err as Error,
 			count: events.length,
 		});
@@ -411,13 +408,12 @@ export async function insertErrorsBatch(events: ErrorEvent[]): Promise<void> {
 	if (events.length === 0) return;
 
 	try {
-		await sendEventBatch('analytics-errors', events);
+		await sendEventBatch("analytics-errors", events);
 	} catch (err) {
-		console.error('Failed to queue errors batch', {
+		console.error("Failed to queue errors batch", {
 			error: err as Error,
 			count: events.length,
 		});
-		// Don't throw - events are buffered
 	}
 }
 
@@ -427,13 +423,12 @@ export async function insertWebVitalsBatch(
 	if (events.length === 0) return;
 
 	try {
-		await sendEventBatch('analytics-web-vitals', events);
+		await sendEventBatch("analytics-web-vitals", events);
 	} catch (err) {
-		console.error('Failed to queue web vitals batch', {
+		console.error("Failed to queue web vitals batch", {
 			error: err as Error,
 			count: events.length,
 		});
-		// Don't throw - events are buffered
 	}
 }
 
@@ -443,13 +438,12 @@ export async function insertCustomEventsBatch(
 	if (events.length === 0) return;
 
 	try {
-		await sendEventBatch('analytics-custom-events', events);
+		await sendEventBatch("analytics-custom-events", events);
 	} catch (err) {
-		console.error('Failed to queue custom events batch', {
+		console.error("Failed to queue custom events batch", {
 			error: err as Error,
 			count: events.length,
 		});
-		// Don't throw - events are buffered
 	}
 }
 
@@ -459,14 +453,11 @@ export async function insertOutgoingLinksBatch(
 	if (events.length === 0) return;
 
 	try {
-		await sendEventBatch('analytics-outgoing-links', events);
+		await sendEventBatch("analytics-outgoing-links", events);
 	} catch (err) {
-		console.error('Failed to queue outgoing links batch', {
+		console.error("Failed to queue outgoing links batch", {
 			error: err as Error,
 			count: events.length,
 		});
-		// Don't throw - events are buffered
 	}
 }
-
-

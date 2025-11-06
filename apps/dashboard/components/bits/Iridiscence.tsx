@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
-import { useEffect, useRef } from 'react';
+import { Color, Mesh, Program, Renderer, Triangle } from "ogl";
+import { useEffect, useRef } from "react";
 
 const vertexShader = `
 attribute vec2 uv;
@@ -74,7 +74,7 @@ export default function Iridescence({
 
 		// Check if WebGL context was created successfully
 		if (!gl) {
-			console.error('WebGL context not available');
+			console.error("WebGL context not available");
 			return;
 		}
 
@@ -93,7 +93,7 @@ export default function Iridescence({
 				);
 			}
 		}
-		window.addEventListener('resize', resize, false);
+		window.addEventListener("resize", resize, false);
 		resize();
 
 		const geometry = new Triangle(gl);
@@ -144,19 +144,19 @@ export default function Iridescence({
 			}
 		}
 		if (mouseReact) {
-			ctn.addEventListener('mousemove', handleMouseMove);
+			ctn.addEventListener("mousemove", handleMouseMove);
 		}
 
 		return () => {
 			cancelAnimationFrame(animateId);
-			window.removeEventListener('resize', resize);
+			window.removeEventListener("resize", resize);
 			if (mouseReact) {
-				ctn.removeEventListener('mousemove', handleMouseMove);
+				ctn.removeEventListener("mousemove", handleMouseMove);
 			}
 			if (gl.canvas && ctn.contains(gl.canvas)) {
 				ctn.removeChild(gl.canvas);
 			}
-			gl.getExtension('WEBGL_lose_context')?.loseContext();
+			gl.getExtension("WEBGL_lose_context")?.loseContext();
 		};
 	}, [color, speed, amplitude, mouseReact]);
 

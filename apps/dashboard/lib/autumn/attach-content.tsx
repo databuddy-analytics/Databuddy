@@ -1,4 +1,4 @@
-import type { CheckProductPreview } from 'autumn-js';
+import type { CheckProductPreview } from "autumn-js";
 
 export const getAttachContent = (preview: CheckProductPreview) => {
 	const {
@@ -14,7 +14,7 @@ export const getAttachContent = (preview: CheckProductPreview) => {
 		: undefined;
 
 	switch (scenario) {
-		case 'scheduled':
+		case "scheduled":
 			return {
 				title: <p>{product_name} product already scheduled</p>,
 				message: (
@@ -25,13 +25,13 @@ export const getAttachContent = (preview: CheckProductPreview) => {
 				),
 			};
 
-		case 'active':
+		case "active":
 			return {
 				title: <p>Product already active</p>,
 				message: <p>You are already subscribed to this product.</p>,
 			};
 
-		case 'new':
+		case "new":
 			if (recurring) {
 				return {
 					title: <p>Subscribe to {product_name}</p>,
@@ -53,18 +53,18 @@ export const getAttachContent = (preview: CheckProductPreview) => {
 				),
 			};
 
-		case 'renew':
+		case "renew":
 			return {
 				title: <p>Renew</p>,
 				message: (
 					<p>
-						By clicking confirm, you will renew your subscription to{' '}
+						By clicking confirm, you will renew your subscription to{" "}
 						{product_name}.
 					</p>
 				),
 			};
 
-		case 'upgrade':
+		case "upgrade":
 			return {
 				title: <p>Upgrade to {product_name}</p>,
 				message: (
@@ -75,24 +75,24 @@ export const getAttachContent = (preview: CheckProductPreview) => {
 				),
 			};
 
-		case 'downgrade':
+		case "downgrade":
 			return {
 				title: <p>Downgrade to {product_name}</p>,
 				message: (
 					<p>
-						By clicking confirm, your current subscription to{' '}
-						{current_product_name} will be cancelled and a new subscription to{' '}
+						By clicking confirm, your current subscription to{" "}
+						{current_product_name} will be cancelled and a new subscription to{" "}
 						{product_name} will begin on {nextCycleAtStr}.
 					</p>
 				),
 			};
 
-		case 'cancel':
+		case "cancel":
 			return {
 				title: <p>Cancel</p>,
 				message: (
 					<p>
-						By clicking confirm, your subscription to {current_product_name}{' '}
+						By clicking confirm, your subscription to {current_product_name}{" "}
 						will end on {nextCycleAtStr}.
 					</p>
 				),

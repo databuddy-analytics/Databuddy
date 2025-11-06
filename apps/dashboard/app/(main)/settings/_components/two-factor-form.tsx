@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	authClient,
@@ -6,7 +6,7 @@ import {
 	generateBackupCodes,
 	useSession,
 	verifyTwoFactorCode,
-} from '@databuddy/auth/client';
+} from "@databuddy/auth/client";
 import {
 	ArrowClockwiseIcon,
 	CheckCircleIcon,
@@ -14,13 +14,13 @@ import {
 	DownloadIcon,
 	KeyIcon,
 	ShieldCheckIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useRef, useState } from 'react';
-import { type SubmitHandler, useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+} from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import { type SubmitHandler, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Form,
 	FormControl,
@@ -28,15 +28,15 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 
 const setupFormDefaultValues = {
-	password: '',
+	password: "",
 };
 
 const verifyFormDefaultValues = {
-	code: '',
+	code: "",
 	trustDevice: false,
 };
 
@@ -102,8 +102,8 @@ export function TwoFactorForm() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [setupStep, setSetupStep] = useState<
-		'initial' | 'qrcode' | 'verify' | 'complete'
-	>('initial');
+		"initial" | "qrcode" | "verify" | "complete"
+	>("initial");
 	const [qrCodeURI, setQrCodeURI] = useState<string | null>(null);
 	const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
 	const [copied, setCopied] = useState(false);
@@ -134,7 +134,7 @@ export function TwoFactorForm() {
 					);
 				}
 			} catch (error) {
-				console.error('Failed to check 2FA status:', error);
+				console.error("Failed to check 2FA status:", error);
 			}
 		};
 
@@ -145,7 +145,7 @@ export function TwoFactorForm() {
 
 	// Focus OTP input when QR code is shown
 	useEffect(() => {
-		if (setupStep === 'qrcode' && otpInputRef.current) {
+		if (setupStep === "qrcode" && otpInputRef.current) {
 			otpInputRef.current.focus();
 		}
 	}, [setupStep]);
@@ -161,19 +161,19 @@ export function TwoFactorForm() {
 					if (data?.totpURI) {
 						setQrCodeURI(data.totpURI);
 						setBackupCodes(data.backupCodes || []);
-						setSetupStep('qrcode');
+						setSetupStep("qrcode");
 					}
 				},
 				onError: (error) => {
-					toast.error(error.message || 'Failed to enable 2FA');
+					toast.error(error.message || "Failed to enable 2FA");
 				},
 			});
 
 			if (!result.success) {
-				toast.error('Failed to enable 2FA');
+				toast.error("Failed to enable 2FA");
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to enable 2FA');
+			toast.error(error.message || "Failed to enable 2FA");
 		} finally {
 			setIsLoading(false);
 		}
@@ -188,22 +188,22 @@ export function TwoFactorForm() {
 			const result = await verifyTwoFactorCode(data.code, {
 				trustDevice: data.trustDevice,
 				onSuccess: () => {
-					toast.success('Two-factor authentication enabled successfully');
-					setSetupStep('complete');
+					toast.success("Two-factor authentication enabled successfully");
+					setSetupStep("complete");
 					setIsEnabled(true);
 					// Force a session refresh
 					window.location.reload();
 				},
 				onError: (error) => {
-					toast.error(error.message || 'Failed to verify code');
+					toast.error(error.message || "Failed to verify code");
 				},
 			});
 
 			if (!result.success) {
-				toast.error('Failed to verify code');
+				toast.error("Failed to verify code");
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to verify code');
+			toast.error(error.message || "Failed to verify code");
 		} finally {
 			setIsLoading(false);
 		}
@@ -213,7 +213,7 @@ export function TwoFactorForm() {
 	const handleDisable2FA = async () => {
 		if (
 			!confirm(
-				'Are you sure you want to disable two-factor authentication? This will make your account less secure.'
+				"Are you sure you want to disable two-factor authentication? This will make your account less secure."
 			)
 		) {
 			return;
@@ -222,19 +222,19 @@ export function TwoFactorForm() {
 		setIsLoading(true);
 		try {
 			const response = await authClient.twoFactor.disable({
-				password: prompt('Enter your password to confirm') || '',
+				password: prompt("Enter your password to confirm") || "",
 			});
 			if (response.error) {
-				toast.error(response.error.message || 'Failed to disable 2FA');
+				toast.error(response.error.message || "Failed to disable 2FA");
 			} else {
-				toast.success('Two-factor authentication disabled');
+				toast.success("Two-factor authentication disabled");
 				setIsEnabled(false);
-				setSetupStep('initial');
+				setSetupStep("initial");
 				// Force a session refresh
 				window.location.reload();
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to disable 2FA');
+			toast.error(error.message || "Failed to disable 2FA");
 		} finally {
 			setIsLoading(false);
 		}
@@ -242,7 +242,7 @@ export function TwoFactorForm() {
 
 	// Handle regenerate backup codes
 	const handleRegenerateBackupCodes = async () => {
-		const password = prompt('Enter your password to generate new backup codes');
+		const password = prompt("Enter your password to generate new backup codes");
 		if (!password) {
 			return;
 		}
@@ -252,18 +252,18 @@ export function TwoFactorForm() {
 			const result = await generateBackupCodes(password, {
 				onSuccess: (codes) => {
 					setBackupCodes(codes);
-					toast.success('New backup codes generated');
+					toast.success("New backup codes generated");
 				},
 				onError: (error) => {
-					toast.error(error.message || 'Failed to generate backup codes');
+					toast.error(error.message || "Failed to generate backup codes");
 				},
 			});
 
 			if (!result.success) {
-				toast.error('Failed to generate backup codes');
+				toast.error("Failed to generate backup codes");
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to generate backup codes');
+			toast.error(error.message || "Failed to generate backup codes");
 		} finally {
 			setIsLoading(false);
 		}
@@ -272,7 +272,7 @@ export function TwoFactorForm() {
 	// Copy backup codes to clipboard
 	const copyBackupCodes = () => {
 		if (backupCodes) {
-			navigator.clipboard.writeText(backupCodes.join('\n'));
+			navigator.clipboard.writeText(backupCodes.join("\n"));
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		}
@@ -284,37 +284,37 @@ export function TwoFactorForm() {
 			return;
 		}
 
-		const fileName = 'databuddy-backup-codes.txt';
+		const fileName = "databuddy-backup-codes.txt";
 		const content = `
       Databuddy Two-Factor Authentication Backup Codes
       Save these codes in a safe place. Each code can only be used once.
-      ${backupCodes.join('\n')}
+      ${backupCodes.join("\n")}
       Generated on: ${new Date().toLocaleString()}
     `;
 
-		const element = document.createElement('a');
-		const file = new Blob([content], { type: 'text/plain' });
+		const element = document.createElement("a");
+		const file = new Blob([content], { type: "text/plain" });
 		element.href = URL.createObjectURL(file);
 		element.download = fileName;
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
 
-		toast.success('Backup codes downloaded');
+		toast.success("Backup codes downloaded");
 	};
 
 	// Format OTP input to auto-format numbers
 	const formatOtpInput = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const value = e.target.value;
 		// Allow only digits
-		const digitsOnly = value.replace(/\D/g, '');
+		const digitsOnly = value.replace(/\D/g, "");
 		// Limit to 6 digits
 		const truncated = digitsOnly.slice(0, 6);
 		// Update the form value
-		verifyForm.setValue('code', truncated);
+		verifyForm.setValue("code", truncated);
 	};
 
-	if (setupStep === 'qrcode') {
+	if (setupStep === "qrcode") {
 		return (
 			<div className="space-y-4">
 				<Alert>
@@ -390,7 +390,7 @@ export function TwoFactorForm() {
 
 							<div className="flex justify-between">
 								<Button
-									onClick={() => setSetupStep('initial')}
+									onClick={() => setSetupStep("initial")}
 									type="button"
 									variant="outline"
 								>
@@ -430,7 +430,7 @@ export function TwoFactorForm() {
 		);
 	}
 
-	if (setupStep === 'complete') {
+	if (setupStep === "complete") {
 		return (
 			<div className="space-y-4">
 				<Alert className="border-green-500/20 bg-green-500/10">

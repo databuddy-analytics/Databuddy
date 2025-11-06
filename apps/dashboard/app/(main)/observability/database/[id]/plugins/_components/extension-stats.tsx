@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	CheckIcon,
 	DatabaseIcon,
 	PlusIcon,
-} from '@phosphor-icons/react';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ExtensionStatsProps {
 	stats: {
@@ -21,27 +21,27 @@ function StatCard({
 	title,
 	value,
 	icon,
-	variant = 'default',
+	variant = "default",
 }: {
 	title: string;
 	value: number;
 	icon: React.ReactNode;
-	variant?: 'default' | 'success' | 'warning' | 'info';
+	variant?: "default" | "success" | "warning" | "info";
 }) {
 	const variantStyles = {
-		default: 'border-border bg-card',
+		default: "border-border bg-card",
 		success:
-			'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20',
+			"border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20",
 		warning:
-			'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20',
-		info: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20',
+			"border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20",
+		info: "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20",
 	};
 
 	const iconStyles = {
-		default: 'text-muted-foreground',
-		success: 'text-green-600',
-		warning: 'text-amber-600',
-		info: 'text-blue-600',
+		default: "text-muted-foreground",
+		success: "text-green-600",
+		warning: "text-amber-600",
+		info: "text-blue-600",
 	};
 
 	return (
@@ -104,7 +104,7 @@ export function ExtensionStats({ stats, isLoading }: ExtensionStatsProps) {
 				icon={<ArrowClockwiseIcon className="h-5 w-5" />}
 				title="Updates Available"
 				value={stats.updates}
-				variant={stats.updates > 0 ? 'warning' : 'default'}
+				variant={stats.updates > 0 ? "warning" : "default"}
 			/>
 			<StatCard
 				icon={<DatabaseIcon className="h-5 w-5" />}

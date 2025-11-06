@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { ClockIcon, MapPinIcon, RocketLaunchIcon } from '@phosphor-icons/react';
-import { SciFiCard } from '@/components/scifi-card';
-import type { RoadmapStats } from './roadmap-types';
+import { ClockIcon, MapPinIcon, RocketLaunchIcon } from "@phosphor-icons/react";
+import { SciFiCard } from "@/components/scifi-card";
+import type { RoadmapStats } from "./roadmap-types";
 
 interface Props {
 	stats: RoadmapStats;
@@ -15,7 +15,7 @@ export default function RoadmapHero({ stats }: Props) {
 				{/* Hero Title */}
 				<div className="mb-6">
 					<h1 className="mb-4 font-bold text-4xl tracking-tight sm:text-5xl lg:text-6xl">
-						Product{' '}
+						Product{" "}
 						<span className="bg-gradient-to-r from-foreground via-muted-foreground to-foreground bg-clip-text text-transparent">
 							Roadmap
 						</span>
@@ -41,7 +41,7 @@ export default function RoadmapHero({ stats }: Props) {
 						</div>
 					</div>
 					<p className="text-muted-foreground text-sm">
-						{stats.completedItems} of {stats.totalItems} items completed •{' '}
+						{stats.completedItems} of {stats.totalItems} items completed •{" "}
 						{stats.inProgressItems} in progress
 					</p>
 				</div>

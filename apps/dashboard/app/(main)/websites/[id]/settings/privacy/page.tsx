@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
 import {
 	CheckIcon,
 	ClipboardIcon,
 	InfoIcon,
 	ShareIcon,
-} from '@phosphor-icons/react';
-import { useParams } from 'next/navigation';
-import { useCallback } from 'react';
-import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { useTogglePublicWebsite, useWebsite } from '@/hooks/use-websites';
+} from "@phosphor-icons/react";
+import { useParams } from "next/navigation";
+import { useCallback } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useTogglePublicWebsite, useWebsite } from "@/hooks/use-websites";
 
 export default function PrivacyPage() {
 	const params = useParams();
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
 	const isPublic = websiteData?.isPublic ?? false;
 	const shareableLink = websiteData
 		? `${window.location.origin}/demo/${websiteId}`
-		: '';
+		: "";
 
 	const handleTogglePublic = useCallback(() => {
 		if (!websiteData) {
@@ -34,9 +34,9 @@ export default function PrivacyPage() {
 		toast.promise(
 			toggleMutation.mutateAsync({ id: websiteId, isPublic: !isPublic }),
 			{
-				loading: 'Updating privacy settings...',
-				success: 'Privacy settings updated successfully',
-				error: 'Failed to update privacy settings',
+				loading: "Updating privacy settings...",
+				success: "Privacy settings updated successfully",
+				error: "Failed to update privacy settings",
 			}
 		);
 		refetch();
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
 			return;
 		}
 		navigator.clipboard.writeText(shareableLink);
-		toast.success('Link copied to clipboard!');
+		toast.success("Link copied to clipboard!");
 	}, [shareableLink]);
 
 	if (!websiteData) {
@@ -75,12 +75,12 @@ export default function PrivacyPage() {
 									<Badge
 										className={
 											isPublic
-												? 'h-5 bg-green-100 px-2 text-green-800 dark:bg-green-900/30 dark:text-green-200'
-												: 'h-5 px-2'
+												? "h-5 bg-green-100 px-2 text-green-800 dark:bg-green-900/30 dark:text-green-200"
+												: "h-5 px-2"
 										}
-										variant={isPublic ? 'secondary' : 'secondary'}
+										variant={isPublic ? "secondary" : "secondary"}
 									>
-										{isPublic ? 'Public' : 'Private'}
+										{isPublic ? "Public" : "Private"}
 									</Badge>
 								</div>
 								<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">

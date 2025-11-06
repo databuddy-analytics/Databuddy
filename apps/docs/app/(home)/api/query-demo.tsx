@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getQueryTypes } from './actions';
-import { executeBatchQueries } from './query-builder';
-import { QueryResults } from './query-results';
-import { QueryTypeSelector } from './query-type-selector';
-import type { BatchQueryResponse, DynamicQueryRequest } from './types';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { getQueryTypes } from "./actions";
+import { executeBatchQueries } from "./query-builder";
+import { QueryResults } from "./query-results";
+import { QueryTypeSelector } from "./query-type-selector";
+import type { BatchQueryResponse, DynamicQueryRequest } from "./types";
 
 interface QueryType {
 	name: string;
@@ -33,17 +33,17 @@ export function QueryDemo() {
 		try {
 			const queries: DynamicQueryRequest[] = [
 				{
-					id: 'custom-query',
+					id: "custom-query",
 					parameters,
 					limit: 50,
 				},
 			];
 
-			const websiteId = 'OXmNQsViBT-FOS_wZCTHc';
-			const endDate = new Date().toISOString().split('T')[0];
+			const websiteId = "OXmNQsViBT-FOS_wZCTHc";
+			const endDate = new Date().toISOString().split("T")[0];
 			const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 				.toISOString()
-				.split('T')[0];
+				.split("T")[0];
 
 			const response = await executeBatchQueries(
 				websiteId,
@@ -60,7 +60,7 @@ export function QueryDemo() {
 				results: [
 					{
 						success: false,
-						queryId: 'custom-query',
+						queryId: "custom-query",
 						data: [],
 						meta: {
 							parameters,

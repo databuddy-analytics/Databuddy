@@ -1,8 +1,8 @@
-import { ArrowLeftIcon } from '@phosphor-icons/react/ssr';
-import Link from 'next/link';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
+import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
 
 export default function NotFound() {
 	return (

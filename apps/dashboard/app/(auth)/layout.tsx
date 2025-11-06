@@ -1,12 +1,12 @@
-import { auth } from '@databuddy/auth';
-import { CaretLeftIcon, SpinnerIcon } from '@phosphor-icons/react/ssr';
-import { headers } from 'next/headers';
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { Suspense } from 'react';
-import Iridescence from '@/components/bits/Iridiscence';
-import { Logo } from '@/components/layout/logo';
-import { Button } from '@/components/ui/button';
+import { auth } from "@databuddy/auth";
+import { CaretLeftIcon, SpinnerIcon } from "@phosphor-icons/react/ssr";
+import { headers } from "next/headers";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import Iridescence from "@/components/bits/Iridiscence";
+import { Logo } from "@/components/layout/logo";
+import { Button } from "@/components/ui/button";
 
 export default async function AuthLayout({
 	children,
@@ -16,7 +16,7 @@ export default async function AuthLayout({
 	const session = await auth.api.getSession({ headers: await headers() });
 
 	if (session) {
-		redirect('/websites');
+		redirect("/websites");
 	}
 
 	return (

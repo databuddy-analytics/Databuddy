@@ -1,16 +1,16 @@
-import { auth } from '@databuddy/auth';
-import { Elysia } from 'elysia';
+import { auth } from "@databuddy/auth";
+import { Elysia } from "elysia";
 import {
 	getApiKeyFromHeader,
 	hasWebsiteScope,
 	isApiKeyPresent,
-} from '../lib/api-key';
-import { getCachedWebsite, getTimezone } from '../lib/website-utils';
+} from "../lib/api-key";
+import { getCachedWebsite, getTimezone } from "../lib/website-utils";
 
 function json(status: number, body: unknown) {
 	return new Response(JSON.stringify(body), {
 		status,
-		headers: { 'Content-Type': 'application/json' },
+		headers: { "Content-Type": "application/json" },
 	});
 }
 
@@ -28,7 +28,7 @@ export function websiteAuth() {
 			}
 
 			const url = new URL(request.url);
-			const websiteId = url.searchParams.get('website_id');
+			const websiteId = url.searchParams.get("website_id");
 			const { sessionUser, apiKey, apiKeyPresent } =
 				await getAuthContext(request);
 
@@ -43,7 +43,7 @@ export function websiteAuth() {
 		})
 		.derive(async ({ request }) => {
 			const url = new URL(request.url);
-			const websiteId = url.searchParams.get('website_id');
+			const websiteId = url.searchParams.get("website_id");
 			const apiKeyPresent = isApiKeyPresent(request.headers);
 			const session = apiKeyPresent
 				? null
@@ -62,15 +62,15 @@ export function websiteAuth() {
 }
 
 function isPreflight(request: Request): boolean {
-	return request.method === 'OPTIONS' || request.method === 'HEAD';
+	return request.method === "OPTIONS" || request.method === "HEAD";
 }
 
 function shouldDebug(): boolean {
-	return process.env.NODE_ENV === 'development';
+	return process.env.NODE_ENV === "development";
 }
 
 async function getAuthContext(request: Request) {
-	const apiKeyPresent = request.headers.get('x-api-key') != null;
+	const apiKeyPresent = request.headers.get("x-api-key") != null;
 	const apiKey = apiKeyPresent
 		? await getApiKeyFromHeader(request.headers)
 		: null;
@@ -88,8 +88,8 @@ function checkNoWebsiteAuth(
 	}
 	return json(401, {
 		success: false,
-		error: 'Authentication required',
-		code: 'AUTH_REQUIRED',
+		error: "Authentication required",
+		code: "AUTH_REQUIRED",
 	});
 }
 
@@ -103,8 +103,8 @@ async function checkWebsiteAuth(
 	if (!website) {
 		return json(404, {
 			success: false,
-			error: 'Website not found',
-			code: 'NOT_FOUND',
+			error: "Website not found",
+			code: "NOT_FOUND",
 		});
 	}
 	if (website.isPublic) {
@@ -116,23 +116,23 @@ async function checkWebsiteAuth(
 	if (!apiKeyPresent) {
 		return json(401, {
 			success: false,
-			error: 'Authentication required',
-			code: 'AUTH_REQUIRED',
+			error: "Authentication required",
+			code: "AUTH_REQUIRED",
 		});
 	}
 	if (!apiKey) {
 		return json(401, {
 			success: false,
-			error: 'Invalid or expired API key',
-			code: 'AUTH_REQUIRED',
+			error: "Invalid or expired API key",
+			code: "AUTH_REQUIRED",
 		});
 	}
-	const ok = await hasWebsiteScope(apiKey, websiteId, 'read:data');
+	const ok = await hasWebsiteScope(apiKey, websiteId, "read:data");
 	if (!ok) {
 		return json(403, {
 			success: false,
-			error: 'Insufficient permissions',
-			code: 'FORBIDDEN',
+			error: "Insufficient permissions",
+			code: "FORBIDDEN",
 		});
 	}
 	return null;

@@ -1,19 +1,19 @@
-import { chQuery } from '@databuddy/db';
-import type { DeviceType } from './screen-resolution-to-device-type';
+import { chQuery } from "@databuddy/db";
+import type { DeviceType } from "./screen-resolution-to-device-type";
 import type {
 	CompiledQuery,
 	Filter,
 	QueryRequest,
 	SimpleQueryConfig,
-} from './types';
-import { FilterOperators } from './types';
-import { applyPlugins } from './utils';
+} from "./types";
+import { FilterOperators } from "./types";
+import { applyPlugins } from "./utils";
 
 // Constants for special filter fields to prevent typos
 const SPECIAL_FILTER_FIELDS = {
-	PATH: 'path',
-	REFERRER: 'referrer',
-	DEVICE_TYPE: 'device_type',
+	PATH: "path",
+	REFERRER: "referrer",
+	DEVICE_TYPE: "device_type",
 } as const;
 
 // Helper function to normalize user input for referrer filters
@@ -22,21 +22,21 @@ function normalizeReferrerFilterValue(value: string): string {
 
 	// Map common user inputs to normalized referrer values
 	const referrerMappings: Record<string, string> = {
-		direct: 'direct',
-		google: 'https://google.com',
-		'google.com': 'https://google.com',
-		'www.google.com': 'https://google.com',
-		facebook: 'https://facebook.com',
-		'facebook.com': 'https://facebook.com',
-		'www.facebook.com': 'https://facebook.com',
-		twitter: 'https://twitter.com',
-		'twitter.com': 'https://twitter.com',
-		'www.twitter.com': 'https://twitter.com',
-		't.co': 'https://twitter.com',
-		instagram: 'https://instagram.com',
-		'instagram.com': 'https://instagram.com',
-		'www.instagram.com': 'https://instagram.com',
-		'l.instagram.com': 'https://instagram.com',
+		direct: "direct",
+		google: "https://google.com",
+		"google.com": "https://google.com",
+		"www.google.com": "https://google.com",
+		facebook: "https://facebook.com",
+		"facebook.com": "https://facebook.com",
+		"www.facebook.com": "https://facebook.com",
+		twitter: "https://twitter.com",
+		"twitter.com": "https://twitter.com",
+		"www.twitter.com": "https://twitter.com",
+		"t.co": "https://twitter.com",
+		instagram: "https://instagram.com",
+		"instagram.com": "https://instagram.com",
+		"www.instagram.com": "https://instagram.com",
+		"l.instagram.com": "https://instagram.com",
 	};
 
 	// Check if the input matches any known mapping
@@ -45,12 +45,12 @@ function normalizeReferrerFilterValue(value: string): string {
 	}
 
 	// If the value already looks like a URL, return as-is
-	if (value.startsWith('http://') || value.startsWith('https://')) {
+	if (value.startsWith("http://") || value.startsWith("https://")) {
 		return value;
 	}
 
 	// For other domains, add https:// prefix if it looks like a domain
-	if (value.includes('.') && !value.includes(' ')) {
+	if (value.includes(".") && !value.includes(" ")) {
 		return `https://${value}`;
 	}
 
@@ -79,35 +79,35 @@ export class SimpleQueryBuilder {
 
 		// First, get common/known resolutions for exact matches
 		const commonResolutions: Record<string, DeviceType> = {
-			'896x414': 'mobile',
-			'844x390': 'mobile',
-			'932x430': 'mobile',
-			'800x360': 'mobile',
-			'780x360': 'mobile',
-			'736x414': 'mobile',
-			'667x375': 'mobile',
-			'640x360': 'mobile',
-			'568x320': 'mobile',
-			'1366x1024': 'tablet',
-			'1280x800': 'tablet',
-			'1180x820': 'tablet',
-			'1024x768': 'tablet',
-			'1280x720': 'tablet',
-			'1366x768': 'laptop',
-			'1440x900': 'laptop',
-			'1536x864': 'laptop',
-			'1920x1080': 'desktop',
-			'2560x1440': 'desktop',
-			'3840x2160': 'desktop',
-			'3440x1440': 'ultrawide',
-			'3840x1600': 'ultrawide',
-			'5120x1440': 'ultrawide',
+			"896x414": "mobile",
+			"844x390": "mobile",
+			"932x430": "mobile",
+			"800x360": "mobile",
+			"780x360": "mobile",
+			"736x414": "mobile",
+			"667x375": "mobile",
+			"640x360": "mobile",
+			"568x320": "mobile",
+			"1366x1024": "tablet",
+			"1280x800": "tablet",
+			"1180x820": "tablet",
+			"1024x768": "tablet",
+			"1280x720": "tablet",
+			"1366x768": "laptop",
+			"1440x900": "laptop",
+			"1536x864": "laptop",
+			"1920x1080": "desktop",
+			"2560x1440": "desktop",
+			"3840x2160": "desktop",
+			"3440x1440": "ultrawide",
+			"3840x1600": "ultrawide",
+			"5120x1440": "ultrawide",
 		};
 
 		const exactMatches = Object.entries(commonResolutions)
 			.filter(([_, type]) => type === deviceType)
 			.map(([resolution, _]) => `'${resolution}'`)
-			.join(', ');
+			.join(", ");
 
 		// SQL for parsing resolution dimensions with error handling
 		const widthExpr =
@@ -121,20 +121,20 @@ export class SimpleQueryBuilder {
 		// Device type heuristics (matching screen-resolution-to-device-type.ts logic)
 		const heuristicCondition = (() => {
 			switch (deviceType) {
-				case 'mobile':
+				case "mobile":
 					return `(${shortSideExpr} <= 480 AND ${shortSideExpr} IS NOT NULL)`;
-				case 'tablet':
+				case "tablet":
 					return `(${shortSideExpr} <= 900 AND ${shortSideExpr} > 480 AND ${shortSideExpr} IS NOT NULL)`;
-				case 'laptop':
+				case "laptop":
 					return `(${longSideExpr} <= 1600 AND ${shortSideExpr} > 900 AND ${longSideExpr} IS NOT NULL)`;
-				case 'desktop':
+				case "desktop":
 					return `(${longSideExpr} <= 3000 AND ${longSideExpr} > 1600 AND ${longSideExpr} IS NOT NULL)`;
-				case 'ultrawide':
+				case "ultrawide":
 					return `(${aspectExpr} >= 2.0 AND ${longSideExpr} >= 2560 AND ${longSideExpr} IS NOT NULL)`;
-				case 'watch':
+				case "watch":
 					return `(${longSideExpr} <= 400 AND ${aspectExpr} >= 0.85 AND ${aspectExpr} <= 1.15 AND ${longSideExpr} IS NOT NULL)`;
 				default:
-					return '1 = 0'; // Never matches
+					return "1 = 0"; // Never matches
 			}
 		})();
 
@@ -166,7 +166,7 @@ export class SimpleQueryBuilder {
 
 		if (
 			filter.field === SPECIAL_FILTER_FIELDS.DEVICE_TYPE &&
-			typeof filter.value === 'string'
+			typeof filter.value === "string"
 		) {
 			return this.buildDeviceTypeFilter(filter);
 		}
@@ -179,14 +179,14 @@ export class SimpleQueryBuilder {
 		const normalizedPathExpression =
 			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
 
-		if (filter.op === 'like') {
+		if (filter.op === "like") {
 			return {
 				clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
 				params: { [key]: `%${filter.value}%` },
 			};
 		}
 
-		if (filter.op === 'in' || filter.op === 'notIn') {
+		if (filter.op === "in" || filter.op === "notIn") {
 			const values = Array.isArray(filter.value)
 				? filter.value
 				: [filter.value];
@@ -204,16 +204,16 @@ export class SimpleQueryBuilder {
 
 	private buildReferrerFilter(filter: Filter, key: string, operator: string) {
 		const normalizedReferrerExpression =
-			'CASE ' +
+			"CASE " +
 			"WHEN referrer = '' OR referrer IS NULL THEN 'direct' " +
 			"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
 			"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
 			"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
 			"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
 			"ELSE concat('https://', domain(referrer)) " +
-			'END';
+			"END";
 
-		if (filter.op === 'like') {
+		if (filter.op === "like") {
 			const searchValue = this.normalizeReferrerSearchValue(
 				String(filter.value)
 			);
@@ -223,7 +223,7 @@ export class SimpleQueryBuilder {
 			};
 		}
 
-		if (filter.op === 'in' || filter.op === 'notIn') {
+		if (filter.op === "in" || filter.op === "notIn") {
 			const values = Array.isArray(filter.value)
 				? filter.value.map((v) => normalizeReferrerFilterValue(String(v)))
 				: [normalizeReferrerFilterValue(String(filter.value))];
@@ -250,14 +250,14 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildStandardFilter(filter: Filter, key: string, operator: string) {
-		if (filter.op === 'like') {
+		if (filter.op === "like") {
 			return {
 				clause: `${filter.field} ${operator} {${key}:String}`,
 				params: { [key]: `%${filter.value}%` },
 			};
 		}
 
-		if (filter.op === 'in' || filter.op === 'notIn') {
+		if (filter.op === "in" || filter.op === "notIn") {
 			const values = Array.isArray(filter.value)
 				? filter.value
 				: [filter.value];
@@ -278,11 +278,11 @@ export class SimpleQueryBuilder {
 
 		// Map common search terms to more specific patterns
 		const mappings: Record<string, string> = {
-			direct: 'direct',
-			google: 'google.com',
-			facebook: 'facebook.com',
-			twitter: 'twitter.com',
-			instagram: 'instagram.com',
+			direct: "direct",
+			google: "google.com",
+			facebook: "facebook.com",
+			twitter: "twitter.com",
+			instagram: "instagram.com",
 		};
 
 		return mappings[lowerValue] || value;
@@ -290,19 +290,19 @@ export class SimpleQueryBuilder {
 
 	private generateSessionAttributionCTE(timeField: string): string {
 		const sessionFields = [
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
 		];
 
 		const sessionFieldsSelect = sessionFields
 			.map((field) => `argMin(${field}, ${timeField}) as session_${field}`)
-			.join(',\n\t\t\t');
+			.join(",\n\t\t\t");
 
 		return `session_attribution AS (
 			SELECT 
@@ -324,11 +324,11 @@ export class SimpleQueryBuilder {
 	private replaceDomainPlaceholders(sql: string): string {
 		if (!this.websiteDomain) {
 			return sql
-				.replace(/domain\(referrer\) != '\{websiteDomain\}'/g, '1=1')
-				.replace(/NOT domain\(referrer\) ILIKE '%.{websiteDomain}'/g, '1=1')
+				.replace(/domain\(referrer\) != '\{websiteDomain\}'/g, "1=1")
+				.replace(/NOT domain\(referrer\) ILIKE '%.{websiteDomain}'/g, "1=1")
 				.replace(
 					/domain\(referrer\) NOT IN \('localhost', '127\.0\.0\.1'\)/g,
-					'1=1'
+					"1=1"
 				);
 		}
 
@@ -338,21 +338,21 @@ export class SimpleQueryBuilder {
 	}
 
 	private formatDateTime(dateStr: string): string {
-		const parts = dateStr.split('.');
-		return parts[0]?.replace('T', ' ') || dateStr;
+		const parts = dateStr.split(".");
+		return parts[0]?.replace("T", " ") || dateStr;
 	}
 
 	compile(): CompiledQuery {
 		if (this.config.customSql) {
-			const whereClauseParams: Record<string, Filter['value']> = {};
+			const whereClauseParams: Record<string, Filter["value"]> = {};
 			const whereClause = this.buildWhereClauseFromFilters(whereClauseParams);
 
 			// Create helper functions for session attribution if plugins are enabled
 			const helpers = this.config.plugins?.sessionAttribution
 				? {
-						sessionAttributionCTE: (timeField = 'time') =>
+						sessionAttributionCTE: (timeField = "time") =>
 							this.generateSessionAttributionCTE(timeField),
-						sessionAttributionJoin: (alias = 'e') =>
+						sessionAttributionJoin: (alias = "e") =>
 							this.generateSessionAttributionJoin(alias),
 					}
 				: undefined;
@@ -371,7 +371,7 @@ export class SimpleQueryBuilder {
 				helpers
 			);
 
-			if (typeof result === 'string') {
+			if (typeof result === "string") {
 				return { sql: result, params: {} };
 			}
 			return { sql: result.sql, params: result.params };
@@ -391,10 +391,10 @@ export class SimpleQueryBuilder {
 			return this.buildSessionAttributionQuery(params);
 		}
 
-		let sql = `SELECT ${this.config.fields?.join(', ') || '*'} FROM ${this.config.table}`;
+		let sql = `SELECT ${this.config.fields?.join(", ") || "*"} FROM ${this.config.table}`;
 		const whereClause = this.buildWhereClause(params);
 
-		sql += ` WHERE ${whereClause.join(' AND ')}`;
+		sql += ` WHERE ${whereClause.join(" AND ")}`;
 		sql = this.replaceDomainPlaceholders(sql);
 		sql += this.buildGroupByClause();
 		sql += this.buildOrderByClause();
@@ -405,11 +405,11 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildSessionAttributionQuery(
-		params: Record<string, Filter['value']>
+		params: Record<string, Filter["value"]>
 	): CompiledQuery {
 		// Build the session attribution query with CTEs
-		const timeField = this.config.timeField || 'time';
-		const whereClauseParams: Record<string, Filter['value']> = {};
+		const timeField = this.config.timeField || "time";
+		const whereClauseParams: Record<string, Filter["value"]> = {};
 		const filterClauses = this.buildWhereClauseFromFilters(whereClauseParams);
 
 		// Merge filter params into main params
@@ -417,29 +417,29 @@ export class SimpleQueryBuilder {
 
 		// Build the session attribution fields mapping
 		const sessionFields = [
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
 		];
 
 		const sessionFieldsSelect = sessionFields
 			.map((field) => `argMin(${field}, ${timeField}) as session_${field}`)
-			.join(',\n\t\t\t\t');
+			.join(",\n\t\t\t\t");
 
-		const mainFields = this.config.fields?.join(',\n\t\t\t') || '*';
+		const mainFields = this.config.fields?.join(",\n\t\t\t") || "*";
 
 		const finalFilterClauses = filterClauses;
 
 		const additionalWhere = this.config.where
-			? `${this.config.where.join(' AND ')} AND `
-			: '';
+			? `${this.config.where.join(" AND ")} AND `
+			: "";
 		const finalWhereClause =
-			finalFilterClauses.length > 0 ? finalFilterClauses.join(' AND ') : '1=1';
+			finalFilterClauses.length > 0 ? finalFilterClauses.join(" AND ") : "1=1";
 
 		let sql = `
 		WITH session_attribution AS (
@@ -484,16 +484,16 @@ export class SimpleQueryBuilder {
 		return { sql, params };
 	}
 
-	private buildWhereClause(params: Record<string, Filter['value']>): string[] {
+	private buildWhereClause(params: Record<string, Filter["value"]>): string[] {
 		const whereClause: string[] = [];
 
 		if (this.config.where) {
 			whereClause.push(...this.config.where);
 		}
 
-		whereClause.push('client_id = {websiteId:String}');
+		whereClause.push("client_id = {websiteId:String}");
 
-		const timeField = this.config.timeField || 'time';
+		const timeField = this.config.timeField || "time";
 		whereClause.push(`${timeField} >= parseDateTimeBestEffort({from:String})`);
 
 		const appendEndOfDay = this.config.appendEndOfDayToTo !== false;
@@ -513,7 +513,7 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildWhereClauseFromFilters(
-		params: Record<string, Filter['value']>
+		params: Record<string, Filter["value"]>
 	): string[] {
 		const whereClause: string[] = [];
 
@@ -535,20 +535,20 @@ export class SimpleQueryBuilder {
 	private buildGroupByClause(): string {
 		const groupBy = this.request.groupBy || this.config.groupBy;
 		if (!groupBy?.length) {
-			return '';
+			return "";
 		}
 
 		// Security validation - only block dangerous SQL keywords
 		const dangerousKeywords = [
-			'DROP',
-			'DELETE',
-			'INSERT',
-			'UPDATE',
-			'CREATE',
-			'ALTER',
-			'TRUNCATE',
-			'EXEC',
-			'EXECUTE',
+			"DROP",
+			"DELETE",
+			"INSERT",
+			"UPDATE",
+			"CREATE",
+			"ALTER",
+			"TRUNCATE",
+			"EXEC",
+			"EXECUTE",
 		];
 		for (const field of groupBy) {
 			const upperField = field.toUpperCase();
@@ -561,26 +561,26 @@ export class SimpleQueryBuilder {
 			}
 		}
 
-		return ` GROUP BY ${groupBy.join(', ')}`;
+		return ` GROUP BY ${groupBy.join(", ")}`;
 	}
 
 	private buildOrderByClause(): string {
 		const orderBy = this.request.orderBy || this.config.orderBy;
 		if (!orderBy) {
-			return '';
+			return "";
 		}
 
 		// Security validation - only block dangerous SQL keywords
 		const dangerousKeywords = [
-			'DROP',
-			'DELETE',
-			'INSERT',
-			'UPDATE',
-			'CREATE',
-			'ALTER',
-			'TRUNCATE',
-			'EXEC',
-			'EXECUTE',
+			"DROP",
+			"DELETE",
+			"INSERT",
+			"UPDATE",
+			"CREATE",
+			"ALTER",
+			"TRUNCATE",
+			"EXEC",
+			"EXECUTE",
 		];
 		const upperOrderBy = orderBy.toUpperCase();
 		for (const keyword of dangerousKeywords) {
@@ -596,11 +596,11 @@ export class SimpleQueryBuilder {
 
 	private buildLimitClause(): string {
 		const limit = this.request.limit || this.config.limit;
-		return limit ? ` LIMIT ${limit}` : '';
+		return limit ? ` LIMIT ${limit}` : "";
 	}
 
 	private buildOffsetClause(): string {
-		return this.request.offset ? ` OFFSET ${this.request.offset}` : '';
+		return this.request.offset ? ` OFFSET ${this.request.offset}` : "";
 	}
 
 	async execute(): Promise<Record<string, unknown>[]> {

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import PricingTable from '@/components/autumn/pricing-table';
+import PricingTable from "@/components/autumn/pricing-table";
 
 interface PlansTabProps {
 	selectedPlan?: string | null;

@@ -1,5 +1,5 @@
-import { randomBytes, scryptSync } from 'node:crypto';
-import { websitesApi } from '@databuddy/auth';
+import { randomBytes, scryptSync } from "node:crypto";
+import { websitesApi } from "@databuddy/auth";
 import {
 	and,
 	apikey,
@@ -10,48 +10,48 @@ import {
 	type InferSelectModel,
 	isNull,
 	sql,
-} from '@databuddy/db';
-import { TRPCError } from '@trpc/server';
-import { customAlphabet, nanoid } from 'nanoid';
-import { z } from 'zod';
-import { logger } from '../lib/logger';
-import type { Context } from '../trpc';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+} from "@databuddy/db";
+import { TRPCError } from "@trpc/server";
+import { customAlphabet, nanoid } from "nanoid";
+import { z } from "zod";
+import { logger } from "../lib/logger";
+import type { Context } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
-type ApiScope = InferSelectModel<typeof apikey>['scopes'][number];
+type ApiScope = InferSelectModel<typeof apikey>["scopes"][number];
 
 const API_SCOPE_VALUES = [
-	'read:data',
-	'write:data',
-	'read:experiments',
-	'track:events',
-	'admin:apikeys',
+	"read:data",
+	"write:data",
+	"read:experiments",
+	"track:events",
+	"admin:apikeys",
 	// New scopes for core use cases
-	'read:analytics',
-	'write:custom-sql',
-	'read:export',
-	'write:otel',
+	"read:analytics",
+	"write:custom-sql",
+	"read:export",
+	"write:otel",
 	// Administrative scopes
-	'admin:users',
-	'admin:organizations',
-	'admin:websites',
+	"admin:users",
+	"admin:organizations",
+	"admin:websites",
 	// Rate limiting and usage scopes
-	'rate:standard',
-	'rate:premium',
-	'rate:enterprise',
+	"rate:standard",
+	"rate:premium",
+	"rate:enterprise",
 ] as const;
 
 const API_RESOURCE_TYPE_VALUES = [
-	'global',
-	'website',
-	'ab_experiment',
-	'feature_flag',
+	"global",
+	"website",
+	"ab_experiment",
+	"feature_flag",
 	// New resource types for data categories
-	'analytics_data',
-	'error_data',
-	'web_vitals',
-	'custom_events',
-	'export_data',
+	"analytics_data",
+	"error_data",
+	"web_vitals",
+	"custom_events",
+	"export_data",
 ] as const;
 
 const accessEntrySchema = z.object({
@@ -74,7 +74,7 @@ const jsonValue: z.ZodType<unknown> = z.lazy(() =>
 const createApiKeySchema = z.object({
 	name: z.string().min(1).max(100),
 	organizationId: z.string().optional(),
-	type: z.enum(['user', 'sdk', 'automation']).optional(),
+	type: z.enum(["user", "sdk", "automation"]).optional(),
 	globalScopes: z.array(z.enum(API_SCOPE_VALUES)).default([]),
 	access: z.array(accessEntrySchema).default([]),
 	rateLimitEnabled: z.boolean().optional(),
@@ -120,9 +120,9 @@ const resolveAccessSchema = z.object({
 
 const generateKeyMaterial = () => {
 	const alphabet =
-		'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+		"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	const nano = customAlphabet(alphabet, 48);
-	const prefix = 'dbdy';
+	const prefix = "dbdy";
 	const secret = `${prefix}_${nano()}`;
 	const start = secret.slice(0, 8);
 	return { secret, prefix, start } as const;
@@ -131,15 +131,15 @@ const generateKeyMaterial = () => {
 const hashSecretScrypt = (secret: string) => {
 	const salt = randomBytes(16);
 	const derived = scryptSync(secret, salt, 64);
-	return `scrypt:${salt.toString('base64')}:${derived.toString('base64')}`;
+	return `scrypt:${salt.toString("base64")}:${derived.toString("base64")}`;
 };
 
 async function assertOrgPermission(
 	ctx: Context,
 	requiredScopes: string[] = []
 ) {
-	if (ctx.user.role === 'ADMIN') {
-		logger.info('Organization permission granted via admin role', {
+	if (ctx.user.role === "ADMIN") {
+		logger.info("Organization permission granted via admin role", {
 			userId: ctx.user.id,
 			requiredScopes,
 		});
@@ -149,50 +149,50 @@ async function assertOrgPermission(
 	// Check if user has organization-level permissions
 	const { success } = await websitesApi.hasPermission({
 		headers: ctx.headers,
-		body: { permissions: { website: ['configure'] } },
+		body: { permissions: { website: ["configure"] } },
 	});
 
 	if (!success) {
-		logger.warn('Organization permission denied', {
+		logger.warn("Organization permission denied", {
 			userId: ctx.user.id,
 			requiredScopes,
-			reason: 'User lacks organization-level configure permission',
+			reason: "User lacks organization-level configure permission",
 		});
 		throw new TRPCError({
-			code: 'FORBIDDEN',
+			code: "FORBIDDEN",
 			message:
-				'Missing organization permissions. You need configure access to manage organization API keys.',
+				"Missing organization permissions. You need configure access to manage organization API keys.",
 		});
 	}
 
-	logger.info('Organization permission granted', {
+	logger.info("Organization permission granted", {
 		userId: ctx.user.id,
 		requiredScopes,
-		source: 'website_configure_permission',
+		source: "website_configure_permission",
 	});
 }
 
 function assertUserOwnershipOrAdmin(ctx: Context, userId: string | null) {
-	if (ctx.user.role === 'ADMIN') {
-		logger.info('User ownership check bypassed via admin role', {
+	if (ctx.user.role === "ADMIN") {
+		logger.info("User ownership check bypassed via admin role", {
 			adminUserId: ctx.user.id,
 			targetUserId: userId,
 		});
 		return;
 	}
 	if (!userId || userId !== ctx.user.id) {
-		logger.warn('User ownership check failed', {
+		logger.warn("User ownership check failed", {
 			requestingUserId: ctx.user.id,
 			targetUserId: userId,
-			reason: userId ? 'Ownership mismatch' : 'No user ID provided',
+			reason: userId ? "Ownership mismatch" : "No user ID provided",
 		});
 		throw new TRPCError({
-			code: 'FORBIDDEN',
-			message: 'Not authorized. You can only manage your own API keys.',
+			code: "FORBIDDEN",
+			message: "Not authorized. You can only manage your own API keys.",
 		});
 	}
 
-	logger.debug('User ownership check passed', {
+	logger.debug("User ownership check passed", {
 		userId: ctx.user.id,
 		targetUserId: userId,
 	});
@@ -204,8 +204,8 @@ async function assertCanManageKey(
 ) {
 	if (key.organizationId) {
 		// Organization API key - requires organization permissions
-		await assertOrgPermission(ctx, ['admin:apikeys']);
-		logger.info('Organization API key management authorized', {
+		await assertOrgPermission(ctx, ["admin:apikeys"]);
+		logger.info("Organization API key management authorized", {
 			apikeyId: key.id,
 			organizationId: key.organizationId,
 			userId: ctx.user.id,
@@ -216,7 +216,7 @@ async function assertCanManageKey(
 
 	// Personal API key - user must own it or be admin
 	assertUserOwnershipOrAdmin(ctx, key.userId ?? null);
-	logger.info('Personal API key management authorized', {
+	logger.info("Personal API key management authorized", {
 		apikeyId: key.id,
 		ownerUserId: key.userId,
 		requestingUserId: ctx.user.id,
@@ -229,7 +229,7 @@ async function fetchKeyOrThrow(ctx: Context, id: string) {
 		where: eq(apikey.id, id),
 	});
 	if (!existing) {
-		throw new TRPCError({ code: 'NOT_FOUND', message: 'API key not found' });
+		throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
 	}
 	return existing;
 }
@@ -270,14 +270,14 @@ export const apikeysRouter = createTRPCRouter({
 					metadata: row.metadata,
 				}));
 			} catch (error: unknown) {
-				logger.error('Failed to list API keys', {
+				logger.error("Failed to list API keys", {
 					error: error instanceof Error ? error : new Error(String(error)),
 					userId: ctx.user.id,
 					organizationId: input.organizationId,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to list API keys',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to list API keys",
 				});
 			}
 		}),
@@ -291,8 +291,8 @@ export const apikeysRouter = createTRPCRouter({
 				});
 				if (!key) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'API key not found',
+						code: "NOT_FOUND",
+						message: "API key not found",
 					});
 				}
 				await assertCanManageKey(ctx, key);
@@ -324,14 +324,14 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to fetch API key', {
+				logger.error("Failed to fetch API key", {
 					error: error instanceof Error ? error.message : String(error),
 					id: input.id,
 					userId: ctx.user.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to fetch API key",
 				});
 			}
 		}),
@@ -355,7 +355,7 @@ export const apikeysRouter = createTRPCRouter({
 						keyHash,
 						userId: input.organizationId ? null : ctx.user.id,
 						organizationId: input.organizationId ?? null,
-						type: input.type ?? 'user',
+						type: input.type ?? "user",
 						scopes: input.globalScopes,
 						enabled: true,
 						rateLimitEnabled: input.rateLimitEnabled ?? true,
@@ -382,7 +382,7 @@ export const apikeysRouter = createTRPCRouter({
 					await ctx.db.insert(apikeyAccess).values(accessRows);
 				}
 
-				logger.info('API key created', {
+				logger.info("API key created", {
 					apikeyId: created.id,
 					userId: ctx.user.id,
 					organizationId: input.organizationId,
@@ -395,14 +395,14 @@ export const apikeysRouter = createTRPCRouter({
 					start: created.start,
 				};
 			} catch (error) {
-				logger.error('Failed to create API key', {
+				logger.error("Failed to create API key", {
 					error: error instanceof Error ? error.message : String(error),
 					userId: ctx.user.id,
 					organizationId: input.organizationId,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to create API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create API key",
 				});
 			}
 		}),
@@ -416,8 +416,8 @@ export const apikeysRouter = createTRPCRouter({
 				});
 				if (!key) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'API key not found',
+						code: "NOT_FOUND",
+						message: "API key not found",
 					});
 				}
 				await assertCanManageKey(ctx, key);
@@ -445,14 +445,14 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to update API key', {
+				logger.error("Failed to update API key", {
 					error: error instanceof Error ? error.message : String(error),
 					id: input.id,
 					userId: ctx.user.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to update API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to update API key",
 				});
 			}
 		}),
@@ -466,8 +466,8 @@ export const apikeysRouter = createTRPCRouter({
 				});
 				if (!key) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'API key not found',
+						code: "NOT_FOUND",
+						message: "API key not found",
 					});
 				}
 				await assertCanManageKey(ctx, key);
@@ -484,14 +484,14 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to revoke API key', {
+				logger.error("Failed to revoke API key", {
 					error: error instanceof Error ? error.message : String(error),
 					id: input.id,
 					userId: ctx.user.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to revoke API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to revoke API key",
 				});
 			}
 		}),
@@ -507,8 +507,8 @@ export const apikeysRouter = createTRPCRouter({
 				});
 				if (!key) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'API key not found',
+						code: "NOT_FOUND",
+						message: "API key not found",
 					});
 				}
 				await assertCanManageKey(ctx, key);
@@ -524,7 +524,7 @@ export const apikeysRouter = createTRPCRouter({
 					.where(eq(apikey.id, input.id))
 					.returning();
 
-				logger.info('API key rotated', {
+				logger.info("API key rotated", {
 					apikeyId: updated.id,
 					userId: ctx.user.id,
 				});
@@ -538,14 +538,14 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to rotate API key', {
+				logger.error("Failed to rotate API key", {
 					error: error instanceof Error ? error.message : String(error),
 					id: input.id,
 					userId: ctx.user.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to rotate API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to rotate API key",
 				});
 			}
 		}),
@@ -581,13 +581,13 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to set access list', {
+				logger.error("Failed to set access list", {
 					error: error instanceof Error ? error.message : String(error),
 					apikeyId: input.apikeyId,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to set access list',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to set access list",
 				});
 			}
 		}),
@@ -624,15 +624,15 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to upsert access entry', {
+				logger.error("Failed to upsert access entry", {
 					error: error instanceof Error ? error.message : String(error),
 					apikeyId: input.apikeyId,
 					resourceType: input.resourceType,
 					resourceId: input.resourceId ?? null,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to upsert access entry',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to upsert access entry",
 				});
 			}
 		}),
@@ -659,15 +659,15 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to remove access entry', {
+				logger.error("Failed to remove access entry", {
 					error: error instanceof Error ? error.message : String(error),
 					apikeyId: input.apikeyId,
 					resourceType: input.resourceType,
 					resourceId: input.resourceId ?? null,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to remove access entry',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to remove access entry",
 				});
 			}
 		}),
@@ -684,13 +684,13 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to delete API key', {
+				logger.error("Failed to delete API key", {
 					error: error instanceof Error ? error.message : String(error),
 					id: input.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to delete API key',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete API key",
 				});
 			}
 		}),
@@ -716,7 +716,7 @@ export const apikeysRouter = createTRPCRouter({
 				}
 				for (const entry of entries) {
 					if (
-						entry.resourceType === 'global' ||
+						entry.resourceType === "global" ||
 						(entry.resourceType === input.resourceType &&
 							(input.resourceId ?? null) === (entry.resourceId ?? null))
 					) {
@@ -730,15 +730,15 @@ export const apikeysRouter = createTRPCRouter({
 				if (error instanceof TRPCError) {
 					throw error;
 				}
-				logger.error('Failed to resolve access', {
+				logger.error("Failed to resolve access", {
 					error: error instanceof Error ? error.message : String(error),
 					apikeyId: input.apikeyId,
 					resourceType: input.resourceType,
 					resourceId: input.resourceId ?? null,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to resolve access',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to resolve access",
 				});
 			}
 		}),

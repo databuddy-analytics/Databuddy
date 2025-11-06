@@ -1,8 +1,8 @@
-import { HouseIcon } from '@phosphor-icons/react/ssr';
-import Link from 'next/link';
-import { Logo } from '@/components/layout/logo';
-import { Button } from '@/components/ui/button';
-import './not-found.css';
+import { HouseIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
+import { Logo } from "@/components/layout/logo";
+import { Button } from "@/components/ui/button";
+import "./not-found.css";
 
 export default function NotFound() {
 	return (

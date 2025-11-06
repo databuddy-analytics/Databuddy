@@ -1,4 +1,4 @@
-import type { TrackingOptions } from './types';
+import type { TrackingOptions } from "./types";
 
 // Library defaults - what the actual tracking library uses when no options are provided
 export const ACTUAL_LIBRARY_DEFAULTS: TrackingOptions = {

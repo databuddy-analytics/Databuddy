@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { FlagIcon, PlusIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FlagIcon, PlusIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { TagsChat } from '@/components/ui/tags';
-import type { UserRule } from './types';
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { TagsChat } from "@/components/ui/tags";
+import type { UserRule } from "./types";
 
 interface UserRulesBuilderProps {
 	rules: UserRule[];
@@ -22,18 +22,17 @@ interface UserRulesBuilderProps {
 export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 	const addRule = () => {
 		const newRule: UserRule = {
-			type: 'user_id',
-			operator: 'equals',
-			value: '',
+			type: "user_id",
+			operator: "equals",
+			value: "",
 			enabled: true,
 			batch: false,
 		};
 		onChange([...rules, newRule]);
 	};
 
-	const canUseBatch = (rule: UserRule) => {
-		return rule.operator !== 'exists' && rule.operator !== 'not_exists';
-	};
+	const canUseBatch = (rule: UserRule) =>
+		rule.operator !== "exists" && rule.operator !== "not_exists";
 
 	const updateRule = (index: number, updatedRule: Partial<UserRule>) => {
 		const newRules = [...rules];
@@ -41,29 +40,29 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 		onChange(newRules);
 	};
 
-	const getPlaceholderText = (ruleType: UserRule['type']) => {
+	const getPlaceholderText = (ruleType: UserRule["type"]) => {
 		switch (ruleType) {
-			case 'user_id':
-				return 'Type user ID and press Enter...';
-			case 'email':
-				return 'Type email address and press Enter...';
-			case 'property':
-				return 'Type property value and press Enter...';
+			case "user_id":
+				return "Type user ID and press Enter...";
+			case "email":
+				return "Type email address and press Enter...";
+			case "property":
+				return "Type property value and press Enter...";
 			default:
-				return 'Type value and press Enter...';
+				return "Type value and press Enter...";
 		}
 	};
 
-	const getInputPlaceholder = (ruleType: UserRule['type']) => {
+	const getInputPlaceholder = (ruleType: UserRule["type"]) => {
 		switch (ruleType) {
-			case 'user_id':
-				return 'Enter user ID';
-			case 'email':
-				return 'Enter email address';
-			case 'property':
-				return 'Enter property value';
+			case "user_id":
+				return "Enter user ID";
+			case "email":
+				return "Enter email address";
+			case "property":
+				return "Enter property value";
 			default:
-				return 'Enter value';
+				return "Enter value";
 		}
 	};
 
@@ -110,10 +109,10 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 									{index + 1}
 								</div>
 								<span className="font-medium text-sm">
-									{rule.type === 'user_id' && 'User ID'}
-									{rule.type === 'email' && 'Email'}
-									{rule.type === 'property' && 'Property'}
-									{rule.batch && ' (Batch)'}
+									{rule.type === "user_id" && "User ID"}
+									{rule.type === "email" && "Email"}
+									{rule.type === "property" && "Property"}
+									{rule.batch && " (Batch)"}
 								</span>
 							</div>
 							<Button
@@ -139,7 +138,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 										Target Type
 									</label>
 									<Select
-										onValueChange={(value: UserRule['type']) => {
+										onValueChange={(value: UserRule["type"]) => {
 											updateRule(index, {
 												type: value,
 												batch: rule.batch,
@@ -176,7 +175,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 												}
 											/>
 											<span className="font-medium text-sm">
-												{rule.batch ? 'Batch Mode' : 'Single Value'}
+												{rule.batch ? "Batch Mode" : "Single Value"}
 											</span>
 										</div>
 									</div>
@@ -184,7 +183,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 							</div>
 
 							{/* Property Field */}
-							{rule.type === 'property' && (
+							{rule.type === "property" && (
 								<div>
 									<label
 										className="mb-1 block font-medium text-sm"
@@ -198,7 +197,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 											updateRule(index, { field: e.target.value })
 										}
 										placeholder="e.g. plan, role, country"
-										value={rule.field || ''}
+										value={rule.field || ""}
 									/>
 								</div>
 							)}
@@ -207,9 +206,9 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 							{rule.batch ? (
 								<div>
 									<div className="mb-1 block font-medium text-sm">
-										{rule.type === 'user_id' && 'User IDs'}
-										{rule.type === 'email' && 'Email Addresses'}
-										{rule.type === 'property' && 'Property Values'}
+										{rule.type === "user_id" && "User IDs"}
+										{rule.type === "email" && "Email Addresses"}
+										{rule.type === "property" && "Property Values"}
 									</div>
 									<TagsChat
 										allowDuplicates={false}
@@ -231,7 +230,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 											Condition
 										</label>
 										<Select
-											onValueChange={(value: UserRule['operator']) =>
+											onValueChange={(value: UserRule["operator"]) =>
 												updateRule(index, { operator: value })
 											}
 											value={rule.operator}
@@ -246,7 +245,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 												<SelectItem value="ends_with">Ends with</SelectItem>
 												<SelectItem value="in">Is one of</SelectItem>
 												<SelectItem value="not_in">Is not one of</SelectItem>
-												{rule.type === 'property' && (
+												{rule.type === "property" && (
 													<>
 														<SelectItem value="exists">Exists</SelectItem>
 														<SelectItem value="not_exists">
@@ -258,19 +257,19 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 										</Select>
 									</div>
 
-									{rule.operator !== 'exists' &&
-										rule.operator !== 'not_exists' && (
+									{rule.operator !== "exists" &&
+										rule.operator !== "not_exists" && (
 											<div>
 												<label
 													className="mb-1 block font-medium text-sm"
 													htmlFor={`${ruleId}-value`}
 												>
-													{rule.operator === 'in' || rule.operator === 'not_in'
-														? 'Values'
-														: 'Value'}
+													{rule.operator === "in" || rule.operator === "not_in"
+														? "Values"
+														: "Value"}
 												</label>
-												{rule.operator === 'in' ||
-												rule.operator === 'not_in' ? (
+												{rule.operator === "in" ||
+												rule.operator === "not_in" ? (
 													<TagsChat
 														allowDuplicates={false}
 														maxTags={20}
@@ -287,7 +286,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 															updateRule(index, { value: e.target.value })
 														}
 														placeholder={getInputPlaceholder(rule.type)}
-														value={rule.value || ''}
+														value={rule.value || ""}
 													/>
 												)}
 											</div>
@@ -303,7 +302,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 								<div className="flex items-center gap-2">
 									<span
 										className={
-											rule.enabled ? 'text-muted-foreground' : 'font-medium'
+											rule.enabled ? "text-muted-foreground" : "font-medium"
 										}
 									>
 										Disabled
@@ -316,7 +315,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 									/>
 									<span
 										className={
-											rule.enabled ? 'font-medium' : 'text-muted-foreground'
+											rule.enabled ? "font-medium" : "text-muted-foreground"
 										}
 									>
 										Enabled

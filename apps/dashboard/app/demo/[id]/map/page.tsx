@@ -1,1 +1,1 @@
-export { default } from '../../../(main)/websites/[id]/map/page';
+export { default } from "../../../(main)/websites/[id]/map/page";

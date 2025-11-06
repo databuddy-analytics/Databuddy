@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -6,11 +6,11 @@ import {
 	TargetIcon,
 	TrendDownIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import type { FunnelAnalyticsData } from '@/types/funnels';
-import { FunnelFlow } from './funnel-flow';
+} from "@phosphor-icons/react";
+import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import type { FunnelAnalyticsData } from "@/types/funnels";
+import { FunnelFlow } from "./funnel-flow";
 
 interface ReferrerAnalytics {
 	referrer: string;
@@ -41,15 +41,15 @@ export function FunnelAnalytics({
 	referrerAnalytics,
 }: FunnelAnalyticsProps) {
 	const selectedReferrerData = useMemo(() => {
-		if (!selectedReferrer || selectedReferrer === 'all' || !referrerAnalytics) {
+		if (!selectedReferrer || selectedReferrer === "all" || !referrerAnalytics) {
 			return null;
 		}
 
 		const referrer = referrerAnalytics.find(
 			(r) =>
 				r.referrer === selectedReferrer ||
-				(selectedReferrer === 'direct' &&
-					(r.referrer === 'direct' || r.referrer === ''))
+				(selectedReferrer === "direct" &&
+					(r.referrer === "direct" || r.referrer === ""))
 		);
 
 		return referrer || null;
@@ -61,26 +61,28 @@ export function FunnelAnalytics({
 				total_users_completed: selectedReferrerData.completed_users,
 				overall_conversion_rate: selectedReferrerData.conversion_rate,
 				avg_completion_time: 0,
-				avg_completion_time_formatted: '0s',
+				avg_completion_time_formatted: "0s",
 				biggest_dropoff_step: 1,
 				biggest_dropoff_rate: 100 - selectedReferrerData.conversion_rate,
-				steps_analytics: data?.steps_analytics?.map((step, index) => ({
-					...step,
-					users: index === 0 
-						? selectedReferrerData.total_users 
-						: selectedReferrerData.completed_users,
-					total_users: selectedReferrerData.total_users,
-					conversion_rate: index === 0 
-						? 100 
-						: selectedReferrerData.conversion_rate,
-					dropoffs: index === 0 
-						? 0 
-						: selectedReferrerData.total_users - selectedReferrerData.completed_users,
-					dropoff_rate: index === 0 
-						? 0 
-						: 100 - selectedReferrerData.conversion_rate,
-					avg_time_to_complete: 0,
-				})) || [],
+				steps_analytics:
+					data?.steps_analytics?.map((step, index) => ({
+						...step,
+						users:
+							index === 0
+								? selectedReferrerData.total_users
+								: selectedReferrerData.completed_users,
+						total_users: selectedReferrerData.total_users,
+						conversion_rate:
+							index === 0 ? 100 : selectedReferrerData.conversion_rate,
+						dropoffs:
+							index === 0
+								? 0
+								: selectedReferrerData.total_users -
+									selectedReferrerData.completed_users,
+						dropoff_rate:
+							index === 0 ? 0 : 100 - selectedReferrerData.conversion_rate,
+						avg_time_to_complete: 0,
+					})) || [],
 			}
 		: data;
 
@@ -184,7 +186,7 @@ export function FunnelAnalytics({
 					<h3 className="font-semibold text-foreground text-sm">
 						{selectedReferrerData
 							? `Performance - ${selectedReferrerData.referrer_parsed?.domain || selectedReferrerData.referrer}`
-							: 'Performance'}
+							: "Performance"}
 					</h3>
 				</div>
 				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">

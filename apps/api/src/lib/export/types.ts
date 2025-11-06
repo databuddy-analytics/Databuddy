@@ -1,20 +1,20 @@
 // Export-related type definitions
 
-export type ExportFormat = 'csv' | 'json' | 'txt' | 'proto';
+export type ExportFormat = "csv" | "json" | "txt" | "proto";
 
-export interface ExportRequest {
+export type ExportRequest = {
 	website_id: string;
 	start_date?: string;
 	end_date?: string;
 	format?: ExportFormat;
-}
+};
 
-export interface ExportFile {
+export type ExportFile = {
 	name: string;
 	content: string;
-}
+};
 
-export interface ExportMetadata {
+export type ExportMetadata = {
 	export_date: string;
 	website_id: string;
 	date_range: {
@@ -27,7 +27,7 @@ export interface ExportMetadata {
 		errors: number;
 		web_vitals: number;
 	};
-}
+};
 
 // Sanitized data interfaces (excluding sensitive fields like IP, user_agent)
 export interface SanitizedEvent extends Record<string, unknown> {
@@ -60,10 +60,7 @@ export interface SanitizedEvent extends Record<string, unknown> {
 	time_on_page?: number;
 	scroll_depth?: number;
 	interaction_count?: number;
-	exit_intent: number;
 	page_count: number;
-	is_bounce: number;
-	page_size?: number;
 	utm_source?: string;
 	utm_medium?: string;
 	utm_campaign?: string;
@@ -72,12 +69,6 @@ export interface SanitizedEvent extends Record<string, unknown> {
 	load_time?: number;
 	dom_ready_time?: number;
 	ttfb?: number;
-	connection_time?: number;
-	request_time?: number;
-	render_time?: number;
-	fcp?: number;
-	lcp?: number;
-	cls?: number;
 	properties: string;
 	created_at: string;
 }

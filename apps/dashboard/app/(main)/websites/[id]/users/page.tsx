@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { SpinnerIcon } from '@phosphor-icons/react';
-import dynamic from 'next/dynamic';
-import { useParams } from 'next/navigation';
+import { SpinnerIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
+import { useParams } from "next/navigation";
 
 const UsersList = dynamic(
 	() =>
-		import('./_components/users-list').then((mod) => ({
+		import("./_components/users-list").then((mod) => ({
 			default: mod.UsersList,
 		})),
 	{
@@ -22,5 +22,9 @@ const UsersList = dynamic(
 export default function UsersPage() {
 	const { id: websiteId } = useParams();
 
-	return <UsersList websiteId={websiteId as string} />;
+	return (
+		<div className="h-full">
+			<UsersList websiteId={websiteId as string} />
+		</div>
+	);
 }

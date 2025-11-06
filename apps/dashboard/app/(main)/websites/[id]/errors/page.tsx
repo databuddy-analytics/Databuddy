@@ -1,4 +1,4 @@
-import { ErrorsPageContent } from './_components/errors-page-content';
+import { ErrorsPageContent } from "./_components/errors-page-content";
 
 export default function ErrorsPage({
 	params,

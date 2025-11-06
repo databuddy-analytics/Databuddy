@@ -1,7 +1,7 @@
-import { db, flags } from '@databuddy/db';
-import { and, eq, isNull, or } from 'drizzle-orm';
-import { Elysia, t } from 'elysia';
-import { logger } from '@/lib/logger';
+import { db, flags } from "@databuddy/db";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { Elysia, t } from "elysia";
+import { logger } from "@/lib/logger";
 
 const flagQuerySchema = t.Object({
 	key: t.String(),
@@ -25,7 +25,7 @@ interface UserContext {
 }
 
 interface FlagRule {
-	type: 'user_id' | 'email' | 'property';
+	type: "user_id" | "email" | "property";
 	operator: string;
 	field?: string;
 	value?: unknown;
@@ -62,7 +62,7 @@ export function parseProperties(
 	try {
 		return JSON.parse(propertiesJson);
 	} catch {
-		logger.warn('Invalid properties JSON');
+		logger.warn("Invalid properties JSON");
 		return {};
 	}
 }
@@ -79,17 +79,17 @@ export function evaluateStringRule(
 	const stringValue = String(ruleValue);
 
 	switch (operator) {
-		case 'equals':
+		case "equals":
 			return value === ruleValue;
-		case 'contains':
+		case "contains":
 			return value.includes(stringValue);
-		case 'starts_with':
+		case "starts_with":
 			return value.startsWith(stringValue);
-		case 'ends_with':
+		case "ends_with":
 			return value.endsWith(stringValue);
-		case 'in':
+		case "in":
 			return Array.isArray(values) && values.includes(value);
-		case 'not_in':
+		case "not_in":
 			return Array.isArray(values) && !values.includes(value);
 		default:
 			return false;
@@ -100,17 +100,17 @@ export function evaluateValueRule(value: unknown, rule: FlagRule): boolean {
 	const { operator, value: ruleValue, values } = rule;
 
 	switch (operator) {
-		case 'equals':
+		case "equals":
 			return value === ruleValue;
-		case 'contains':
+		case "contains":
 			return String(value).includes(String(ruleValue));
-		case 'in':
+		case "in":
 			return Array.isArray(values) && values.includes(value);
-		case 'not_in':
+		case "not_in":
 			return Array.isArray(values) && !values.includes(value);
-		case 'exists':
+		case "exists":
 			return value !== undefined && value !== null;
-		case 'not_exists':
+		case "not_exists":
 			return value === undefined || value === null;
 		default:
 			return false;
@@ -120,15 +120,15 @@ export function evaluateValueRule(value: unknown, rule: FlagRule): boolean {
 export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	if (rule.batch && rule.batchValues?.length) {
 		switch (rule.type) {
-			case 'user_id': {
+			case "user_id": {
 				return context.userId
 					? rule.batchValues.includes(context.userId)
 					: false;
 			}
-			case 'email': {
+			case "email": {
 				return context.email ? rule.batchValues.includes(context.email) : false;
 			}
-			case 'property': {
+			case "property": {
 				if (!rule.field) {
 					return false;
 				}
@@ -144,14 +144,14 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 
 	// Regular evaluation
 	switch (rule.type) {
-		case 'user_id':
+		case "user_id":
 			return evaluateStringRule(context.userId, rule);
-		case 'email':
+		case "email":
 			return evaluateStringRule(context.email, rule);
-		case 'property': {
+		case "property": {
 			if (!rule.field) {
-				if (typeof rule.value === 'number') {
-					const userId = context.userId || context.email || 'anonymous';
+				if (typeof rule.value === "number") {
+					const userId = context.userId || context.email || "anonymous";
 					const hash = hashString(`percentage:${userId}`);
 					const percentage = hash % 100;
 					return percentage < rule.value;
@@ -174,7 +174,7 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 					enabled: rule.enabled,
 					value: rule.enabled,
 					payload: rule.enabled ? flag.payload : null,
-					reason: 'USER_RULE_MATCH',
+					reason: "USER_RULE_MATCH",
 				};
 			}
 		}
@@ -182,21 +182,21 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 
 	let enabled = Boolean(flag.defaultValue);
 	let value = enabled;
-	let reason = 'DEFAULT_VALUE';
+	let reason = "DEFAULT_VALUE";
 
-	if (flag.type === 'rollout') {
-		const identifier = context.userId || context.email || 'anonymous';
+	if (flag.type === "rollout") {
+		const identifier = context.userId || context.email || "anonymous";
 		const hash = hashString(`${flag.key}:${identifier}`);
 		const percentage = hash % 100;
 		const rolloutPercentage = flag.rolloutPercentage || 0;
 
 		enabled = percentage < rolloutPercentage;
 		value = enabled;
-		reason = enabled ? 'ROLLOUT_ENABLED' : 'ROLLOUT_DISABLED';
+		reason = enabled ? "ROLLOUT_ENABLED" : "ROLLOUT_DISABLED";
 	} else {
 		enabled = Boolean(flag.defaultValue);
 		value = enabled;
-		reason = 'BOOLEAN_DEFAULT';
+		reason = "BOOLEAN_DEFAULT";
 	}
 
 	return {
@@ -207,18 +207,18 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 	};
 }
 
-export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
+export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
-		'/evaluate',
+		"/evaluate",
 		async ({ query, set }) => {
 			try {
-				if (!query.key || !query.clientId) {
+				if (!(query.key && query.clientId)) {
 					set.status = 400;
 					return {
 						enabled: false,
 						value: false,
 						payload: null,
-						reason: 'MISSING_REQUIRED_PARAMS',
+						reason: "MISSING_REQUIRED_PARAMS",
 					};
 				}
 
@@ -234,7 +234,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 				);
 
 				logger.info({
-					message: 'Flag evaluation request',
+					message: "Flag evaluation request",
 					key: query.key,
 					clientId: query.clientId,
 					userId: query.userId,
@@ -245,7 +245,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 					where: and(
 						eq(flags.key, query.key),
 						isNull(flags.deletedAt),
-						eq(flags.status, 'active'),
+						eq(flags.status, "active"),
 						scopeCondition
 					),
 				});
@@ -256,12 +256,12 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 						where: and(
 							eq(flags.key, query.key),
 							isNull(flags.deletedAt),
-							eq(flags.status, 'active')
+							eq(flags.status, "active")
 						),
 					});
 
 					logger.info({
-						message: 'Flag debug info',
+						message: "Flag debug info",
 						key: query.key,
 						clientId: query.clientId,
 						foundFlags: allFlags.map((f) => ({
@@ -277,7 +277,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 						enabled: false,
 						value: false,
 						payload: null,
-						reason: 'FLAG_NOT_FOUND',
+						reason: "FLAG_NOT_FOUND",
 					};
 				}
 
@@ -289,7 +289,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 				};
 			} catch (error) {
 				logger.error({
-					message: 'Flag evaluation failed',
+					message: "Flag evaluation failed",
 					error,
 				});
 				set.status = 500;
@@ -297,7 +297,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 					enabled: false,
 					value: false,
 					payload: null,
-					reason: 'EVALUATION_ERROR',
+					reason: "EVALUATION_ERROR",
 				};
 			}
 		},
@@ -305,7 +305,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 	)
 
 	.get(
-		'/bulk',
+		"/bulk",
 		async ({ query, set }) => {
 			try {
 				if (!query.clientId) {
@@ -313,7 +313,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 					return {
 						flags: {},
 						count: 0,
-						error: 'Missing required clientId parameter',
+						error: "Missing required clientId parameter",
 					};
 				}
 
@@ -331,7 +331,7 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 				const allFlags = await db.query.flags.findMany({
 					where: and(
 						isNull(flags.deletedAt),
-						eq(flags.status, 'active'),
+						eq(flags.status, "active"),
 						scopeCondition
 					),
 				});
@@ -351,21 +351,21 @@ export const flagsRoute = new Elysia({ prefix: '/v1/flags' })
 					timestamp: new Date().toISOString(),
 				};
 			} catch (_error) {
-				logger.error('Bulk flag evaluation failed');
+				logger.error("Bulk flag evaluation failed");
 				set.status = 500;
 				return {
 					flags: {},
 					count: 0,
-					error: 'Bulk evaluation failed',
+					error: "Bulk evaluation failed",
 				};
 			}
 		},
 		{ query: bulkFlagQuerySchema }
 	)
 
-	.get('/health', () => ({
-		service: 'flags',
-		status: 'ok',
-		version: '1.0.0',
+	.get("/health", () => ({
+		service: "flags",
+		status: "ok",
+		version: "1.0.0",
 		timestamp: new Date().toISOString(),
 	}));

@@ -1,5 +1,5 @@
-import type { CellContext, ColumnDef } from '@tanstack/react-table';
-import { PercentageBadge } from '@/components/ui/percentage-badge';
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
+import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface MetricEntry {
 	name: string;
@@ -10,10 +10,10 @@ export interface MetricEntry {
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
-		return '0';
+		return "0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: 'compact',
+		notation: "compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -29,21 +29,21 @@ interface MetricRowProps {
 
 export function createMetricColumns({
 	includeName = false,
-	nameLabel = 'Name',
+	nameLabel = "Name",
 	includePageviews = true,
-	visitorsLabel = 'Visitors',
-	pageviewsLabel = 'Pageviews',
-	percentageLabel = 'Share',
+	visitorsLabel = "Visitors",
+	pageviewsLabel = "Pageviews",
+	percentageLabel = "Share",
 }: MetricRowProps = {}): ColumnDef<MetricEntry>[] {
 	const columns: ColumnDef<MetricEntry>[] = [];
 
 	if (includeName) {
 		columns.push({
-			id: 'name',
-			accessorKey: 'name',
+			id: "name",
+			accessorKey: "name",
 			header: nameLabel,
 			cell: (info: CellContext<MetricEntry, any>) => {
-				const name = (info.getValue() as string) || '';
+				const name = (info.getValue() as string) || "";
 				return (
 					<span className="font-medium text-foreground" title={name}>
 						{name}
@@ -54,8 +54,8 @@ export function createMetricColumns({
 	}
 
 	columns.push({
-		id: 'visitors',
-		accessorKey: 'visitors',
+		id: "visitors",
+		accessorKey: "visitors",
 		header: visitorsLabel,
 		cell: (info: CellContext<MetricEntry, any>) => {
 			const value = info.getValue() as number;
@@ -70,8 +70,8 @@ export function createMetricColumns({
 
 	if (includePageviews) {
 		columns.push({
-			id: 'pageviews',
-			accessorKey: 'pageviews',
+			id: "pageviews",
+			accessorKey: "pageviews",
 			header: pageviewsLabel,
 			cell: (info: CellContext<MetricEntry, any>) => {
 				const value = info.getValue() as number;
@@ -86,8 +86,8 @@ export function createMetricColumns({
 	}
 
 	columns.push({
-		id: 'percentage',
-		accessorKey: 'percentage',
+		id: "percentage",
+		accessorKey: "percentage",
 		header: percentageLabel,
 		cell: (info: CellContext<MetricEntry, any>) => {
 			const percentage = info.getValue() as number;

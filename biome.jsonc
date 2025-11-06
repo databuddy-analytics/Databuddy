@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite"],
+  "extends": ["ultracite/react", "ultracite/next", "ultracite/core"],
   "files": {
     "includes": [
       "**",
@@ -9,7 +9,7 @@
       "!**/countries.json",
       "!**/subdivisions.json",
       "!**/databuddy.js",
-      "!apps/better-admin/**",
+      "!apps/better-admin",
 
       "!apps/docs/components/ui",
       "!apps/dashboard/components/ui",
@@ -42,7 +42,8 @@
       },
       "style": {
         "noNestedTernary": "off",
-        "useFilenamingConvention": "off"
+        "useFilenamingConvention": "off",
+        "noMagicNumbers": "off"
       },
       "complexity": {
         "noExcessiveCognitiveComplexity": "off"
@@ -54,7 +55,8 @@
         "useExhaustiveDependencies": "off"
       },
       "nursery": {
-        "noShadow": "off"
+        "noShadow": "off",
+        "useMaxParams": "off"
       },
       "a11y": {
         "noStaticElementInteractions": "off"

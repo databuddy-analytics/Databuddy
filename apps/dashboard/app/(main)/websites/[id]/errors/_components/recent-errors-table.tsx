@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { GlobeIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { CountryFlag } from '@/components/analytics/icons/CountryFlag';
-import { BrowserIcon, OSIcon } from '@/components/icon';
-import { DataTable } from '@/components/table/data-table';
-import { Badge } from '@/components/ui/badge';
-import { ErrorDetailModal } from './error-detail-modal';
-import { getErrorTypeIcon } from './error-icons';
-import { formatDateTime, getErrorCategory, getSeverityColor } from './utils';
-import type { RecentError } from './types';
+import { GlobeIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { BrowserIcon, OSIcon } from "@/components/icon";
+import { DataTable } from "@/components/table/data-table";
+import { Badge } from "@/components/ui/badge";
+import { ErrorDetailModal } from "./error-detail-modal";
+import { getErrorTypeIcon } from "./error-icons";
+import type { RecentError } from "./types";
+import { formatDateTime, getErrorCategory, getSeverityColor } from "./utils";
 
 interface Props {
 	recentErrors: RecentError[];
@@ -26,9 +26,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 
 	const columns = [
 		{
-			id: 'message',
-			accessorKey: 'message',
-			header: 'Error',
+			id: "message",
+			accessorKey: "message",
+			header: "Error",
 			cell: (info: any) => {
 				const message = info.getValue() as string;
 				const row = info.row.original as RecentError;
@@ -61,13 +61,13 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 			},
 		},
 		{
-			id: 'path',
-			accessorKey: 'path',
-			header: 'Page',
+			id: "path",
+			accessorKey: "path",
+			header: "Page",
 			cell: (info: any) => {
 				const url = info.getValue() as string;
 				try {
-					const pathname = url.startsWith('http') ? new URL(url).pathname : url;
+					const pathname = url.startsWith("http") ? new URL(url).pathname : url;
 					return (
 						<span className="max-w-xs truncate font-mono text-sm" title={url}>
 							{pathname}
@@ -83,9 +83,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 			},
 		},
 		{
-			id: 'browser_name',
-			accessorKey: 'browser_name',
-			header: 'Browser',
+			id: "browser_name",
+			accessorKey: "browser_name",
+			header: "Browser",
 			cell: (info: any) => {
 				const browser = info.getValue() as string;
 				if (!browser) {
@@ -100,9 +100,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 			},
 		},
 		{
-			id: 'os_name',
-			accessorKey: 'os_name',
-			header: 'OS',
+			id: "os_name",
+			accessorKey: "os_name",
+			header: "OS",
 			cell: (info: any) => {
 				const os = info.getValue() as string;
 				if (!os) {
@@ -117,9 +117,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 			},
 		},
 		{
-			id: 'country',
-			accessorKey: 'country',
-			header: 'Location',
+			id: "country",
+			accessorKey: "country",
+			header: "Location",
 			cell: (info: any) => {
 				const row = info.row.original as RecentError;
 				const countryCode = row.country_code;
@@ -136,16 +136,16 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 
 				return (
 					<div className="flex items-center gap-2">
-						<CountryFlag country={countryCode || countryName || ''} size={16} />
+						<CountryFlag country={countryCode || countryName || ""} size={16} />
 						<span className="text-sm">{countryName}</span>
 					</div>
 				);
 			},
 		},
 		{
-			id: 'timestamp',
-			accessorKey: 'timestamp',
-			header: 'Time',
+			id: "timestamp",
+			accessorKey: "timestamp",
+			header: "Time",
 			cell: (info: any) => {
 				const time = info.getValue() as string;
 				return (

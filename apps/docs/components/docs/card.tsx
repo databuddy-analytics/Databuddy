@@ -1,9 +1,9 @@
-import Link from 'next/link';
-import type * as React from 'react';
-import { SciFiCard } from '@/components/scifi-card';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import type * as React from "react";
+import { SciFiCard } from "@/components/scifi-card";
+import { cn } from "@/lib/utils";
 
-interface CardProps extends React.ComponentProps<'div'> {
+interface CardProps extends React.ComponentProps<"div"> {
 	href?: string;
 	title?: string;
 	description?: string;
@@ -22,8 +22,8 @@ function Card({
 	const content = (
 		<SciFiCard
 			className={cn(
-				'group h-full rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70',
-				href && 'cursor-pointer',
+				"group h-full rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70",
+				href && "cursor-pointer",
 				className
 			)}
 			opacity="reduced"
@@ -47,7 +47,7 @@ function Card({
 	);
 
 	if (href) {
-		const isExternal = href.startsWith('http');
+		const isExternal = href.startsWith("http");
 
 		if (isExternal) {
 			return (
@@ -72,20 +72,20 @@ function Card({
 	return content;
 }
 
-interface CardsProps extends React.ComponentProps<'div'> {
+interface CardsProps extends React.ComponentProps<"div"> {
 	cols?: 1 | 2 | 3 | 4;
 }
 
 function Cards({ className, cols = 2, children, ...props }: CardsProps) {
 	const gridCols = {
-		1: 'grid-cols-1',
-		2: 'grid-cols-1 md:grid-cols-2',
-		3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-		4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4',
+		1: "grid-cols-1",
+		2: "grid-cols-1 md:grid-cols-2",
+		3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+		4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
 	};
 
 	return (
-		<div className={cn('grid gap-4', gridCols[cols], className)} {...props}>
+		<div className={cn("grid gap-4", gridCols[cols], className)} {...props}>
 			{children}
 		</div>
 	);

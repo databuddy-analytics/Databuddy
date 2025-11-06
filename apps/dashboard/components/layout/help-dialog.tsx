@@ -1,13 +1,13 @@
-import { BookOpenIcon, ChatCircleIcon, PlayIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { BookOpenIcon, ChatCircleIcon, PlayIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface HelpDialogProps {
 	open: boolean;
@@ -16,24 +16,24 @@ interface HelpDialogProps {
 
 const helpItems = [
 	{
-		href: 'https://www.databuddy.cc/docs',
+		href: "https://www.databuddy.cc/docs",
 		icon: BookOpenIcon,
-		title: 'Documentation',
-		description: 'Read guides and API references',
+		title: "Documentation",
+		description: "Read guides and API references",
 		external: true,
 	},
 	{
-		href: 'mailto:support@databuddy.cc',
+		href: "mailto:support@databuddy.cc",
 		icon: ChatCircleIcon,
-		title: 'Contact Support',
-		description: 'Get help from our support team',
+		title: "Contact Support",
+		description: "Get help from our support team",
 		external: false,
 	},
 	{
-		href: 'https://www.youtube.com/@trydatabuddy',
+		href: "https://www.youtube.com/@trydatabuddy",
 		icon: PlayIcon,
-		title: 'Tutorials',
-		description: 'Learn Databuddy step by step',
+		title: "Tutorials",
+		description: "Learn Databuddy step by step",
 		external: true,
 	},
 ] as const;
@@ -57,8 +57,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
 								href={item.href}
 								key={item.href}
 								{...(item.external && {
-									target: '_blank',
-									rel: 'noopener noreferrer',
+									target: "_blank",
+									rel: "noopener noreferrer",
 								})}
 								className="block"
 							>

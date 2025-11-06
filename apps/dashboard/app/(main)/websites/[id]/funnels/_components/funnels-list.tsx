@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { FunnelIcon } from '@phosphor-icons/react';
-import { EmptyState } from '@/components/empty-state';
-import { Card, CardHeader } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { Funnel } from '@/hooks/use-funnels';
-import { FunnelCard } from './funnel-card';
+import { FunnelIcon } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Funnel } from "@/hooks/use-funnels";
+import { FunnelCard } from "./funnel-card";
 
 interface FunnelsListProps {
 	funnels: Funnel[];
@@ -32,7 +32,7 @@ export function FunnelsList({
 		return (
 			<div className="space-y-4">
 				{new Array(3).fill(null).map((_, index) => (
-					<Card className="rounded" key={index.toString()}>
+					<Card key={index.toString()}>
 						<CardHeader className="pb-4">
 							<div className="flex items-center justify-between">
 								<div className="flex-1">
@@ -68,7 +68,7 @@ export function FunnelsList({
 		return (
 			<EmptyState
 				action={{
-					label: 'Create Your First Funnel',
+					label: "Create Your First Funnel",
 					onClick: onCreateFunnel,
 				}}
 				description="Create your first funnel to start tracking user conversion journeys and identify optimization opportunities in your user flow."

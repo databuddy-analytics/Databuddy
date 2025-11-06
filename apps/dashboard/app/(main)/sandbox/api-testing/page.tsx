@@ -1,28 +1,28 @@
-'use client';
+"use client";
 
-import { Check, Copy, Loader2, Send } from 'lucide-react';
-import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Check, Copy, Loader2, Send } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ApiTestingPage() {
-	const [endpoint, setEndpoint] = useState('/api/v1/analytics');
-	const [method, setMethod] = useState('GET');
+	const [endpoint, setEndpoint] = useState("/api/v1/analytics");
+	const [method, setMethod] = useState("GET");
 	const [headers, setHeaders] = useState(
 		'{\n  "Content-Type": "application/json"\n}'
 	);
-	const [body, setBody] = useState('');
-	const [response, setResponse] = useState('');
+	const [body, setBody] = useState("");
+	const [response, setResponse] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [copied, setCopied] = useState(false);
 
@@ -35,7 +35,7 @@ export default function ApiTestingPage() {
 
 			// Mock response based on endpoint
 			let mockResponse: any;
-			if (endpoint.includes('analytics')) {
+			if (endpoint.includes("analytics")) {
 				mockResponse = {
 					status: 200,
 					data: {
@@ -44,9 +44,9 @@ export default function ApiTestingPage() {
 						bounce_rate: 0.45,
 						avg_session_duration: 180,
 						top_pages: [
-							{ path: '/', views: 456 },
-							{ path: '/about', views: 234 },
-							{ path: '/contact', views: 123 },
+							{ path: "/", views: 456 },
+							{ path: "/about", views: 234 },
+							{ path: "/contact", views: 123 },
 						],
 					},
 					timestamp: new Date().toISOString(),
@@ -54,7 +54,7 @@ export default function ApiTestingPage() {
 			} else {
 				mockResponse = {
 					status: 200,
-					message: 'API test successful',
+					message: "API test successful",
 					endpoint,
 					method,
 					timestamp: new Date().toISOString(),
@@ -65,7 +65,7 @@ export default function ApiTestingPage() {
 		} catch (error) {
 			setResponse(
 				JSON.stringify(
-					{ error: 'API test failed', message: String(error) },
+					{ error: "API test failed", message: String(error) },
 					null,
 					2
 				)
@@ -136,7 +136,7 @@ export default function ApiTestingPage() {
 							/>
 						</div>
 
-						{(method === 'POST' || method === 'PUT') && (
+						{(method === "POST" || method === "PUT") && (
 							<div>
 								<Label htmlFor="body">Request Body (JSON)</Label>
 								<Textarea
@@ -160,7 +160,7 @@ export default function ApiTestingPage() {
 							) : (
 								<Send className="h-4 w-4" />
 							)}
-							{isLoading ? 'Testing...' : 'Send Request'}
+							{isLoading ? "Testing..." : "Send Request"}
 						</Button>
 					</CardContent>
 				</Card>
@@ -184,7 +184,7 @@ export default function ApiTestingPage() {
 									) : (
 										<Copy className="h-4 w-4" />
 									)}
-									{copied ? 'Copied!' : 'Copy'}
+									{copied ? "Copied!" : "Copy"}
 								</Button>
 							)}
 						</div>
@@ -222,31 +222,31 @@ export default function ApiTestingPage() {
 					<div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
 						{[
 							{
-								name: 'Analytics Overview',
-								endpoint: '/api/v1/analytics',
-								method: 'GET',
+								name: "Analytics Overview",
+								endpoint: "/api/v1/analytics",
+								method: "GET",
 							},
 							{
-								name: 'Website List',
-								endpoint: '/api/v1/websites',
-								method: 'GET',
+								name: "Website List",
+								endpoint: "/api/v1/websites",
+								method: "GET",
 							},
 							{
-								name: 'User Profile',
-								endpoint: '/api/v1/user/profile',
-								method: 'GET',
+								name: "User Profile",
+								endpoint: "/api/v1/user/profile",
+								method: "GET",
 							},
 							{
-								name: 'Event Tracking',
-								endpoint: '/api/v1/events',
-								method: 'POST',
+								name: "Event Tracking",
+								endpoint: "/api/v1/events",
+								method: "POST",
 							},
 							{
-								name: 'Settings Update',
-								endpoint: '/api/v1/settings',
-								method: 'PUT',
+								name: "Settings Update",
+								endpoint: "/api/v1/settings",
+								method: "PUT",
 							},
-							{ name: 'Health Check', endpoint: '/api/health', method: 'GET' },
+							{ name: "Health Check", endpoint: "/api/health", method: "GET" },
 						].map((test) => (
 							<Button
 								className="justify-start"

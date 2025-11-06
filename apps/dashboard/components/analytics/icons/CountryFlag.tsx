@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 interface CountryFlagProps {
 	country: string;
@@ -22,7 +22,7 @@ export function CountryFlag({ country, size = 18 }: CountryFlagProps) {
 			className="inline-block rounded-sm object-cover"
 			height={size * 0.75}
 			src={imageUrl}
-			style={{ aspectRatio: '4/3' }}
+			style={{ aspectRatio: "4/3" }}
 			width={size}
 		/>
 	);

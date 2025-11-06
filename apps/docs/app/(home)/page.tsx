@@ -1,12 +1,12 @@
-import { Footer } from '@/components/footer';
-import { Description } from '@/components/landing/description';
-import FAQ from '@/components/landing/faq';
-import { GridCards } from '@/components/landing/grid-cards';
-import Hero from '@/components/landing/hero';
-import Section from '@/components/landing/section';
-import Testimonials from '@/components/landing/testimonials';
-import { TrustedBy } from '@/components/landing/trusted-by';
-import { StructuredData } from '@/components/structured-data';
+import { Footer } from "@/components/footer";
+import { Description } from "@/components/landing/description";
+import FAQ from "@/components/landing/faq";
+import { GridCards } from "@/components/landing/grid-cards";
+import Hero from "@/components/landing/hero";
+import Section from "@/components/landing/section";
+import Testimonials from "@/components/landing/testimonials";
+import { TrustedBy } from "@/components/landing/trusted-by";
+import { StructuredData } from "@/components/structured-data";
 
 // async function getGitHubStars() {
 // 	try {
@@ -40,10 +40,10 @@ export default function HomePage() {
 			<StructuredData
 				page={{
 					title:
-						'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+						"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 					description:
-						'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-					url: 'https://www.databuddy.cc',
+						"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+					url: "https://www.databuddy.cc",
 				}}
 			/>
 			<div className="overflow-hidden">

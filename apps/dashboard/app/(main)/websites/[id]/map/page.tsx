@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import type { LocationData } from '@databuddy/shared';
-import { GlobeIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { useParams } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useMapLocationData } from '@/hooks/use-dynamic-query';
-import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
+import type { LocationData } from "@databuddy/shared/types/website";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import dynamic from "next/dynamic";
+import Image from "next/image";
+import { useParams } from "next/navigation";
+import { Suspense, useCallback, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useMapLocationData } from "@/hooks/use-dynamic-query";
+import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 
 const MapComponent = dynamic(
 	() =>
-		import('@/components/analytics/map-component').then((mod) => ({
+		import("@/components/analytics/map-component").then((mod) => ({
 			default: mod.MapComponent,
 		})),
 	{
@@ -55,12 +55,12 @@ function CountryRow({
 		totalVisitors > 0 ? (country.visitors / totalVisitors) * 100 : 0;
 	const getColor = (pct: number) =>
 		pct >= 50
-			? ['rgba(34, 197, 94, 0.08)', 'rgba(34, 197, 94, 0.8)']
+			? ["rgba(34, 197, 94, 0.08)", "rgba(34, 197, 94, 0.8)"]
 			: pct >= 25
-				? ['rgba(59, 130, 246, 0.08)', 'rgba(59, 130, 246, 0.8)']
+				? ["rgba(59, 130, 246, 0.08)", "rgba(59, 130, 246, 0.8)"]
 				: pct >= 10
-					? ['rgba(245, 158, 11, 0.08)', 'rgba(245, 158, 11, 0.8)']
-					: ['rgba(107, 114, 128, 0.06)', 'rgba(107, 114, 128, 0.7)'];
+					? ["rgba(245, 158, 11, 0.08)", "rgba(245, 158, 11, 0.8)"]
+					: ["rgba(107, 114, 128, 0.06)", "rgba(107, 114, 128, 0.7)"];
 	const [bgColor, accentColor] = getColor(percentage);
 
 	return (
@@ -103,7 +103,7 @@ function CountryRow({
 
 function WebsiteMapPage() {
 	const { id } = useParams<{ id: string }>();
-	const [mode] = useState<'total' | 'perCapita'>('total');
+	const [mode] = useState<"total" | "perCapita">("total");
 	const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
 	const { dateRange } = useDateFilters();
@@ -119,8 +119,8 @@ function WebsiteMapPage() {
 		filters
 	);
 
-	const countriesFromQuery = getDataForQuery('map-countries', 'country');
-	const regionsFromQuery = getDataForQuery('map-regions', 'region');
+	const countriesFromQuery = getDataForQuery("map-countries", "country");
+	const regionsFromQuery = getDataForQuery("map-regions", "region");
 
 	const locationData = useMemo<LocationData>(() => {
 		const countries = (countriesFromQuery || []).map(
@@ -150,7 +150,7 @@ function WebsiteMapPage() {
 	const topCountries = useMemo(
 		() =>
 			locationData.countries
-				.filter((c) => c.country && c.country.trim() !== '')
+				.filter((c) => c.country && c.country.trim() !== "")
 				.sort((a, b) => b.visitors - a.visitors)
 				.slice(0, 5),
 		[locationData.countries]
@@ -170,16 +170,7 @@ function WebsiteMapPage() {
 	}
 
 	return (
-		<div
-			className="h-screen overflow-hidden"
-			style={{
-				width: 'calc(100% + 3rem)',
-				marginTop: '-1.5rem',
-				marginLeft: '-1.5rem',
-				marginRight: '-1.5rem',
-				marginBottom: '-1.5rem',
-			}}
-		>
+		<div className="h-screen overflow-hidden">
 			<div className="relative h-full w-full">
 				<MapComponent
 					height="100%"
@@ -261,7 +252,7 @@ export default function Page() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex h-[calc(100vh-7rem)] items-center justify-center">
+				<div className="flex h-screen items-center justify-center">
 					<div className="flex flex-col items-center gap-3">
 						<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 						<span className="font-medium text-muted-foreground text-sm">

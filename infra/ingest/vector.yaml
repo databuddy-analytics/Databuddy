@@ -12,6 +12,11 @@ sources:
       - analytics-email-events
       - analytics-blocked-traffic
     auto_offset_reset: earliest
+    sasl:
+      enabled: true
+      mechanism: SCRAM-SHA-256
+      username: "${VECTOR_KAFKA_USER}"
+      password: "${VECTOR_KAFKA_PASSWORD}"
     decoding:
       codec: json
 
@@ -177,6 +182,3 @@ sinks:
     path: /var/log/vector/dead_letters.log
     encoding:
       codec: json
-
-
-

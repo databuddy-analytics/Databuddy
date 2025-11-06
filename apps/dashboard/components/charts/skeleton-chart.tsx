@@ -1,12 +1,12 @@
-import { BarChart3Icon } from 'lucide-react';
+import { BarChart3Icon } from "lucide-react";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SkeletonChartProps {
 	height?: number;
@@ -54,7 +54,7 @@ export function SkeletonChart({
 								className="animate-pulse rounded-t-md bg-gradient-to-t from-primary/10 to-primary/30 shadow-sm"
 								key={`skeleton-${i + 1}`}
 								style={{
-									width: '12%',
+									width: "12%",
 									height: `${20 + Math.random() * 100}px`,
 									animationDelay: `${i * 100}ms`,
 									opacity: 0.8,

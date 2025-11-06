@@ -1,7 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-export type ExportFormat = 'json' | 'csv' | 'txt' | 'proto';
+export type ExportFormat = "json" | "csv" | "txt" | "proto";
 
 interface UseDataExportOptions {
 	websiteId: string;
@@ -22,10 +22,10 @@ const FILENAME_REGEX = /filename="(.+)"/;
 // Helper function to handle file download
 function downloadFile(blob: Blob, filename: string) {
 	const url = window.URL.createObjectURL(blob);
-	const a = document.createElement('a');
+	const a = document.createElement("a");
 	a.href = url;
 	a.download = filename;
-	a.style.display = 'none';
+	a.style.display = "none";
 	document.body.appendChild(a);
 	a.click();
 
@@ -39,8 +39,8 @@ function getFilenameFromResponse(
 	response: Response,
 	websiteName?: string
 ): string {
-	const contentDisposition = response.headers.get('Content-Disposition');
-	const defaultFilename = `${websiteName || 'website'}-export-${new Date().toISOString().split('T')[0]}.zip`;
+	const contentDisposition = response.headers.get("Content-Disposition");
+	const defaultFilename = `${websiteName || "website"}-export-${new Date().toISOString().split("T")[0]}.zip`;
 
 	if (contentDisposition) {
 		const filenameMatch = contentDisposition.match(FILENAME_REGEX);
@@ -56,13 +56,13 @@ function getFilenameFromResponse(
 async function exportDataFromAPI(
 	websiteId: string,
 	websiteName: string | undefined,
-	{ format = 'csv', startDate, endDate }: ExportParams
+	{ format = "csv", startDate, endDate }: ExportParams
 ): Promise<{ filename: string }> {
 	const response = await fetch(`${API_BASE_URL}/v1/export/data`, {
-		method: 'POST',
-		credentials: 'include',
+		method: "POST",
+		credentials: "include",
 		headers: {
-			'Content-Type': 'application/json',
+			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
 			website_id: websiteId,
@@ -74,7 +74,7 @@ async function exportDataFromAPI(
 
 	if (!response.ok) {
 		const error = await response.json();
-		throw new Error(error.error || 'Export failed');
+		throw new Error(error.error || "Export failed");
 	}
 
 	const filename = getFilenameFromResponse(response, websiteName);
@@ -93,10 +93,10 @@ export function useDataExport({
 		mutationFn: (params: ExportParams) =>
 			exportDataFromAPI(websiteId, websiteName, params),
 		onSuccess: () => {
-			toast.success('Data exported successfully!');
+			toast.success("Data exported successfully!");
 		},
 		onError: (error: Error) => {
-			const errorMessage = error.message || 'Export failed';
+			const errorMessage = error.message || "Export failed";
 			toast.error(errorMessage);
 		},
 	});

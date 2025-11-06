@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	CheckCircleIcon,
@@ -6,21 +6,21 @@ import {
 	GlobeIcon,
 	PlusIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import type { Domain, Project, WebsiteConfig } from './types';
-import { generateWebsiteName, generateWebsitePlaceholder } from './utils';
+} from "@/components/ui/sheet";
+import type { Domain, Project, WebsiteConfig } from "./types";
+import { generateWebsiteName, generateWebsitePlaceholder } from "./utils";
 
 interface CreateWebsiteDialogProps {
 	isOpen: boolean;
@@ -49,17 +49,17 @@ export function CreateWebsiteDialog({
 
 				if (isMultipleMode) {
 					if (index === 0) {
-						target = ['production'];
+						target = ["production"];
 					} else {
-						target = ['preview'];
+						target = ["preview"];
 					}
 				} else {
-					target = ['production'];
+					target = ["production"];
 				}
 
 				return {
 					domain,
-					name: '',
+					name: "",
 					target,
 				};
 			});
@@ -109,7 +109,7 @@ export function CreateWebsiteDialog({
 
 		// Only production environment can be used once, preview can be used multiple times
 		const productionCount = websiteConfigs.filter((config) =>
-			config.target.includes('production')
+			config.target.includes("production")
 		).length;
 		const hasValidProductionUsage = productionCount <= 1;
 
@@ -136,7 +136,7 @@ export function CreateWebsiteDialog({
 								<SheetTitle className="font-semibold text-foreground text-xl">
 									{isMultipleMode
 										? `Integrate ${websiteConfigs.length} Websites`
-										: 'Integrate Website'}
+										: "Integrate Website"}
 								</SheetTitle>
 								<SheetDescription className="text-muted-foreground text-sm leading-relaxed">
 									{isMultipleMode
@@ -230,9 +230,9 @@ export function CreateWebsiteDialog({
 									</p>
 								</div>
 								<div className="grid grid-cols-2 gap-2">
-									{['production', 'preview'].map((env) => {
+									{["production", "preview"].map((env) => {
 										const isUsedByOther =
-											env === 'production' &&
+											env === "production" &&
 											websiteConfigs.some(
 												(otherConfig, otherIndex) =>
 													otherIndex !== index &&
@@ -244,9 +244,9 @@ export function CreateWebsiteDialog({
 											<Button
 												className={`h-10 rounded font-medium text-sm transition-all ${
 													isSelected
-														? 'border-primary/50 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
-														: 'border-border/60 bg-background/50 text-foreground hover:border-border hover:bg-muted/50'
-												} ${isUsedByOther && !isSelected ? 'opacity-50' : ''}`}
+														? "border-primary/50 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+														: "border-border/60 bg-background/50 text-foreground hover:border-border hover:bg-muted/50"
+												} ${isUsedByOther && !isSelected ? "opacity-50" : ""}`}
 												disabled={isUsedByOther && !isSelected}
 												key={env}
 												onClick={() => {
@@ -342,7 +342,7 @@ export function CreateWebsiteDialog({
 								<div className="h-1.5 w-1.5 rounded-full bg-primary shadow-sm" />
 								<span className="text-foreground text-sm">
 									Create {websiteConfigs.length} website
-									{websiteConfigs.length !== 1 ? 's' : ''} in Databuddy
+									{websiteConfigs.length !== 1 ? "s" : ""} in Databuddy
 								</span>
 							</div>
 							<div className="flex items-center gap-2 rounded bg-background/50 p-2">
@@ -382,14 +382,14 @@ export function CreateWebsiteDialog({
 									<div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
 								</div>
 							)}
-							<span className={isSaving ? 'ml-6' : 'flex items-center gap-2'}>
+							<span className={isSaving ? "ml-6" : "flex items-center gap-2"}>
 								{isSaving ? (
-									'Integrating...'
+									"Integrating..."
 								) : (
 									<>
 										<PlusIcon className="h-3 w-3" />
 										Integrate {websiteConfigs.length} Website
-										{websiteConfigs.length !== 1 ? 's' : ''}
+										{websiteConfigs.length !== 1 ? "s" : ""}
 									</>
 								)}
 							</span>

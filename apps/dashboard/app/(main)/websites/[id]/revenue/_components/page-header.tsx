@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	ArrowLeftIcon,
 	CurrencyDollarIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface PageHeaderProps {
 	websiteId: string;
@@ -52,8 +52,8 @@ export function PageHeader({
 									Revenue Analytics
 								</h1>
 								<p className="text-muted-foreground text-sm sm:text-base">
-									Track revenue and transaction data for{' '}
-									{websiteName || 'this website'}
+									Track revenue and transaction data for{" "}
+									{websiteName || "this website"}
 								</p>
 							</div>
 						</div>
@@ -67,7 +67,7 @@ export function PageHeader({
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+								className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
 								size={16}
 								weight="fill"
 							/>
@@ -95,7 +95,7 @@ export function PageHeader({
 								</h4>
 								<p className="mt-1 text-destructive/80 text-sm">
 									{errorMessage ||
-										'There was an issue loading your revenue data. Please try refreshing the page.'}
+										"There was an issue loading your revenue data. Please try refreshing the page."}
 								</p>
 							</div>
 							<Button

@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
-import { auth } from '@databuddy/auth';
-import { account, and, db, eq } from '@databuddy/db';
-import { env } from '@databuddy/env/dashboard';
-import { headers } from 'next/headers';
-import { type NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from "node:crypto";
+import { auth } from "@databuddy/auth";
+import { account, and, db, eq } from "@databuddy/db";
+import { env } from "@databuddy/env/dashboard";
+import { headers } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
 
 interface VercelTokenResponse {
 	access_token: string;
@@ -21,10 +21,10 @@ interface VercelUserInfo {
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
-		const code = searchParams.get('code');
-		const configurationId = searchParams.get('configurationId');
-		const teamId = searchParams.get('teamId');
-		const next = searchParams.get('next');
+		const code = searchParams.get("code");
+		const configurationId = searchParams.get("configurationId");
+		const teamId = searchParams.get("teamId");
+		const next = searchParams.get("next");
 
 		if (!code) {
 			return NextResponse.redirect(
@@ -48,11 +48,11 @@ export async function GET(request: NextRequest) {
 		const redirectUri = `${env.BETTER_AUTH_URL}/api/integrations/vercel/callback`;
 
 		const tokenResponse = await fetch(
-			'https://api.vercel.com/v2/oauth/access_token',
+			"https://api.vercel.com/v2/oauth/access_token",
 			{
-				method: 'POST',
+				method: "POST",
 				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
+					"Content-Type": "application/x-www-form-urlencoded",
 				},
 				body: new URLSearchParams({
 					code,
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
 		const tokens: VercelTokenResponse = await tokenResponse.json();
 
-		const userResponse = await fetch('https://api.vercel.com/v2/user', {
+		const userResponse = await fetch("https://api.vercel.com/v2/user", {
 			headers: {
 				Authorization: `Bearer ${tokens.access_token}`,
 			},
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 		const userId = session.user.id;
 
 		const existingAccount = await db.query.account.findFirst({
-			where: and(eq(account.userId, userId), eq(account.providerId, 'vercel')),
+			where: and(eq(account.userId, userId), eq(account.providerId, "vercel")),
 		});
 
 		const now = new Date().toISOString();
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 			await db.insert(account).values({
 				id: randomUUID(),
 				accountId: userInfo.id,
-				providerId: 'vercel',
+				providerId: "vercel",
 				userId,
 				accessToken: tokens.access_token,
 				scope: scopeData,
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.redirect(redirectUrl);
 	} catch (error) {
-		console.error('Vercel OAuth callback error:', error);
+		console.error("Vercel OAuth callback error:", error);
 		return NextResponse.redirect(
 			`${env.BETTER_AUTH_URL}/auth/error?error=internal_error`
 		);

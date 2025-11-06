@@ -1,11 +1,11 @@
-import { websitesApi } from '@databuddy/auth';
-import { db, dbConnections, eq, websites } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
-import { TRPCError } from '@trpc/server';
-import type { Context } from '../trpc';
+import { websitesApi } from "@databuddy/auth";
+import { db, dbConnections, eq, websites } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
+import { TRPCError } from "@trpc/server";
+import type { Context } from "../trpc";
 
-type Permission = 'read' | 'update' | 'delete' | 'transfer';
+type Permission = "read" | "update" | "delete" | "transfer";
 
 const getWebsiteById = cacheable(
 	async (id: string) => {
@@ -18,7 +18,7 @@ const getWebsiteById = cacheable(
 			});
 		} catch (error) {
 			logger.error(
-				'Error fetching website by ID:',
+				"Error fetching website by ID:",
 				error instanceof Error ? error.message : String(error),
 				{ id }
 			);
@@ -27,7 +27,7 @@ const getWebsiteById = cacheable(
 	},
 	{
 		expireInSec: 600,
-		prefix: 'website_by_id',
+		prefix: "website_by_id",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -43,7 +43,7 @@ const getDbConnectionById = async (id: string) => {
 		});
 	} catch (error) {
 		logger.error(
-			'Error fetching database connection by ID:',
+			"Error fetching database connection by ID:",
 			error instanceof Error ? error.message : String(error),
 			{ id }
 		);
@@ -66,21 +66,21 @@ export async function authorizeWebsiteAccess(
 	const website = await getWebsiteById(websiteId);
 
 	if (!website) {
-		throw new TRPCError({ code: 'NOT_FOUND', message: 'Website not found.' });
+		throw new TRPCError({ code: "NOT_FOUND", message: "Website not found." });
 	}
 
-	if (permission === 'read' && website.isPublic) {
+	if (permission === "read" && website.isPublic) {
 		return website;
 	}
 
 	if (!ctx.user) {
 		throw new TRPCError({
-			code: 'UNAUTHORIZED',
-			message: 'Authentication is required for this action.',
+			code: "UNAUTHORIZED",
+			message: "Authentication is required for this action.",
 		});
 	}
 
-	if (ctx.user.role === 'ADMIN') {
+	if (ctx.user.role === "ADMIN") {
 		return website;
 	}
 
@@ -91,14 +91,14 @@ export async function authorizeWebsiteAccess(
 		});
 		if (!success) {
 			throw new TRPCError({
-				code: 'FORBIDDEN',
-				message: 'You do not have permission to perform this action.',
+				code: "FORBIDDEN",
+				message: "You do not have permission to perform this action.",
 			});
 		}
 	} else if (website.userId !== ctx.user.id) {
 		throw new TRPCError({
-			code: 'FORBIDDEN',
-			message: 'You are not the owner of this website.',
+			code: "FORBIDDEN",
+			message: "You are not the owner of this website.",
 		});
 	}
 
@@ -121,19 +121,19 @@ export async function authorizeDbConnectionAccess(
 
 	if (!connection) {
 		throw new TRPCError({
-			code: 'NOT_FOUND',
-			message: 'Database connection not found.',
+			code: "NOT_FOUND",
+			message: "Database connection not found.",
 		});
 	}
 
 	if (!ctx.user) {
 		throw new TRPCError({
-			code: 'UNAUTHORIZED',
-			message: 'Authentication is required for this action.',
+			code: "UNAUTHORIZED",
+			message: "Authentication is required for this action.",
 		});
 	}
 
-	if (ctx.user.role === 'ADMIN') {
+	if (ctx.user.role === "ADMIN") {
 		return connection;
 	}
 
@@ -144,14 +144,14 @@ export async function authorizeDbConnectionAccess(
 		});
 		if (!success) {
 			throw new TRPCError({
-				code: 'FORBIDDEN',
-				message: 'You do not have permission to perform this action.',
+				code: "FORBIDDEN",
+				message: "You do not have permission to perform this action.",
 			});
 		}
 	} else if (connection.userId !== ctx.user.id) {
 		throw new TRPCError({
-			code: 'FORBIDDEN',
-			message: 'You are not the owner of this database connection.',
+			code: "FORBIDDEN",
+			message: "You are not the owner of this database connection.",
 		});
 	}
 

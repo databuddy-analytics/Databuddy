@@ -1,16 +1,16 @@
-'use server';
+"use server";
 
 import type {
 	BatchQueryResponse,
 	DynamicQueryRequest,
 	DynamicQueryResponse,
-} from './types';
+} from "./types";
 
 function buildQueryParams(
 	websiteId: string,
 	startDate: string,
 	endDate: string,
-	timezone = 'UTC'
+	timezone = "UTC"
 ): URLSearchParams {
 	const params = new URLSearchParams({
 		website_id: websiteId,
@@ -26,7 +26,7 @@ async function executeDynamicQuery(
 	startDate: string,
 	endDate: string,
 	queryData: DynamicQueryRequest | DynamicQueryRequest[],
-	timezone = 'UTC'
+	timezone = "UTC"
 ): Promise<DynamicQueryResponse | BatchQueryResponse> {
 	try {
 		const params = buildQueryParams(websiteId, startDate, endDate, timezone);
@@ -41,7 +41,7 @@ async function executeDynamicQuery(
 					limit: query.limit || 100,
 					page: query.page || 1,
 					filters: query.filters || [],
-					granularity: query.granularity || 'daily',
+					granularity: query.granularity || "daily",
 				}))
 			: {
 					...queryData,
@@ -51,14 +51,14 @@ async function executeDynamicQuery(
 					limit: queryData.limit || 100,
 					page: queryData.page || 1,
 					filters: queryData.filters || [],
-					granularity: queryData.granularity || 'daily',
+					granularity: queryData.granularity || "daily",
 				};
 
 		const response = await fetch(url, {
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/json',
-				'X-Api-Key': process.env.DATABUDDY_API_KEY as string,
+				"Content-Type": "application/json",
+				"X-Api-Key": process.env.DATABUDDY_API_KEY as string,
 			},
 			body: JSON.stringify(requestBody),
 		});
@@ -70,12 +70,12 @@ async function executeDynamicQuery(
 		const data = await response.json();
 
 		if (!data.success) {
-			throw new Error(data.error || 'Failed to fetch dynamic query data');
+			throw new Error(data.error || "Failed to fetch dynamic query data");
 		}
 
 		return data;
 	} catch (error) {
-		console.error('Failed to execute dynamic query:', error);
+		console.error("Failed to execute dynamic query:", error);
 		throw error;
 	}
 }
@@ -85,7 +85,7 @@ export async function executeQuery(
 	startDate: string,
 	endDate: string,
 	queryRequest: DynamicQueryRequest,
-	timezone = 'UTC'
+	timezone = "UTC"
 ): Promise<DynamicQueryResponse> {
 	try {
 		const result = await executeDynamicQuery(
@@ -96,8 +96,8 @@ export async function executeQuery(
 			timezone
 		);
 
-		if ('batch' in result) {
-			throw new Error('Unexpected batch response for single query');
+		if ("batch" in result) {
+			throw new Error("Unexpected batch response for single query");
 		}
 
 		return result;
@@ -122,7 +122,7 @@ export async function executeBatchQueries(
 	startDate: string,
 	endDate: string,
 	queries: DynamicQueryRequest[],
-	timezone = 'UTC'
+	timezone = "UTC"
 ): Promise<BatchQueryResponse> {
 	try {
 		const result = await executeDynamicQuery(
@@ -133,8 +133,8 @@ export async function executeBatchQueries(
 			timezone
 		);
 
-		if (!('batch' in result)) {
-			throw new Error('Expected batch response for multiple queries');
+		if (!("batch" in result)) {
+			throw new Error("Expected batch response for multiple queries");
 		}
 
 		return result;

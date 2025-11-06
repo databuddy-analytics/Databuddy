@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { FloppyDiskIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { FloppyDiskIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { type Organization, useOrganizations } from '@/hooks/use-organizations';
-import { OrganizationLogoUploader } from './organization-logo-uploader';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { type Organization, useOrganizations } from "@/hooks/use-organizations";
+import { OrganizationLogoUploader } from "./organization-logo-uploader";
 
 interface GeneralSettingsProps {
 	organization: Organization;
@@ -21,13 +21,12 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 
 	const { updateOrganizationAsync } = useOrganizations();
 
-	const cleanSlug = (value: string) => {
-		return value
+	const cleanSlug = (value: string) =>
+		value
 			.toLowerCase()
-			.replace(/[^a-z0-9-]/g, '-')
-			.replace(/-+/g, '-')
-			.replace(/^-|-$/g, '');
-	};
+			.replace(/[^a-z0-9-]/g, "-")
+			.replace(/-+/g, "-")
+			.replace(/^-|-$/g, "");
 
 	const handleSlugChange = (value: string) => {
 		setSlug(cleanSlug(value));
@@ -35,7 +34,7 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 
 	const handleSave = async () => {
 		if (!(name.trim() && slug.trim())) {
-			toast.error('Name and slug are required');
+			toast.error("Name and slug are required");
 			return;
 		}
 
@@ -49,12 +48,12 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 				},
 			});
 
-			toast.success('Organization updated successfully');
+			toast.success("Organization updated successfully");
 
 			// If slug changed, we might need to update the URL context
 			// but since we're using active organization, this should be handled automatically
 		} catch (_error) {
-			toast.error('Failed to update organization');
+			toast.error("Failed to update organization");
 		} finally {
 			setIsSaving(false);
 		}
@@ -71,7 +70,9 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 					<div className="rounded border bg-card p-4 sm:p-6">
 						<div className="space-y-3 sm:space-y-4">
 							<div>
-								<h3 className="font-semibold text-base sm:text-lg">Organization Logo</h3>
+								<h3 className="font-semibold text-base sm:text-lg">
+									Organization Logo
+								</h3>
 								<p className="text-muted-foreground text-xs sm:text-sm">
 									Upload a logo to represent your organization
 								</p>
@@ -84,15 +85,20 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 					<div className="rounded border bg-card p-4 sm:p-6">
 						<div className="space-y-4 sm:space-y-6">
 							<div>
-								<h3 className="font-semibold text-base sm:text-lg">Basic Information</h3>
+								<h3 className="font-semibold text-base sm:text-lg">
+									Basic Information
+								</h3>
 								<p className="text-muted-foreground text-xs sm:text-sm">
 									Configure your organization's name and URL identifier
 								</p>
 							</div>
 
-							<div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
+							<div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
 								<div className="space-y-2 sm:space-y-3">
-									<Label className="font-medium text-xs sm:text-sm" htmlFor="name">
+									<Label
+										className="font-medium text-xs sm:text-sm"
+										htmlFor="name"
+									>
 										Organization Name
 									</Label>
 									<Input
@@ -103,7 +109,10 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 									/>
 								</div>
 								<div className="space-y-2 sm:space-y-3">
-									<Label className="font-medium text-xs sm:text-sm" htmlFor="slug">
+									<Label
+										className="font-medium text-xs sm:text-sm"
+										htmlFor="slug"
+									>
 										Organization Slug
 									</Label>
 									<Input
@@ -133,7 +142,10 @@ export function GeneralSettings({ organization }: GeneralSettingsProps) {
 											</>
 										) : (
 											<>
-												<FloppyDiskIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" size={12} />
+												<FloppyDiskIcon
+													className="mr-2 h-3 w-3 sm:h-4 sm:w-4"
+													size={12}
+												/>
 												Save Changes
 											</>
 										)}

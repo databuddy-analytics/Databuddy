@@ -1,40 +1,40 @@
-import { db, eq, inArray, user, websites } from '@databuddy/db';
+import { db, eq, inArray, user, websites } from "@databuddy/db";
 import {
 	InvitationEmail,
 	MagicLinkEmail,
 	OtpEmail,
 	ResetPasswordEmail,
 	VerificationEmail,
-} from '@databuddy/email';
-import { getRedisCache } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
-import { betterAuth } from 'better-auth';
+} from "@databuddy/email";
+import { getRedisCache } from "@databuddy/redis";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
+import { betterAuth } from "better-auth";
 
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import {
 	customSession,
 	emailOTP,
 	magicLink,
 	organization,
 	twoFactor,
-} from 'better-auth/plugins';
-import { Resend } from 'resend';
-import { ac, admin, member, owner, viewer } from './permissions';
+} from "better-auth/plugins";
+import { Resend } from "resend";
+import { ac, admin, member, owner, viewer } from "./permissions";
 
 function isProduction() {
-	return process.env.NODE_ENV === 'production';
+	return process.env.NODE_ENV === "production";
 }
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
-		provider: 'pg',
+		provider: "pg",
 	}),
 	databaseHooks: {
 		user: {
 			create: {
-				after: (user: { id: string; name: string; email: string }) => {
+				after: async (user: { id: string; name: string; email: string }) => {
 					logger.info(
-						'User Created',
+						"User Created",
 						`User ${user.id}, ${user.name}, ${user.email} created`
 					);
 					// const resend = new Resend(process.env.RESEND_API_KEY as string);
@@ -53,7 +53,7 @@ export const auth = betterAuth({
 			enabled: true,
 			beforeDelete: async (user) => {
 				logger.info(
-					'User Deletion Started',
+					"User Deletion Started",
 					`Starting deletion process for user ${user.id}`
 				);
 
@@ -64,7 +64,7 @@ export const auth = betterAuth({
 
 					if (userWebsites.length > 0) {
 						logger.info(
-							'Deleting Websites',
+							"Deleting Websites",
 							`Deleting websites for user ${user.id}`
 						);
 						await db.delete(websites).where(
@@ -75,7 +75,7 @@ export const auth = betterAuth({
 						);
 					}
 					logger.info(
-						'User Deletion Finished',
+						"User Deletion Finished",
 						`Finished deletion process for user ${user.id}`
 					);
 				} catch (error) {
@@ -84,33 +84,33 @@ export const auth = betterAuth({
 			},
 		},
 	},
-	appName: 'databuddy.cc',
+	appName: "databuddy.cc",
 	onAPIError: {
 		throw: false,
 		onError: (error, ctx) => {
 			if (error instanceof Error) {
 				logger.exception(error, ctx as Record<string, unknown>);
 			} else {
-				logger.error('Auth API Error', 'An unknown error occurred', {
+				logger.error("Auth API Error", "An unknown error occurred", {
 					error,
 					...(ctx as Record<string, unknown>),
 				});
 			}
 		},
-		errorURL: '/auth/error',
+		errorURL: "/auth/error",
 	},
 	advanced: {
 		crossSubDomainCookies: {
 			enabled: isProduction(),
-			domain: '.databuddy.cc',
+			domain: ".databuddy.cc",
 		},
-		cookiePrefix: 'databuddy',
+		cookiePrefix: "databuddy",
 		useSecureCookies: isProduction(),
 	},
 	trustedOrigins: [
-		'https://databuddy.cc',
-		'https://app.databuddy.cc',
-		'https://api.databuddy.cc',
+		"https://databuddy.cc",
+		"https://app.databuddy.cc",
+		"https://api.databuddy.cc",
 	],
 	socialProviders: {
 		google: {
@@ -127,20 +127,20 @@ export const auth = betterAuth({
 		minPasswordLength: 8,
 		maxPasswordLength: 32,
 		autoSignIn: false,
-		requireEmailVerification: process.env.NODE_ENV === 'production',
+		requireEmailVerification: process.env.NODE_ENV === "production",
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: 'noreply@databuddy.cc',
+				from: "noreply@databuddy.cc",
 				to: user.email,
-				subject: 'Reset your password',
+				subject: "Reset your password",
 				react: ResetPasswordEmail({ url }),
 			});
 		},
 	},
 	emailVerification: {
-		sendOnSignUp: process.env.NODE_ENV === 'production',
-		sendOnSignIn: process.env.NODE_ENV === 'production',
+		sendOnSignUp: process.env.NODE_ENV === "production",
+		sendOnSignIn: process.env.NODE_ENV === "production",
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async ({
 			user,
@@ -150,14 +150,14 @@ export const auth = betterAuth({
 			url: string;
 		}) => {
 			logger.info(
-				'Email Verification',
+				"Email Verification",
 				`Sending verification email to ${user.email}`
 			);
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: 'noreply@databuddy.cc',
+				from: "noreply@databuddy.cc",
 				to: user.email,
-				subject: 'Verify your email',
+				subject: "Verify your email",
 				react: VerificationEmail({ url }),
 			});
 		},
@@ -187,24 +187,24 @@ export const auth = betterAuth({
 	plugins: [
 		emailOTP({
 			async sendVerificationOTP({ email, otp, type }) {
-				logger.info('Email OTP', `Sending OTP to ${email} of type ${type}`);
+				logger.info("Email OTP", `Sending OTP to ${email} of type ${type}`);
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: "noreply@databuddy.cc",
 					to: email,
-					subject: 'Your verification code',
+					subject: "Your verification code",
 					react: OtpEmail({ otp }),
 				});
 			},
 		}),
 		magicLink({
 			sendMagicLink: async ({ email, url }) => {
-				logger.info('Magic Link', `Sending magic link to ${email}`);
+				logger.info("Magic Link", `Sending magic link to ${email}`);
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: "noreply@databuddy.cc",
 					to: email,
-					subject: 'Login to Databuddy',
+					subject: "Login to Databuddy",
 					react: MagicLinkEmail({ url }),
 				});
 			},
@@ -226,7 +226,7 @@ export const auth = betterAuth({
 			};
 		}),
 		organization({
-			creatorRole: 'owner',
+			creatorRole: "owner",
 			teams: {
 				enabled: false,
 			},
@@ -244,14 +244,14 @@ export const auth = betterAuth({
 				invitation,
 			}) => {
 				logger.info(
-					'Organization Invitation',
+					"Organization Invitation",
 					`Inviting ${email} to ${organization.name}`,
 					{ inviter: inviter.user.name, organizationId: organization.id }
 				);
 				const invitationLink = `https://app.databuddy.cc/invitations/${invitation.id}`;
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: 'noreply@databuddy.cc',
+					from: "noreply@databuddy.cc",
 					to: email,
 					subject: `You're invited to join ${organization.name}`,
 					react: InvitationEmail({
@@ -269,7 +269,7 @@ export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
 
-export type User = (typeof auth)['$Infer']['Session']['user'] & {
-	role?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+export type User = (typeof auth)["$Infer"]["Session"]["user"] & {
+	role?: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 };
-export type Session = (typeof auth)['$Infer']['Session'];
+export type Session = (typeof auth)["$Infer"]["Session"];

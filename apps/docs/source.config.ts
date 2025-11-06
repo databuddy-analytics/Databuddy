@@ -3,8 +3,8 @@ import {
 	defineDocs,
 	frontmatterSchema,
 	metaSchema,
-} from 'fumadocs-mdx/config';
-import { z } from 'zod';
+} from "fumadocs-mdx/config";
+import { z } from "zod";
 
 // Simplified blog frontmatter schema - separate from docs schema
 const blogFrontmatterSchema = z.object({
@@ -23,7 +23,7 @@ const blogFrontmatterSchema = z.object({
 // You can customise Zod schemas for frontmatter and `meta.json` here
 // see https://fumadocs.vercel.app/docs/mdx/collections#define-docs
 export const docs = defineDocs({
-	dir: 'content/docs',
+	dir: "content/docs",
 	docs: {
 		schema: frontmatterSchema,
 	},
@@ -33,7 +33,7 @@ export const docs = defineDocs({
 });
 
 export const blogs = defineDocs({
-	dir: 'content/blogs',
+	dir: "content/blogs",
 	docs: {
 		schema: blogFrontmatterSchema,
 	},
@@ -43,7 +43,7 @@ export const blogs = defineDocs({
 });
 
 export default defineConfig({
-	lastModifiedTime: 'git',
+	lastModifiedTime: "git",
 	mdxOptions: {
 		// MDX options
 	},

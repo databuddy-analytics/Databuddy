@@ -4,7 +4,7 @@
  * Provides reusable validation and sanitization functions for analytics data.
  */
 
-import { z } from 'zod/v4';
+import { z } from "zod/v4";
 
 export const VALIDATION_LIMITS = {
 	STRING_MAX_LENGTH: 2048,
@@ -37,36 +37,36 @@ export const VALIDATION_LIMITS = {
 } as const;
 
 export const FILTERED_ERROR_MESSAGES = new Set([
-	'Script error.',
-	'Non-Error promise rejection captured',
-	'ResizeObserver loop limit exceeded',
-	'Loading chunk',
-	'ChunkLoadError',
+	"Script error.",
+	"Non-Error promise rejection captured",
+	"ResizeObserver loop limit exceeded",
+	"Loading chunk",
+	"ChunkLoadError",
 ]);
 
 export const SAFE_HEADERS = new Set([
-	'user-agent',
-	'referer',
-	'accept-language',
-	'accept-encoding',
-	'accept',
-	'origin',
-	'host',
-	'content-type',
-	'content-length',
-	'cf-connecting-ip',
-	'cf-ipcountry',
-	'cf-ray',
-	'x-forwarded-for',
-	'x-real-ip',
+	"user-agent",
+	"referer",
+	"accept-language",
+	"accept-encoding",
+	"accept",
+	"origin",
+	"host",
+	"content-type",
+	"content-length",
+	"cf-connecting-ip",
+	"cf-ipcountry",
+	"cf-ray",
+	"x-forwarded-for",
+	"x-real-ip",
 ]);
 
 /**
  * Sanitizes a string by removing potentially dangerous characters
  */
 export function sanitizeString(input: unknown, maxLength?: number): string {
-	if (typeof input !== 'string') {
-		return '';
+	if (typeof input !== "string") {
+		return "";
 	}
 
 	const actualMaxLength = maxLength ?? VALIDATION_LIMITS.STRING_MAX_LENGTH;
@@ -74,7 +74,7 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 	return input
 		.trim()
 		.slice(0, actualMaxLength)
-		.split('')
+		.split("")
 		.filter((char) => {
 			const code = char.charCodeAt(0);
 			return !(
@@ -85,10 +85,10 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 				code === 127
 			);
 		})
-		.join('')
-		.replace(/<[^>]*>/g, '') // Remove HTML tags
-		.replace(/[<>'"&]/g, '')
-		.replace(/\s+/g, ' ');
+		.join("")
+		.replace(/<[^>]*>/g, "") // Remove HTML tags
+		.replace(/[<>'"&]/g, "")
+		.replace(/\s+/g, " ");
 }
 
 const timezoneRegex = /^[A-Za-z0-9_/+-]{1,64}$/;
@@ -100,8 +100,8 @@ const resolutionRegex = /^\d{1,5}x\d{1,5}$/;
  * Validates and sanitizes timezone strings
  */
 export function validateTimezone(timezone: unknown): string {
-	if (typeof timezone !== 'string') {
-		return '';
+	if (typeof timezone !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(
@@ -110,7 +110,7 @@ export function validateTimezone(timezone: unknown): string {
 	);
 
 	if (!timezoneRegex.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized;
@@ -120,7 +120,7 @@ export function validateTimezone(timezone: unknown): string {
  * Validates timezone offset
  */
 export function validateTimezoneOffset(offset: unknown): number | null {
-	if (typeof offset === 'number') {
+	if (typeof offset === "number") {
 		if (offset >= -12 * 60 && offset <= 14 * 60) {
 			return Math.round(offset);
 		}
@@ -133,8 +133,8 @@ export function validateTimezoneOffset(offset: unknown): number | null {
  * Validates and sanitizes language strings
  */
 export function validateLanguage(language: unknown): string {
-	if (typeof language !== 'string') {
-		return '';
+	if (typeof language !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(
@@ -143,7 +143,7 @@ export function validateLanguage(language: unknown): string {
 	);
 
 	if (!languageRegex.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized.toLowerCase();
@@ -153,8 +153,8 @@ export function validateLanguage(language: unknown): string {
  * Validates session ID format
  */
 export function validateSessionId(sessionId: unknown): string {
-	if (typeof sessionId !== 'string') {
-		return '';
+	if (typeof sessionId !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(
@@ -163,7 +163,7 @@ export function validateSessionId(sessionId: unknown): string {
 	);
 
 	if (!sessionIdRegex.test(sanitized)) {
-		return '';
+		return "";
 	}
 
 	return sanitized;
@@ -173,8 +173,8 @@ export function validateSessionId(sessionId: unknown): string {
  * Validates and sanitizes UTM parameters
  */
 export function validateUtmParameter(utm: unknown): string {
-	if (typeof utm !== 'string') {
-		return '';
+	if (typeof utm !== "string") {
+		return "";
 	}
 
 	return sanitizeString(utm, VALIDATION_LIMITS.UTM_MAX_LENGTH);
@@ -189,14 +189,14 @@ export function validateNumeric(
 	max = Number.MAX_SAFE_INTEGER
 ): number | null {
 	if (
-		typeof value === 'number' &&
+		typeof value === "number" &&
 		!Number.isNaN(value) &&
 		Number.isFinite(value)
 	) {
 		const rounded = Math.round(value);
 		return rounded >= min && rounded <= max ? rounded : null;
 	}
-	if (typeof value === 'string') {
+	if (typeof value === "string") {
 		const parsed = Number.parseFloat(value);
 		if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
 			const rounded = Math.round(parsed);
@@ -210,20 +210,20 @@ export function validateNumeric(
  * Validates URL format
  */
 export function validateUrl(url: unknown): string {
-	if (typeof url !== 'string') {
-		return '';
+	if (typeof url !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(url);
 
 	try {
 		const parsed = new URL(sanitized);
-		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-			return '';
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return "";
 		}
 		return parsed.toString();
 	} catch {
-		return '';
+		return "";
 	}
 }
 
@@ -259,7 +259,7 @@ export function validateProperties(
 ): Record<string, unknown> {
 	if (
 		!properties ||
-		typeof properties !== 'object' ||
+		typeof properties !== "object" ||
 		Array.isArray(properties)
 	) {
 		return {};
@@ -278,11 +278,11 @@ export function validateProperties(
 
 		const value = props[key];
 
-		if (typeof value === 'string') {
+		if (typeof value === "string") {
 			validated[sanitizedKey] = sanitizeString(value);
-		} else if (typeof value === 'number') {
+		} else if (typeof value === "number") {
 			validated[sanitizedKey] = validateNumeric(value);
-		} else if (typeof value === 'boolean') {
+		} else if (typeof value === "boolean") {
 			validated[sanitizedKey] = value;
 		} else if (value === null || value === undefined) {
 			validated[sanitizedKey] = null;
@@ -296,7 +296,7 @@ export function validateProperties(
  * Comprehensive event validation schema
  */
 export const analyticsEventSchema = z.object({
-	type: z.enum(['track']),
+	type: z.enum(["track"]),
 	payload: z.object({
 		name: z.string().max(VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH).optional(),
 		anonymousId: z
@@ -343,13 +343,13 @@ export function validatePerformanceMetric(value: unknown): number | undefined {
  * Validates screen resolution format
  */
 export function validateScreenResolution(resolution: unknown): string {
-	if (typeof resolution !== 'string') {
-		return '';
+	if (typeof resolution !== "string") {
+		return "";
 	}
 
 	const sanitized = sanitizeString(resolution, 32);
 
-	return resolutionRegex.test(sanitized) ? sanitized : '';
+	return resolutionRegex.test(sanitized) ? sanitized : "";
 }
 
 /**

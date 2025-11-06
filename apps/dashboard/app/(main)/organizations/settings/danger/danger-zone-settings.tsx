@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { SignOutIcon, TrashIcon } from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { authClient } from "@databuddy/auth/client";
+import { SignOutIcon, TrashIcon } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -14,11 +14,11 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
-import { type Organization, useOrganizations } from '@/hooks/use-organizations';
-import { TransferAssets } from './transfer-assets';
+import { type Organization, useOrganizations } from "@/hooks/use-organizations";
+import { TransferAssets } from "./transfer-assets";
 
 export function DangerZoneSettings({
 	organization,
@@ -33,7 +33,8 @@ export function DangerZoneSettings({
 	const [isLeaving, setIsLeaving] = useState(false);
 	const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
-	const { deleteOrganizationAsync, leaveOrganizationAsync } = useOrganizations();
+	const { deleteOrganizationAsync, leaveOrganizationAsync } =
+		useOrganizations();
 
 	useEffect(() => {
 		const checkOwnership = async () => {
@@ -49,7 +50,7 @@ export function DangerZoneSettings({
 				const member = fullOrgData?.members?.find(
 					(m) => m.userId === session.user.id
 				);
-				setIsOwner(member?.role === 'owner');
+				setIsOwner(member?.role === "owner");
 			} catch {
 				setIsOwner(false);
 			}
@@ -62,9 +63,9 @@ export function DangerZoneSettings({
 		setIsDeleting(true);
 		try {
 			await deleteOrganizationAsync(organization.id);
-			router.push('/organizations');
+			router.push("/organizations");
 		} catch (_error) {
-			toast.error('Failed to delete organization');
+			toast.error("Failed to delete organization");
 		} finally {
 			setIsDeleting(false);
 			setShowDeleteDialog(false);
@@ -75,9 +76,9 @@ export function DangerZoneSettings({
 		setIsLeaving(true);
 		try {
 			await leaveOrganizationAsync(organization.id);
-			router.push('/organizations');
+			router.push("/organizations");
 		} catch (_error) {
-			toast.error('Failed to leave organization');
+			toast.error("Failed to leave organization");
 		} finally {
 			setIsLeaving(false);
 			setShowLeaveDialog(false);
@@ -109,17 +110,17 @@ export function DangerZoneSettings({
 								<div>
 									<h3 className="font-semibold text-destructive text-lg">
 										{isOwner === null
-											? 'Loading...'
+											? "Loading..."
 											: isOwner
-												? 'Delete Organization'
-												: 'Leave Organization'}
+												? "Delete Organization"
+												: "Leave Organization"}
 									</h3>
 									<p className="text-destructive/80 text-sm">
 										{isOwner === null
-											? 'Checking permissions...'
+											? "Checking permissions..."
 											: isOwner
-												? 'Once you delete an organization, there is no going back. Please be certain.'
-												: 'You will lose access to this organization and all its resources.'}
+												? "Once you delete an organization, there is no going back. Please be certain."
+												: "You will lose access to this organization and all its resources."}
 									</p>
 								</div>
 
@@ -177,7 +178,7 @@ export function DangerZoneSettings({
 									Deleting...
 								</>
 							) : (
-								'Delete Organization'
+								"Delete Organization"
 							)}
 						</AlertDialogAction>
 					</AlertDialogFooter>
@@ -189,8 +190,8 @@ export function DangerZoneSettings({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Leave organization?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Are you sure you want to leave "{organization.name}"? You will lose
-							access to this organization and all its resources.
+							Are you sure you want to leave "{organization.name}"? You will
+							lose access to this organization and all its resources.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -206,7 +207,7 @@ export function DangerZoneSettings({
 									Leaving...
 								</>
 							) : (
-								'Leave Organization'
+								"Leave Organization"
 							)}
 						</AlertDialogAction>
 					</AlertDialogFooter>

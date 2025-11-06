@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
-import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
 	className?: string;
@@ -13,19 +13,19 @@ type ThemeToggleProps = {
 export function ThemeToggle({ className }: ThemeToggleProps) {
 	const { theme, setTheme } = useTheme();
 	const [mounted, setMounted] = useState(false);
-	const currentTheme = theme ?? 'system';
+	const currentTheme = theme ?? "system";
 
 	useEffect(() => {
 		setMounted(true);
 	}, []);
 
 	const switchTheme = () => {
-		if (currentTheme === 'system') {
-			setTheme('light');
-		} else if (currentTheme === 'light') {
-			setTheme('dark');
+		if (currentTheme === "system") {
+			setTheme("light");
+		} else if (currentTheme === "light") {
+			setTheme("dark");
 		} else {
-			setTheme('system');
+			setTheme("system");
 		}
 	};
 
@@ -36,7 +36,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 	if (!mounted) {
 		return (
 			<Button
-				className={cn('relative h-8 w-8', className)}
+				className={cn("relative h-8 w-8", className)}
 				size="sm"
 				variant="ghost"
 			>
@@ -48,7 +48,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 
 	return (
 		<Button
-			className={cn('relative h-8 w-8', className)}
+			className={cn("relative h-8 w-8", className)}
 			onClick={toggleTheme}
 			size="sm"
 			suppressHydrationWarning
@@ -56,8 +56,8 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 		>
 			<SunIcon
 				className={cn(
-					'h-4 w-4 transition-all duration-300',
-					currentTheme === 'light' ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'
+					"h-4 w-4 transition-all duration-300",
+					currentTheme === "light" ? "rotate-0 scale-100" : "-rotate-90 scale-0"
 				)}
 				size={16}
 				suppressHydrationWarning
@@ -65,8 +65,8 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 			/>
 			<MoonIcon
 				className={cn(
-					'absolute h-4 w-4 transition-all duration-300',
-					currentTheme === 'dark' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+					"absolute h-4 w-4 transition-all duration-300",
+					currentTheme === "dark" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={16}
 				suppressHydrationWarning
@@ -74,8 +74,8 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 			/>
 			<MonitorIcon
 				className={cn(
-					'absolute h-4 w-4 transition-all duration-300',
-					currentTheme === 'system' ? 'scale-100 rotate-0' : 'scale-0 rotate-90'
+					"absolute h-4 w-4 transition-all duration-300",
+					currentTheme === "system" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={16}
 				suppressHydrationWarning

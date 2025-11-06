@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { WarningIcon } from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { trpc } from '@/lib/trpc';
+import { WarningIcon } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 export function EventLimitIndicator() {
 	const router = useRouter();
@@ -29,7 +29,7 @@ export function EventLimitIndicator() {
 		<div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/20">
 			<div className="flex items-center gap-2">
 				<WarningIcon
-					className={`h-4 w-4 ${isDestructive ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}
+					className={`h-4 w-4 ${isDestructive ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}
 					weight="fill"
 				/>
 				<div className="text-muted-foreground">
@@ -39,10 +39,10 @@ export function EventLimitIndicator() {
 							? `/${data.limit}`
 							: data.includedUsage > 0
 								? `/${data.includedUsage}`
-								: ''}{' '}
+								: ""}{" "}
 						events
 						<span
-							className={`ml-2 font-medium ${isDestructive ? 'text-red-600' : 'text-amber-600'}`}
+							className={`ml-2 font-medium ${isDestructive ? "text-red-600" : "text-amber-600"}`}
 						>
 							({percentage.toFixed(1)}%)
 						</span>
@@ -67,7 +67,7 @@ export function EventLimitIndicator() {
 			{data.canUserUpgrade ? (
 				<Button
 					className="h-6 px-2 text-xs"
-					onClick={() => router.push('/billing?tab=plans')}
+					onClick={() => router.push("/billing?tab=plans")}
 					size="sm"
 					variant="ghost"
 				>

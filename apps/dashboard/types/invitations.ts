@@ -1,13 +1,13 @@
-export type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'canceled';
+export type InvitationStatus = "pending" | "accepted" | "rejected" | "canceled";
 
 export type InvitationPageStatus =
-	| 'loading'
-	| 'ready'
-	| 'accepting'
-	| 'success'
-	| 'error'
-	| 'expired'
-	| 'already-accepted';
+	| "loading"
+	| "ready"
+	| "accepting"
+	| "success"
+	| "error"
+	| "expired"
+	| "already-accepted";
 
 export interface InvitationData {
 	organizationName: string;

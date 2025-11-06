@@ -101,7 +101,7 @@ export interface ErrorSummary extends ErrorSummaryData {
 export interface ErrorCategory {
 	type: string;
 	category: string;
-	severity: 'high' | 'medium' | 'low';
+	severity: "high" | "medium" | "low";
 }
 
 /**

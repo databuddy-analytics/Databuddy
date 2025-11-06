@@ -1,13 +1,13 @@
-import { auth } from '@databuddy/auth';
-import { db, userPreferences, websites } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import type { Website } from '@databuddy/shared';
-import { eq } from 'drizzle-orm';
+import { auth } from "@databuddy/auth";
+import { db, userPreferences, websites } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
+import type { Website } from "@databuddy/shared/types/website";
+import { eq } from "drizzle-orm";
 import {
 	getApiKeyFromHeader,
 	hasWebsiteScope,
 	isApiKeyPresent,
-} from './api-key';
+} from "./api-key";
 
 export interface WebsiteContext {
 	user: unknown;
@@ -35,7 +35,7 @@ const getCachedWebsite = cacheable(
 	},
 	{
 		expireInSec: 300,
-		prefix: 'website-cache',
+		prefix: "website-cache",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -54,7 +54,7 @@ const getWebsiteDomain = cacheable(
 	},
 	{
 		expireInSec: 300,
-		prefix: 'website-domain',
+		prefix: "website-domain",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -74,7 +74,7 @@ const getCachedWebsiteDomain = cacheable(
 	},
 	{
 		expireInSec: 300,
-		prefix: 'website-domains-batch',
+		prefix: "website-domains-batch",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -92,7 +92,7 @@ const userPreferencesCache = cacheable(
 	},
 	{
 		expireInSec: 600,
-		prefix: 'user-prefs',
+		prefix: "user-prefs",
 		staleWhileRevalidate: true,
 		staleTime: 120,
 	}
@@ -105,17 +105,17 @@ export async function getTimezone(
 	session: { user?: { id: string } } | null
 ): Promise<string> {
 	const url = new URL(request.url);
-	const headerTimezone = request.headers.get('x-timezone');
-	const paramTimezone = url.searchParams.get('timezone');
+	const headerTimezone = request.headers.get("x-timezone");
+	const paramTimezone = url.searchParams.get("timezone");
 
 	if (session?.user) {
 		const pref = await userPreferencesCache(session.user.id);
-		if (pref?.timezone && pref.timezone !== 'auto') {
+		if (pref?.timezone && pref.timezone !== "auto") {
 			return pref.timezone;
 		}
 	}
 
-	return headerTimezone || paramTimezone || 'UTC';
+	return headerTimezone || paramTimezone || "UTC";
 }
 
 export async function deriveWebsiteContext({ request }: { request: Request }) {
@@ -127,11 +127,11 @@ export async function deriveWebsiteContext({ request }: { request: Request }) {
 
 async function deriveWithApiKey(request: Request) {
 	const url = new URL(request.url);
-	const siteId = url.searchParams.get('website_id');
+	const siteId = url.searchParams.get("website_id");
 
 	const key = await getApiKeyFromHeader(request.headers);
 	if (!key) {
-		throw new Error('Unauthorized');
+		throw new Error("Unauthorized");
 	}
 
 	if (!siteId) {
@@ -145,16 +145,16 @@ async function deriveWithApiKey(request: Request) {
 	]);
 
 	if (!site) {
-		throw new Error('Website not found');
+		throw new Error("Website not found");
 	}
 
 	if (site.isPublic) {
 		return { user: null, session: null, website: site, timezone } as const;
 	}
 
-	const canRead = await hasWebsiteScope(key, siteId, 'read:data');
+	const canRead = await hasWebsiteScope(key, siteId, "read:data");
 	if (!canRead) {
-		throw new Error('Forbidden');
+		throw new Error("Forbidden");
 	}
 
 	return { user: null, session: null, website: site, timezone } as const;
@@ -162,12 +162,12 @@ async function deriveWithApiKey(request: Request) {
 
 async function deriveWithSession(request: Request) {
 	const url = new URL(request.url);
-	const websiteId = url.searchParams.get('website_id');
+	const websiteId = url.searchParams.get("website_id");
 	const session = await auth.api.getSession({ headers: request.headers });
 
 	if (!websiteId) {
 		if (!session?.user) {
-			throw new Error('Unauthorized');
+			throw new Error("Unauthorized");
 		}
 		const tz = await getTimezone(request, session);
 		return { user: session.user, session, timezone: tz } as const;
@@ -179,7 +179,7 @@ async function deriveWithSession(request: Request) {
 	const site = await getCachedWebsite(websiteId);
 
 	if (!site) {
-		throw new Error('Website not found');
+		throw new Error("Website not found");
 	}
 
 	if (site.isPublic) {
@@ -187,7 +187,7 @@ async function deriveWithSession(request: Request) {
 	}
 
 	if (!session?.user) {
-		throw new Error('Unauthorized');
+		throw new Error("Unauthorized");
 	}
 
 	return { user: session.user, session, website: site, timezone: tz } as const;
@@ -199,7 +199,7 @@ export async function validateWebsite(
 	const website = await getCachedWebsite(websiteId);
 
 	if (!website) {
-		return { success: false, error: 'Website not found' };
+		return { success: false, error: "Website not found" };
 	}
 
 	return { success: true, website };

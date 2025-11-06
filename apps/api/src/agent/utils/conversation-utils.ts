@@ -3,8 +3,8 @@ import {
 	assistantConversations,
 	assistantMessages,
 	db,
-} from '@databuddy/db';
-import { eq } from 'drizzle-orm';
+} from "@databuddy/db";
+import { eq } from "drizzle-orm";
 
 export async function createNewConversation(
 	conversationId: string,
@@ -36,7 +36,7 @@ export async function createNewConversation(
 			}
 		});
 	} catch (error) {
-		console.error('Failed to create conversation:', {
+		console.error("Failed to create conversation:", {
 			conversationId,
 			userId,
 			websiteId,
@@ -72,7 +72,7 @@ export async function addMessageToConversation(
 				.where(eq(assistantConversations.id, conversationId));
 		});
 	} catch (error) {
-		console.error('Failed to add messages to conversation:', {
+		console.error("Failed to add messages to conversation:", {
 			conversationId,
 			messageCount: messagesToInsert.length,
 			error: error instanceof Error ? error.message : error,

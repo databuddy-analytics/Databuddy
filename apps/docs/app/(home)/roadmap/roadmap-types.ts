@@ -1,17 +1,17 @@
 export type RoadmapStatus =
-	| 'completed'
-	| 'in-progress'
-	| 'planned'
-	| 'cancelled'
-	| 'on-hold';
+	| "completed"
+	| "in-progress"
+	| "planned"
+	| "cancelled"
+	| "on-hold";
 
-export type RoadmapPriority = 'critical' | 'high' | 'medium' | 'low';
+export type RoadmapPriority = "critical" | "high" | "medium" | "low";
 
 export type RoadmapCategory =
-	| 'analytics'
-	| 'AI'
-	| 'integrations'
-	| 'developer-experience';
+	| "analytics"
+	| "AI"
+	| "integrations"
+	| "developer-experience";
 
 export interface RoadmapItem {
 	id: string;
@@ -56,7 +56,7 @@ export interface RoadmapMilestone {
 	title: string;
 	description: string;
 	targetDate: string;
-	status: 'upcoming' | 'current' | 'completed' | 'delayed';
+	status: "upcoming" | "current" | "completed" | "delayed";
 	items: string[]; // RoadmapItem IDs
 	progress: number; // 0-100 percentage
 }

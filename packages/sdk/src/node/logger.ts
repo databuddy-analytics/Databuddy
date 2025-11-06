@@ -7,10 +7,10 @@ export interface Logger {
 
 export function createLogger(debug = false): Logger {
 	try {
-		const pino = require('pino');
+		const pino = require("pino");
 		return pino({
-			level: debug ? 'debug' : 'info',
-			name: 'databuddy',
+			level: debug ? "debug" : "info",
+			name: "databuddy",
 		});
 	} catch {
 		return createConsoleLogger(debug);
@@ -23,28 +23,22 @@ function createConsoleLogger(debug: boolean): Logger {
 	return {
 		info(msg: string, data?: Record<string, unknown>) {
 			if (debug) {
-				console.info(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : '');
+				console.info(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
 			}
 		},
 		error(msg: string, data?: Record<string, unknown>) {
 			if (debug) {
-				console.error(
-					`[Databuddy] ${msg}`,
-					data ? JSON.stringify(data) : ''
-				);
+				console.error(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
 			}
 		},
 		warn(msg: string, data?: Record<string, unknown>) {
 			if (debug) {
-				console.warn(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : '');
+				console.warn(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
 			}
 		},
 		debug: debug
 			? (msg: string, data?: Record<string, unknown>) => {
-					console.debug(
-						`[Databuddy] ${msg}`,
-						data ? JSON.stringify(data) : ''
-					);
+					console.debug(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
 				}
 			: noop,
 	};
@@ -59,4 +53,3 @@ export function createNoopLogger(): Logger {
 		debug: noop,
 	};
 }
-

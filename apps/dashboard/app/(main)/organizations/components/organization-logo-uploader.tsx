@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import { useRef, useState } from 'react';
+import Image from "next/image";
+import { useRef, useState } from "react";
 import ReactCrop, {
 	type Crop,
 	centerCrop,
 	makeAspectCrop,
 	type PixelCrop,
-} from 'react-image-crop';
-import { toast } from 'sonner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+} from "react-image-crop";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { type Organization, useOrganizations } from '@/hooks/use-organizations';
-import { getOrganizationInitials } from '@/lib/utils';
-import 'react-image-crop/dist/ReactCrop.css';
-import { TrashIcon, UploadSimpleIcon } from '@phosphor-icons/react';
-import { getCroppedImage } from '@/lib/canvas-utils';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { type Organization, useOrganizations } from "@/hooks/use-organizations";
+import { getOrganizationInitials } from "@/lib/utils";
+import "react-image-crop/dist/ReactCrop.css";
+import { TrashIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { getCroppedImage } from "@/lib/canvas-utils";
 
 interface OrganizationLogoUploaderProps {
 	organization: Organization;
@@ -51,7 +51,7 @@ export function OrganizationLogoUploader({
 		setCrop(undefined);
 		setCompletedCrop(undefined);
 		if (fileInputRef.current) {
-			fileInputRef.current.value = '';
+			fileInputRef.current.value = "";
 		}
 	};
 
@@ -67,7 +67,7 @@ export function OrganizationLogoUploader({
 		const percentCrop = centerCrop(
 			makeAspectCrop(
 				{
-					unit: '%',
+					unit: "%",
 					width: 90,
 				},
 				1,
@@ -80,7 +80,7 @@ export function OrganizationLogoUploader({
 		setCrop(percentCrop);
 
 		const pixelCrop = {
-			unit: 'px' as const,
+			unit: "px" as const,
 			x: Math.round((percentCrop.x / 100) * width),
 			y: Math.round((percentCrop.y / 100) * height),
 			width: Math.round((percentCrop.width / 100) * width),
@@ -103,7 +103,7 @@ export function OrganizationLogoUploader({
 
 	const handleUpload = async () => {
 		if (!(imageSrc && completedCrop && imageRef.current)) {
-			toast.error('Please crop the image before uploading.');
+			toast.error("Please crop the image before uploading.");
 			return;
 		}
 
@@ -111,7 +111,7 @@ export function OrganizationLogoUploader({
 			const croppedFile = await getCroppedImage(
 				imageRef.current,
 				completedCrop,
-				'logo.png'
+				"logo.png"
 			);
 
 			const reader = new FileReader();
@@ -131,14 +131,14 @@ export function OrganizationLogoUploader({
 							setTimeout(() => resetCropState(), 100);
 						},
 						onError: (error) => {
-							toast.error(error.message || 'Failed to upload logo.');
+							toast.error(error.message || "Failed to upload logo.");
 						},
 					}
 				);
 			};
 			reader.readAsDataURL(croppedFile);
 		} catch (e) {
-			toast.error('Failed to crop image.');
+			toast.error("Failed to crop image.");
 			console.error(e);
 		}
 	};
@@ -151,7 +151,7 @@ export function OrganizationLogoUploader({
 					setPreview(null);
 				},
 				onError: (error) => {
-					toast.error(error.message || 'Failed to delete logo.');
+					toast.error(error.message || "Failed to delete logo.");
 				},
 			}
 		);
@@ -261,7 +261,7 @@ export function OrganizationLogoUploader({
 									Uploading...
 								</>
 							) : (
-								'Save and Upload'
+								"Save and Upload"
 							)}
 						</Button>
 					</DialogFooter>

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
-import DemoContainer from './demo';
-import { SciFiButton } from './scifi-btn';
-import { Spotlight } from './spotlight';
+import dynamic from "next/dynamic";
+import DemoContainer from "./demo";
+import { SciFiButton } from "./scifi-btn";
+import { Spotlight } from "./spotlight";
 
-const WorldMap = dynamic(() => import('./map').then((m) => m.WorldMap), {
+const WorldMap = dynamic(() => import("./map").then((m) => m.WorldMap), {
 	ssr: false,
 	loading: () => null,
 });
@@ -13,19 +13,18 @@ const WorldMap = dynamic(() => import('./map').then((m) => m.WorldMap), {
 export default function Hero() {
 	const handleGetStarted = () => {
 		const newWindow = window.open(
-			'https://app.databuddy.cc/login',
-			'_blank',
-			'noopener,noreferrer'
+			"https://app.databuddy.cc/login",
+			"_blank",
+			"noopener,noreferrer"
 		);
 		if (
 			!newWindow ||
 			newWindow.closed ||
-			typeof newWindow.closed === 'undefined'
+			typeof newWindow.closed === "undefined"
 		) {
 			// Handle popup blocked case if needed
 		}
 	};
-
 
 	return (
 		<section className="relative flex min-h-[100svh] w-full flex-col items-center overflow-hidden">
@@ -71,7 +70,7 @@ export default function Hero() {
 								Privacy <span className="text-muted-foreground">first</span>
 							</span>
 							<span className="block whitespace-normal">
-								Analytics for{' '}
+								Analytics for{" "}
 								<span className="text-muted-foreground">devs</span>
 							</span>
 						</h1>

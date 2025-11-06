@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
 import {
 	ChartLineIcon,
 	GlobeIcon,
 	PlusIcon,
 	SparkleIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { Organization } from '@/hooks/use-organizations';
-import { trpc } from '@/lib/trpc';
-import { cn } from '@/lib/utils';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Organization } from "@/hooks/use-organizations";
+import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 interface WebsiteSettingsProps {
 	organization: Organization;
@@ -23,7 +23,10 @@ function WebsiteLoadingSkeleton() {
 	return (
 		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{[1, 2, 3].map((num) => (
-				<Card className="group relative overflow-hidden" key={`website-skeleton-${num}`}>
+				<Card
+					className="group relative overflow-hidden"
+					key={`website-skeleton-${num}`}
+				>
 					<CardContent className="p-4">
 						<div className="space-y-3">
 							<div className="flex items-start gap-3">
@@ -73,9 +76,9 @@ function EnhancedEmptyState() {
 				<Button
 					asChild
 					className={cn(
-						'gap-2 px-6 py-3 font-medium',
-						'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
-						'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
+						"gap-2 px-6 py-3 font-medium",
+						"bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary",
+						"group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl"
 					)}
 					size="lg"
 				>
@@ -129,11 +132,11 @@ export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
 							weight="duotone"
 						/>
 						<span>
-							Managing{' '}
+							Managing{" "}
 							<span className="font-medium text-foreground">
 								{websites.length}
-							</span>{' '}
-							website{websites.length !== 1 ? 's' : ''}
+							</span>{" "}
+							website{websites.length !== 1 ? "s" : ""}
 						</span>
 					</div>
 				)}

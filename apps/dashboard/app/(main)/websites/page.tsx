@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	GlobeIcon,
 	PlusIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { EmptyState } from '@/components/empty-state';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { WebsiteDialog } from '@/components/website-dialog';
-import { useWebsites } from '@/hooks/use-websites';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WebsiteDialog } from "@/components/website-dialog";
+import { useWebsites } from "@/hooks/use-websites";
 
-import { cn } from '@/lib/utils';
-import { WebsiteCard } from './_components/website-card';
+import { cn } from "@/lib/utils";
+import { WebsiteCard } from "./_components/website-card";
 
 function LoadingSkeleton() {
 	return (
@@ -126,14 +126,14 @@ export default function WebsitesPage() {
 						>
 							<ArrowClockwiseIcon
 								aria-hidden
-								className={`h-4 w-4 ${isLoading || isFetching ? 'animate-spin' : ''}`}
+								className={`h-4 w-4 ${isLoading || isFetching ? "animate-spin" : ""}`}
 							/>
 						</Button>
 						<Button
 							className={cn(
-								'gap-2 px-3 py-2 font-medium sm:px-4 sm:py-2',
-								'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
-								'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
+								"gap-2 px-3 py-2 font-medium sm:px-4 sm:py-2",
+								"bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary",
+								"group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl"
 							)}
 							data-button-type="primary"
 							data-section="header"
@@ -165,11 +165,11 @@ export default function WebsitesPage() {
 								weight="duotone"
 							/>
 							<span className="truncate">
-								Tracking{' '}
+								Tracking{" "}
 								<span className="font-medium text-foreground">
 									{websites.length}
-								</span>{' '}
-								website{websites.length !== 1 ? 's' : ''}
+								</span>{" "}
+								website{websites.length !== 1 ? "s" : ""}
 							</span>
 						</div>
 					</div>
@@ -185,7 +185,7 @@ export default function WebsitesPage() {
 				{!(isLoading || isError) && websites && websites.length === 0 && (
 					<EmptyState
 						action={{
-							label: 'Create Your First Website',
+							label: "Create Your First Website",
 							onClick: () => setDialogOpen(true),
 						}}
 						description="Start tracking your website analytics by adding your first website. Get insights into visitors, pageviews, and performance."

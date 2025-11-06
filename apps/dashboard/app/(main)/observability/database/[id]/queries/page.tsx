@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import type { QueryPerformanceSummary } from '@databuddy/shared';
-import { DatabaseIcon } from '@phosphor-icons/react';
-import { useQueryState } from 'nuqs';
-import { use, useCallback, useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { trpc } from '@/lib/trpc';
-import { QueryDetailSheet } from '../performance/_components/query-detail-sheet';
-import { QueryRow } from './_components/query-row';
+import type { QueryPerformanceSummary } from "@databuddy/shared/types/performance";
+import { DatabaseIcon } from "@phosphor-icons/react";
+import { useQueryState } from "nuqs";
+import { use, useCallback, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { trpc } from "@/lib/trpc";
+import { QueryDetailSheet } from "../performance/_components/query-detail-sheet";
+import { QueryRow } from "./_components/query-row";
 
 interface QueriesPageProps {
 	params: Promise<{ id: string }>;
@@ -44,7 +44,7 @@ const LoadingState = () => (
 	</div>
 );
 
-type TabId = 'most-called' | 'slowest' | 'resource-hogs' | 'all';
+type TabId = "most-called" | "slowest" | "resource-hogs" | "all";
 
 export default function QueriesPage({ params }: QueriesPageProps) {
 	const { id: connectionId } = use(params);
@@ -52,8 +52,8 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 		(QueryPerformanceSummary & { name: string }) | null
 	>(null);
 	const [sheetOpen, setSheetOpen] = useState(false);
-	const [activeTab, setActiveTab] = useQueryState('tab', {
-		defaultValue: 'most-called' as TabId,
+	const [activeTab, setActiveTab] = useQueryState("tab", {
+		defaultValue: "most-called" as TabId,
 	});
 
 	// Fetch data
@@ -153,7 +153,7 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 								value="most-called"
 							>
 								Most Called
-								{activeTab === 'most-called' && (
+								{activeTab === "most-called" && (
 									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 								)}
 							</TabsTrigger>
@@ -162,7 +162,7 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 								value="slowest"
 							>
 								Slowest
-								{activeTab === 'slowest' && (
+								{activeTab === "slowest" && (
 									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 								)}
 							</TabsTrigger>
@@ -171,7 +171,7 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 								value="resource-hogs"
 							>
 								Resource Hogs
-								{activeTab === 'resource-hogs' && (
+								{activeTab === "resource-hogs" && (
 									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 								)}
 							</TabsTrigger>
@@ -180,7 +180,7 @@ export default function QueriesPage({ params }: QueriesPageProps) {
 								value="all"
 							>
 								All Queries
-								{activeTab === 'all' && (
+								{activeTab === "all" && (
 									<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 								)}
 							</TabsTrigger>

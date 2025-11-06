@@ -24,7 +24,7 @@ import {
 	SpeedometerIcon,
 	TrendUpIcon,
 	UserCheckIcon,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 
 export interface SidebarItem {
 	title: string;
@@ -43,146 +43,151 @@ export interface SidebarSection {
 
 export const contents: SidebarSection[] = [
 	{
-		title: 'Introduction',
+		title: "Introduction",
 		Icon: BookOpenIcon,
 		list: [
 			{
-				title: 'Overview',
-				href: '/docs',
+				title: "Overview",
+				href: "/docs",
 				icon: FileTextIcon,
 			},
 			{
-				title: 'Getting Started',
-				href: '/docs/getting-started',
+				title: "Getting Started",
+				href: "/docs/getting-started",
 				icon: RocketIcon,
 			},
 		],
 	},
 	{
-		title: 'Implementation',
+		title: "Implementation",
 		Icon: CodeIcon,
 		list: [
 			{
-				title: 'SDK',
-				href: '/docs/sdk',
+				title: "SDK",
+				href: "/docs/sdk",
 				icon: AtomIcon,
 			},
 			{
-				title: 'Node SDK',
-				href: '/docs/node-sdk',
+				title: "Vanilla JavaScript",
+				href: "/docs/vanilla-js",
+				icon: FileTextIcon,
+			},
+			{
+				title: "Node SDK",
+				href: "/docs/node-sdk",
 				icon: CodeIcon,
 				isNew: true,
 			},
 			{
-				title: 'API',
-				href: '/docs/api',
+				title: "API",
+				href: "/docs/api",
 				icon: DatabaseIcon,
 			},
 			{
-				title: 'API Keys',
-				href: '/docs/api-keys',
+				title: "API Keys",
+				href: "/docs/api-keys",
 				icon: KeyIcon,
 			},
 		],
 	},
 	{
-		title: 'Features',
+		title: "Features",
 		Icon: LightningAIcon,
 		isNew: true,
 		list: [
 			{
-				title: 'Feature Flags',
-				href: '/docs/features/feature-flags',
+				title: "Feature Flags",
+				href: "/docs/features/feature-flags",
 				icon: FlagIcon,
 			},
 		],
 	},
 	{
-		title: 'Integrations',
+		title: "Integrations",
 		Icon: PlugIcon,
 		list: [
 			{
-				title: 'React',
-				href: '/docs/Integrations/react',
+				title: "React",
+				href: "/docs/Integrations/react",
 				icon: AtomIcon,
 			},
 			{
-				title: 'Next.js',
-				href: '/docs/Integrations/nextjs',
+				title: "Next.js",
+				href: "/docs/Integrations/nextjs",
 				icon: LightningIcon,
 			},
 			{
-				title: 'WordPress',
-				href: '/docs/Integrations/wordpress',
+				title: "WordPress",
+				href: "/docs/Integrations/wordpress",
 				icon: GlobeIcon,
 			},
 			{
-				title: 'Shopify',
-				href: '/docs/Integrations/shopify',
+				title: "Shopify",
+				href: "/docs/Integrations/shopify",
 				icon: ShoppingCartIcon,
 			},
 			{
-				title: 'Stripe',
-				href: '/docs/Integrations/stripe',
+				title: "Stripe",
+				href: "/docs/Integrations/stripe",
 				icon: CreditCardIcon,
 			},
 			{
-				title: 'Framer',
-				href: '/docs/Integrations/framer',
+				title: "Framer",
+				href: "/docs/Integrations/framer",
 				icon: PaletteIcon,
 			},
 			{
-				title: 'Google Tag Manager',
-				href: '/docs/Integrations/gtm',
+				title: "Google Tag Manager",
+				href: "/docs/Integrations/gtm",
 				icon: GoogleLogoIcon,
 			},
 		],
 	},
 	{
-		title: 'Dashboard & Analytics',
+		title: "Dashboard & Analytics",
 		Icon: ChartBarIcon,
 		list: [
 			{
-				title: 'Dashboard',
-				href: '/docs/dashboard',
+				title: "Dashboard",
+				href: "/docs/dashboard",
 				icon: MonitorIcon,
 			},
 		],
 	},
 	{
-		title: 'Privacy & Compliance',
+		title: "Privacy & Compliance",
 		Icon: ShieldCheckIcon,
 		list: [
 			{
-				title: 'GDPR Compliance',
-				href: '/docs/compliance/gdpr-compliance-guide',
+				title: "GDPR Compliance",
+				href: "/docs/compliance/gdpr-compliance-guide",
 				icon: ShieldStarIcon,
 			},
 			{
-				title: 'Cookieless Analytics',
-				href: '/docs/privacy/cookieless-analytics-guide',
+				title: "Cookieless Analytics",
+				href: "/docs/privacy/cookieless-analytics-guide",
 				icon: UserCheckIcon,
 			},
 		],
 	},
 	{
-		title: 'Performance',
+		title: "Performance",
 		Icon: TrendUpIcon,
 		list: [
 			{
-				title: 'Core Web Vitals',
-				href: '/docs/performance/core-web-vitals-guide',
+				title: "Core Web Vitals",
+				href: "/docs/performance/core-web-vitals-guide",
 				icon: SpeedometerIcon,
 			},
 		],
 	},
 	{
-		title: 'Security',
+		title: "Security",
 		Icon: LockIcon,
 		list: [
 			{
-				title: 'Security Guide',
-				href: '/docs/security',
+				title: "Security Guide",
+				href: "/docs/security",
 				icon: ShieldCheckIcon,
 			},
 		],
@@ -191,11 +196,11 @@ export const contents: SidebarSection[] = [
 
 export const examples: SidebarSection[] = [
 	{
-		title: 'Examples',
+		title: "Examples",
 		Icon: CodeIcon,
 		list: [
 			{
-				title: 'Coming Soon',
+				title: "Coming Soon",
 				group: true,
 				icon: FileTextIcon,
 			},

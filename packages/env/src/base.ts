@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Base environment validation utility
@@ -23,7 +23,7 @@ export const createEnv = <T extends z.ZodRawShape>(
  * Common environment variables shared across apps
  */
 export const commonEnvSchema = {
-	NODE_ENV: z.string().default('development'),
+	NODE_ENV: z.string().default("development"),
 	DATABASE_URL: z.string(),
 	REDIS_URL: z.string(),
 } as const;
@@ -52,10 +52,10 @@ export const externalServiceEnvSchema = {
 /**
  * Development environment check
  */
-export const isDevelopment = () => process.env.NODE_ENV === 'development';
+export const isDevelopment = () => process.env.NODE_ENV === "development";
 
 /**
  * Skip validation check
  */
 export const shouldSkipValidation = () =>
-	isDevelopment() || process.env.SKIP_VALIDATION === 'true';
+	isDevelopment() || process.env.SKIP_VALIDATION === "true";

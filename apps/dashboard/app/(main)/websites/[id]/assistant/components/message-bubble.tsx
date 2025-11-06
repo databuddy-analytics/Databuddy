@@ -10,36 +10,36 @@ import {
 	ThumbsDownIcon,
 	ThumbsUpIcon,
 	XIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { Action, Actions } from '@/components/ai-elements/actions';
-import { Loader } from '@/components/ai-elements/loader';
+} from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Action, Actions } from "@/components/ai-elements/actions";
+import { Loader } from "@/components/ai-elements/loader";
 import {
 	Accordion,
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import type { useChat, Vote } from '../hooks/use-chat';
-import type { Message } from '../types/message';
+} from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import type { useChat, Vote } from "../hooks/use-chat";
+import type { Message } from "../types/message";
 
 interface MessageBubbleProps {
 	message: Message;
-	handleVote: ReturnType<typeof useChat>['handleVote'];
-	handleFeedbackComment: ReturnType<typeof useChat>['handleFeedbackComment'];
+	handleVote: ReturnType<typeof useChat>["handleVote"];
+	handleFeedbackComment: ReturnType<typeof useChat>["handleFeedbackComment"];
 	isLastMessage: boolean;
 }
 
 const getChartIcon = (chartType: string) => {
 	switch (chartType) {
-		case 'bar':
+		case "bar":
 			return <ChartBarIcon className="h-4 w-4" />;
-		case 'line':
+		case "line":
 			return <ChartLineIcon className="h-4 w-4" />;
-		case 'pie':
+		case "pie":
 			return <ChartPieIcon className="h-4 w-4" />;
 		default:
 			return <ChartBarIcon className="h-4 w-4" />;
@@ -81,10 +81,10 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 				return (
 					<div
 						className={cn(
-							'flex items-start gap-2 py-1 pl-1 text-muted-foreground text-xs transition-all duration-300 ease-in-out',
+							"flex items-start gap-2 py-1 pl-1 text-muted-foreground text-xs transition-all duration-300 ease-in-out",
 							isAnimated
-								? 'translate-y-0 opacity-100'
-								: 'translate-y-2 opacity-0'
+								? "translate-y-0 opacity-100"
+								: "translate-y-2 opacity-0"
 						)}
 						key={`preview-${index}-${step.slice(0, 20)}`}
 					>
@@ -116,16 +116,14 @@ function ThinkingStepsAccordion({ steps }: { steps: string[] }) {
 				</AccordionTrigger>
 				<AccordionContent className="pt-1 pb-0">
 					<ul className="max-h-48 list-disc overflow-y-auto px-4 text-muted-foreground">
-						{steps.map((step, index) => {
-							return (
-								<li
-									className="text-xs leading-relaxed"
-									key={`step-${index}-${step.slice(0, 20)}`}
-								>
-									{step}
-								</li>
-							);
-						})}
+						{steps.map((step, index) => (
+							<li
+								className="text-xs leading-relaxed"
+								key={`step-${index}-${step.slice(0, 20)}`}
+							>
+								{step}
+							</li>
+						))}
 					</ul>
 				</AccordionContent>
 			</AccordionItem>
@@ -164,16 +162,16 @@ function FeedbackInput({
 	onSubmit: (feedbackText: string) => void;
 	onCancel: () => void;
 }) {
-	const [feedbackText, setFeedbackText] = useState('');
+	const [feedbackText, setFeedbackText] = useState("");
 	const [showInput, setShowInput] = useState(false);
 
 	const predefinedFeedback = [
-		'Inaccurate or incorrect',
-		'Not helpful',
-		'Too long or verbose',
-		'Unclear or confusing',
+		"Inaccurate or incorrect",
+		"Not helpful",
+		"Too long or verbose",
+		"Unclear or confusing",
 		"Didn't answer my question",
-		'Inappropriate content',
+		"Inappropriate content",
 	];
 
 	const handleSubmit = () => {
@@ -186,7 +184,7 @@ function FeedbackInput({
 	};
 
 	const handleCancel = () => {
-		setFeedbackText('');
+		setFeedbackText("");
 		setShowInput(false);
 		onCancel();
 	};
@@ -204,7 +202,7 @@ function FeedbackInput({
 
 	const handleMoreClick = () => {
 		setShowInput(true);
-		setFeedbackText('');
+		setFeedbackText("");
 	};
 
 	return (
@@ -220,7 +218,7 @@ function FeedbackInput({
 						key={feedback}
 						onClick={() => handlePredefinedClick(feedback)}
 						size="sm"
-						variant={feedbackText === feedback ? 'default' : 'outline'}
+						variant={feedbackText === feedback ? "default" : "outline"}
 					>
 						{feedback}
 					</Button>
@@ -240,7 +238,7 @@ function FeedbackInput({
 					className="resize-none"
 					onChange={handleCustomTextChange}
 					onKeyDown={(e) => {
-						if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+						if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 							e.preventDefault();
 							handleSubmit();
 						}
@@ -272,15 +270,15 @@ function FeedbackInput({
 interface CompletedMessageProps {
 	message: Message;
 	isUser: boolean;
-	handleVote: ReturnType<typeof useChat>['handleVote'];
-	handleFeedbackComment: ReturnType<typeof useChat>['handleFeedbackComment'];
+	handleVote: ReturnType<typeof useChat>["handleVote"];
+	handleFeedbackComment: ReturnType<typeof useChat>["handleFeedbackComment"];
 	isLastMessage: boolean;
 }
 
 interface AIMessageProps {
 	message: Message;
-	handleVote: ReturnType<typeof useChat>['handleVote'];
-	handleFeedbackComment: ReturnType<typeof useChat>['handleFeedbackComment'];
+	handleVote: ReturnType<typeof useChat>["handleVote"];
+	handleFeedbackComment: ReturnType<typeof useChat>["handleFeedbackComment"];
 	isLastMessage: boolean;
 }
 
@@ -308,7 +306,7 @@ function AIMessage({
 	};
 
 	const handleFeedbackButtonClick = (type: Vote) => {
-		if (type === 'downvote') {
+		if (type === "downvote") {
 			setShowFeedbackInput(true);
 		}
 
@@ -316,8 +314,8 @@ function AIMessage({
 		handleVote(message.id, type);
 	};
 
-	const showUpVoteButton = voteType !== 'downvote';
-	const showDownVoteButton = voteType !== 'upvote';
+	const showUpVoteButton = voteType !== "downvote";
+	const showDownVoteButton = voteType !== "upvote";
 	const isVoteButtonClicked = voteType !== null;
 
 	return (
@@ -331,7 +329,7 @@ function AIMessage({
 					<ThinkingStepsAccordion steps={message.thinkingSteps || []} />
 				)}
 
-				{message.responseType === 'metric' &&
+				{message.responseType === "metric" &&
 					message.metricValue !== undefined && (
 						<div className="mt-4 rounded border border-primary/20 bg-primary/5 p-4">
 							<div className="flex min-w-0 items-center gap-3">
@@ -340,10 +338,10 @@ function AIMessage({
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="truncate font-medium text-muted-foreground text-xs uppercase tracking-wide">
-										{message.metricLabel || 'Result'}
+										{message.metricLabel || "Result"}
 									</div>
 									<div className="mt-2 break-words font-bold text-foreground text-lg">
-										{typeof message.metricValue === 'number'
+										{typeof message.metricValue === "number"
 											? message.metricValue.toLocaleString()
 											: message.metricValue}
 									</div>
@@ -355,7 +353,7 @@ function AIMessage({
 				{message.hasVisualization && (
 					<div className="mt-3 border-border/30 border-t pt-3">
 						<div className="flex items-center gap-2 text-muted-foreground text-xs">
-							{getChartIcon(message.chartType || 'bar')}
+							{getChartIcon(message.chartType || "bar")}
 							<span>Visualization generated in the data panel.</span>
 						</div>
 					</div>
@@ -376,11 +374,11 @@ function AIMessage({
 							<Action
 								className={`cursor-pointer transition-colors ${
 									isVoteButtonClicked
-										? 'bg-green-100 text-green-600'
-										: 'hover:bg-green-50 hover:text-green-500 active:bg-green-100'
+										? "bg-green-100 text-green-600"
+										: "hover:bg-green-50 hover:text-green-500 active:bg-green-100"
 								}`}
 								disabled={isVoteButtonClicked}
-								onClick={() => handleFeedbackButtonClick('upvote')}
+								onClick={() => handleFeedbackButtonClick("upvote")}
 								tooltip="Upvote"
 							>
 								<ThumbsUpIcon className="h-4 w-4" />
@@ -390,11 +388,11 @@ function AIMessage({
 							<Action
 								className={`cursor-pointer transition-colors ${
 									isVoteButtonClicked
-										? 'bg-red-100 text-red-600'
-										: 'hover:bg-red-50 hover:text-red-500 active:bg-red-100'
+										? "bg-red-100 text-red-600"
+										: "hover:bg-red-50 hover:text-red-500 active:bg-red-100"
 								}`}
 								disabled={isVoteButtonClicked}
-								onClick={() => handleFeedbackButtonClick('downvote')}
+								onClick={() => handleFeedbackButtonClick("downvote")}
 								tooltip="Downvote"
 							>
 								<ThumbsDownIcon className="h-4 w-4" />
@@ -453,8 +451,8 @@ export function MessageBubble({
 	handleFeedbackComment,
 	isLastMessage,
 }: MessageBubbleProps) {
-	const isUser = message.type === 'user';
-	const isInProgress = message.type === 'assistant' && !message.content;
+	const isUser = message.type === "user";
+	const isInProgress = message.type === "assistant" && !message.content;
 
 	if (isInProgress) {
 		return <InProgressMessage message={message} />;

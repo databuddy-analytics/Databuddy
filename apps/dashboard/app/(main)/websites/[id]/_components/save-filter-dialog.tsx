@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import type { DynamicQueryFilter } from '@databuddy/shared';
-import { CheckIcon, FloppyDiskIcon } from '@phosphor-icons/react';
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { CheckIcon, FloppyDiskIcon } from "@phosphor-icons/react";
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface FilterPreviewProps {
 	filters: DynamicQueryFilter[];
@@ -32,10 +32,10 @@ function FilterPreview({ filters, editingFilter }: FilterPreviewProps) {
 		<div className="rounded-lg border bg-muted/20 p-4">
 			<div className="mb-3 flex items-center justify-between">
 				<p className="font-semibold text-sm">
-					{editingFilter ? 'Updated Filters' : 'Filter Preview'}
+					{editingFilter ? "Updated Filters" : "Filter Preview"}
 				</p>
 				<span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-					{filters.length} filter{filters.length === 1 ? '' : 's'}
+					{filters.length} filter{filters.length === 1 ? "" : "s"}
 				</span>
 			</div>
 			<div className="space-y-2">
@@ -50,7 +50,7 @@ function FilterPreview({ filters, editingFilter }: FilterPreviewProps) {
 						</span>
 						<span className="font-mono text-xs">
 							{Array.isArray(filter.value)
-								? filter.value.join(', ')
+								? filter.value.join(", ")
 								: filter.value}
 						</span>
 					</div>
@@ -59,9 +59,9 @@ function FilterPreview({ filters, editingFilter }: FilterPreviewProps) {
 			{editingFilter?.originalFilters && (
 				<div className="mt-3 border-border/50 border-t pt-3">
 					<p className="text-muted-foreground text-xs">
-						Original configuration had {editingFilter.originalFilters.length}{' '}
+						Original configuration had {editingFilter.originalFilters.length}{" "}
 						filter
-						{editingFilter.originalFilters.length === 1 ? '' : 's'}
+						{editingFilter.originalFilters.length === 1 ? "" : "s"}
 					</p>
 				</div>
 			)}
@@ -95,12 +95,12 @@ export function SaveFilterDialog({
 	validateName,
 	editingFilter = null,
 }: SaveFilterDialogProps) {
-	const [name, setName] = useState(editingFilter?.name || '');
-	const [error, setError] = useState('');
+	const [name, setName] = useState(editingFilter?.name || "");
+	const [error, setError] = useState("");
 
 	const validateInput = (input: string): string | null => {
 		if (!input) {
-			return 'Filter name is required';
+			return "Filter name is required";
 		}
 
 		if (validateName) {
@@ -111,11 +111,11 @@ export function SaveFilterDialog({
 		} else {
 			// Fallback validation
 			if (input.length < 2) {
-				return 'Filter name must be at least 2 characters';
+				return "Filter name must be at least 2 characters";
 			}
 
 			if (input.length > 100) {
-				return 'Filter name must be less than 100 characters';
+				return "Filter name must be less than 100 characters";
 			}
 		}
 
@@ -131,25 +131,25 @@ export function SaveFilterDialog({
 			return;
 		}
 
-		setError('');
+		setError("");
 		onSave(trimmedName);
-		setName(editingFilter?.name || '');
+		setName(editingFilter?.name || "");
 	};
 
 	const handleClose = () => {
-		setName(editingFilter?.name || '');
-		setError('');
+		setName(editingFilter?.name || "");
+		setError("");
 		onClose();
 	};
 
 	// Update name when editingFilter changes
 	React.useEffect(() => {
-		setName(editingFilter?.name || '');
-		setError('');
+		setName(editingFilter?.name || "");
+		setError("");
 	}, [editingFilter]);
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === 'Enter' && !isLoading) {
+		if (e.key === "Enter" && !isLoading) {
 			e.preventDefault();
 			handleSubmit();
 		}
@@ -167,24 +167,24 @@ export function SaveFilterDialog({
 							/>
 						</div>
 						<span className="font-semibold text-lg">
-							{editingFilter ? 'Edit Filter Set' : 'Save Filter Set'}
+							{editingFilter ? "Edit Filter Set" : "Save Filter Set"}
 						</span>
 					</DialogTitle>
 					<DialogDescription className="text-muted-foreground">
 						{editingFilter ? (
 							<span>
-								Save your changes to{' '}
+								Save your changes to{" "}
 								<span className="font-medium text-foreground">
 									"{editingFilter.name}"
 								</span>
-								. The filter set now contains{' '}
+								. The filter set now contains{" "}
 								<span className="font-medium">
-									{filters.length} filter{filters.length === 1 ? '' : 's'}
+									{filters.length} filter{filters.length === 1 ? "" : "s"}
 								</span>
 								.
 							</span>
 						) : (
-							'Save your current filter configuration to quickly apply these settings later.'
+							"Save your current filter configuration to quickly apply these settings later."
 						)}
 						{filters.length === 0 && (
 							<div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3">
@@ -209,7 +209,7 @@ export function SaveFilterDialog({
 							onChange={(e) => {
 								setName(e.target.value);
 								if (error) {
-									setError('');
+									setError("");
 								}
 							}}
 							onKeyDown={handleKeyDown}
@@ -241,11 +241,11 @@ export function SaveFilterDialog({
 							onClick={handleSubmit}
 						>
 							{isLoading ? (
-								'Saving...'
+								"Saving..."
 							) : (
 								<>
 									<CheckIcon className="h-4 w-4" />
-									<span>{editingFilter ? 'Update' : 'Save'}</span>
+									<span>{editingFilter ? "Update" : "Save"}</span>
 								</>
 							)}
 						</Button>

@@ -1,6 +1,6 @@
-import dayjs from 'dayjs';
-import type { LucideIcon } from 'lucide-react';
-import { type ElementType, memo } from 'react';
+import dayjs from "dayjs";
+import type { LucideIcon } from "lucide-react";
+import { type ElementType, memo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -8,18 +8,18 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import TrendArrow from '@/components/atomic/TrendArrow';
-import TrendPercentage from '@/components/atomic/TrendPercentage';
-import { Card } from '@/components/ui/card';
+} from "recharts";
+import TrendArrow from "@/components/atomic/TrendArrow";
+import TrendPercentage from "@/components/atomic/TrendPercentage";
+import { Card } from "@/components/ui/card";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
-} from '@/components/ui/hover-card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { formatMetricNumber } from '@/lib/formatters';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/hover-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatMetricNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 
 interface MiniChartDataPoint {
 	date: string;
@@ -44,7 +44,7 @@ interface StatCardProps {
 	trendLabel?: string;
 	isLoading?: boolean;
 	className?: string;
-	variant?: 'default' | 'success' | 'info' | 'warning' | 'danger';
+	variant?: "default" | "success" | "info" | "warning" | "danger";
 	invertTrend?: boolean;
 	id?: string;
 	chartData?: MiniChartDataPoint[];
@@ -57,7 +57,7 @@ const formatTrendValue = (
 	value: string | number,
 	formatter?: (v: number) => string
 ) => {
-	if (typeof value === 'number') {
+	if (typeof value === "number") {
 		if (formatter) {
 			return formatter(value);
 		}
@@ -131,18 +131,18 @@ const MiniChart = memo(
 							</filter>
 						</defs>
 						<XAxis dataKey="date" hide />
-						<YAxis domain={['dataMin - 10%', 'dataMax + 10%']} hide />
+						<YAxis domain={["dataMin - 10%", "dataMax + 10%"]} hide />
 						<Tooltip
 							content={({ active, payload, label }) =>
 								active &&
 								payload?.[0] &&
-								typeof payload[0].value === 'number' ? (
+								typeof payload[0].value === "number" ? (
 									<div className="rounded-lg border border-border/50 bg-background/95 p-3 text-xs shadow-xl backdrop-blur-sm">
 										<p className="mb-1 font-medium text-foreground">
-											{new Date(label).toLocaleDateString('en-US', {
-												month: 'short',
-												day: 'numeric',
-												year: data.length > 30 ? 'numeric' : undefined,
+											{new Date(label).toLocaleDateString("en-US", {
+												month: "short",
+												day: "numeric",
+												year: data.length > 30 ? "numeric" : undefined,
 											})}
 										</p>
 										<p className="font-semibold text-primary">
@@ -154,7 +154,7 @@ const MiniChart = memo(
 								) : null
 							}
 							cursor={{
-								stroke: 'var(--chart-color)',
+								stroke: "var(--chart-color)",
 								strokeWidth: 1,
 								strokeOpacity: 0.3,
 							}}
@@ -162,8 +162,8 @@ const MiniChart = memo(
 						<Area
 							activeDot={{
 								r: 3,
-								fill: 'var(--chart-color)',
-								stroke: 'var(--background)',
+								fill: "var(--chart-color)",
+								stroke: "var(--background)",
 								strokeWidth: 2,
 								filter: `url(#glow-${id})`,
 							}}
@@ -181,7 +181,7 @@ const MiniChart = memo(
 	}
 );
 
-MiniChart.displayName = 'MiniChart';
+MiniChart.displayName = "MiniChart";
 
 const DURATION_REGEX = /\d+(\.\d+)?(s|ms)$/;
 
@@ -195,7 +195,7 @@ export function StatCard({
 	trendLabel,
 	isLoading = false,
 	className,
-	variant = 'default',
+	variant = "default",
 	invertTrend = false,
 	id,
 	chartData,
@@ -205,29 +205,29 @@ export function StatCard({
 }: StatCardProps) {
 	const getVariantClasses = () => {
 		switch (variant) {
-			case 'success':
-				return 'bg-accent/10 border-accent/20';
-			case 'info':
-				return 'bg-accent/10 border-accent/20';
-			case 'warning':
-				return 'bg-muted border-border';
-			case 'danger':
-				return 'bg-destructive/10 border-destructive/20';
+			case "success":
+				return "bg-accent/10 border-accent/20";
+			case "info":
+				return "bg-accent/10 border-accent/20";
+			case "warning":
+				return "bg-muted border-border";
+			case "danger":
+				return "bg-destructive/10 border-destructive/20";
 			default:
-				return '';
+				return "";
 		}
 	};
 
 	const trendValue =
-		typeof trend === 'object' && trend !== null ? trend.change : trend;
+		typeof trend === "object" && trend !== null ? trend.change : trend;
 
 	if (isLoading) {
 		return (
 			<Card
 				className={cn(
-					'group overflow-hidden pt-0',
-					'border-border/50',
-					'bg-card',
+					"group overflow-hidden pt-0",
+					"border-border/50",
+					"bg-card",
 					className
 				)}
 				id={id}
@@ -263,11 +263,11 @@ export function StatCard({
 		);
 	}
 
-	const isTimeValue = typeof value === 'string' && DURATION_REGEX.test(value);
+	const isTimeValue = typeof value === "string" && DURATION_REGEX.test(value);
 
 	const displayValue =
-		(typeof value === 'string' && (value.endsWith('%') || isTimeValue)) ||
-		typeof value !== 'number'
+		(typeof value === "string" && (value.endsWith("%") || isTimeValue)) ||
+		typeof value !== "number"
 			? value.toString()
 			: formatMetricNumber(value);
 
@@ -276,9 +276,9 @@ export function StatCard({
 	const cardContent = (
 		<Card
 			className={cn(
-				'group overflow-hidden pt-0',
-				'border-border/50 hover:border-primary/20',
-				'bg-card',
+				"group overflow-hidden pt-0",
+				"border-border/50 hover:border-primary/20",
+				"bg-card",
 				getVariantClasses(),
 				className
 			)}
@@ -298,13 +298,13 @@ export function StatCard({
 							</div>
 							<div
 								className={cn(
-									'font-bold text-foreground leading-tight group-hover:text-primary',
+									"font-bold text-foreground leading-tight group-hover:text-primary",
 									isTimeValue
-										? 'text-base sm:text-lg md:text-xl'
-										: 'text-lg sm:text-xl md:text-2xl',
-									typeof value === 'string' && value.length > 8
-										? 'text-base sm:text-lg md:text-xl'
-										: ''
+										? "text-base sm:text-lg md:text-xl"
+										: "text-lg sm:text-xl md:text-2xl",
+									typeof value === "string" && value.length > 8
+										? "text-base sm:text-lg md:text-xl"
+										: ""
 								)}
 							>
 								{displayValue}
@@ -359,7 +359,7 @@ export function StatCard({
 		</Card>
 	);
 
-	return typeof trend === 'object' &&
+	return typeof trend === "object" &&
 		trend !== null &&
 		trend.currentPeriod &&
 		trend.previousPeriod ? (
@@ -375,8 +375,8 @@ export function StatCard({
 						<div className="space-y-1">
 							<p className="text-muted-foreground text-xs">Previous</p>
 							<p className="text-muted-foreground/80 text-xs">
-								{dayjs(trend.previousPeriod.start).format('MMM D')} -{' '}
-								{dayjs(trend.previousPeriod.end).format('MMM D')}
+								{dayjs(trend.previousPeriod.start).format("MMM D")} -{" "}
+								{dayjs(trend.previousPeriod.end).format("MMM D")}
 							</p>
 							<p className="font-bold text-foreground text-lg">
 								{formatTrendValue(trend.previous, formatValue)}
@@ -385,8 +385,8 @@ export function StatCard({
 						<div className="space-y-1">
 							<p className="text-muted-foreground text-xs">Current</p>
 							<p className="text-muted-foreground/80 text-xs">
-								{dayjs(trend.currentPeriod.start).format('MMM D')} -{' '}
-								{dayjs(trend.currentPeriod.end).format('MMM D')}
+								{dayjs(trend.currentPeriod.start).format("MMM D")} -{" "}
+								{dayjs(trend.currentPeriod.end).format("MMM D")}
 							</p>
 							<p className="font-bold text-foreground text-lg">
 								{formatTrendValue(trend.current, formatValue)}

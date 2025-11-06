@@ -1,10 +1,10 @@
-import dynamic from 'next/dynamic';
-import { SkeletonChart } from './skeleton-chart';
+import dynamic from "next/dynamic";
+import { SkeletonChart } from "./skeleton-chart";
 
 // Dynamic imports for heavy chart components
 export const MetricsChart = dynamic(
 	() =>
-		import('./metrics-chart').then((mod) => ({ default: mod.MetricsChart })),
+		import("./metrics-chart").then((mod) => ({ default: mod.MetricsChart })),
 	{
 		loading: () => (
 			<SkeletonChart className="w-full" height={400} title="Loading chart..." />
@@ -15,7 +15,7 @@ export const MetricsChart = dynamic(
 
 export const DistributionChart = dynamic(
 	() =>
-		import('./distribution-chart').then((mod) => ({
+		import("./distribution-chart").then((mod) => ({
 			default: mod.DistributionChart,
 		})),
 	{
@@ -26,4 +26,4 @@ export const DistributionChart = dynamic(
 	}
 );
 
-export { SkeletonChart } from './skeleton-chart';
+export { SkeletonChart } from "./skeleton-chart";

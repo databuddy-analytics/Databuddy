@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { CaretDownIcon, ListIcon, XIcon } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
-import { useState } from 'react';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { Logo } from './logo';
-import { NavLink } from './nav-link';
-import { contents } from './sidebar-content';
+import { CaretDownIcon, ListIcon, XIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
+import { useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "./logo";
+import { NavLink } from "./nav-link";
+import { contents } from "./sidebar-content";
 
 export type DocsNavbarProps = {
 	stars?: number | null;
@@ -65,7 +65,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 												fill="currentColor"
 											/>
 										</svg>
-										{typeof stars === 'number' && (
+										{typeof stars === "number" && (
 											<span
 												className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
 												title="GitHub stars"
@@ -92,16 +92,16 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 								<ListIcon
 									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
-											? 'rotate-90 scale-90 opacity-0'
-											: 'rotate-0 scale-100 opacity-100'
+											? "rotate-90 scale-90 opacity-0"
+											: "rotate-0 scale-100 opacity-100"
 									}`}
 									weight="duotone"
 								/>
 								<XIcon
 									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
-											? 'rotate-0 scale-100 opacity-100'
-											: '-rotate-90 scale-90 opacity-0'
+											? "rotate-0 scale-100 opacity-100"
+											: "-rotate-90 scale-90 opacity-0"
 									}`}
 								/>
 							</div>
@@ -114,14 +114,14 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 			<div
 				className={`overflow-hidden transition-all duration-300 ease-out md:hidden ${
 					isMobileMenuOpen
-						? 'max-h-[80vh] border-border/50 border-b opacity-100'
-						: 'max-h-0 opacity-0'
+						? "max-h-[80vh] border-border/50 border-b opacity-100"
+						: "max-h-0 opacity-0"
 				}`}
 			>
 				<div className="bg-background/95 backdrop-blur-sm">
 					<div
 						className="mx-auto max-w-7xl overflow-y-auto px-4 py-4 sm:px-6 lg:px-8"
-						style={{ maxHeight: '70vh' }}
+						style={{ maxHeight: "70vh" }}
 					>
 						{/* Documentation sections */}
 						<div className="space-y-2">
@@ -156,11 +156,11 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 									<AnimatePresence initial={false}>
 										{openSection === sectionIndex && (
 											<motion.div
-												animate={{ opacity: 1, height: 'auto' }}
+												animate={{ opacity: 1, height: "auto" }}
 												className="relative overflow-hidden"
 												exit={{ opacity: 0, height: 0 }}
 												initial={{ opacity: 0, height: 0 }}
-												transition={{ duration: 0.3, ease: 'easeInOut' }}
+												transition={{ duration: 0.3, ease: "easeInOut" }}
 											>
 												<div className="ml-6 space-y-1 pb-2">
 													{section.list.map((item, itemIndex) => (
@@ -175,15 +175,15 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 																<Link
 																	className={`block transform rounded-lg px-3 py-2 text-muted-foreground text-sm transition-all duration-200 hover:translate-x-1 hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70 ${
 																		isMobileMenuOpen
-																			? 'translate-x-0 opacity-100'
-																			: '-translate-x-4 opacity-0'
+																			? "translate-x-0 opacity-100"
+																			: "-translate-x-4 opacity-0"
 																	}`}
-																	href={item.href || '#'}
+																	href={item.href || "#"}
 																	onClick={() => setIsMobileMenuOpen(false)}
 																	style={{
 																		transitionDelay: isMobileMenuOpen
 																			? `${(sectionIndex * section.list.length + itemIndex) * 30}ms`
-																			: '0ms',
+																			: "0ms",
 																	}}
 																>
 																	<div className="flex items-center gap-2">
@@ -216,13 +216,13 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 						{/* Regular nav items at bottom */}
 						<div className="space-y-1">
 							{navMenu
-								.filter((menu) => menu.name !== 'Docs')
+								.filter((menu) => menu.name !== "Docs")
 								.map((menu, index) => (
 									<Link
 										className={`block transform rounded-lg px-3 py-2 font-medium text-sm transition-all duration-200 hover:translate-x-1 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70 ${
 											isMobileMenuOpen
-												? 'translate-x-0 opacity-100'
-												: '-translate-x-4 opacity-0'
+												? "translate-x-0 opacity-100"
+												: "-translate-x-4 opacity-0"
 										}`}
 										href={menu.path}
 										key={menu.name}
@@ -230,11 +230,11 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 										style={{
 											transitionDelay: isMobileMenuOpen
 												? `${(contents.length * 5 + index) * 30}ms`
-												: '0ms',
+												: "0ms",
 										}}
 										{...(menu.external && {
-											target: '_blank',
-											rel: 'noopener noreferrer',
+											target: "_blank",
+											rel: "noopener noreferrer",
 										})}
 									>
 										{menu.name}
@@ -243,8 +243,8 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 							<Link
 								className={`flex transform items-center gap-3 rounded-lg border border-border/30 px-3 py-2 font-medium text-sm transition-all duration-200 hover:translate-x-1 hover:border-border/50 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70 ${
 									isMobileMenuOpen
-										? 'translate-x-0 opacity-100'
-										: '-translate-x-4 opacity-0'
+										? "translate-x-0 opacity-100"
+										: "-translate-x-4 opacity-0"
 								}`}
 								href="https://github.com/databuddy-analytics"
 								onClick={() => setIsMobileMenuOpen(false)}
@@ -252,7 +252,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 								style={{
 									transitionDelay: isMobileMenuOpen
 										? `${(contents.length * 5 + navMenu.length) * 30}ms`
-										: '0ms',
+										: "0ms",
 								}}
 								target="_blank"
 							>
@@ -271,7 +271,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 								</svg>
 								<span className="flex items-center gap-2">
 									GitHub
-									{typeof stars === 'number' && (
+									{typeof stars === "number" && (
 										<span
 											className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
 											title="GitHub stars"
@@ -291,20 +291,20 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 
 export const navMenu = [
 	{
-		name: 'Docs',
-		path: '/docs',
+		name: "Docs",
+		path: "/docs",
 	},
 	{
-		name: 'Blog',
-		path: '/blog',
+		name: "Blog",
+		path: "/blog",
 	},
 	{
-		name: 'Pricing',
-		path: '/pricing',
+		name: "Pricing",
+		path: "/pricing",
 	},
 	{
-		name: 'Dashboard',
-		path: 'https://app.databuddy.cc/login',
+		name: "Dashboard",
+		path: "https://app.databuddy.cc/login",
 		external: true,
 	},
 ];

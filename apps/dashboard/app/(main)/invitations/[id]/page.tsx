@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
+import { authClient } from "@databuddy/auth/client";
 import {
 	ArrowRight,
 	Buildings,
@@ -10,11 +10,11 @@ import {
 	Sparkle,
 	UserPlus,
 	XCircle,
-} from '@phosphor-icons/react';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 type InvitationData = {
 	organizationName: string;
@@ -22,7 +22,7 @@ type InvitationData = {
 	inviterEmail: string;
 	id: string;
 	email: string;
-	status: 'pending' | 'accepted' | 'rejected' | 'canceled';
+	status: "pending" | "accepted" | "rejected" | "canceled";
 	expiresAt: Date;
 	organizationId: string;
 	role: string;
@@ -36,23 +36,23 @@ export default function AcceptInvitationPage() {
 	const invitationId = params.id as string;
 
 	const [status, setStatus] = useState<
-		| 'loading'
-		| 'ready'
-		| 'accepting'
-		| 'success'
-		| 'error'
-		| 'expired'
-		| 'already-accepted'
-	>('loading');
+		| "loading"
+		| "ready"
+		| "accepting"
+		| "success"
+		| "error"
+		| "expired"
+		| "already-accepted"
+	>("loading");
 	const [invitation, setInvitation] = useState<InvitationData | null>(null);
-	const [error, setError] = useState<string>('');
+	const [error, setError] = useState<string>("");
 
 	useEffect(() => {
 		const fetchInvitation = async () => {
 			try {
 				if (!invitationId) {
-					setStatus('error');
-					setError('Invalid invitation link');
+					setStatus("error");
+					setError("Invalid invitation link");
 					return;
 				}
 
@@ -63,34 +63,34 @@ export default function AcceptInvitationPage() {
 
 				if (invitationError || !invitationData) {
 					if (
-						invitationError?.message?.includes('expired') ||
-						invitationError?.message?.includes('not found')
+						invitationError?.message?.includes("expired") ||
+						invitationError?.message?.includes("not found")
 					) {
-						setStatus('expired');
+						setStatus("expired");
 					} else {
-						setStatus('error');
-						setError(invitationError?.message || 'Failed to load invitation');
+						setStatus("error");
+						setError(invitationError?.message || "Failed to load invitation");
 					}
 					return;
 				}
 
 				setInvitation(invitationData);
 
-				if (invitationData.status === 'accepted') {
-					setStatus('already-accepted');
+				if (invitationData.status === "accepted") {
+					setStatus("already-accepted");
 				} else if (
-					invitationData.status === 'canceled' ||
-					invitationData.status === 'rejected' ||
+					invitationData.status === "canceled" ||
+					invitationData.status === "rejected" ||
 					new Date(invitationData.expiresAt) < new Date()
 				) {
-					setStatus('expired');
+					setStatus("expired");
 				} else {
-					setStatus('ready');
+					setStatus("ready");
 				}
 			} catch (err: any) {
-				console.error('Error fetching invitation:', err);
-				setStatus('error');
-				setError(err.message || 'An unexpected error occurred');
+				console.error("Error fetching invitation:", err);
+				setStatus("error");
+				setError(err.message || "An unexpected error occurred");
 			}
 		};
 
@@ -102,50 +102,49 @@ export default function AcceptInvitationPage() {
 			return;
 		}
 
-		setStatus('accepting');
+		setStatus("accepting");
 		try {
 			const result = await authClient.organization.acceptInvitation({
 				invitationId,
 			});
 
 			if (result.data) {
-				setStatus('success');
+				setStatus("success");
 				setTimeout(() => {
-					router.push('/websites');
+					router.push("/websites");
 				}, 3000);
 			} else {
-				setStatus('error');
-				setError('Failed to accept invitation');
+				setStatus("error");
+				setError("Failed to accept invitation");
 			}
 		} catch (err: any) {
-			console.error('Error accepting invitation:', err);
-			setStatus('error');
-			setError(err.message || 'Failed to accept invitation');
+			console.error("Error accepting invitation:", err);
+			setStatus("error");
+			setError(err.message || "Failed to accept invitation");
 		}
 	};
 
 	const handleDecline = () => {
-		router.push('/websites');
+		router.push("/websites");
 	};
 
-	const formatRole = (role: string) => {
-		return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
-	};
+	const formatRole = (role: string) =>
+		role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 
 	const formatExpiryDate = (expiresAt: string) => {
 		const date = new Date(expiresAt);
-		return date.toLocaleDateString('en-US', {
-			month: 'long',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit',
+		return date.toLocaleDateString("en-US", {
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
 		});
 	};
 
 	const renderContent = () => {
 		switch (status) {
-			case 'loading':
+			case "loading":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -160,7 +159,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'ready':
+			case "ready":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -174,7 +173,7 @@ export default function AcceptInvitationPage() {
 							/>
 							<Sparkle
 								className="-bottom-1 -left-3 absolute h-4 w-4 animate-pulse text-primary/40"
-								style={{ animationDelay: '1s' }}
+								style={{ animationDelay: "1s" }}
 								weight="duotone"
 							/>
 						</div>
@@ -186,14 +185,14 @@ export default function AcceptInvitationPage() {
 							<p className="max-w-md text-lg text-muted-foreground leading-relaxed">
 								<span className="font-semibold text-foreground">
 									{invitation?.inviterEmail}
-								</span>{' '}
-								has invited you to join{' '}
+								</span>{" "}
+								has invited you to join{" "}
 								<span className="font-semibold text-foreground">
 									{invitation?.organizationName}
-								</span>{' '}
-								as a{' '}
+								</span>{" "}
+								as a{" "}
 								<span className="font-semibold text-primary">
-									{formatRole(invitation?.role || '')}
+									{formatRole(invitation?.role || "")}
 								</span>
 								.
 							</p>
@@ -215,7 +214,7 @@ export default function AcceptInvitationPage() {
 										{invitation?.organizationName}
 									</p>
 									<p className="mt-1 text-muted-foreground text-xs">
-										Role: {formatRole(invitation?.role || '')}
+										Role: {formatRole(invitation?.role || "")}
 									</p>
 								</div>
 							</div>
@@ -230,7 +229,7 @@ export default function AcceptInvitationPage() {
 								<div className="flex-1 text-left">
 									<p className="mb-1 font-semibold text-sm">Expires</p>
 									<p className="text-muted-foreground text-xs">
-										{formatExpiryDate(invitation?.expiresAt.toString() || '')}
+										{formatExpiryDate(invitation?.expiresAt.toString() || "")}
 									</p>
 								</div>
 							</div>
@@ -262,7 +261,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'accepting':
+			case "accepting":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -272,7 +271,7 @@ export default function AcceptInvitationPage() {
 						</div>
 						<h3 className="mb-4 font-bold text-2xl">Joining Organization</h3>
 						<p className="text-muted-foreground leading-relaxed">
-							Adding you to{' '}
+							Adding you to{" "}
 							<span className="font-semibold text-foreground">
 								{invitation?.organizationName}
 							</span>
@@ -281,7 +280,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'success':
+			case "success":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -303,7 +302,7 @@ export default function AcceptInvitationPage() {
 								Welcome Aboard!
 							</h3>
 							<p className="text-lg text-muted-foreground leading-relaxed">
-								You've successfully joined{' '}
+								You've successfully joined{" "}
 								<span className="font-semibold text-foreground">
 									{invitation?.organizationName}
 								</span>
@@ -326,7 +325,7 @@ export default function AcceptInvitationPage() {
 										🎉 You're all set!
 									</p>
 									<p className="text-green-700 text-sm leading-relaxed dark:text-green-300">
-										You can now access all projects and resources in{' '}
+										You can now access all projects and resources in{" "}
 										{invitation?.organizationName}.
 									</p>
 								</div>
@@ -335,7 +334,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'already-accepted':
+			case "already-accepted":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -350,7 +349,7 @@ export default function AcceptInvitationPage() {
 						<div className="mb-8 space-y-4">
 							<h3 className="font-bold text-2xl">Already a Member</h3>
 							<p className="text-lg text-muted-foreground leading-relaxed">
-								You're already a member of{' '}
+								You're already a member of{" "}
 								<span className="font-semibold text-foreground">
 									{invitation?.organizationName}
 								</span>
@@ -359,7 +358,7 @@ export default function AcceptInvitationPage() {
 
 						<Button
 							className="gap-3 rounded px-8 py-6 font-medium text-lg"
-							onClick={() => router.push('/websites')}
+							onClick={() => router.push("/websites")}
 							size="lg"
 						>
 							<Buildings className="h-5 w-5" weight="duotone" />
@@ -369,7 +368,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'expired':
+			case "expired":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -390,7 +389,7 @@ export default function AcceptInvitationPage() {
 
 						<Button
 							className="gap-3 rounded px-8 py-6 font-medium text-lg"
-							onClick={() => router.push('/')}
+							onClick={() => router.push("/")}
 							size="lg"
 						>
 							<Buildings className="h-5 w-5" weight="duotone" />
@@ -400,7 +399,7 @@ export default function AcceptInvitationPage() {
 					</div>
 				);
 
-			case 'error':
+			case "error":
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
@@ -418,7 +417,7 @@ export default function AcceptInvitationPage() {
 
 						<Button
 							className="gap-3 rounded px-8 py-6 font-medium text-lg"
-							onClick={() => router.push('/')}
+							onClick={() => router.push("/")}
 							size="lg"
 						>
 							<Buildings className="h-5 w-5" weight="duotone" />
@@ -447,9 +446,9 @@ export default function AcceptInvitationPage() {
 									Organization Invitation
 								</h1>
 								<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-									{status === 'ready' && invitation
+									{status === "ready" && invitation
 										? `Join ${invitation.organizationName}`
-										: 'Processing invitation'}
+										: "Processing invitation"}
 								</p>
 							</div>
 						</div>

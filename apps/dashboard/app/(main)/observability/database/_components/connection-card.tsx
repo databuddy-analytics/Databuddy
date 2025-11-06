@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
 import {
 	DatabaseIcon,
 	DotsThreeIcon,
 	PencilSimpleIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import type { DbConnection } from '@/hooks/use-db-connections';
+} from "@/components/ui/dropdown-menu";
+import type { DbConnection } from "@/hooks/use-db-connections";
 
 interface ConnectionCardProps {
 	connection: DbConnection;
@@ -32,12 +32,12 @@ export function ConnectionCard({
 
 	const getDatabaseIcon = (type: string) => {
 		switch (type.toLowerCase()) {
-			case 'postgres':
-			case 'postgresql':
+			case "postgres":
+			case "postgresql":
 				return <DatabaseIcon className="text-foreground" weight="duotone" />;
-			case 'mysql':
+			case "mysql":
 				return <DatabaseIcon className="text-orange-600" weight="duotone" />;
-			case 'sqlite':
+			case "sqlite":
 				return <DatabaseIcon className="text-gray-600" weight="duotone" />;
 			default:
 				return (

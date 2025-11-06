@@ -1,26 +1,34 @@
-import { websitesApi } from '@databuddy/auth';
-import { chQuery } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { logger, type ProcessedMiniChartData } from '@databuddy/shared';
-import { transferWebsiteSchema, transferWebsiteToOrgSchema } from '@databuddy/validation';
-import { TRPCError } from '@trpc/server';
-import { Effect, pipe } from 'effect';
-import { z } from 'zod';
+import { websitesApi } from "@databuddy/auth";
+import { chQuery } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
+import {
+	transferWebsiteSchema,
+	transferWebsiteToOrgSchema,
+} from "@databuddy/validation";
+import { TRPCError } from "@trpc/server";
+import { Effect, pipe } from "effect";
+import { z } from "zod";
 import {
 	buildWebsiteFilter,
 	DuplicateDomainError,
 	domainSchema,
 	subdomainSchema,
 	ValidationError,
+	type Website,
 	type WebsiteError,
 	WebsiteNotFoundError,
 	WebsiteService,
 	websiteNameSchema,
-	type Website,
-} from '../services/website-service.js';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc.js';
-import { authorizeWebsiteAccess } from '../utils/auth.js';
-import { invalidateWebsiteCaches } from '../utils/cache-invalidation.js';
+} from "../services/website-service.js";
+import {
+	createTRPCRouter,
+	protectedProcedure,
+	publicProcedure,
+} from "../trpc.js";
+import { authorizeWebsiteAccess } from "../utils/auth.js";
+import { invalidateWebsiteCaches } from "../utils/cache-invalidation.js";
 
 const createWebsiteSchema = z.object({
 	name: websiteNameSchema,
@@ -40,7 +48,7 @@ const togglePublicWebsiteSchema = z.object({
 	isPublic: z.boolean(),
 });
 
-const websiteCache = createDrizzleCache({ redis, namespace: 'websites' });
+const websiteCache = createDrizzleCache({ redis, namespace: "websites" });
 const CACHE_DURATION = 60; // seconds
 const TREND_THRESHOLD = 5; // percentage
 
@@ -69,20 +77,20 @@ const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
 
 	if (previousAverage === 0) {
 		return currentAverage > 0
-			? { type: 'up' as const, value: 100 }
-			: { type: 'neutral' as const, value: 0 };
+			? { type: "up" as const, value: 100 }
+			: { type: "neutral" as const, value: 0 };
 	}
 
 	const percentageChange =
 		((currentAverage - previousAverage) / previousAverage) * 100;
 
 	if (percentageChange > TREND_THRESHOLD) {
-		return { type: 'up' as const, value: Math.abs(percentageChange) };
+		return { type: "up" as const, value: Math.abs(percentageChange) };
 	}
 	if (percentageChange < -TREND_THRESHOLD) {
-		return { type: 'down' as const, value: Math.abs(percentageChange) };
+		return { type: "down" as const, value: Math.abs(percentageChange) };
 	}
-	return { type: 'neutral' as const, value: Math.abs(percentageChange) };
+	return { type: "neutral" as const, value: Math.abs(percentageChange) };
 };
 
 const fetchChartData = async (
@@ -163,21 +171,21 @@ export const websitesRouter = createTRPCRouter({
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.query(({ ctx, input }) => {
-			const listCacheKey = `list:${ctx.user.id}:${input.organizationId || ''}`;
+			const listCacheKey = `list:${ctx.user.id}:${input.organizationId || ""}`;
 			return websiteCache.withCache({
 				key: listCacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['websites'],
+				tables: ["websites"],
 				queryFn: async () => {
 					if (input.organizationId) {
 						const { success } = await websitesApi.hasPermission({
 							headers: ctx.headers,
-							body: { permissions: { website: ['read'] } },
+							body: { permissions: { website: ["read"] } },
 						});
 						if (!success) {
 							throw new TRPCError({
-								code: 'FORBIDDEN',
-								message: 'Missing organization permissions.',
+								code: "FORBIDDEN",
+								message: "Missing organization permissions.",
 							});
 						}
 					}
@@ -196,22 +204,22 @@ export const websitesRouter = createTRPCRouter({
 	listWithCharts: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.query(({ ctx, input }) => {
-			const chartsListCacheKey = `listWithCharts:${ctx.user.id}:${input.organizationId || ''}`;
+			const chartsListCacheKey = `listWithCharts:${ctx.user.id}:${input.organizationId || ""}`;
 
 			return websiteCache.withCache({
 				key: chartsListCacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['websites'],
+				tables: ["websites"],
 				queryFn: async () => {
 					if (input.organizationId) {
 						const { success } = await websitesApi.hasPermission({
 							headers: ctx.headers,
-							body: { permissions: { website: ['read'] } },
+							body: { permissions: { website: ["read"] } },
 						});
 						if (!success) {
 							throw new TRPCError({
-								code: 'FORBIDDEN',
-								message: 'Missing organization permissions.',
+								code: "FORBIDDEN",
+								message: "Missing organization permissions.",
 							});
 						}
 					}
@@ -243,8 +251,8 @@ export const websitesRouter = createTRPCRouter({
 			return websiteCache.withCache({
 				key: getByIdCacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['websites'],
-				queryFn: () => authorizeWebsiteAccess(ctx, input.id, 'read'),
+				tables: ["websites"],
+				queryFn: () => authorizeWebsiteAccess(ctx, input.id, "read"),
 			});
 		}),
 
@@ -254,12 +262,12 @@ export const websitesRouter = createTRPCRouter({
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['create'] } },
+					body: { permissions: { website: ["create"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -277,15 +285,15 @@ export const websitesRouter = createTRPCRouter({
 				Effect.mapError((error: WebsiteError) => {
 					if (error instanceof ValidationError) {
 						return new TRPCError({
-							code: 'BAD_REQUEST',
+							code: "BAD_REQUEST",
 							message: error.message,
 						});
 					}
 					if (error instanceof DuplicateDomainError) {
-						return new TRPCError({ code: 'CONFLICT', message: error.message });
+						return new TRPCError({ code: "CONFLICT", message: error.message });
 					}
 					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
+						code: "INTERNAL_SERVER_ERROR",
 						message: error.message,
 					});
 				}),
@@ -301,7 +309,7 @@ export const websitesRouter = createTRPCRouter({
 			const websiteToUpdate = await authorizeWebsiteAccess(
 				ctx,
 				input.id,
-				'update'
+				"update"
 			);
 
 			const serviceInput = {
@@ -319,18 +327,18 @@ export const websitesRouter = createTRPCRouter({
 				Effect.mapError((error: WebsiteError) => {
 					if (error instanceof ValidationError) {
 						return new TRPCError({
-							code: 'BAD_REQUEST',
+							code: "BAD_REQUEST",
 							message: error.message,
 						});
 					}
 					if (error instanceof DuplicateDomainError) {
-						return new TRPCError({ code: 'CONFLICT', message: error.message });
+						return new TRPCError({ code: "CONFLICT", message: error.message });
 					}
 					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+						return new TRPCError({ code: "NOT_FOUND", message: error.message });
 					}
 					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
+						code: "INTERNAL_SERVER_ERROR",
 						message: error.message,
 					});
 				}),
@@ -348,7 +356,7 @@ export const websitesRouter = createTRPCRouter({
 			}
 
 			if (changes.length > 0) {
-				logger.info('Website Updated', changes.join(', '), {
+				logger.info("Website Updated", changes.join(", "), {
 					websiteId: updatedWebsite.id,
 					userId: ctx.user.id,
 				});
@@ -360,7 +368,7 @@ export const websitesRouter = createTRPCRouter({
 	togglePublic: protectedProcedure
 		.input(togglePublicWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
-			const website = await authorizeWebsiteAccess(ctx, input.id, 'update');
+			const website = await authorizeWebsiteAccess(ctx, input.id, "update");
 
 			const updatedWebsite = await pipe(
 				new WebsiteService(ctx.db).toggleWebsitePublic(
@@ -370,10 +378,10 @@ export const websitesRouter = createTRPCRouter({
 				),
 				Effect.mapError((error: WebsiteError) => {
 					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+						return new TRPCError({ code: "NOT_FOUND", message: error.message });
 					}
 					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
+						code: "INTERNAL_SERVER_ERROR",
 						message: error.message,
 					});
 				}),
@@ -381,8 +389,8 @@ export const websitesRouter = createTRPCRouter({
 			);
 
 			logger.info(
-				'Website Privacy Updated',
-				`${website.domain} is now ${input.isPublic ? 'public' : 'private'}`,
+				"Website Privacy Updated",
+				`${website.domain} is now ${input.isPublic ? "public" : "private"}`,
 				{
 					websiteId: input.id,
 					isPublic: input.isPublic,
@@ -399,22 +407,23 @@ export const websitesRouter = createTRPCRouter({
 			const websiteToDelete = await authorizeWebsiteAccess(
 				ctx,
 				input.id,
-				'delete'
+				"delete"
 			);
 
 			await pipe(
 				new WebsiteService(ctx.db).deleteWebsite(input.id, ctx.user.id),
-				Effect.mapError((error: WebsiteError) => {
-					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: error.message,
-					});
-				}),
+				Effect.mapError(
+					(error: WebsiteError) =>
+						new TRPCError({
+							code: "INTERNAL_SERVER_ERROR",
+							message: error.message,
+						})
+				),
 				Effect.runPromise
 			);
 
 			logger.warning(
-				'Website Deleted',
+				"Website Deleted",
 				`Website "${websiteToDelete.name}" with domain "${websiteToDelete.domain}" was deleted`,
 				{
 					websiteId: websiteToDelete.id,
@@ -430,20 +439,20 @@ export const websitesRouter = createTRPCRouter({
 	transfer: protectedProcedure
 		.input(transferWebsiteSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
 					body: {
 						organizationId: input.organizationId,
-						permissions: { website: ['create'] },
+						permissions: { website: ["create"] },
 					},
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -456,10 +465,10 @@ export const websitesRouter = createTRPCRouter({
 				),
 				Effect.mapError((error: WebsiteError) => {
 					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+						return new TRPCError({ code: "NOT_FOUND", message: error.message });
 					}
 					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
+						code: "INTERNAL_SERVER_ERROR",
 						message: error.message,
 					});
 				}),
@@ -472,19 +481,20 @@ export const websitesRouter = createTRPCRouter({
 	transferToOrganization: protectedProcedure
 		.input(transferWebsiteToOrgSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'transfer');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "transfer");
 
 			const { success } = await websitesApi.hasPermission({
 				headers: ctx.headers,
 				body: {
 					organizationId: input.targetOrganizationId,
-					permissions: { website: ['create'] },
+					permissions: { website: ["create"] },
 				},
 			});
 			if (!success) {
 				throw new TRPCError({
-					code: 'FORBIDDEN',
-					message: 'Missing permissions to transfer website to target organization.',
+					code: "FORBIDDEN",
+					message:
+						"Missing permissions to transfer website to target organization.",
 				});
 			}
 
@@ -496,10 +506,10 @@ export const websitesRouter = createTRPCRouter({
 				),
 				Effect.mapError((error: WebsiteError) => {
 					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: 'NOT_FOUND', message: error.message });
+						return new TRPCError({ code: "NOT_FOUND", message: error.message });
 					}
 					return new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
+						code: "INTERNAL_SERVER_ERROR",
 						message: error.message,
 					});
 				}),
@@ -512,7 +522,7 @@ export const websitesRouter = createTRPCRouter({
 	invalidateCaches: protectedProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 
 			await pipe(
 				Effect.tryPromise({
@@ -522,8 +532,8 @@ export const websitesRouter = createTRPCRouter({
 				Effect.mapError(
 					() =>
 						new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to invalidate caches',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to invalidate caches",
 						})
 				),
 				Effect.runPromise
@@ -538,7 +548,7 @@ export const websitesRouter = createTRPCRouter({
 			const website = await authorizeWebsiteAccess(
 				ctx,
 				input.websiteId,
-				'read'
+				"read"
 			);
 
 			const hasVercelIntegration = !!(
@@ -554,11 +564,11 @@ export const websitesRouter = createTRPCRouter({
 
 			const hasTrackingEvents = (trackingCheckResult[0]?.count ?? 0) > 0;
 
-			let integrationType: 'vercel' | 'manual' | null = null;
+			let integrationType: "vercel" | "manual" | null = null;
 			if (hasVercelIntegration) {
-				integrationType = 'vercel';
+				integrationType = "vercel";
 			} else if (hasTrackingEvents) {
-				integrationType = 'manual';
+				integrationType = "manual";
 			}
 
 			return {

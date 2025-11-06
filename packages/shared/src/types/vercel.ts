@@ -59,8 +59,8 @@ export interface VercelEnvVarsResponse {
 export interface CreateEnvVarRequest {
 	key: string;
 	value: string;
-	type: 'system' | 'secret' | 'encrypted' | 'plain' | 'sensitive';
-	target?: ('production' | 'preview' | 'development')[];
+	type: "system" | "secret" | "encrypted" | "plain" | "sensitive";
+	target?: ("production" | "preview" | "development")[];
 	gitBranch?: string | null;
 	comment?: string;
 	customEnvironmentIds?: string[];
@@ -88,8 +88,8 @@ export interface CreateEnvVarResponse {
 export interface EditEnvVarRequest {
 	key?: string;
 	value?: string;
-	type?: 'system' | 'secret' | 'encrypted' | 'plain' | 'sensitive';
-	target?: ('production' | 'preview' | 'development')[];
+	type?: "system" | "secret" | "encrypted" | "plain" | "sensitive";
+	target?: ("production" | "preview" | "development")[];
 	gitBranch?: string | null;
 	comment?: string;
 	customEnvironmentIds?: string[];
@@ -97,8 +97,8 @@ export interface EditEnvVarRequest {
 
 export interface SetEnvVarRequest {
 	value: string;
-	type?: 'system' | 'secret' | 'encrypted' | 'plain' | 'sensitive';
-	target?: ('production' | 'preview' | 'development')[];
+	type?: "system" | "secret" | "encrypted" | "plain" | "sensitive";
+	target?: ("production" | "preview" | "development")[];
 	gitBranch?: string | null;
 	comment?: string;
 }
@@ -179,7 +179,7 @@ export interface DomainIntegrationStatus {
 	websiteName: string | null;
 	environments: string[];
 	envVarId: string | null;
-	status: 'integrated' | 'not_integrated' | 'orphaned' | 'invalid';
+	status: "integrated" | "not_integrated" | "orphaned" | "invalid";
 	issues: string[];
 }
 
@@ -194,9 +194,9 @@ export interface IntegrationSummary {
 
 // Triage Action Types
 export type TriageAction =
-	| 'remove_orphaned'
-	| 'remove_duplicates'
-	| 'unintegrate';
+	| "remove_orphaned"
+	| "remove_duplicates"
+	| "unintegrate";
 
 export interface TriageActionConfig {
 	label: string;

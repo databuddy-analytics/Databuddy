@@ -1,4 +1,4 @@
-import type { PixelCrop } from 'react-image-crop';
+import type { PixelCrop } from "react-image-crop";
 
 // This function was adapted from the official react-image-crop examples
 // to ensure the output is a high-quality, circular image.
@@ -7,11 +7,11 @@ export function getCroppedImage(
 	crop: PixelCrop,
 	fileName: string
 ): Promise<File> {
-	const canvas = document.createElement('canvas');
-	const ctx = canvas.getContext('2d');
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
 
 	if (!ctx) {
-		throw new Error('No 2d context');
+		throw new Error("No 2d context");
 	}
 
 	const scaleX = image.naturalWidth / image.width;
@@ -22,7 +22,7 @@ export function getCroppedImage(
 	canvas.height = Math.floor(crop.height * scaleY * pixelRatio);
 
 	ctx.scale(pixelRatio, pixelRatio);
-	ctx.imageSmoothingQuality = 'high';
+	ctx.imageSmoothingQuality = "high";
 
 	const cropX = crop.x * scaleX;
 	const cropY = crop.y * scaleY;
@@ -52,10 +52,10 @@ export function getCroppedImage(
 	return new Promise((resolve, reject) => {
 		canvas.toBlob((blob) => {
 			if (!blob) {
-				reject(new Error('Canvas is empty'));
+				reject(new Error("Canvas is empty"));
 				return;
 			}
-			resolve(new File([blob], fileName, { type: 'image/png' }));
-		}, 'image/png');
+			resolve(new File([blob], fileName, { type: "image/png" }));
+		}, "image/png");
 	});
 }

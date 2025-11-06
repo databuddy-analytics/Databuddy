@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowRight,
@@ -10,23 +10,23 @@ import {
 	type Icon,
 	SparkleIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { WebsiteDialog } from '@/components/website-dialog';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { useWebsites } from '@/hooks/use-websites';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/card";
+import { WebsiteDialog } from "@/components/website-dialog";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { useWebsites } from "@/hooks/use-websites";
+import { cn } from "@/lib/utils";
 
 interface OnboardingStep {
 	id: string;
@@ -51,12 +51,12 @@ function StepIndicator({
 				<div className="flex items-center" key={step.id}>
 					<div
 						className={cn(
-							'flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-300',
+							"flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-300",
 							step.completed
-								? 'border-primary bg-primary text-primary-foreground'
+								? "border-primary bg-primary text-primary-foreground"
 								: index === currentStep
-									? 'border-primary bg-primary/10 text-primary'
-									: 'border-muted bg-muted text-muted-foreground'
+									? "border-primary bg-primary/10 text-primary"
+									: "border-muted bg-muted text-muted-foreground"
 						)}
 					>
 						{step.completed ? (
@@ -67,9 +67,9 @@ function StepIndicator({
 					</div>
 					{index < steps.length - 1 && (
 						<div
-							className={cn('h-0.5 w-8 transition-all duration-300', {
-								'bg-primary': step.completed,
-								'bg-muted': !step.completed,
+							className={cn("h-0.5 w-8 transition-all duration-300", {
+								"bg-primary": step.completed,
+								"bg-muted": !step.completed,
 							})}
 						/>
 					)}
@@ -91,30 +91,30 @@ function OnboardingStepCard({
 	return (
 		<Card
 			className={cn(
-				'transition-all duration-300 hover:shadow-md',
+				"transition-all duration-300 hover:shadow-md",
 				isActive
-					? 'border-primary/50 bg-primary/5 shadow-sm'
+					? "border-primary/50 bg-primary/5 shadow-sm"
 					: step.completed
-						? 'border-primary/20 bg-primary/2'
-						: 'border-muted hover:border-border'
+						? "border-primary/20 bg-primary/2"
+						: "border-muted hover:border-border"
 			)}
 		>
 			<CardHeader className="pb-4">
 				<div className="flex items-center gap-3">
 					<div
 						className={cn(
-							'rounded-lg border p-3 transition-all duration-300',
+							"rounded-lg border p-3 transition-all duration-300",
 							isActive || step.completed
-								? 'border-primary/20 bg-primary/10'
-								: 'border-muted bg-muted/50'
+								? "border-primary/20 bg-primary/10"
+								: "border-muted bg-muted/50"
 						)}
 					>
 						<step.icon
 							className={cn(
-								'h-6 w-6 transition-all duration-300',
+								"h-6 w-6 transition-all duration-300",
 								isActive || step.completed
-									? 'text-primary'
-									: 'text-muted-foreground'
+									? "text-primary"
+									: "text-muted-foreground"
 							)}
 							weight="duotone"
 						/>
@@ -142,16 +142,16 @@ function OnboardingStepCard({
 				<CardContent className="pt-0">
 					<Button
 						className={cn(
-							'w-full rounded transition-all duration-300',
+							"w-full rounded transition-all duration-300",
 							isActive
-								? 'bg-primary hover:bg-primary/90'
-								: 'bg-muted text-muted-foreground hover:bg-muted/80'
+								? "bg-primary hover:bg-primary/90"
+								: "bg-muted text-muted-foreground hover:bg-muted/80"
 						)}
 						disabled={!isActive}
 						onClick={step.action}
 						size="sm"
 					>
-						{step.actionLabel || 'Continue'}
+						{step.actionLabel || "Continue"}
 						<ArrowRightIcon className="ml-2 h-4 w-4" />
 					</Button>
 				</CardContent>
@@ -225,31 +225,31 @@ export default function OnboardingPage() {
 
 	const steps: OnboardingStep[] = [
 		{
-			id: 'organization',
-			title: 'Create Organization',
+			id: "organization",
+			title: "Create Organization",
 			description: hasOrganization
-				? 'Organization created successfully!'
-				: 'Set up your team workspace for collaboration',
+				? "Organization created successfully!"
+				: "Set up your team workspace for collaboration",
 			icon: BuildingsIcon,
 			completed: hasOrganization,
 			action: hasOrganization ? undefined : () => setShowCreateOrgDialog(true),
-			actionLabel: 'Create Organization',
+			actionLabel: "Create Organization",
 		},
 		{
-			id: 'website',
-			title: 'Add Your Website',
+			id: "website",
+			title: "Add Your Website",
 			description: hasWebsite
-				? 'Website added successfully!'
-				: 'Add your first website to start tracking analytics',
+				? "Website added successfully!"
+				: "Add your first website to start tracking analytics",
 			icon: GlobeIcon,
 			completed: hasWebsite,
 			action: hasWebsite ? undefined : () => setShowCreateWebsiteDialog(true),
-			actionLabel: 'Add Website',
+			actionLabel: "Add Website",
 		},
 		{
-			id: 'setup',
-			title: 'Install Tracking',
-			description: 'Add the tracking script to your website to collect data',
+			id: "setup",
+			title: "Install Tracking",
+			description: "Add the tracking script to your website to collect data",
 			icon: CodeIcon,
 			completed: false, // This would be determined by actual tracking data
 			action: () => {
@@ -258,7 +258,7 @@ export default function OnboardingPage() {
 					window.location.href = `/websites/${websites[0].id}?tab=tracking-setup`;
 				}
 			},
-			actionLabel: 'Setup Tracking',
+			actionLabel: "Setup Tracking",
 		},
 	];
 
@@ -267,9 +267,9 @@ export default function OnboardingPage() {
 
 	// Check for pending plan selection and redirect to billing
 	useEffect(() => {
-		const pendingPlan = localStorage.getItem('pendingPlanSelection');
+		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan && allCompleted) {
-			localStorage.removeItem('pendingPlanSelection');
+			localStorage.removeItem("pendingPlanSelection");
 			router.push(`/billing?tab=plans&plan=${pendingPlan}`);
 		}
 	}, [allCompleted, router]);
@@ -297,7 +297,7 @@ export default function OnboardingPage() {
 						<Button
 							className="rounded"
 							onClick={() => {
-								window.location.href = '/websites';
+								window.location.href = "/websites";
 							}}
 							variant="ghost"
 						>

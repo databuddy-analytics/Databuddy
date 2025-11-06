@@ -1,9 +1,9 @@
-import type { RawItem, RawPlan } from '../data';
-import type { NormalizedPlan } from './types';
+import type { RawItem, RawPlan } from "../data";
+import type { NormalizedPlan } from "./types";
 
 export function getPriceMonthly(items: RawItem[]): number {
 	for (const item of items) {
-		if (item.type === 'price') {
+		if (item.type === "price") {
 			return item.price;
 		}
 	}
@@ -12,21 +12,21 @@ export function getPriceMonthly(items: RawItem[]): number {
 
 export function getEventsInfo(items: RawItem[]): {
 	included: number;
-	tiers: Array<{ to: number | 'inf'; amount: number }> | null;
+	tiers: Array<{ to: number | "inf"; amount: number }> | null;
 } {
 	let included = 0;
-	let tiers: Array<{ to: number | 'inf'; amount: number }> | null = null;
+	let tiers: Array<{ to: number | "inf"; amount: number }> | null = null;
 	for (const item of items) {
 		const isEvent =
-			(item.type === 'feature' || item.type === 'priced_feature') &&
-			item.feature_id === 'events';
+			(item.type === "feature" || item.type === "priced_feature") &&
+			item.feature_id === "events";
 		if (!isEvent) {
 			continue;
 		}
-		if (typeof item.included_usage === 'number') {
+		if (typeof item.included_usage === "number") {
 			included = item.included_usage;
 		}
-		if (item.type === 'priced_feature' && item.tiers) {
+		if (item.type === "priced_feature" && item.tiers) {
 			tiers = item.tiers;
 		}
 	}
@@ -34,20 +34,20 @@ export function getEventsInfo(items: RawItem[]): {
 }
 
 export function getWebsitesInfo(items: RawItem[]): {
-	included: number | 'inf' | null;
+	included: number | "inf" | null;
 	overage: number | null;
 } {
-	let included: number | 'inf' | null = null;
+	let included: number | "inf" | null = null;
 	let overage: number | null = null;
 	for (const item of items) {
 		const isWeb =
-			(item.type === 'feature' || item.type === 'priced_feature') &&
-			item.feature_id === 'websites';
+			(item.type === "feature" || item.type === "priced_feature") &&
+			item.feature_id === "websites";
 		if (!isWeb) {
 			continue;
 		}
-		included = item.included_usage as number | 'inf';
-		if (item.type === 'priced_feature' && typeof item.price === 'number') {
+		included = item.included_usage as number | "inf";
+		if (item.type === "priced_feature" && typeof item.price === "number") {
 			overage = item.price;
 		}
 	}
@@ -57,10 +57,10 @@ export function getWebsitesInfo(items: RawItem[]): {
 export function getAssistantMessagesPerDay(items: RawItem[]): number | null {
 	for (const item of items) {
 		const isAssistant =
-			(item.type === 'feature' || item.type === 'priced_feature') &&
-			item.feature_id === 'assistant_message' &&
-			item.interval === 'day' &&
-			typeof item.included_usage === 'number';
+			(item.type === "feature" || item.type === "priced_feature") &&
+			item.feature_id === "assistant_message" &&
+			item.interval === "day" &&
+			typeof item.included_usage === "number";
 		if (isAssistant) {
 			return item.included_usage as number;
 		}

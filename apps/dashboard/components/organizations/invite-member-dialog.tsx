@@ -1,32 +1,32 @@
-'use client';
+"use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { UserPlusIcon } from '@phosphor-icons/react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod/v4';
-import { Button } from '@/components/ui/button';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { UserPlusIcon } from "@phosphor-icons/react";
+import { useForm } from "react-hook-form";
+import { z } from "zod/v4";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
 	Form,
 	FormControl,
 	FormField,
 	FormItem,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { useOrganizationInvitations } from '@/hooks/use-organization-invitations';
+} from "@/components/ui/select";
+import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
 
 interface InviteMemberDialogProps {
 	open: boolean;
@@ -35,9 +35,9 @@ interface InviteMemberDialogProps {
 }
 
 const formSchema = z.object({
-	email: z.email('Please enter a valid email address'),
-	role: z.enum(['admin', 'member']).refine((val) => val !== undefined, {
-		message: 'Please select a role',
+	email: z.email("Please enter a valid email address"),
+	role: z.enum(["admin", "member"]).refine((val) => val !== undefined, {
+		message: "Please select a role",
 	}),
 });
 
@@ -54,8 +54,8 @@ export function InviteMemberDialog({
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			email: '',
-			role: 'member',
+			email: "",
+			role: "member",
 		},
 	});
 
@@ -104,7 +104,7 @@ export function InviteMemberDialog({
 									<FormItem className="flex-1">
 										<FormControl>
 											<Input
-												className="text-sm "
+												className="text-sm"
 												placeholder="email@company.com"
 												type="email"
 												{...field}

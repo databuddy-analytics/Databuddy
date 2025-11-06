@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type React from 'react';
-import { cn } from '@/lib/utils';
-import { FaviconImage } from '../analytics/favicon-image';
+import type React from "react";
+import { cn } from "@/lib/utils";
+import { FaviconImage } from "../analytics/favicon-image";
 
 export interface ReferrerSourceCellData {
 	name?: string;
@@ -22,13 +22,13 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 	domain,
 	className,
 }) => {
-	const displayName = name || referrer || 'Direct';
+	const displayName = name || referrer || "Direct";
 
-	if (displayName === 'Direct' || !domain) {
+	if (displayName === "Direct" || !domain) {
 		return (
 			<span
 				className={
-					className ? `${className} font-medium text-sm` : 'font-medium text-sm'
+					className ? `${className} font-medium text-sm` : "font-medium text-sm"
 				}
 				id={id}
 			>
@@ -40,11 +40,14 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 	return (
 		<a
 			className={cn(
-				'flex cursor-pointer items-center gap-2 font-medium text-sm transition-colors hover:text-foreground hover:underline',
+				"flex cursor-pointer items-center gap-2 font-medium text-sm transition-colors hover:text-foreground hover:underline",
 				className
 			)}
 			href={`https://${domain.trim()}`}
 			id={id}
+			onClick={(e) => {
+				e.stopPropagation();
+			}}
 			rel="noopener noreferrer nofollow"
 			target="_blank"
 		>

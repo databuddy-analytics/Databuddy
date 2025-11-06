@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { DatabaseIcon } from '@phosphor-icons/react';
-import { EmptyState } from '@/components/empty-state';
-import type { DbConnection } from '@/hooks/use-db-connections';
-import { ConnectionCard } from './connection-card';
+import { DatabaseIcon } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
+import type { DbConnection } from "@/hooks/use-db-connections";
+import { ConnectionCard } from "./connection-card";
 
 interface ConnectionsListProps {
 	connections: DbConnection[];
@@ -28,7 +28,7 @@ export function ConnectionsList({
 		return (
 			<EmptyState
 				action={{
-					label: 'Create Your First Connection',
+					label: "Create Your First Connection",
 					onClick: onCreate,
 				}}
 				description="Connect your databases to start monitoring performance, tracking queries, and gaining insights into your database health across all environments."

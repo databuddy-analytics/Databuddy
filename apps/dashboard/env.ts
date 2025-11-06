@@ -1,1 +1,1 @@
-export { env } from '@databuddy/env/dashboard';
+export { env } from "@databuddy/env/dashboard";

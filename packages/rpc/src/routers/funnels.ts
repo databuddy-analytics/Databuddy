@@ -1,24 +1,23 @@
-import { funnelDefinitions } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { z } from 'zod/v4';
+import { and, desc, eq, funnelDefinitions, isNull, sql } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
 import {
 	type AnalyticsStep,
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
-} from '../lib/analytics-utils';
-import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+} from "../lib/analytics-utils";
+import { logger } from "../lib/logger";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'funnels' });
+const drizzleCache = createDrizzleCache({ redis, namespace: "funnels" });
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 600;
 
 const funnelStepSchema = z.object({
-	type: z.enum(['PAGE_VIEW', 'EVENT', 'CUSTOM']),
+	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
 	target: z.string().min(1),
 	name: z.string().min(1),
 	conditions: z.record(z.string(), z.any()).optional(),
@@ -26,7 +25,7 @@ const funnelStepSchema = z.object({
 
 const funnelFilterSchema = z.object({
 	field: z.string(),
-	operator: z.enum(['equals', 'contains', 'not_equals', 'in', 'not_in']),
+	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
 	value: z.union([z.string(), z.array(z.string())]),
 });
 
@@ -55,10 +54,10 @@ const funnelAnalyticsSchema = z.object({
 });
 
 const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split('T')[0];
+	const endDate = new Date().toISOString().split("T")[0];
 	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		.toISOString()
-		.split('T')[0];
+		.split("T")[0];
 	return { startDate, endDate };
 };
 
@@ -71,9 +70,9 @@ export const funnelsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['funnelDefinitions'],
+				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					try {
 						const funnels = await ctx.db
@@ -99,13 +98,13 @@ export const funnelsRouter = createTRPCRouter({
 
 						return funnels;
 					} catch (error) {
-						logger.error('Failed to fetch funnels', {
+						logger.error("Failed to fetch funnels", {
 							error: error instanceof Error ? error.message : String(error),
 							websiteId: input.websiteId,
 						});
 						throw new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to fetch funnels',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to fetch funnels",
 						});
 					}
 				},
@@ -120,9 +119,9 @@ export const funnelsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['funnelDefinitions'],
+				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					try {
 						const funnel = await ctx.db
@@ -139,8 +138,8 @@ export const funnelsRouter = createTRPCRouter({
 
 						if (funnel.length === 0) {
 							throw new TRPCError({
-								code: 'NOT_FOUND',
-								message: 'Funnel not found',
+								code: "NOT_FOUND",
+								message: "Funnel not found",
 							});
 						}
 
@@ -150,14 +149,14 @@ export const funnelsRouter = createTRPCRouter({
 							throw error;
 						}
 
-						logger.error('Failed to fetch funnel', {
+						logger.error("Failed to fetch funnel", {
 							error: error instanceof Error ? error.message : String(error),
 							funnelId: input.id,
 							websiteId: input.websiteId,
 						});
 						throw new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to fetch funnel',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to fetch funnel",
 						});
 					}
 				},
@@ -167,7 +166,7 @@ export const funnelsRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createFunnelSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 
 			try {
 				const funnelId = crypto.randomUUID();
@@ -185,9 +184,9 @@ export const funnelsRouter = createTRPCRouter({
 					})
 					.returning();
 
-				await drizzleCache.invalidateByTables(['funnelDefinitions']);
+				await drizzleCache.invalidateByTables(["funnelDefinitions"]);
 
-				logger.info('Funnel created', {
+				logger.info("Funnel created", {
 					message: `Created funnel "${input.name}"`,
 					funnelId,
 					websiteId: input.websiteId,
@@ -196,14 +195,14 @@ export const funnelsRouter = createTRPCRouter({
 
 				return newFunnel;
 			} catch (error) {
-				logger.error('Failed to create funnel', {
+				logger.error("Failed to create funnel", {
 					error: error instanceof Error ? error.message : String(error),
 					websiteId: input.websiteId,
 					userId: ctx.user.id,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to create funnel',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create funnel",
 				});
 			}
 		}),
@@ -222,9 +221,9 @@ export const funnelsRouter = createTRPCRouter({
 				)
 				.limit(1);
 			if (existingFunnel.length === 0) {
-				throw new TRPCError({ code: 'NOT_FOUND', message: 'Funnel not found' });
+				throw new TRPCError({ code: "NOT_FOUND", message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, "update");
 
 			try {
 				const { id, ...updates } = input;
@@ -243,7 +242,7 @@ export const funnelsRouter = createTRPCRouter({
 					.returning();
 
 				await Promise.all([
-					drizzleCache.invalidateByTables(['funnelDefinitions']),
+					drizzleCache.invalidateByTables(["funnelDefinitions"]),
 					drizzleCache.invalidateByKey(
 						`funnels:byId:${id}:${existingFunnel[0].websiteId}`
 					),
@@ -251,14 +250,14 @@ export const funnelsRouter = createTRPCRouter({
 
 				return updatedFunnel;
 			} catch (error) {
-				logger.error('Failed to update funnel', {
+				logger.error("Failed to update funnel", {
 					error: error instanceof Error ? error.message : String(error),
 					funnelId: input.id,
 					websiteId: existingFunnel[0].websiteId,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to update funnel',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to update funnel",
 				});
 			}
 		}),
@@ -277,9 +276,9 @@ export const funnelsRouter = createTRPCRouter({
 				)
 				.limit(1);
 			if (existingFunnel.length === 0) {
-				throw new TRPCError({ code: 'NOT_FOUND', message: 'Funnel not found' });
+				throw new TRPCError({ code: "NOT_FOUND", message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, 'delete');
+			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, "delete");
 
 			try {
 				await ctx.db
@@ -296,7 +295,7 @@ export const funnelsRouter = createTRPCRouter({
 					);
 
 				await Promise.all([
-					drizzleCache.invalidateByTables(['funnelDefinitions']),
+					drizzleCache.invalidateByTables(["funnelDefinitions"]),
 					drizzleCache.invalidateByKey(
 						`funnels:byId:${input.id}:${existingFunnel[0].websiteId}`
 					),
@@ -304,14 +303,14 @@ export const funnelsRouter = createTRPCRouter({
 
 				return { success: true };
 			} catch (error) {
-				logger.error('Failed to delete funnel', {
+				logger.error("Failed to delete funnel", {
 					error: error instanceof Error ? error.message : String(error),
 					funnelId: input.id,
 					websiteId: existingFunnel[0].websiteId,
 				});
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to delete funnel',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete funnel",
 				});
 			}
 		}),
@@ -329,9 +328,9 @@ export const funnelsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
-				tables: ['funnelDefinitions'],
+				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					try {
 						const funnel = await ctx.db
@@ -348,8 +347,8 @@ export const funnelsRouter = createTRPCRouter({
 
 						if (funnel.length === 0) {
 							throw new TRPCError({
-								code: 'NOT_FOUND',
-								message: 'Funnel not found',
+								code: "NOT_FOUND",
+								message: "Funnel not found",
 							});
 						}
 
@@ -377,7 +376,7 @@ export const funnelsRouter = createTRPCRouter({
 						const analyticsSteps: AnalyticsStep[] = steps.map(
 							(step, index) => ({
 								step_number: index + 1,
-								type: step.type as 'PAGE_VIEW' | 'EVENT',
+								type: step.type as "PAGE_VIEW" | "EVENT",
 								target: step.target,
 								name: step.name,
 							})
@@ -389,14 +388,14 @@ export const funnelsRouter = createTRPCRouter({
 							throw error;
 						}
 
-						logger.error('Failed to fetch funnel analytics', {
+						logger.error("Failed to fetch funnel analytics", {
 							error: error instanceof Error ? error.message : String(error),
 							funnelId: input.funnelId,
 							websiteId: input.websiteId,
 						});
 						throw new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to fetch funnel analytics',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to fetch funnel analytics",
 						});
 					}
 				},
@@ -416,9 +415,9 @@ export const funnelsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
-				tables: ['funnelDefinitions'],
+				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					try {
 						const funnel = await ctx.db
@@ -435,8 +434,8 @@ export const funnelsRouter = createTRPCRouter({
 
 						if (funnel.length === 0) {
 							throw new TRPCError({
-								code: 'NOT_FOUND',
-								message: 'Funnel not found',
+								code: "NOT_FOUND",
+								message: "Funnel not found",
 							});
 						}
 
@@ -450,8 +449,8 @@ export const funnelsRouter = createTRPCRouter({
 
 						if (!steps || steps.length === 0) {
 							throw new TRPCError({
-								code: 'BAD_REQUEST',
-								message: 'Funnel has no steps',
+								code: "BAD_REQUEST",
+								message: "Funnel has no steps",
 							});
 						}
 
@@ -471,7 +470,7 @@ export const funnelsRouter = createTRPCRouter({
 						const analyticsSteps: AnalyticsStep[] = steps.map(
 							(step, index) => ({
 								step_number: index + 1,
-								type: step.type as 'PAGE_VIEW' | 'EVENT',
+								type: step.type as "PAGE_VIEW" | "EVENT",
 								target: step.target,
 								name: step.name,
 							})
@@ -487,14 +486,14 @@ export const funnelsRouter = createTRPCRouter({
 							throw error;
 						}
 
-						logger.error('Failed to fetch funnel analytics by referrer', {
+						logger.error("Failed to fetch funnel analytics by referrer", {
 							error: error instanceof Error ? error.message : String(error),
 							funnelId: input.funnelId,
 							websiteId: input.websiteId,
 						});
 						throw new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to fetch funnel analytics by referrer',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to fetch funnel analytics by referrer",
 						});
 					}
 				},

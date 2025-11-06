@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { LightningIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LightningIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface OverviewTabProps {
 	onSetupClick: () => void;

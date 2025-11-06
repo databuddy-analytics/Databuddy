@@ -1,57 +1,57 @@
-import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import { Analytics } from "../../types/tables";
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 	summary_metrics: {
 		meta: {
-			title: 'Summary Metrics',
+			title: "Summary Metrics",
 			description:
-				'Overview of key website metrics including pageviews, visitors, sessions, bounce rate, and session duration.',
-			category: 'Analytics',
-			tags: ['overview', 'metrics', 'summary', 'kpi'],
+				"Overview of key website metrics including pageviews, visitors, sessions, bounce rate, and session duration.",
+			category: "Analytics",
+			tags: ["overview", "metrics", "summary", "kpi"],
 			output_fields: [
 				{
-					name: 'pageviews',
-					type: 'number',
-					label: 'Pageviews',
-					description: 'Total number of page views',
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews",
+					description: "Total number of page views",
 				},
 				{
-					name: 'unique_visitors',
-					type: 'number',
-					label: 'Unique Visitors',
-					description: 'Number of unique visitors',
+					name: "unique_visitors",
+					type: "number",
+					label: "Unique Visitors",
+					description: "Number of unique visitors",
 				},
 				{
-					name: 'sessions',
-					type: 'number',
-					label: 'Sessions',
-					description: 'Total number of sessions',
+					name: "sessions",
+					type: "number",
+					label: "Sessions",
+					description: "Total number of sessions",
 				},
 				{
-					name: 'bounce_rate',
-					type: 'number',
-					label: 'Bounce Rate',
-					description: 'Percentage of single-page sessions',
-					unit: '%',
+					name: "bounce_rate",
+					type: "number",
+					label: "Bounce Rate",
+					description: "Percentage of single-page sessions",
+					unit: "%",
 				},
 				{
-					name: 'avg_session_duration',
-					type: 'number',
-					label: 'Avg Session Duration',
-					description: 'Average session duration in seconds',
-					unit: 'seconds',
+					name: "avg_session_duration",
+					type: "number",
+					label: "Avg Session Duration",
+					description: "Average session duration in seconds",
+					unit: "seconds",
 				},
 				{
-					name: 'total_events',
-					type: 'number',
-					label: 'Total Events',
-					description: 'Total number of events tracked',
+					name: "total_events",
+					type: "number",
+					label: "Total Events",
+					description: "Total number of events tracked",
 				},
 			],
-			default_visualization: 'metric',
-			supports_granularity: ['day'],
-			version: '1.0',
+			default_visualization: "metric",
+			supports_granularity: ["day"],
+			version: "1.0",
 		},
 		customSql: (
 			websiteId: string,
@@ -63,21 +63,21 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_offset?: number,
 			timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>,
+			filterParams?: Record<string, Filter["value"]>,
 			helpers?: {
 				sessionAttributionCTE: (timeField?: string) => string;
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-		const tz = timezone || 'UTC';
-		const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+			const tz = timezone || "UTC";
+			const combinedWhereClause = filterConditions?.length
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')},`
-				: '';
+				? `${helpers.sessionAttributionCTE("time")},`
+				: "";
 
 			const baseEventsQuery = helpers?.sessionAttributionCTE
 				? `
@@ -88,7 +88,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				e.event_name,
 				toTimeZone(e.time, {timezone:String}) as normalized_time
 			FROM analytics.events e
-			${helpers.sessionAttributionJoin('e')}
+			${helpers.sessionAttributionJoin("e")}
 			WHERE 
 				e.client_id = {websiteId:String}
 				AND e.time >= parseDateTimeBestEffort({startDate:String})
@@ -172,7 +172,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -183,128 +183,128 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Today's Metrics",
 			description:
-				'Real-time metrics for today including pageviews, visitors, sessions, and bounce rate.',
-			category: 'Analytics',
-			tags: ['today', 'realtime', 'current', 'daily'],
+				"Real-time metrics for today including pageviews, visitors, sessions, and bounce rate.",
+			category: "Analytics",
+			tags: ["today", "realtime", "current", "daily"],
 			output_fields: [
 				{
-					name: 'pageviews',
-					type: 'number',
-					label: 'Pageviews Today',
-					description: 'Total page views for today',
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews Today",
+					description: "Total page views for today",
 				},
 				{
-					name: 'visitors',
-					type: 'number',
-					label: 'Visitors Today',
-					description: 'Unique visitors for today',
+					name: "visitors",
+					type: "number",
+					label: "Visitors Today",
+					description: "Unique visitors for today",
 				},
 				{
-					name: 'sessions',
-					type: 'number',
-					label: 'Sessions Today',
-					description: 'Total sessions for today',
+					name: "sessions",
+					type: "number",
+					label: "Sessions Today",
+					description: "Total sessions for today",
 				},
 			],
-			default_visualization: 'metric',
+			default_visualization: "metric",
 			supports_granularity: [],
-			version: '1.0',
+			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
-			'COUNT(*) as pageviews',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'COUNT(DISTINCT session_id) as sessions',
+			"COUNT(*) as pageviews",
+			"COUNT(DISTINCT anonymous_id) as visitors",
+			"COUNT(DISTINCT session_id) as sessions",
 		],
-		where: ["event_name = 'screen_view'", 'toDate(time) = today()'],
-		timeField: 'time',
+		where: ["event_name = 'screen_view'", "toDate(time) = today()"],
+		timeField: "time",
 		customizable: true,
 	},
 
 	events_by_date: {
 		meta: {
-			title: 'Events by Date',
+			title: "Events by Date",
 			description:
-				'Daily or hourly breakdown of website events showing pageviews, visitors, sessions, and engagement metrics.',
-			category: 'Analytics',
-			tags: ['timeseries', 'events', 'trends', 'daily', 'hourly'],
+				"Daily or hourly breakdown of website events showing pageviews, visitors, sessions, and engagement metrics.",
+			category: "Analytics",
+			tags: ["timeseries", "events", "trends", "daily", "hourly"],
 			output_fields: [
 				{
-					name: 'date',
-					type: 'datetime',
-					label: 'Date',
-					description: 'Date or datetime of the data point',
+					name: "date",
+					type: "datetime",
+					label: "Date",
+					description: "Date or datetime of the data point",
 				},
 				{
-					name: 'pageviews',
-					type: 'number',
-					label: 'Pageviews',
-					description: 'Total page views for the period',
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews",
+					description: "Total page views for the period",
 				},
 				{
-					name: 'visitors',
-					type: 'number',
-					label: 'Visitors',
-					description: 'Unique visitors for the period',
+					name: "visitors",
+					type: "number",
+					label: "Visitors",
+					description: "Unique visitors for the period",
 				},
 				{
-					name: 'sessions',
-					type: 'number',
-					label: 'Sessions',
-					description: 'Total sessions for the period',
+					name: "sessions",
+					type: "number",
+					label: "Sessions",
+					description: "Total sessions for the period",
 				},
 				{
-					name: 'bounce_rate',
-					type: 'number',
-					label: 'Bounce Rate',
-					description: 'Bounce rate for the period',
-					unit: '%',
+					name: "bounce_rate",
+					type: "number",
+					label: "Bounce Rate",
+					description: "Bounce rate for the period",
+					unit: "%",
 				},
 				{
-					name: 'avg_session_duration',
-					type: 'number',
-					label: 'Avg Session Duration',
-					description: 'Average session duration',
-					unit: 'seconds',
+					name: "avg_session_duration",
+					type: "number",
+					label: "Avg Session Duration",
+					description: "Average session duration",
+					unit: "seconds",
 				},
 				{
-					name: 'pages_per_session',
-					type: 'number',
-					label: 'Pages per Session',
-					description: 'Average pages viewed per session',
+					name: "pages_per_session",
+					type: "number",
+					label: "Pages per Session",
+					description: "Average pages viewed per session",
 				},
 			],
-			default_visualization: 'timeseries',
-			supports_granularity: ['hour', 'day'],
-			version: '1.0',
+			default_visualization: "timeseries",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
 		},
 		customSql: (
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>,
+			filterParams?: Record<string, Filter["value"]>,
 			helpers?: {
 				sessionAttributionCTE: (timeField?: string) => string;
 				sessionAttributionJoin: (alias?: string) => string;
 			}
 		) => {
-		const tz = timezone || 'UTC';
-		const isHourly = _granularity === 'hour' || _granularity === 'hourly';
-		const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+			const tz = timezone || "UTC";
+			const isHourly = _granularity === "hour" || _granularity === "hourly";
+			const combinedWhereClause = filterConditions?.length
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			if (isHourly) {
 				// Use session attribution if helpers are provided
 				const sessionAttributionCTE = helpers?.sessionAttributionCTE
-					? `${helpers.sessionAttributionCTE('time')},`
-					: '';
+					? `${helpers.sessionAttributionCTE("time")},`
+					: "";
 
 				const baseEventsQuery = helpers?.sessionAttributionCTE
 					? `
@@ -315,7 +315,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     e.event_name,
                     toTimeZone(e.time, {timezone:String}) as normalized_time
                   FROM analytics.events e
-                  ${helpers.sessionAttributionJoin('e')}
+                  ${helpers.sessionAttributionJoin("e")}
                   WHERE 
                     e.client_id = {websiteId:String}
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
@@ -401,8 +401,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 
 			// Use session attribution if helpers are provided (daily query)
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE('time')},`
-				: '';
+				? `${helpers.sessionAttributionCTE("time")},`
+				: "";
 
 			const baseEventsQuery = helpers?.sessionAttributionCTE
 				? `
@@ -413,7 +413,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
                     e.event_name,
                     toTimeZone(e.time, {timezone:String}) as normalized_time
                   FROM analytics.events e
-                  ${helpers.sessionAttributionJoin('e')}
+                  ${helpers.sessionAttributionJoin("e")}
                   WHERE
                     e.client_id = {websiteId:String}
                     AND e.time >= parseDateTimeBestEffort({startDate:String})
@@ -496,7 +496,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -505,28 +505,28 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 
 	active_stats: {
 		meta: {
-			title: 'Active Users',
+			title: "Active Users",
 			description:
-				'Real-time count of active users and sessions currently on your website (last 5 minutes).',
-			category: 'Realtime',
-			tags: ['realtime', 'active', 'current', 'live'],
+				"Real-time count of active users and sessions currently on your website (last 5 minutes).",
+			category: "Realtime",
+			tags: ["realtime", "active", "current", "live"],
 			output_fields: [
 				{
-					name: 'active_users',
-					type: 'number',
-					label: 'Active Users',
-					description: 'Number of users active in the last 5 minutes',
+					name: "active_users",
+					type: "number",
+					label: "Active Users",
+					description: "Number of users active in the last 5 minutes",
 				},
 				{
-					name: 'active_sessions',
-					type: 'number',
-					label: 'Active Sessions',
-					description: 'Number of sessions active in the last 5 minutes',
+					name: "active_sessions",
+					type: "number",
+					label: "Active Sessions",
+					description: "Number of sessions active in the last 5 minutes",
 				},
 			],
-			default_visualization: 'metric',
+			default_visualization: "metric",
 			supports_granularity: [],
-			version: '1.0',
+			version: "1.0",
 		},
 		customSql: (
 			websiteId: string,
@@ -538,11 +538,11 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(' AND ')}`
-				: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 			return {
 				sql: `
           SELECT
@@ -561,7 +561,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 		appendEndOfDayToTo: false,
 	},

@@ -1,24 +1,23 @@
-import { goals } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { and, desc, eq, goals, inArray, isNull, sql } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import {
 	type AnalyticsStep,
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
-} from '../lib/analytics-utils';
-import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+} from "../lib/analytics-utils";
+import { logger } from "../lib/logger";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'goals' });
+const drizzleCache = createDrizzleCache({ redis, namespace: "goals" });
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 600;
 
 const goalSchema = z.object({
-	type: z.enum(['PAGE_VIEW', 'EVENT', 'CUSTOM']),
+	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
 	target: z.string().min(1),
 	name: z.string().min(1).max(100),
 	description: z.string().optional(),
@@ -26,7 +25,7 @@ const goalSchema = z.object({
 		.array(
 			z.object({
 				field: z.string(),
-				operator: z.enum(['equals', 'contains', 'not_equals', 'in', 'not_in']),
+				operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
 				value: z.union([z.string(), z.array(z.string())]),
 			})
 		)
@@ -40,7 +39,7 @@ const createGoalSchema = z.object({
 
 const updateGoalSchema = z.object({
 	id: z.string(),
-	type: z.enum(['PAGE_VIEW', 'EVENT', 'CUSTOM']).optional(),
+	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
 	target: z.string().min(1).optional(),
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().optional(),
@@ -48,7 +47,7 @@ const updateGoalSchema = z.object({
 		.array(
 			z.object({
 				field: z.string(),
-				operator: z.enum(['equals', 'contains', 'not_equals', 'in', 'not_in']),
+				operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
 				value: z.union([z.string(), z.array(z.string())]),
 			})
 		)
@@ -64,10 +63,10 @@ const analyticsDateRangeSchema = z.object({
 });
 
 const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split('T')[0];
+	const endDate = new Date().toISOString().split("T")[0];
 	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		.toISOString()
-		.split('T')[0];
+		.split("T")[0];
 	return { startDate, endDate };
 };
 
@@ -80,9 +79,9 @@ export const goalsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['goals'],
+				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					return ctx.db
 						.select()
 						.from(goals)
@@ -102,9 +101,9 @@ export const goalsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['goals'],
+				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					const result = await ctx.db
 						.select()
 						.from(goals)
@@ -118,8 +117,8 @@ export const goalsRouter = createTRPCRouter({
 						.limit(1);
 					if (result.length === 0) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Goal not found',
+							code: "NOT_FOUND",
+							message: "Goal not found",
 						});
 					}
 					return result[0];
@@ -130,7 +129,7 @@ export const goalsRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createGoalSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 			const goalId = crypto.randomUUID();
 			const [newGoal] = await ctx.db
 				.insert(goals)
@@ -147,7 +146,7 @@ export const goalsRouter = createTRPCRouter({
 				})
 				.returning();
 
-			await drizzleCache.invalidateByTables(['goals']);
+			await drizzleCache.invalidateByTables(["goals"]);
 
 			return newGoal;
 		}),
@@ -161,9 +160,9 @@ export const goalsRouter = createTRPCRouter({
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
 			if (existingGoal.length === 0) {
-				throw new TRPCError({ code: 'NOT_FOUND', message: 'Goal not found' });
+				throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, "update");
 			const { id, ...updates } = input;
 			const [updatedGoal] = await ctx.db
 				.update(goals)
@@ -175,7 +174,7 @@ export const goalsRouter = createTRPCRouter({
 				.returning();
 
 			await Promise.all([
-				drizzleCache.invalidateByTables(['goals']),
+				drizzleCache.invalidateByTables(["goals"]),
 				drizzleCache.invalidateByKey(
 					`goals:byId:${id}:${existingGoal[0].websiteId}`
 				),
@@ -193,9 +192,9 @@ export const goalsRouter = createTRPCRouter({
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
 			if (existingGoal.length === 0) {
-				throw new TRPCError({ code: 'NOT_FOUND', message: 'Goal not found' });
+				throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, 'delete');
+			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, "delete");
 			await ctx.db
 				.update(goals)
 				.set({
@@ -205,7 +204,7 @@ export const goalsRouter = createTRPCRouter({
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)));
 
 			await Promise.all([
-				drizzleCache.invalidateByTables(['goals']),
+				drizzleCache.invalidateByTables(["goals"]),
 				drizzleCache.invalidateByKey(
 					`goals:byId:${input.id}:${existingGoal[0].websiteId}`
 				),
@@ -227,9 +226,9 @@ export const goalsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
-				tables: ['goals'],
+				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					const goal = await ctx.db
 						.select()
 						.from(goals)
@@ -243,15 +242,15 @@ export const goalsRouter = createTRPCRouter({
 						.limit(1);
 					if (goal.length === 0) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Goal not found',
+							code: "NOT_FOUND",
+							message: "Goal not found",
 						});
 					}
 					const goalData = goal[0];
 					const steps: AnalyticsStep[] = [
 						{
 							step_number: 1,
-							type: goalData.type as 'PAGE_VIEW' | 'EVENT',
+							type: goalData.type as "PAGE_VIEW" | "EVENT",
 							target: goalData.target,
 							name: goalData.name,
 						},
@@ -297,14 +296,14 @@ export const goalsRouter = createTRPCRouter({
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `goals:bulkAnalytics:${input.websiteId}:${input.goalIds.sort().join(',')}:${startDate}:${endDate}`;
+			const cacheKey = `goals:bulkAnalytics:${input.websiteId}:${input.goalIds.sort().join(",")}:${startDate}:${endDate}`;
 
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
-				tables: ['goals'],
+				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					const goalsList = await ctx.db
 						.select()
 						.from(goals)
@@ -328,7 +327,7 @@ export const goalsRouter = createTRPCRouter({
 						const steps: AnalyticsStep[] = [
 							{
 								step_number: 1,
-								type: goalData.type as 'PAGE_VIEW' | 'EVENT',
+								type: goalData.type as "PAGE_VIEW" | "EVENT",
 								target: goalData.target,
 								name: goalData.name,
 							},
@@ -353,14 +352,14 @@ export const goalsRouter = createTRPCRouter({
 							);
 							return { id: goalData.id, result: processedAnalytics };
 						} catch (error) {
-							logger.error('Failed to process goal analytics', {
+							logger.error("Failed to process goal analytics", {
 								goalId: goalData.id,
 								error: error instanceof Error ? error.message : String(error),
 							});
 							return {
 								id: goalData.id,
 								result: {
-									error: `Error processing goal ${goalData.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+									error: `Error processing goal ${goalData.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
 								},
 							};
 						}

@@ -1,8 +1,8 @@
-import { auth } from '@databuddy/auth';
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { cache } from 'react';
-import { Sidebar } from '@/components/layout/sidebar';
+import { auth } from "@databuddy/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { cache } from "react";
+import { Sidebar } from "@/components/layout/sidebar";
 
 const getSession = cache(async () => {
 	const session = await auth.api.getSession({ headers: await headers() });
@@ -12,7 +12,7 @@ const getSession = cache(async () => {
 async function AuthGuard({ children }: { children: React.ReactNode }) {
 	const session = await getSession();
 	if (!session) {
-		redirect('/login');
+		redirect("/login");
 	}
 	return <>{children}</>;
 }

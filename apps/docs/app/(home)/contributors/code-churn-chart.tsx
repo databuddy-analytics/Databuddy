@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
+import { useMemo } from "react";
 import {
 	Bar,
 	BarChart,
@@ -9,9 +9,9 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import { SciFiCard } from '@/components/scifi-card';
-import { cn } from '@/lib/utils';
+} from "recharts";
+import { SciFiCard } from "@/components/scifi-card";
+import { cn } from "@/lib/utils";
 
 interface ProcessedCodeFrequency {
 	week: string;
@@ -39,8 +39,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 		return null;
 	}
 
-	const additions = payload.find((p) => p.name === 'additions')?.value || 0;
-	const deletions = payload.find((p) => p.name === 'deletions')?.value || 0;
+	const additions = payload.find((p) => p.name === "additions")?.value || 0;
+	const deletions = payload.find((p) => p.name === "deletions")?.value || 0;
 	const net = additions - deletions;
 
 	return (
@@ -71,9 +71,9 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 					<div className="flex items-center justify-between gap-3">
 						<span className="text-muted-foreground text-xs">Net Change</span>
 						<span
-							className={`font-mono font-semibold text-sm ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}
+							className={`font-mono font-semibold text-sm ${net >= 0 ? "text-green-600" : "text-red-600"}`}
 						>
-							{net >= 0 ? '+' : ''}
+							{net >= 0 ? "+" : ""}
 							{net.toLocaleString()}
 						</span>
 					</div>
@@ -104,9 +104,9 @@ export default function CodeChurnChart({ data }: Props) {
 			.slice(-26) // Last 6 months
 			.map((week) => ({
 				...week,
-				week: new Date(week.date).toLocaleDateString('en-US', {
-					month: 'short',
-					day: 'numeric',
+				week: new Date(week.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
 				}),
 			}));
 
@@ -167,7 +167,7 @@ export default function CodeChurnChart({ data }: Props) {
 					Code Churn Activity
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Weekly code additions and deletions over the last 6 months •{' '}
+					Weekly code additions and deletions over the last 6 months •{" "}
 					<span className="font-medium">
 						{insights.totalAdditions.toLocaleString()} lines added
 					</span>
@@ -197,11 +197,11 @@ export default function CodeChurnChart({ data }: Props) {
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div
 						className={cn(
-							'font-bold text-lg sm:text-2xl',
-							insights.netGrowth >= 0 ? 'text-green-600' : 'text-red-600'
+							"font-bold text-lg sm:text-2xl",
+							insights.netGrowth >= 0 ? "text-green-600" : "text-red-600"
 						)}
 					>
-						{insights.netGrowth >= 0 ? '+' : ''}
+						{insights.netGrowth >= 0 ? "+" : ""}
 						{insights.netGrowth.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
@@ -294,9 +294,9 @@ export default function CodeChurnChart({ data }: Props) {
 							<Tooltip
 								content={<CustomTooltip />}
 								cursor={{
-									fill: 'rgba(16, 185, 129, 0.1)',
+									fill: "rgba(16, 185, 129, 0.1)",
 								}}
-								wrapperStyle={{ outline: 'none' }}
+								wrapperStyle={{ outline: "none" }}
 							/>
 							<Bar
 								dataKey="additions"
@@ -321,17 +321,17 @@ export default function CodeChurnChart({ data }: Props) {
 			{insights.mostActiveWeek && (
 				<SciFiCard className="mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
 					<p className="text-muted-foreground text-sm">
-						<span className="font-medium">Most active week:</span>{' '}
-						{insights.mostActiveWeek} with{' '}
+						<span className="font-medium">Most active week:</span>{" "}
+						{insights.mostActiveWeek} with{" "}
 						{(
 							chartData.find((d) => d.week === insights.mostActiveWeek)
 								?.additions || 0
-						).toLocaleString()}{' '}
-						additions and{' '}
+						).toLocaleString()}{" "}
+						additions and{" "}
 						{(
 							chartData.find((d) => d.week === insights.mostActiveWeek)
 								?.deletions || 0
-						).toLocaleString()}{' '}
+						).toLocaleString()}{" "}
 						deletions
 					</p>
 				</SciFiCard>

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash } from "node:crypto";
 import {
 	and,
 	chQuery,
@@ -8,13 +8,13 @@ import {
 	member,
 	or,
 	websites,
-} from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import type { ProcessedMiniChartData } from '@databuddy/shared';
-import { z } from 'zod/v4';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+} from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
+import { z } from "zod/v4";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'mini-charts' });
+const drizzleCache = createDrizzleCache({ redis, namespace: "mini-charts" });
 
 const CACHE_TTL = 300;
 const AUTH_CACHE_TTL = 60;
@@ -41,12 +41,12 @@ const getAuthorizedWebsiteIds = (
 		return Promise.resolve([]);
 	}
 
-	const authCacheKey = `auth:${userId}:${[...requestedIds].sort().join(',')}`;
+	const authCacheKey = `auth:${userId}:${[...requestedIds].sort().join(",")}`;
 
 	return drizzleCache.withCache({
 		key: authCacheKey,
 		ttl: AUTH_CACHE_TTL,
-		tables: ['websites', 'member'],
+		tables: ["websites", "member"],
 		queryFn: async () => {
 			const userOrgs = await db.query.member.findMany({
 				where: eq(member.userId, userId),
@@ -91,16 +91,16 @@ const calculateTrend = (data: { date: string; value: number }[]) => {
 
 	if (prevAvg === 0) {
 		return currAvg > 0
-			? { type: 'up' as const, value: 100 }
-			: { type: 'neutral' as const, value: 0 };
+			? { type: "up" as const, value: 100 }
+			: { type: "neutral" as const, value: 0 };
 	}
 
 	const change = ((currAvg - prevAvg) / prevAvg) * 100;
-	let type: 'up' | 'down' | 'neutral' = 'neutral';
+	let type: "up" | "down" | "neutral" = "neutral";
 	if (change > 5) {
-		type = 'up';
+		type = "up";
 	} else if (change < -5) {
-		type = 'down';
+		type = "down";
 	}
 	return { type, value: Math.abs(change) };
 };
@@ -198,16 +198,16 @@ export const miniChartsRouter = createTRPCRouter({
 			const requestedDays = input.days ?? DEFAULT_DAYS;
 			const clampedDays = Math.max(MIN_DAYS, Math.min(MAX_DAYS, requestedDays));
 
-			const idsHash = createHash('sha1')
-				.update(normalizedIds.join(','))
-				.digest('base64url')
+			const idsHash = createHash("sha1")
+				.update(normalizedIds.join(","))
+				.digest("base64url")
 				.slice(0, 16);
 			const cacheKey = `mini-charts:${ctx.user.id}:d${clampedDays}:${idsHash}`;
 
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['websites', 'member'],
+				tables: ["websites", "member"],
 				queryFn: async () => {
 					const authorizedIds = await getAuthorizedWebsiteIds(
 						ctx.user.id,

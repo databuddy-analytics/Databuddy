@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowUpRightIcon,
@@ -10,14 +10,14 @@ import {
 	TagIcon,
 	UsersIcon,
 	XCircleIcon,
-} from '@phosphor-icons/react';
-import { useMemo } from 'react';
-import { SciFiCard } from '@/components/scifi-card';
+} from "@phosphor-icons/react";
+import { useMemo } from "react";
+import { SciFiCard } from "@/components/scifi-card";
 import type {
 	RoadmapItem,
 	RoadmapPriority,
 	RoadmapStatus,
-} from './roadmap-types';
+} from "./roadmap-types";
 
 interface Props {
 	items: RoadmapItem[];
@@ -25,110 +25,109 @@ interface Props {
 
 const getStatusConfig = (status: RoadmapStatus) => {
 	switch (status) {
-		case 'completed':
+		case "completed":
 			return {
 				icon: CheckCircleIcon,
-				color: 'text-green-600 dark:text-green-400',
-				bgColor: 'bg-green-100 dark:bg-green-900/30',
-				borderColor: 'border-green-500',
-				label: 'Completed',
+				color: "text-green-600 dark:text-green-400",
+				bgColor: "bg-green-100 dark:bg-green-900/30",
+				borderColor: "border-green-500",
+				label: "Completed",
 				labelColor:
-					'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+					"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
 			};
-		case 'in-progress':
+		case "in-progress":
 			return {
 				icon: ClockIcon,
-				color: 'text-blue-600 dark:text-blue-400',
-				bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-				borderColor: 'border-blue-500',
-				label: 'In Progress',
+				color: "text-blue-600 dark:text-blue-400",
+				bgColor: "bg-blue-100 dark:bg-blue-900/30",
+				borderColor: "border-blue-500",
+				label: "In Progress",
 				labelColor:
-					'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+					"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
 			};
-		case 'planned':
+		case "planned":
 			return {
 				icon: CalendarIcon,
-				color: 'text-purple-600 dark:text-purple-400',
-				bgColor: 'bg-purple-100 dark:bg-purple-900/30',
-				borderColor: 'border-purple-500',
-				label: 'Planned',
+				color: "text-purple-600 dark:text-purple-400",
+				bgColor: "bg-purple-100 dark:bg-purple-900/30",
+				borderColor: "border-purple-500",
+				label: "Planned",
 				labelColor:
-					'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+					"bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
 			};
-		case 'on-hold':
+		case "on-hold":
 			return {
 				icon: PauseCircleIcon,
-				color: 'text-orange-600 dark:text-orange-400',
-				bgColor: 'bg-orange-100 dark:bg-orange-900/30',
-				borderColor: 'border-orange-500',
-				label: 'On Hold',
+				color: "text-orange-600 dark:text-orange-400",
+				bgColor: "bg-orange-100 dark:bg-orange-900/30",
+				borderColor: "border-orange-500",
+				label: "On Hold",
 				labelColor:
-					'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+					"bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 			};
-		case 'cancelled':
+		case "cancelled":
 			return {
 				icon: XCircleIcon,
-				color: 'text-red-600 dark:text-red-400',
-				bgColor: 'bg-red-100 dark:bg-red-900/30',
-				borderColor: 'border-red-500',
-				label: 'Cancelled',
+				color: "text-red-600 dark:text-red-400",
+				bgColor: "bg-red-100 dark:bg-red-900/30",
+				borderColor: "border-red-500",
+				label: "Cancelled",
 				labelColor:
-					'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+					"bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 			};
 		default:
 			return {
 				icon: CalendarIcon,
-				color: 'text-gray-600 dark:text-gray-400',
-				bgColor: 'bg-gray-100 dark:bg-gray-900/30',
-				borderColor: 'border-gray-500',
-				label: 'Unknown',
+				color: "text-gray-600 dark:text-gray-400",
+				bgColor: "bg-gray-100 dark:bg-gray-900/30",
+				borderColor: "border-gray-500",
+				label: "Unknown",
 				labelColor:
-					'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300',
+					"bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 			};
 	}
 };
 
 const getPriorityConfig = (priority: RoadmapPriority) => {
 	switch (priority) {
-		case 'critical':
+		case "critical":
 			return {
-				label: 'Critical',
-				color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+				label: "Critical",
+				color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 			};
-		case 'high':
+		case "high":
 			return {
-				label: 'High',
+				label: "High",
 				color:
-					'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+					"bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 			};
-		case 'medium':
+		case "medium":
 			return {
-				label: 'Medium',
+				label: "Medium",
 				color:
-					'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+					"bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
 			};
-		case 'low':
+		case "low":
 			return {
-				label: 'Low',
+				label: "Low",
 				color:
-					'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300',
+					"bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 			};
 		default:
 			return {
-				label: 'Unknown',
+				label: "Unknown",
 				color:
-					'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300',
+					"bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 			};
 	}
 };
 
-const formatDate = (dateString: string) => {
-	return new Date(dateString).toLocaleDateString('en-US', {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
+const formatDate = (dateString: string) =>
+	new Date(dateString).toLocaleDateString("en-US", {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
 	});
-};
 
 const getTimeSince = (dateString: string) => {
 	const date = new Date(dateString);
@@ -137,20 +136,20 @@ const getTimeSince = (dateString: string) => {
 	const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
 	if (diffDays === 0) {
-		return 'Today';
+		return "Today";
 	}
 	if (diffDays === 1) {
-		return '1 day ago';
+		return "1 day ago";
 	}
 	if (diffDays < 30) {
 		return `${diffDays} days ago`;
 	}
 	if (diffDays < 365) {
 		const months = Math.floor(diffDays / 30);
-		return months === 1 ? '1 month ago' : `${months} months ago`;
+		return months === 1 ? "1 month ago" : `${months} months ago`;
 	}
 	const years = Math.floor(diffDays / 365);
-	return years === 1 ? '1 year ago' : `${years} years ago`;
+	return years === 1 ? "1 year ago" : `${years} years ago`;
 };
 
 const getTimeUntil = (dateString: string) => {
@@ -163,20 +162,20 @@ const getTimeUntil = (dateString: string) => {
 		return getTimeSince(dateString);
 	}
 	if (diffDays === 0) {
-		return 'Today';
+		return "Today";
 	}
 	if (diffDays === 1) {
-		return 'Tomorrow';
+		return "Tomorrow";
 	}
 	if (diffDays < 30) {
 		return `in ${diffDays} days`;
 	}
 	if (diffDays < 365) {
 		const months = Math.ceil(diffDays / 30);
-		return months === 1 ? 'in 1 month' : `in ${months} months`;
+		return months === 1 ? "in 1 month" : `in ${months} months`;
 	}
 	const years = Math.ceil(diffDays / 365);
-	return years === 1 ? 'in 1 year' : `in ${years} years`;
+	return years === 1 ? "in 1 year" : `in ${years} years`;
 };
 
 export default function RoadmapTimeline({ items }: Props) {
@@ -185,9 +184,9 @@ export default function RoadmapTimeline({ items }: Props) {
 			// Sort by status priority first (completed, in-progress, planned, on-hold, cancelled)
 			const statusOrder = {
 				completed: 0,
-				'in-progress': 1,
+				"in-progress": 1,
 				planned: 2,
-				'on-hold': 3,
+				"on-hold": 3,
 				cancelled: 4,
 			};
 			const statusDiff = statusOrder[a.status] - statusOrder[b.status];
@@ -277,7 +276,7 @@ export default function RoadmapTimeline({ items }: Props) {
 									</div>
 
 									{/* Progress Bar (for in-progress items) */}
-									{item.status === 'in-progress' &&
+									{item.status === "in-progress" &&
 										item.progress !== undefined && (
 											<div className="mb-4">
 												<div className="mb-1 flex justify-between text-xs">
@@ -333,7 +332,7 @@ export default function RoadmapTimeline({ items }: Props) {
 										<div className="flex items-center gap-1">
 											<TagIcon className="h-3 w-3" />
 											<span className="capitalize">
-												{item.category.replace('-', ' ')}
+												{item.category.replace("-", " ")}
 											</span>
 										</div>
 
@@ -341,7 +340,7 @@ export default function RoadmapTimeline({ items }: Props) {
 										{item.assignees && item.assignees.length > 0 && (
 											<div className="flex items-center gap-1">
 												<UsersIcon className="h-3 w-3" />
-												<span>{item.assignees.join(', ')}</span>
+												<span>{item.assignees.join(", ")}</span>
 											</div>
 										)}
 									</div>

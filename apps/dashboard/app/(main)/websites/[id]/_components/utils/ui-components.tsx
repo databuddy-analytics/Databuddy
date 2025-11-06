@@ -1,21 +1,21 @@
-import { ExternalLink, HelpCircle } from 'lucide-react';
-import type React from 'react';
+import { ExternalLink, HelpCircle } from "lucide-react";
+import type React from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { PERFORMANCE_THRESHOLDS } from './analytics-helpers';
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { PERFORMANCE_THRESHOLDS } from "./analytics-helpers";
 
 // Consistent border radius values
 export const BORDER_RADIUS = {
-	sm: 'rounded', // Small components like buttons
-	md: 'rounded', // Cards, panels
-	lg: 'rounded', // Large containers
-	card: 'rounded', // Standard card component
-	container: 'rounded', // Containers that hold cards
+	sm: "rounded", // Small components like buttons
+	md: "rounded", // Cards, panels
+	lg: "rounded", // Large containers
+	card: "rounded", // Standard card component
+	container: "rounded", // Containers that hold cards
 };
 
 interface MetricToggleProps {
@@ -34,20 +34,20 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 	// Get proper hex values for the colors
 	const getColorMap = (colorName: string) => {
 		const colorMap: Record<string, string> = {
-			'blue-500': '#3b82f6',
-			'green-500': '#22c55e',
-			'emerald-500': '#10b981',
-			'yellow-500': '#eab308',
-			'red-500': '#ef4444',
-			'purple-500': '#a855f7',
-			'pink-500': '#ec4899',
-			'indigo-500': '#6366f1',
-			'orange-500': '#f97316',
-			'sky-500': '#0ea5e9',
-			'amber-500': '#fd9a00',
+			"blue-500": "#3b82f6",
+			"green-500": "#22c55e",
+			"emerald-500": "#10b981",
+			"yellow-500": "#eab308",
+			"red-500": "#ef4444",
+			"purple-500": "#a855f7",
+			"pink-500": "#ec4899",
+			"indigo-500": "#6366f1",
+			"orange-500": "#f97316",
+			"sky-500": "#0ea5e9",
+			"amber-500": "#fd9a00",
 		};
 
-		return colorMap[colorName] || '#3b82f6'; // Default to blue if color not found
+		return colorMap[colorName] || "#3b82f6"; // Default to blue if color not found
 	};
 
 	const colorHex = getColorMap(color);
@@ -56,14 +56,14 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 		<button
 			aria-pressed={checked}
 			className={cn(
-				'group flex cursor-pointer items-center gap-2.5 rounded border px-3.5 py-2 transition-all duration-200',
+				"group flex cursor-pointer items-center gap-2.5 rounded border px-3.5 py-2 transition-all duration-200",
 				checked
-					? 'border-primary/20 bg-primary/5 shadow-sm hover:border-primary/30 hover:bg-primary/10'
-					: 'border-border/50 bg-transparent hover:border-border hover:bg-muted/30'
+					? "border-primary/20 bg-primary/5 shadow-sm hover:border-primary/30 hover:bg-primary/10"
+					: "border-border/50 bg-transparent hover:border-border hover:bg-muted/30"
 			)}
 			onClick={onChange}
 			onKeyDown={(e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
+				if (e.key === "Enter" || e.key === " ") {
 					e.preventDefault();
 					onChange();
 				}
@@ -73,22 +73,22 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 		>
 			<div
 				className={cn(
-					'h-2.5 w-2.5 rounded-full transition-all duration-200',
+					"h-2.5 w-2.5 rounded-full transition-all duration-200",
 					checked
-						? 'scale-100 shadow-sm'
-						: 'scale-75 opacity-50 group-hover:scale-90 group-hover:opacity-75'
+						? "scale-100 shadow-sm"
+						: "scale-75 opacity-50 group-hover:scale-90 group-hover:opacity-75"
 				)}
 				style={{
 					backgroundColor: colorHex,
-					boxShadow: checked ? `0 0 0 2px ${colorHex}20` : 'none',
+					boxShadow: checked ? `0 0 0 2px ${colorHex}20` : "none",
 				}}
 			/>
 			<span
 				className={cn(
-					'font-medium text-sm transition-colors duration-200',
+					"font-medium text-sm transition-colors duration-200",
 					checked
-						? 'text-primary'
-						: 'text-muted-foreground group-hover:text-foreground'
+						? "text-primary"
+						: "text-muted-foreground group-hover:text-foreground"
 				)}
 			>
 				{label}
@@ -109,21 +109,19 @@ export const MetricToggles: React.FC<MetricTogglesProps> = ({
 	onToggle,
 	colors,
 	labels = {},
-}) => {
-	return (
-		<div className="flex flex-wrap items-center gap-2">
-			{Object.keys(metrics).map((metric) => (
-				<MetricToggle
-					checked={metrics[metric]}
-					color={colors[metric] || 'blue-500'}
-					key={metric}
-					label={labels[metric] || metric}
-					onChange={() => onToggle(metric)}
-				/>
-			))}
-		</div>
-	);
-};
+}) => (
+	<div className="flex flex-wrap items-center gap-2">
+		{Object.keys(metrics).map((metric) => (
+			<MetricToggle
+				checked={metrics[metric]}
+				color={colors[metric] || "blue-500"}
+				key={metric}
+				label={labels[metric] || metric}
+				onChange={() => onToggle(metric)}
+			/>
+		))}
+	</div>
+);
 
 interface ExternalLinkButtonProps {
 	href: string;
@@ -137,7 +135,7 @@ export const ExternalLinkButton: React.FC<ExternalLinkButtonProps> = ({
 	href,
 	label,
 	title,
-	className = 'font-medium hover:text-primary hover:underline truncate max-w-[250px] flex items-center gap-1',
+	className = "font-medium hover:text-primary hover:underline truncate max-w-[250px] flex items-center gap-1",
 	showTooltip = true,
 }) => {
 	const content = (
@@ -206,7 +204,7 @@ export const MetricTooltip = ({
 				</TooltipTrigger>
 				<TooltipContent className="max-w-[300px] space-y-2 border bg-background p-3 text-foreground shadow-lg">
 					<div className="font-medium text-xs">
-						{label || String(metricKey).replace(/_/g, ' ')}
+						{label || String(metricKey).replace(/_/g, " ")}
 					</div>
 					<div className="space-y-1 text-xs">
 						<div className="flex items-center">

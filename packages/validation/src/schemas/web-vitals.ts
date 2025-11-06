@@ -1,5 +1,5 @@
-import z from 'zod/v4';
-import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from '../constants';
+import z from "zod/v4";
+import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from "../constants";
 
 const timestampSchema = z
 	.number()
@@ -8,7 +8,7 @@ const timestampSchema = z
 	.nullable()
 	.optional()
 	.refine((val) => val == null || val <= Date.now() + MAX_FUTURE_MS, {
-		message: 'Timestamp too far in the future (max 1 hour ahead)',
+		message: "Timestamp too far in the future (max 1 hour ahead)",
 	});
 
 export const webVitalsEventSchema = z.object({

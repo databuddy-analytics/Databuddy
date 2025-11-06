@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { HeartIcon, PaletteIcon } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { SciFiCard } from '@/components/scifi-card';
+import { HeartIcon, PaletteIcon } from "@phosphor-icons/react";
+import { motion } from "motion/react";
+import Image from "next/image";
+import Link from "next/link";
+import { SciFiCard } from "@/components/scifi-card";
 
 interface Sponsor {
 	id: string;
 	name: string;
 	logo: string;
 	website: string;
-	tier: 'platinum' | 'gold' | 'silver' | 'bronze';
+	tier: "platinum" | "gold" | "silver" | "bronze";
 }
 
 interface NonCodeContributor {
@@ -25,48 +25,48 @@ interface NonCodeContributor {
 
 const sponsors: Sponsor[] = [
 	{
-		id: 'neon',
-		name: 'Neon',
-		logo: '/neon.svg',
-		website: 'https://neon.tech',
-		tier: 'bronze',
+		id: "neon",
+		name: "Neon",
+		logo: "/neon.svg",
+		website: "https://neon.tech",
+		tier: "bronze",
 	},
 	{
-		id: 'upstash',
-		name: 'Upstash',
-		logo: '/upstash.svg',
-		website: 'https://upstash.com',
-		tier: 'silver',
+		id: "upstash",
+		name: "Upstash",
+		logo: "/upstash.svg",
+		website: "https://upstash.com",
+		tier: "silver",
 	},
 ];
 
 const nonCodeContributors: NonCodeContributor[] = [
 	{
-		id: 'dazai',
-		name: 'Dazai',
-		role: 'design engineer @ searchable',
-		contribution: 'Design systems, UI/UX, and more',
+		id: "dazai",
+		name: "Dazai",
+		role: "design engineer @ searchable",
+		contribution: "Design systems, UI/UX, and more",
 		avatar:
-			'https://pbs.twimg.com/profile_images/1945002665005416448/8m0GEHLP_400x400.jpg',
-		website: 'https://deewakar.info',
+			"https://pbs.twimg.com/profile_images/1945002665005416448/8m0GEHLP_400x400.jpg",
+		website: "https://deewakar.info",
 	},
 	{
-		id: 'aaron-mahlke',
-		name: 'Aaron Mahlke',
-		role: 'Founding Design Engineer @ mail0',
-		contribution: 'Branding, Designs, and more',
+		id: "aaron-mahlke",
+		name: "Aaron Mahlke",
+		role: "Founding Design Engineer @ mail0",
+		contribution: "Branding, Designs, and more",
 		avatar:
-			'https://pbs.twimg.com/profile_images/1900513355447603200/mDqwmkZT_400x400.jpg',
-		website: 'https://mahlke.design',
+			"https://pbs.twimg.com/profile_images/1900513355447603200/mDqwmkZT_400x400.jpg",
+		website: "https://mahlke.design",
 	},
 	{
-		id: 'dominik-content',
-		name: 'Dominik Koch',
-		role: 'SWE @ MarbleCMS',
-		contribution: 'Content, Blogs, Social Media, and more',
+		id: "dominik-content",
+		name: "Dominik Koch",
+		role: "SWE @ MarbleCMS",
+		contribution: "Content, Blogs, Social Media, and more",
 		avatar:
-			'https://pbs.twimg.com/profile_images/1933961142457581568/i2Y0u0lV_400x400.jpg',
-		website: '#',
+			"https://pbs.twimg.com/profile_images/1933961142457581568/i2Y0u0lV_400x400.jpg",
+		website: "#",
 	},
 ];
 
@@ -80,8 +80,8 @@ function FlipCard() {
 		>
 			<motion.div
 				className="relative h-full w-full"
-				style={{ transformStyle: 'preserve-3d' }}
-				transition={{ duration: 0.7, ease: 'easeInOut' }}
+				style={{ transformStyle: "preserve-3d" }}
+				transition={{ duration: 0.7, ease: "easeInOut" }}
 				variants={{
 					initial: { rotateX: 0 },
 					flipped: { rotateX: 180 },
@@ -90,7 +90,7 @@ function FlipCard() {
 				{/* Front Side - Sponsors */}
 				<motion.div
 					className="absolute inset-0 rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
-					style={{ backfaceVisibility: 'hidden' }}
+					style={{ backfaceVisibility: "hidden" }}
 				>
 					<SciFiCard className="flex h-full flex-col items-center justify-center p-6">
 						<motion.div
@@ -147,9 +147,9 @@ function FlipCard() {
 											<Image
 												alt={`${sponsor.name} logo`}
 												className={`max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105 ${
-													sponsor.name === 'Upstash'
-														? 'dark:brightness-0 dark:invert'
-														: 'brightness-0 dark:brightness-100'
+													sponsor.name === "Upstash"
+														? "dark:brightness-0 dark:invert"
+														: "brightness-0 dark:brightness-100"
 												}`}
 												height={48}
 												src={sponsor.logo}
@@ -179,7 +179,7 @@ function FlipCard() {
 				{/* Back Side - Non-Code Contributors */}
 				<motion.div
 					className="absolute inset-0 rounded-none border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70"
-					style={{ backfaceVisibility: 'hidden', transform: 'rotateX(180deg)' }}
+					style={{ backfaceVisibility: "hidden", transform: "rotateX(180deg)" }}
 				>
 					<SciFiCard className="flex h-full flex-col p-4">
 						{/* Header - Compact */}
@@ -240,7 +240,7 @@ function FlipCard() {
 											alt={contributor.name}
 											className="h-12 w-12 object-cover"
 											height={48}
-											src={contributor.avatar || '/placeholder-avatar.png'}
+											src={contributor.avatar || "/placeholder-avatar.png"}
 											width={48}
 										/>
 									</motion.div>

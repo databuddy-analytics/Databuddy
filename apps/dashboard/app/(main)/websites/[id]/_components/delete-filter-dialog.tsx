@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { TrashIcon, WarningIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface DeleteFilterDialogProps {
 	isOpen: boolean;
@@ -44,7 +44,7 @@ export function DeleteFilterDialog({
 						<span className="font-semibold">Delete Saved Filter</span>
 					</DialogTitle>
 					<DialogDescription className="text-muted-foreground">
-						Are you sure you want to delete{' '}
+						Are you sure you want to delete{" "}
 						<span className="font-medium text-foreground">"{filterName}"</span>?
 						This action cannot be undone and the filter configuration will be
 						permanently removed.
@@ -67,7 +67,7 @@ export function DeleteFilterDialog({
 						variant="destructive"
 					>
 						{isDeleting ? (
-							'Deleting...'
+							"Deleting..."
 						) : (
 							<>
 								<TrashIcon className="h-4 w-4" />

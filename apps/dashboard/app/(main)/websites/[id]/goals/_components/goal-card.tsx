@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	DotsThreeIcon,
@@ -6,16 +6,16 @@ import {
 	MouseMiddleClickIcon,
 	PencilSimpleIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import type { Goal } from '@/hooks/use-goals';
+} from "@/components/ui/dropdown-menu";
+import type { Goal } from "@/hooks/use-goals";
 
 interface GoalCardProps {
 	goal: Goal;
@@ -38,9 +38,9 @@ export function GoalCard({
 }: GoalCardProps) {
 	const getStepIcon = (type: string) => {
 		switch (type) {
-			case 'PAGE_VIEW':
+			case "PAGE_VIEW":
 				return <EyeIcon className="text-muted-foreground" size={16} />;
-			case 'EVENT':
+			case "EVENT":
 				return (
 					<MouseMiddleClickIcon className="text-muted-foreground" size={16} />
 				);
@@ -77,7 +77,7 @@ export function GoalCard({
 
 						<div className="flex items-center gap-2 text-muted-foreground text-sm">
 							{getStepIcon(goal.type)}
-							<span className="truncate">{goal.target || 'No target'}</span>
+							<span className="truncate">{goal.target || "No target"}</span>
 						</div>
 					</div>
 
@@ -114,9 +114,9 @@ export function GoalCard({
 							style={{
 								width: `${conversionRate}%`,
 								backgroundImage:
-									'repeating-linear-gradient(135deg, var(--color-success) 0 4px, transparent 4px 8px)',
+									"repeating-linear-gradient(135deg, var(--color-success) 0 4px, transparent 4px 8px)",
 								opacity: 0.18,
-								pointerEvents: 'none',
+								pointerEvents: "none",
 							}}
 						/>
 						<div

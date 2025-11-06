@@ -1,13 +1,18 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { MetricsChart } from './metrics-chart';
-import { EditAnnotationModal } from './edit-annotation-modal';
-import { trpc } from '@/lib/trpc';
-import { usePersistentState } from '@/hooks/use-persistent-state';
-import { ANNOTATION_STORAGE_KEYS } from '@/lib/annotation-constants';
-import type { Annotation, ChartContext, CreateAnnotationData, AnnotationFormData } from '@/types/annotations';
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { usePersistentState } from "@/hooks/use-persistent-state";
+import { ANNOTATION_STORAGE_KEYS } from "@/lib/annotation-constants";
+import { trpc } from "@/lib/trpc";
+import type {
+	Annotation,
+	AnnotationFormData,
+	ChartContext,
+	CreateAnnotationData,
+} from "@/types/annotations";
+import { EditAnnotationModal } from "./edit-annotation-modal";
+import { MetricsChart } from "./metrics-chart";
 
 interface MetricsChartWithAnnotationsProps {
 	websiteId: string;
@@ -23,7 +28,7 @@ interface MetricsChartWithAnnotationsProps {
 	dateRange?: {
 		startDate: Date;
 		endDate: Date;
-		granularity: 'hourly' | 'daily' | 'weekly' | 'monthly';
+		granularity: "hourly" | "daily" | "weekly" | "monthly";
 	};
 }
 
@@ -40,7 +45,9 @@ export function MetricsChartWithAnnotations({
 	onRangeSelect,
 	dateRange,
 }: MetricsChartWithAnnotationsProps) {
-	const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
+	const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(
+		null
+	);
 	const [isEditing, setIsEditing] = useState(false);
 	const [showAnnotations, setShowAnnotations] = usePersistentState(
 		ANNOTATION_STORAGE_KEYS.visibility(websiteId),
@@ -52,37 +59,40 @@ export function MetricsChartWithAnnotations({
 	const deleteAnnotation = trpc.annotations.delete.useMutation();
 
 	const chartContext = useMemo((): ChartContext | null => {
-		if (!dateRange || !data?.length) return null;
+		if (!(dateRange && data?.length)) return null;
 
 		return {
 			dateRange: {
 				start_date: dateRange.startDate.toISOString(),
 				end_date: dateRange.endDate.toISOString(),
-				granularity: dateRange.granularity,
+				granularity: "daily",
 			},
-			metrics: ['pageviews', 'visitors', 'sessions'],
+			metrics: ["pageviews", "visitors", "sessions"],
 		};
 	}, [dateRange, data]);
 
-	const { data: allAnnotations, refetch: refetchAnnotations } = trpc.annotations.list.useQuery(
-		{
-			websiteId,
-			chartType: 'metrics' as const,
-			chartContext: chartContext!,
-		},
-		{
-			enabled: !!websiteId && !!chartContext,
-		}
-	);
+	const { data: allAnnotations, refetch: refetchAnnotations } =
+		trpc.annotations.list.useQuery(
+			{
+				websiteId,
+				chartType: "metrics" as const,
+				chartContext: chartContext!,
+			},
+			{
+				enabled: !!websiteId && !!chartContext,
+			}
+		);
 
 	const annotations = useMemo(() => {
-		if (!allAnnotations || !dateRange) return [];
+		if (!(allAnnotations && dateRange)) return [];
 
 		const { startDate, endDate } = dateRange;
 
 		return allAnnotations.filter((annotation) => {
 			const annotationStart = new Date(annotation.xValue);
-			const annotationEnd = annotation.xEndValue ? new Date(annotation.xEndValue) : annotationStart;
+			const annotationEnd = annotation.xEndValue
+				? new Date(annotation.xEndValue)
+				: annotationStart;
 
 			return (
 				(annotationStart >= startDate && annotationStart <= endDate) ||
@@ -93,7 +103,7 @@ export function MetricsChartWithAnnotations({
 	}, [allAnnotations, dateRange]);
 
 	const handleCreateAnnotation = async (annotation: {
-		annotationType: 'range';
+		annotationType: "range";
 		xValue: string;
 		xEndValue: string;
 		text: string;
@@ -101,14 +111,14 @@ export function MetricsChartWithAnnotations({
 		color: string;
 		isPublic: boolean;
 	}) => {
-		if (!websiteId || !chartContext) {
-			toast.error('Missing required data for annotation creation');
+		if (!(websiteId && chartContext)) {
+			toast.error("Missing required data for annotation creation");
 			return;
 		}
 
 		const createData: CreateAnnotationData = {
 			websiteId,
-			chartType: 'metrics',
+			chartType: "metrics",
 			chartContext,
 			annotationType: annotation.annotationType,
 			xValue: annotation.xValue,
@@ -122,21 +132,21 @@ export function MetricsChartWithAnnotations({
 		const promise = createAnnotation.mutateAsync(createData);
 
 		toast.promise(promise, {
-			loading: 'Creating annotation...',
+			loading: "Creating annotation...",
 			success: () => {
 				refetchAnnotations();
-				return 'Annotation created successfully! 🎉';
+				return "Annotation created successfully! 🎉";
 			},
 			error: (err) => {
-				console.error('Failed to create annotation:', err);
-				return err?.message || 'Failed to create annotation';
+				console.error("Failed to create annotation:", err);
+				return err?.message || "Failed to create annotation";
 			},
 		});
 
 		try {
 			await promise;
 		} catch (error) {
-			console.error('Annotation creation failed:', error);
+			console.error("Annotation creation failed:", error);
 		}
 	};
 
@@ -149,34 +159,37 @@ export function MetricsChartWithAnnotations({
 		const promise = deleteAnnotation.mutateAsync({ id });
 
 		toast.promise(promise, {
-			loading: 'Deleting annotation...',
+			loading: "Deleting annotation...",
 			success: () => {
 				refetchAnnotations();
-				return 'Annotation deleted successfully';
+				return "Annotation deleted successfully";
 			},
 			error: (err) => {
-				console.error('Failed to delete annotation:', err);
-				return err?.message || 'Failed to delete annotation';
+				console.error("Failed to delete annotation:", err);
+				return err?.message || "Failed to delete annotation";
 			},
 		});
 
 		await promise;
 	};
 
-	const handleSaveAnnotation = async (id: string, updates: AnnotationFormData) => {
+	const handleSaveAnnotation = async (
+		id: string,
+		updates: AnnotationFormData
+	) => {
 		const promise = updateAnnotation.mutateAsync({ id, ...updates });
 
 		toast.promise(promise, {
-			loading: 'Updating annotation...',
+			loading: "Updating annotation...",
 			success: () => {
 				refetchAnnotations();
 				setIsEditing(false);
 				setEditingAnnotation(null);
-				return 'Annotation updated successfully';
+				return "Annotation updated successfully";
 			},
 			error: (err) => {
-				console.error('Failed to update annotation:', err);
-				return err?.message || 'Failed to update annotation';
+				console.error("Failed to update annotation:", err);
+				return err?.message || "Failed to update annotation";
 			},
 		});
 
@@ -186,33 +199,34 @@ export function MetricsChartWithAnnotations({
 	return (
 		<>
 			<MetricsChart
-				data={data}
-				isLoading={isLoading}
-				height={height}
-				title={title}
-				description={description}
-				className={className}
-				metricsFilter={metricsFilter}
-				showLegend={showLegend}
-				onRangeSelect={onRangeSelect}
-				onCreateAnnotation={handleCreateAnnotation}
 				annotations={(annotations || []) as Annotation[]}
-				onEditAnnotation={handleEditAnnotation}
+				className={className}
+				data={data}
+				description={description}
+				granularity={dateRange?.granularity}
+				height={height}
+				isLoading={isLoading}
+				metricsFilter={metricsFilter}
+				onCreateAnnotation={handleCreateAnnotation}
 				onDeleteAnnotation={handleDeleteAnnotation}
-				showAnnotations={showAnnotations}
+				onEditAnnotation={handleEditAnnotation}
+				onRangeSelect={onRangeSelect}
 				onToggleAnnotations={setShowAnnotations}
+				showAnnotations={showAnnotations}
+				showLegend={showLegend}
+				title={title}
 				websiteId={websiteId}
 			/>
-			
+
 			<EditAnnotationModal
-				isOpen={isEditing}
 				annotation={editingAnnotation}
+				isOpen={isEditing}
+				isSaving={updateAnnotation.isPending}
 				onClose={() => {
 					setIsEditing(false);
 					setEditingAnnotation(null);
 				}}
 				onSave={handleSaveAnnotation}
-				isSaving={updateAnnotation.isPending}
 			/>
 		</>
 	);

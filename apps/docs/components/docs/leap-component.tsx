@@ -1,31 +1,31 @@
-'use client';
+"use client";
 
-import { RocketLaunchIcon } from '@phosphor-icons/react';
-import { cn } from '@/lib/utils';
+import { RocketLaunchIcon } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
-const examples = ['saas', 'merch store'] as const;
+const examples = ["saas", "merch store"] as const;
 const prompts = {
-	saas: 'Build me a trip planning tool',
-	'merch store': 'Build me a t-shirt store',
+	saas: "Build me a trip planning tool",
+	"merch store": "Build me a t-shirt store",
 } as const;
 
 export const LeapComponent = () => {
 	const handleGenerate = () => {
 		const input = document.querySelector(
-			'.leap-prompt-input'
+			".leap-prompt-input"
 		) as HTMLInputElement;
 		const prompt = input?.value
 			? `${input.value} use Databuddy for analytics`
-			: '';
-		const url = new URL('https://leap.new/');
-		url.searchParams.set('build', prompt);
-		url.searchParams.set('utm_source', 'databuddy');
+			: "";
+		const url = new URL("https://leap.new/");
+		url.searchParams.set("build", prompt);
+		url.searchParams.set("utm_source", "databuddy");
 		window.location.href = url.toString();
 	};
 
 	const handleExample = (example: (typeof examples)[number]) => {
 		const input = document.querySelector(
-			'.leap-prompt-input'
+			".leap-prompt-input"
 		) as HTMLInputElement;
 		if (input) {
 			input.value = prompts[example];
@@ -58,11 +58,11 @@ export const LeapComponent = () => {
 					/>
 					<button
 						className={cn(
-							'inline-flex items-center justify-center whitespace-nowrap rounded px-4 py-2 font-medium text-sm transition-all duration-200',
-							'bg-foreground/5 text-foreground backdrop-blur-[50px]',
-							'border border-border hover:animate-[borderGlitch_0.6s_ease-in-out]',
-							'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.98]',
-							'w-full sm:w-auto'
+							"inline-flex items-center justify-center whitespace-nowrap rounded px-4 py-2 font-medium text-sm transition-all duration-200",
+							"bg-foreground/5 text-foreground backdrop-blur-[50px]",
+							"border border-border hover:animate-[borderGlitch_0.6s_ease-in-out]",
+							"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.98]",
+							"w-full sm:w-auto"
 						)}
 						data-track="leap-generate"
 						onClick={handleGenerate}
@@ -90,10 +90,10 @@ export const LeapComponent = () => {
 			{/* Sci-fi corners */}
 			<div className="pointer-events-none absolute inset-0">
 				{[
-					'top-0 left-0',
-					'top-0 right-0 -scale-x-[1]',
-					'bottom-0 left-0 -scale-y-[1]',
-					'bottom-0 right-0 -scale-[1]',
+					"top-0 left-0",
+					"top-0 right-0 -scale-x-[1]",
+					"bottom-0 left-0 -scale-y-[1]",
+					"bottom-0 right-0 -scale-[1]",
 				].map((position) => (
 					<div
 						className={`absolute h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] ${position}`}

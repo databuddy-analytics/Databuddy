@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { ApiKeyCreateDialog } from '@/components/organizations/api-key-create-dialog';
-import { ApiKeyDetailDialog } from '@/components/organizations/api-key-detail-dialog';
-import { ApiKeyList } from '@/components/organizations/api-key-list';
+import { useState } from "react";
+import { ApiKeyCreateDialog } from "@/components/organizations/api-key-create-dialog";
+import { ApiKeyDetailDialog } from "@/components/organizations/api-key-detail-dialog";
+import { ApiKeyList } from "@/components/organizations/api-key-list";
 
-import type { Organization } from '@/hooks/use-organizations';
+import type { Organization } from "@/hooks/use-organizations";
 
 interface ApiKeySettingsProps {
 	organization: Organization;

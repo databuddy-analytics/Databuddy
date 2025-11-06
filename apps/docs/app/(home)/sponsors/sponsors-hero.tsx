@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type { IconWeight } from '@phosphor-icons/react';
-import { HeartIcon, SparkleIcon } from '@phosphor-icons/react';
-import { SciFiCard } from '@/components/scifi-card';
+import type { IconWeight } from "@phosphor-icons/react";
+import { HeartIcon, SparkleIcon } from "@phosphor-icons/react";
+import { SciFiCard } from "@/components/scifi-card";
 
 interface SponsorsHeroProps {
 	totalSponsors: number;
@@ -56,7 +56,7 @@ export default function SponsorsHero({
 				<div className="mb-12 text-center lg:mb-16">
 					<h1 className="mb-4 font-semibold text-3xl leading-tight tracking-tight sm:text-5xl md:text-6xl lg:text-7xl xl:text-[72px]">
 						<span className="block">
-							Our amazing{' '}
+							Our amazing{" "}
 							<span className="text-muted-foreground">sponsors</span>
 						</span>
 						<span className="block">

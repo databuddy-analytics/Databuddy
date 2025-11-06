@@ -1,17 +1,17 @@
-import './polyfills/compression';
-import { auth } from '@databuddy/auth';
-import { appRouter, createTRPCContext } from '@databuddy/rpc';
-import cors from '@elysiajs/cors';
-import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { autumnHandler } from 'autumn-js/elysia';
-import { Elysia } from 'elysia';
-import { logger } from './lib/logger';
-import { assistant } from './routes/assistant';
+import "./polyfills/compression";
+import { auth } from "@databuddy/auth";
+import { appRouter, createTRPCContext } from "@databuddy/rpc";
+import cors from "@elysiajs/cors";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { autumnHandler } from "autumn-js/elysia";
+import { Elysia } from "elysia";
+import { logger } from "./lib/logger";
+import { assistant } from "./routes/assistant";
 // import { customSQL } from './routes/custom-sql';
-import { exportRoute } from './routes/export';
-import { health } from './routes/health';
-import { publicApi } from './routes/public';
-import { query } from './routes/query';
+import { exportRoute } from "./routes/export";
+import { health } from "./routes/health";
+import { publicApi } from "./routes/public";
+import { query } from "./routes/query";
 
 const app = new Elysia()
 	.use(publicApi)
@@ -20,8 +20,8 @@ const app = new Elysia()
 			credentials: true,
 			origin: [
 				/(?:^|\.)databuddy\.cc$/,
-				...(process.env.NODE_ENV === 'development'
-					? ['http://localhost:3000']
+				...(process.env.NODE_ENV === "development"
+					? ["http://localhost:3000"]
 					: []),
 			],
 		})
@@ -48,14 +48,14 @@ const app = new Elysia()
 	// .use(customSQL)
 	.use(assistant)
 	.use(exportRoute)
-	.all('/trpc/*', ({ request }) => {
-		return fetchRequestHandler({
-			endpoint: '/trpc',
+	.all("/trpc/*", ({ request }) =>
+		fetchRequestHandler({
+			endpoint: "/trpc",
 			router: appRouter,
 			req: request,
 			createContext: () => createTRPCContext({ headers: request.headers }),
-		});
-	})
+		})
+	)
 	.onError(({ error, code }) => {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		logger.error({ message: errorMessage, code, error });
@@ -64,9 +64,9 @@ const app = new Elysia()
 			JSON.stringify({
 				success: false,
 				error: errorMessage,
-				code: code ?? 'INTERNAL_SERVER_ERROR',
+				code: code ?? "INTERNAL_SERVER_ERROR",
 			}),
-			{ status: 500, headers: { 'Content-Type': 'application/json' } }
+			{ status: 500, headers: { "Content-Type": "application/json" } }
 		);
 	});
 
@@ -75,12 +75,12 @@ export default {
 	port: 3001,
 };
 
-process.on('SIGINT', () => {
-	logger.info('SIGINT signal received, shutting down...');
+process.on("SIGINT", () => {
+	logger.info("SIGINT signal received, shutting down...");
 	process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-	logger.info('SIGTERM signal received, shutting down...');
+process.on("SIGTERM", () => {
+	logger.info("SIGTERM signal received, shutting down...");
 	process.exit(0);
 });

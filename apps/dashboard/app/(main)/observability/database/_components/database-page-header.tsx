@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { ArrowClockwiseIcon, PlusIcon } from '@phosphor-icons/react';
-import type { ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowClockwiseIcon, PlusIcon } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DatabasePageHeaderProps {
 	title: string;
@@ -36,7 +36,7 @@ export function DatabasePageHeader({
 	errorMessage,
 	onRefresh,
 	onCreateAction,
-	createActionLabel = 'Create',
+	createActionLabel = "Create",
 	subtitle,
 	additionalActions,
 }: DatabasePageHeaderProps) {
@@ -46,7 +46,7 @@ export function DatabasePageHeader({
 		}
 
 		if (subtitle) {
-			return typeof subtitle === 'string' ? (
+			return typeof subtitle === "string" ? (
 				<p className="text-muted-foreground text-sm sm:text-base">{subtitle}</p>
 			) : (
 				subtitle
@@ -91,7 +91,7 @@ export function DatabasePageHeader({
 								variant="outline"
 							>
 								<ArrowClockwiseIcon
-									className={isRefreshing ? 'animate-spin' : ''}
+									className={isRefreshing ? "animate-spin" : ""}
 								/>
 								Refresh Data
 							</Button>

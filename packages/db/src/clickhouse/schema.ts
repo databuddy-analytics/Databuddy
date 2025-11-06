@@ -1,7 +1,7 @@
-import { clickHouse } from './client';
+import { clickHouse } from "./client";
 
-const ANALYTICS_DATABASE = 'analytics';
-const OBSERVABILITY_DATABASE = 'observability';
+const ANALYTICS_DATABASE = "analytics";
+const OBSERVABILITY_DATABASE = "observability";
 
 const CREATE_DATABASE = `
 CREATE DATABASE IF NOT EXISTS ${ANALYTICS_DATABASE}
@@ -575,7 +575,7 @@ export interface EmailEvent {
 	event_time: number;
 	received_at: number;
 	ingestion_time: number;
-	metadata_json: JSON;
+	metadata_json: string;
 }
 
 export interface ObservabilityEvent {
@@ -622,13 +622,13 @@ export interface OTelTraces {
 	Duration: number;
 	StatusCode: string;
 	StatusMessage: string;
-	'Events.Timestamp': number[];
-	'Events.Name': string[];
-	'Events.Attributes': Record<string, string>[];
-	'Links.TraceId': string[];
-	'Links.SpanId': string[];
-	'Links.TraceState': string[];
-	'Links.Attributes': Record<string, string>[];
+	"Events.Timestamp": number[];
+	"Events.Name": string[];
+	"Events.Attributes": Record<string, string>[];
+	"Links.TraceId": string[];
+	"Links.SpanId": string[];
+	"Links.TraceState": string[];
+	"Links.Attributes": Record<string, string>[];
 }
 
 // OpenTelemetry logs interface
@@ -679,7 +679,7 @@ export interface AnalyticsEvent {
 	time: number;
 	session_id: string;
 
-	event_type?: 'track' | 'error' | 'web_vitals';
+	event_type?: "track" | "error" | "web_vitals";
 	event_id?: string;
 	session_start_time?: number;
 	timestamp?: number;
@@ -741,7 +741,7 @@ export interface AnalyticsEvent {
  */
 export async function initClickHouseSchema() {
 	try {
-		console.info('Initializing ClickHouse schema...');
+		console.info("Initializing ClickHouse schema...");
 
 		// Create the analytics database
 		await clickHouse.command({
@@ -757,29 +757,29 @@ export async function initClickHouseSchema() {
 
 		// Create tables
 		const tables = [
-			{ name: 'events', query: CREATE_EVENTS_TABLE },
-			{ name: 'errors', query: CREATE_ERRORS_TABLE },
-			{ name: 'web_vitals', query: CREATE_WEB_VITALS_TABLE },
+			{ name: "events", query: CREATE_EVENTS_TABLE },
+			{ name: "errors", query: CREATE_ERRORS_TABLE },
+			{ name: "web_vitals", query: CREATE_WEB_VITALS_TABLE },
 			{
-				name: 'stripe_payment_intents',
+				name: "stripe_payment_intents",
 				query: CREATE_STRIPE_PAYMENT_INTENTS_TABLE,
 			},
-			{ name: 'stripe_charges', query: CREATE_STRIPE_CHARGES_TABLE },
-			{ name: 'stripe_refunds', query: CREATE_STRIPE_REFUNDS_TABLE },
-			{ name: 'blocked_traffic', query: CREATE_BLOCKED_TRAFFIC_TABLE },
-			{ name: 'email_events', query: CREATE_EMAIL_EVENTS_TABLE },
-			{ name: 'custom_events', query: CREATE_CUSTOM_EVENTS_TABLE },
-			{ name: 'outgoing_links', query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
+			{ name: "stripe_charges", query: CREATE_STRIPE_CHARGES_TABLE },
+			{ name: "stripe_refunds", query: CREATE_STRIPE_REFUNDS_TABLE },
+			{ name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
+			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
+			{ name: "custom_events", query: CREATE_CUSTOM_EVENTS_TABLE },
+			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
 			{
-				name: 'observability_events',
+				name: "observability_events",
 				query: CREATE_OBSERVABILITY_EVENTS_TABLE,
 			},
 		];
 
 		// Create observability tables separately
 		const observabilityTables = [
-			{ name: 'otel_traces', query: CREATE_OTEL_TRACES_TABLE },
-			{ name: 'otel_logs', query: CREATE_OTEL_LOGS_TABLE },
+			{ name: "otel_traces", query: CREATE_OTEL_TRACES_TABLE },
+			{ name: "otel_logs", query: CREATE_OTEL_LOGS_TABLE },
 		];
 
 		await Promise.all(
@@ -801,10 +801,10 @@ export async function initClickHouseSchema() {
 			})
 		);
 
-		console.info('ClickHouse schema initialization completed successfully');
+		console.info("ClickHouse schema initialization completed successfully");
 		return {
 			success: true,
-			message: 'ClickHouse schema initialized successfully',
+			message: "ClickHouse schema initialized successfully",
 			details: {
 				database: ANALYTICS_DATABASE,
 				tables: tables.map((t) => t.name),
@@ -813,10 +813,10 @@ export async function initClickHouseSchema() {
 			},
 		};
 	} catch (error) {
-		console.error('Error initializing ClickHouse schema:', error);
+		console.error("Error initializing ClickHouse schema:", error);
 		return {
 			success: false,
-			message: 'Failed to initialize ClickHouse schema',
+			message: "Failed to initialize ClickHouse schema",
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -7,11 +7,11 @@ import {
 	GearIcon,
 	PlusIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { use, useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+} from "@phosphor-icons/react";
+import { use, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -19,20 +19,20 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDbConnection } from '@/hooks/use-db-connections';
-import { trpc } from '@/lib/trpc';
-import { ExtensionSearch, ExtensionStats, ExtensionTabs } from './_components';
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDbConnection } from "@/hooks/use-db-connections";
+import { trpc } from "@/lib/trpc";
+import { ExtensionSearch, ExtensionStats, ExtensionTabs } from "./_components";
 
 interface ExtensionsPageProps {
 	params: Promise<{ id: string }>;
@@ -98,8 +98,8 @@ function InstallDialog({
 	onInstall: (name: string, schema?: string) => void;
 	isLoading: boolean;
 }) {
-	const [selectedExtension, setSelectedExtension] = useState('');
-	const [schema, setSchema] = useState('public');
+	const [selectedExtension, setSelectedExtension] = useState("");
+	const [schema, setSchema] = useState("public");
 
 	const selectedExt = availableExtensions.find(
 		(ext) => ext.name === selectedExtension
@@ -110,13 +110,13 @@ function InstallDialog({
 			return;
 		}
 		onInstall(selectedExtension, schema);
-		setSelectedExtension('');
+		setSelectedExtension("");
 	};
 
 	const handleClose = () => {
 		onOpenChange(false);
-		setSelectedExtension('');
-		setSchema('public');
+		setSelectedExtension("");
+		setSchema("public");
 	};
 
 	return (
@@ -163,12 +163,12 @@ function InstallDialog({
 							<h4 className="mb-2 font-medium text-sm">Extension Details</h4>
 							<div className="space-y-1 text-sm">
 								<div>
-									<span className="text-muted-foreground">Version:</span>{' '}
+									<span className="text-muted-foreground">Version:</span>{" "}
 									{selectedExt.defaultVersion}
 								</div>
 								{selectedExt.requiresRestart && (
 									<div className="text-amber-600">
-										<span className="text-muted-foreground">Note:</span>{' '}
+										<span className="text-muted-foreground">Note:</span>{" "}
 										Requires server restart
 									</div>
 								)}
@@ -305,7 +305,7 @@ function ConfigurationRequiredDialog({
 									<Button
 										className="absolute top-1 right-1"
 										onClick={() =>
-											copyToClipboard('sudo systemctl restart postgresql')
+											copyToClipboard("sudo systemctl restart postgresql")
 										}
 										size="sm"
 										variant="ghost"
@@ -430,7 +430,7 @@ function RemoveExtensionDialog({
 						onClick={handleRemove}
 						variant="destructive"
 					>
-						{isLoading ? 'Removing...' : 'Remove'}
+						{isLoading ? "Removing..." : "Remove"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -439,7 +439,7 @@ function RemoveExtensionDialog({
 }
 
 export default function ExtensionsPage({ params }: ExtensionsPageProps) {
-	const [search, setSearch] = useState('');
+	const [search, setSearch] = useState("");
 	const [installDialog, setInstallDialog] = useState(false);
 	const [removeDialog, setRemoveDialog] = useState<string | null>(null);
 	const [removeWarnings, setRemoveWarnings] = useState<string[]>([]);
@@ -450,7 +450,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 		open: boolean;
 		extensionName: string;
 		warnings: string[];
-	}>({ open: false, extensionName: '', warnings: [] });
+	}>({ open: false, extensionName: "", warnings: [] });
 
 	const resolvedParams = use(params);
 	const connectionId = resolvedParams.id;
@@ -485,8 +485,8 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 				// Check if this is a configuration-required extension
 				const isConfigRequired = result.warnings.some(
 					(warning) =>
-						warning.includes('shared_preload_libraries') ||
-						warning.includes('restart')
+						warning.includes("shared_preload_libraries") ||
+						warning.includes("restart")
 				);
 
 				if (isConfigRequired) {
@@ -497,13 +497,13 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 					});
 					setInstallDialog(false);
 				} else {
-					setError(`Cannot install extension: ${result.warnings.join(', ')}`);
+					setError(`Cannot install extension: ${result.warnings.join(", ")}`);
 				}
 				setSuccess(null);
 			}
 		},
 		onError: (err) => {
-			console.error('Failed to install extension:', err);
+			console.error("Failed to install extension:", err);
 			setError(`Failed to install extension: ${err.message}`);
 			setSuccess(null);
 		},
@@ -515,7 +515,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 			setError(null);
 		},
 		onError: (err) => {
-			console.error('Failed to update extension:', err);
+			console.error("Failed to update extension:", err);
 			setError(`Failed to update extension: ${err.message}`);
 		},
 	});
@@ -543,7 +543,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 			}
 		},
 		onError: (err) => {
-			console.error('Failed to remove extension:', err);
+			console.error("Failed to remove extension:", err);
 			setError(`Failed to remove extension: ${err.message}`);
 			setRemoveWarnings([]);
 			setSuccess(null);
@@ -556,7 +556,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 			setError(null);
 		},
 		onError: (err) => {
-			console.error('Failed to reset extension stats:', err);
+			console.error("Failed to reset extension stats:", err);
 			setError(`Failed to reset extension stats: ${err.message}`);
 		},
 	});
@@ -684,7 +684,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 							? resetMutation.variables?.extensionName
 							: undefined,
 					}}
-					onClearSearch={() => setSearch('')}
+					onClearSearch={() => setSearch("")}
 					onInstall={(ext) => handleInstall(ext.name)}
 					onInstallExtension={() => setInstallDialog(true)}
 					onRemove={(ext) => setRemoveDialog(ext.name)}
@@ -717,7 +717,7 @@ export default function ExtensionsPage({ params }: ExtensionsPageProps) {
 					extensionName={configDialog.extensionName}
 					onOpenChange={(open) => {
 						if (!open) {
-							setConfigDialog({ open: false, extensionName: '', warnings: [] });
+							setConfigDialog({ open: false, extensionName: "", warnings: [] });
 						}
 					}}
 					open={configDialog.open}

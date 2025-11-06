@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { AlertCircle, ChevronLeft, Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { authClient } from "@databuddy/auth/client";
+import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export default function VerificationNeededPage() {
 	const searchParams = useSearchParams();
-	const email = searchParams.get('email') || '';
+	const email = searchParams.get("email") || "";
 	const [isLoading, setIsLoading] = useState(false);
 
 	const sendVerificationEmail = async () => {
@@ -18,16 +18,16 @@ export default function VerificationNeededPage() {
 
 		await authClient.sendVerificationEmail({
 			email,
-			callbackURL: '/home',
+			callbackURL: "/home",
 			fetchOptions: {
 				onSuccess: () => {
-					toast.success('Verification email sent!');
+					toast.success("Verification email sent!");
 					setIsLoading(false);
 				},
 				onError: () => {
 					setIsLoading(false);
 					toast.error(
-						'Failed to send verification email. Please try again later.'
+						"Failed to send verification email. Please try again later."
 					);
 				},
 			},
@@ -50,7 +50,7 @@ export default function VerificationNeededPage() {
 					Verify your email
 				</h1>
 				<p className="mt-2 text-muted-foreground">
-					Verification needed for{' '}
+					Verification needed for{" "}
 					<strong className="font-medium text-warning">{email}</strong>
 				</p>
 			</div>
@@ -72,7 +72,7 @@ export default function VerificationNeededPage() {
 							Sending...
 						</>
 					) : (
-						'Resend verification email'
+						"Resend verification email"
 					)}
 				</Button>
 				<Link href="/login">

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ListSkeletonProps {
 	count?: number;
@@ -8,7 +8,11 @@ interface ListSkeletonProps {
 	showActions?: boolean;
 }
 
-export function ListSkeleton({ count = 6, showAvatar = true, showActions = true }: ListSkeletonProps) {
+export function ListSkeleton({
+	count = 6,
+	showAvatar = true,
+	showActions = true,
+}: ListSkeletonProps) {
 	return (
 		<div className="h-full p-4 sm:p-6">
 			<div className="space-y-3 sm:space-y-4">
@@ -24,9 +28,7 @@ export function ListSkeleton({ count = 6, showAvatar = true, showActions = true 
 							<Skeleton className="h-3 w-40 sm:h-4 sm:w-48" />
 							<Skeleton className="h-3 w-32 sm:h-3 sm:w-40" />
 						</div>
-						{showActions && (
-							<Skeleton className="h-7 w-16 sm:h-8 sm:w-20" />
-						)}
+						{showActions && <Skeleton className="h-7 w-16 sm:h-8 sm:w-20" />}
 					</div>
 				))}
 			</div>

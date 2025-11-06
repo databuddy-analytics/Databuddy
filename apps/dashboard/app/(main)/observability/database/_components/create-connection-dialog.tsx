@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { PlusIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { PlusIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -10,9 +10,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -21,8 +21,8 @@ import {
 	SelectLabel,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { useOrganizations } from '@/hooks/use-organizations';
+} from "@/components/ui/select";
+import { useOrganizations } from "@/hooks/use-organizations";
 
 interface CreateConnectionDialogProps {
 	open: boolean;
@@ -42,9 +42,9 @@ export function CreateConnectionDialog({
 	onSubmit,
 	isLoading,
 }: CreateConnectionDialogProps) {
-	const [name, setName] = useState('');
-	const [type, setType] = useState('postgres');
-	const [url, setUrl] = useState('');
+	const [name, setName] = useState("");
+	const [type, setType] = useState("postgres");
+	const [url, setUrl] = useState("");
 
 	const { activeOrganization } = useOrganizations();
 
@@ -65,9 +65,9 @@ export function CreateConnectionDialog({
 	const handleOpenChange = (newOpen: boolean) => {
 		if (!newOpen) {
 			// Reset form when closing
-			setName('');
-			setType('postgres');
-			setUrl('');
+			setName("");
+			setType("postgres");
+			setUrl("");
 		}
 		onOpenChange(newOpen);
 	};
@@ -147,7 +147,7 @@ export function CreateConnectionDialog({
 							type="submit"
 						>
 							{isLoading ? (
-								'Adding...'
+								"Adding..."
 							) : (
 								<>
 									<PlusIcon className="h-4 w-4" />

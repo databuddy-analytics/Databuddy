@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import type { ErrorTab } from '@databuddy/shared';
-import dynamic from 'next/dynamic';
+import type { ErrorTab } from "@databuddy/shared/types/errors";
+import dynamic from "next/dynamic";
 import {
 	createErrorTypeColumns,
 	createPageColumn,
 	errorColumns,
-} from './error-table-columns';
-import type { ErrorType, ErrorByPage } from './types';
+} from "./error-table-columns";
+import type { ErrorByPage, ErrorType } from "./types";
 
 const DataTable = dynamic(
 	() =>
-		import('@/components/table/data-table').then((mod) => ({
+		import("@/components/table/data-table").then((mod) => ({
 			default: mod.DataTable,
 		})),
 	{
@@ -36,14 +36,14 @@ export const ErrorDataTable = ({
 }: ErrorDataTableProps) => {
 	const errorTabs: ErrorTab[] = [
 		{
-			id: 'error_types',
-			label: 'Error Types',
+			id: "error_types",
+			label: "Error Types",
 			data: processedData.error_types,
 			columns: createErrorTypeColumns(),
 		},
 		{
-			id: 'errors_by_page',
-			label: 'By Page',
+			id: "errors_by_page",
+			label: "By Page",
 			data: processedData.errors_by_page,
 			columns: [createPageColumn(), ...errorColumns],
 		},

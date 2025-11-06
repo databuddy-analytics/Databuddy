@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm/relations';
+import { relations } from "drizzle-orm/relations";
 import {
 	abExperiments,
 	abGoals,
@@ -17,7 +17,7 @@ import {
 	user,
 	userPreferences,
 	websites,
-} from './schema';
+} from "./schema";
 
 export const userRelations = relations(user, ({ many }) => ({
 	accounts: many(account),
@@ -36,7 +36,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	invitations: many(invitation),
 	members: many(member),
 	websites_organizationId: many(websites, {
-		relationName: 'websites_organizationId_organization_id',
+		relationName: "websites_organizationId_organization_id",
 	}),
 	teams: many(team),
 }));
@@ -102,7 +102,7 @@ export const websitesRelations = relations(websites, ({ one, many }) => ({
 	organization_organizationId: one(organization, {
 		fields: [websites.organizationId],
 		references: [organization.id],
-		relationName: 'websites_organizationId_organization_id',
+		relationName: "websites_organizationId_organization_id",
 	}),
 	funnelDefinitions: many(funnelDefinitions),
 	abExperiments: many(abExperiments),

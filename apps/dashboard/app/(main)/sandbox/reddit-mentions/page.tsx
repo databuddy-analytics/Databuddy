@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -17,30 +17,30 @@ import {
 	WifiHighIcon,
 	WifiLowIcon,
 	X,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
 	type RedditPost,
 	useExportRedditData,
@@ -48,12 +48,12 @@ import {
 	useRedditMentions,
 	useRefreshRedditMentions,
 	useSearchHistory,
-} from './hooks/use-reddit-mentions';
+} from "./hooks/use-reddit-mentions";
 
 const DEFAULT_KEYWORDS = [
-	'databuddy',
-	'analytics platform',
-	'website analytics',
+	"databuddy",
+	"analytics platform",
+	"website analytics",
 ];
 
 function LoadingSkeleton() {
@@ -171,15 +171,15 @@ function ErrorState({
 	);
 }
 
-type SortBy = 'relevance' | 'new' | 'top' | 'hot';
+type SortBy = "relevance" | "new" | "top" | "hot";
 
 export default function RedditMentionsPage() {
 	const [keywords, setKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
-	const [newKeyword, setNewKeyword] = useState('');
-	const [timeRange, setTimeRange] = useState('24h');
+	const [newKeyword, setNewKeyword] = useState("");
+	const [timeRange, setTimeRange] = useState("24h");
 	const [subreddits, _setSubreddits] = useState<string[]>([]);
 	const [minScore, setMinScore] = useState<number | undefined>(undefined);
-	const [sortBy, setSortBy] = useState<SortBy>('new');
+	const [sortBy, setSortBy] = useState<SortBy>("new");
 	const [excludeStickied, setExcludeStickied] = useState(false);
 	const [backgroundSync, setBackgroundSync] = useState(false);
 
@@ -211,7 +211,7 @@ export default function RedditMentionsPage() {
 	const stats = redditData?.stats || {
 		total_mentions: 0,
 		average_score: 0,
-		top_subreddit: '',
+		top_subreddit: "",
 		recent_mentions: 0,
 	};
 
@@ -228,7 +228,7 @@ export default function RedditMentionsPage() {
 			keywords.length < 10
 		) {
 			setKeywords([...keywords, newKeyword.trim()]);
-			setNewKeyword('');
+			setNewKeyword("");
 		}
 	};
 
@@ -236,7 +236,7 @@ export default function RedditMentionsPage() {
 		setKeywords(keywords.filter((k) => k !== keyword));
 	};
 
-	const _handleExport = (format: 'json' | 'csv') => {
+	const _handleExport = (format: "json" | "csv") => {
 		exportMutation.mutate({ format, filters });
 	};
 
@@ -248,10 +248,10 @@ export default function RedditMentionsPage() {
 		);
 
 		if (diffInHours < 1) {
-			return 'Less than an hour ago';
+			return "Less than an hour ago";
 		}
 		if (diffInHours === 1) {
-			return '1 hour ago';
+			return "1 hour ago";
 		}
 		if (diffInHours < 24) {
 			return `${diffInHours} hours ago`;
@@ -260,7 +260,7 @@ export default function RedditMentionsPage() {
 	};
 
 	const isApiHealthy =
-		healthData?.status === 'healthy' && healthData?.reddit_connected;
+		healthData?.status === "healthy" && healthData?.reddit_connected;
 	const isRefreshing = refreshMutation.isPending || isFetching;
 
 	return (
@@ -292,10 +292,10 @@ export default function RedditMentionsPage() {
 						{/* API Status Indicator */}
 						<div
 							className={cn(
-								'flex items-center gap-2 rounded-full border px-3 py-1.5 font-medium text-xs',
+								"flex items-center gap-2 rounded-full border px-3 py-1.5 font-medium text-xs",
 								isApiHealthy
-									? 'border-green-200 bg-green-50 text-green-700'
-									: 'border-red-200 bg-red-50 text-red-700'
+									? "border-green-200 bg-green-50 text-green-700"
+									: "border-red-200 bg-red-50 text-red-700"
 							)}
 						>
 							{isApiHealthy ? (
@@ -303,14 +303,14 @@ export default function RedditMentionsPage() {
 							) : (
 								<WifiLowIcon className="h-4 w-4" size={16} />
 							)}
-							<span>{isApiHealthy ? 'Connected' : 'Disconnected'}</span>
+							<span>{isApiHealthy ? "Connected" : "Disconnected"}</span>
 						</div>
 
 						<div className="flex gap-2">
 							<Button
 								disabled={exportMutation.isPending || posts.length === 0}
 								onClick={() =>
-									exportMutation.mutate({ format: 'csv', filters })
+									exportMutation.mutate({ format: "csv", filters })
 								}
 								size="default"
 								variant="outline"
@@ -321,9 +321,9 @@ export default function RedditMentionsPage() {
 
 							<Button
 								className={cn(
-									'gap-2 px-6 py-3 font-medium',
-									'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary',
-									'group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl'
+									"gap-2 px-6 py-3 font-medium",
+									"bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary",
+									"group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl"
 								)}
 								disabled={isRefreshing || !isApiHealthy}
 								onClick={handleRefresh}
@@ -344,7 +344,7 @@ export default function RedditMentionsPage() {
 									/>
 								)}
 								<span className="relative z-10">
-									{isRefreshing ? 'Refreshing...' : 'Refresh'}
+									{isRefreshing ? "Refreshing..." : "Refresh"}
 								</span>
 							</Button>
 						</div>
@@ -360,7 +360,7 @@ export default function RedditMentionsPage() {
 						<WarningCircleIcon className="h-4 w-4" size={16} weight="duotone" />
 						<AlertDescription>
 							{error?.message ||
-								'Failed to fetch Reddit mentions. Please try again.'}
+								"Failed to fetch Reddit mentions. Please try again."}
 						</AlertDescription>
 					</Alert>
 				)}
@@ -402,7 +402,7 @@ export default function RedditMentionsPage() {
 									className="flex-1"
 									disabled={keywords.length >= 10}
 									onChange={(e) => setNewKeyword(e.target.value)}
-									onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+									onKeyPress={(e) => e.key === "Enter" && addKeyword()}
 									placeholder="Add new keyword..."
 									value={newKeyword}
 								/>
@@ -482,7 +482,7 @@ export default function RedditMentionsPage() {
 										}
 										placeholder="e.g. 10"
 										type="number"
-										value={minScore || ''}
+										value={minScore || ""}
 									/>
 								</div>
 							</div>
@@ -582,7 +582,7 @@ export default function RedditMentionsPage() {
 											Top Subreddit
 										</p>
 										<p className="truncate font-bold text-lg">
-											r/{stats.top_subreddit || 'N/A'}
+											r/{stats.top_subreddit || "N/A"}
 										</p>
 									</div>
 								</div>
@@ -630,7 +630,7 @@ export default function RedditMentionsPage() {
 					{/* Error State */}
 					{isError && (
 						<ErrorState
-							error={error?.message || 'Failed to fetch Reddit mentions'}
+							error={error?.message || "Failed to fetch Reddit mentions"}
 							onRetry={() => refetch()}
 						/>
 					)}

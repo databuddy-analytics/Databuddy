@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect } from 'react';
-import { toast } from 'sonner';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
 
 // Types
 export interface RedditPost {
@@ -46,7 +46,7 @@ export interface RedditMentionsResponse {
 }
 
 export interface RedditHealthResponse {
-	status: 'healthy' | 'unhealthy' | 'degraded';
+	status: "healthy" | "unhealthy" | "degraded";
 	reddit_connected: boolean;
 	last_check: string;
 	response_time_ms?: number;
@@ -58,12 +58,12 @@ export interface SearchFilters {
 	timeRange: string;
 	subreddits?: string[];
 	minScore?: number;
-	sortBy?: 'relevance' | 'new' | 'top' | 'hot';
+	sortBy?: "relevance" | "new" | "top" | "hot";
 	excludeStickied?: boolean;
 }
 
 // API client functions
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function apiRequest<T>(
 	endpoint: string,
@@ -76,10 +76,10 @@ async function apiRequest<T>(
 		console.log(`Making API request to: ${API_BASE_URL}/v1${endpoint}`);
 
 		const response = await fetch(`${API_BASE_URL}/v1${endpoint}`, {
-			credentials: 'include',
+			credentials: "include",
 			headers: {
-				'Content-Type': 'application/json',
-				'User-Agent': 'Databuddy-Dashboard/1.0',
+				"Content-Type": "application/json",
+				"User-Agent": "Databuddy-Dashboard/1.0",
 				...options.headers,
 			},
 			signal: controller.signal,
@@ -93,25 +93,25 @@ async function apiRequest<T>(
 			switch (response.status) {
 				case 429:
 					throw new Error(
-						'Rate limit exceeded. Please wait before making another request.'
+						"Rate limit exceeded. Please wait before making another request."
 					);
 				case 503:
 					throw new Error(
-						'Reddit API is temporarily unavailable. Please try again later.'
+						"Reddit API is temporarily unavailable. Please try again later."
 					);
 				case 401:
 					throw new Error(
-						'Authentication failed. Please check your Reddit credentials.'
+						"Authentication failed. Please check your Reddit credentials."
 					);
 				case 404:
-					throw new Error('API endpoint not found. Please contact support.');
+					throw new Error("API endpoint not found. Please contact support.");
 				default:
 					throw new Error(`API request failed with status ${response.status}`);
 			}
 		}
 
 		const data = await response.json();
-		console.log('API response:', { status: response.status, data });
+		console.log("API response:", { status: response.status, data });
 
 		if (!data.success && data.error) {
 			throw new Error(data.error);
@@ -121,15 +121,15 @@ async function apiRequest<T>(
 	} catch (error: unknown) {
 		clearTimeout(timeoutId);
 
-		if (error instanceof Error && error.name === 'AbortError') {
-			throw new Error('Request timed out. Please try again.');
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error("Request timed out. Please try again.");
 		}
 
 		if (error instanceof Error) {
 			throw error;
 		}
 
-		throw new Error('An unexpected error occurred');
+		throw new Error("An unexpected error occurred");
 	}
 }
 
@@ -139,14 +139,14 @@ const redditApi = {
 		filters: SearchFilters
 	): Promise<RedditMentionsResponse> => {
 		const params = new URLSearchParams({
-			keywords: filters.keywords.join(','),
+			keywords: filters.keywords.join(","),
 			time_range: filters.timeRange,
 			...(filters.subreddits?.length && {
-				subreddits: filters.subreddits.join(','),
+				subreddits: filters.subreddits.join(","),
 			}),
 			...(filters.minScore && { min_score: filters.minScore.toString() }),
 			...(filters.sortBy && { sort: filters.sortBy }),
-			...(filters.excludeStickied && { exclude_stickied: 'true' }),
+			...(filters.excludeStickied && { exclude_stickied: "true" }),
 		});
 
 		const result = await apiRequest<RedditMentionsResponse>(
@@ -162,7 +162,7 @@ const redditApi = {
 				stats: {
 					total_mentions: 0,
 					average_score: 0,
-					top_subreddit: '',
+					top_subreddit: "",
 					recent_mentions: 0,
 					trending_keywords: [],
 					engagement_rate: 0,
@@ -178,13 +178,13 @@ const redditApi = {
 	},
 
 	getHealth: async (): Promise<RedditHealthResponse> => {
-		const result = await apiRequest<RedditHealthResponse>('/reddit/health');
+		const result = await apiRequest<RedditHealthResponse>("/reddit/health");
 		if (result.error) {
 			throw new Error(result.error);
 		}
 		return (
 			result.data || {
-				status: 'unhealthy',
+				status: "unhealthy",
 				reddit_connected: false,
 				last_check: new Date().toISOString(),
 			}
@@ -192,8 +192,8 @@ const redditApi = {
 	},
 
 	refresh: async (): Promise<{ success: boolean }> => {
-		const result = await apiRequest<{ success: boolean }>('/reddit/refresh', {
-			method: 'POST',
+		const result = await apiRequest<{ success: boolean }>("/reddit/refresh", {
+			method: "POST",
 		});
 		if (result.error) {
 			throw new Error(result.error);
@@ -202,24 +202,24 @@ const redditApi = {
 	},
 
 	exportData: async (
-		format: 'json' | 'csv',
+		format: "json" | "csv",
 		filters: SearchFilters
 	): Promise<Blob> => {
 		const params = new URLSearchParams({
-			keywords: filters.keywords.join(','),
+			keywords: filters.keywords.join(","),
 			time_range: filters.timeRange,
 			format,
 			...(filters.subreddits?.length && {
-				subreddits: filters.subreddits.join(','),
+				subreddits: filters.subreddits.join(","),
 			}),
 		});
 
 		const response = await fetch(`${API_BASE_URL}/v1/reddit/export?${params}`, {
-			credentials: 'include',
+			credentials: "include",
 		});
 
 		if (!response.ok) {
-			throw new Error('Failed to export data');
+			throw new Error("Failed to export data");
 		}
 
 		return response.blob();
@@ -227,7 +227,7 @@ const redditApi = {
 
 	getAnalytics: async (filters: SearchFilters): Promise<any> => {
 		const params = new URLSearchParams({
-			keywords: filters.keywords.join(','),
+			keywords: filters.keywords.join(","),
 			time_range: filters.timeRange,
 		});
 
@@ -241,13 +241,13 @@ const redditApi = {
 
 // Query keys
 export const redditKeys = {
-	all: ['reddit'] as const,
-	mentions: () => [...redditKeys.all, 'mentions'] as const,
+	all: ["reddit"] as const,
+	mentions: () => [...redditKeys.all, "mentions"] as const,
 	mentionsList: (filters: SearchFilters) =>
 		[...redditKeys.mentions(), filters] as const,
-	health: () => [...redditKeys.all, 'health'] as const,
+	health: () => [...redditKeys.all, "health"] as const,
 	analytics: (filters: SearchFilters) =>
-		[...redditKeys.all, 'analytics', filters] as const,
+		[...redditKeys.all, "analytics", filters] as const,
 };
 
 // Enhanced hook for Reddit mentions with advanced features
@@ -259,20 +259,20 @@ export function useRedditMentions(
 		backgroundSync?: boolean;
 	}
 ) {
-	console.log('useRedditMentions called with:', { filters, options });
+	console.log("useRedditMentions called with:", { filters, options });
 
 	const queryResult = useQuery({
 		queryKey: redditKeys.mentionsList(filters),
 		queryFn: async () => {
-			console.log('Fetching Reddit mentions...');
+			console.log("Fetching Reddit mentions...");
 			try {
 				const result = await redditApi.getMentions(filters);
-				console.log('Reddit mentions result:', result);
+				console.log("Reddit mentions result:", result);
 
 				// Store in localStorage for offline access
-				if (typeof window !== 'undefined') {
+				if (typeof window !== "undefined") {
 					localStorage.setItem(
-						'reddit-mentions-cache',
+						"reddit-mentions-cache",
 						JSON.stringify({
 							data: result,
 							timestamp: Date.now(),
@@ -283,16 +283,16 @@ export function useRedditMentions(
 
 				return result;
 			} catch (error) {
-				console.error('Error fetching Reddit mentions:', error);
+				console.error("Error fetching Reddit mentions:", error);
 
 				// Try to load from cache on error
-				if (typeof window !== 'undefined') {
-					const cached = localStorage.getItem('reddit-mentions-cache');
+				if (typeof window !== "undefined") {
+					const cached = localStorage.getItem("reddit-mentions-cache");
 					if (cached) {
 						const { data, timestamp } = JSON.parse(cached);
 						// Use cache if it's less than 1 hour old
 						if (Date.now() - timestamp < 3_600_000) {
-							console.log('Using cached data due to API error');
+							console.log("Using cached data due to API error");
 							return data;
 						}
 					}
@@ -310,8 +310,8 @@ export function useRedditMentions(
 		retry: (failureCount, error) => {
 			// Don't retry if it's a rate limit error
 			if (
-				error.message.includes('rate limit') ||
-				error.message.includes('429')
+				error.message.includes("rate limit") ||
+				error.message.includes("429")
 			) {
 				return false;
 			}
@@ -345,9 +345,9 @@ export function useRedditHealth() {
 			try {
 				return await redditApi.getHealth();
 			} catch (error) {
-				console.error('Error checking Reddit health:', error);
+				console.error("Error checking Reddit health:", error);
 				return {
-					status: 'unhealthy' as const,
+					status: "unhealthy" as const,
 					reddit_connected: false,
 					last_check: new Date().toISOString(),
 					error_count: 1,
@@ -366,23 +366,21 @@ export function useRefreshRedditMentions() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: async () => {
-			return await redditApi.refresh();
-		},
+		mutationFn: async () => await redditApi.refresh(),
 		onSuccess: () => {
-			toast.success('Reddit mentions refreshed successfully');
+			toast.success("Reddit mentions refreshed successfully");
 			// Invalidate all Reddit queries to trigger refetch
 			queryClient.invalidateQueries({ queryKey: redditKeys.all });
 		},
 		onError: (error: Error) => {
-			console.error('Error refreshing Reddit mentions:', error);
+			console.error("Error refreshing Reddit mentions:", error);
 
-			let message = 'Failed to refresh Reddit mentions';
-			if (error.message.includes('rate limit')) {
-				message = 'Rate limit exceeded. Please wait before refreshing again.';
-			} else if (error.message.includes('timeout')) {
+			let message = "Failed to refresh Reddit mentions";
+			if (error.message.includes("rate limit")) {
+				message = "Rate limit exceeded. Please wait before refreshing again.";
+			} else if (error.message.includes("timeout")) {
 				message =
-					'Request timed out. Please check your connection and try again.';
+					"Request timed out. Please check your connection and try again.";
 			}
 
 			toast.error(message);
@@ -397,17 +395,17 @@ export function useExportRedditData() {
 			format,
 			filters,
 		}: {
-			format: 'json' | 'csv';
+			format: "json" | "csv";
 			filters: SearchFilters;
 		}) => {
 			const blob = await redditApi.exportData(format, filters);
 
 			// Create download link
 			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.style.display = 'none';
+			const a = document.createElement("a");
+			a.style.display = "none";
 			a.href = url;
-			a.download = `reddit-mentions-${new Date().toISOString().split('T')[0]}.${format}`;
+			a.download = `reddit-mentions-${new Date().toISOString().split("T")[0]}.${format}`;
 			document.body.appendChild(a);
 			a.click();
 			window.URL.revokeObjectURL(url);
@@ -416,11 +414,11 @@ export function useExportRedditData() {
 			return { success: true };
 		},
 		onSuccess: () => {
-			toast.success('Data exported successfully');
+			toast.success("Data exported successfully");
 		},
 		onError: (error: Error) => {
-			console.error('Error exporting data:', error);
-			toast.error('Failed to export data. Please try again.');
+			console.error("Error exporting data:", error);
+			toast.error("Failed to export data. Please try again.");
 		},
 	});
 }
@@ -439,16 +437,16 @@ export function useRedditAnalytics(filters: SearchFilters, enabled = false) {
 // Utility hook for managing search history
 export function useSearchHistory() {
 	const getHistory = useCallback(() => {
-		if (typeof window === 'undefined') {
+		if (typeof window === "undefined") {
 			return [];
 		}
-		const history = localStorage.getItem('reddit-search-history');
+		const history = localStorage.getItem("reddit-search-history");
 		return history ? JSON.parse(history) : [];
 	}, []);
 
 	const addToHistory = useCallback(
 		(filters: SearchFilters) => {
-			if (typeof window === 'undefined') {
+			if (typeof window === "undefined") {
 				return;
 			}
 
@@ -466,14 +464,14 @@ export function useSearchHistory() {
 			);
 
 			const updated = [newEntry, ...filtered].slice(0, 10);
-			localStorage.setItem('reddit-search-history', JSON.stringify(updated));
+			localStorage.setItem("reddit-search-history", JSON.stringify(updated));
 		},
 		[getHistory]
 	);
 
 	const clearHistory = useCallback(() => {
-		if (typeof window !== 'undefined') {
-			localStorage.removeItem('reddit-search-history');
+		if (typeof window !== "undefined") {
+			localStorage.removeItem("reddit-search-history");
 		}
 	}, []);
 

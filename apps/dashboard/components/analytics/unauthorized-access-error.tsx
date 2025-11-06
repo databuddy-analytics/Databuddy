@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { WarningIcon } from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { WarningIcon } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 
 export function UnauthorizedAccessError() {
 	const router = useRouter();
@@ -39,7 +39,7 @@ export function UnauthorizedAccessError() {
 				</p>
 				<Button
 					className="w-full sm:w-auto"
-					onClick={() => router.push('/websites')}
+					onClick={() => router.push("/websites")}
 					variant="destructive"
 				>
 					Back to Websites

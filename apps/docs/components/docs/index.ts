@@ -5,7 +5,7 @@ export {
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 // Accordion components
 export {
 	Accordion,
@@ -13,17 +13,17 @@ export {
 	AccordionItem,
 	Accordions,
 	AccordionTrigger,
-} from './accordion';
-export { Callout } from './callout';
+} from "./accordion";
+export { Callout } from "./callout";
 // Card components
 export {
 	Card,
 	Cards,
-} from './card';
+} from "./card";
 // Code components
-export { CodeBlock, InlineCode } from './code-block';
-export { LeapComponent } from './leap-component';
+export { CodeBlock, InlineCode } from "./code-block";
+export { LeapComponent } from "./leap-component";
 // Steps components
-export { CompletedStep, Step, Steps } from './steps';
+export { CompletedStep, Step, Steps } from "./steps";
 // Tabs components
-export { Tab, Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
+export { Tab, Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";

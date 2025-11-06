@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CopyIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { CopyIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 
 interface TestingStepProps {
 	copyToClipboard: (text: string, label: string) => void;
@@ -35,7 +35,7 @@ export function TestingStep({
 								onClick={() =>
 									copyToClipboard(
 										'stripe payment_intents create --amount 2000 --currency usd --client-reference-id "sess_db_test_123" --metadata[user_id]="user_test_123"',
-										'Test command'
+										"Test command"
 									)
 								}
 								size="sm"

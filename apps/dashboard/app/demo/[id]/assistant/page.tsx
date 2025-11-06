@@ -1,3 +1,3 @@
-'use client';
+"use client";
 
-export { default } from '../../../(main)/websites/[id]/assistant/page';
+export { default } from "../../../(main)/websites/[id]/assistant/page";

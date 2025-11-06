@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { SciFiCard } from '@/components/scifi-card';
+import { useMemo, useState } from "react";
+import { SciFiCard } from "@/components/scifi-card";
 
 interface ProcessedPunchCard {
 	day: number;
@@ -40,7 +40,7 @@ function CustomTooltip({
 	formatHour: (hour: number) => string;
 }) {
 	// Adjust tooltip position for mobile to prevent overflow
-	const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+	const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 	const tooltipX = isMobile
 		? Math.min(x + 10, window.innerWidth - 200)
 		: x + 10;
@@ -130,7 +130,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 		const maxCommits = Math.max(...data.map((d) => d.commits));
 
 		// Create 7x24 grid
-		const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+		const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 		const grid: HeatmapCell[][] = [];
 
 		for (let day = 0; day < 7; day++) {
@@ -213,32 +213,32 @@ export default function PunchCardHeatmap({ data }: Props) {
 
 	const getIntensityColor = (intensity: number) => {
 		if (intensity === 0) {
-			return 'bg-muted';
+			return "bg-muted";
 		}
 		if (intensity < 0.2) {
-			return 'bg-primary/20';
+			return "bg-primary/20";
 		}
 		if (intensity < 0.4) {
-			return 'bg-primary/40';
+			return "bg-primary/40";
 		}
 		if (intensity < 0.6) {
-			return 'bg-primary/60';
+			return "bg-primary/60";
 		}
 		if (intensity < 0.8) {
-			return 'bg-primary/80';
+			return "bg-primary/80";
 		}
-		return 'bg-primary';
+		return "bg-primary";
 	};
 
 	const formatHour = (hour: number) => {
 		if (hour === 0) {
-			return '12 AM';
+			return "12 AM";
 		}
 		if (hour < 12) {
 			return `${hour} AM`;
 		}
 		if (hour === 12) {
-			return '12 PM';
+			return "12 PM";
 		}
 		return `${hour - 12} PM`;
 	};
@@ -250,7 +250,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 					Contribution Hours
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
-					When commits happen throughout the week •{' '}
+					When commits happen throughout the week •{" "}
 					<span className="font-medium">
 						{insights.totalCommits.toLocaleString()} commits
 					</span>
@@ -268,7 +268,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-xl sm:text-2xl">
-						{insights.peakHour !== null ? formatHour(insights.peakHour) : 'N/A'}
+						{insights.peakHour !== null ? formatHour(insights.peakHour) : "N/A"}
 					</div>
 					<div className="text-muted-foreground text-sm">Peak Hour</div>
 				</SciFiCard>
@@ -296,7 +296,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 											className="text-center text-muted-foreground text-xs"
 											key={`hour-${hour.toString()}`}
 										>
-											{hour % 4 === 0 ? formatHour(hour) : ''}
+											{hour % 4 === 0 ? formatHour(hour) : ""}
 										</div>
 									))}
 								</div>
@@ -361,9 +361,9 @@ export default function PunchCardHeatmap({ data }: Props) {
 									key={`mobile-hour-${hour.toString()}`}
 								>
 									{hour === 0
-										? '12A'
+										? "12A"
 										: hour === 12
-											? '12P'
+											? "12P"
 											: hour > 12
 												? `${hour - 12}P`
 												: `${hour}A`}
@@ -442,7 +442,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 														handleMouseEnter(
 															{
 																...cell,
-																dayName: dayData[0]?.dayName || '',
+																dayName: dayData[0]?.dayName || "",
 															},
 															{
 																clientX: touch.clientX,
@@ -487,23 +487,23 @@ export default function PunchCardHeatmap({ data }: Props) {
 			{/* Additional Insights */}
 			<SciFiCard className="mt-8 rounded border border-border bg-card/50 p-4 backdrop-blur-sm">
 				<p className="text-muted-foreground text-sm">
-					<span className="font-medium">Pattern analysis:</span> Based on{' '}
+					<span className="font-medium">Pattern analysis:</span> Based on{" "}
 					{insights.totalCommits.toLocaleString()} total commits, contributors
-					are most active on{' '}
-					<span className="font-medium">{insights.peakDay}s</span> around{' '}
+					are most active on{" "}
+					<span className="font-medium">{insights.peakDay}s</span> around{" "}
 					<span className="font-medium">
 						{insights.peakHour !== null
 							? formatHour(insights.peakHour)
-							: 'unknown time'}
+							: "unknown time"}
 					</span>
 					.
-					{insights.peakDay === 'Mon' ||
-					insights.peakDay === 'Tue' ||
-					insights.peakDay === 'Wed' ||
-					insights.peakDay === 'Thu' ||
-					insights.peakDay === 'Fri'
-						? ' This suggests active weekday development.'
-						: ' Weekend development activity detected!'}
+					{insights.peakDay === "Mon" ||
+					insights.peakDay === "Tue" ||
+					insights.peakDay === "Wed" ||
+					insights.peakDay === "Thu" ||
+					insights.peakDay === "Fri"
+						? " This suggests active weekday development."
+						: " Weekend development activity detected!"}
 				</p>
 			</SciFiCard>
 

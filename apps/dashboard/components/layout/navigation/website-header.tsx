@@ -1,15 +1,18 @@
-import type { Website } from '@databuddy/shared';
-import { CaretLeftIcon, PlanetIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { Skeleton } from '@/components/ui/skeleton';
+import type { Website } from "@databuddy/shared/types/website";
+import { CaretLeftIcon, PlanetIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface WebsiteHeaderProps {
 	website: Website | null | undefined;
 	showBackButton?: boolean;
 }
 
-export function WebsiteHeader({ website, showBackButton = true }: WebsiteHeaderProps) {
+export function WebsiteHeader({
+	website,
+	showBackButton = true,
+}: WebsiteHeaderProps) {
 	return (
 		<div className="border-sidebar-border border-b bg-sidebar-accent">
 			{/* Website info - aligned with logo section */}
@@ -17,9 +20,9 @@ export function WebsiteHeader({ website, showBackButton = true }: WebsiteHeaderP
 				<div className="flex w-full items-center gap-3">
 					<div className="rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
 						<FaviconImage
-							altText={`${website?.name || website?.domain || 'Website'} favicon`}
+							altText={`${website?.name || website?.domain || "Website"} favicon`}
 							className="size-5 flex-shrink-0"
-							domain={website?.domain || ''}
+							domain={website?.domain || ""}
 							fallbackIcon={
 								<PlanetIcon
 									className="text-sidebar-ring"

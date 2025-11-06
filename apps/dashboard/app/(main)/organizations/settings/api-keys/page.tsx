@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Suspense } from 'react';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { ApiKeySettings } from './api-key-settings';
+import { Suspense } from "react";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { ApiKeySettings } from "./api-key-settings";
 
 const ComponentSkeleton = () => (
 	<div className="h-full p-6">

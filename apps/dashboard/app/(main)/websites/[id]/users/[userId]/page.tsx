@@ -1,31 +1,30 @@
-'use client';
+"use client";
 
+import { getCountryCode } from "@databuddy/shared/country-codes";
+import type { Session } from "@databuddy/shared/types/sessions";
 import {
 	ArrowLeftIcon,
-	SpinnerIcon,
-	UserIcon,
-	ClockIcon,
 	CalendarIcon,
 	ChartLineIcon,
-	EyeIcon,
+	ClockIcon,
 	CursorClickIcon,
-	MapPinIcon,
 	DevicesIcon,
-	GlobeIcon,
-} from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import { useParams, useRouter } from 'next/navigation';
-import { useState, useCallback } from 'react';
-import { BrowserIcon, CountryFlag, OSIcon } from '@/components/icon';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useUserProfile } from '@/hooks/use-dynamic-query';
-import { getDeviceIcon } from '@/lib/utils';
-import { SessionRow } from './_components/session-row';
-import { generateProfileName } from './_components/generate-profile-name';
-import { getCountryCode } from '@databuddy/shared';
-import type { Session } from '@databuddy/shared';
+	EyeIcon,
+	MapPinIcon,
+	SpinnerIcon,
+	UserIcon,
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useUserProfile } from "@/hooks/use-dynamic-query";
+import { getDeviceIcon } from "@/lib/utils";
+import { generateProfileName } from "./_components/generate-profile-name";
+import { SessionRow } from "./_components/session-row";
 
 export default function UserDetailPage() {
 	const { id: websiteId, userId } = useParams();
@@ -53,25 +52,28 @@ export default function UserDetailPage() {
 		});
 	}, []);
 
-	const transformSession = useCallback((session: any): Session => {
-		const countryCode = getCountryCode(session.country || '');
-		return {
-			session_id: session.session_id,
-			first_visit: session.first_visit,
-			last_visit: session.last_visit,
-			page_views: session.page_views,
-			visitor_id: userId as string,
-			country: countryCode,
-			country_name: session.country || '',
-			country_code: countryCode,
-			referrer: session.referrer || '',
-			device_type: session.device || '',
-			browser_name: session.browser || '',
-			os_name: session.os || '',
-			events: session.events || [],
-			session_name: session.session_name,
-		} as Session;
-	}, [userId]);
+	const transformSession = useCallback(
+		(session: any): Session => {
+			const countryCode = getCountryCode(session.country || "");
+			return {
+				session_id: session.session_id,
+				first_visit: session.first_visit,
+				last_visit: session.last_visit,
+				page_views: session.page_views,
+				visitor_id: userId as string,
+				country: countryCode,
+				country_name: session.country || "",
+				country_code: countryCode,
+				referrer: session.referrer || "",
+				device_type: session.device || "",
+				browser_name: session.browser || "",
+				os_name: session.os || "",
+				events: session.events || [],
+				session_name: session.session_name,
+			} as Session;
+		},
+		[userId]
+	);
 
 	const totalEvents =
 		userProfile?.sessions?.reduce(
@@ -160,7 +162,7 @@ export default function UserDetailPage() {
 					<UserIcon className="mb-4 h-12 w-12 opacity-50" />
 					<p className="mb-2 font-medium text-lg">Failed to load user</p>
 					<p className="text-sm">
-						{error?.message || 'Please try again later'}
+						{error?.message || "Please try again later"}
 					</p>
 				</div>
 			</div>
@@ -219,16 +221,19 @@ export default function UserDetailPage() {
 							<ArrowLeftIcon className="h-4 w-4" />
 						</Button>
 						<div className="flex items-center gap-2 px-3">
-							<CountryFlag country={getCountryCode(userProfile.country || '')} size="sm" />
+							<CountryFlag
+								country={getCountryCode(userProfile.country || "")}
+								size="sm"
+							/>
 							<div>
 								<h1 className="font-semibold text-foreground text-sm">
 									{generateProfileName(userProfile.visitor_id)}
 								</h1>
 								<p className="text-muted-foreground text-xs">
-									{userProfile.region && userProfile.region !== 'Unknown'
+									{userProfile.region && userProfile.region !== "Unknown"
 										? `${userProfile.region}, `
-										: ''}
-									{userProfile.country || 'Unknown'}
+										: ""}
+									{userProfile.country || "Unknown"}
 								</p>
 							</div>
 						</div>
@@ -236,11 +241,9 @@ export default function UserDetailPage() {
 					<div className="px-3">
 						<Badge
 							className="px-2 py-0.5 font-semibold text-xs"
-							variant={
-								userProfile.total_sessions > 1 ? 'default' : 'secondary'
-							}
+							variant={userProfile.total_sessions > 1 ? "default" : "secondary"}
 						>
-							{userProfile.total_sessions > 1 ? 'Returning' : 'New'}
+							{userProfile.total_sessions > 1 ? "Returning" : "New"}
 						</Badge>
 					</div>
 				</div>
@@ -311,12 +314,15 @@ export default function UserDetailPage() {
 								</span>
 							</div>
 							<div className="flex items-center gap-3">
-								<CountryFlag country={getCountryCode(userProfile.country || '')} size="md" />
+								<CountryFlag
+									country={getCountryCode(userProfile.country || "")}
+									size="md"
+								/>
 								<div className="font-medium text-foreground">
-									{userProfile.region && userProfile.region !== 'Unknown'
+									{userProfile.region && userProfile.region !== "Unknown"
 										? `${userProfile.region}, `
-										: ''}
-									{userProfile.country || 'Unknown'}
+										: ""}
+									{userProfile.country || "Unknown"}
 								</div>
 							</div>
 						</div>
@@ -379,13 +385,13 @@ export default function UserDetailPage() {
 										</div>
 										<div className="font-medium text-sm">
 											{userProfile.first_visit
-												? dayjs(userProfile.first_visit).format('MMM D, YYYY')
-												: 'Unknown'}
+												? dayjs(userProfile.first_visit).format("MMM D, YYYY")
+												: "Unknown"}
 										</div>
 										<div className="text-muted-foreground text-xs">
 											{userProfile.first_visit
-												? dayjs(userProfile.first_visit).format('HH:mm')
-												: ''}
+												? dayjs(userProfile.first_visit).format("HH:mm")
+												: ""}
 										</div>
 									</div>
 								</div>
@@ -398,13 +404,13 @@ export default function UserDetailPage() {
 										</div>
 										<div className="font-medium text-sm">
 											{userProfile.last_visit
-												? dayjs(userProfile.last_visit).format('MMM D, YYYY')
-												: 'Unknown'}
+												? dayjs(userProfile.last_visit).format("MMM D, YYYY")
+												: "Unknown"}
 										</div>
 										<div className="text-muted-foreground text-xs">
 											{userProfile.last_visit
-												? dayjs(userProfile.last_visit).format('HH:mm')
-												: ''}
+												? dayjs(userProfile.last_visit).format("HH:mm")
+												: ""}
 										</div>
 									</div>
 								</div>
@@ -416,7 +422,7 @@ export default function UserDetailPage() {
 											Total Time Spent
 										</div>
 										<div className="font-medium text-sm">
-											{userProfile.total_duration_formatted || '0s'}
+											{userProfile.total_duration_formatted || "0s"}
 										</div>
 									</div>
 								</div>
@@ -431,15 +437,15 @@ export default function UserDetailPage() {
 								<div className="divide-y">
 									{userProfile.sessions.map((session, index: number) => (
 										<SessionRow
-											key={session.session_id}
-											session={transformSession(session)}
 											index={index}
 											isExpanded={expandedSessions.has(session.session_id)}
+											key={session.session_id}
 											onToggle={handleToggleSession}
+											session={transformSession(session)}
 										/>
 									))}
 								</div>
-							) : (	
+							) : (
 								<div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center text-muted-foreground">
 									<UserIcon className="mx-auto mb-4 h-8 w-8 opacity-50" />
 									<p className="text-sm">

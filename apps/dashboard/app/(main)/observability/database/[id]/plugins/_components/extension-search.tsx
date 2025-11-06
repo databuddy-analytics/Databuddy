@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface ExtensionSearchProps {
 	search: string;
@@ -14,11 +14,11 @@ interface ExtensionSearchProps {
 export function ExtensionSearch({
 	search,
 	onSearchChange,
-	placeholder = 'Search extensions...',
-	className = '',
+	placeholder = "Search extensions...",
+	className = "",
 }: ExtensionSearchProps) {
 	const handleClear = () => {
-		onSearchChange('');
+		onSearchChange("");
 	};
 
 	return (

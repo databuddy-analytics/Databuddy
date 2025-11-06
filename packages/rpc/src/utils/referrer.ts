@@ -4,7 +4,7 @@
  * Functions for analyzing referrer URLs to extract information about traffic sources.
  */
 
-import { referrers } from '@databuddy/shared';
+import { referrers } from "@databuddy/shared/lists/referrers";
 
 export interface ReferrerInfo {
 	type: string;
@@ -22,10 +22,10 @@ export function parseReferrer(
 ): ReferrerInfo {
 	if (!referrerUrl) {
 		return {
-			type: 'direct',
-			name: 'Direct',
-			url: '',
-			domain: '',
+			type: "direct",
+			name: "Direct",
+			url: "",
+			domain: "",
 		};
 	}
 
@@ -40,10 +40,10 @@ export function parseReferrer(
 			(hostname === currentDomain || hostname.endsWith(`.${currentDomain}`))
 		) {
 			return {
-				type: 'direct',
-				name: 'Direct',
-				url: '',
-				domain: '',
+				type: "direct",
+				name: "Direct",
+				url: "",
+				domain: "",
 			};
 		}
 
@@ -61,12 +61,12 @@ export function parseReferrer(
 
 		// Try to identify type by URL pattern
 		if (
-			url.searchParams.has('q') ||
-			url.searchParams.has('query') ||
-			url.searchParams.has('search')
+			url.searchParams.has("q") ||
+			url.searchParams.has("query") ||
+			url.searchParams.has("search")
 		) {
 			return {
-				type: 'search',
+				type: "search",
 				name: hostname,
 				url: referrerUrl,
 				domain: hostname,
@@ -75,7 +75,7 @@ export function parseReferrer(
 
 		// Default to unknown with domain name
 		return {
-			type: 'unknown',
+			type: "unknown",
 			name: hostname,
 			url: referrerUrl,
 			domain: hostname,
@@ -83,10 +83,10 @@ export function parseReferrer(
 	} catch {
 		// If URL is invalid, treat as direct traffic
 		return {
-			type: 'direct',
-			name: 'Direct',
+			type: "direct",
+			name: "Direct",
 			url: referrerUrl,
-			domain: '',
+			domain: "",
 		};
 	}
 }
@@ -103,9 +103,9 @@ function getReferrerByDomain(
 	}
 
 	// Try to match with domain parts (e.g., subdomain.example.com might match example.com)
-	const domainParts = domain.split('.');
+	const domainParts = domain.split(".");
 	for (let i = 1; i < domainParts.length - 1; i++) {
-		const partialDomain = domainParts.slice(i).join('.');
+		const partialDomain = domainParts.slice(i).join(".");
 		if (partialDomain in referrers) {
 			return referrers[partialDomain];
 		}
@@ -119,18 +119,18 @@ function getReferrerByDomain(
  */
 export function categorizeReferrer(referrerInfo: ReferrerInfo): string {
 	switch (referrerInfo.type) {
-		case 'search':
-			return 'Search Engine';
-		case 'social':
-			return 'Social Media';
-		case 'email':
-			return 'Email';
-		case 'ads':
-			return 'Advertising';
-		case 'direct':
-			return 'Direct';
+		case "search":
+			return "Search Engine";
+		case "social":
+			return "Social Media";
+		case "email":
+			return "Email";
+		case "ads":
+			return "Advertising";
+		case "direct":
+			return "Direct";
 		default:
-			return 'Other';
+			return "Other";
 	}
 }
 
@@ -138,7 +138,7 @@ export function isInternalReferrer(
 	referrerUrl: string,
 	websiteHostname?: string
 ): boolean {
-	if (!referrerUrl || referrerUrl === 'direct') {
+	if (!referrerUrl || referrerUrl === "direct") {
 		return false;
 	}
 
@@ -147,8 +147,8 @@ export function isInternalReferrer(
 
 		// Check if it's localhost or contains the same hostname
 		if (
-			url.hostname === 'localhost' ||
-			url.hostname.includes('127.0.0.1') ||
+			url.hostname === "localhost" ||
+			url.hostname.includes("127.0.0.1") ||
 			(websiteHostname && url.hostname === websiteHostname)
 		) {
 			return true;

@@ -3,16 +3,16 @@ import {
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger,
-} from '@/components/ui/accordion';
+} from "@/components/ui/accordion";
 
 const faqs = [
 	{
-		question: 'How is Databuddy different from Google Analytics?',
+		question: "How is Databuddy different from Google Analytics?",
 		answer:
 			"Databuddy is built for privacy-first analytics with no cookies required, making it GDPR and CCPA compliant out of the box. Our script is 65x faster than GA4, with a <1KB footprint that won't impact your Core Web Vitals.",
 	},
 	{
-		question: 'Do I need to add cookie consent banners?',
+		question: "Do I need to add cookie consent banners?",
 		answer:
 			"No. Databuddy's analytics are completely cookieless, using privacy-preserving techniques to provide accurate analytics without tracking individual users. Our customers typically see a 30% increase in conversion rates after removing those intrusive cookie banners.",
 	},
@@ -22,7 +22,7 @@ const faqs = [
 			"Our free plan includes up to 10,000 monthly events, real-time analytics, basic event tracking, It's perfect for small websites, personal projects, or to test Databuddy before upgrading.",
 	},
 	{
-		question: 'How easy is it to implement Databuddy?',
+		question: "How easy is it to implement Databuddy?",
 		answer:
 			"Implementation takes less than 5 minutes for most websites. Simply add our lightweight script to your site (we provide easy integrations for Next.js, React, WordPress, Shopify, and more), and you'll start seeing data immediately.",
 	},

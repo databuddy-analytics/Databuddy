@@ -1,16 +1,16 @@
-import { auth, type User, websitesApi } from '@databuddy/auth';
-import type { StreamingUpdate } from '@databuddy/shared';
-import { Elysia } from 'elysia';
-import { processAssistantRequest } from '../agent/processor';
-import { createStreamingResponse } from '../agent/utils/stream-utils';
-import { validateWebsite } from '../lib/website-utils';
-import { AssistantRequestSchema, type AssistantRequestType } from '../schemas';
+import { auth, type User, websitesApi } from "@databuddy/auth";
+import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
+import { Elysia } from "elysia";
+import { processAssistantRequest } from "../agent/processor";
+import { createStreamingResponse } from "../agent/utils/stream-utils";
+import { validateWebsite } from "../lib/website-utils";
+import { AssistantRequestSchema, type AssistantRequestType } from "../schemas";
 
 function createErrorResponse(message: string): StreamingUpdate[] {
-	return [{ type: 'error', content: message }];
+	return [{ type: "error", content: message }];
 }
 
-export const assistant = new Elysia({ prefix: '/v1/assistant' })
+export const assistant = new Elysia({ prefix: "/v1/assistant" })
 	// .use(createRateLimitMiddleware({ type: 'expensive' }))
 	.derive(async ({ request }) => {
 		const session = await auth.api.getSession({ headers: request.headers });
@@ -24,18 +24,18 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 			return new Response(
 				JSON.stringify({
 					success: false,
-					error: 'Authentication required',
-					code: 'AUTH_REQUIRED',
+					error: "Authentication required",
+					code: "AUTH_REQUIRED",
 				}),
 				{
 					status: 401,
-					headers: { 'Content-Type': 'application/json' },
+					headers: { "Content-Type": "application/json" },
 				}
 			);
 		}
 	})
 	.post(
-		'/stream',
+		"/stream",
 		async ({
 			body,
 			user,
@@ -49,14 +49,14 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				const websiteValidation = await validateWebsite(body.websiteId);
 				if (!websiteValidation.success) {
 					return createStreamingResponse(
-						createErrorResponse(websiteValidation.error || 'Website not found')
+						createErrorResponse(websiteValidation.error || "Website not found")
 					);
 				}
 
 				const { website } = websiteValidation;
 				if (!website) {
 					return createStreamingResponse(
-						createErrorResponse('Website not found')
+						createErrorResponse("Website not found")
 					);
 				}
 
@@ -66,7 +66,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 					if (website.organizationId) {
 						const { success } = await websitesApi.hasPermission({
 							headers: request.headers,
-							body: { permissions: { website: ['read'] } },
+							body: { permissions: { website: ["read"] } },
 						});
 						authorized = success;
 					} else {
@@ -77,7 +77,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				if (!authorized) {
 					return createStreamingResponse(
 						createErrorResponse(
-							'You do not have permission to access this website'
+							"You do not have permission to access this website"
 						)
 					);
 				}
@@ -86,7 +86,7 @@ export const assistant = new Elysia({ prefix: '/v1/assistant' })
 				return createStreamingResponse(updates);
 			} catch (error) {
 				const errorMessage =
-					error instanceof Error ? error.message : 'Unknown error occurred';
+					error instanceof Error ? error.message : "Unknown error occurred";
 				return createStreamingResponse(createErrorResponse(errorMessage));
 			}
 		},

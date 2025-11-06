@@ -1,6 +1,6 @@
-'use server';
+"use server";
 
-import type { QueryBuilderMeta } from '@databuddy/shared';
+import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
 
 interface QueryConfig {
 	allowedFilters: string[];
@@ -19,7 +19,7 @@ interface QueryTypesResponse {
 }
 
 const API_BASE_URL =
-	process.env.NEXT_PUBLIC_API_URL || 'https://api.databuddy.cc';
+	process.env.NEXT_PUBLIC_API_URL || "https://api.databuddy.cc";
 
 export async function getQueryTypes(
 	includeMeta = false
@@ -27,16 +27,16 @@ export async function getQueryTypes(
 	try {
 		const url = new URL(`${API_BASE_URL}/v1/query/types`);
 		if (includeMeta) {
-			url.searchParams.set('include_meta', 'true');
+			url.searchParams.set("include_meta", "true");
 		}
 
 		const response = await fetch(url.toString(), {
-			method: 'GET',
+			method: "GET",
 			headers: {
-				'Content-Type': 'application/json',
-				'X-Api-Key': process.env.DATABUDDY_API_KEY as string,
+				"Content-Type": "application/json",
+				"X-Api-Key": process.env.DATABUDDY_API_KEY as string,
 			},
-			cache: 'force-cache',
+			cache: "force-cache",
 		});
 
 		if (!response.ok) {
@@ -46,7 +46,7 @@ export async function getQueryTypes(
 		const data = (await response.json()) as QueryTypesResponse;
 		return data;
 	} catch (error) {
-		console.error('Failed to fetch query types:', error);
+		console.error("Failed to fetch query types:", error);
 		return {
 			success: false,
 			types: [],

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import type { IconWeight } from '@phosphor-icons/react';
+import type { IconWeight } from "@phosphor-icons/react";
 import {
 	CrownIcon,
 	DiamondIcon,
@@ -8,9 +8,9 @@ import {
 	StarIcon,
 	TrophyIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import { SciFiCard } from '@/components/scifi-card';
-import { cn } from '@/lib/utils';
+} from "@phosphor-icons/react";
+import { SciFiCard } from "@/components/scifi-card";
+import { cn } from "@/lib/utils";
 
 interface Reward {
 	icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;
@@ -24,53 +24,53 @@ interface Reward {
 const rewards: Reward[] = [
 	{
 		icon: DiamondIcon,
-		title: 'Free Premium Access',
-		description: 'Lifetime access to all premium features and analytics',
-		value: '$99/month value',
+		title: "Free Premium Access",
+		description: "Lifetime access to all premium features and analytics",
+		value: "$99/month value",
 		highlight: true,
 	},
 	{
 		icon: GiftIcon,
-		title: 'Exclusive Swag',
-		description: 'Limited edition Databuddy merchandise and swag box',
-		value: '$150 value',
+		title: "Exclusive Swag",
+		description: "Limited edition Databuddy merchandise and swag box",
+		value: "$150 value",
 		soon: true,
 	},
 	{
 		icon: StarIcon,
-		title: 'Early Access',
-		description: 'First access to new features and beta releases',
-		value: 'Priceless',
+		title: "Early Access",
+		description: "First access to new features and beta releases",
+		value: "Priceless",
 	},
 	{
 		icon: UsersIcon,
-		title: 'Private Community',
-		description: 'Access to exclusive ambassador-only Discord channels',
-		value: 'Exclusive',
+		title: "Private Community",
+		description: "Access to exclusive ambassador-only Discord channels",
+		value: "Exclusive",
 	},
 	{
 		icon: TrophyIcon,
-		title: 'Revenue Share',
-		description: 'Earn commission on referrals and partnerships',
-		value: 'Up to 30%',
+		title: "Revenue Share",
+		description: "Earn commission on referrals and partnerships",
+		value: "Up to 30%",
 		highlight: true,
 		soon: true,
 	},
 	{
 		icon: CrownIcon,
-		title: 'VIP Support',
-		description: 'Priority support and direct line to our team',
-		value: 'Premium',
+		title: "VIP Support",
+		description: "Priority support and direct line to our team",
+		value: "Premium",
 	},
 ];
 
 function RewardCard({ reward }: { reward: Reward }) {
 	return (
-		<SciFiCard variant={reward.highlight ? 'primary' : 'foreground'}>
+		<SciFiCard variant={reward.highlight ? "primary" : "foreground"}>
 			<div
 				className={cn(
-					'relative h-full rounded border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg',
-					reward.highlight ? 'border-primary/50 bg-primary/5' : 'border-border'
+					"relative h-full rounded border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg",
+					reward.highlight ? "border-primary/50 bg-primary/5" : "border-border"
 				)}
 			>
 				<div className="flex flex-col p-6">
@@ -79,7 +79,7 @@ function RewardCard({ reward }: { reward: Reward }) {
 						<div className="flex items-center gap-2">
 							<reward.icon
 								className={`h-8 w-8 ${
-									reward.highlight ? 'text-primary' : 'text-muted-foreground'
+									reward.highlight ? "text-primary" : "text-muted-foreground"
 								} transition-colors duration-300 group-hover:text-foreground`}
 								weight="duotone"
 							/>
@@ -92,8 +92,8 @@ function RewardCard({ reward }: { reward: Reward }) {
 						<span
 							className={`rounded-full px-2 py-1 font-medium text-xs ${
 								reward.highlight
-									? 'bg-primary/20 text-primary'
-									: 'bg-muted/50 text-muted-foreground'
+									? "bg-primary/20 text-primary"
+									: "bg-muted/50 text-muted-foreground"
 							}`}
 						>
 							{reward.value}
@@ -104,7 +104,7 @@ function RewardCard({ reward }: { reward: Reward }) {
 					<div className="flex-1">
 						<h3
 							className={`mb-2 font-semibold text-lg transition-colors group-hover:text-primary ${
-								reward.highlight ? 'text-foreground' : 'text-foreground'
+								reward.highlight ? "text-foreground" : "text-foreground"
 							}`}
 						>
 							{reward.title}

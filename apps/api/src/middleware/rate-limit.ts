@@ -1,7 +1,7 @@
-import { auth } from '@databuddy/auth';
-import { cacheable } from '@databuddy/redis';
-import { Elysia } from 'elysia';
-import { checkRateLimit, type RateLimitOptions } from '../lib/rate-limit';
+import { auth } from "@databuddy/auth";
+import { cacheable } from "@databuddy/redis";
+import { Elysia } from "elysia";
+import { checkRateLimit, type RateLimitOptions } from "../lib/rate-limit";
 
 export interface RateLimitMiddlewareOptions extends RateLimitOptions {
 	errorMessage?: string;
@@ -18,7 +18,7 @@ const getCachedAuthSession = cacheable(
 	},
 	{
 		expireInSec: 30,
-		prefix: 'rate-limit-auth',
+		prefix: "rate-limit-auth",
 		staleWhileRevalidate: true,
 		staleTime: 15,
 	}
@@ -26,13 +26,13 @@ const getCachedAuthSession = cacheable(
 
 export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 	const {
-		errorMessage = 'Rate limit exceeded. Please try again later.',
+		errorMessage = "Rate limit exceeded. Please try again later.",
 		includeHeaders = true,
 		...rateLimitOptions
 	} = options;
 
 	return new Elysia().onRequest(async ({ request, set }) => {
-		if (request.url.includes('/trpc/')) {
+		if (request.url.includes("/trpc/")) {
 			return;
 		}
 
@@ -45,9 +45,9 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 		const result = await checkRateLimit(request, rateLimitOptions, userId);
 
 		if (includeHeaders && set.headers) {
-			set.headers['X-RateLimit-Limit'] = result.limit.toString();
-			set.headers['X-RateLimit-Remaining'] = result.remaining.toString();
-			set.headers['X-RateLimit-Reset'] = Math.ceil(
+			set.headers["X-RateLimit-Limit"] = result.limit.toString();
+			set.headers["X-RateLimit-Remaining"] = result.remaining.toString();
+			set.headers["X-RateLimit-Reset"] = Math.ceil(
 				result.reset.getTime() / 1000
 			).toString();
 		}
@@ -56,7 +56,7 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 			const errorResponse = {
 				success: false,
 				error: errorMessage,
-				code: 'RATE_LIMIT_EXCEEDED',
+				code: "RATE_LIMIT_EXCEEDED",
 				limit: result.limit,
 				remaining: result.remaining,
 				reset: result.reset.toISOString(),
@@ -66,10 +66,10 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 			return new Response(JSON.stringify(errorResponse), {
 				status: 429,
 				headers: {
-					'Content-Type': 'application/json',
-					'X-RateLimit-Limit': result.limit.toString(),
-					'X-RateLimit-Remaining': result.remaining.toString(),
-					'X-RateLimit-Reset': Math.ceil(
+					"Content-Type": "application/json",
+					"X-RateLimit-Limit": result.limit.toString(),
+					"X-RateLimit-Remaining": result.remaining.toString(),
+					"X-RateLimit-Reset": Math.ceil(
 						result.reset.getTime() / 1000
 					).toString(),
 				},
@@ -81,48 +81,48 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 export const rateLimitMiddlewares = {
 	public: () =>
 		createRateLimitMiddleware({
-			type: 'public',
+			type: "public",
 			skipAuth: true,
-			errorMessage: 'Too many requests. Please try again in a minute.',
+			errorMessage: "Too many requests. Please try again in a minute.",
 		}),
 
 	api: () =>
 		createRateLimitMiddleware({
-			type: 'api',
-			errorMessage: 'API rate limit exceeded. Please try again later.',
+			type: "api",
+			errorMessage: "API rate limit exceeded. Please try again later.",
 		}),
 
 	auth: () =>
 		createRateLimitMiddleware({
-			type: 'auth',
+			type: "auth",
 			skipAuth: true,
-			errorMessage: 'Too many authentication attempts.',
+			errorMessage: "Too many authentication attempts.",
 		}),
 
 	expensive: () =>
 		createRateLimitMiddleware({
-			type: 'expensive',
-			errorMessage: 'Rate limit exceeded. Please wait before retrying.',
+			type: "expensive",
+			errorMessage: "Rate limit exceeded. Please wait before retrying.",
 		}),
 
 	admin: () =>
 		createRateLimitMiddleware({
-			type: 'admin',
-			errorMessage: 'Admin rate limit exceeded.',
+			type: "admin",
+			errorMessage: "Admin rate limit exceeded.",
 		}),
 
 	batch: (rate: number) =>
 		createRateLimitMiddleware({
-			type: 'api',
+			type: "api",
 			rate,
-			errorMessage: 'Batch operation rate limit exceeded.',
+			errorMessage: "Batch operation rate limit exceeded.",
 		}),
 };
 
 export function createCustomRateLimitMiddleware(
 	requests: number,
 	window: string,
-	type: RateLimitOptions['type'] = 'api',
+	type: RateLimitOptions["type"] = "api",
 	options?: Partial<RateLimitMiddlewareOptions>
 ) {
 	return createRateLimitMiddleware({

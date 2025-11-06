@@ -1,9 +1,9 @@
-import { KeyIcon, PlusIcon } from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import { trpc } from '@/lib/trpc';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Skeleton } from '../ui/skeleton';
+import { KeyIcon, PlusIcon } from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { trpc } from "@/lib/trpc";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -11,8 +11,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from '../ui/table';
-import type { ApiKeyListItem } from './api-key-types';
+} from "../ui/table";
+import type { ApiKeyListItem } from "./api-key-types";
 
 interface ApiKeyListProps {
 	organizationId?: string;
@@ -38,7 +38,7 @@ function ApiKeyListSkeleton() {
 						<Skeleton className="h-4 w-20 rounded" />
 					</div>
 				</div>
-				{['row-a', 'row-b', 'row-c'].map((key) => (
+				{["row-a", "row-b", "row-c"].map((key) => (
 					<div
 						className="border-border/30 border-b px-6 py-4 last:border-b-0"
 						key={key}
@@ -108,7 +108,7 @@ export function ApiKeyList({
 						<div>
 							<h3 className="font-medium text-sm">API Keys</h3>
 							<p className="text-muted-foreground text-xs">
-								{items.length} active key{items.length !== 1 ? 's' : ''}
+								{items.length} active key{items.length !== 1 ? "s" : ""}
 							</p>
 						</div>
 						<Button onClick={onCreateNew} size="sm" type="button">
@@ -171,10 +171,10 @@ export function ApiKeyList({
 											)}
 										</TableCell>
 										<TableCell className="px-6 py-4 text-muted-foreground text-xs">
-											{dayjs(k.createdAt).format('MMM D, YYYY')}
+											{dayjs(k.createdAt).format("MMM D, YYYY")}
 										</TableCell>
 										<TableCell className="px-6 py-4 text-muted-foreground text-xs">
-											{dayjs(k.updatedAt).format('MMM D, YYYY')}
+											{dayjs(k.updatedAt).format("MMM D, YYYY")}
 										</TableCell>
 										<TableCell className="px-6 py-4 text-right">
 											<Button

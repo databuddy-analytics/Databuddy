@@ -9,10 +9,10 @@ import type {
 	VercelProject,
 	VercelProjectsResponse,
 	VercelProjectWithDomain,
-} from '@databuddy/shared';
+} from "@databuddy/shared/types/vercel";
 
 export class VercelSDK {
-	private baseUrl = 'https://api.vercel.com';
+	private baseUrl = "https://api.vercel.com";
 	private token: string;
 
 	constructor(token: string) {
@@ -28,7 +28,7 @@ export class VercelSDK {
 			...options,
 			headers: {
 				Authorization: `Bearer ${this.token}`,
-				'Content-Type': 'application/json',
+				"Content-Type": "application/json",
 				...options.headers,
 			},
 		});
@@ -47,17 +47,17 @@ export class VercelSDK {
 	): Promise<VercelProjectsResponse> {
 		const searchParams = new URLSearchParams();
 		if (params.limit) {
-			searchParams.set('limit', params.limit);
+			searchParams.set("limit", params.limit);
 		}
 		if (params.since) {
-			searchParams.set('since', params.since.toString());
+			searchParams.set("since", params.since.toString());
 		}
 		if (params.until) {
-			searchParams.set('until', params.until.toString());
+			searchParams.set("until", params.until.toString());
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v10/projects${query ? `?${query}` : ''}`;
+		const endpoint = `/v10/projects${query ? `?${query}` : ""}`;
 
 		const response = await this.request<{
 			projects: VercelProject[];
@@ -74,7 +74,7 @@ export class VercelSDK {
 				if (project.latestDeployments?.length) {
 					const productionDeployment = project.latestDeployments.find(
 						(deployment) =>
-							deployment.target === 'production' || deployment.target === null
+							deployment.target === "production" || deployment.target === null
 					);
 
 					if (productionDeployment) {
@@ -83,7 +83,7 @@ export class VercelSDK {
 							// Find the first non-vercel.app domain, or fallback to first alias
 							primaryDomain =
 								productionDeployment.alias.find(
-									(domain) => !domain.endsWith('.vercel.app')
+									(domain) => !domain.endsWith(".vercel.app")
 								) || productionDeployment.alias[0];
 						} else if (productionDeployment.automaticAliases?.length) {
 							primaryDomain = productionDeployment.automaticAliases[0];
@@ -100,7 +100,7 @@ export class VercelSDK {
 						if (firstDeployment.alias?.length) {
 							primaryDomain =
 								firstDeployment.alias.find(
-									(domain) => !domain.endsWith('.vercel.app')
+									(domain) => !domain.endsWith(".vercel.app")
 								) || firstDeployment.alias[0];
 						} else if (firstDeployment.automaticAliases?.length) {
 							primaryDomain = firstDeployment.automaticAliases[0];
@@ -140,17 +140,17 @@ export class VercelSDK {
 	): Promise<CreateEnvVarResponse> {
 		const searchParams = new URLSearchParams();
 		if (options.upsert) {
-			searchParams.set('upsert', 'true');
+			searchParams.set("upsert", "true");
 		}
 		if (options.teamId) {
-			searchParams.set('teamId', options.teamId);
+			searchParams.set("teamId", options.teamId);
 		}
 		if (options.slug) {
-			searchParams.set('slug', options.slug);
+			searchParams.set("slug", options.slug);
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v10/projects/${projectId}/env${query ? `?${query}` : ''}`;
+		const endpoint = `/v10/projects/${projectId}/env${query ? `?${query}` : ""}`;
 
 		// Prepare the request body - ensure required fields are present
 		const requestBody: CreateEnvVarRequest = {
@@ -167,11 +167,11 @@ export class VercelSDK {
 
 		// Validate that either target or customEnvironmentIds is provided
 		if (!(requestBody.target || requestBody.customEnvironmentIds)) {
-			requestBody.target = ['production']; // Default to production if neither is specified
+			requestBody.target = ["production"]; // Default to production if neither is specified
 		}
 
 		return await this.request<CreateEnvVarResponse>(endpoint, {
-			method: 'POST',
+			method: "POST",
 			body: JSON.stringify(requestBody),
 		});
 	}
@@ -187,17 +187,17 @@ export class VercelSDK {
 	): Promise<CreateEnvVarResponse> {
 		const searchParams = new URLSearchParams();
 		if (options.upsert) {
-			searchParams.set('upsert', 'true');
+			searchParams.set("upsert", "true");
 		}
 		if (options.teamId) {
-			searchParams.set('teamId', options.teamId);
+			searchParams.set("teamId", options.teamId);
 		}
 		if (options.slug) {
-			searchParams.set('slug', options.slug);
+			searchParams.set("slug", options.slug);
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v10/projects/${projectId}/env${query ? `?${query}` : ''}`;
+		const endpoint = `/v10/projects/${projectId}/env${query ? `?${query}` : ""}`;
 
 		// Prepare the request body array
 		const requestBody = envVars.map((envVar) => {
@@ -215,14 +215,14 @@ export class VercelSDK {
 
 			// Validate that either target or customEnvironmentIds is provided
 			if (!(body.target || body.customEnvironmentIds)) {
-				body.target = ['production']; // Default to production if neither is specified
+				body.target = ["production"]; // Default to production if neither is specified
 			}
 
 			return body;
 		});
 
 		return await this.request<CreateEnvVarResponse>(endpoint, {
-			method: 'POST',
+			method: "POST",
 			body: JSON.stringify(requestBody),
 		});
 	}
@@ -245,41 +245,41 @@ export class VercelSDK {
 	): Promise<VercelDomainsResponse> {
 		const searchParams = new URLSearchParams();
 		if (params.production) {
-			searchParams.set('production', params.production);
+			searchParams.set("production", params.production);
 		}
 		if (params.target) {
-			searchParams.set('target', params.target);
+			searchParams.set("target", params.target);
 		}
 		if (params.customEnvironmentId) {
-			searchParams.set('customEnvironmentId', params.customEnvironmentId);
+			searchParams.set("customEnvironmentId", params.customEnvironmentId);
 		}
 		if (params.gitBranch) {
-			searchParams.set('gitBranch', params.gitBranch);
+			searchParams.set("gitBranch", params.gitBranch);
 		}
 		if (params.redirects) {
-			searchParams.set('redirects', params.redirects);
+			searchParams.set("redirects", params.redirects);
 		}
 		if (params.redirect) {
-			searchParams.set('redirect', params.redirect);
+			searchParams.set("redirect", params.redirect);
 		}
 		if (params.verified) {
-			searchParams.set('verified', params.verified);
+			searchParams.set("verified", params.verified);
 		}
 		if (params.limit) {
-			searchParams.set('limit', params.limit.toString());
+			searchParams.set("limit", params.limit.toString());
 		}
 		if (params.since) {
-			searchParams.set('since', params.since.toString());
+			searchParams.set("since", params.since.toString());
 		}
 		if (params.until) {
-			searchParams.set('until', params.until.toString());
+			searchParams.set("until", params.until.toString());
 		}
 		if (params.order) {
-			searchParams.set('order', params.order);
+			searchParams.set("order", params.order);
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v9/projects/${projectId}/domains${query ? `?${query}` : ''}`;
+		const endpoint = `/v9/projects/${projectId}/domains${query ? `?${query}` : ""}`;
 
 		return await this.request<VercelDomainsResponse>(endpoint);
 	}
@@ -295,17 +295,17 @@ export class VercelSDK {
 	): Promise<VercelEnvVar> {
 		const searchParams = new URLSearchParams();
 		if (options.teamId) {
-			searchParams.set('teamId', options.teamId);
+			searchParams.set("teamId", options.teamId);
 		}
 		if (options.slug) {
-			searchParams.set('slug', options.slug);
+			searchParams.set("slug", options.slug);
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ''}`;
+		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ""}`;
 
 		return await this.request<VercelEnvVar>(endpoint, {
-			method: 'PATCH',
+			method: "PATCH",
 			body: JSON.stringify(envVar),
 		});
 	}
@@ -321,20 +321,20 @@ export class VercelSDK {
 	): Promise<VercelEnvVar[]> {
 		const searchParams = new URLSearchParams();
 		if (options.customEnvironmentId) {
-			searchParams.set('customEnvironmentId', options.customEnvironmentId);
+			searchParams.set("customEnvironmentId", options.customEnvironmentId);
 		}
 		if (options.teamId) {
-			searchParams.set('teamId', options.teamId);
+			searchParams.set("teamId", options.teamId);
 		}
 		if (options.slug) {
-			searchParams.set('slug', options.slug);
+			searchParams.set("slug", options.slug);
 		}
 
 		const query = searchParams.toString();
-		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ''}`;
+		const endpoint = `/v9/projects/${projectId}/env/${envVarId}${query ? `?${query}` : ""}`;
 
 		return await this.request<VercelEnvVar[]>(endpoint, {
-			method: 'DELETE',
+			method: "DELETE",
 		});
 	}
 
@@ -396,8 +396,8 @@ export class VercelSDK {
 		const createRequest: CreateEnvVarRequest = {
 			key,
 			value: envVar.value,
-			type: envVar.type || 'plain',
-			target: envVar.target || ['production'],
+			type: envVar.type || "plain",
+			target: envVar.target || ["production"],
 			gitBranch: envVar.gitBranch,
 			comment: envVar.comment,
 		};
@@ -438,6 +438,6 @@ export class VercelSDK {
 	}> {
 		return await this.request<{
 			user: { id: string; username: string; email: string };
-		}>('/v2/user');
+		}>("/v2/user");
 	}
 }

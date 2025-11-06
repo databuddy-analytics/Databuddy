@@ -1,17 +1,17 @@
-import { CheckIcon, CircleNotchIcon, StarIcon } from '@phosphor-icons/react';
-import type { Product, ProductItem } from 'autumn-js';
+import { CheckIcon, CircleNotchIcon, StarIcon } from "@phosphor-icons/react";
+import type { Product, ProductItem } from "autumn-js";
 import {
 	type ProductDetails,
 	useCustomer,
 	usePricingTable,
-} from 'autumn-js/react';
-import React, { createContext, useCallback, useContext, useState } from 'react';
-import { PricingTiersTooltip } from '@/app/(main)/billing/components/pricing-tiers-tooltip';
-import AttachDialog from '@/components/autumn/attach-dialog';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { getPricingTableContent } from '@/lib/autumn/pricing-table-content';
-import { cn } from '@/lib/utils';
+} from "autumn-js/react";
+import React, { createContext, useCallback, useContext, useState } from "react";
+import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
+import AttachDialog from "@/components/autumn/attach-dialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
+import { cn } from "@/lib/utils";
 
 const PricingTableSkeleton = () => (
 	<div
@@ -47,10 +47,10 @@ export default function PricingTable({
 	});
 
 	const summary =
-		'All plans include unlimited team members, full analytics, and priority support.';
+		"All plans include unlimited team members, full analytics, and priority support.";
 
 	const handleRetry = useCallback(() => {
-		if (typeof refetch === 'function') {
+		if (typeof refetch === "function") {
 			refetch();
 		}
 	}, [refetch]);
@@ -105,16 +105,16 @@ export default function PricingTable({
 
 		if (multiInterval) {
 			if (isAnnual) {
-				return product.properties?.interval_group === 'year';
+				return product.properties?.interval_group === "year";
 			}
-			return product.properties?.interval_group === 'month';
+			return product.properties?.interval_group === "month";
 		}
 
 		return true;
 	};
 
 	return (
-		<section aria-labelledby="pricing-table-title" className={cn('root')}>
+		<section aria-labelledby="pricing-table-title" className={cn("root")}>
 			<div className="mx-auto mb-4 flex w-full max-w-2xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 				<div
 					className="flex-1 rounded border bg-secondary/60 p-4 text-center font-medium text-base text-foreground shadow-sm sm:text-left"
@@ -128,10 +128,10 @@ export default function PricingTable({
 							<button
 								aria-pressed={!isAnnual}
 								className={cn(
-									'rounded-full px-4 py-1 font-medium text-sm transition focus:outline-none',
+									"rounded-full px-4 py-1 font-medium text-sm transition focus:outline-none",
 									isAnnual
-										? 'bg-transparent text-foreground'
-										: 'bg-primary text-primary-foreground shadow'
+										? "bg-transparent text-foreground"
+										: "bg-primary text-primary-foreground shadow"
 								)}
 								onClick={() => setIsAnnual(false)}
 								type="button"
@@ -141,10 +141,10 @@ export default function PricingTable({
 							<button
 								aria-pressed={isAnnual}
 								className={cn(
-									'rounded-full px-4 py-1 font-medium text-sm transition focus:outline-none',
+									"rounded-full px-4 py-1 font-medium text-sm transition focus:outline-none",
 									isAnnual
-										? 'bg-primary text-primary-foreground shadow'
-										: 'bg-transparent text-foreground'
+										? "bg-primary text-primary-foreground shadow"
+										: "bg-transparent text-foreground"
 								)}
 								onClick={() => setIsAnnual(true)}
 								type="button"
@@ -164,19 +164,19 @@ export default function PricingTable({
 					setIsAnnualToggle={setIsAnnual}
 				>
 					{products
-						.filter((p) => p.id !== 'free' && intervalFilter(p))
+						.filter((p) => p.id !== "free" && intervalFilter(p))
 						.map((plan) => (
 							<PricingCard
 								buttonProps={{
 									disabled:
-										plan.scenario === 'active' || plan.scenario === 'scheduled',
+										plan.scenario === "active" || plan.scenario === "scheduled",
 									onClick: async () => {
 										await attach({
 											productId: plan.id,
 											dialog: AttachDialog,
 										});
 									},
-									'aria-label': plan.display?.recommend_text
+									"aria-label": plan.display?.recommend_text
 										? `Select recommended plan: ${plan.display?.name}`
 										: `Select plan: ${plan.display?.name}`,
 								}}
@@ -200,7 +200,7 @@ const PricingTableContext = createContext<{
 }>({
 	isAnnualToggle: false,
 	setIsAnnualToggle: () => {
-		throw new Error('setIsAnnualToggle is not implemented');
+		throw new Error("setIsAnnualToggle is not implemented");
 	},
 	products: [],
 	showFeatures: true,
@@ -237,7 +237,7 @@ export const PricingTableContainer = ({
 	selectedPlan?: string | null;
 }) => {
 	if (!products) {
-		throw new Error('products is required in <PricingTable />');
+		throw new Error("products is required in <PricingTable />");
 	}
 
 	if (products.length === 0) {
@@ -256,12 +256,12 @@ export const PricingTableContainer = ({
 			}}
 		>
 			<div
-				className={cn('flex flex-col items-center', hasRecommended && '!py-10')}
+				className={cn("flex flex-col items-center", hasRecommended && "!py-10")}
 			>
 				{multiInterval && (
 					<div
 						className={cn(
-							products.some((p) => p.display?.recommend_text) && 'mb-8'
+							products.some((p) => p.display?.recommend_text) && "mb-8"
 						)}
 					>
 						<AnnualSwitch
@@ -272,7 +272,7 @@ export const PricingTableContainer = ({
 				)}
 				<div
 					className={cn(
-						'grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]',
+						"grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
 						className
 					)}
 				>
@@ -288,7 +288,7 @@ interface PricingCardProps {
 	showFeatures?: boolean;
 	className?: string;
 	onButtonClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-	buttonProps?: React.ComponentProps<'button'>;
+	buttonProps?: React.ComponentProps<"button">;
 	isSelected?: boolean;
 }
 
@@ -298,7 +298,7 @@ export const PricingCard = ({
 	buttonProps,
 	isSelected = false,
 }: PricingCardProps) => {
-	const { products, showFeatures } = usePricingTableContext('PricingCard');
+	const { products, showFeatures } = usePricingTableContext("PricingCard");
 
 	const product = products.find((p) => p.id === productId);
 
@@ -310,7 +310,7 @@ export const PricingCard = ({
 
 	const { buttonText: defaultButtonText } = getPricingTableContent(product);
 	const isRecommended = !!productDisplay?.recommend_text;
-	const { selectedPlan } = usePricingTableContext('PricingCard');
+	const { selectedPlan } = usePricingTableContext("PricingCard");
 
 	// Customize button text for selected plans
 	const buttonText =
@@ -321,25 +321,25 @@ export const PricingCard = ({
 		);
 	const mainPriceDisplay = product.properties?.is_free
 		? {
-				primary_text: 'Free',
+				primary_text: "Free",
 			}
 		: product.items[0].display;
 
 	let supportLevel: { display: { primary_text: string } } | null = null;
 	switch (product.id) {
-		case 'free':
-			supportLevel = { display: { primary_text: 'Community Support' } };
+		case "free":
+			supportLevel = { display: { primary_text: "Community Support" } };
 			break;
-		case 'hobby':
-			supportLevel = { display: { primary_text: 'Email Support' } };
+		case "hobby":
+			supportLevel = { display: { primary_text: "Email Support" } };
 			break;
-		case 'pro':
-			supportLevel = { display: { primary_text: 'Priority Email Support' } };
+		case "pro":
+			supportLevel = { display: { primary_text: "Priority Email Support" } };
 			break;
-		case 'scale':
-		case 'buddy':
+		case "scale":
+		case "buddy":
 			supportLevel = {
-				display: { primary_text: 'Priority Email + Slack Support' },
+				display: { primary_text: "Priority Email + Slack Support" },
 			};
 			break;
 		default:
@@ -347,12 +347,12 @@ export const PricingCard = ({
 	}
 
 	const extraFeatures: { display: { primary_text: string } }[] = [
-		'scale',
-		'buddy',
+		"scale",
+		"buddy",
 	].includes(product.id)
 		? [
-				{ display: { primary_text: 'White Glove Onboarding' } },
-				{ display: { primary_text: 'Beta/Early Access' } },
+				{ display: { primary_text: "White Glove Onboarding" } },
+				{ display: { primary_text: "Beta/Early Access" } },
 			]
 		: [];
 
@@ -367,20 +367,20 @@ export const PricingCard = ({
 	return (
 		<div
 			className={cn(
-				'relative h-full w-full max-w-xl rounded-lg border py-6 text-foreground shadow-sm transition-all duration-300',
+				"relative h-full w-full max-w-xl rounded-lg border py-6 text-foreground shadow-sm transition-all duration-300",
 				isRecommended &&
-					'lg:-translate-y-6 animate-recommended-glow border-primary bg-secondary/40 lg:h-[calc(100%+48px)] lg:shadow-lg dark:shadow-zinc-800/80',
-				isSelected && 'border-primary bg-primary/5 ring-2 ring-primary/20',
+					"lg:-translate-y-6 animate-recommended-glow border-primary bg-secondary/40 lg:h-[calc(100%+48px)] lg:shadow-lg dark:shadow-zinc-800/80",
+				isSelected && "border-primary bg-primary/5 ring-2 ring-primary/20",
 				className
 			)}
 		>
 			{isRecommended && (
-				<RecommendedBadge recommended={productDisplay?.recommend_text ?? ''} />
+				<RecommendedBadge recommended={productDisplay?.recommend_text ?? ""} />
 			)}
 			<div
 				className={cn(
-					'flex h-full flex-grow flex-col',
-					isRecommended && 'lg:translate-y-6'
+					"flex h-full flex-grow flex-col",
+					isRecommended && "lg:translate-y-6"
 				)}
 			>
 				<div className="h-full">
@@ -405,7 +405,7 @@ export const PricingCard = ({
 						<div className="mb-2">
 							<h3 className="mb-4 flex h-16 items-center border-y bg-secondary/40 px-6 font-semibold">
 								<div className="line-clamp-2">
-									{product.id === 'hobby' ? (
+									{product.id === "hobby" ? (
 										<div className="flex flex-col gap-1">
 											<div className="flex items-center gap-2">
 												<span className="text-muted-foreground text-xs line-through">
@@ -421,7 +421,7 @@ export const PricingCard = ({
 										</div>
 									) : (
 										<>
-											{mainPriceDisplay?.primary_text}{' '}
+											{mainPriceDisplay?.primary_text}{" "}
 											{mainPriceDisplay?.secondary_text && (
 												<span className="mt-1 font-normal text-muted-foreground">
 													{mainPriceDisplay?.secondary_text}
@@ -443,7 +443,7 @@ export const PricingCard = ({
 						</div>
 					)}
 				</div>
-				<div className={cn(' px-6 ', isRecommended && 'lg:-translate-y-12')}>
+				<div className={cn("px-6", isRecommended && "lg:-translate-y-12")}>
 					<PricingCardButton
 						recommended={!!productDisplay?.recommend_text}
 						{...buttonProps}
@@ -466,58 +466,56 @@ export const PricingFeatureList = ({
 	showIcon?: boolean;
 	everythingFrom?: string;
 	className?: string;
-}) => {
-	return (
-		<div className={cn('flex-grow', className)}>
-			{everythingFrom && (
-				<p className="mb-4 text-sm">Everything from {everythingFrom}, plus:</p>
-			)}
-			<div className="space-y-3">
-				{items.map((item) => {
-					const featureItem = item as any;
-					let secondaryText = featureItem.display?.secondary_text;
+}) => (
+	<div className={cn("flex-grow", className)}>
+		{everythingFrom && (
+			<p className="mb-4 text-sm">Everything from {everythingFrom}, plus:</p>
+		)}
+		<div className="space-y-3">
+			{items.map((item) => {
+				const featureItem = item as any;
+				let secondaryText = featureItem.display?.secondary_text;
 
-					const hasTiers =
-						featureItem.type === 'priced_feature' &&
-						featureItem.tiers?.length > 0;
+				const hasTiers =
+					featureItem.type === "priced_feature" &&
+					featureItem.tiers?.length > 0;
 
-					if (hasTiers) {
-						secondaryText = 'Usage-based pricing';
-					}
+				if (hasTiers) {
+					secondaryText = "Usage-based pricing";
+				}
 
-					return (
-						<div
-							className="flex items-start gap-2 text-sm"
-							key={featureItem.display?.primary_text}
-						>
-							{showIcon && (
-								<CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-							)}
-							<div className="flex flex-col">
-								<span>{featureItem.display?.primary_text}</span>
-								<div className="flex items-center gap-1">
-									{secondaryText && (
-										<span className="text-muted-foreground text-sm">
-											{secondaryText}
-										</span>
-									)}
-									{hasTiers && (
-										<PricingTiersTooltip
-											showText={false}
-											tiers={featureItem.tiers}
-										/>
-									)}
-								</div>
+				return (
+					<div
+						className="flex items-start gap-2 text-sm"
+						key={featureItem.display?.primary_text}
+					>
+						{showIcon && (
+							<CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+						)}
+						<div className="flex flex-col">
+							<span>{featureItem.display?.primary_text}</span>
+							<div className="flex items-center gap-1">
+								{secondaryText && (
+									<span className="text-muted-foreground text-sm">
+										{secondaryText}
+									</span>
+								)}
+								{hasTiers && (
+									<PricingTiersTooltip
+										showText={false}
+										tiers={featureItem.tiers}
+									/>
+								)}
 							</div>
 						</div>
-					);
-				})}
-			</div>
+					</div>
+				);
+			})}
 		</div>
-	);
-};
+	</div>
+);
 
-export interface PricingCardButtonProps extends React.ComponentProps<'button'> {
+export interface PricingCardButtonProps extends React.ComponentProps<"button"> {
 	recommended?: boolean;
 	buttonUrl?: string;
 }
@@ -542,14 +540,14 @@ export const PricingCardButton = React.forwardRef<
 	return (
 		<Button
 			className={cn(
-				'group relative w-full overflow-hidden rounded-lg border px-4 py-3 transition-all duration-300 hover:brightness-90',
+				"group relative w-full overflow-hidden rounded-lg border px-4 py-3 transition-all duration-300 hover:brightness-90",
 				className
 			)}
 			{...props}
 			disabled={loading || props.disabled}
 			onClick={handleClick}
 			ref={ref}
-			variant={recommended ? 'default' : 'secondary'}
+			variant={recommended ? "default" : "secondary"}
 		>
 			{loading ? (
 				<CircleNotchIcon className="h-4 w-4 animate-spin" />
@@ -568,7 +566,7 @@ export const PricingCardButton = React.forwardRef<
 		</Button>
 	);
 });
-PricingCardButton.displayName = 'PricingCardButton';
+PricingCardButton.displayName = "PricingCardButton";
 
 export const AnnualSwitch = ({
 	isAnnualToggle,
@@ -576,39 +574,35 @@ export const AnnualSwitch = ({
 }: {
 	isAnnualToggle: boolean;
 	setIsAnnualToggle: (isAnnual: boolean) => void;
-}) => {
-	return (
-		<div className="mb-4 flex flex-col items-center space-y-1">
-			<span
-				className="font-medium text-foreground text-sm"
-				id="billing-interval-label"
+}) => (
+	<div className="mb-4 flex flex-col items-center space-y-1">
+		<span
+			className="font-medium text-foreground text-sm"
+			id="billing-interval-label"
+		>
+			Choose billing interval
+		</span>
+		<div className="flex items-center space-x-2">
+			<span className="text-muted-foreground text-sm">Monthly</span>
+			<Switch
+				aria-label="Toggle annual billing"
+				checked={isAnnualToggle}
+				id="annual-billing"
+				onCheckedChange={setIsAnnualToggle}
 			>
-				Choose billing interval
-			</span>
-			<div className="flex items-center space-x-2">
-				<span className="text-muted-foreground text-sm">Monthly</span>
-				<Switch
-					aria-label="Toggle annual billing"
-					checked={isAnnualToggle}
-					id="annual-billing"
-					onCheckedChange={setIsAnnualToggle}
-				>
-					<span className="sr-only">Toggle annual billing</span>
-				</Switch>
-				<span className="text-muted-foreground text-sm">Annual</span>
-			</div>
+				<span className="sr-only">Toggle annual billing</span>
+			</Switch>
+			<span className="text-muted-foreground text-sm">Annual</span>
 		</div>
-	);
-};
+	</div>
+);
 
-export const RecommendedBadge = ({ recommended }: { recommended: string }) => {
-	return (
-		<div className="absolute top-[-1px] right-[-1px] flex animate-bounce-in items-center gap-1 rounded-bl-lg border border-primary bg-primary/90 px-3 font-medium text-primary-foreground text-sm shadow-md lg:top-4 lg:right-4 lg:rounded-full lg:py-0.5">
-			<StarIcon aria-hidden="true" className="h-4 w-4" weight="duotone" />
-			<span>{recommended}</span>
-		</div>
-	);
-};
+export const RecommendedBadge = ({ recommended }: { recommended: string }) => (
+	<div className="absolute top-[-1px] right-[-1px] flex animate-bounce-in items-center gap-1 rounded-bl-lg border border-primary bg-primary/90 px-3 font-medium text-primary-foreground text-sm shadow-md lg:top-4 lg:right-4 lg:rounded-full lg:py-0.5">
+		<StarIcon aria-hidden="true" className="h-4 w-4" weight="duotone" />
+		<span>{recommended}</span>
+	</div>
+);
 
 <style global jsx>{`
   @keyframes recommended-glow {

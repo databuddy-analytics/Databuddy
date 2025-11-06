@@ -1,112 +1,112 @@
-'use client';
+"use client";
 
 // Credits to better-auth for the inspiration
 
-import { XLogoIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
-import type { ReactElement } from 'react';
+import { XLogoIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import type { ReactElement } from "react";
 import {
 	Marquee,
 	MarqueeContent,
 	MarqueeFade,
 	MarqueeItem,
-} from '@/components/ui/kibo-ui/marquee';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+} from "@/components/ui/kibo-ui/marquee";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 const testimonials = [
 	{
-		name: 'Dominik',
-		profession: 'Founder, Rivo.gg',
-		link: 'https://x.com/DominikDoesDev/status/1929921951000101188',
-		description: 'Hands down one of the sexiest analytic tools out there😍',
-		avatar: 'dominik.jpg',
+		name: "Dominik",
+		profession: "Founder, Rivo.gg",
+		link: "https://x.com/DominikDoesDev/status/1929921951000101188",
+		description: "Hands down one of the sexiest analytic tools out there😍",
+		avatar: "dominik.jpg",
 		social: null,
 	},
 	{
-		name: 'Bekacru',
-		profession: 'Founder, Better-auth',
-		description: 'this looks great!',
-		avatar: 'bekacru.jpg',
+		name: "Bekacru",
+		profession: "Founder, Better-auth",
+		description: "this looks great!",
+		avatar: "bekacru.jpg",
 	},
 	{
-		name: 'John Yeo',
-		profession: 'Co-Founder, Autumn',
+		name: "John Yeo",
+		profession: "Co-Founder, Autumn",
 		description:
 			"Actually game changing going from Framer analytics to @trydatabuddy. We're such happy customers.",
-		link: 'https://x.com/johnyeo_/status/1945061131342532846',
+		link: "https://x.com/johnyeo_/status/1945061131342532846",
 		social: null,
 		avatar:
-			'https://pbs.twimg.com/profile_images/1935046528114016256/ZDKw5J0F_400x400.jpg',
+			"https://pbs.twimg.com/profile_images/1935046528114016256/ZDKw5J0F_400x400.jpg",
 	},
 	{
-		name: 'Axel Wesselgren',
-		profession: 'Founder, Stackster',
+		name: "Axel Wesselgren",
+		profession: "Founder, Stackster",
 		description:
-			'Who just switched to the best data analytics platform?\n\n Me.',
-		link: 'https://x.com/axelwesselgren/status/1936670098884079755',
+			"Who just switched to the best data analytics platform?\n\n Me.",
+		link: "https://x.com/axelwesselgren/status/1936670098884079755",
 		social: null,
 		avatar:
-			'https://pbs.twimg.com/profile_images/1937981565176344576/H-CnDlga_400x400.jpg',
+			"https://pbs.twimg.com/profile_images/1937981565176344576/H-CnDlga_400x400.jpg",
 	},
 	{
-		name: 'Max',
-		profession: 'Founder, Pantom Studio',
+		name: "Max",
+		profession: "Founder, Pantom Studio",
 		description: "won't lie @trydatabuddy is very easy to setup damn",
-		link: 'https://x.com/Metagravity0/status/1945592294612017208',
+		link: "https://x.com/Metagravity0/status/1945592294612017208",
 		social: null,
 		avatar:
-			'https://pbs.twimg.com/profile_images/1929548168317837312/eP97J41s_400x400.jpg',
+			"https://pbs.twimg.com/profile_images/1929548168317837312/eP97J41s_400x400.jpg",
 	},
 	{
-		name: 'Ahmet Kilinc',
-		link: 'https://x.com/bruvimtired/status/1938972393357062401',
+		name: "Ahmet Kilinc",
+		link: "https://x.com/bruvimtired/status/1938972393357062401",
 		social: null,
-		profession: 'Software Engineer, @mail0dotcom',
+		profession: "Software Engineer, @mail0dotcom",
 		description:
 			"if you're not using @trydatabuddy then your analytics are going down the drain.",
-		avatar: 'ahmet.jpg',
+		avatar: "ahmet.jpg",
 	},
 	{
-		name: 'Maze',
-		profession: 'Founder, OpenCut',
-		link: 'https://x.com/mazeincoding/status/1943019005339455631',
+		name: "Maze",
+		profession: "Founder, OpenCut",
+		link: "https://x.com/mazeincoding/status/1943019005339455631",
 		social: null,
-		description: '@trydatabuddy is the only analytics i love.',
-		avatar: 'maze.jpg',
+		description: "@trydatabuddy is the only analytics i love.",
+		avatar: "maze.jpg",
 	},
 	{
-		name: 'Yassr Atti',
-		profession: 'Founder, Call',
-		description: 'everything you need for analytics is at @trydatabuddy 🔥',
-		link: 'https://x.com/Yassr_Atti/status/1944455392018461107',
+		name: "Yassr Atti",
+		profession: "Founder, Call",
+		description: "everything you need for analytics is at @trydatabuddy 🔥",
+		link: "https://x.com/Yassr_Atti/status/1944455392018461107",
 		social: null,
-		avatar: 'yassr.jpg',
+		avatar: "yassr.jpg",
 	},
 	{
-		name: 'Ping Maxwell',
-		profession: 'SWE, Better-auth',
-		link: 'https://x.com/PingStruggles/status/194486256193522168',
+		name: "Ping Maxwell",
+		profession: "SWE, Better-auth",
+		link: "https://x.com/PingStruggles/status/194486256193522168",
 		social: null,
 		description:
 			"Databuddy is the only analytics platform I've used that I can genuinely say is actually GDPR compliant, and an absolute beast of a product.  Worth a try!",
-		avatar: 'ping.jpg',
+		avatar: "ping.jpg",
 	},
 	{
-		name: 'Fynn',
-		profession: 'Founder, Studiis',
+		name: "Fynn",
+		profession: "Founder, Studiis",
 		description:
 			"it's actually such a upgrade to switch from posthog to @trydatabuddy",
-		link: 'https://x.com/_fqnn_/status/1955577969189306785',
+		link: "https://x.com/_fqnn_/status/1955577969189306785",
 		social: null,
 		avatar:
-			'https://pbs.twimg.com/profile_images/1419542734482903041/q7f5jbPq_400x400.jpg',
+			"https://pbs.twimg.com/profile_images/1419542734482903041/q7f5jbPq_400x400.jpg",
 	},
 ];
 
 function getNameInitial(name: string): string {
 	const trimmed = name.trim();
 	if (!trimmed) {
-		return '?';
+		return "?";
 	}
 	return trimmed.charAt(0).toUpperCase();
 }
@@ -116,7 +116,7 @@ function TestimonialCardContent({
 }: {
 	testimonial: (typeof testimonials)[number];
 }): ReactElement {
-	const socialIcon = testimonial.link?.includes('x.com') ? (
+	const socialIcon = testimonial.link?.includes("x.com") ? (
 		<span
 			aria-hidden
 			className="text-muted-foreground transition-colors duration-300 group-hover:text-foreground"
@@ -134,7 +134,7 @@ function TestimonialCardContent({
 				<div className="flex w-full items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3 md:gap-4 md:px-5 md:py-4 lg:px-6">
 					<Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-11 lg:w-11">
 						<AvatarImage
-							src={testimonial.avatar.length > 2 ? testimonial.avatar : ''}
+							src={testimonial.avatar.length > 2 ? testimonial.avatar : ""}
 						/>
 						<AvatarFallback className="bg-muted text-muted-foreground text-xs sm:text-sm">
 							{getNameInitial(testimonial.name)}
@@ -214,14 +214,14 @@ function SlidingTestimonials({
 			<MarqueeFade side="left" />
 			<MarqueeFade side="right" />
 			<MarqueeContent
-				direction={reverse ? 'right' : 'left'}
+				direction={reverse ? "right" : "left"}
 				gradient={false}
 				pauseOnClick
 				pauseOnHover
 				speed={50}
 			>
 				{rowTestimonials.map((t) => (
-					<MarqueeItem key={`${t.name}-${t.profession}${reverse ? '-r' : ''}`}>
+					<MarqueeItem key={`${t.name}-${t.profession}${reverse ? "-r" : ""}`}>
 						<TestimonialCard testimonial={t} />
 					</MarqueeItem>
 				))}

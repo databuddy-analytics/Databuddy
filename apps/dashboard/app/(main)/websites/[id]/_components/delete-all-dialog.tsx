@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { TrashIcon, WarningIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface DeleteAllDialogProps {
 	isOpen: boolean;
@@ -44,10 +44,10 @@ export function DeleteAllDialog({
 						<span className="font-semibold">Delete All Saved Filters</span>
 					</DialogTitle>
 					<DialogDescription className="text-muted-foreground">
-						Are you sure you want to delete all{' '}
-						<span className="font-medium text-foreground">{filterCount}</span>{' '}
+						Are you sure you want to delete all{" "}
+						<span className="font-medium text-foreground">{filterCount}</span>{" "}
 						saved filter
-						{filterCount === 1 ? '' : 's'}? This will permanently remove all
+						{filterCount === 1 ? "" : "s"}? This will permanently remove all
 						your saved filter configurations and cannot be undone.
 					</DialogDescription>
 				</DialogHeader>
@@ -68,7 +68,7 @@ export function DeleteAllDialog({
 						variant="destructive"
 					>
 						{isDeleting ? (
-							'Deleting...'
+							"Deleting..."
 						) : (
 							<>
 								<TrashIcon className="h-4 w-4" />

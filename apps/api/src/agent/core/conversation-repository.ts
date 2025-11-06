@@ -3,12 +3,12 @@ import {
 	assistantConversations,
 	assistantMessages,
 	db,
-} from '@databuddy/db';
-import type { StreamingUpdate } from '@databuddy/shared';
-import { createId } from '@databuddy/shared';
-import { eq } from 'drizzle-orm';
-import type { AssistantSession, SessionMetrics } from './assistant-session';
-import type { AIResponseContent } from './response-processor';
+} from "@databuddy/db";
+import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
+import { createId } from "@databuddy/shared/utils/ids";
+import { eq } from "drizzle-orm";
+import type { AssistantSession, SessionMetrics } from "./assistant-session";
+import type { AIResponseContent } from "./response-processor";
 
 /**
  * Repository for managing conversation persistence
@@ -29,18 +29,18 @@ export class ConversationRepository {
 		// Extract user ID safely
 		const userId = context.user?.id;
 		if (!userId) {
-			throw new Error('User ID is required to save conversation');
+			throw new Error("User ID is required to save conversation");
 		}
 
 		const isNewConversation =
-			messages.filter((m) => m.role === 'user').length === 1;
+			messages.filter((m) => m.role === "user").length === 1;
 
 		try {
 			const userMsg: AssistantMessageInput = {
-				id: createId('NANOID'),
+				id: createId("NANOID"),
 				conversationId: context.conversationId,
-				role: 'user',
-				content: messages.at(-1)?.content || '',
+				role: "user",
+				content: messages.at(-1)?.content || "",
 				modelType: context.model,
 				sql: null,
 				chartType: null,
@@ -65,7 +65,7 @@ export class ConversationRepository {
 			const assistantMsg: AssistantMessageInput = {
 				id: aiMessageId,
 				conversationId: context.conversationId,
-				role: 'assistant',
+				role: "assistant",
 				content: finalResult.content,
 				modelType: context.model,
 				sql: aiResponse.sql ?? null,
@@ -74,8 +74,8 @@ export class ConversationRepository {
 				finalResult,
 				textResponse: aiResponse.text_response ?? null,
 				thinkingSteps: aiResponse.thinking_steps ?? null,
-				hasError: finalResult.type === 'error',
-				errorMessage: finalResult.type === 'error' ? finalResult.content : null,
+				hasError: finalResult.type === "error",
+				errorMessage: finalResult.type === "error" ? finalResult.content : null,
 				aiResponseTime: metrics.aiResponseTime,
 				totalProcessingTime: metrics.totalProcessingTime,
 				promptTokens: metrics.tokenUsage.promptTokens,
@@ -94,7 +94,7 @@ export class ConversationRepository {
 					context.conversationId,
 					context.website.id,
 					userId,
-					'New Conversation',
+					"New Conversation",
 					conversationMessages
 				);
 			} else {
@@ -105,7 +105,7 @@ export class ConversationRepository {
 			}
 		} catch (error) {
 			throw new Error(
-				`Failed to save conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
+				`Failed to save conversation: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
 		}
 	}

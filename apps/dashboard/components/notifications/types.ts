@@ -12,41 +12,41 @@ export type AuditNotification = {
 	description: string;
 	time: string;
 	read: boolean;
-	type: 'audit';
+	type: "audit";
 	details: {
 		resourceType: string;
 		resourceId: string;
-		action: 'CREATE' | 'UPDATE' | 'DELETE' | 'SOFT_DELETE';
+		action: "CREATE" | "UPDATE" | "DELETE" | "SOFT_DELETE";
 		changes?: {
 			field: string;
 			oldValue?: any;
 			newValue?: any;
 		}[];
 		website: string;
-		environment: 'production' | 'staging' | 'development';
+		environment: "production" | "staging" | "development";
 	};
 };
 
 export type AnalyticsNotification = BaseNotification & {
-	type: 'analytics';
+	type: "analytics";
 	metric: string;
 	value: number;
 	previousValue?: number;
 	percentageChange?: number;
-	trend: 'up' | 'down' | 'neutral';
+	trend: "up" | "down" | "neutral";
 	website: string;
-	environment: 'production' | 'staging' | 'development';
+	environment: "production" | "staging" | "development";
 };
 
 export type BillingNotification = BaseNotification & {
-	type: 'billing';
+	type: "billing";
 	amount?: number;
 	planName?: string;
 	usageMetric?: string;
 	usageValue?: number;
 	usageLimit?: number;
 	website: string;
-	environment: 'production' | 'staging' | 'development';
+	environment: "production" | "staging" | "development";
 };
 
 export type Notification =
@@ -58,17 +58,17 @@ export type Notification =
 export function isAuditNotification(
 	notification: Notification
 ): notification is AuditNotification {
-	return notification.type === 'audit';
+	return notification.type === "audit";
 }
 
 export function isAnalyticsNotification(
 	notification: Notification
 ): notification is AnalyticsNotification {
-	return notification.type === 'analytics';
+	return notification.type === "analytics";
 }
 
 export function isBillingNotification(
 	notification: Notification
 ): notification is BillingNotification {
-	return notification.type === 'billing';
+	return notification.type === "billing";
 }

@@ -4,46 +4,46 @@ import {
 	LightbulbIcon,
 	WarningCircleIcon,
 	XCircleIcon,
-} from '@phosphor-icons/react/ssr';
-import { cva, type VariantProps } from 'class-variance-authority';
-import type * as React from 'react';
-import { SciFiCard } from '@/components/scifi-card';
-import { cn } from '@/lib/utils';
+} from "@phosphor-icons/react/ssr";
+import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
+import { SciFiCard } from "@/components/scifi-card";
+import { cn } from "@/lib/utils";
 
 const calloutVariants = cva(
-	'my-4 w-full rounded-none border backdrop-blur-sm transition-all duration-300',
+	"my-4 w-full rounded-none border backdrop-blur-sm transition-all duration-300",
 	{
 		variants: {
 			type: {
-				info: 'border-blue-200 bg-blue-50/80 hover:bg-blue-50/90 dark:border-blue-800/50 dark:bg-blue-950/20 dark:hover:bg-blue-950/30',
+				info: "border-blue-200 bg-blue-50/80 hover:bg-blue-50/90 dark:border-blue-800/50 dark:bg-blue-950/20 dark:hover:bg-blue-950/30",
 				success:
-					'border-green-200 bg-green-50/80 hover:bg-green-50/90 dark:border-green-800/50 dark:bg-green-950/20 dark:hover:bg-green-950/30',
-				warn: 'border-yellow-200 bg-yellow-50/80 hover:bg-yellow-50/90 dark:border-yellow-800/50 dark:bg-yellow-950/20 dark:hover:bg-yellow-950/30',
+					"border-green-200 bg-green-50/80 hover:bg-green-50/90 dark:border-green-800/50 dark:bg-green-950/20 dark:hover:bg-green-950/30",
+				warn: "border-yellow-200 bg-yellow-50/80 hover:bg-yellow-50/90 dark:border-yellow-800/50 dark:bg-yellow-950/20 dark:hover:bg-yellow-950/30",
 				error:
-					'border-red-200 bg-red-50/80 hover:bg-red-50/90 dark:border-red-800/50 dark:bg-red-950/20 dark:hover:bg-red-950/30',
-				tip: 'border-purple-200 bg-purple-50/80 hover:bg-purple-50/90 dark:border-purple-800/50 dark:bg-purple-950/20 dark:hover:bg-purple-950/30',
-				note: 'border-border bg-card/50 hover:bg-card/70',
+					"border-red-200 bg-red-50/80 hover:bg-red-50/90 dark:border-red-800/50 dark:bg-red-950/20 dark:hover:bg-red-950/30",
+				tip: "border-purple-200 bg-purple-50/80 hover:bg-purple-50/90 dark:border-purple-800/50 dark:bg-purple-950/20 dark:hover:bg-purple-950/30",
+				note: "border-border bg-card/50 hover:bg-card/70",
 			},
 		},
 		defaultVariants: {
-			type: 'info',
+			type: "info",
 		},
 	}
 );
 
-const iconVariants = cva('size-5 shrink-0', {
+const iconVariants = cva("size-5 shrink-0", {
 	variants: {
 		type: {
-			info: 'text-blue-500 dark:text-blue-400',
-			success: 'text-green-500 dark:text-green-400',
-			warn: 'text-yellow-500 dark:text-yellow-400',
-			error: 'text-red-500 dark:text-red-400',
-			tip: 'text-purple-500 dark:text-purple-400',
-			note: 'text-muted-foreground',
+			info: "text-blue-500 dark:text-blue-400",
+			success: "text-green-500 dark:text-green-400",
+			warn: "text-yellow-500 dark:text-yellow-400",
+			error: "text-red-500 dark:text-red-400",
+			tip: "text-purple-500 dark:text-purple-400",
+			note: "text-muted-foreground",
 		},
 	},
 	defaultVariants: {
-		type: 'info',
+		type: "info",
 	},
 });
 
@@ -57,14 +57,14 @@ const iconMap = {
 };
 
 interface CalloutProps
-	extends React.ComponentProps<'div'>,
+	extends React.ComponentProps<"div">,
 		VariantProps<typeof calloutVariants> {
 	title?: string;
 }
 
 function Callout({
 	className,
-	type = 'info',
+	type = "info",
 	title,
 	children,
 	...props

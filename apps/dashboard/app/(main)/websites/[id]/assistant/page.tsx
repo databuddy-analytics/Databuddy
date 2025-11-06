@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useAtom } from 'jotai';
-import dynamic from 'next/dynamic';
-import { useParams } from 'next/navigation';
-import { useEffect } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useWebsite } from '@/hooks/use-websites';
+import { useAtom } from "jotai";
+import dynamic from "next/dynamic";
+import { useParams } from "next/navigation";
+import { useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWebsite } from "@/hooks/use-websites";
 import {
 	dateRangeAtom,
 	websiteDataAtom,
 	websiteIdAtom,
-} from '@/stores/jotai/assistantAtoms';
+} from "@/stores/jotai/assistantAtoms";
 
 const AIAssistantMain = dynamic(
-	() => import('./components/ai-assistant-main'),
+	() => import("./components/ai-assistant-main"),
 	{
 		loading: () => <AIAssistantLoadingSkeleton />,
 		ssr: false,
@@ -73,7 +73,7 @@ export default function AssistantPage() {
 		setDateRange({
 			start_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
 			end_date: new Date().toISOString(),
-			granularity: 'daily',
+			granularity: "daily",
 		});
 	}, [id, setWebsiteId, websiteData, setWebsiteData, setDateRange]);
 

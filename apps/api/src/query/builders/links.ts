@@ -1,78 +1,78 @@
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 	outbound_links: {
 		meta: {
-			title: 'Outbound Links',
+			title: "Outbound Links",
 			description:
-				'Track external links clicked by users, showing which outbound destinations are most popular.',
-			category: 'Behavior',
-			tags: ['links', 'outbound', 'external', 'clicks', 'engagement'],
+				"Track external links clicked by users, showing which outbound destinations are most popular.",
+			category: "Behavior",
+			tags: ["links", "outbound", "external", "clicks", "engagement"],
 			output_fields: [
 				{
-					name: 'href',
-					type: 'string',
-					label: 'Destination URL',
-					description: 'The external URL that was clicked',
+					name: "href",
+					type: "string",
+					label: "Destination URL",
+					description: "The external URL that was clicked",
 				},
 				{
-					name: 'text',
-					type: 'string',
-					label: 'Link Text',
-					description: 'The visible text of the clicked link',
+					name: "text",
+					type: "string",
+					label: "Link Text",
+					description: "The visible text of the clicked link",
 				},
 				{
-					name: 'total_clicks',
-					type: 'number',
-					label: 'Total Clicks',
-					description: 'Total number of clicks on this link',
+					name: "total_clicks",
+					type: "number",
+					label: "Total Clicks",
+					description: "Total number of clicks on this link",
 				},
 				{
-					name: 'unique_users',
-					type: 'number',
-					label: 'Unique Users',
-					description: 'Number of unique users who clicked this link',
+					name: "unique_users",
+					type: "number",
+					label: "Unique Users",
+					description: "Number of unique users who clicked this link",
 				},
 				{
-					name: 'unique_sessions',
-					type: 'number',
-					label: 'Unique Sessions',
-					description: 'Number of unique sessions with clicks on this link',
+					name: "unique_sessions",
+					type: "number",
+					label: "Unique Sessions",
+					description: "Number of unique sessions with clicks on this link",
 				},
 				{
-					name: 'percentage',
-					type: 'number',
-					label: 'Click Share',
-					description: 'Percentage of total outbound link clicks',
-					unit: '%',
+					name: "percentage",
+					type: "number",
+					label: "Click Share",
+					description: "Percentage of total outbound link clicks",
+					unit: "%",
 				},
 				{
-					name: 'last_clicked',
-					type: 'string',
-					label: 'Last Clicked',
-					description: 'Most recent time this link was clicked',
+					name: "last_clicked",
+					type: "string",
+					label: "Last Clicked",
+					description: "Most recent time this link was clicked",
 				},
 			],
-			default_visualization: 'table',
-			supports_granularity: ['hour', 'day'],
-			version: '1.0',
+			default_visualization: "table",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
 		},
 		customSql: (
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const limit = _limit || 100;
 			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(' AND ')}`
-				: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -121,7 +121,7 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 						COUNT(*) as total_clicks,
 						COUNT(DISTINCT anonymous_id) as unique_users,
 						COUNT(DISTINCT session_id) as unique_sessions,
-						ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage,
+						ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage,
 						MAX(timestamp) as last_clicked
 					FROM enriched_links
 					GROUP BY href, text
@@ -137,88 +137,88 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'timestamp',
+		timeField: "timestamp",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'client_id',
-			'anonymous_id',
-			'session_id',
-			'href',
-			'text',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"href",
+			"text",
 		],
 		customizable: true,
 	},
 
 	outbound_domains: {
 		meta: {
-			title: 'Outbound Domains',
+			title: "Outbound Domains",
 			description:
-				'Aggregate outbound link clicks by destination domain to see which external sites users visit most.',
-			category: 'Behavior',
-			tags: ['links', 'domains', 'external', 'clicks', 'destinations'],
+				"Aggregate outbound link clicks by destination domain to see which external sites users visit most.",
+			category: "Behavior",
+			tags: ["links", "domains", "external", "clicks", "destinations"],
 			output_fields: [
 				{
-					name: 'domain',
-					type: 'string',
-					label: 'Domain',
-					description: 'The external domain that was clicked',
+					name: "domain",
+					type: "string",
+					label: "Domain",
+					description: "The external domain that was clicked",
 				},
 				{
-					name: 'total_clicks',
-					type: 'number',
-					label: 'Total Clicks',
-					description: 'Total number of clicks to this domain',
+					name: "total_clicks",
+					type: "number",
+					label: "Total Clicks",
+					description: "Total number of clicks to this domain",
 				},
 				{
-					name: 'unique_users',
-					type: 'number',
-					label: 'Unique Users',
+					name: "unique_users",
+					type: "number",
+					label: "Unique Users",
 					description:
-						'Number of unique users who clicked links to this domain',
+						"Number of unique users who clicked links to this domain",
 				},
 				{
-					name: 'unique_links',
-					type: 'number',
-					label: 'Unique Links',
-					description: 'Number of different links clicked to this domain',
+					name: "unique_links",
+					type: "number",
+					label: "Unique Links",
+					description: "Number of different links clicked to this domain",
 				},
 				{
-					name: 'percentage',
-					type: 'number',
-					label: 'Click Share',
-					description: 'Percentage of total outbound link clicks',
-					unit: '%',
+					name: "percentage",
+					type: "number",
+					label: "Click Share",
+					description: "Percentage of total outbound link clicks",
+					unit: "%",
 				},
 			],
-			default_visualization: 'table',
-			supports_granularity: ['hour', 'day'],
-			version: '1.0',
+			default_visualization: "table",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
 		},
 
 		customSql: (
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const limit = _limit || 100;
 			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(' AND ')}`
-				: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -281,22 +281,22 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'timestamp',
+		timeField: "timestamp",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'client_id',
-			'anonymous_id',
-			'session_id',
-			'href',
-			'text',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"href",
+			"text",
 		],
 		customizable: true,
 	},

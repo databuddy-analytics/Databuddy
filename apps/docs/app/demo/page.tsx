@@ -1,11 +1,11 @@
-import { ArrowLeftIcon } from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import Link from 'next/link';
+import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
+import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: 'Live Demo | Databuddy',
+	title: "Live Demo | Databuddy",
 	description:
-		'Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.',
+		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
 };
 
 export default function DemoPage() {
@@ -54,7 +54,7 @@ export default function DemoPage() {
 				loading="lazy"
 				src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"
 				style={{
-					colorScheme: 'light dark',
+					colorScheme: "light dark",
 				}}
 				title="Databuddy Analytics Demo Dashboard"
 			/>

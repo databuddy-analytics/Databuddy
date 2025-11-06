@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 /**
  * Hook that monitors whether a given media query matches the current viewport
@@ -11,7 +11,7 @@ export function useMediaQuery(query: string): boolean {
 
 	useEffect(() => {
 		// Check if window exists (for SSR)
-		if (typeof window !== 'undefined') {
+		if (typeof window !== "undefined") {
 			const mediaQuery = window.matchMedia(query);
 
 			// Set initial state
@@ -21,10 +21,10 @@ export function useMediaQuery(query: string): boolean {
 			const onChange = () => setMatches(mediaQuery.matches);
 
 			// Add event listener
-			mediaQuery.addEventListener('change', onChange);
+			mediaQuery.addEventListener("change", onChange);
 
 			// Clean up event listener
-			return () => mediaQuery.removeEventListener('change', onChange);
+			return () => mediaQuery.removeEventListener("change", onChange);
 		}
 
 		// Return default value during SSR

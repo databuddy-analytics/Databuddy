@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	DesktopIcon,
@@ -8,7 +8,7 @@ import {
 	MonitorIcon,
 	QuestionIcon,
 	WatchIcon,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 
 const deviceTypeIconMap: Record<string, React.ElementType> = {
 	mobile: DeviceMobileIcon,
@@ -21,13 +21,13 @@ const deviceTypeIconMap: Record<string, React.ElementType> = {
 };
 
 const deviceTypeColorMap: Record<string, string> = {
-	mobile: 'text-blue-500',
-	tablet: 'text-teal-500',
-	laptop: 'text-purple-500',
-	desktop: 'text-green-500',
-	ultrawide: 'text-pink-500',
-	watch: 'text-yellow-500',
-	unknown: 'text-gray-400',
+	mobile: "text-blue-500",
+	tablet: "text-teal-500",
+	laptop: "text-purple-500",
+	desktop: "text-green-500",
+	ultrawide: "text-pink-500",
+	watch: "text-yellow-500",
+	unknown: "text-gray-400",
 };
 
 interface DeviceTypeCellProps {

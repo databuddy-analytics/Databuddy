@@ -1,12 +1,12 @@
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 export const RATE_LIMIT_CONFIGS = {
-	public: { requests: 100, window: '1 m' },
-	api: { requests: 200, window: '1 m' },
-	auth: { requests: 30, window: '1 m' },
-	expensive: { requests: 30, window: '1 m' },
-	admin: { requests: 500, window: '1 m' },
+	public: { requests: 100, window: "1 m" },
+	api: { requests: 200, window: "1 m" },
+	auth: { requests: 30, window: "1 m" },
+	expensive: { requests: 30, window: "1 m" },
+	admin: { requests: 500, window: "1 m" },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMIT_CONFIGS;
@@ -36,26 +36,26 @@ export const ratelimit = {
 	free: new Ratelimit({
 		redis,
 		analytics: true,
-		prefix: 'ratelimit:free',
-		limiter: Ratelimit.slidingWindow(50, '10s'),
+		prefix: "ratelimit:free",
+		limiter: Ratelimit.slidingWindow(50, "10s"),
 	}),
 	hobby: new Ratelimit({
 		redis,
 		analytics: true,
-		prefix: 'ratelimit:hobby',
-		limiter: Ratelimit.slidingWindow(100, '10s'),
+		prefix: "ratelimit:hobby",
+		limiter: Ratelimit.slidingWindow(100, "10s"),
 	}),
 	pro: new Ratelimit({
 		redis,
 		analytics: true,
-		prefix: 'ratelimit:pro',
-		limiter: Ratelimit.slidingWindow(200, '10s'),
+		prefix: "ratelimit:pro",
+		limiter: Ratelimit.slidingWindow(200, "10s"),
 	}),
 	scale: new Ratelimit({
 		redis,
 		analytics: true,
-		prefix: 'ratelimit:scale',
-		limiter: Ratelimit.slidingWindow(500, '10s'),
+		prefix: "ratelimit:scale",
+		limiter: Ratelimit.slidingWindow(500, "10s"),
 	}),
 };
 
@@ -74,7 +74,7 @@ function createRateLimiter(
 	try {
 		const rateLimiter = new Ratelimit({
 			redis,
-			limiter: Ratelimit.slidingWindow(config.requests, config.window as '1 m'),
+			limiter: Ratelimit.slidingWindow(config.requests, config.window as "1 m"),
 			analytics: true,
 			prefix: `@databuddy/ratelimit:${type}`,
 			ephemeralCache,
@@ -98,10 +98,10 @@ function getRateLimitIdentifier(
 		return `user:${userId}`;
 	}
 
-	let apiKey = request.headers.get('x-api-key');
+	let apiKey = request.headers.get("x-api-key");
 	if (!apiKey) {
-		const auth = request.headers.get('authorization');
-		if (auth?.toLowerCase().startsWith('bearer ')) {
+		const auth = request.headers.get("authorization");
+		if (auth?.toLowerCase().startsWith("bearer ")) {
 			apiKey = auth.slice(7).trim();
 		}
 	}
@@ -112,33 +112,33 @@ function getRateLimitIdentifier(
 	}
 
 	let ip =
-		request.headers.get('cf-connecting-ip') || // Cloudflare real IP
-		request.headers.get('x-forwarded-for') || // Standard proxy chain
-		request.headers.get('x-real-ip') || // Nginx real IP
-		request.headers.get('x-client-ip') || // Alternative header
-		'direct';
+		request.headers.get("cf-connecting-ip") || // Cloudflare real IP
+		request.headers.get("x-forwarded-for") || // Standard proxy chain
+		request.headers.get("x-real-ip") || // Nginx real IP
+		request.headers.get("x-client-ip") || // Alternative header
+		"direct";
 
-	if (ip.includes(',')) {
-		ip = ip.split(',')[0]?.trim() || 'direct';
+	if (ip.includes(",")) {
+		ip = ip.split(",")[0]?.trim() || "direct";
 	}
 
-	const userAgent = request.headers.get('user-agent');
-	const agentHash = userAgent ? btoa(userAgent).slice(0, 6) : 'noua';
+	const userAgent = request.headers.get("user-agent");
+	const agentHash = userAgent ? btoa(userAgent).slice(0, 6) : "noua";
 
 	return `ip:${ip}:${agentHash}`;
 }
 
 function parseWindowMs(window: string): number {
-	if (window === '1 m') {
+	if (window === "1 m") {
 		return 60_000;
 	}
-	if (window === '10 s') {
+	if (window === "10 s") {
 		return 10_000;
 	}
-	if (window === '1 h') {
+	if (window === "1 h") {
 		return 3_600_000;
 	}
-	if (window === '1 d') {
+	if (window === "1 d") {
 		return 86_400_000;
 	}
 	return 60_000; // default fallback

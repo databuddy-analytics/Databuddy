@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Hook to detect if we're running on the client side after hydration
@@ -64,7 +64,7 @@ export function usePersistentState<T>(
 						value instanceof Function ? value(prevState) : value;
 
 					// Only persist to localStorage on client side
-					if (isClient && typeof window !== 'undefined') {
+					if (isClient && typeof window !== "undefined") {
 						window.localStorage.setItem(key, JSON.stringify(valueToStore));
 					}
 
@@ -84,7 +84,7 @@ export function usePersistentState<T>(
  * Specialized hook for accordion states in the sidebar navigation.
  * Manages multiple accordion sections with their expanded/collapsed states.
  */
-export function useAccordionStates(storageKey = 'sidebar-accordion-states') {
+export function useAccordionStates(storageKey = "sidebar-accordion-states") {
 	const [accordionStates, setAccordionStates] = usePersistentState<
 		Record<string, boolean>
 	>(storageKey, {});
@@ -103,9 +103,8 @@ export function useAccordionStates(storageKey = 'sidebar-accordion-states') {
 	);
 
 	const getAccordionState = useCallback(
-		(sectionTitle: string, defaultState = true) => {
-			return accordionStates[sectionTitle] ?? defaultState;
-		},
+		(sectionTitle: string, defaultState = true) =>
+			accordionStates[sectionTitle] ?? defaultState,
 		[accordionStates]
 	);
 

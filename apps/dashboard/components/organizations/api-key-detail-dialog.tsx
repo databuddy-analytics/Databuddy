@@ -1,11 +1,11 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { trpc } from '@/lib/trpc';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Checkbox } from '../ui/checkbox';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { trpc } from "@/lib/trpc";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import {
 	Form,
 	FormControl,
@@ -13,18 +13,18 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '../ui/form';
-import { Input } from '../ui/input';
+} from "../ui/form";
+import { Input } from "../ui/input";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '../ui/sheet';
-import { Skeleton } from '../ui/skeleton';
-import { Switch } from '../ui/switch';
-import type { ApiKeyDetail, ApiScope } from './api-key-types';
+} from "../ui/sheet";
+import { Skeleton } from "../ui/skeleton";
+import { Switch } from "../ui/switch";
+import type { ApiKeyDetail, ApiScope } from "./api-key-types";
 
 // Loading component
 function ApiKeyDetailSkeleton() {
@@ -68,7 +68,7 @@ function ApiKeyDetailSkeleton() {
 			<div className="space-y-3">
 				<Skeleton className="h-5 w-24 rounded" />
 				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					{['s1', 's2', 's3', 's4'].map((key) => (
+					{["s1", "s2", "s3", "s4"].map((key) => (
 						<Skeleton className="h-10 w-full rounded" key={key} />
 					))}
 				</div>
@@ -105,7 +105,7 @@ function GlobalScopesDisplay({ scopes }: { scopes: string[] }) {
 }
 
 // Resource access display component
-function ResourceAccessDisplay({ access }: { access: ApiKeyDetail['access'] }) {
+function ResourceAccessDisplay({ access }: { access: ApiKeyDetail["access"] }) {
 	return (
 		<div className="space-y-3">
 			<div className="flex items-center gap-2">
@@ -128,15 +128,15 @@ function ResourceAccessDisplay({ access }: { access: ApiKeyDetail['access'] }) {
 							<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
 								{(
 									[
-										'read:data',
-										'write:data',
-										'read:analytics',
-										'write:custom-sql',
-										'read:experiments',
-										'track:events',
-										'read:export',
-										'write:otel',
-										'admin:apikeys',
+										"read:data",
+										"write:data",
+										"read:analytics",
+										"write:custom-sql",
+										"read:experiments",
+										"track:events",
+										"read:export",
+										"write:otel",
+										"admin:apikeys",
 									] as ApiScope[]
 								).map((s) => (
 									<div
@@ -192,7 +192,7 @@ function ApiKeyActions({
 					type="button"
 					variant="outline"
 				>
-					{rotateMutation.isPending ? 'Rotating…' : 'Rotate Key'}
+					{rotateMutation.isPending ? "Rotating…" : "Rotate Key"}
 				</Button>
 				<Button
 					disabled={!keyId || revokeMutation.isPending}
@@ -200,12 +200,12 @@ function ApiKeyActions({
 					type="button"
 					variant="outline"
 				>
-					{revokeMutation.isPending ? 'Revoking…' : 'Revoke'}
+					{revokeMutation.isPending ? "Revoking…" : "Revoke"}
 				</Button>
 			</div>
 			<div className="flex gap-2">
 				<Button disabled={updateMutation.isPending} type="submit">
-					{updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+					{updateMutation.isPending ? "Saving…" : "Save Changes"}
 				</Button>
 				<Button
 					disabled={!keyId || deleteMutation.isPending}
@@ -213,7 +213,7 @@ function ApiKeyActions({
 					type="button"
 					variant="destructive"
 				>
-					{deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+					{deleteMutation.isPending ? "Deleting…" : "Delete"}
 				</Button>
 			</div>
 		</div>
@@ -233,7 +233,7 @@ export function ApiKeyDetailDialog({
 }: ApiKeyDetailDialogProps) {
 	const utils = trpc.useUtils();
 	const { data, isLoading } = trpc.apikeys.getById.useQuery(
-		{ id: keyId ?? '' },
+		{ id: keyId ?? "" },
 		{ enabled: !!keyId }
 	);
 	const rotateMutation = trpc.apikeys.rotate.useMutation({
@@ -261,13 +261,13 @@ export function ApiKeyDetailDialog({
 	const [showSecret, setShowSecret] = useState<string | null>(null);
 
 	const effectiveStatus = useMemo(
-		() => (detail?.enabled && !detail?.revokedAt ? 'Enabled' : 'Disabled'),
+		() => (detail?.enabled && !detail?.revokedAt ? "Enabled" : "Disabled"),
 		[detail]
 	);
 
 	// form schema for inline updates
 	const formSchema = z.object({
-		name: z.string().min(1, 'Name is required'),
+		name: z.string().min(1, "Name is required"),
 		enabled: z.boolean().optional(),
 		expiresAt: z.string().optional(),
 	});
@@ -276,7 +276,7 @@ export function ApiKeyDetailDialog({
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		defaultValues: { name: '', enabled: true, expiresAt: undefined },
+		defaultValues: { name: "", enabled: true, expiresAt: undefined },
 	});
 
 	useEffect(() => {
@@ -313,7 +313,7 @@ export function ApiKeyDetailDialog({
 	useEffect(() => {
 		if (!open) {
 			setShowSecret(null);
-			form.reset({ name: '', enabled: true, expiresAt: undefined });
+			form.reset({ name: "", enabled: true, expiresAt: undefined });
 		}
 	}, [open, form]);
 
@@ -324,7 +324,7 @@ export function ApiKeyDetailDialog({
 			onOpenChange={(o) => {
 				if (!o) {
 					setShowSecret(null);
-					form.reset({ name: '', enabled: true, expiresAt: undefined });
+					form.reset({ name: "", enabled: true, expiresAt: undefined });
 				}
 				onOpenChange(o);
 			}}
@@ -356,8 +356,8 @@ export function ApiKeyDetailDialog({
 									<Badge
 										variant={
 											detail.enabled && !detail.revokedAt
-												? 'default'
-												: 'secondary'
+												? "default"
+												: "secondary"
 										}
 									>
 										{effectiveStatus}
@@ -403,7 +403,7 @@ export function ApiKeyDetailDialog({
 															<Input
 																onChange={field.onChange}
 																type="date"
-																value={field.value ?? ''}
+																value={field.value ?? ""}
 															/>
 														</FormControl>
 														<FormMessage />

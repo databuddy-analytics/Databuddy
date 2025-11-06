@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import type { AppRouter } from '@databuddy/rpc';
-import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import type { AppRouter } from "@databuddy/rpc";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
+import { trpc } from "@/lib/trpc";
 
 type RouterInput = inferRouterInputs<AppRouter>;
 type RouterOutput = inferRouterOutputs<AppRouter>;
 
-export type Website = RouterOutput['websites']['list'][number];
-export type CreateWebsiteData = RouterInput['websites']['create'];
-export type UpdateWebsiteData = RouterInput['websites']['update'];
+export type Website = RouterOutput["websites"]["list"][number];
+export type CreateWebsiteData = RouterInput["websites"]["create"];
+export type UpdateWebsiteData = RouterInput["websites"]["update"];
 
 export function useWebsites() {
 	const { data: activeOrganization, isPending: isLoadingOrganization } =
@@ -61,7 +61,7 @@ export function useCreateWebsite() {
 			});
 		},
 		onError: (error) => {
-			console.error('Failed to create website:', error);
+			console.error("Failed to create website:", error);
 		},
 	});
 }
@@ -90,7 +90,7 @@ export function useUpdateWebsite() {
 			utils.websites.getById.setData(getByIdKey, updatedWebsite);
 		},
 		onError: (error) => {
-			console.error('Failed to update website:', error);
+			console.error("Failed to update website:", error);
 		},
 	});
 }
@@ -119,7 +119,7 @@ export function useTogglePublicWebsite() {
 			utils.websites.getById.setData(getByIdKey, updatedWebsite);
 		},
 		onError: (error) => {
-			console.error('Failed to toggle website privacy:', error);
+			console.error("Failed to toggle website privacy:", error);
 		},
 	});
 }

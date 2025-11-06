@@ -1,51 +1,51 @@
-'use client';
+"use client";
 
-import { filterOptions } from '@databuddy/shared';
+import { filterOptions } from "@databuddy/shared/lists/filters";
 import {
 	DragDropContext,
 	Draggable,
 	Droppable,
 	type DropResult,
-} from '@hello-pangea/dnd';
+} from "@hello-pangea/dnd";
 import {
 	ChartBarIcon,
 	FunnelIcon,
 	PencilIcon,
 	PlusIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import { operatorOptions, useFilters } from '@/hooks/use-filters';
+} from "@/components/ui/sheet";
+import { operatorOptions, useFilters } from "@/hooks/use-filters";
 import type {
 	AutocompleteData,
 	CreateFunnelData,
 	Funnel,
 	FunnelFilter,
 	FunnelStep,
-} from '@/hooks/use-funnels';
-import { AutocompleteInput, DraggableStep } from './funnel-components';
+} from "@/hooks/use-funnels";
+import { AutocompleteInput, DraggableStep } from "./funnel-components";
 
 const defaultFilter: FunnelFilter = {
-	field: 'browser_name',
-	operator: 'equals',
-	value: '',
+	field: "browser_name",
+	operator: "equals",
+	value: "",
 } as const;
 
 interface EditFunnelDialogProps {
@@ -81,21 +81,21 @@ export function EditFunnelDialog({
 		} else {
 			// Initialize for create mode
 			setFormData({
-				id: '',
-				name: '',
-				description: '',
+				id: "",
+				name: "",
+				description: "",
 				steps: [
-					{ type: 'PAGE_VIEW' as const, target: '/', name: 'Landing Page' },
+					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing Page" },
 					{
-						type: 'PAGE_VIEW' as const,
-						target: '/signup',
-						name: 'Sign Up Page',
+						type: "PAGE_VIEW" as const,
+						target: "/signup",
+						name: "Sign Up Page",
 					},
 				],
 				filters: [],
 				isActive: true,
-				createdAt: '',
-				updatedAt: '',
+				createdAt: "",
+				updatedAt: "",
 			});
 		}
 	}, [funnel]);
@@ -122,21 +122,21 @@ export function EditFunnelDialog({
 	const resetForm = useCallback(() => {
 		if (isCreateMode) {
 			setFormData({
-				id: '',
-				name: '',
-				description: '',
+				id: "",
+				name: "",
+				description: "",
 				steps: [
-					{ type: 'PAGE_VIEW' as const, target: '/', name: 'Landing Page' },
+					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing Page" },
 					{
-						type: 'PAGE_VIEW' as const,
-						target: '/signup',
-						name: 'Sign Up Page',
+						type: "PAGE_VIEW" as const,
+						target: "/signup",
+						name: "Sign Up Page",
 					},
 				],
 				filters: [],
 				isActive: true,
-				createdAt: '',
-				updatedAt: '',
+				createdAt: "",
+				updatedAt: "",
 			});
 		}
 	}, [isCreateMode]);
@@ -151,7 +151,7 @@ export function EditFunnelDialog({
 						...prev,
 						steps: [
 							...prev.steps,
-							{ type: 'PAGE_VIEW' as const, target: '', name: '' },
+							{ type: "PAGE_VIEW" as const, target: "", name: "" },
 						],
 					}
 				: prev
@@ -241,19 +241,19 @@ export function EditFunnelDialog({
 			}
 
 			switch (field) {
-				case 'browser_name':
+				case "browser_name":
 					return autocompleteData.browsers || [];
-				case 'os_name':
+				case "os_name":
 					return autocompleteData.operatingSystems || [];
-				case 'country':
+				case "country":
 					return autocompleteData.countries || [];
-				case 'device_type':
+				case "device_type":
 					return autocompleteData.deviceTypes || [];
-				case 'utm_source':
+				case "utm_source":
 					return autocompleteData.utmSources || [];
-				case 'utm_medium':
+				case "utm_medium":
 					return autocompleteData.utmMediums || [];
-				case 'utm_campaign':
+				case "utm_campaign":
 					return autocompleteData.utmCampaigns || [];
 				default:
 					return [];
@@ -268,10 +268,10 @@ export function EditFunnelDialog({
 				return [];
 			}
 
-			if (stepType === 'PAGE_VIEW') {
+			if (stepType === "PAGE_VIEW") {
 				return autocompleteData.pagePaths || [];
 			}
-			if (stepType === 'EVENT') {
+			if (stepType === "EVENT") {
 				return autocompleteData.customEvents || [];
 			}
 
@@ -295,7 +295,7 @@ export function EditFunnelDialog({
 		return (
 			formData.name &&
 			!formData.steps.some((s) => !(s.name && s.target)) &&
-			!(formData.filters || []).some((f) => !f.value || f.value === '')
+			!(formData.filters || []).some((f) => !f.value || f.value === "")
 		);
 	}, [formData]);
 
@@ -328,12 +328,12 @@ export function EditFunnelDialog({
 						</div>
 						<div>
 							<SheetTitle className="font-semibold text-foreground text-xl">
-								{isCreateMode ? 'Create New Funnel' : 'Edit Funnel'}
+								{isCreateMode ? "Create New Funnel" : "Edit Funnel"}
 							</SheetTitle>
 							<SheetDescription className="mt-1 text-muted-foreground">
 								{isCreateMode
-									? 'Set up a new conversion funnel to track user journeys'
-									: 'Update funnel configuration and steps'}
+									? "Set up a new conversion funnel to track user journeys"
+									: "Update funnel configuration and steps"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -376,7 +376,7 @@ export function EditFunnelDialog({
 									)
 								}
 								placeholder="Optional description"
-								value={formData.description || ''}
+								value={formData.description || ""}
 							/>
 						</div>
 					</div>
@@ -402,8 +402,8 @@ export function EditFunnelDialog({
 										{...provided.droppableProps}
 										className={`space-y-4 transition-colors duration-150 ${
 											snapshot.isDraggingOver
-												? 'rounded-lg bg-accent/10 p-1'
-												: ''
+												? "rounded-lg bg-accent/10 p-1"
+												: ""
 										}`}
 										ref={provided.innerRef}
 									>
@@ -475,7 +475,7 @@ export function EditFunnelDialog({
 									>
 										<Select
 											onValueChange={(value) =>
-												updateFilter(index, 'field', value)
+												updateFilter(index, "field", value)
 											}
 											value={filter.field}
 										>
@@ -493,7 +493,7 @@ export function EditFunnelDialog({
 
 										<Select
 											onValueChange={(value) =>
-												updateFilter(index, 'operator', value)
+												updateFilter(index, "operator", value)
 											}
 											value={filter.operator}
 										>
@@ -512,11 +512,11 @@ export function EditFunnelDialog({
 										<AutocompleteInput
 											className="flex-1 rounded border-border/50 focus:border-primary/50 focus:ring-primary/20"
 											onValueChange={(value) =>
-												updateFilter(index, 'value', value)
+												updateFilter(index, "value", value)
 											}
 											placeholder="Filter value"
 											suggestions={getSuggestions(filter.field)}
-											value={(filter.value as string) || ''}
+											value={(filter.value as string) || ""}
 										/>
 
 										<Button
@@ -567,16 +567,16 @@ export function EditFunnelDialog({
 							)}
 							<span
 								className={
-									(isCreateMode ? isCreating : isUpdating) ? 'ml-6' : ''
+									(isCreateMode ? isCreating : isUpdating) ? "ml-6" : ""
 								}
 							>
 								{isCreateMode
 									? isCreating
-										? 'Creating...'
-										: 'Create Funnel'
+										? "Creating..."
+										: "Create Funnel"
 									: isUpdating
-										? 'Updating...'
-										: 'Update Funnel'}
+										? "Updating..."
+										: "Update Funnel"}
 							</span>
 						</Button>
 					</div>

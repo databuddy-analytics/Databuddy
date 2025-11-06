@@ -1,9 +1,9 @@
-import { ClockIcon } from '@phosphor-icons/react';
-import type { CellContext, ColumnDef } from '@tanstack/react-table';
-import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
-import { PercentageBadge } from '@/components/ui/percentage-badge';
+import { ClockIcon } from "@phosphor-icons/react";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
+import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -17,10 +17,10 @@ export interface TimezoneEntry {
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
-		return '0';
+		return "0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: 'compact',
+		notation: "compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -28,9 +28,9 @@ const formatNumber = (value: number | null | undefined): string => {
 export function createTimezoneColumns(): ColumnDef<TimezoneEntry>[] {
 	return [
 		{
-			id: 'name',
-			accessorKey: 'name',
-			header: 'Timezone',
+			id: "name",
+			accessorKey: "name",
+			header: "Timezone",
 			cell: (info: CellContext<TimezoneEntry, any>) => {
 				const entry = info.row.original;
 				const timezoneName = entry.name;
@@ -45,40 +45,40 @@ export function createTimezoneColumns(): ColumnDef<TimezoneEntry>[] {
 			},
 		},
 		{
-			id: 'current_time',
-			header: 'Current Time',
+			id: "current_time",
+			header: "Current Time",
 			cell: (info: CellContext<TimezoneEntry, any>) => {
 				const entry = info.row.original;
 				const timezoneName = entry.name;
-				let currentTime = '-';
+				let currentTime = "-";
 				try {
 					if (timezoneName) {
-						currentTime = dayjs().tz(timezoneName).format('hh:mm A');
+						currentTime = dayjs().tz(timezoneName).format("hh:mm A");
 					}
 				} catch {}
 				return <span className="font-mono text-xs">{currentTime}</span>;
 			},
 		},
 		{
-			id: 'visitors',
-			accessorKey: 'visitors',
-			header: 'Visitors',
+			id: "visitors",
+			accessorKey: "visitors",
+			header: "Visitors",
 			cell: (info: CellContext<TimezoneEntry, any>) => (
 				<span className="font-medium">{formatNumber(info.getValue())}</span>
 			),
 		},
 		{
-			id: 'pageviews',
-			accessorKey: 'pageviews',
-			header: 'Pageviews',
+			id: "pageviews",
+			accessorKey: "pageviews",
+			header: "Pageviews",
 			cell: (info: CellContext<TimezoneEntry, any>) => (
 				<span className="font-medium">{formatNumber(info.getValue())}</span>
 			),
 		},
 		{
-			id: 'percentage',
-			accessorKey: 'percentage',
-			header: 'Share',
+			id: "percentage",
+			accessorKey: "percentage",
+			header: "Share",
 			cell: (info: CellContext<TimezoneEntry, any>) => {
 				const percentage = info.getValue() as number;
 				return <PercentageBadge percentage={percentage} />;

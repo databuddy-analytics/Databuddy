@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import type { DynamicQueryFilter } from '@databuddy/shared';
-import { filterOptions } from '@databuddy/shared';
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
 import {
 	BookmarkIcon,
 	CheckCircleIcon,
 	CopyIcon,
 	PencilIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -18,9 +18,9 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { SavedFilter } from '@/hooks/use-saved-filters';
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { SavedFilter } from "@/hooks/use-saved-filters";
 
 interface SavedFiltersMenuProps {
 	savedFilters: SavedFilter[];
@@ -35,15 +35,15 @@ interface SavedFiltersMenuProps {
 
 function getOperatorSymbol(operator: string): string {
 	const operatorToSymbolMap: Record<string, string> = {
-		eq: '=',
-		like: '∈',
-		ne: '≠',
-		in: '∈',
-		notIn: '∉',
-		gt: '>',
-		gte: '≥',
-		lt: '<',
-		lte: '≤',
+		eq: "=",
+		like: "∈",
+		ne: "≠",
+		in: "∈",
+		notIn: "∉",
+		gt: ">",
+		gte: "≥",
+		lt: "<",
+		lte: "≤",
 	};
 	return operatorToSymbolMap[operator] || operator;
 }
@@ -57,7 +57,7 @@ function formatFilterDisplay(filter: DynamicQueryFilter): {
 		filterOptions.find((o) => o.value === filter.field)?.label || filter.field;
 	const operatorSymbol = getOperatorSymbol(filter.operator);
 	const valueLabel = Array.isArray(filter.value)
-		? filter.value.join(', ')
+		? filter.value.join(", ")
 		: String(filter.value);
 	return { fieldLabel, operatorSymbol, valueLabel };
 }
@@ -174,7 +174,7 @@ export function SavedFiltersMenu({
 										setIsOpen(false);
 									}}
 									onKeyDown={(e) => {
-										if (e.key === 'Enter' || e.key === ' ') {
+										if (e.key === "Enter" || e.key === " ") {
 											e.preventDefault();
 											e.stopPropagation();
 											onApplyFilter(savedFilter.filters);
@@ -199,7 +199,7 @@ export function SavedFiltersMenu({
 											</div>
 											<span className="text-muted-foreground text-xs">
 												{savedFilter.filters.length} filter
-												{savedFilter.filters.length === 1 ? '' : 's'}
+												{savedFilter.filters.length === 1 ? "" : "s"}
 											</span>
 										</div>
 
@@ -227,7 +227,7 @@ export function SavedFiltersMenu({
 											{savedFilter.filters.length > 2 && (
 												<div className="text-muted-foreground text-xs italic">
 													+{savedFilter.filters.length - 2} more filter
-													{savedFilter.filters.length - 2 === 1 ? '' : 's'}
+													{savedFilter.filters.length - 2 === 1 ? "" : "s"}
 												</div>
 											)}
 										</div>
@@ -248,7 +248,7 @@ export function SavedFiltersMenu({
 													setIsOpen(false);
 												}}
 												onKeyDown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
+													if (e.key === "Enter" || e.key === " ") {
 														e.preventDefault();
 														e.stopPropagation();
 														onEditFilter(savedFilter.id);
@@ -270,7 +270,7 @@ export function SavedFiltersMenu({
 													onDuplicateFilter(savedFilter.id);
 												}}
 												onKeyDown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
+													if (e.key === "Enter" || e.key === " ") {
 														e.preventDefault();
 														e.stopPropagation();
 														onDuplicateFilter(savedFilter.id);
@@ -291,7 +291,7 @@ export function SavedFiltersMenu({
 													onDeleteFilter(savedFilter.id);
 												}}
 												onKeyDown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
+													if (e.key === "Enter" || e.key === " ") {
 														e.preventDefault();
 														e.stopPropagation();
 														onDeleteFilter(savedFilter.id);

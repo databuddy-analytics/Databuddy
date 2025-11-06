@@ -1,10 +1,10 @@
-import type { DateRange } from '@databuddy/shared';
-import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { trpc } from '@/lib/trpc';
+import type { DateRange } from "@databuddy/shared/types/analytics";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface FunnelStep {
-	type: 'PAGE_VIEW' | 'EVENT' | 'CUSTOM';
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 	target: string;
 	name: string;
 	conditions?: Record<string, unknown>;
@@ -12,7 +12,7 @@ export interface FunnelStep {
 
 export interface FunnelFilter {
 	field: string;
-	operator: 'equals' | 'contains' | 'not_equals' | 'in' | 'not_in';
+	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
 	value: string | string[];
 	label?: string;
 }
@@ -101,24 +101,24 @@ export function useFunnels(websiteId: string, enabled = true) {
 
 	const createMutation = trpc.funnels.create.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['funnels', 'list']] });
+			queryClient.invalidateQueries({ queryKey: [["funnels", "list"]] });
 		},
 	});
 
 	const updateMutation = trpc.funnels.update.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['funnels', 'list']] });
+			queryClient.invalidateQueries({ queryKey: [["funnels", "list"]] });
 			queryClient.invalidateQueries({
-				queryKey: [['funnels', 'getAnalytics']],
+				queryKey: [["funnels", "getAnalytics"]],
 			});
 		},
 	});
 
 	const deleteMutation = trpc.funnels.delete.useMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [['funnels', 'list']] });
+			queryClient.invalidateQueries({ queryKey: [["funnels", "list"]] });
 			queryClient.invalidateQueries({
-				queryKey: [['funnels', 'getAnalytics']],
+				queryKey: [["funnels", "getAnalytics"]],
 			});
 		},
 	});
@@ -129,27 +129,24 @@ export function useFunnels(websiteId: string, enabled = true) {
 		error: query.error,
 		refetch: query.refetch,
 
-		createFunnel: (funnelData: CreateFunnelData) => {
-			return createMutation.mutateAsync({
+		createFunnel: (funnelData: CreateFunnelData) =>
+			createMutation.mutateAsync({
 				websiteId,
 				...funnelData,
-			});
-		},
+			}),
 		updateFunnel: ({
 			funnelId,
 			updates,
 		}: {
 			funnelId: string;
 			updates: Partial<CreateFunnelData>;
-		}) => {
-			return updateMutation.mutateAsync({
+		}) =>
+			updateMutation.mutateAsync({
 				id: funnelId,
 				...updates,
-			});
-		},
-		deleteFunnel: (funnelId: string) => {
-			return deleteMutation.mutateAsync({ id: funnelId });
-		},
+			}),
+		deleteFunnel: (funnelId: string) =>
+			deleteMutation.mutateAsync({ id: funnelId }),
 
 		isCreating: createMutation.isPending,
 		isUpdating: updateMutation.isPending,
@@ -263,7 +260,7 @@ export function useFunnelComparison(
 ) {
 	const funnels = useQueries({
 		queries: funnelIds.map((funnelId) => ({
-			queryKey: ['funnels', 'getAnalytics', { websiteId, funnelId, dateRange }],
+			queryKey: ["funnels", "getAnalytics", { websiteId, funnelId, dateRange }],
 			queryFn: () =>
 				// biome-ignore lint/correctness/useHookAtTopLevel: "trpc works this way"
 				trpc.funnels.getAnalytics.useQuery({
@@ -276,17 +273,19 @@ export function useFunnelComparison(
 		})),
 	});
 
-	const comparisonData = useMemo(() => {
-		return funnels.map((query, index) => {
-			const data = query.data;
-			return {
-				funnelId: funnelIds[index],
-				data: data ? data : null,
-				isLoading: query.isLoading,
-				error: query.error,
-			};
-		});
-	}, [funnels, funnelIds]);
+	const comparisonData = useMemo(
+		() =>
+			funnels.map((query, index) => {
+				const data = query.data;
+				return {
+					funnelId: funnelIds[index],
+					data: data ? data : null,
+					isLoading: query.isLoading,
+					error: query.error,
+				};
+			}),
+		[funnels, funnelIds]
+	);
 
 	return {
 		data: comparisonData,
@@ -307,8 +306,8 @@ export function useFunnelPerformance(
 	const results = useQueries({
 		queries: (funnels || []).map((funnel) => ({
 			queryKey: [
-				'funnels',
-				'getAnalytics',
+				"funnels",
+				"getAnalytics",
 				{ websiteId, funnelId: funnel.id, dateRange },
 			],
 			queryFn: () =>
@@ -323,20 +322,22 @@ export function useFunnelPerformance(
 		})),
 	});
 
-	const performanceData = useMemo(() => {
-		return results
-			.map((result, index) => {
-				if (!result.data) {
-					return null;
-				}
-				return {
-					funnelId: funnels[index].id,
-					funnelName: funnels[index].name,
-					...result.data,
-				};
-			})
-			.filter(Boolean);
-	}, [results, funnels]);
+	const performanceData = useMemo(
+		() =>
+			results
+				.map((result, index) => {
+					if (!result.data) {
+						return null;
+					}
+					return {
+						funnelId: funnels[index].id,
+						funnelName: funnels[index].name,
+						...result.data,
+					};
+				})
+				.filter(Boolean),
+		[results, funnels]
+	);
 
 	return {
 		data: performanceData,

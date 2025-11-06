@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ChartBarIcon,
@@ -11,10 +11,10 @@ import {
 	GaugeIcon,
 	TreeStructureIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import type { ColumnDef } from '@tanstack/react-table';
-import { useAtom } from 'jotai';
-import { useMemo } from 'react';
+} from "@phosphor-icons/react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useAtom } from "jotai";
+import { useMemo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -40,53 +40,53 @@ import {
 	Treemap,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import { DataTable } from '@/components/table/data-table';
-import { Badge } from '@/components/ui/badge';
+} from "recharts";
+import { DataTable } from "@/components/table/data-table";
+import { Badge } from "@/components/ui/badge";
 import {
 	ChartContainer,
 	ChartLegendContent,
 	ChartTooltipContent,
-} from '@/components/ui/chart';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
-import { messagesAtom, websiteDataAtom } from '@/stores/jotai/assistantAtoms';
-import type { Message } from '../types/message';
+} from "@/components/ui/chart";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { messagesAtom, websiteDataAtom } from "@/stores/jotai/assistantAtoms";
+import type { Message } from "../types/message";
 
-const CHART_COLORS = ['#2563eb', '#f97316', '#22c55e', '#ef4444', '#8b5cf6'];
+const CHART_COLORS = ["#2563eb", "#f97316", "#22c55e", "#ef4444", "#8b5cf6"];
 
 const getChartIcon = (chartType: string) => {
 	switch (chartType?.toLowerCase()) {
-		case 'bar':
-		case 'horizontal_bar':
+		case "bar":
+		case "horizontal_bar":
 			return <ChartBarIcon className="h-3 w-3" />;
-		case 'line':
-		case 'sparkline':
+		case "line":
+		case "sparkline":
 			return <ChartLineIcon className="h-3 w-3" />;
-		case 'pie':
-		case 'donut':
+		case "pie":
+		case "donut":
 			return <ChartPieIcon className="h-3 w-3" />;
-		case 'area':
-		case 'unstacked_area':
+		case "area":
+		case "unstacked_area":
 			return <ChartLineIcon className="h-3 w-3" />;
-		case 'stacked_bar':
-		case 'grouped_bar':
+		case "stacked_bar":
+		case "grouped_bar":
 			return <ChartBarIcon className="h-3 w-3" />;
-		case 'multi_line':
+		case "multi_line":
 			return <ChartLineIcon className="h-3 w-3" />;
-		case 'scatter':
-		case 'bubble':
+		case "scatter":
+		case "bubble":
 			return <DotsThreeOutlineVerticalIcon className="h-3 w-3" />;
-		case 'radar':
+		case "radar":
 			return <CompassIcon className="h-3 w-3" />;
-		case 'funnel':
+		case "funnel":
 			return <FunnelIcon className="h-3 w-3" />;
-		case 'treemap':
+		case "treemap":
 			return <TreeStructureIcon className="h-3 w-3" />;
-		case 'histogram':
+		case "histogram":
 			return <ChartBarIcon className="h-3 w-3" />;
-		case 'gauge':
-		case 'progress':
+		case "gauge":
+		case "progress":
 			return <GaugeIcon className="h-3 w-3" />;
 		default:
 			return <ChartBarIcon className="h-3 w-3" />;
@@ -135,11 +135,13 @@ export default function VisualizationSection() {
 	const [messages] = useAtom(messagesAtom);
 
 	// Find the latest assistant message with a chartType
-	const latestAssistantMsg = useMemo(() => {
-		return [...messages]
-			.reverse()
-			.find((msg: Message) => msg.type === 'assistant' && msg.chartType);
-	}, [messages]);
+	const latestAssistantMsg = useMemo(
+		() =>
+			[...messages]
+				.reverse()
+				.find((msg: Message) => msg.type === "assistant" && msg.chartType),
+		[messages]
+	);
 
 	const rawAiData = useMemo(() => {
 		if (!latestAssistantMsg?.data || latestAssistantMsg.data.length === 0) {
@@ -154,7 +156,7 @@ export default function VisualizationSection() {
 
 		// Ensure each item is an object
 		const validData = data.filter(
-			(item) => item && typeof item === 'object' && !Array.isArray(item)
+			(item) => item && typeof item === "object" && !Array.isArray(item)
 		);
 
 		return validData;
@@ -162,19 +164,19 @@ export default function VisualizationSection() {
 
 	const chartDisplayConfig = useMemo(() => {
 		if (!rawAiData || rawAiData.length === 0) {
-			return { chartDataForDisplay: [], finalXAxisKey: 'date' };
+			return { chartDataForDisplay: [], finalXAxisKey: "date" };
 		}
 		const chartType = latestAssistantMsg?.chartType;
 
-		if (chartType === 'bar' && rawAiData.length > 0) {
+		if (chartType === "bar" && rawAiData.length > 0) {
 			const firstRow = rawAiData[0];
 			const keys = Object.keys(firstRow);
 
 			// Find the categorical key (string) and metric key (number)
 			const categoryKey =
-				keys.find((k) => typeof firstRow[k] === 'string') || keys[0];
+				keys.find((k) => typeof firstRow[k] === "string") || keys[0];
 			const metricKey =
-				keys.find((k) => typeof firstRow[k] === 'number') || keys[1];
+				keys.find((k) => typeof firstRow[k] === "number") || keys[1];
 
 			if (categoryKey && metricKey) {
 				// Create properly formatted data for the chart
@@ -206,17 +208,17 @@ export default function VisualizationSection() {
 		let workingData = transformedDataFromFunc;
 
 		if (
-			chartType === 'bar' &&
-			xAxisKeyFromFunc === 'date' &&
+			chartType === "bar" &&
+			xAxisKeyFromFunc === "date" &&
 			workingData.length > 0 &&
 			workingData[0]
 		) {
 			const metricKeyForAggregation =
-				'pageviews' in workingData[0]
-					? 'pageviews'
+				"pageviews" in workingData[0]
+					? "pageviews"
 					: Object.keys(workingData[0]).find(
 							(k) =>
-								typeof workingData[0][k] === 'number' && k !== xAxisKeyFromFunc
+								typeof workingData[0][k] === "number" && k !== xAxisKeyFromFunc
 						);
 
 			if (metricKeyForAggregation) {
@@ -240,13 +242,13 @@ export default function VisualizationSection() {
 		const MAX_CHART_ITEMS = 7;
 
 		if (
-			(chartType === 'bar' || chartType === 'pie') &&
+			(chartType === "bar" || chartType === "pie") &&
 			workingData.length > MAX_CHART_ITEMS
 		) {
 			const primaryMetricKeyForSorting = workingData[0]
 				? Object.keys(workingData[0]).find(
 						(k) =>
-							typeof workingData[0][k] === 'number' && k !== xAxisKeyFromFunc
+							typeof workingData[0][k] === "number" && k !== xAxisKeyFromFunc
 					)
 				: undefined;
 
@@ -282,13 +284,13 @@ export default function VisualizationSection() {
 		const config: ChartConfig = {
 			[xAxisKey]: {
 				label: xAxisKey
-					.replace(/_/g, ' ')
+					.replace(/_/g, " ")
 					.replace(/\b\w/g, (l) => l.toUpperCase()),
 			},
 		};
 		keys.forEach((key, index) => {
 			config[key] = {
-				label: key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+				label: key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
 				color: CHART_COLORS[index % CHART_COLORS.length],
 			};
 		});
@@ -309,14 +311,14 @@ export default function VisualizationSection() {
 		metricKeys: string[],
 		config: ChartConfig,
 		chartOptions: {
-			layout?: 'vertical' | 'horizontal';
+			layout?: "vertical" | "horizontal";
 			stacked?: boolean;
 			grouped?: boolean;
 		} = {}
 	) => {
-		const isVertical = chartOptions.layout === 'vertical';
+		const isVertical = chartOptions.layout === "vertical";
 		return (
-			<BarChart data={chartData} layout={isVertical ? 'vertical' : undefined}>
+			<BarChart data={chartData} layout={isVertical ? "vertical" : undefined}>
 				<CartesianGrid horizontal={isVertical} vertical={!isVertical} />
 				{isVertical ? (
 					<>
@@ -357,7 +359,7 @@ export default function VisualizationSection() {
 						}
 						key={metricKey}
 						radius={4}
-						stackId={chartOptions.stacked ? 'a' : undefined}
+						stackId={chartOptions.stacked ? "a" : undefined}
 					/>
 				))}
 			</BarChart>
@@ -465,7 +467,7 @@ export default function VisualizationSection() {
 						chartConfig[key]?.color || CHART_COLORS[index % CHART_COLORS.length]
 					}
 					key={key}
-					stackId={options.stacked !== false ? 'a' : undefined}
+					stackId={options.stacked !== false ? "a" : undefined}
 					stroke={
 						chartConfig[key]?.color || CHART_COLORS[index % CHART_COLORS.length]
 					}
@@ -539,7 +541,7 @@ export default function VisualizationSection() {
 		chartConfig: ChartConfig
 	) =>
 		renderBaseBarChart(data, xAxisKey, availableMetricKeys, chartConfig, {
-			layout: 'vertical',
+			layout: "vertical",
 			stacked: true,
 		});
 
@@ -580,7 +582,7 @@ export default function VisualizationSection() {
 				/>
 				<Tooltip
 					content={<ChartTooltipContent hideLabel />}
-					cursor={{ strokeDasharray: '3 3' }}
+					cursor={{ strokeDasharray: "3 3" }}
 				/>
 				<Scatter
 					data={data}
@@ -653,7 +655,7 @@ export default function VisualizationSection() {
 			<Tooltip content={<ChartTooltipContent />} />
 			<RechartsFunnel
 				data={data}
-				dataKey={availableMetricKeys[0] || 'users'}
+				dataKey={availableMetricKeys[0] || "users"}
 				isAnimationActive
 			>
 				{data.map((entry, index) => (
@@ -825,7 +827,7 @@ export default function VisualizationSection() {
 							strokeDasharray={`${(percentage / 100) * 251.33} 251.33`}
 							strokeLinecap="round"
 							strokeWidth="12"
-							style={{ transition: 'stroke-dasharray 1s ease-in-out' }}
+							style={{ transition: "stroke-dasharray 1s ease-in-out" }}
 						/>
 						{/* Value text */}
 						<text
@@ -863,13 +865,13 @@ export default function VisualizationSection() {
 					</div>
 					<h3 className="mb-1 font-medium text-sm">
 						{websiteData
-							? 'Loading Visualization...'
-							: 'No Visualization Available'}
+							? "Loading Visualization..."
+							: "No Visualization Available"}
 					</h3>
 					<p className="max-w-xs px-2 text-xs">
 						{websiteData
-							? 'Processing your data query...'
-							: 'Ask a question that needs a chart or table to see your data visualized here.'}
+							? "Processing your data query..."
+							: "Ask a question that needs a chart or table to see your data visualized here."}
 					</p>
 				</div>
 			);
@@ -877,17 +879,17 @@ export default function VisualizationSection() {
 
 		const { chartType: aiChartType } = latestAssistantMsg;
 		const showMetricsChart = [
-			'line',
-			'bar',
-			'area',
-			'multi_line',
-			'stacked_bar',
-			'grouped_bar',
-			'pie',
-			'scatter',
-			'radar',
-			'funnel',
-		].includes(aiChartType?.toLowerCase() || '');
+			"line",
+			"bar",
+			"area",
+			"multi_line",
+			"stacked_bar",
+			"grouped_bar",
+			"pie",
+			"scatter",
+			"radar",
+			"funnel",
+		].includes(aiChartType?.toLowerCase() || "");
 
 		const metricKeys = Object.keys(chartConfig).filter(
 			(key) => key !== chartDisplayConfig.finalXAxisKey
@@ -921,7 +923,7 @@ export default function VisualizationSection() {
 
 			// Additional validation for specific chart types
 			if (
-				aiChartType?.toLowerCase() === 'scatter' &&
+				aiChartType?.toLowerCase() === "scatter" &&
 				availableMetricKeys.length < 2
 			) {
 				return (
@@ -932,7 +934,7 @@ export default function VisualizationSection() {
 			}
 
 			if (
-				aiChartType?.toLowerCase() === 'pie' &&
+				aiChartType?.toLowerCase() === "pie" &&
 				availableMetricKeys.length === 0
 			) {
 				return (
@@ -943,29 +945,29 @@ export default function VisualizationSection() {
 			}
 
 			switch (aiChartType?.toLowerCase()) {
-				case 'bar':
+				case "bar":
 					return renderBarChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'horizontal_bar':
+				case "horizontal_bar":
 					return renderBaseBarChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig,
-						{ layout: 'vertical' }
+						{ layout: "vertical" }
 					);
-				case 'line':
+				case "line":
 					return renderLineChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'sparkline':
+				case "sparkline":
 					return renderBaseLineChart(
 						data,
 						xAxisKey,
@@ -973,14 +975,14 @@ export default function VisualizationSection() {
 						chartConfig,
 						{ minimal: true, showGrid: false, showAxes: false }
 					);
-				case 'area':
+				case "area":
 					return renderAreaChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'unstacked_area':
+				case "unstacked_area":
 					return renderBaseAreaChart(
 						data,
 						xAxisKey,
@@ -988,49 +990,49 @@ export default function VisualizationSection() {
 						chartConfig,
 						{ stacked: false }
 					);
-				case 'pie':
+				case "pie":
 					return renderPieChart(data, xAxisKey, availableMetricKeys);
-				case 'donut':
+				case "donut":
 					return renderDonutChart(data, xAxisKey, availableMetricKeys);
-				case 'multi_line':
+				case "multi_line":
 					return renderMultiLineChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'stacked_bar':
+				case "stacked_bar":
 					return renderStackedBarChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'grouped_bar':
+				case "grouped_bar":
 					return renderGroupedBarChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'scatter':
+				case "scatter":
 					return renderScatterChart(data, availableMetricKeys);
-				case 'bubble':
+				case "bubble":
 					return renderBubbleChart(data, availableMetricKeys);
-				case 'radar':
+				case "radar":
 					return renderRadarChart(
 						data,
 						xAxisKey,
 						availableMetricKeys,
 						chartConfig
 					);
-				case 'funnel':
+				case "funnel":
 					return renderFunnelChart(data, xAxisKey, availableMetricKeys);
-				case 'histogram':
+				case "histogram":
 					return renderHistogramChart(data, availableMetricKeys[0]);
-				case 'treemap':
+				case "treemap":
 					return renderTreemapChart(data, xAxisKey, availableMetricKeys);
-				case 'gauge':
+				case "gauge":
 					return renderGaugeChart(data, availableMetricKeys[0]);
 				default:
 					return (
@@ -1071,48 +1073,48 @@ export default function VisualizationSection() {
 
 	const getChartTypeDescription = (chartType?: string) => {
 		if (!chartType) {
-			return 'Data';
+			return "Data";
 		}
 		switch (chartType.toLowerCase()) {
-			case 'multi_line':
-				return 'Multi-Series Line Chart';
-			case 'stacked_bar':
-				return 'Stacked Bar Chart';
-			case 'grouped_bar':
-				return 'Grouped Bar Chart';
-			case 'horizontal_bar':
-				return 'Horizontal Bar Chart';
-			case 'area':
-				return 'Area Chart';
-			case 'unstacked_area':
-				return 'Unstacked Area Chart';
-			case 'line':
-				return 'Line Chart';
-			case 'sparkline':
-				return 'Sparkline Chart';
-			case 'bar':
-				return 'Bar Chart';
-			case 'pie':
-				return 'Pie Chart';
-			case 'donut':
-				return 'Donut Chart';
-			case 'scatter':
-				return 'Scatter Chart';
-			case 'bubble':
-				return 'Bubble Chart';
-			case 'radar':
-				return 'Radar Chart';
-			case 'funnel':
-				return 'Funnel Chart';
-			case 'histogram':
-				return 'Histogram Chart';
-			case 'treemap':
-				return 'Treemap Chart';
-			case 'gauge':
-				return 'Gauge Chart';
+			case "multi_line":
+				return "Multi-Series Line Chart";
+			case "stacked_bar":
+				return "Stacked Bar Chart";
+			case "grouped_bar":
+				return "Grouped Bar Chart";
+			case "horizontal_bar":
+				return "Horizontal Bar Chart";
+			case "area":
+				return "Area Chart";
+			case "unstacked_area":
+				return "Unstacked Area Chart";
+			case "line":
+				return "Line Chart";
+			case "sparkline":
+				return "Sparkline Chart";
+			case "bar":
+				return "Bar Chart";
+			case "pie":
+				return "Pie Chart";
+			case "donut":
+				return "Donut Chart";
+			case "scatter":
+				return "Scatter Chart";
+			case "bubble":
+				return "Bubble Chart";
+			case "radar":
+				return "Radar Chart";
+			case "funnel":
+				return "Funnel Chart";
+			case "histogram":
+				return "Histogram Chart";
+			case "treemap":
+				return "Treemap Chart";
+			case "gauge":
+				return "Gauge Chart";
 			default:
 				return chartType
-					.replace(/_/g, ' ')
+					.replace(/_/g, " ")
 					.replace(/\b\w/g, (l) => l.toUpperCase());
 		}
 	};
@@ -1146,58 +1148,58 @@ export default function VisualizationSection() {
 }
 
 const REFERRER_NAME_MAP: Record<string, string> = {
-	'google.com': 'Google',
-	'www.google.com': 'Google',
-	'm.google.com': 'Google',
-	't.co': 'Twitter / X',
-	'twitter.com': 'Twitter / X',
-	'x.com': 'Twitter / X',
-	'facebook.com': 'Facebook',
-	'www.facebook.com': 'Facebook',
-	'm.facebook.com': 'Facebook',
-	'linkedin.com': 'LinkedIn',
-	'www.linkedin.com': 'LinkedIn',
-	'bing.com': 'Bing',
-	'www.bing.com': 'Bing',
-	'duckduckgo.com': 'DuckDuckGo',
-	'yahoo.com': 'Yahoo',
-	'yandex.com': 'Yandex',
-	'baidu.com': 'Baidu',
-	'github.com': 'GitHub',
-	'producthunt.com': 'Product Hunt',
-	'reddit.com': 'Reddit',
-	'www.reddit.com': 'Reddit',
-	'dev.to': 'DEV Community',
-	'medium.com': 'Medium',
-	'stackoverflow.com': 'Stack Overflow',
-	'slack.com': 'Slack',
-	localhost: 'Localhost',
+	"google.com": "Google",
+	"www.google.com": "Google",
+	"m.google.com": "Google",
+	"t.co": "Twitter / X",
+	"twitter.com": "Twitter / X",
+	"x.com": "Twitter / X",
+	"facebook.com": "Facebook",
+	"www.facebook.com": "Facebook",
+	"m.facebook.com": "Facebook",
+	"linkedin.com": "LinkedIn",
+	"www.linkedin.com": "LinkedIn",
+	"bing.com": "Bing",
+	"www.bing.com": "Bing",
+	"duckduckgo.com": "DuckDuckGo",
+	"yahoo.com": "Yahoo",
+	"yandex.com": "Yandex",
+	"baidu.com": "Baidu",
+	"github.com": "GitHub",
+	"producthunt.com": "Product Hunt",
+	"reddit.com": "Reddit",
+	"www.reddit.com": "Reddit",
+	"dev.to": "DEV Community",
+	"medium.com": "Medium",
+	"stackoverflow.com": "Stack Overflow",
+	"slack.com": "Slack",
+	localhost: "Localhost",
 };
 
 function getReferrerDisplayName(referrer: string | unknown): string {
 	if (
 		referrer === null ||
-		referrer === '' ||
-		(typeof referrer === 'string' && referrer.toLowerCase() === '(direct)')
+		referrer === "" ||
+		(typeof referrer === "string" && referrer.toLowerCase() === "(direct)")
 	) {
-		return 'Direct';
+		return "Direct";
 	}
-	if (typeof referrer !== 'string' || !referrer.trim()) {
-		return 'Unknown';
+	if (typeof referrer !== "string" || !referrer.trim()) {
+		return "Unknown";
 	}
 
 	const trimmedReferrer = referrer.trim();
 
 	try {
 		const fullUrl =
-			trimmedReferrer.startsWith('http://') ||
-			trimmedReferrer.startsWith('https://')
+			trimmedReferrer.startsWith("http://") ||
+			trimmedReferrer.startsWith("https://")
 				? trimmedReferrer
 				: `http://${trimmedReferrer}`;
 		const url = new URL(fullUrl);
 		const hostname = url.hostname;
 
-		const baseHostname = hostname.startsWith('www.')
+		const baseHostname = hostname.startsWith("www.")
 			? hostname.substring(4)
 			: hostname;
 
@@ -1225,16 +1227,16 @@ const generateColumns = (
 
 	return firstItemKeys.map((key) => ({
 		accessorKey: key,
-		header: key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+		header: key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
 		cell: ({ row }) => {
 			const value = row.getValue(key);
-			if (typeof value === 'number') {
+			if (typeof value === "number") {
 				return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 			}
 			if (
-				typeof value === 'string' &&
-				(key.toLowerCase().includes('referrer') ||
-					key.toLowerCase().includes('source'))
+				typeof value === "string" &&
+				(key.toLowerCase().includes("referrer") ||
+					key.toLowerCase().includes("source"))
 			) {
 				return getReferrerDisplayName(value);
 			}
@@ -1244,7 +1246,7 @@ const generateColumns = (
 };
 
 // Moved TIME_KEYS to be globally accessible if needed by future helpers or for clarity.
-const TIME_KEYS = ['date', 'time', 'hour', 'day', 'week', 'month', 'timestamp'];
+const TIME_KEYS = ["date", "time", "hour", "day", "week", "month", "timestamp"];
 
 const transformDataForMetricsChart = (
 	rawData: any[],
@@ -1252,66 +1254,66 @@ const transformDataForMetricsChart = (
 	// aiQuery parameter removed as it was unused
 ): TransformResult => {
 	if (!rawData || rawData.length === 0 || !rawData[0]) {
-		return { chartData: [], xAxisKey: 'date' };
+		return { chartData: [], xAxisKey: "date" };
 	}
 
-	let determinedXAxisKey = 'date';
+	let determinedXAxisKey = "date";
 	const chartType = chartTypeInput?.toLowerCase();
 	// TIME_KEYS is now global. Other constants remain local as they are only used within this function scope.
 	const DATE_ALIASES = [
-		'date',
-		'time',
-		'day',
-		'timestamp',
-		'category',
-		'label',
-		'name',
-		'month',
-		'year',
-		'hour',
-		'period',
-		'referrer',
-		'source',
+		"date",
+		"time",
+		"day",
+		"timestamp",
+		"category",
+		"label",
+		"name",
+		"month",
+		"year",
+		"hour",
+		"period",
+		"referrer",
+		"source",
 	];
 	const PRIMARY_METRIC_ALIASES = [
-		'pageviews',
-		'page_views',
-		'page views',
-		'count',
-		'visits',
-		'value',
-		'sessions',
-		'users',
-		'total',
-		'metric',
-		'records',
-		'events',
-		'avg_load_time',
-		'load_time',
+		"pageviews",
+		"page_views",
+		"page views",
+		"count",
+		"visits",
+		"value",
+		"sessions",
+		"users",
+		"total",
+		"metric",
+		"records",
+		"events",
+		"avg_load_time",
+		"load_time",
 	];
 	const SECONDARY_METRIC_ALIASES = [
-		'visitors',
-		'unique_visitors',
-		'unique visitors',
-		'users',
-		'distinct_users',
-		'uniques',
+		"visitors",
+		"unique_visitors",
+		"unique visitors",
+		"users",
+		"distinct_users",
+		"uniques",
 	];
 
-	if (chartType === 'multi_line') {
+	if (chartType === "multi_line") {
 		const firstItemKeys = Object.keys(rawData[0]);
 		const timeCol = firstItemKeys.find(
-			(k: string) => k.toLowerCase() === 'date' || k.toLowerCase() === 'hour'
+			(k: string) => k.toLowerCase() === "date" || k.toLowerCase() === "hour"
 		);
 		let categoryCol: string | undefined;
 		let metricCol: string | undefined;
 
 		if (timeCol) {
 			categoryCol = firstItemKeys.find(
-				(k: string) => k !== timeCol && typeof rawData[0][k] === 'string'
+				(k: string) => k !== timeCol && typeof rawData[0][k] === "string"
 			);
 			metricCol = firstItemKeys.find(
-				(k: string) => k !== timeCol && typeof rawData[0][k] === 'number'
+				(k: string) => k !== timeCol && typeof rawData[0][k] === "number"
 			);
 		}
 
@@ -1327,12 +1329,12 @@ const transformDataForMetricsChart = (
 				let categoryVal = String(item[_categoryCol]);
 				const metricVal = Number(item[_metricCol]);
 
-				if (_categoryCol.toLowerCase().includes('path')) {
+				if (_categoryCol.toLowerCase().includes("path")) {
 					categoryVal =
-						categoryVal.startsWith('/') && categoryVal.length > 1
+						categoryVal.startsWith("/") && categoryVal.length > 1
 							? categoryVal.substring(1)
 							: categoryVal;
-					categoryVal = categoryVal.split('?')[0] || 'Home';
+					categoryVal = categoryVal.split("?")[0] || "Home";
 					if (categoryVal.length > 20) {
 						categoryVal = `${categoryVal.substring(0, 17)}...`;
 					}
@@ -1346,12 +1348,12 @@ const transformDataForMetricsChart = (
 			const allCategoryKeys = new Set<string>();
 			for (const item of rawData) {
 				let categoryVal = String(item[_categoryCol]);
-				if (_categoryCol.toLowerCase().includes('path')) {
+				if (_categoryCol.toLowerCase().includes("path")) {
 					categoryVal =
-						categoryVal.startsWith('/') && categoryVal.length > 1
+						categoryVal.startsWith("/") && categoryVal.length > 1
 							? categoryVal.substring(1)
 							: categoryVal;
-					categoryVal = categoryVal.split('?')[0] || 'Home';
+					categoryVal = categoryVal.split("?")[0] || "Home";
 					if (categoryVal.length > 20) {
 						categoryVal = `${categoryVal.substring(0, 17)}...`;
 					}
@@ -1392,10 +1394,10 @@ const transformDataForMetricsChart = (
 	const identifiedMetricKey = firstItemKeys.find(
 		(key: string) =>
 			key !== identifiedTimeKeyForSingleSeries &&
-			typeof rawData[0][key] === 'number'
+			typeof rawData[0][key] === "number"
 	);
 
-	determinedXAxisKey = 'date';
+	determinedXAxisKey = "date";
 
 	const transformedChartData = rawData.map((item) => {
 		const transformed: ChartDataItem = {};
@@ -1423,10 +1425,10 @@ const transformDataForMetricsChart = (
 
 		if (
 			categoryValueToSet === undefined &&
-			(chartType === 'bar' || chartType === 'pie')
+			(chartType === "bar" || chartType === "pie")
 		) {
 			const stringKey = originalKeys.find(
-				(k: string) => typeof item[k] === 'string' && !usedOriginalKeys.has(k)
+				(k: string) => typeof item[k] === "string" && !usedOriginalKeys.has(k)
 			);
 			if (stringKey) {
 				categoryValueToSet = item[stringKey];
@@ -1446,17 +1448,17 @@ const transformDataForMetricsChart = (
 			}
 		}
 
-		if (chartType === 'bar' && typeof categoryValueToSet === 'string') {
+		if (chartType === "bar" && typeof categoryValueToSet === "string") {
 			const keyUsedForCategoryIsReferrer =
-				(foundDateKeyActual || '').toLowerCase().includes('referrer') ||
-				(foundDateKeyActual || '').toLowerCase().includes('source');
+				(foundDateKeyActual || "").toLowerCase().includes("referrer") ||
+				(foundDateKeyActual || "").toLowerCase().includes("source");
 			const potentialReferrerIndicators = [
-				'/',
-				'.com',
-				'.net',
-				'.org',
-				'http',
-				'www',
+				"/",
+				".com",
+				".net",
+				".org",
+				"http",
+				"www",
 			];
 			if (
 				keyUsedForCategoryIsReferrer ||
@@ -1469,16 +1471,16 @@ const transformDataForMetricsChart = (
 				transformed[dateField] = categoryValueToSet;
 			}
 		} else if (
-			typeof categoryValueToSet === 'object' &&
+			typeof categoryValueToSet === "object" &&
 			categoryValueToSet !== null &&
 			categoryValueToSet instanceof Date
 		) {
-			transformed[dateField] = categoryValueToSet.toISOString().split('T')[0];
+			transformed[dateField] = categoryValueToSet.toISOString().split("T")[0];
 		} else {
-			transformed[dateField] = String(categoryValueToSet ?? 'Unknown');
+			transformed[dateField] = String(categoryValueToSet ?? "Unknown");
 		}
 
-		const primaryMetricField = identifiedMetricKey || 'pageviews';
+		const primaryMetricField = identifiedMetricKey || "pageviews";
 		transformed[primaryMetricField] = null;
 
 		// PRIMARY_METRIC_ALIASES is defined locally
@@ -1495,18 +1497,18 @@ const transformDataForMetricsChart = (
 				currentPrimaryMetricAliases.includes(k.toLowerCase()) &&
 				!usedOriginalKeys.has(k) &&
 				k !== foundDateKeyActual &&
-				typeof item[k] === 'number'
+				typeof item[k] === "number"
 		);
 
 		if (!foundPrimaryMetricKey) {
 			foundPrimaryMetricKey =
 				identifiedMetricKey &&
 				!usedOriginalKeys.has(identifiedMetricKey) &&
-				typeof item[identifiedMetricKey] === 'number'
+				typeof item[identifiedMetricKey] === "number"
 					? identifiedMetricKey
 					: originalKeys.find(
 							(k: string) =>
-								typeof item[k] === 'number' &&
+								typeof item[k] === "number" &&
 								!usedOriginalKeys.has(k) &&
 								k !== foundDateKeyActual
 						);
@@ -1525,8 +1527,8 @@ const transformDataForMetricsChart = (
 			usedOriginalKeys.add(identifiedMetricKey);
 		}
 
-		if (chartType === 'line' || chartType === 'area') {
-			const visitorsMetricName = 'visitors';
+		if (chartType === "line" || chartType === "area") {
+			const visitorsMetricName = "visitors";
 			// SECONDARY_METRIC_ALIASES is defined locally
 			const foundSecondaryMetricKey = originalKeys.find(
 				(k: string) =>
@@ -1534,7 +1536,7 @@ const transformDataForMetricsChart = (
 					!usedOriginalKeys.has(k) &&
 					k !== foundDateKeyActual &&
 					k !== foundPrimaryMetricKey &&
-					typeof item[k] === 'number'
+					typeof item[k] === "number"
 			);
 			if (
 				foundSecondaryMetricKey &&
@@ -1548,11 +1550,11 @@ const transformDataForMetricsChart = (
 
 		for (const key of originalKeys) {
 			if (
-				typeof item[key] === 'number' &&
+				typeof item[key] === "number" &&
 				!usedOriginalKeys.has(key) &&
 				key !== foundDateKeyActual
 			) {
-				const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '_');
+				const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, "_");
 				if (!Object.hasOwn(transformed, sanitizedKey)) {
 					transformed[sanitizedKey] = Number(item[key]) || 0;
 				}

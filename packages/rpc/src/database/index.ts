@@ -11,7 +11,7 @@ export {
 	safeInstallExtension,
 	type TableStats,
 	updateExtension,
-} from './monitoring';
+} from "./monitoring";
 
 export {
 	activateOnlineAdvisor,
@@ -26,11 +26,11 @@ export {
 	getPerformanceMetrics,
 	getPerformanceStatements,
 	resetPerformanceStats,
-} from './performance';
+} from "./performance";
 
 export {
 	buildPostgresUrl,
 	type PostgresConnectionInfo,
 	parsePostgresUrl,
 	testConnection,
-} from './postgres';
+} from "./postgres";

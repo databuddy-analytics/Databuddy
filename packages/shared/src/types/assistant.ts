@@ -4,20 +4,20 @@
 // TODO: Enforce more strict types here based on the "type" field
 export type StreamingUpdate =
 	| {
-			type: 'thinking' | 'progress' | 'complete' | 'error';
+			type: "thinking" | "progress" | "complete" | "error";
 			content: string;
 			data?: {
 				hasVisualization?: boolean;
 				chartType?: string;
 				data?: any[];
-				responseType?: 'chart' | 'text' | 'metric';
+				responseType?: "chart" | "text" | "metric";
 				metricValue?: string | number;
 				metricLabel?: string;
 			};
 			debugInfo?: Record<string, any>;
 	  }
 	| {
-			type: 'metadata';
+			type: "metadata";
 			data: {
 				conversationId: string;
 				messageId: string;

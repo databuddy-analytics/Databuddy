@@ -1,27 +1,26 @@
-'use client';
+"use client";
 
-import type { ErrorEvent } from '@databuddy/shared';
-import { BugIcon, CopyIcon, GlobeIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { CountryFlag } from '@/components/analytics/icons/CountryFlag';
-import { BrowserIcon, OSIcon } from '@/components/icon';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { BugIcon, CopyIcon, GlobeIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { BrowserIcon, OSIcon } from "@/components/icon";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
+} from "@/components/ui/sheet";
+import type { RecentError } from "./types";
 import {
 	formatDateTimeSeconds,
 	getErrorCategory,
 	getSeverityColor,
-} from './utils';
-import type { RecentError } from './types';
+} from "./utils";
 
 interface InfoProps {
 	label: string;
@@ -87,8 +86,8 @@ export const ErrorDetailModal = ({
 			toast.success(`${section} copied to clipboard`);
 			setTimeout(() => setCopiedSection(null), 2000);
 		} catch (err) {
-			toast.error('Failed to copy to clipboard', {
-				description: err instanceof Error ? err.message : 'Unknown error',
+			toast.error("Failed to copy to clipboard", {
+				description: err instanceof Error ? err.message : "Unknown error",
 			});
 		}
 	};
@@ -131,16 +130,16 @@ export const ErrorDetailModal = ({
 									<Button
 										className="shrink-0"
 										onClick={() =>
-											copyToClipboard(error.message, 'Error message')
+											copyToClipboard(error.message, "Error message")
 										}
 										size="sm"
 										variant="ghost"
 									>
 										<CopyIcon
 											className={`h-4 w-4 ${
-												copiedSection === 'Error message'
-													? 'text-green-600'
-													: ''
+												copiedSection === "Error message"
+													? "text-green-600"
+													: ""
 											}`}
 										/>
 									</Button>
@@ -155,14 +154,14 @@ export const ErrorDetailModal = ({
 									<h3 className="font-semibold text-base">Stack Trace</h3>
 									<Button
 										onClick={() =>
-											copyToClipboard(error.stack || '', 'Stack trace')
+											copyToClipboard(error.stack || "", "Stack trace")
 										}
 										size="sm"
 										variant="ghost"
 									>
 										<CopyIcon
 											className={`h-4 w-4 ${
-												copiedSection === 'Stack trace' ? 'text-green-600' : ''
+												copiedSection === "Stack trace" ? "text-green-600" : ""
 											}`}
 										/>
 									</Button>
@@ -184,7 +183,7 @@ export const ErrorDetailModal = ({
 								<InfoRow label="Page URL" value={error.path} />
 								<InfoRow
 									label="Session ID"
-									value={error.session_id || 'Unknown'}
+									value={error.session_id || "Unknown"}
 								/>
 								<InfoRow label="User ID" value={error.anonymous_id} />
 								<div className="space-y-2">
@@ -235,7 +234,7 @@ export const ErrorDetailModal = ({
 										{error.country_code || error.country ? (
 											<>
 												<CountryFlag
-													country={error.country_code || error.country || ''}
+													country={error.country_code || error.country || ""}
 													size={16}
 												/>
 												<span className="text-sm">
@@ -263,7 +262,7 @@ export const ErrorDetailModal = ({
 Error Message: ${error.message}
 
 Stack Trace:
-${error.stack || 'No stack trace available'}
+${error.stack || "No stack trace available"}
 
 Context:
 - Page URL: ${error.path}
@@ -272,10 +271,10 @@ Context:
 - Timestamp: ${formatDateTimeSeconds(error.timestamp)}
 - Browser: ${error.browser_name}
 - OS: ${error.os_name}
-- Device: ${error.device_type || '—'}
+- Device: ${error.device_type || "—"}
 - Location: ${error.country}
 									`.trim();
-									copyToClipboard(fullErrorInfo, 'Full error details');
+									copyToClipboard(fullErrorInfo, "Full error details");
 								}}
 								variant="outline"
 							>

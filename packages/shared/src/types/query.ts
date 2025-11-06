@@ -4,12 +4,12 @@ export interface ApiResponse {
 }
 
 export type QueryFieldType =
-	| 'string'
-	| 'number'
-	| 'boolean'
-	| 'date'
-	| 'datetime'
-	| 'json';
+	| "string"
+	| "number"
+	| "boolean"
+	| "date"
+	| "datetime"
+	| "json";
 
 export interface QueryOutputField {
 	name: string;
@@ -21,13 +21,13 @@ export interface QueryOutputField {
 }
 
 export type VisualizationType =
-	| 'table'
-	| 'timeseries'
-	| 'bar'
-	| 'pie'
-	| 'metric'
-	| 'area'
-	| 'line';
+	| "table"
+	| "timeseries"
+	| "bar"
+	| "pie"
+	| "metric"
+	| "area"
+	| "line";
 
 export interface QueryBuilderMeta {
 	title: string;
@@ -37,7 +37,7 @@ export interface QueryBuilderMeta {
 	output_fields?: QueryOutputField[];
 	output_example?: Record<string, string | number | boolean | null>[];
 	default_visualization?: VisualizationType;
-	supports_granularity?: ('hour' | 'day' | 'week' | 'month')[];
+	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	version?: string;
 	deprecated?: boolean;
 	docs_url?: string;

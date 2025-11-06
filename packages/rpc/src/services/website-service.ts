@@ -1,9 +1,16 @@
-import { type db as drizzleDb, websites, and, eq, isNull, type InferSelectModel } from '@databuddy/db';
-import { logger } from '@databuddy/shared';
-import { Effect, pipe } from 'effect';
-import { nanoid } from 'nanoid';
-import { z } from 'zod';
-import { invalidateWebsiteCaches } from '../utils/cache-invalidation.js';
+import {
+	and,
+	type db as drizzleDb,
+	eq,
+	type InferSelectModel,
+	isNull,
+	websites,
+} from "@databuddy/db";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
+import { Effect, pipe } from "effect";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { invalidateWebsiteCaches } from "../utils/cache-invalidation.js";
 
 export type Website = InferSelectModel<typeof websites>;
 
@@ -17,15 +24,15 @@ export const websiteNameSchema = z
 	.string()
 	.min(1)
 	.max(100)
-	.regex(WEBSITE_NAME_REGEX, 'Invalid website name format');
+	.regex(WEBSITE_NAME_REGEX, "Invalid website name format");
 
 export const domainSchema = z.preprocess(
 	(val) => {
-		if (typeof val !== 'string') {
+		if (typeof val !== "string") {
 			return val;
 		}
 		let domain = val.trim();
-		if (domain.startsWith('http://') || domain.startsWith('https://')) {
+		if (domain.startsWith("http://") || domain.startsWith("https://")) {
 			try {
 				domain = new URL(domain).hostname;
 			} catch {
@@ -34,34 +41,34 @@ export const domainSchema = z.preprocess(
 		}
 		return domain;
 	},
-	z.string().min(1).max(253).regex(DOMAIN_REGEX, 'Invalid domain format')
+	z.string().min(1).max(253).regex(DOMAIN_REGEX, "Invalid domain format")
 );
 
 export const subdomainSchema = z
 	.string()
 	.max(63)
-	.regex(/^[a-zA-Z0-9-]*$/, 'Invalid subdomain format')
+	.regex(/^[a-zA-Z0-9-]*$/, "Invalid subdomain format")
 	.optional();
 
 // Define typed errors
 export class DuplicateDomainError extends Error {
 	constructor(domain: string) {
 		super(`A website with the domain "${domain}" already exists.`);
-		this.name = 'DuplicateDomainError';
+		this.name = "DuplicateDomainError";
 	}
 }
 
 export class WebsiteNotFoundError extends Error {
 	constructor() {
-		super('Website not found');
-		this.name = 'WebsiteNotFoundError';
+		super("Website not found");
+		this.name = "WebsiteNotFoundError";
 	}
 }
 
 export class ValidationError extends Error {
 	constructor(message: string) {
 		super(message);
-		this.name = 'ValidationError';
+		this.name = "ValidationError";
 	}
 }
 
@@ -175,7 +182,7 @@ export class WebsiteService {
 			Effect.try({
 				try: () =>
 					logger.success(
-						'Website Created',
+						"Website Created",
 						`New website "${createdWebsite.name}" was created with domain "${createdWebsite.domain}"`,
 						{
 							websiteId: createdWebsite.id,
@@ -214,8 +221,8 @@ export class WebsiteService {
 	): Effect.Effect<Website, WebsiteError> {
 		const { skipDuplicateCheck = false, logContext = {} } = options;
 
-		const insertFn = async (tx: any) => {
-			return tx
+		const insertFn = async (tx: any) =>
+			tx
 				.insert(websites)
 				.values({
 					id: nanoid(),
@@ -223,11 +230,10 @@ export class WebsiteService {
 					domain: input.domain,
 					userId: input.userId,
 					organizationId: input.organizationId,
-					status: 'ACTIVE',
+					status: "ACTIVE",
 				})
 				.returning()
 				.then(([website]) => website as Website);
-		};
 
 		return pipe(
 			Effect.succeed(input),
@@ -405,7 +411,7 @@ export class WebsiteService {
 							Effect.try({
 								try: () =>
 									logger.info(
-										'Website Transferred',
+										"Website Transferred",
 										`Website "${transferredWebsite.name}" was transferred to organization "${organizationId}"`,
 										{
 											websiteId: transferredWebsite.id,
@@ -456,7 +462,7 @@ export class WebsiteService {
 							Effect.try({
 								try: () =>
 									logger.info(
-										'Website Transferred to Organization',
+										"Website Transferred to Organization",
 										`Website "${transferredWebsite.name}" was transferred to organization "${targetOrganizationId}"`,
 										{
 											websiteId: transferredWebsite.id,

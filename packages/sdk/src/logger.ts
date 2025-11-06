@@ -18,7 +18,7 @@ class Logger {
 	 */
 	debug(...args: unknown[]): void {
 		if (this.debugEnabled) {
-			console.log('[Databuddy]', ...args);
+			console.log("[Databuddy]", ...args);
 		}
 	}
 
@@ -26,21 +26,21 @@ class Logger {
 	 * Log info messages (always enabled)
 	 */
 	info(...args: unknown[]): void {
-		console.info('[Databuddy]', ...args);
+		console.info("[Databuddy]", ...args);
 	}
 
 	/**
 	 * Log warning messages (always enabled)
 	 */
 	warn(...args: unknown[]): void {
-		console.warn('[Databuddy]', ...args);
+		console.warn("[Databuddy]", ...args);
 	}
 
 	/**
 	 * Log error messages (always enabled)
 	 */
 	error(...args: unknown[]): void {
-		console.error('[Databuddy]', ...args);
+		console.error("[Databuddy]", ...args);
 	}
 
 	/**
@@ -75,7 +75,7 @@ class Logger {
 	 */
 	json(data: unknown): void {
 		if (this.debugEnabled) {
-			console.log('[Databuddy]', JSON.stringify(data, null, 2));
+			console.log("[Databuddy]", JSON.stringify(data, null, 2));
 		}
 	}
 }

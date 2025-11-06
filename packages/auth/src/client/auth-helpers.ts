@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { authClient, signIn, signOut, signUp } from './auth-client';
+import { authClient, signIn, signOut, signUp } from "./auth-client";
 
 interface TwoFactorResponse {
 	data?: {
@@ -119,7 +119,7 @@ export function loginWithGoogle(options?: {
 }) {
 	try {
 		return signIn.social({
-			provider: 'google',
+			provider: "google",
 			fetchOptions: {
 				onSuccess: () => {
 					if (options?.router && options.redirectUrl) {
@@ -147,7 +147,7 @@ export function loginWithGithub(options?: {
 }) {
 	try {
 		return signIn.social({
-			provider: 'github',
+			provider: "github",
 			fetchOptions: {
 				onSuccess: () => {
 					if (options?.router && options.redirectUrl) {
@@ -171,7 +171,7 @@ export function loginWithGithub(options?: {
 export async function enableTwoFactor(
 	password: string,
 	options?: {
-		onSuccess?: (data: TwoFactorResponse['data']) => void;
+		onSuccess?: (data: TwoFactorResponse["data"]) => void;
 		onError?: (error: any) => void;
 	}
 ) {

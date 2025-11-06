@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
 
 export interface JsonNodeProps {
 	data: unknown;
@@ -13,51 +13,51 @@ export interface JsonNodeProps {
 const MAX_DEPTH = 20;
 
 const indentClasses = [
-	'pl-0',
-	'pl-3',
-	'pl-6',
-	'pl-9',
-	'pl-12',
-	'pl-[60px]',
-	'pl-[72px]',
-	'pl-[84px]',
-	'pl-[96px]',
-	'pl-[108px]',
-	'pl-[120px]',
-	'pl-[132px]',
-	'pl-[144px]',
-	'pl-[156px]',
-	'pl-[168px]',
-	'pl-[180px]',
-	'pl-[192px]',
-	'pl-[204px]',
-	'pl-[216px]',
-	'pl-[228px]',
-	'pl-[240px]',
+	"pl-0",
+	"pl-3",
+	"pl-6",
+	"pl-9",
+	"pl-12",
+	"pl-[60px]",
+	"pl-[72px]",
+	"pl-[84px]",
+	"pl-[96px]",
+	"pl-[108px]",
+	"pl-[120px]",
+	"pl-[132px]",
+	"pl-[144px]",
+	"pl-[156px]",
+	"pl-[168px]",
+	"pl-[180px]",
+	"pl-[192px]",
+	"pl-[204px]",
+	"pl-[216px]",
+	"pl-[228px]",
+	"pl-[240px]",
 ];
 
 function getKeyColor() {
-	return 'text-green-600 dark:text-blue-300';
+	return "text-green-600 dark:text-blue-300";
 }
 
 function getValueColor(value: unknown) {
 	if (value === null) {
-		return 'text-muted-foreground';
+		return "text-muted-foreground";
 	}
-	if (typeof value === 'string') {
-		return 'text-blue-600 dark:text-orange-300';
+	if (typeof value === "string") {
+		return "text-blue-600 dark:text-orange-300";
 	}
-	if (typeof value === 'number' || typeof value === 'boolean') {
-		return 'text-blue-600 dark:text-orange-300';
+	if (typeof value === "number" || typeof value === "boolean") {
+		return "text-blue-600 dark:text-orange-300";
 	}
-	return 'text-foreground/90';
+	return "text-foreground/90";
 }
 
 function formatValue(value: unknown) {
 	if (value === null) {
-		return 'null';
+		return "null";
 	}
-	if (typeof value === 'string') {
+	if (typeof value === "string") {
 		return `"${value}"`;
 	}
 	return String(value);
@@ -98,7 +98,7 @@ function ArrayNode({
 	const indentClass = indentClasses[Math.min(level, indentClasses.length - 1)];
 
 	const itemKeys = useMemo(
-		() => data.map((_, index) => `${name || 'root'}_${level}_${index}`),
+		() => data.map((_, index) => `${name || "root"}_${level}_${index}`),
 		[data, name, level]
 	);
 
@@ -170,7 +170,7 @@ function ObjectNode({
 	const keyProps = useMemo(
 		() =>
 			keys.map((key) => ({
-				key: `${name || 'root'}_${level}_${key}`,
+				key: `${name || "root"}_${level}_${key}`,
 				name: key,
 			})),
 		[keys, name, level]
@@ -200,7 +200,7 @@ function ObjectNode({
 					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
 				)}
 				{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
-				<span className="font-semibold text-foreground/80">{'{'}</span>
+				<span className="font-semibold text-foreground/80">{"{"}</span>
 			</button>
 			{isExpanded && (
 				<>
@@ -214,13 +214,13 @@ function ObjectNode({
 						/>
 					))}
 					<div className={`flex items-center py-1 ${indentClass}`}>
-						<span className="font-semibold text-foreground/80">{'}'}</span>
+						<span className="font-semibold text-foreground/80">{"}"}</span>
 					</div>
 				</>
 			)}
 			{!isExpanded && (
 				<div className={`flex items-center py-1 ${indentClass}`}>
-					<span className="font-semibold text-foreground/80">{'}'}</span>
+					<span className="font-semibold text-foreground/80">{"}"}</span>
 				</div>
 			)}
 		</div>
@@ -230,16 +230,16 @@ function ObjectNode({
 export function JsonNode({ data, name, level = 0 }: JsonNodeProps) {
 	if (
 		data === null ||
-		typeof data === 'string' ||
-		typeof data === 'number' ||
-		typeof data === 'boolean'
+		typeof data === "string" ||
+		typeof data === "number" ||
+		typeof data === "boolean"
 	) {
 		return <PrimitiveNode level={level} name={name} value={data} />;
 	}
 	if (Array.isArray(data)) {
 		return <ArrayNode data={data} level={level} name={name} />;
 	}
-	if (typeof data === 'object') {
+	if (typeof data === "object") {
 		return (
 			<ObjectNode
 				data={data as Record<string, unknown>}

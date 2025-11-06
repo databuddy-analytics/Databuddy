@@ -1,15 +1,15 @@
-import { websitesApi } from '@databuddy/auth';
-import { chQuery } from '@databuddy/db';
+import { websitesApi } from "@databuddy/auth";
+import { chQuery } from "@databuddy/db";
 import type {
 	DailyUsageByTypeRow,
 	DailyUsageRow,
 	EventTypeBreakdown,
-} from '@databuddy/shared';
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-import { logger } from '../lib/logger';
-import { buildWebsiteFilter } from '../services/website-service';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+} from "@databuddy/shared/types/billing";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { logger } from "../lib/logger";
+import { buildWebsiteFilter } from "../services/website-service";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 const usageQuerySchema = z.object({
 	startDate: z.string().optional(),
@@ -18,10 +18,10 @@ const usageQuerySchema = z.object({
 });
 
 const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split('T')[0];
+	const endDate = new Date().toISOString().split("T")[0];
 	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		.toISOString()
-		.split('T')[0];
+		.split("T")[0];
 	return { startDate, endDate };
 };
 
@@ -84,7 +84,6 @@ const getDailyUsageByTypeQuery = () => `
 	ORDER BY date ASC, event_category ASC
 `;
 
-
 export const billingRouter = createTRPCRouter({
 	getUsage: protectedProcedure
 		.input(usageQuerySchema.default({}))
@@ -103,12 +102,12 @@ export const billingRouter = createTRPCRouter({
 			if (organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['read'] } },
+					body: { permissions: { website: ["read"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -155,10 +154,14 @@ export const billingRouter = createTRPCRouter({
 				for (const row of dailyUsageByTypeResults) {
 					const currentDaily = dailyUsageMap.get(row.date) || 0;
 					dailyUsageMap.set(row.date, currentDaily + row.event_count);
-					
-					const currentTypeTotal = eventTypeBreakdownMap.get(row.event_category) || 0;
-					eventTypeBreakdownMap.set(row.event_category, currentTypeTotal + row.event_count);
-					
+
+					const currentTypeTotal =
+						eventTypeBreakdownMap.get(row.event_category) || 0;
+					eventTypeBreakdownMap.set(
+						row.event_category,
+						currentTypeTotal + row.event_count
+					);
+
 					totalEvents += row.event_count;
 				}
 
@@ -171,7 +174,10 @@ export const billingRouter = createTRPCRouter({
 				const eventTypeBreakdownResults: EventTypeBreakdown[] = Array.from(
 					eventTypeBreakdownMap.entries()
 				)
-					.map(([event_category, event_count]) => ({ event_category, event_count }))
+					.map(([event_category, event_count]) => ({
+						event_category,
+						event_count,
+					}))
 					.sort((a, b) => b.event_count - a.event_count);
 
 				logger.info(
@@ -203,8 +209,8 @@ export const billingRouter = createTRPCRouter({
 					}
 				);
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch billing usage data',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to fetch billing usage data",
 				});
 			}
 		}),

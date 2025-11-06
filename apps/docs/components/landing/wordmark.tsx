@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
 import {
 	animate,
 	motion,
 	useMotionTemplate,
 	useMotionValue,
-} from 'motion/react';
-import React, { useCallback, useEffect, useRef } from 'react';
-import { cn } from '@/lib/utils';
+} from "motion/react";
+import React, { useCallback, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 
 export const Wordmark = () => {
 	return (
@@ -73,11 +73,11 @@ export function MagicSVG({
 	height,
 	className,
 	gradientSize = 50,
-	gradientFrom = '#9E7AFF',
-	gradientTo = '#FE8BBB',
+	gradientFrom = "#9E7AFF",
+	gradientTo = "#FE8BBB",
 	strokeWidth = 1,
-	fill = 'none',
-	strokeColor = '#2C2C2C',
+	fill = "none",
+	strokeColor = "#2C2C2C",
 }: MagicSVGProps) {
 	const svgRef = useRef<SVGSVGElement>(null);
 
@@ -94,14 +94,14 @@ export function MagicSVG({
 				const newY = clientY - top;
 
 				animate(animatedX, newX, {
-					type: 'spring',
+					type: "spring",
 					stiffness: 150,
 					damping: 25,
 					mass: 0.8,
 				});
 
 				animate(animatedY, newY, {
-					type: 'spring',
+					type: "spring",
 					stiffness: 150,
 					damping: 25,
 					mass: 0.8,
@@ -113,34 +113,34 @@ export function MagicSVG({
 
 	const handleMouseLeave = useCallback(() => {
 		animate(animatedX, -gradientSize * 2, {
-			type: 'spring',
+			type: "spring",
 			stiffness: 100,
 			damping: 30,
 		});
 
 		animate(animatedY, -gradientSize * 2, {
-			type: 'spring',
+			type: "spring",
 			stiffness: 100,
 			damping: 30,
 		});
 	}, [animatedX, animatedY, gradientSize]);
 
 	const handleMouseEnter = useCallback(() => {
-		document.addEventListener('mousemove', handleMouseMove);
+		document.addEventListener("mousemove", handleMouseMove);
 	}, [handleMouseMove]);
 
 	useEffect(() => {
 		const svgElement = svgRef.current;
 		if (svgElement) {
-			svgElement.addEventListener('mouseenter', handleMouseEnter);
-			svgElement.addEventListener('mouseleave', handleMouseLeave);
+			svgElement.addEventListener("mouseenter", handleMouseEnter);
+			svgElement.addEventListener("mouseleave", handleMouseLeave);
 		}
 		return () => {
 			if (svgElement) {
-				svgElement.removeEventListener('mouseenter', handleMouseEnter);
-				svgElement.removeEventListener('mouseleave', handleMouseLeave);
+				svgElement.removeEventListener("mouseenter", handleMouseEnter);
+				svgElement.removeEventListener("mouseleave", handleMouseLeave);
 			}
-			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener("mousemove", handleMouseMove);
 		};
 	}, [handleMouseEnter, handleMouseLeave, handleMouseMove]);
 
@@ -149,17 +149,17 @@ export function MagicSVG({
 		animatedY.set(-gradientSize * 2);
 	}, [gradientSize, animatedX, animatedY]);
 
-	const gradientId = 'magic-gradient-wordmark';
-	const maskId = 'magic-mask-wordmark';
+	const gradientId = "magic-gradient-wordmark";
+	const maskId = "magic-mask-wordmark";
 
 	return (
 		<motion.svg
 			aria-label="Magic SVG"
-			className={cn('cursor-pointer transition-all duration-300', className)}
+			className={cn("cursor-pointer transition-all duration-300", className)}
 			fill="none"
 			height={height}
 			ref={svgRef}
-			style={{ maxWidth: '100%', height: 'auto' }}
+			style={{ maxWidth: "100%", height: "auto" }}
 			viewBox={`0 0 ${width} ${height}`}
 			width={width}
 			xmlns="http://www.w3.org/2000/svg"
@@ -193,9 +193,9 @@ export function MagicSVG({
 				if (React.isValidElement(child)) {
 					const childType = (child as React.ReactElement).type;
 					if (
-						childType === 'defs' ||
-						childType === 'mask' ||
-						childType === 'clipPath'
+						childType === "defs" ||
+						childType === "mask" ||
+						childType === "clipPath"
 					) {
 						return child;
 					}
@@ -208,9 +208,9 @@ export function MagicSVG({
 					if (React.isValidElement(child)) {
 						const childType = (child as React.ReactElement).type;
 						if (
-							childType !== 'defs' &&
-							childType !== 'mask' &&
-							childType !== 'clipPath'
+							childType !== "defs" &&
+							childType !== "mask" &&
+							childType !== "clipPath"
 						) {
 							return React.cloneElement(
 								child as React.ReactElement<React.SVGProps<SVGElement>>,
@@ -231,9 +231,9 @@ export function MagicSVG({
 					if (React.isValidElement(child)) {
 						const childType = (child as React.ReactElement).type;
 						if (
-							childType !== 'defs' &&
-							childType !== 'mask' &&
-							childType !== 'clipPath'
+							childType !== "defs" &&
+							childType !== "mask" &&
+							childType !== "clipPath"
 						) {
 							return React.cloneElement(
 								child as React.ReactElement<React.SVGProps<SVGElement>>,

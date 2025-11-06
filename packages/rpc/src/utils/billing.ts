@@ -1,11 +1,11 @@
-import { and, db, eq, member } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
-import { Autumn } from 'autumn-js';
+import { and, db, eq, member } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
+import { Autumn } from "autumn-js";
 
 const autumn = new Autumn();
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === "development";
 
 export async function checkAndTrackWebsiteCreation(customerId: string) {
 	if (isDevelopment) {
@@ -18,17 +18,17 @@ export async function checkAndTrackWebsiteCreation(customerId: string) {
 	try {
 		const { data } = await autumn.check({
 			customer_id: customerId,
-			feature_id: 'websites',
+			feature_id: "websites",
 			send_event: true,
 		});
 
 		if (data && !data.allowed) {
-			return { allowed: false, error: 'Website creation limit exceeded' };
+			return { allowed: false, error: "Website creation limit exceeded" };
 		}
 		return { allowed: true };
 	} catch (error) {
 		logger.error(
-			'Error with autumn checkAndTrack:',
+			"Error with autumn checkAndTrack:",
 			error instanceof Error ? error.message : String(error)
 		);
 		return { allowed: true };
@@ -46,13 +46,13 @@ export async function trackWebsiteUsage(customerId: string, value: number) {
 	try {
 		await autumn.track({
 			customer_id: customerId,
-			feature_id: 'websites',
+			feature_id: "websites",
 			value,
 		});
 		return { success: true };
 	} catch (error) {
 		logger.error(
-			'[Billing Util] Error with autumn track:',
+			"[Billing Util] Error with autumn track:",
 			error instanceof Error ? error.message : String(error)
 		);
 		return { success: false };
@@ -69,14 +69,14 @@ async function _getOrganizationOwnerId(
 		const orgMember = await db.query.member.findFirst({
 			where: and(
 				eq(member.organizationId, organizationId),
-				eq(member.role, 'owner')
+				eq(member.role, "owner")
 			),
 			columns: { userId: true },
 		});
 		return orgMember?.userId || null;
 	} catch (error) {
 		logger.error(
-			'[Billing Util] Error with _getOrganizationOwnerId:',
+			"[Billing Util] Error with _getOrganizationOwnerId:",
 			error instanceof Error ? error.message : String(error)
 		);
 		return null;
@@ -85,7 +85,7 @@ async function _getOrganizationOwnerId(
 
 const getOrganizationOwnerId = cacheable(_getOrganizationOwnerId, {
 	expireInSec: 300,
-	prefix: 'rpc:org_owner',
+	prefix: "rpc:org_owner",
 });
 
 /**

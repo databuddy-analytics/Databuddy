@@ -16,15 +16,15 @@ export function buildDateFilter(
 
 	if (startDate) {
 		params.startDate = startDate;
-		conditions.push('time >= {startDate:String}');
+		conditions.push("time >= {startDate:String}");
 	}
 
 	if (endDate) {
 		params.endDate = endDate;
-		conditions.push('time <= {endDate:String}');
+		conditions.push("time <= {endDate:String}");
 	}
 
-	const filter = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+	const filter = conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
 	return { filter, params };
 }
 
@@ -60,10 +60,7 @@ export function getEventsQuery(dateFilter: string): string {
 			time_on_page,
 			scroll_depth,
 			interaction_count,
-			exit_intent,
 			page_count,
-			is_bounce,
-			page_size,
 			utm_source,
 			utm_medium,
 			utm_campaign,
@@ -72,12 +69,6 @@ export function getEventsQuery(dateFilter: string): string {
 			load_time,
 			dom_ready_time,
 			ttfb,
-			connection_time,
-			request_time,
-			render_time,
-			fcp,
-			lcp,
-			cls,
 			properties,
 			toString(created_at) as created_at
 		FROM analytics.events 
@@ -88,8 +79,8 @@ export function getEventsQuery(dateFilter: string): string {
 }
 
 export function getErrorsQuery(dateFilter: string): string {
-	// Replace 'time' with 'timestamp' for errors table
-	const errorDateFilter = dateFilter.replace(/time/g, 'timestamp');
+	// Replace 'time' with 'timestamp' for errors table (only in the filter conditions)
+	const errorDateFilter = dateFilter.replace(/\btime\b/g, "timestamp");
 	return `
 		SELECT 
 			id,
@@ -121,8 +112,8 @@ export function getErrorsQuery(dateFilter: string): string {
 }
 
 export function getWebVitalsQuery(dateFilter: string): string {
-	// Replace 'time' with 'timestamp' for web_vitals table
-	const vitalsDateFilter = dateFilter.replace(/time/g, 'timestamp');
+	// Replace 'time' with 'timestamp' for web_vitals table (only in the filter conditions)
+	const vitalsDateFilter = dateFilter.replace(/\btime\b/g, "timestamp");
 	return `
 		SELECT 
 			id,

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import dayjs from 'dayjs';
-import { memo } from 'react';
+import dayjs from "dayjs";
+import { memo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -9,7 +9,7 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
+} from "recharts";
 
 interface MiniChartProps {
 	data: { date: string; value: number }[];
@@ -58,13 +58,13 @@ const MiniChart = memo(({ data, id, days = 7 }: MiniChartProps) => (
 					</linearGradient>
 				</defs>
 				<XAxis dataKey="date" hide />
-				<YAxis domain={['dataMin - 5', 'dataMax + 5']} hide />
+				<YAxis domain={["dataMin - 5", "dataMax + 5"]} hide />
 				<Tooltip
 					content={({ active, payload, label }) =>
-						active && payload?.[0] && typeof payload[0].value === 'number' ? (
+						active && payload?.[0] && typeof payload[0].value === "number" ? (
 							<div className="rounded border bg-background p-2 text-xs shadow-md">
 								<p className="font-medium">
-									{dayjs(label as string).format('MMM D')}
+									{dayjs(label as string).format("MMM D")}
 								</p>
 								<p className="text-primary">
 									{formatNumber(payload[0].value)} views
@@ -92,6 +92,6 @@ const MiniChart = memo(({ data, id, days = 7 }: MiniChartProps) => (
 	</div>
 ));
 
-MiniChart.displayName = 'MiniChart';
+MiniChart.displayName = "MiniChart";
 
 export default MiniChart;

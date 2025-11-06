@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { ArrowClockwise, Target, TrendUp, Users } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowClockwise, Target, TrendUp, Users } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface GoalAnalyticsProps {
 	isLoading: boolean;
@@ -88,9 +88,7 @@ export function GoalAnalytics({
 		return num.toLocaleString();
 	};
 
-	const formatPercentage = (num: number) => {
-		return `${num.toFixed(1)}%`;
-	};
+	const formatPercentage = (num: number) => `${num.toFixed(1)}%`;
 
 	return (
 		<div className="space-y-4">
@@ -182,7 +180,7 @@ export function GoalAnalytics({
 										Users who reached goal
 									</p>
 									<p className="font-semibold text-lg">
-										{formatNumber(summaryStats.completions)} /{' '}
+										{formatNumber(summaryStats.completions)} /{" "}
 										{formatNumber(summaryStats.totalUsers)}
 									</p>
 								</div>

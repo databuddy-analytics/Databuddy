@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { FunnelIcon, TrendDownIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useParams } from 'next/navigation';
-import { lazy, Suspense, useCallback, useRef, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { useDateFilters } from '@/hooks/use-date-filters';
+import { FunnelIcon, TrendDownIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useParams } from "next/navigation";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { useDateFilters } from "@/hooks/use-date-filters";
 import {
 	type CreateFunnelData,
 	type Funnel,
@@ -13,30 +13,32 @@ import {
 	useFunnelAnalytics,
 	useFunnelAnalyticsByReferrer,
 	useFunnels,
-} from '@/hooks/use-funnels';
-import { useTrackingSetup } from '@/hooks/use-tracking-setup';
-import { isAnalyticsRefreshingAtom } from '@/stores/jotai/filterAtoms';
-import { WebsitePageHeader } from '../_components/website-page-header';
+} from "@/hooks/use-funnels";
+import { useTrackingSetup } from "@/hooks/use-tracking-setup";
+import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
+import { WebsitePageHeader } from "../_components/website-page-header";
 
 // Removed PageHeader import - using shared WebsitePageHeader
 const FunnelsList = lazy(() =>
-	import('./_components/funnels-list').then((m) => ({ default: m.FunnelsList }))
+	import("./_components/funnels-list").then((m) => ({
+		default: m.FunnelsList,
+	}))
 );
 const FunnelAnalytics = lazy(() =>
-	import('./_components/funnel-analytics').then((m) => ({
+	import("./_components/funnel-analytics").then((m) => ({
 		default: m.FunnelAnalytics,
 	}))
 );
 const FunnelAnalyticsByReferrer = lazy(
-	() => import('./_components/funnel-analytics-by-referrer')
+	() => import("./_components/funnel-analytics-by-referrer")
 );
 const EditFunnelDialog = lazy(() =>
-	import('./_components/edit-funnel-dialog').then((m) => ({
+	import("./_components/edit-funnel-dialog").then((m) => ({
 		default: m.EditFunnelDialog,
 	}))
 );
 const DeleteFunnelDialog = lazy(() =>
-	import('./_components/delete-funnel-dialog').then((m) => ({
+	import("./_components/delete-funnel-dialog").then((m) => ({
 		default: m.DeleteFunnelDialog,
 	}))
 );
@@ -84,7 +86,7 @@ export default function FunnelsPage() {
 	const websiteId = id as string;
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
 	const [expandedFunnelId, setExpandedFunnelId] = useState<string | null>(null);
-	const [selectedReferrer, setSelectedReferrer] = useState('all');
+	const [selectedReferrer, setSelectedReferrer] = useState("all");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [editingFunnel, setEditingFunnel] = useState<Funnel | null>(null);
 	const [deletingFunnelId, setDeletingFunnelId] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export default function FunnelsPage() {
 		isLoading: analyticsLoading,
 		error: analyticsError,
 		refetch: refetchAnalytics,
-	} = useFunnelAnalytics(websiteId, expandedFunnelId || '', dateRange, {
+	} = useFunnelAnalytics(websiteId, expandedFunnelId || "", dateRange, {
 		enabled: !!expandedFunnelId,
 	});
 
@@ -124,7 +126,7 @@ export default function FunnelsPage() {
 		refetch: refetchReferrerAnalytics,
 	} = useFunnelAnalyticsByReferrer(
 		websiteId,
-		expandedFunnelId || '',
+		expandedFunnelId || "",
 		{
 			start_date: formattedDateRangeState.startDate,
 			end_date: formattedDateRangeState.endDate,
@@ -147,7 +149,7 @@ export default function FunnelsPage() {
 			}
 			await Promise.all(promises);
 		} catch (error) {
-			console.error('Failed to refresh funnel data:', error);
+			console.error("Failed to refresh funnel data:", error);
 		} finally {
 			setIsRefreshing(false);
 		}
@@ -167,7 +169,7 @@ export default function FunnelsPage() {
 			setIsDialogOpen(false);
 			setEditingFunnel(null);
 		} catch (error) {
-			console.error('Failed to create funnel:', error);
+			console.error("Failed to create funnel:", error);
 		}
 	};
 
@@ -177,7 +179,7 @@ export default function FunnelsPage() {
 				funnelId: funnel.id,
 				updates: {
 					name: funnel.name,
-					description: funnel.description || '',
+					description: funnel.description || "",
 					steps: funnel.steps,
 					filters: funnel.filters,
 				},
@@ -185,7 +187,7 @@ export default function FunnelsPage() {
 			setIsDialogOpen(false);
 			setEditingFunnel(null);
 		} catch (error) {
-			console.error('Failed to update funnel:', error);
+			console.error("Failed to update funnel:", error);
 		}
 	};
 
@@ -197,13 +199,13 @@ export default function FunnelsPage() {
 			}
 			setDeletingFunnelId(null);
 		} catch (error) {
-			console.error('Failed to delete funnel:', error);
+			console.error("Failed to delete funnel:", error);
 		}
 	};
 
 	const handleToggleFunnel = (funnelId: string) => {
 		setExpandedFunnelId(expandedFunnelId === funnelId ? null : funnelId);
-		setSelectedReferrer('all');
+		setSelectedReferrer("all");
 	};
 
 	const handleReferrerChange = (referrer: string) => {
@@ -212,7 +214,7 @@ export default function FunnelsPage() {
 
 	if (funnelsError) {
 		return (
-			<div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+			<div className="p-6">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
@@ -235,7 +237,7 @@ export default function FunnelsPage() {
 	}
 
 	return (
-		<div className="mx-auto mt-6 max-w-[1600px] space-y-4" ref={pageRef}>
+		<div className="space-y-4 p-6" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Funnel"
 				description="Track user journeys and optimize conversion drop-off points"
@@ -257,7 +259,7 @@ export default function FunnelsPage() {
 				subtitle={
 					funnelsLoading
 						? undefined
-						: `${funnels.length} funnel${funnels.length !== 1 ? 's' : ''}`
+						: `${funnels.length} funnel${funnels.length !== 1 ? "s" : ""}`
 				}
 				title="Conversion Funnels"
 				websiteId={websiteId}

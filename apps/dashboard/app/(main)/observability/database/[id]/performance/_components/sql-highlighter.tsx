@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { codeToTokens } from 'shiki';
+import { useEffect, useState } from "react";
+import { codeToTokens } from "shiki";
 
 interface SqlHighlighterProps {
 	code: string;
@@ -17,15 +17,15 @@ interface Token {
 const cleanQuery = (queryText: string): string => {
 	// Remove SQL comments (-- comments and /* */ comments)
 	return queryText
-		.replace(/--.*$/gm, '') // Remove line comments
-		.replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
-		.replace(/\n\s*\n/g, '\n') // Remove empty lines
+		.replace(/--.*$/gm, "") // Remove line comments
+		.replace(/\/\*[\s\S]*?\*\//g, "") // Remove block comments
+		.replace(/\n\s*\n/g, "\n") // Remove empty lines
 		.trim();
 };
 
 export const SqlHighlighter = ({
 	code,
-	className = '',
+	className = "",
 }: SqlHighlighterProps) => {
 	const [tokens, setTokens] = useState<Token[][]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -37,15 +37,15 @@ export const SqlHighlighter = ({
 				const cleanedCode = cleanQuery(code);
 
 				const result = await codeToTokens(cleanedCode, {
-					lang: 'sql',
-					theme: 'github-light',
+					lang: "sql",
+					theme: "github-light",
 				});
 
 				setTokens(result.tokens);
 			} catch (error) {
-				console.error('Failed to highlight SQL:', error);
+				console.error("Failed to highlight SQL:", error);
 				// Fallback to plain text tokens
-				const lines = cleanQuery(code).split('\n');
+				const lines = cleanQuery(code).split("\n");
 				setTokens(lines.map((line) => [{ content: line }]));
 			} finally {
 				setIsLoading(false);
@@ -77,14 +77,14 @@ export const SqlHighlighter = ({
 								key={`sql-token-${lineIndex}-${tokenIndex}-${token.content.slice(0, 10)}`}
 								style={{
 									color: token.color,
-									fontStyle: token.fontStyle === 1 ? 'italic' : 'normal',
-									fontWeight: token.fontStyle === 2 ? 'bold' : 'normal',
+									fontStyle: token.fontStyle === 1 ? "italic" : "normal",
+									fontWeight: token.fontStyle === 2 ? "bold" : "normal",
 								}}
 							>
 								{token.content}
 							</span>
 						))}
-						{lineIndex < tokens.length - 1 && '\n'}
+						{lineIndex < tokens.length - 1 && "\n"}
 					</div>
 				))}
 			</pre>

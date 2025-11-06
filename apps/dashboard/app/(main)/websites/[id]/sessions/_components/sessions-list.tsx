@@ -1,18 +1,21 @@
-'use client';
+"use client";
 
-import type { Session, SessionsListProps } from '@databuddy/shared';
-import { SpinnerIcon, UserIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useDynamicQuery } from '@/hooks/use-dynamic-query';
-import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
+import type {
+	Session,
+	SessionsListProps,
+} from "@databuddy/shared/types/sessions";
+import { SpinnerIcon, UserIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import {
 	expandedSessionIdAtom,
 	getSessionPageAtom,
-} from '@/stores/jotai/sessionAtoms';
-import { SessionRow } from './session-row';
+} from "@/stores/jotai/sessionAtoms";
+import { SessionRow } from "./session-row";
 
 export function SessionsList({ websiteId }: SessionsListProps) {
 	const { dateRange } = useDateFilters();
@@ -28,8 +31,8 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 		websiteId,
 		dateRange,
 		{
-			id: 'sessions-list',
-			parameters: ['session_list'],
+			id: "sessions-list",
+			parameters: ["session_list"],
 			limit: 50,
 			page,
 			filters: filters.length > 0 ? filters : undefined,
@@ -133,7 +136,7 @@ export function SessionsList({ websiteId }: SessionsListProps) {
 						<UserIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
 						<p className="mb-2 font-medium text-lg">Failed to load sessions</p>
 						<p className="text-sm">
-							{error?.message || 'Please try again later'}
+							{error?.message || "Please try again later"}
 						</p>
 					</div>
 				</CardContent>

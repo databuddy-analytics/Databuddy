@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Email event validation schema
 export const emailEventSchema = z.object({

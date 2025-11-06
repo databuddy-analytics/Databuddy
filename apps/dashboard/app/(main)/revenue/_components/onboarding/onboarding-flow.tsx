@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import type { OnboardingStep } from '../../utils/types';
-import { StepIndicator } from './step-indicator';
-import { CompleteStep } from './steps/complete-step';
-import { OverviewStep } from './steps/overview-step';
-import { TestingStep } from './steps/testing-step';
-import { WebhookStep } from './steps/webhook-step';
+import type { OnboardingStep } from "../../utils/types";
+import { StepIndicator } from "./step-indicator";
+import { CompleteStep } from "./steps/complete-step";
+import { OverviewStep } from "./steps/overview-step";
+import { TestingStep } from "./steps/testing-step";
+import { WebhookStep } from "./steps/webhook-step";
 
 interface OnboardingFlowPropsExtended {
 	currentStep: OnboardingStep;
@@ -31,10 +31,10 @@ export function OnboardingFlow({
 	isSaving = false,
 }: OnboardingFlowPropsExtended) {
 	const steps: OnboardingStep[] = [
-		'overview',
-		'webhook',
-		'testing',
-		'complete',
+		"overview",
+		"webhook",
+		"testing",
+		"complete",
 	];
 
 	return (
@@ -43,34 +43,34 @@ export function OnboardingFlow({
 			<StepIndicator currentStep={currentStep} steps={steps} />
 
 			{/* Step Content */}
-			{currentStep === 'overview' && (
-				<OverviewStep onNext={() => setCurrentStep('webhook')} />
+			{currentStep === "overview" && (
+				<OverviewStep onNext={() => setCurrentStep("webhook")} />
 			)}
 
-			{currentStep === 'webhook' && (
+			{currentStep === "webhook" && (
 				<WebhookStep
 					copied={copied}
 					copyToClipboard={copyToClipboard}
 					isLiveMode={isLiveMode}
 					isSaving={isSaving}
-					onBack={() => setCurrentStep('overview')}
-					onNext={() => setCurrentStep('testing')}
+					onBack={() => setCurrentStep("overview")}
+					onNext={() => setCurrentStep("testing")}
 					onSave={onSave}
 					webhookSecret={webhookSecret}
 					webhookUrl={webhookUrl}
 				/>
 			)}
 
-			{currentStep === 'testing' && (
+			{currentStep === "testing" && (
 				<TestingStep
 					copyToClipboard={copyToClipboard}
-					onBack={() => setCurrentStep('webhook')}
-					onNext={() => setCurrentStep('complete')}
+					onBack={() => setCurrentStep("webhook")}
+					onNext={() => setCurrentStep("complete")}
 				/>
 			)}
 
-			{currentStep === 'complete' && (
-				<CompleteStep onViewDashboard={() => setCurrentStep('overview')} />
+			{currentStep === "complete" && (
+				<CompleteStep onViewDashboard={() => setCurrentStep("overview")} />
 			)}
 		</div>
 	);

@@ -1,10 +1,10 @@
 import type {
 	LanguageModelV2,
 	LanguageModelV2Middleware,
-} from '@ai-sdk/provider';
-import { wrapLanguageModel } from 'ai';
-import { computeCostUSD } from 'tokenlens';
-import type { Databuddy } from '@/node';
+} from "@ai-sdk/provider";
+import { wrapLanguageModel } from "ai";
+import { computeCostUSD } from "tokenlens";
+import type { Databuddy } from "@/node";
 
 export type TrackProperties = {
 	inputTokens?: number;
@@ -29,15 +29,15 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				part: (typeof result.content)[number]
 			): part is Extract<
 				(typeof result.content)[number],
-				{ type: 'tool-call' }
-			> => part.type === 'tool-call';
+				{ type: "tool-call" }
+			> => part.type === "tool-call";
 
 			const isToolResult = (
 				part: (typeof result.content)[number]
 			): part is Extract<
 				(typeof result.content)[number],
-				{ type: 'tool-result' }
-			> => part.type === 'tool-result';
+				{ type: "tool-result" }
+			> => part.type === "tool-result";
 
 			const toolCalls = result.content.filter(isToolCall);
 			const toolResults = result.content.filter(isToolResult);
@@ -64,7 +64,7 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 				totalTokenCostUSD: costs.totalTokenCostUSD,
 				toolCallNames,
 			};
-			console.log('payload', payload);
+			console.log("payload", payload);
 			// buddy.track({name: 'ai.generate', properties: payload});
 
 			return result;
@@ -81,9 +81,8 @@ const buddyWare = (buddy: Databuddy): LanguageModelV2Middleware => {
 export const wrapVercelLanguageModel = (
 	model: LanguageModelV2,
 	buddy: Databuddy
-) => {
-	return wrapLanguageModel({
+) =>
+	wrapLanguageModel({
 		model,
 		middleware: buddyWare(buddy),
 	});
-};

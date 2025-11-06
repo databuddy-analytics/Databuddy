@@ -1,11 +1,11 @@
-import { z } from 'zod';
+import { z } from "zod";
 import {
 	authEnvSchema,
 	commonEnvSchema,
 	createEnv,
 	externalServiceEnvSchema,
 	shouldSkipValidation,
-} from './base';
+} from "./base";
 
 /**
  * Dashboard-specific environment schema

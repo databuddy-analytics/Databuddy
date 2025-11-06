@@ -1,16 +1,11 @@
-import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react';
+import { XIcon } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
 	getCoreRowModel,
-	getFilteredRowModel,
-	getSortedRowModel,
-	type SortingState,
 	useReactTable,
-} from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { TableContent } from './table-content';
-import { TableTabs } from './table-tabs';
+} from "@tanstack/react-table";
+import { TableContent } from "./table-content";
+import { TableTabs } from "./table-tabs";
 
 interface TabConfig<TData> {
 	id: string;
@@ -39,8 +34,6 @@ interface FullScreenModalProps<TData extends { name: string | number }> {
 	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
 	onRowAction?: (row: TData) => void;
 	onRowClick?: (field: string, value: string | number) => void;
-	searchValue?: string;
-	onSearchChange?: (value: string) => void;
 }
 
 export function FullScreenModal<TData extends { name: string | number }>({
@@ -52,8 +45,6 @@ export function FullScreenModal<TData extends { name: string | number }>({
 	tabs,
 	activeTab,
 	onTabChange,
-	searchValue,
-	onSearchChange,
 	expandable = false,
 	getSubRows,
 	renderSubRow,
@@ -61,56 +52,19 @@ export function FullScreenModal<TData extends { name: string | number }>({
 	onRowAction,
 	onRowClick,
 }: FullScreenModalProps<TData>) {
-	const [sorting, setSorting] = useState<SortingState>([]);
-	const [globalFilter, setGlobalFilter] = useState(searchValue || '');
-
-	// Update global filter when searchValue prop changes
-	useMemo(() => {
-		setGlobalFilter(searchValue || '');
-	}, [searchValue]);
-
 	const currentTabData = tabs?.find((tab) => tab.id === activeTab);
-	const tableData = useMemo(
-		() => currentTabData?.data || data || [],
-		[currentTabData?.data, data]
-	);
-	const tableColumns = useMemo(
-		() => currentTabData?.columns || columns || [],
-		[currentTabData?.columns, columns]
-	);
+	const tableData = currentTabData?.data || data || [];
+	const tableColumns = currentTabData?.columns || columns || [];
 
 	const table = useReactTable({
 		data: tableData,
 		columns: tableColumns,
-		getRowId: (row, index) => {
-			if ((row as any)._uniqueKey) {
-				return (row as any)._uniqueKey;
-			}
-			return activeTab ? `${activeTab}-${index}` : `row-${index}`;
-		},
-		state: {
-			sorting,
-			globalFilter,
-		},
-		onSortingChange: setSorting,
-		onGlobalFilterChange: (value) => {
-			setGlobalFilter(value);
-			onSearchChange?.(value);
-		},
+		getRowId: (_row, index) => `${activeTab || "row"}-${index}`,
 		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		globalFilterFn: 'includesString',
 	});
 
 	const handleTabChange = (tabId: string) => {
-		if (tabId === activeTab) {
-			return;
-		}
-
-		setSorting([]);
-		setGlobalFilter('');
-		onSearchChange?.('');
+		if (tabId === activeTab) return;
 		onTabChange?.(tabId);
 	};
 	return (
@@ -129,21 +83,6 @@ export function FullScreenModal<TData extends { name: string | number }>({
 					)}
 				</div>
 				<div className="flex items-center gap-2">
-					{onSearchChange && (
-						<div className="relative">
-							<MagnifyingGlassIcon className="-translate-y-1/2 absolute top-1/2 left-2.5 h-4 w-4 text-muted-foreground" />
-							<Input
-								className="h-8 w-64 pl-8 text-sm"
-								onChange={(e) => {
-									setGlobalFilter(e.target.value);
-									onSearchChange(e.target.value);
-								}}
-								placeholder="Search..."
-								type="search"
-								value={globalFilter}
-							/>
-						</div>
-					)}
 					<button
 						aria-label="Close full screen"
 						className="ml-2 flex items-center justify-center rounded bg-sidebar-accent/60 p-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
@@ -161,7 +100,7 @@ export function FullScreenModal<TData extends { name: string | number }>({
 			{tabs && tabs.length > 1 && (
 				<div className="mt-2">
 					<TableTabs
-						activeTab={activeTab || ''}
+						activeTab={activeTab ?? ""}
 						onTabChange={handleTabChange}
 						tabs={tabs}
 					/>

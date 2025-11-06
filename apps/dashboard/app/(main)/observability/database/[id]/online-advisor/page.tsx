@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -7,22 +7,22 @@ import {
 	PlayIcon,
 	SparkleIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { use, useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { use, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useDbConnection } from '@/hooks/use-db-connections';
-import { trpc } from '@/lib/trpc';
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDbConnection } from "@/hooks/use-db-connections";
+import { trpc } from "@/lib/trpc";
 
 interface OnlineAdvisorPageProps {
 	params: Promise<{ id: string }>;
@@ -106,7 +106,7 @@ function RecommendationCard({
 								onClick={() => setShowFullSQL(!showFullSQL)}
 								variant="link"
 							>
-								{showFullSQL ? 'Show less' : 'Show more'}
+								{showFullSQL ? "Show less" : "Show more"}
 							</Button>
 						)}
 					</div>
@@ -188,7 +188,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 				id: connectionId,
 			});
 			setError(null);
-			setSuccess('online_advisor has been activated successfully');
+			setSuccess("online_advisor has been activated successfully");
 			setTimeout(() => setSuccess(null), 5000);
 		},
 		onError: (err) => {
@@ -203,7 +203,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 				id: connectionId,
 			});
 			setError(null);
-			setSuccess('online_advisor installed successfully');
+			setSuccess("online_advisor installed successfully");
 			setTimeout(() => setSuccess(null), 5000);
 		},
 		onError: (err) => {
@@ -225,7 +225,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 						return next;
 					});
 					setError(null);
-					setSuccess('Index recommendation applied successfully');
+					setSuccess("Index recommendation applied successfully");
 					setTimeout(() => setSuccess(null), 5000);
 				} else {
 					setError(`Failed to apply recommendation: ${result.message}`);
@@ -260,7 +260,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 						return next;
 					});
 					setError(null);
-					setSuccess('Statistics recommendation applied successfully');
+					setSuccess("Statistics recommendation applied successfully");
 					setTimeout(() => setSuccess(null), 5000);
 				} else {
 					setError(`Failed to apply recommendation: ${result.message}`);
@@ -435,7 +435,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 												metric="Time Saved"
 												onApply={() => handleApplyIndex(rec.create_index)}
 												sql={rec.create_index}
-												title={`Index on ${rec.table_name || 'table'}`}
+												title={`Index on ${rec.table_name || "table"}`}
 											/>
 										))}
 									</div>
@@ -518,12 +518,12 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 											<CardContent>
 												<div className="font-bold text-2xl">
 													{executorStats.avg_planning_overhead?.toFixed(2) ||
-														'0.00'}
+														"0.00"}
 												</div>
 												<p className="text-muted-foreground text-xs">
 													{(executorStats.avg_planning_overhead || 0) > 1
-														? 'Consider prepared statements'
-														: 'Planning efficiency is good'}
+														? "Consider prepared statements"
+														: "Planning efficiency is good"}
 												</p>
 											</CardContent>
 										</Card>
@@ -535,7 +535,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 											</CardHeader>
 											<CardContent>
 												<div className="font-bold text-2xl">
-													{executorStats.total_calls?.toLocaleString() || '0'}
+													{executorStats.total_calls?.toLocaleString() || "0"}
 												</div>
 												<p className="text-muted-foreground text-xs">
 													Query executions tracked
@@ -551,7 +551,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 											<CardContent>
 												<div className="font-bold text-2xl">
 													{executorStats.avg_planning_time?.toFixed(2) ||
-														'0.00'}
+														"0.00"}
 													ms
 												</div>
 												<p className="text-muted-foreground text-xs">
@@ -568,7 +568,7 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 											<CardContent>
 												<div className="font-bold text-2xl">
 													{executorStats.avg_execution_time?.toFixed(2) ||
-														'0.00'}
+														"0.00"}
 													ms
 												</div>
 												<p className="text-muted-foreground text-xs">
@@ -638,8 +638,8 @@ export default function OnlineAdvisorPage({ params }: OnlineAdvisorPageProps) {
 										onClick={() =>
 											installMutation.mutate({
 												id: connectionId,
-												extensionName: 'online_advisor',
-												schema: 'public',
+												extensionName: "online_advisor",
+												schema: "public",
 											})
 										}
 										size="sm"

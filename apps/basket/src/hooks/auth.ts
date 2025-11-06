@@ -5,9 +5,9 @@
  * client IDs and origins against registered websites.
  */
 
-import { and, db, eq, member, websites } from '@databuddy/db';
-import { cacheable } from '@databuddy/redis';
-import { logger } from '../lib/logger';
+import { and, db, eq, member, websites } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
+import { logger } from "../lib/logger";
 
 type Website = typeof websites.$inferSelect;
 
@@ -35,7 +35,7 @@ async function _resolveOwnerId(website: Website): Promise<string | null> {
 			const orgMember = await db.query.member.findFirst({
 				where: and(
 					eq(member.organizationId, website.organizationId),
-					eq(member.role, 'owner')
+					eq(member.role, "owner")
 				),
 				columns: {
 					userId: true,
@@ -46,32 +46,35 @@ async function _resolveOwnerId(website: Website): Promise<string | null> {
 				return orgMember.userId;
 			}
 
-			logger.warn('Organization owner not found for website', {
-				websiteId: website.id,
-				organizationId: website.organizationId,
-			});
+			logger.warn(
+				{ websiteId: website.id, organizationId: website.organizationId },
+				"Organization owner not found for website"
+			);
 		} catch (error) {
-			logger.error('Failed to fetch organization owner', {
-				websiteId: website.id,
-				organizationId: website.organizationId,
-				error,
-			});
+			logger.error(
+				{
+					websiteId: website.id,
+					organizationId: website.organizationId,
+					error,
+				},
+				"Failed to fetch organization owner"
+			);
 		}
 	}
 
-	logger.warn('No owner could be determined for website', {
-		websiteId: website.id,
-	});
+	logger.warn(
+		{ websiteId: website.id },
+		"No owner could be determined for website"
+	);
 	return null;
 }
 
 const getOwnerId = cacheable(
-	async (website: Website): Promise<string | null> => {
-		return await _resolveOwnerId(website);
-	},
+	async (website: Website): Promise<string | null> =>
+		await _resolveOwnerId(website),
 	{
 		expireInSec: 300,
-		prefix: 'website_owner_id',
+		prefix: "website_owner_id",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -94,7 +97,7 @@ export const getWebsiteById = cacheable(
 	},
 	{
 		expireInSec: 300,
-		prefix: 'website_with_owner_by_id',
+		prefix: "website_with_owner_by_id",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -121,7 +124,7 @@ export function isValidOrigin(
 		return true;
 	}
 	if (!allowedDomain?.trim()) {
-		logger.warn('[isValidOrigin] No allowed domain provided');
+		logger.warn("[isValidOrigin] No allowed domain provided");
 		return false;
 	}
 	try {
@@ -153,18 +156,18 @@ export function isValidOrigin(
  */
 export function normalizeDomain(domain: string): string {
 	if (!domain) {
-		return '';
+		return "";
 	}
 	let urlString = domain.toLowerCase().trim();
 
 	// Ensure there's a protocol for the URL constructor to work correctly.
-	if (!urlString.includes('://')) {
+	if (!urlString.includes("://")) {
 		urlString = `https://${urlString}`;
 	}
 
 	try {
 		const hostname = new URL(urlString).hostname;
-		const finalDomain = hostname.replace(REGEX_WWW_PREFIX, '');
+		const finalDomain = hostname.replace(REGEX_WWW_PREFIX, "");
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw new Error(
@@ -173,7 +176,7 @@ export function normalizeDomain(domain: string): string {
 		}
 		return finalDomain;
 	} catch (error) {
-		logger.error(`Failed to parse domain: ${domain}`, { error });
+		logger.error({ error }, `Failed to parse domain: ${domain}`);
 		throw new Error(`Invalid domain format: ${domain}`);
 	}
 }
@@ -203,22 +206,22 @@ export function isValidDomainFormat(domain: string): boolean {
 	if (
 		!domain ||
 		domain.length > 253 ||
-		domain.startsWith('.') ||
-		domain.endsWith('.') ||
-		domain.includes('..')
+		domain.startsWith(".") ||
+		domain.endsWith(".") ||
+		domain.includes("..")
 	) {
 		return false;
 	}
 
-	const labels = domain.split('.');
+	const labels = domain.split(".");
 	for (const label of labels) {
 		if (label.length < 1 || label.length > 63) {
 			return false;
 		}
 		if (
 			!REGEX_DOMAIN_LABEL.test(label) ||
-			label.startsWith('-') ||
-			label.endsWith('-')
+			label.startsWith("-") ||
+			label.endsWith("-")
 		) {
 			return false;
 		}
@@ -257,7 +260,7 @@ export function isValidOriginSecure(
 		const originUrl = new URL(originHeader.trim());
 
 		// HTTPS requirement check
-		if (requireHttps && originUrl.protocol !== 'https:') {
+		if (requireHttps && originUrl.protocol !== "https:") {
 			return false;
 		}
 
@@ -309,9 +312,9 @@ export function isValidOriginSecure(
  */
 export function isLocalhost(hostname: string): boolean {
 	return (
-		hostname === 'localhost' || // "localhost"
-		hostname === '[::1]' || // IPv6 loopback
-		hostname.startsWith('127.')
+		hostname === "localhost" || // "localhost"
+		hostname === "[::1]" || // IPv6 loopback
+		hostname.startsWith("127.")
 	); // IPv4 loopback
 }
 
@@ -324,19 +327,18 @@ const getWebsiteByIdCached = cacheable(
 	},
 	{
 		expireInSec: 300, // 5 minutes
-		prefix: 'website_by_id',
+		prefix: "website_by_id",
 		staleWhileRevalidate: true,
 		staleTime: 60, // 1 minute
 	}
 );
 
 const getOwnerIdCached = cacheable(
-	async (website: Website): Promise<string | null> => {
-		return await _resolveOwnerId(website);
-	},
+	async (website: Website): Promise<string | null> =>
+		await _resolveOwnerId(website),
 	{
 		expireInSec: 300,
-		prefix: 'website_owner_id',
+		prefix: "website_owner_id",
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}

@@ -1,5 +1,5 @@
-import Script from 'next/script';
-import type { RawItem, RawPlan } from '@/app/(home)/pricing/data';
+import Script from "next/script";
+import type { RawItem, RawPlan } from "@/app/(home)/pricing/data";
 
 interface Breadcrumb {
 	name: string;
@@ -35,10 +35,10 @@ interface DocumentationProps extends ArticleProps {
 }
 
 type ElementItem =
-	| { type: 'article'; value: ArticleProps }
-	| { type: 'documentation'; value: DocumentationProps }
-	| { type: 'faq'; items: FAQItem[] }
-	| { type: 'softwareOffers'; name?: string; plans: RawPlan[] };
+	| { type: "article"; value: ArticleProps }
+	| { type: "documentation"; value: DocumentationProps }
+	| { type: "faq"; items: FAQItem[] }
+	| { type: "softwareOffers"; name?: string; plans: RawPlan[] };
 
 interface StructuredDataProps {
 	baseUrl?: string; // default: https://www.databuddy.cc
@@ -52,24 +52,24 @@ interface StructuredDataProps {
 
 function planToOffer(plan: RawPlan, baseUrl: string) {
 	const BLOCK_UNITS_FOR_EVENTS = 1000; // price is expressed per 1,000 events
-	const toUnitCode = (interval: 'day' | 'month' | null | undefined) =>
-		interval === 'month' ? 'MON' : interval === 'day' ? 'DAY' : undefined;
+	const toUnitCode = (interval: "day" | "month" | null | undefined) =>
+		interval === "month" ? "MON" : interval === "day" ? "DAY" : undefined;
 	const priceStr = (n: number, decimals = 2) => n.toFixed(decimals); // avoid scientific notation
 
-	const priceItem = plan.items.find((i) => i.type === 'price');
+	const priceItem = plan.items.find((i) => i.type === "price");
 	const basePrice =
-		priceItem && typeof priceItem.price === 'number' ? priceItem.price : 0;
+		priceItem && typeof priceItem.price === "number" ? priceItem.price : 0;
 
 	// Included features → additionalProperty
 	const included = plan.items
 		.filter(
-			(i): i is Extract<RawItem, { type: 'feature' }> => i.type === 'feature'
+			(i): i is Extract<RawItem, { type: "feature" }> => i.type === "feature"
 		)
 		.map((i) => ({
-			'@type': 'PropertyValue',
+			"@type": "PropertyValue",
 			name: i.feature?.name,
 			value:
-				i.included_usage === 'inf' ? 'Unlimited' : String(i.included_usage),
+				i.included_usage === "inf" ? "Unlimited" : String(i.included_usage),
 			unitText: i.interval ? `per ${i.interval}` : undefined,
 		}));
 
@@ -79,66 +79,66 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 	// Base monthly plan price
 	if (priceItem) {
 		priceSpecs.push({
-			'@type': 'UnitPriceSpecification',
+			"@type": "UnitPriceSpecification",
 			price: priceStr(basePrice, 2),
-			priceCurrency: 'USD',
-			unitCode: 'MON',
-			unitText: 'per month',
+			priceCurrency: "USD",
+			unitCode: "MON",
+			unitText: "per month",
 		});
 	}
 
 	const items = plan.items.filter(
-		(i): i is Extract<RawItem, { type: 'priced_feature' }> =>
-			i.type === 'priced_feature'
+		(i): i is Extract<RawItem, { type: "priced_feature" }> =>
+			i.type === "priced_feature"
 	);
 
 	// priced_feature with tiers (events, extra websites, etc.)
 	for (const pf of items) {
 		// Event overage tiers → convert per-event micro price to per-1,000 events
-		if (pf.feature?.id === 'events' && pf.tiers?.length) {
+		if (pf.feature?.id === "events" && pf.tiers?.length) {
 			// Start tier ranges right after included quota (if any)
 			let prevMax: number | undefined =
-				typeof pf.included_usage === 'number' ? pf.included_usage : undefined;
+				typeof pf.included_usage === "number" ? pf.included_usage : undefined;
 
 			for (const t of pf.tiers) {
 				const minValue = prevMax != null ? prevMax + 1 : undefined;
-				const maxValue = t.to === 'inf' ? undefined : (t.to as number);
+				const maxValue = t.to === "inf" ? undefined : (t.to as number);
 
 				priceSpecs.push({
-					'@type': 'UnitPriceSpecification',
+					"@type": "UnitPriceSpecification",
 					price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 2), // e.g. "0.03" per 1,000 events
-					priceCurrency: 'USD',
+					priceCurrency: "USD",
 					referenceQuantity: {
-						'@type': 'QuantitativeValue',
+						"@type": "QuantitativeValue",
 						value: BLOCK_UNITS_FOR_EVENTS,
-						unitText: 'events',
+						unitText: "events",
 					},
 					eligibleQuantity: {
-						'@type': 'QuantitativeValue',
+						"@type": "QuantitativeValue",
 						minValue,
 						maxValue,
-						unitText: 'events',
+						unitText: "events",
 					},
-					unitText: 'per 1,000 events (overage)',
+					unitText: "per 1,000 events (overage)",
 				});
 
-				if (t.to !== 'inf') {
+				if (t.to !== "inf") {
 					prevMax = t.to as number;
 				}
 			}
 		}
 		// Other priced features (e.g., extra websites per month)
-		else if (typeof pf.price === 'number') {
+		else if (typeof pf.price === "number") {
 			const refUnit = toUnitCode(pf.interval);
 			priceSpecs.push({
-				'@type': 'UnitPriceSpecification',
+				"@type": "UnitPriceSpecification",
 				price: priceStr(pf.price, 2), // e.g. "0.50"
-				priceCurrency: 'USD',
-				unitText: `per ${pf.feature?.display?.singular ?? 'unit'}`,
+				priceCurrency: "USD",
+				unitText: `per ${pf.feature?.display?.singular ?? "unit"}`,
 				...(refUnit
 					? {
 							referenceQuantity: {
-								'@type': 'QuantitativeValue',
+								"@type": "QuantitativeValue",
 								value: 1,
 								unitCode: refUnit, // MON or DAY
 							},
@@ -149,17 +149,17 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 	}
 
 	return {
-		'@type': 'Offer',
+		"@type": "Offer",
 		name: plan.name,
 		url: `${baseUrl}/pricing#${plan.id}`,
 		price: basePrice, // simple base price (numeric) for the plan itself
-		priceCurrency: 'USD',
+		priceCurrency: "USD",
 		priceSpecification: priceSpecs,
 		itemOffered: {
-			'@type': 'SoftwareApplication',
-			name: 'Databuddy',
-			operatingSystem: 'Web',
-			applicationCategory: 'BusinessApplication',
+			"@type": "SoftwareApplication",
+			name: "Databuddy",
+			operatingSystem: "Web",
+			applicationCategory: "BusinessApplication",
 			url: baseUrl,
 		},
 		additionalProperty: included.length ? included : undefined,
@@ -167,15 +167,15 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 }
 
 export function StructuredData({
-	baseUrl = 'https://www.databuddy.cc',
-	logoUrl = `${'https://www.databuddy.cc'}/logo.png`,
+	baseUrl = "https://www.databuddy.cc",
+	logoUrl = `${"https://www.databuddy.cc"}/logo.png`,
 	page,
 	elements = [],
 }: StructuredDataProps) {
 	const abs = (u?: string) =>
-		u ? (u.startsWith('http') ? u : `${baseUrl}${u}`) : undefined;
+		u ? (u.startsWith("http") ? u : `${baseUrl}${u}`) : undefined;
 	const pageUrl = abs(page.url) ?? baseUrl;
-	const lang = page.inLanguage || 'en';
+	const lang = page.inLanguage || "en";
 
 	const orgId = `${baseUrl}#organization`;
 	const websiteId = `${baseUrl}#website`;
@@ -188,41 +188,41 @@ export function StructuredData({
 
 	// Organization (always)
 	graph.push({
-		'@type': 'Organization',
-		'@id': orgId,
-		name: 'Databuddy',
+		"@type": "Organization",
+		"@id": orgId,
+		name: "Databuddy",
 		url: baseUrl,
-		logo: { '@type': 'ImageObject', url: logoUrl },
+		logo: { "@type": "ImageObject", url: logoUrl },
 		contactPoint: {
-			'@type': 'ContactPoint',
-			contactType: 'Customer Support',
-			email: 'support@databuddy.cc',
+			"@type": "ContactPoint",
+			contactType: "Customer Support",
+			email: "support@databuddy.cc",
 		},
 	});
 
 	// WebSite (always)
 	graph.push({
-		'@type': 'WebSite',
-		'@id': websiteId,
+		"@type": "WebSite",
+		"@id": websiteId,
 		url: baseUrl,
-		name: 'Databuddy',
-		publisher: { '@id': orgId },
+		name: "Databuddy",
+		publisher: { "@id": orgId },
 	});
 
 	// WebPage (anchor)
 	graph.push({
-		'@type': 'WebPage',
-		'@id': webPageId,
+		"@type": "WebPage",
+		"@id": webPageId,
 		url: pageUrl,
 		name: page.title,
 		description: page.description,
-		isPartOf: { '@id': websiteId },
-		about: { '@id': orgId },
-		breadcrumb: page.breadcrumbs?.length ? { '@id': breadcrumbId } : undefined,
+		isPartOf: { "@id": websiteId },
+		about: { "@id": orgId },
+		breadcrumb: page.breadcrumbs?.length ? { "@id": breadcrumbId } : undefined,
 		datePublished: page.datePublished,
 		dateModified: page.dateModified || page.datePublished,
 		image: page.imageUrl
-			? { '@type': 'ImageObject', url: abs(page.imageUrl) }
+			? { "@type": "ImageObject", url: abs(page.imageUrl) }
 			: undefined,
 		inLanguage: lang,
 	});
@@ -230,10 +230,10 @@ export function StructuredData({
 	// Breadcrumbs
 	if (page.breadcrumbs?.length) {
 		graph.push({
-			'@type': 'BreadcrumbList',
-			'@id': breadcrumbId,
+			"@type": "BreadcrumbList",
+			"@id": breadcrumbId,
 			itemListElement: page.breadcrumbs.map((crumb, i) => ({
-				'@type': 'ListItem',
+				"@type": "ListItem",
 				position: i + 1,
 				name: crumb.name,
 				item: abs(crumb.url),
@@ -245,71 +245,71 @@ export function StructuredData({
 	const faqItems: FAQItem[] = [];
 
 	for (const el of elements) {
-		if (el.type === 'article') {
+		if (el.type === "article") {
 			const a = el.value;
 			graph.push({
-				'@type': ['BlogPosting', 'Article'],
+				"@type": ["BlogPosting", "Article"],
 				headline: a.title,
 				description: a.description,
 				url: pageUrl,
-				mainEntityOfPage: { '@id': webPageId },
-				isPartOf: { '@id': websiteId },
-				author: { '@type': 'Organization', '@id': orgId, name: 'Databuddy' },
-				publisher: { '@type': 'Organization', '@id': orgId },
+				mainEntityOfPage: { "@id": webPageId },
+				isPartOf: { "@id": websiteId },
+				author: { "@type": "Organization", "@id": orgId, name: "Databuddy" },
+				publisher: { "@type": "Organization", "@id": orgId },
 				image: a.imageUrl
-					? { '@type': 'ImageObject', url: abs(a.imageUrl) }
+					? { "@type": "ImageObject", url: abs(a.imageUrl) }
 					: undefined,
 				datePublished: a.datePublished,
 				dateModified: a.dateModified || a.datePublished,
 				inLanguage: lang,
 			});
-		} else if (el.type === 'documentation') {
+		} else if (el.type === "documentation") {
 			const d = el.value;
 			graph.push({
-				'@type': ['TechArticle', 'Article'],
+				"@type": ["TechArticle", "Article"],
 				headline: d.title,
 				description: d.description,
 				url: pageUrl,
-				mainEntityOfPage: { '@id': webPageId },
-				isPartOf: { '@id': websiteId },
+				mainEntityOfPage: { "@id": webPageId },
+				isPartOf: { "@id": websiteId },
 				author: {
-					'@type': 'Organization',
-					'@id': orgId,
-					name: 'Databuddy',
+					"@type": "Organization",
+					"@id": orgId,
+					name: "Databuddy",
 					url: baseUrl,
 				},
-				publisher: { '@type': 'Organization', '@id': orgId },
+				publisher: { "@type": "Organization", "@id": orgId },
 				image: d.imageUrl
-					? { '@type': 'ImageObject', url: abs(d.imageUrl) }
+					? { "@type": "ImageObject", url: abs(d.imageUrl) }
 					: undefined,
 				datePublished: d.datePublished,
 				dateModified: d.dateModified || d.datePublished,
-				articleSection: d.section ?? 'Documentation',
+				articleSection: d.section ?? "Documentation",
 				keywords: d.keywords ?? [
-					'analytics',
-					'privacy-first',
-					'web analytics',
-					'GDPR',
-					'documentation',
+					"analytics",
+					"privacy-first",
+					"web analytics",
+					"GDPR",
+					"documentation",
 				],
 				inLanguage: lang,
 			});
-		} else if (el.type === 'faq') {
+		} else if (el.type === "faq") {
 			faqItems.push(...el.items);
-		} else if (el.type === 'softwareOffers') {
+		} else if (el.type === "softwareOffers") {
 			const offers = el.plans.map((p) => planToOffer(p, baseUrl));
 
 			graph.push({
-				'@type': 'SoftwareApplication',
-				'@id': softwareId,
-				name: el.name ?? 'Databuddy',
-				applicationCategory: 'BusinessApplication',
-				operatingSystem: 'Web',
+				"@type": "SoftwareApplication",
+				"@id": softwareId,
+				name: el.name ?? "Databuddy",
+				applicationCategory: "BusinessApplication",
+				operatingSystem: "Web",
 				url: baseUrl,
-				publisher: { '@type': 'Organization', '@id': orgId },
+				publisher: { "@type": "Organization", "@id": orgId },
 				// Multiple plans → AggregateOffer
 				offers: {
-					'@type': 'AggregateOffer',
+					"@type": "AggregateOffer",
 					offerCount: offers.length,
 					lowPrice: Math.min(
 						...offers.map((o) => Number(o.price ?? 0))
@@ -317,7 +317,7 @@ export function StructuredData({
 					highPrice: Math.max(
 						...offers.map((o) => Number(o.price ?? 0))
 					).toFixed(2),
-					priceCurrency: 'USD',
+					priceCurrency: "USD",
 					offers,
 				},
 			});
@@ -326,19 +326,19 @@ export function StructuredData({
 
 	if (faqItems.length) {
 		graph.push({
-			'@type': 'FAQPage',
-			'@id': faqId,
+			"@type": "FAQPage",
+			"@id": faqId,
 			mainEntity: faqItems.map((f) => ({
-				'@type': 'Question',
+				"@type": "Question",
 				name: f.question,
-				acceptedAnswer: { '@type': 'Answer', text: f.answer },
+				acceptedAnswer: { "@type": "Answer", text: f.answer },
 			})),
 		});
 	}
 
 	const jsonLd = {
-		'@context': 'https://schema.org',
-		'@graph': graph.filter(Boolean),
+		"@context": "https://schema.org",
+		"@graph": graph.filter(Boolean),
 	};
 
 	return (

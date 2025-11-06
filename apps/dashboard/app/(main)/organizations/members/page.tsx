@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Suspense } from 'react';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { MembersView } from './members-view';
+import { Suspense } from "react";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { MembersView } from "./members-view";
 
 const ComponentSkeleton = () => (
 	<div className="h-full p-6">

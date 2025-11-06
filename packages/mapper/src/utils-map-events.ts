@@ -1,5 +1,5 @@
-import type { AnalyticsEvent } from '@databuddy/db';
-import type { AnalyticsEventAdapter } from './types';
+import type { AnalyticsEvent } from "@databuddy/db";
+import type { AnalyticsEventAdapter } from "./types";
 
 /**
  * Maps an array of input rows to AnalyticsEvent using the provided adapter.

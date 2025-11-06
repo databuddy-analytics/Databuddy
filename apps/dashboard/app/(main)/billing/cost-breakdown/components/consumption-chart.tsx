@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type { UsageResponse } from '@databuddy/shared';
-import { CalendarIcon, ChartBarIcon } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import type { UsageResponse } from "@databuddy/shared/types/billing";
+import { CalendarIcon, ChartBarIcon } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
 import {
 	Bar,
 	BarChart,
@@ -11,15 +11,15 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import { DateRangePicker } from '@/components/date-range-picker';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { calculateOverageCost, type OverageInfo } from '../utils/billing-utils';
+} from "recharts";
+import { DateRangePicker } from "@/components/date-range-picker";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
 
-type ViewMode = 'daily' | 'cumulative';
+type ViewMode = "daily" | "cumulative";
 
-import { METRIC_COLORS } from '@/components/charts/metrics-constants';
+import { METRIC_COLORS } from "@/components/charts/metrics-constants";
 
 const EVENT_TYPE_COLORS = {
 	event: METRIC_COLORS.pageviews.primary, // blue
@@ -42,7 +42,7 @@ export function ConsumptionChart({
 	onDateRangeChange,
 	overageInfo,
 }: ConsumptionChartProps) {
-	const [viewMode, setViewMode] = useState<ViewMode>('daily');
+	const [viewMode, setViewMode] = useState<ViewMode>("daily");
 	const [hiddenTypes, setHiddenTypes] = useState<Record<string, boolean>>({});
 
 	const chartData = useMemo(() => {
@@ -88,9 +88,9 @@ export function ConsumptionChart({
 
 		return entries.map(([date, eventCounts]) => {
 			const dayData: any = {
-				date: new Date(date).toLocaleDateString('en-US', {
-					month: 'short',
-					day: 'numeric',
+				date: new Date(date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
 				}),
 				fullDate: date,
 			};
@@ -103,7 +103,7 @@ export function ConsumptionChart({
 				}
 				const actualAmount = eventCounts[eventType] || 0;
 
-				if (viewMode === 'cumulative') {
+				if (viewMode === "cumulative") {
 					runningTotals[eventType] += actualAmount;
 					dayData[eventType] = runningTotals[eventType];
 				} else {
@@ -182,8 +182,8 @@ export function ConsumptionChart({
 							onChange={(range) => {
 								if (range?.from && range?.to) {
 									onDateRangeChange(
-										range.from.toISOString().split('T')[0],
-										range.to.toISOString().split('T')[0]
+										range.from.toISOString().split("T")[0],
+										range.to.toISOString().split("T")[0]
 									);
 								}
 							}}
@@ -195,17 +195,17 @@ export function ConsumptionChart({
 						<div className="flex rounded border">
 							<Button
 								className="rounded-r-none border-r"
-								onClick={() => setViewMode('cumulative')}
+								onClick={() => setViewMode("cumulative")}
 								size="sm"
-								variant={viewMode === 'cumulative' ? 'default' : 'ghost'}
+								variant={viewMode === "cumulative" ? "default" : "ghost"}
 							>
 								Cumulative
 							</Button>
 							<Button
 								className="rounded-l-none"
-								onClick={() => setViewMode('daily')}
+								onClick={() => setViewMode("daily")}
 								size="sm"
-								variant={viewMode === 'daily' ? 'default' : 'ghost'}
+								variant={viewMode === "daily" ? "default" : "ghost"}
 							>
 								Daily
 							</Button>
@@ -220,7 +220,7 @@ export function ConsumptionChart({
 							data={chartData}
 							margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
 							style={{
-								cursor: 'default',
+								cursor: "default",
 							}}
 						>
 							<defs>
@@ -239,11 +239,11 @@ export function ConsumptionChart({
 								))}
 							</defs>
 							<XAxis
-								axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.5 }}
+								axisLine={{ stroke: "var(--border)", strokeOpacity: 0.5 }}
 								dataKey="date"
 								tick={{
 									fontSize: 11,
-									fill: 'var(--muted-foreground)',
+									fill: "var(--muted-foreground)",
 									fontWeight: 500,
 								}}
 								tickLine={false}
@@ -253,7 +253,7 @@ export function ConsumptionChart({
 								domain={[0, yAxisMax]}
 								tick={{
 									fontSize: 11,
-									fill: 'var(--muted-foreground)',
+									fill: "var(--muted-foreground)",
 									fontWeight: 500,
 								}}
 								tickFormatter={(value) => {
@@ -311,7 +311,7 @@ export function ConsumptionChart({
 																		<span className="font-medium text-muted-foreground text-xs capitalize">
 																			{entry.dataKey
 																				?.toString()
-																				.replace('_', ' ')}
+																				.replace("_", " ")}
 																		</span>
 																	</div>
 																	<div className="text-right">
@@ -332,7 +332,7 @@ export function ConsumptionChart({
 									return null;
 								}}
 								cursor={false}
-								wrapperStyle={{ outline: 'none' }}
+								wrapperStyle={{ outline: "none" }}
 							/>
 							<Legend
 								align="center"
@@ -343,11 +343,11 @@ export function ConsumptionChart({
 										<span
 											className={`inline-flex select-none items-center font-medium text-xs capitalize leading-none transition-all duration-200 ${
 												isHidden
-													? 'text-slate-600 line-through decoration-1 opacity-40'
-													: 'text-muted-foreground opacity-100'
+													? "text-slate-600 line-through decoration-1 opacity-40"
+													: "text-muted-foreground opacity-100"
 											}`}
 										>
-											{key.replace('_', ' ')}
+											{key.replace("_", " ")}
 										</span>
 									);
 								}}
@@ -368,13 +368,13 @@ export function ConsumptionChart({
 								}}
 								verticalAlign="bottom"
 								wrapperStyle={{
-									display: 'flex',
-									justifyContent: 'center',
+									display: "flex",
+									justifyContent: "center",
 									gap: 12,
-									fontSize: '12px',
-									paddingTop: '20px',
+									fontSize: "12px",
+									paddingTop: "20px",
 									fontWeight: 500,
-									cursor: 'pointer',
+									cursor: "pointer",
 								}}
 							/>
 							{Object.keys(EVENT_TYPE_COLORS).map((eventType) => (
@@ -391,8 +391,8 @@ export function ConsumptionChart({
 									}
 									strokeWidth={0.5}
 									style={{
-										filter: 'none',
-										transition: 'none',
+										filter: "none",
+										transition: "none",
 									}}
 								/>
 							))}

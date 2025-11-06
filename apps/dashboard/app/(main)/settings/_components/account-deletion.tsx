@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { authClient, useSession } from '@databuddy/auth/client';
+import { authClient, useSession } from "@databuddy/auth/client";
 import {
 	ArrowClockwiseIcon,
 	InfoIcon,
 	ShieldCheckIcon,
 	TrashIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
+} from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import {
 	AlertDialog,
 	AlertDialogCancel,
@@ -22,8 +22,8 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 	AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Form,
 	FormControl,
@@ -31,14 +31,14 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
 // Define form schema with validation
 const formSchema = z.object({
-	email: z.string().email('Please enter a valid email address'),
-	password: z.string().min(1, 'Password is required'),
+	email: z.string().email("Please enter a valid email address"),
+	password: z.string().min(1, "Password is required"),
 	confirmText: z.string().min(1, 'Please type "DELETE" to confirm'),
 });
 
@@ -51,9 +51,9 @@ export function AccountDeletion() {
 
 	const form = useForm<z.infer<typeof formSchema>>({
 		defaultValues: {
-			email: '',
-			password: '',
-			confirmText: '',
+			email: "",
+			password: "",
+			confirmText: "",
 		},
 	});
 
@@ -66,25 +66,25 @@ export function AccountDeletion() {
 		setIsLoading(true);
 
 		try {
-			const { data } = await authClient.deleteUser({ callbackURL: '/login' });
+			const { data } = await authClient.deleteUser({ callbackURL: "/login" });
 
 			if (data?.success) {
-				toast.success('Your account has been scheduled for deletion');
+				toast.success("Your account has been scheduled for deletion");
 				form.reset();
 				setIsDialogOpen(false);
 
 				await authClient.signOut();
-				router.push('/login');
+				router.push("/login");
 			} else if (data?.message) {
 				toast.error(data.message);
 			} else {
-				toast.error('Failed to process account deletion');
+				toast.error("Failed to process account deletion");
 			}
 		} catch (error: unknown) {
 			if (error instanceof Error) {
-				toast.error(error.message || 'Failed to process account deletion');
+				toast.error(error.message || "Failed to process account deletion");
 			} else {
-				toast.error('Failed to process account deletion');
+				toast.error("Failed to process account deletion");
 			}
 		} finally {
 			setIsLoading(false);
@@ -154,7 +154,7 @@ export function AccountDeletion() {
 									<p>
 										<span className="font-medium text-red-400">
 											Immediate effects:
-										</span>{' '}
+										</span>{" "}
 										Your account will be deactivated and you&apos;ll be signed
 										out from all devices.
 									</p>
@@ -168,7 +168,7 @@ export function AccountDeletion() {
 									<p>
 										<span className="font-medium text-red-400">
 											Recovery period:
-										</span>{' '}
+										</span>{" "}
 										You&apos;ll have 30 days to change your mind and recover
 										your account.
 									</p>
@@ -182,7 +182,7 @@ export function AccountDeletion() {
 									<p>
 										<span className="font-medium text-red-400">
 											Permanent deletion:
-										</span>{' '}
+										</span>{" "}
 										After 30 days, all your data will be permanently deleted.
 									</p>
 								</div>
@@ -207,7 +207,7 @@ export function AccountDeletion() {
 											</FormLabel>
 											<FormControl>
 												<Input
-													placeholder={session?.user?.email || 'your@email.com'}
+													placeholder={session?.user?.email || "your@email.com"}
 													{...field}
 													className="border-slate-700 bg-slate-900/60"
 												/>
@@ -278,7 +278,7 @@ export function AccountDeletion() {
 												Processing...
 											</>
 										) : (
-											'Confirm Deletion'
+											"Confirm Deletion"
 										)}
 									</Button>
 								</AlertDialogFooter>

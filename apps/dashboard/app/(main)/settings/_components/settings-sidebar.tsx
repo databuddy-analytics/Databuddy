@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type { Icon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import type { Icon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export interface NavItem {
 	id: string;
@@ -25,14 +25,14 @@ export function SettingsSidebar({
 	className,
 }: SettingsSidebarProps) {
 	return (
-		<nav className={cn('flex flex-col gap-1', className)}>
+		<nav className={cn("flex flex-col gap-1", className)}>
 			{items.map((item) => (
 				<Button
 					className="w-full justify-start"
 					disabled={item.disabled}
 					key={item.id}
 					onClick={() => setActiveTab(item.id)}
-					variant={activeTab === item.id ? 'secondary' : 'ghost'}
+					variant={activeTab === item.id ? "secondary" : "ghost"}
 				>
 					<item.icon className="mr-2 h-4 w-4" />
 					{item.label}

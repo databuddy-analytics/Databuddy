@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowSquareOutIcon,
@@ -6,15 +6,15 @@ import {
 	CheckIcon,
 	CreditCardIcon,
 	FileTextIcon,
-} from '@phosphor-icons/react';
-import type { Customer, CustomerInvoice } from 'autumn-js';
-import dayjs from 'dayjs';
-import { memo } from 'react';
-import { useBilling } from '@/app/(main)/billing/hooks/use-billing';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@phosphor-icons/react";
+import type { Customer, CustomerInvoice } from "autumn-js";
+import dayjs from "dayjs";
+import { memo } from "react";
+import { useBilling } from "@/app/(main)/billing/hooks/use-billing";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const InvoiceCard = memo(function InvoiceCardComponent({
 	invoice,
@@ -24,23 +24,23 @@ const InvoiceCard = memo(function InvoiceCardComponent({
 	const getStatusBadge = () => {
 		const statusConfig = {
 			paid: {
-				variant: 'default' as const,
-				className: 'bg-emerald-500 hover:bg-emerald-600',
-				text: 'Paid',
+				variant: "default" as const,
+				className: "bg-emerald-500 hover:bg-emerald-600",
+				text: "Paid",
 			},
-			open: { variant: 'secondary' as const, className: '', text: 'Pending' },
+			open: { variant: "secondary" as const, className: "", text: "Pending" },
 			pending: {
-				variant: 'secondary' as const,
-				className: '',
-				text: 'Pending',
+				variant: "secondary" as const,
+				className: "",
+				text: "Pending",
 			},
 			failed: {
-				variant: 'destructive' as const,
-				className: '',
-				text: 'Failed',
+				variant: "destructive" as const,
+				className: "",
+				text: "Failed",
 			},
-			draft: { variant: 'outline' as const, className: '', text: 'Draft' },
-			void: { variant: 'outline' as const, className: '', text: 'Void' },
+			draft: { variant: "outline" as const, className: "", text: "Draft" },
+			void: { variant: "outline" as const, className: "", text: "Void" },
 		};
 
 		const config = statusConfig[invoice.status as keyof typeof statusConfig];
@@ -56,16 +56,16 @@ const InvoiceCard = memo(function InvoiceCardComponent({
 	};
 
 	const formatAmount = (amount: number, currency: string) =>
-		new Intl.NumberFormat('en-US', {
-			style: 'currency',
+		new Intl.NumberFormat("en-US", {
+			style: "currency",
 			currency: currency.toUpperCase(),
 		}).format(amount);
 
 	const getProductNames = (productIds: string[]) => {
-		const productMap = { free: 'Free', pro: 'Pro', buddy: 'Buddy' };
+		const productMap = { free: "Free", pro: "Pro", buddy: "Buddy" };
 		return productIds
 			.map((id) => productMap[id as keyof typeof productMap] || id)
-			.join(', ');
+			.join(", ");
 	};
 
 	return (
@@ -88,7 +88,7 @@ const InvoiceCard = memo(function InvoiceCardComponent({
 								{getStatusBadge()}
 							</div>
 							<div className="flex items-center gap-4 text-muted-foreground text-xs">
-								<span>{dayjs(invoice.created_at).format('MMM D, YYYY')}</span>
+								<span>{dayjs(invoice.created_at).format("MMM D, YYYY")}</span>
 								<span>{getProductNames(invoice.product_ids)}</span>
 							</div>
 						</div>
@@ -107,7 +107,7 @@ const InvoiceCard = memo(function InvoiceCardComponent({
 								className="h-8 cursor-pointer px-2"
 								onClick={() => {
 									if (invoice.hosted_invoice_url) {
-										window.open(invoice.hosted_invoice_url, '_blank');
+										window.open(invoice.hosted_invoice_url, "_blank");
 									}
 								}}
 								size="sm"
@@ -161,7 +161,7 @@ const SubscriptionHistoryCard = memo(function SubscriptionHistoryCardComponent({
 									<Badge
 										className="ml-2 text-xs"
 										variant={
-											product.status === 'active' ? 'default' : 'secondary'
+											product.status === "active" ? "default" : "secondary"
 										}
 									>
 										{product.status}
@@ -169,12 +169,12 @@ const SubscriptionHistoryCard = memo(function SubscriptionHistoryCardComponent({
 								</div>
 								<div className="text-muted-foreground text-xs">
 									<div>
-										Started: {dayjs(product.started_at).format('MMM D, YYYY')}
+										Started: {dayjs(product.started_at).format("MMM D, YYYY")}
 									</div>
 									{product.current_period_end && (
 										<div className="mt-0.5">
-											{product.canceled_at ? 'Ends' : 'Renews'}:{' '}
-											{dayjs(product.current_period_end).format('MMM D, YYYY')}
+											{product.canceled_at ? "Ends" : "Renews"}:{" "}
+											{dayjs(product.current_period_end).format("MMM D, YYYY")}
 										</div>
 									)}
 								</div>

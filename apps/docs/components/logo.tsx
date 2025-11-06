@@ -1,11 +1,11 @@
-import { Geist_Mono } from 'next/font/google';
-import Image from 'next/image';
-import Link from 'next/link';
+import { Geist_Mono } from "next/font/google";
+import Image from "next/image";
+import Link from "next/link";
 
 const geistMono = Geist_Mono({
-	subsets: ['latin'],
-	weight: ['400', '500', '600', '700'],
-	variable: '--font-geist-mono',
+	subsets: ["latin"],
+	weight: ["400", "500", "600", "700"],
+	variable: "--font-geist-mono",
 });
 
 export function LogoContent() {
@@ -24,7 +24,7 @@ export function LogoContent() {
 			<div className="flex items-center">
 				<span
 					className={`
-          ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider transition-colors duration-200 `}
+          ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider transition-colors duration-200`}
 				>
 					DATABUDDY
 				</span>
@@ -48,7 +48,7 @@ export function Logo() {
 				/>
 			</div>
 			<div className="flex items-center">
-				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider transition-colors duration-200 ">
+				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider transition-colors duration-200">
 					DATABUDDY
 				</span>
 			</div>

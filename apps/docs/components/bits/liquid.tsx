@@ -1,6 +1,6 @@
-import { Mesh, Program, Renderer, Triangle } from 'ogl';
-import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { Mesh, Program, Renderer, Triangle } from "ogl";
+import type React from "react";
+import { useEffect, useRef } from "react";
 
 interface LiquidChromeProps extends React.HTMLAttributes<HTMLDivElement> {
 	/** Base color as an RGB array. Default is [0.1, 0.1, 0.1]. */
@@ -137,7 +137,7 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
 			resUniform[1] = gl.canvas.height;
 			resUniform[2] = gl.canvas.width / gl.canvas.height;
 		}
-		window.addEventListener('resize', resize);
+		window.addEventListener("resize", resize);
 		resize();
 
 		// Mouse and touch move handlers for interactivity.
@@ -163,8 +163,8 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
 		}
 
 		if (interactive) {
-			container.addEventListener('mousemove', handleMouseMove);
-			container.addEventListener('touchmove', handleTouchMove);
+			container.addEventListener("mousemove", handleMouseMove);
+			container.addEventListener("touchmove", handleTouchMove);
 		}
 
 		// Animation loop.
@@ -181,15 +181,15 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
 
 		return () => {
 			cancelAnimationFrame(animationId);
-			window.removeEventListener('resize', resize);
+			window.removeEventListener("resize", resize);
 			if (interactive) {
-				container.removeEventListener('mousemove', handleMouseMove);
-				container.removeEventListener('touchmove', handleTouchMove);
+				container.removeEventListener("mousemove", handleMouseMove);
+				container.removeEventListener("touchmove", handleTouchMove);
 			}
 			if (gl.canvas.parentElement) {
 				gl.canvas.parentElement.removeChild(gl.canvas);
 			}
-			gl.getExtension('WEBGL_lose_context')?.loseContext();
+			gl.getExtension("WEBGL_lose_context")?.loseContext();
 		};
 	}, [baseColor, speed, amplitude, frequencyX, frequencyY, interactive]);
 

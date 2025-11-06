@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { signIn } from '@databuddy/auth/client';
+import { signIn } from "@databuddy/auth/client";
 import {
 	EyeIcon,
 	EyeSlashIcon,
@@ -8,44 +8,44 @@ import {
 	GoogleLogoIcon,
 	SparkleIcon,
 	SpinnerIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 function LoginPage() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(false);
-	const [email, setEmail] = useState('');
-	const [password, setPassword] = useState('');
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [lastUsed, setLastUsed] = useState<string | null>(null);
 
-	const defaultCallbackUrl = searchParams.get('callback') || '/websites';
+	const defaultCallbackUrl = searchParams.get("callback") || "/websites";
 
 	useEffect(() => {
-		setLastUsed(localStorage.getItem('lastUsedLogin'));
+		setLastUsed(localStorage.getItem("lastUsedLogin"));
 	}, []);
 
-	const handleSocialLogin = (provider: 'github' | 'google') => {
+	const handleSocialLogin = (provider: "github" | "google") => {
 		setIsLoading(true);
 
-		const callbackUrl = searchParams.get('callback');
+		const callbackUrl = searchParams.get("callback");
 		const finalCallbackUrl = callbackUrl || defaultCallbackUrl;
 
 		signIn.social({
 			provider,
 			callbackURL: finalCallbackUrl,
-			newUserCallbackURL: '/onboarding',
+			newUserCallbackURL: "/onboarding",
 			fetchOptions: {
 				onSuccess: () => {
-					localStorage.setItem('lastUsedLogin', provider);
+					localStorage.setItem("lastUsedLogin", provider);
 					if (callbackUrl) {
 						router.push(callbackUrl);
 					}
@@ -53,7 +53,7 @@ function LoginPage() {
 				onError: () => {
 					setIsLoading(false);
 					toast.error(
-						`${provider === 'github' ? 'GitHub' : 'Google'} login failed. Please try again.`
+						`${provider === "github" ? "GitHub" : "Google"} login failed. Please try again.`
 					);
 				},
 			},
@@ -63,7 +63,7 @@ function LoginPage() {
 	const handleEmailPasswordLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!(email && password)) {
-			toast.error('Please enter both email and password');
+			toast.error("Please enter both email and password");
 			return;
 		}
 
@@ -75,8 +75,8 @@ function LoginPage() {
 			callbackURL: defaultCallbackUrl,
 			fetchOptions: {
 				onSuccess: () => {
-					localStorage.setItem('lastUsedLogin', 'email');
-					const callbackUrl = searchParams.get('callback');
+					localStorage.setItem("lastUsedLogin", "email");
+					const callbackUrl = searchParams.get("callback");
 					if (callbackUrl) {
 						router.push(callbackUrl);
 					}
@@ -84,8 +84,8 @@ function LoginPage() {
 				onError: (error) => {
 					setIsLoading(false);
 					if (
-						error?.error?.code === 'EMAIL_NOT_VERIFIED' ||
-						error?.error?.message?.toLowerCase().includes('not verified')
+						error?.error?.code === "EMAIL_NOT_VERIFIED" ||
+						error?.error?.message?.toLowerCase().includes("not verified")
 					) {
 						router.push(
 							`/login/verification-needed?email=${encodeURIComponent(email)}`
@@ -93,7 +93,7 @@ function LoginPage() {
 					} else {
 						toast.error(
 							error?.error?.message ||
-								'Login failed. Please check your credentials and try again.'
+								"Login failed. Please check your credentials and try again."
 						);
 					}
 				},
@@ -120,13 +120,13 @@ function LoginPage() {
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 								disabled={isLoading}
-								onClick={() => handleSocialLogin('github')}
+								onClick={() => handleSocialLogin("github")}
 								type="button"
 								variant="outline"
 							>
 								<GithubLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with GitHub</span>
-								{lastUsed === 'github' && (
+								{lastUsed === "github" && (
 									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
@@ -135,13 +135,13 @@ function LoginPage() {
 							<Button
 								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 								disabled={isLoading}
-								onClick={() => handleSocialLogin('google')}
+								onClick={() => handleSocialLogin("google")}
 								type="button"
 								variant="outline"
 							>
 								<GoogleLogoIcon className="mr-2 h-5 w-5" />
 								<span>Sign in with Google</span>
-								{lastUsed === 'google' && (
+								{lastUsed === "google" && (
 									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
 										Last used
 									</span>
@@ -175,7 +175,7 @@ function LoginPage() {
 										type="email"
 										value={email}
 									/>
-									{lastUsed === 'email' && (
+									{lastUsed === "email" && (
 										<span className="-translate-y-1/2 absolute top-1/2 right-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs sm:px-2">
 											<span className="hidden sm:inline">Last used</span>
 											<span className="sm:hidden">★</span>
@@ -208,12 +208,12 @@ function LoginPage() {
 										onChange={(e) => setPassword(e.target.value)}
 										placeholder="••••••••"
 										required
-										type={showPassword ? 'text' : 'password'}
+										type={showPassword ? "text" : "password"}
 										value={password}
 									/>
 									<Button
 										aria-label={
-											showPassword ? 'Hide password' : 'Show password'
+											showPassword ? "Hide password" : "Show password"
 										}
 										className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
 										onClick={() => setShowPassword(!showPassword)}
@@ -240,7 +240,7 @@ function LoginPage() {
 										Signing in...
 									</>
 								) : (
-									'Sign in'
+									"Sign in"
 								)}
 							</Button>
 							<Link href="/login/magic" passHref>
@@ -259,7 +259,7 @@ function LoginPage() {
 			</div>
 			<div className="mt-2 text-center">
 				<p className="text-muted-foreground text-sm">
-					Don&apos;t have an account?{' '}
+					Don&apos;t have an account?{" "}
 					<Link
 						className="font-medium text-primary hover:text-primary/80"
 						href="/register"

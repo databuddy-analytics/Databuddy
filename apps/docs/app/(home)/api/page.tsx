@@ -1,32 +1,32 @@
-import type { Metadata } from 'next';
-import { Footer } from '@/components/footer';
-import { StructuredData } from '@/components/structured-data';
+import type { Metadata } from "next";
+import { Footer } from "@/components/footer";
+import { StructuredData } from "@/components/structured-data";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { getQueryTypes } from './actions';
-import { QueryDemo } from './query-demo';
-import { QueryTypesGrid } from './query-types-grid';
+} from "@/components/ui/card";
+import { getQueryTypes } from "./actions";
+import { QueryDemo } from "./query-demo";
+import { QueryTypesGrid } from "./query-types-grid";
 
 export const metadata: Metadata = {
 	title:
-		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 	description:
-		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
+		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
 	alternates: {
-		canonical: 'https://www.databuddy.cc/api',
+		canonical: "https://www.databuddy.cc/api",
 	},
 	openGraph: {
 		title:
-			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 		description:
-			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-		url: 'https://www.databuddy.cc/api',
-		images: ['/og-image.png'],
+			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+		url: "https://www.databuddy.cc/api",
+		images: ["/og-image.png"],
 	},
 };
 
@@ -34,29 +34,29 @@ export default async function ApiPlaygroundPage() {
 	const queryTypesData = await getQueryTypes();
 
 	const title =
-		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy';
+		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy";
 	const description =
-		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.';
-	const url = 'https://www.databuddy.cc/api';
+		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.";
+	const url = "https://www.databuddy.cc/api";
 
 	return (
 		<>
 			<StructuredData
 				elements={[
 					{
-						type: 'documentation',
+						type: "documentation",
 						value: {
 							title,
 							description,
 							datePublished: new Date().toISOString(),
-							section: 'API Documentation',
+							section: "API Documentation",
 							keywords: [
-								'API',
-								'analytics',
-								'privacy-first',
-								'web analytics',
-								'GDPR',
-								'documentation',
+								"API",
+								"analytics",
+								"privacy-first",
+								"web analytics",
+								"GDPR",
+								"documentation",
 							],
 						},
 					},

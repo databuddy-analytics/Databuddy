@@ -1,12 +1,12 @@
-import { z } from 'zod';
-import { commonEnvSchema, createEnv, shouldSkipValidation } from './base';
+import { z } from "zod";
+import { commonEnvSchema, createEnv, shouldSkipValidation } from "./base";
 
 /**
  * Basket-specific environment schema
  */
 const basketEnvSchema = z.object({
 	...commonEnvSchema,
-	PORT: z.string().default('3002'),
+	PORT: z.string().default("3002"),
 	STRIPE_SECRET_KEY: z.string().optional(),
 	STRIPE_WEBHOOK_SECRET: z.string().optional(),
 });

@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { TargetIcon } from '@phosphor-icons/react';
-import { EmptyState } from '@/components/empty-state';
-import type { Goal } from '@/hooks/use-goals';
-import { GoalCard } from './goal-card';
+import { TargetIcon } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
+import type { Goal } from "@/hooks/use-goals";
+import { GoalCard } from "./goal-card";
 
 interface GoalsListProps {
 	goals: Goal[];
@@ -32,7 +32,7 @@ export function GoalsList({
 		return (
 			<EmptyState
 				action={{
-					label: 'Create Your First Goal',
+					label: "Create Your First Goal",
 					onClick: onCreateGoal,
 				}}
 				description="Track conversions like sign-ups, purchases, or button clicks to measure key user actions and optimize your conversion rates."

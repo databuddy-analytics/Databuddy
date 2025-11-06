@@ -1,14 +1,14 @@
-import { chQuery, db } from '@databuddy/db';
-import { redis as redisClient } from '@databuddy/redis';
-import { Elysia } from 'elysia';
-import { logger } from '../lib/logger';
+import { chQuery, db } from "@databuddy/db";
+import { redis as redisClient } from "@databuddy/redis";
+import { Elysia } from "elysia";
+import { logger } from "../lib/logger";
 
 const checkClickhouse = async () => {
 	try {
-		const result = await chQuery('SELECT 1 FROM analytics.events LIMIT 1');
+		const result = await chQuery("SELECT 1 FROM analytics.events LIMIT 1");
 		return result.length > 0;
 	} catch (error) {
-		logger.error('ClickHouse health check failed:', { error });
+		logger.error("ClickHouse health check failed:", { error });
 		return false;
 	}
 };
@@ -20,7 +20,7 @@ const checkDatabase = async () => {
 		});
 		return result.length > 0;
 	} catch (error) {
-		logger.error('Database health check failed:', { error });
+		logger.error("Database health check failed:", { error });
 		return false;
 	}
 };
@@ -28,14 +28,14 @@ const checkDatabase = async () => {
 const checkRedis = async () => {
 	try {
 		const result = await redisClient.ping();
-		return result === 'PONG';
+		return result === "PONG";
 	} catch (error) {
-		logger.error('Redis health check failed:', { error });
+		logger.error("Redis health check failed:", { error });
 		return false;
 	}
 };
 
-export const health = new Elysia().get('/health', async () => {
+export const health = new Elysia().get("/health", async () => {
 	const [clickhouse, database, redis] = await Promise.all([
 		checkClickhouse(),
 		checkDatabase(),
@@ -51,12 +51,12 @@ export const health = new Elysia().get('/health', async () => {
 			database,
 			redis,
 			success,
-			version: '1.0.0',
+			version: "1.0.0",
 			timestamp: new Date().toISOString(),
 		}),
 		{
 			status,
-			headers: { 'Content-Type': 'application/json' },
+			headers: { "Content-Type": "application/json" },
 		}
 	);
 });

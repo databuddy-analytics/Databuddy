@@ -1,36 +1,35 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
+import { authClient } from "@databuddy/auth/client";
 import {
 	CaretDownIcon,
 	CheckIcon,
 	PlusIcon,
 	SpinnerGapIcon,
 	UserIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { CreateOrganizationDialog } from '@/components/organizations/create-organization-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const getOrganizationInitials = (name: string) => {
-	return name
-		.split(' ')
+const getOrganizationInitials = (name: string) =>
+	name
+		.split(" ")
 		.map((n) => n[0])
-		.join('')
+		.join("")
 		.toUpperCase()
 		.slice(0, 2);
-};
 
 function filterOrganizations<T extends { name: string; slug?: string | null }>(
 	orgs: T[] | undefined,
@@ -72,18 +71,18 @@ function OrganizationSelectorTrigger({
 	return (
 		<div
 			className={cn(
-				'flex h-12 w-full items-center border-sidebar-border border-b bg-sidebar-accent px-3 py-3 transition-colors',
-				'hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50',
-				isSettingActiveOrganization && 'cursor-not-allowed opacity-70',
-				isOpen && 'bg-sidebar-accent/60'
+				"flex h-12 w-full items-center border-sidebar-border border-b bg-sidebar-accent px-3 py-3 transition-colors",
+				"hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+				isSettingActiveOrganization && "cursor-not-allowed opacity-70",
+				isOpen && "bg-sidebar-accent/60"
 			)}
 		>
 			<div className="flex w-full items-center justify-between">
 				<div className="flex items-center gap-3">
-					<div className="rounded shadow-sm">
+					<div className="rounded">
 						<Avatar className="h-5 w-5">
 							<AvatarImage
-								alt={activeOrganization?.name || 'Personal'}
+								alt={activeOrganization?.name || "Personal"}
 								className="rounded"
 								src={activeOrganization?.logo || undefined}
 							/>
@@ -98,10 +97,10 @@ function OrganizationSelectorTrigger({
 					</div>
 					<div className="flex min-w-0 flex-1 flex-col items-start">
 						<span className="truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
-							{activeOrganization?.name || 'Personal'}
+							{activeOrganization?.name || "Personal"}
 						</span>
 						<p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
-							{activeOrganization?.slug || 'Your workspace'}
+							{activeOrganization?.slug || "Your workspace"}
 						</p>
 					</div>
 				</div>
@@ -114,8 +113,8 @@ function OrganizationSelectorTrigger({
 				) : (
 					<CaretDownIcon
 						className={cn(
-							'h-4 w-4 text-sidebar-accent-foreground/60 transition-transform duration-200',
-							isOpen && 'rotate-180'
+							"h-4 w-4 text-sidebar-accent-foreground/60 transition-transform duration-200",
+							isOpen && "rotate-180"
 						)}
 						weight="fill"
 					/>
@@ -126,11 +125,13 @@ function OrganizationSelectorTrigger({
 }
 
 export function OrganizationSelector() {
-	const { data: organizations, isPending: isLoadingOrgs } = authClient.useListOrganizations();
-	const { data: activeOrganization, isPending: isLoadingActive } = authClient.useActiveOrganization();
+	const { data: organizations, isPending: isLoadingOrgs } =
+		authClient.useListOrganizations();
+	const { data: activeOrganization, isPending: isLoadingActive } =
+		authClient.useActiveOrganization();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
-	const [query, setQuery] = useState('');
+	const [query, setQuery] = useState("");
 	const [isSwitching, setIsSwitching] = useState(false);
 
 	const isLoading = isLoadingOrgs || isLoadingActive;
@@ -142,14 +143,16 @@ export function OrganizationSelector() {
 		setIsSwitching(true);
 		setIsOpen(false);
 
-		const { error } = await authClient.organization.setActive({ organizationId });
-		
+		const { error } = await authClient.organization.setActive({
+			organizationId,
+		});
+
 		if (error) {
-			toast.error(error.message || 'Failed to switch workspace');
+			toast.error(error.message || "Failed to switch workspace");
 		} else {
-			toast.success('Workspace updated');
+			toast.success("Workspace updated");
 		}
-		
+
 		setIsSwitching(false);
 	};
 
@@ -165,7 +168,7 @@ export function OrganizationSelector() {
 			<div className="flex h-12 w-full items-center border-sidebar-border border-b bg-sidebar-accent px-3 py-3">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-3">
-						<div className="rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
+						<div className="rounded-lg bg-sidebar/80 p-1.5 ring-1 ring-sidebar-border/50">
 							<Skeleton className="h-5 w-5 rounded" />
 						</div>
 						<div className="flex min-w-0 flex-1 flex-col items-start">
@@ -179,14 +182,13 @@ export function OrganizationSelector() {
 		);
 	}
 
-
 	return (
 		<>
 			<DropdownMenu
 				onOpenChange={(open) => {
 					setIsOpen(open);
 					if (!open) {
-						setQuery('');
+						setQuery("");
 					}
 				}}
 				open={isOpen}
@@ -214,10 +216,10 @@ export function OrganizationSelector() {
 				>
 					<DropdownMenuItem
 						className={cn(
-							'flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors',
-							'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+							"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+							"text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
 							!activeOrganization &&
-								'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+								"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 						)}
 						onClick={() => handleSelectOrganization(null)}
 					>
@@ -241,14 +243,14 @@ export function OrganizationSelector() {
 
 					{filteredOrganizations && filteredOrganizations.length > 0 && (
 						<div className="flex flex-col">
-							<DropdownMenuSeparator className="my-1 bg-sidebar-border" />
+							<DropdownMenuSeparator className="m-0 bg-sidebar-border p-0" />
 							{filteredOrganizations.map((org) => (
 								<DropdownMenuItem
 									className={cn(
-										'flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors',
-										'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+										"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+										"text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
 										activeOrganization?.id === org.id &&
-											'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+											"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 									)}
 									key={org.id}
 									onClick={() => handleSelectOrganization(org.id)}
@@ -278,7 +280,7 @@ export function OrganizationSelector() {
 						</div>
 					)}
 
-					<DropdownMenuSeparator className="my-1 bg-sidebar-border" />
+					<DropdownMenuSeparator className="m-0 bg-sidebar-border p-0" />
 					<DropdownMenuItem
 						className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sidebar-foreground/70 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
 						onClick={handleCreateOrganization}

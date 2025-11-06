@@ -1,1 +1,1 @@
-export { default } from '../../../(main)/websites/[id]/funnels/page';
+export { default } from "../../../(main)/websites/[id]/funnels/page";

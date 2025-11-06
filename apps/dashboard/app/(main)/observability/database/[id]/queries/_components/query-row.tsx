@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import type { QueryPerformanceSummary } from '@databuddy/shared';
+import type { QueryPerformanceSummary } from "@databuddy/shared/types/performance";
 import {
 	ChartLineIcon,
 	ClockIcon,
 	DatabaseIcon,
 	EyeIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { SqlHighlighter } from '../../performance/_components/sql-highlighter';
+} from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { SqlHighlighter } from "../../performance/_components/sql-highlighter";
 
 interface QueryRowProps {
 	query: QueryPerformanceSummary;
@@ -29,34 +29,33 @@ const formatTime = (ms: number): string => {
 const getPerformanceLevel = (time: number) => {
 	if (time < 10) {
 		return {
-			level: 'Excellent',
-			color: 'border-green-500 bg-green-50 text-green-700',
+			level: "Excellent",
+			color: "border-green-500 bg-green-50 text-green-700",
 		};
 	}
 	if (time < 50) {
-		return { level: 'Good', color: 'border-blue-500 bg-blue-50 text-blue-700' };
+		return { level: "Good", color: "border-blue-500 bg-blue-50 text-blue-700" };
 	}
 	if (time < 100) {
 		return {
-			level: 'Fair',
-			color: 'border-yellow-500 bg-yellow-50 text-yellow-700',
+			level: "Fair",
+			color: "border-yellow-500 bg-yellow-50 text-yellow-700",
 		};
 	}
 	if (time < 500) {
 		return {
-			level: 'Poor',
-			color: 'border-orange-500 bg-orange-50 text-orange-700',
+			level: "Poor",
+			color: "border-orange-500 bg-orange-50 text-orange-700",
 		};
 	}
-	return { level: 'Critical', color: 'border-red-500 bg-red-50 text-red-700' };
+	return { level: "Critical", color: "border-red-500 bg-red-50 text-red-700" };
 };
 
-const cleanQueryComments = (query: string): string => {
-	return query
-		.replace(/--.*$/gm, '')
-		.replace(/\/\*[\s\S]*?\*\//g, '')
+const cleanQueryComments = (query: string): string =>
+	query
+		.replace(/--.*$/gm, "")
+		.replace(/\/\*[\s\S]*?\*\//g, "")
 		.trim();
-};
 
 export const QueryRow = ({ query, onClick }: QueryRowProps) => {
 	const performance = getPerformanceLevel(query.mean_exec_time);

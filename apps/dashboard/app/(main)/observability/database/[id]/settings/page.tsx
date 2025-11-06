@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	CheckIcon,
@@ -7,18 +7,18 @@ import {
 	PencilIcon,
 	TrashIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { use, useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { use, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -26,17 +26,17 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
 	useDbConnection,
 	useDeleteDbConnection,
 	useUpdateDbConnection,
-} from '@/hooks/use-db-connections';
-import { trpc } from '@/lib/trpc';
-import { EditConnectionDialog } from '../../_components/edit-connection-dialog';
+} from "@/hooks/use-db-connections";
+import { trpc } from "@/lib/trpc";
+import { EditConnectionDialog } from "../../_components/edit-connection-dialog";
 
 interface ConnectionSettingsPageProps {
 	params: Promise<{ id: string }>;
@@ -89,7 +89,7 @@ function DeleteConnectionDialog({
 	connection: { id: string; name: string } | null;
 	onSuccess: () => void;
 }) {
-	const [confirmName, setConfirmName] = useState('');
+	const [confirmName, setConfirmName] = useState("");
 
 	const deleteMutation = useDeleteDbConnection({
 		onSuccess: () => {
@@ -133,7 +133,7 @@ function DeleteConnectionDialog({
 						<Input
 							id="confirm-name"
 							onChange={(e) => setConfirmName(e.target.value)}
-							placeholder={connection?.name || ''}
+							placeholder={connection?.name || ""}
 							value={confirmName}
 						/>
 					</div>
@@ -155,7 +155,7 @@ function DeleteConnectionDialog({
 						onClick={handleDelete}
 						variant="destructive"
 					>
-						{deleteMutation.isPending ? 'Deleting...' : 'Delete Connection'}
+						{deleteMutation.isPending ? "Deleting..." : "Delete Connection"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -180,7 +180,7 @@ export default function ConnectionSettingsPage({
 
 	const updateMutation = useUpdateDbConnection({
 		onSuccess: () => {
-			handleSuccess('Connection updated successfully');
+			handleSuccess("Connection updated successfully");
 			setEditDialog(false);
 		},
 	});
@@ -192,7 +192,7 @@ export default function ConnectionSettingsPage({
 	};
 
 	const handleDeleteSuccess = () => {
-		window.location.href = '/observability/database';
+		window.location.href = "/observability/database";
 	};
 
 	if (isLoading) {
@@ -282,20 +282,20 @@ export default function ConnectionSettingsPage({
 							<div>
 								<Label className="font-medium text-sm">Created</Label>
 								<p className="text-muted-foreground text-sm">
-									{new Date(connection.createdAt).toLocaleDateString('en-US', {
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric',
+									{new Date(connection.createdAt).toLocaleDateString("en-US", {
+										year: "numeric",
+										month: "long",
+										day: "numeric",
 									})}
 								</p>
 							</div>
 							<div>
 								<Label className="font-medium text-sm">Last Updated</Label>
 								<p className="text-muted-foreground text-sm">
-									{new Date(connection.updatedAt).toLocaleDateString('en-US', {
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric',
+									{new Date(connection.updatedAt).toLocaleDateString("en-US", {
+										year: "numeric",
+										month: "long",
+										day: "numeric",
 									})}
 								</p>
 							</div>
@@ -326,8 +326,8 @@ export default function ConnectionSettingsPage({
 								<Label className="font-medium text-sm">Organization</Label>
 								<p className="text-muted-foreground text-sm">
 									{connection.organizationId
-										? 'Organization Account'
-										: 'Personal Account'}
+										? "Organization Account"
+										: "Personal Account"}
 								</p>
 							</div>
 							<div>

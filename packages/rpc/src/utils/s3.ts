@@ -1,5 +1,5 @@
-import { S3Client } from 'bun';
-import { nanoid } from 'nanoid';
+import { S3Client } from "bun";
+import { nanoid } from "nanoid";
 
 export class S3UploadManager {
 	private client: S3Client;
@@ -14,11 +14,11 @@ export class S3UploadManager {
 	}
 
 	async uploadFile(file: File, options: { isPublic?: boolean } = {}) {
-		const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '');
+		const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "");
 		const key = `${nanoid()}-${safeFilename}`;
 
 		await this.client.write(key, file, {
-			acl: options.isPublic ? 'public-read' : undefined,
+			acl: options.isPublic ? "public-read" : undefined,
 		});
 
 		if (options.isPublic) {
@@ -31,12 +31,12 @@ export class S3UploadManager {
 
 	async deleteFileFromUrl(url: string) {
 		try {
-			const key = url.split('/').pop();
+			const key = url.split("/").pop();
 			if (key) {
 				await this.client.delete(key);
 			}
 		} catch (error) {
-			console.error('Error deleting file from URL:', error);
+			console.error("Error deleting file from URL:", error);
 		}
 	}
 
@@ -56,17 +56,17 @@ export class S3UploadManager {
 
 	// Organization-specific methods
 	validateLogoFile(file: File): void {
-		const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+		const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 		const maxSize = 5 * 1024 * 1024; // 5MB
 
 		if (!allowedTypes.includes(file.type)) {
 			throw new Error(
-				'Invalid file type. Only JPEG, PNG, and WebP images are allowed.'
+				"Invalid file type. Only JPEG, PNG, and WebP images are allowed."
 			);
 		}
 
 		if (file.size > maxSize) {
-			throw new Error('File size too large. Maximum size is 5MB.');
+			throw new Error("File size too large. Maximum size is 5MB.");
 		}
 	}
 
@@ -77,11 +77,11 @@ export class S3UploadManager {
 		this.validateLogoFile(file);
 
 		// Add organization prefix to the filename for better organization
-		const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '');
+		const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "");
 		const key = `organizations/${organizationId}/logos/${nanoid()}-${safeFilename}`;
 
 		await this.client.write(key, file, {
-			acl: 'public-read',
+			acl: "public-read",
 		});
 
 		return `https://cdn.databuddy.cc/${key}`;
@@ -95,13 +95,13 @@ export class S3UploadManager {
 		try {
 			// Extract key from CDN URL
 			const url = new URL(logoUrl);
-			const key = url.pathname.startsWith('/')
+			const key = url.pathname.startsWith("/")
 				? url.pathname.slice(1)
 				: url.pathname;
 
 			await this.client.delete(key);
 		} catch (error) {
-			console.error('Failed to delete logo from S3:', error);
+			console.error("Failed to delete logo from S3:", error);
 		}
 	}
 
@@ -113,21 +113,21 @@ export class S3UploadManager {
 		expiresIn = 3600
 	): { uploadUrl: string; publicUrl: string; fileKey: string } {
 		// Validate content type
-		const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+		const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 		if (!allowedTypes.includes(contentType)) {
 			throw new Error(
-				'Invalid file type. Only JPEG, PNG, and WebP images are allowed.'
+				"Invalid file type. Only JPEG, PNG, and WebP images are allowed."
 			);
 		}
 
-		const safeFilename = fileName.replace(/[^a-zA-Z0-9._-]/g, '');
+		const safeFilename = fileName.replace(/[^a-zA-Z0-9._-]/g, "");
 		const fileKey = `organizations/${organizationId}/logos/${nanoid()}-${safeFilename}`;
 
 		const uploadUrl = this.client.presign(fileKey, {
-			method: 'PUT',
+			method: "PUT",
 			type: contentType,
 			expiresIn,
-			acl: 'public-read',
+			acl: "public-read",
 		});
 
 		const publicUrl = `https://cdn.databuddy.cc/${fileKey}`;

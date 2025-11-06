@@ -1,4 +1,4 @@
-import type { BatchEventInput } from './types';
+import type { BatchEventInput } from "./types";
 
 export class EventQueue {
 	private queue: BatchEventInput[] = [];
@@ -29,4 +29,3 @@ export class EventQueue {
 		return this.queue.length === 0;
 	}
 }
-

@@ -1,12 +1,14 @@
-import { annotations } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+import { and, annotations, desc, eq, isNull } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const annotationsCache = createDrizzleCache({ redis, namespace: 'annotations' });
+const annotationsCache = createDrizzleCache({
+	redis,
+	namespace: "annotations",
+});
 const CACHE_TTL = 300; // 5 minutes
 
 // ============================================================================
@@ -17,13 +19,13 @@ const chartContextSchema = z.object({
 	dateRange: z.object({
 		start_date: z.string(),
 		end_date: z.string(),
-		granularity: z.enum(['hourly', 'daily', 'weekly', 'monthly']),
+		granularity: z.enum(["hourly", "daily", "weekly", "monthly"]),
 	}),
 	filters: z
 		.array(
 			z.object({
 				field: z.string(),
-				operator: z.enum(['eq', 'ne', 'gt', 'lt', 'contains']),
+				operator: z.enum(["eq", "ne", "gt", "lt", "contains"]),
 				value: z.string(),
 			})
 		)
@@ -34,9 +36,9 @@ const chartContextSchema = z.object({
 
 const createAnnotationSchema = z.object({
 	websiteId: z.string(),
-	chartType: z.enum(['metrics']),
+	chartType: z.enum(["metrics"]),
 	chartContext: chartContextSchema,
-	annotationType: z.enum(['point', 'line', 'range']),
+	annotationType: z.enum(["point", "line", "range"]),
 	xValue: z.string(), // ISO timestamp
 	xEndValue: z.string().optional(), // For range annotations
 	yValue: z.number().optional(),
@@ -64,19 +66,19 @@ export const annotationsRouter = createTRPCRouter({
 		.input(
 			z.object({
 				websiteId: z.string(),
-				chartType: z.enum(['metrics']),
+				chartType: z.enum(["metrics"]),
 				chartContext: chartContextSchema,
 			})
 		)
 		.query(({ ctx, input }) => {
-			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}:${JSON.stringify(input.chartContext)}`;
+			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}`;
 
 			return annotationsCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['annotations'],
+				tables: ["annotations"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					return ctx.db
 						.select()
@@ -102,34 +104,31 @@ export const annotationsRouter = createTRPCRouter({
 			return annotationsCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['annotations'],
+				tables: ["annotations"],
 				queryFn: async () => {
 					const result = await ctx.db
 						.select()
 						.from(annotations)
 						.where(
-							and(
-								eq(annotations.id, input.id),
-								isNull(annotations.deletedAt)
-							)
+							and(eq(annotations.id, input.id), isNull(annotations.deletedAt))
 						)
 						.limit(1);
 
 					if (result.length === 0) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Annotation not found',
+							code: "NOT_FOUND",
+							message: "Annotation not found",
 						});
 					}
 
 					const annotation = result[0];
 					if (!annotation) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Annotation not found',
+							code: "NOT_FOUND",
+							message: "Annotation not found",
 						});
 					}
-					await authorizeWebsiteAccess(ctx, annotation.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, annotation.websiteId, "read");
 
 					return annotation;
 				},
@@ -140,7 +139,7 @@ export const annotationsRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createAnnotationSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 
 			const annotationId = crypto.randomUUID();
 			const [newAnnotation] = await ctx.db
@@ -156,13 +155,13 @@ export const annotationsRouter = createTRPCRouter({
 					yValue: input.yValue,
 					text: input.text,
 					tags: input.tags || [],
-					color: input.color || '#3B82F6',
+					color: input.color || "#3B82F6",
 					isPublic: input.isPublic,
 					createdBy: ctx.user.id,
 				})
 				.returning();
 
-			await annotationsCache.invalidateByTables(['annotations']);
+			await annotationsCache.invalidateByTables(["annotations"]);
 
 			return newAnnotation;
 		}),
@@ -175,22 +174,21 @@ export const annotationsRouter = createTRPCRouter({
 			const existingAnnotation = await ctx.db
 				.select()
 				.from(annotations)
-				.where(
-					and(
-						eq(annotations.id, input.id),
-						isNull(annotations.deletedAt)
-					)
-				)
+				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
 			if (existingAnnotation.length === 0) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Annotation not found',
+					code: "NOT_FOUND",
+					message: "Annotation not found",
 				});
 			}
 
-			await authorizeWebsiteAccess(ctx, existingAnnotation[0].websiteId, 'update');
+			await authorizeWebsiteAccess(
+				ctx,
+				existingAnnotation[0].websiteId,
+				"update"
+			);
 
 			const [updatedAnnotation] = await ctx.db
 				.update(annotations)
@@ -201,7 +199,7 @@ export const annotationsRouter = createTRPCRouter({
 				.where(eq(annotations.id, input.id))
 				.returning();
 
-			await annotationsCache.invalidateByTables(['annotations']);
+			await annotationsCache.invalidateByTables(["annotations"]);
 
 			return updatedAnnotation;
 		}),
@@ -214,29 +212,28 @@ export const annotationsRouter = createTRPCRouter({
 			const existingAnnotation = await ctx.db
 				.select()
 				.from(annotations)
-				.where(
-					and(
-						eq(annotations.id, input.id),
-						isNull(annotations.deletedAt)
-					)
-				)
+				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
 			if (existingAnnotation.length === 0) {
 				throw new TRPCError({
-					code: 'NOT_FOUND',
-					message: 'Annotation not found',
+					code: "NOT_FOUND",
+					message: "Annotation not found",
 				});
 			}
 
-			await authorizeWebsiteAccess(ctx, existingAnnotation[0].websiteId, 'update');
+			await authorizeWebsiteAccess(
+				ctx,
+				existingAnnotation[0].websiteId,
+				"update"
+			);
 
 			await ctx.db
 				.update(annotations)
 				.set({ deletedAt: new Date() })
 				.where(eq(annotations.id, input.id));
 
-			await annotationsCache.invalidateByTables(['annotations']);
+			await annotationsCache.invalidateByTables(["annotations"]);
 
 			return { success: true };
 		}),

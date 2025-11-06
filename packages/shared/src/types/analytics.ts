@@ -3,7 +3,7 @@
 export interface DateRange {
 	start_date: string;
 	end_date: string;
-	granularity?: 'hourly' | 'daily';
+	granularity?: "hourly" | "daily";
 	timezone?: string;
 }
 

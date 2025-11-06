@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	CheckCircleIcon,
@@ -6,32 +6,32 @@ import {
 	QuestionIcon,
 	TrendUpIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import type { PerformanceSummary } from '@/types/performance';
+} from "@/components/ui/tooltip";
+import type { PerformanceSummary } from "@/types/performance";
 import {
 	formatNumber,
 	formatPerformanceTime,
 	getPerformanceColor,
 	getPerformanceRating,
 	getPerformanceScoreColor,
-} from '../_utils/performance-utils';
+} from "../_utils/performance-utils";
 
-interface FilterButtonProps {
-	filter: 'fast' | 'slow';
+type FilterButtonProps = {
+	filter: "fast" | "slow";
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
 	value: number;
 	percentage: number;
 	colorClass: string;
-	activeFilter: 'fast' | 'slow' | null;
-	onFilterChange: (filter: 'fast' | 'slow' | null) => void;
-}
+	activeFilter: "fast" | "slow" | null;
+	onFilterChange: (filter: "fast" | "slow" | null) => void;
+};
 
 const FilterButton = ({
 	filter,
@@ -45,16 +45,16 @@ const FilterButton = ({
 }: FilterButtonProps) => {
 	const isActive = activeFilter === filter;
 	const baseClasses =
-		'w-full cursor-pointer rounded border bg-background p-3 text-left transition-all hover:shadow-sm';
+		"w-full cursor-pointer rounded border bg-background p-3 text-left transition-all hover:shadow-sm";
 	const activeClasses =
-		filter === 'fast'
-			? 'bg-green-50 ring-1 ring-green-500/20 border-green-500 dark:bg-green-950/20'
-			: 'bg-red-50 ring-1 ring-red-500/20 border-red-500 dark:bg-red-950/20';
-	const inactiveClasses = 'hover:bg-muted/50 hover:border-primary/50';
+		filter === "fast"
+			? "bg-green-50 ring-1 ring-green-500/20 border-green-500 dark:bg-green-950/20"
+			: "bg-red-50 ring-1 ring-red-500/20 border-red-500 dark:bg-red-950/20";
+	const inactiveClasses = "hover:bg-muted/50 hover:border-primary/50";
 	const badgeClasses =
-		filter === 'fast'
-			? 'rounded bg-green-100 px-1.5 py-0.5 text-green-800 text-xs dark:bg-green-900 dark:text-green-200'
-			: 'rounded bg-red-100 px-1.5 py-0.5 text-red-800 text-xs dark:bg-red-900 dark:text-red-200';
+		filter === "fast"
+			? "rounded bg-green-100 px-1.5 py-0.5 text-green-800 text-xs dark:bg-green-900 dark:text-green-200"
+			: "rounded bg-red-100 px-1.5 py-0.5 text-red-800 text-xs dark:bg-red-900 dark:text-red-200";
 
 	return (
 		<button
@@ -66,7 +66,7 @@ const FilterButton = ({
 		>
 			<div className="mb-2 flex items-center gap-2">
 				<Icon
-					className={`h-4 w-4 ${filter === 'fast' ? 'text-green-500' : 'text-red-500'}`}
+					className={`h-4 w-4 ${filter === "fast" ? "text-green-500" : "text-red-500"}`}
 				/>
 				<span className="font-medium text-muted-foreground text-sm">
 					{label}
@@ -83,11 +83,11 @@ const FilterButton = ({
 	);
 };
 
-interface PerformanceSummaryCardProps {
+type PerformanceSummaryCardProps = {
 	summary: PerformanceSummary;
-	activeFilter: 'fast' | 'slow' | null;
-	onFilterChange: (filter: 'fast' | 'slow' | null) => void;
-}
+	activeFilter: "fast" | "slow" | null;
+	onFilterChange: (filter: "fast" | "slow" | null) => void; // TODO: fix this
+};
 
 export function PerformanceSummaryCard({
 	summary,

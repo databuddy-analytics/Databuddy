@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
 import {
 	CopyIcon,
 	DotsThreeIcon,
 	PencilIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -17,16 +17,16 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { trpc } from '@/lib/trpc';
-import type { Flag } from './types';
+} from "@/components/ui/dropdown-menu";
+import { trpc } from "@/lib/trpc";
+import type { Flag } from "./types";
 
 interface FlagActionsProps {
 	flag: Flag;
@@ -43,22 +43,22 @@ export function FlagActions({ flag, onEdit, onDeleted }: FlagActionsProps) {
 
 	const handleCopyKey = async () => {
 		await navigator.clipboard.writeText(flag.key);
-		toast.success('Flag key copied to clipboard');
+		toast.success("Flag key copied to clipboard");
 	};
 
 	const handleConfirmDelete = async () => {
 		setIsDeleting(true);
 		// optimistic removal
-		utils.flags.list.setData({ websiteId: flag.websiteId ?? '' }, (oldData) =>
+		utils.flags.list.setData({ websiteId: flag.websiteId ?? "" }, (oldData) =>
 			oldData?.filter((f) => f.id !== flag.id)
 		);
 		try {
 			await deleteMutation.mutateAsync({ id: flag.id });
-			toast.success('Flag deleted');
+			toast.success("Flag deleted");
 			onDeleted?.();
 		} catch (_error) {
 			utils.flags.list.invalidate();
-			toast.error('Failed to delete flag');
+			toast.error("Failed to delete flag");
 		} finally {
 			setIsDeleting(false);
 			setIsOpen(false);

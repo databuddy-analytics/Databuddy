@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import type { SessionEvent } from '@databuddy/shared';
-import { FileTextIcon, SparkleIcon } from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
+import type { SessionEvent } from "@databuddy/shared/types/sessions";
+import { FileTextIcon, SparkleIcon } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
 import {
 	cleanUrl,
 	formatPropertyValue,
 	getDisplayPath,
 	getEventIconAndColor,
-} from './session-utils';
+} from "./session-utils";
 
 interface SessionEventTimelineProps {
 	events: SessionEvent[];
@@ -58,17 +58,17 @@ function EventItem({
 	);
 	const { icon, color, bgColor, borderColor, badgeColor } =
 		getEventIconAndColor(event.event_name, hasProperties);
-	const displayPath = getDisplayPath(event.path || '');
-	const fullPath = cleanUrl(event.path || '');
+	const displayPath = getDisplayPath(event.path || "");
+	const fullPath = cleanUrl(event.path || "");
 
 	const eventTitle = event.event_name;
 	const titleColor = hasProperties
-		? 'text-accent-foreground'
-		: 'text-foreground';
+		? "text-accent-foreground"
+		: "text-foreground";
 
 	return (
 		<div
-			className={`group flex items-start gap-3 rounded-lg border-2 p-4 ${bgColor} ${borderColor} ${hasProperties ? 'shadow-sm' : ''}`}
+			className={`group flex items-start gap-3 rounded-lg border-2 p-4 ${bgColor} ${borderColor} ${hasProperties ? "shadow-sm" : ""}`}
 			key={event.event_id || eventIndex}
 		>
 			<div

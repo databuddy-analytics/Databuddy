@@ -1,6 +1,6 @@
-import { type ComputedRef, computed, ref, watchEffect } from 'vue';
-import type { FlagState } from '@/core/flags';
-import { useFlags } from './flags-plugin';
+import { type ComputedRef, computed, ref, watchEffect } from "vue";
+import type { FlagState } from "@/core/flags";
+import { useFlags } from "./flags-plugin";
 
 export interface UseFlagReturn {
 	enabled: ComputedRef<boolean>;

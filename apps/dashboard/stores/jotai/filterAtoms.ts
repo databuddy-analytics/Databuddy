@@ -1,13 +1,13 @@
-import type { DynamicQueryFilter } from '@databuddy/shared';
-import dayjs from 'dayjs';
-import { atom } from 'jotai';
-import { RECOMMENDED_DEFAULTS } from '../../app/(main)/websites/[id]/_components/utils/tracking-defaults';
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import dayjs from "dayjs";
+import { atom } from "jotai";
+import { RECOMMENDED_DEFAULTS } from "../../app/(main)/websites/[id]/_components/utils/tracking-defaults";
 import {
 	enableAllAdvancedTracking,
 	enableAllBasicTracking,
 	enableAllOptimization,
-} from '../../app/(main)/websites/[id]/_components/utils/tracking-helpers';
-import type { TrackingOptions } from '../../app/(main)/websites/[id]/_components/utils/types';
+} from "../../app/(main)/websites/[id]/_components/utils/tracking-helpers";
+import type { TrackingOptions } from "../../app/(main)/websites/[id]/_components/utils/types";
 // Consider adding nanoid for unique ID generation for complex filters
 // import { nanoid } from 'nanoid';
 
@@ -17,7 +17,7 @@ export interface DateRangeState {
 	endDate: Date;
 }
 
-const initialStartDate = dayjs().subtract(30, 'day').toDate();
+const initialStartDate = dayjs().subtract(30, "day").toDate();
 const initialEndDate = new Date();
 
 export const dateRangeAtom = atom<DateRangeState>({
@@ -33,21 +33,21 @@ export const formattedDateRangeAtom = atom((get) => {
 	const { startDate, endDate } = get(dateRangeAtom);
 	return {
 		startDate: dayjs(startDate).isValid()
-			? dayjs(startDate).format('YYYY-MM-DD')
-			: '',
+			? dayjs(startDate).format("YYYY-MM-DD")
+			: "",
 		endDate: dayjs(endDate).isValid()
-			? dayjs(endDate).format('YYYY-MM-DD')
-			: '',
+			? dayjs(endDate).format("YYYY-MM-DD")
+			: "",
 	};
 });
 
 // --- Time Granularity ---
-export type TimeGranularity = 'daily' | 'hourly';
+export type TimeGranularity = "daily" | "hourly";
 
 const MAX_HOURLY_DAYS = 7;
 const AUTO_HOURLY_DAYS = 2;
 
-export const timeGranularityAtom = atom<TimeGranularity>('daily');
+export const timeGranularityAtom = atom<TimeGranularity>("daily");
 
 /**
  * Action atom to update the date range and intelligently adjust granularity.
@@ -59,16 +59,13 @@ export const setDateRangeAndAdjustGranularityAtom = atom(
 	null,
 	(get, set, newRange: DateRangeState) => {
 		set(dateRangeAtom, newRange);
-		
-		const rangeDays = dayjs(newRange.endDate).diff(
-			newRange.startDate,
-			'day'
-		);
-		
+
+		const rangeDays = dayjs(newRange.endDate).diff(newRange.startDate, "day");
+
 		if (rangeDays > MAX_HOURLY_DAYS) {
-			set(timeGranularityAtom, 'daily');
+			set(timeGranularityAtom, "daily");
 		} else if (rangeDays <= AUTO_HOURLY_DAYS) {
-			set(timeGranularityAtom, 'hourly');
+			set(timeGranularityAtom, "hourly");
 		}
 	}
 );
@@ -97,18 +94,18 @@ export const basicFiltersAtom = atom<BasicFilters>({});
 // --- Complex Filters ---
 // Used for building more structured, rule-based queries.
 export type FilterOperator =
-	| 'is'
-	| 'isNot'
-	| 'contains'
-	| 'doesNotContain'
-	| 'startsWith'
-	| 'endsWith'
-	| 'greaterThan'
-	| 'lessThan'
-	| 'in' // Value is an array, e.g., field IN [val1, val2]
-	| 'notIn' // Value is an array, e.g., field NOT IN [val1, val2]
-	| 'isSet' // Checks if a field has a value
-	| 'isNotSet'; // Checks if a field does not have a value
+	| "is"
+	| "isNot"
+	| "contains"
+	| "doesNotContain"
+	| "startsWith"
+	| "endsWith"
+	| "greaterThan"
+	| "lessThan"
+	| "in" // Value is an array, e.g., field IN [val1, val2]
+	| "notIn" // Value is an array, e.g., field NOT IN [val1, val2]
+	| "isSet" // Checks if a field has a value
+	| "isNotSet"; // Checks if a field does not have a value
 
 export interface ComplexFilter {
 	id: string; // Should be unique, e.g., generated with nanoid()
@@ -203,7 +200,7 @@ export const clearComplexFiltersAtom = atom(null, (_get, set) => {
  */
 export const clearAllFiltersAtom = atom(null, (_get, set) => {
 	set(dateRangeAtom, { startDate: initialStartDate, endDate: initialEndDate });
-	set(timeGranularityAtom, 'daily'); // Reset to default granularity
+	set(timeGranularityAtom, "daily"); // Reset to default granularity
 	set(basicFiltersAtom, {});
 	set(complexFiltersAtom, []);
 });
@@ -230,7 +227,7 @@ export const activeFiltersForApiAtom = atom((get) => {
 		if (Object.hasOwn(basicFiltersValue, key)) {
 			const value = basicFiltersValue[key];
 			if (Array.isArray(value)) {
-				apiReadyBasicFilters[key] = value.join(',');
+				apiReadyBasicFilters[key] = value.join(",");
 			} else {
 				apiReadyBasicFilters[key] = value;
 			}

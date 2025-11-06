@@ -1,25 +1,31 @@
-'use client';
+"use client";
 
-import { CheckIcon, DownloadIcon } from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import { useParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
-import type { DateRange as DayPickerRange } from 'react-day-picker';
-import { DateRangePicker } from '@/components/date-range-picker';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { useDataExport } from '@/hooks/use-data-export';
-import { useWebsite } from '@/hooks/use-websites';
+import {
+	CheckIcon,
+	DownloadIcon,
+	FileCodeIcon,
+	FileTextIcon,
+	TableIcon,
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { useParams } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+import type { DateRange as DayPickerRange } from "react-day-picker";
+import { DateRangePicker } from "@/components/date-range-picker";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useDataExport } from "@/hooks/use-data-export";
+import { useWebsite } from "@/hooks/use-websites";
 
 export default function ExportPage() {
 	const params = useParams();
 	const websiteId = params.id as string;
 	const { data: websiteData } = useWebsite(websiteId);
 
-	type ExportFormat = 'json' | 'csv' | 'txt';
-	const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('csv');
+	type ExportFormat = "json" | "csv" | "txt";
+	const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("csv");
 	const [dateRange, setDateRange] = useState<DayPickerRange | undefined>(
 		undefined
 	);
@@ -33,22 +39,22 @@ export default function ExportPage() {
 	const formatOptions = useMemo(
 		() => [
 			{
-				value: 'json' as const,
-				label: 'JSON',
-				description: 'Structured data for developers',
-				icon: '📄',
+				value: "json" as const,
+				label: "JSON",
+				description: "Structured data for developers",
+				icon: FileCodeIcon,
 			},
 			{
-				value: 'csv' as const,
-				label: 'CSV',
-				description: 'Works with spreadsheets',
-				icon: '📊',
+				value: "csv" as const,
+				label: "CSV",
+				description: "Works with spreadsheets",
+				icon: TableIcon,
 			},
 			{
-				value: 'txt' as const,
-				label: 'TXT',
-				description: 'Plain text export',
-				icon: '📝',
+				value: "txt" as const,
+				label: "TXT",
+				description: "Plain text export",
+				icon: FileTextIcon,
 			},
 		],
 		[]
@@ -66,8 +72,8 @@ export default function ExportPage() {
 		}
 
 		if (useCustomRange && dateRange?.from && dateRange?.to) {
-			const startDate = dayjs(dateRange.from).format('YYYY-MM-DD');
-			const endDate = dayjs(dateRange.to).format('YYYY-MM-DD');
+			const startDate = dayjs(dateRange.from).format("YYYY-MM-DD");
+			const endDate = dayjs(dateRange.to).format("YYYY-MM-DD");
 			exportData({ format: selectedFormat, startDate, endDate });
 		} else {
 			exportData({ format: selectedFormat });
@@ -118,35 +124,38 @@ export default function ExportPage() {
 							<Label className="font-medium text-sm">Export format</Label>
 						</div>
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-							{formatOptions.map((format) => (
-								<button
-									className={`flex items-start gap-3 rounded-md border p-4 text-left transition-colors hover:border-primary/50 ${
-										selectedFormat === format.value
-											? 'border-primary bg-primary/5'
-											: 'border-border'
-									}`}
-									key={format.value}
-									onClick={() => setSelectedFormat(format.value)}
-									type="button"
-								>
-									<div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-lg">
-										{format.icon}
-									</div>
-									<div className="min-w-0 flex-1">
-										<div className="mb-1 flex items-center gap-2">
-											<span className="font-medium text-sm">
-												{format.label}
-											</span>
-											{selectedFormat === format.value && (
-												<CheckIcon className="h-4 w-4 text-primary" />
-											)}
+							{formatOptions.map((format) => {
+								const IconComponent = format.icon;
+								return (
+									<button
+										className={`flex items-start gap-3 rounded-md border p-4 text-left transition-colors hover:border-primary/50 ${
+											selectedFormat === format.value
+												? "border-primary bg-primary/5"
+												: "border-border"
+										}`}
+										key={format.value}
+										onClick={() => setSelectedFormat(format.value)}
+										type="button"
+									>
+										<div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+											<IconComponent className="h-5 w-5" />
 										</div>
-										<p className="text-muted-foreground text-xs">
-											{format.description}
-										</p>
-									</div>
-								</button>
-							))}
+										<div className="min-w-0 flex-1">
+											<div className="mb-1 flex items-center gap-2">
+												<span className="font-medium text-sm">
+													{format.label}
+												</span>
+												{selectedFormat === format.value && (
+													<CheckIcon className="h-4 w-4 text-primary" />
+												)}
+											</div>
+											<p className="text-muted-foreground text-xs">
+												{format.description}
+											</p>
+										</div>
+									</button>
+								);
+							})}
 						</div>
 					</section>
 
@@ -157,8 +166,8 @@ export default function ExportPage() {
 								<h2 className="font-medium text-sm">Date range</h2>
 								<p className="text-muted-foreground text-xs">
 									{useCustomRange
-										? 'Export a specific range'
-										: 'Export all available data'}
+										? "Export a specific range"
+										: "Export all available data"}
 								</p>
 							</div>
 							<Switch
@@ -191,17 +200,17 @@ export default function ExportPage() {
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<div>
 								<h3 className="font-medium text-sm">
-									Ready to export {websiteData.name || 'your website'} data
+									Ready to export {websiteData.name || "your website"} data
 								</h3>
 								<p className="text-muted-foreground text-xs">
-									Format:{' '}
+									Format:{" "}
 									<Badge className="font-mono" variant="secondary">
 										{selectedFormat.toUpperCase()}
 									</Badge>
 									{useCustomRange && dateRange?.from && dateRange?.to && (
 										<span className="ml-2">
-											• {dayjs(dateRange.from).format('MMM D, YYYY')} -{' '}
-											{dayjs(dateRange.to).format('MMM D, YYYY')}
+											• {dayjs(dateRange.from).format("MMM D, YYYY")} -{" "}
+											{dayjs(dateRange.to).format("MMM D, YYYY")}
 										</span>
 									)}
 								</p>

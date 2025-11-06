@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ChartBarIcon,
@@ -9,28 +9,28 @@ import {
 	PaperPlaneRightIcon,
 	SparkleIcon,
 	TrendUpIcon,
-} from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useEffect, useRef, useState } from 'react';
+} from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useEffect, useRef, useState } from "react";
 import {
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
-} from '@/components/ai-elements/conversation';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+} from "@/components/ai-elements/conversation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
 	isRateLimitedAtom,
 	modelAtom,
 	websiteDataAtom,
-} from '@/stores/jotai/assistantAtoms';
-import { useChat } from '../hooks/use-chat';
-import { ChatHistorySheet } from './chat-history-sheet';
-import { MessageBubble } from './message-bubble';
-import { ModelSelector } from './model-selector';
+} from "@/stores/jotai/assistantAtoms";
+import { useChat } from "../hooks/use-chat";
+import { ChatHistorySheet } from "./chat-history-sheet";
+import { MessageBubble } from "./message-bubble";
+import { ModelSelector } from "./model-selector";
 
 export function ChatSkeleton() {
 	return (
@@ -71,17 +71,17 @@ export function ChatSkeleton() {
 
 const quickQuestions = [
 	{
-		text: 'Show me page views over the last 7 days',
+		text: "Show me page views over the last 7 days",
 		icon: TrendUpIcon,
-		type: 'chart',
+		type: "chart",
 	},
-	{ text: 'How many visitors yesterday?', icon: HashIcon, type: 'metric' },
+	{ text: "How many visitors yesterday?", icon: HashIcon, type: "metric" },
 	{
-		text: 'Top traffic sources breakdown',
+		text: "Top traffic sources breakdown",
 		icon: ChartBarIcon,
-		type: 'chart',
+		type: "chart",
 	},
-	{ text: "What's my bounce rate?", icon: HashIcon, type: 'metric' },
+	{ text: "What's my bounce rate?", icon: HashIcon, type: "metric" },
 ];
 
 export default function ChatSection() {
@@ -108,9 +108,9 @@ export default function ChatSection() {
 
 	const messageStats = {
 		total: messages.length,
-		charts: messages.filter((m) => m.responseType === 'chart').length,
-		metrics: messages.filter((m) => m.responseType === 'metric').length,
-		text: messages.filter((m) => m.responseType === 'text').length,
+		charts: messages.filter((m) => m.responseType === "chart").length,
+		metrics: messages.filter((m) => m.responseType === "metric").length,
+		text: messages.filter((m) => m.responseType === "text").length,
 	};
 
 	const hasMessages = messages.length > 1;
@@ -142,15 +142,15 @@ export default function ChatSection() {
 							<h2 className="truncate font-semibold text-lg">Databunny</h2>
 							{hasMessages && (
 								<span className="px-2 py-0.5 text-muted-foreground text-xs">
-									{messageStats.total}{' '}
-									{messageStats.total === 1 ? 'query' : 'queries'}
+									{messageStats.total}{" "}
+									{messageStats.total === 1 ? "query" : "queries"}
 								</span>
 							)}
 						</div>
 						<p className="truncate text-muted-foreground text-sm">
 							{isLoading
-								? 'Databunny is analyzing your data...'
-								: `Your data analyst for ${websiteData?.name || 'your website'}`}
+								? "Databunny is analyzing your data..."
+								: `Your data analyst for ${websiteData?.name || "your website"}`}
 						</p>
 					</div>
 				</div>
@@ -209,10 +209,10 @@ export default function ChatSection() {
 										{quickQuestions.map((question, index) => (
 											<Button
 												className={cn(
-													'h-auto px-4 py-3 text-left font-normal text-sm',
-													'hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5',
-													'border-dashed transition-all duration-300 hover:border-solid',
-													'fade-in-0 slide-in-from-left-2 animate-in'
+													"h-auto px-4 py-3 text-left font-normal text-sm",
+													"hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5",
+													"border-dashed transition-all duration-300 hover:border-solid",
+													"fade-in-0 slide-in-from-left-2 animate-in"
 												)}
 												disabled={isLoading || isRateLimited}
 												key={question.text}
@@ -264,15 +264,15 @@ export default function ChatSection() {
 				<div className="flex gap-3">
 					<Input
 						className={cn(
-							'h-11 flex-1 rounded-xl border-2 bg-background/50 backdrop-blur-sm',
-							'placeholder:text-muted-foreground/60',
-							'focus:border-primary/30 focus:bg-background/80',
-							'transition-all duration-200'
+							"h-11 flex-1 rounded-xl border-2 bg-background/50 backdrop-blur-sm",
+							"placeholder:text-muted-foreground/60",
+							"focus:border-primary/30 focus:bg-background/80",
+							"transition-all duration-200"
 						)}
 						disabled={isLoading || isRateLimited}
 						onChange={(e) => setInputValue(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === 'Enter' && !e.shiftKey) {
+							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
 								handleSend();
 							} else {
@@ -281,23 +281,23 @@ export default function ChatSection() {
 						}}
 						placeholder={
 							isLoading
-								? 'Databunny is thinking...'
+								? "Databunny is thinking..."
 								: isRateLimited
-									? 'Rate limited - please wait...'
-									: 'Ask Databunny about your analytics data...'
+									? "Rate limited - please wait..."
+									: "Ask Databunny about your analytics data..."
 						}
 						ref={inputRef}
 						value={inputValue}
 					/>
 					<Button
 						className={cn(
-							'h-11 w-11 flex-shrink-0 rounded-xl',
-							'bg-gradient-to-r from-primary to-primary/80',
-							'hover:from-primary/90 hover:to-primary/70',
-							'shadow-lg transition-all duration-200',
+							"h-11 w-11 flex-shrink-0 rounded-xl",
+							"bg-gradient-to-r from-primary to-primary/80",
+							"hover:from-primary/90 hover:to-primary/70",
+							"shadow-lg transition-all duration-200",
 							(!inputValue.trim() || isRateLimited) &&
 								!isLoading &&
-								'opacity-50'
+								"opacity-50"
 						)}
 						disabled={!inputValue.trim() || isLoading || isRateLimited}
 						onClick={handleSend}
@@ -306,8 +306,8 @@ export default function ChatSection() {
 					>
 						<PaperPlaneRightIcon
 							className={cn(
-								'h-4 w-4',
-								inputValue.trim() && !isLoading && !isRateLimited && 'scale-110'
+								"h-4 w-4",
+								inputValue.trim() && !isLoading && !isRateLimited && "scale-110"
 							)}
 							weight="duotone"
 						/>

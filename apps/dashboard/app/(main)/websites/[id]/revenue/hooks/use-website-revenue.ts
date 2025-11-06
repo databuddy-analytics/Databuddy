@@ -1,8 +1,8 @@
-import type { DateRange } from '@databuddy/shared';
-import { type UseQueryOptions, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import type { DateRange } from "@databuddy/shared/types/analytics";
+import { type UseQueryOptions, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 // Response interfaces
 export interface WebsiteRevenueSummary {
@@ -46,19 +46,19 @@ function buildParams(
 	});
 
 	if (dateRange?.start_date) {
-		params.append('start_date', dateRange.start_date);
+		params.append("start_date", dateRange.start_date);
 	}
 
 	if (dateRange?.end_date) {
-		params.append('end_date', dateRange.end_date);
+		params.append("end_date", dateRange.end_date);
 	}
 
 	if (dateRange?.granularity) {
-		params.append('granularity', dateRange.granularity);
+		params.append("granularity", dateRange.granularity);
 	}
 
 	// Add cache busting
-	params.append('_t', Date.now().toString());
+	params.append("_t", Date.now().toString());
 
 	return params;
 }
@@ -73,7 +73,7 @@ async function fetchWebsiteRevenue(
 	const url = `${API_BASE_URL}/v1/revenue/analytics/website/${websiteId}?${params}`;
 
 	const response = await fetch(url, {
-		credentials: 'include',
+		credentials: "include",
 		signal,
 	});
 
@@ -84,7 +84,7 @@ async function fetchWebsiteRevenue(
 	const data = await response.json();
 
 	if (!data.success) {
-		throw new Error(data.error || 'Failed to fetch revenue data');
+		throw new Error(data.error || "Failed to fetch revenue data");
 	}
 
 	return data;
@@ -98,12 +98,12 @@ const defaultQueryOptions = {
 	refetchOnMount: false,
 	refetchInterval: 10 * 60 * 1000, // Background refetch every 10 minutes
 	retry: (failureCount: number, error: Error) => {
-		if (error instanceof DOMException && error.name === 'AbortError') {
+		if (error instanceof DOMException && error.name === "AbortError") {
 			return false;
 		}
 		return failureCount < 2;
 	},
-	networkMode: 'online' as const,
+	networkMode: "online" as const,
 	refetchIntervalInBackground: false,
 };
 
@@ -114,7 +114,7 @@ export function useWebsiteRevenue(
 ) {
 	const query = useQuery({
 		queryKey: [
-			'website-revenue',
+			"website-revenue",
 			websiteId,
 			dateRange.start_date,
 			dateRange.end_date,

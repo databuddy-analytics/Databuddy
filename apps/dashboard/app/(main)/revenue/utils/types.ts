@@ -1,4 +1,4 @@
-export type OnboardingStep = 'overview' | 'webhook' | 'testing' | 'complete';
+export type OnboardingStep = "overview" | "webhook" | "testing" | "complete";
 
 export interface RevenueConfig {
 	id?: string;

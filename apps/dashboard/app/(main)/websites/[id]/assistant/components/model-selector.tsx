@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
 import {
 	CaretDownIcon,
 	CheckIcon,
 	FlaskIcon,
 	StarIcon,
-} from '@phosphor-icons/react';
-import type React from 'react';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import type React from "react";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import type { AssistantModel } from '../types/model';
-import { MODEL_CONFIGS } from '../types/model';
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import type { AssistantModel } from "../types/model";
+import { MODEL_CONFIGS } from "../types/model";
 
 const modelIcons: Record<string, React.ReactNode> = {
 	chat: <StarIcon className="h-4 w-4 text-yellow-400" weight="duotone" />, // Use Star for default
 	agent: (
 		<FlaskIcon className="h-4 w-4 text-muted-foreground" weight="duotone" />
 	), // Flask for experimental/agent
-	'agent-max': (
+	"agent-max": (
 		<FlaskIcon className="h-4 w-4 text-purple-400" weight="duotone" />
 	), // Flask for max
 };
@@ -44,9 +44,9 @@ export function ModelSelector({
 			<DropdownMenuTrigger asChild>
 				<Button
 					className={cn(
-						'h-8 border border-border/50 bg-background/70 px-3 font-semibold text-xs',
-						'hover:bg-accent hover:text-accent-foreground',
-						'transition-colors duration-200'
+						"h-8 border border-border/50 bg-background/70 px-3 font-semibold text-xs",
+						"hover:bg-accent hover:text-accent-foreground",
+						"transition-colors duration-200"
 					)}
 					disabled={disabled}
 					size="sm"
@@ -64,12 +64,12 @@ export function ModelSelector({
 				{Object.values(MODEL_CONFIGS).map((config) => (
 					<DropdownMenuItem
 						className={cn(
-							'group flex items-center gap-3 rounded-md px-3 py-2 transition-colors',
+							"group flex items-center gap-3 rounded-md px-3 py-2 transition-colors",
 							config.isEnabled
-								? 'cursor-pointer hover:bg-muted/60 hover:text-foreground'
-								: 'cursor-not-allowed opacity-50',
+								? "cursor-pointer hover:bg-muted/60 hover:text-foreground"
+								: "cursor-not-allowed opacity-50",
 							selectedModel === config.id &&
-								'border border-primary bg-accent/80 text-accent-foreground'
+								"border border-primary bg-accent/80 text-accent-foreground"
 						)}
 						disabled={!config.isEnabled}
 						key={config.id}

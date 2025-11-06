@@ -1,4 +1,4 @@
-import { chQuery } from '@databuddy/db';
+import { chQuery } from "@databuddy/db";
 
 export interface QueryResult {
 	data: unknown[];
@@ -11,10 +11,10 @@ export async function executeQuery(sql: string): Promise<QueryResult> {
 	const result = await chQuery(sql);
 	const queryTime = Date.now() - queryStart;
 
-	console.info('🔍 [Query Executor] Query completed', {
+	console.info("🔍 [Query Executor] Query completed", {
 		timeTaken: `${queryTime}ms`,
 		resultCount: result.length,
-		sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
+		sql: sql.substring(0, 100) + (sql.length > 100 ? "..." : ""),
 	});
 
 	return {

@@ -1,33 +1,34 @@
-'use client';
+"use client";
 
-import { type DynamicQueryFilter, filterOptions } from '@databuddy/shared';
-import { FloppyDiskIcon, PencilIcon, XIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { FloppyDiskIcon, PencilIcon, XIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useParams } from "next/navigation";
+import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
 
-import { useSavedFilters } from '@/hooks/use-saved-filters';
+import { useSavedFilters } from "@/hooks/use-saved-filters";
 import {
 	dynamicQueryFiltersAtom,
 	removeDynamicFilterAtom,
-} from '@/stores/jotai/filterAtoms';
-import { DeleteAllDialog } from './delete-all-dialog';
-import { DeleteFilterDialog } from './delete-filter-dialog';
-import { SaveFilterDialog } from './save-filter-dialog';
-import { SavedFiltersMenu } from './saved-filters-menu';
+} from "@/stores/jotai/filterAtoms";
+import { DeleteAllDialog } from "./delete-all-dialog";
+import { DeleteFilterDialog } from "./delete-filter-dialog";
+import { SaveFilterDialog } from "./save-filter-dialog";
+import { SavedFiltersMenu } from "./saved-filters-menu";
 
 function getOperatorSymbol(operator: string): string {
 	const operatorToSymbolMap: Record<string, string> = {
-		eq: '=',
-		like: '∈',
-		ne: '≠',
-		in: '∈',
-		notIn: '∉',
-		gt: '>',
-		gte: '≥',
-		lt: '<',
-		lte: '≤',
+		eq: "=",
+		like: "∈",
+		ne: "≠",
+		in: "∈",
+		notIn: "∉",
+		gt: ">",
+		gte: "≥",
+		lt: "<",
+		lte: "≤",
 	};
 	return operatorToSymbolMap[operator] || operator;
 }
@@ -81,8 +82,8 @@ export function FiltersSection() {
 		filterName: string;
 	}>({
 		isOpen: false,
-		filterId: '',
-		filterName: '',
+		filterId: "",
+		filterName: "",
 	});
 	const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
 
@@ -225,26 +226,26 @@ export function FiltersSection() {
 	}
 
 	return (
-		<div className="slide-in-from-top-2 animate-in overflow-hidden rounded-lg border bg-card shadow-sm duration-300">
+		<div className="slide-in-from-top-2 animate-in overflow-hidden border-b bg-background duration-300">
 			{editingFilter && (
-				<div className="border-amber-200/50 border-b bg-gradient-to-r from-amber-50/80 to-amber-50/40 px-4 py-3 text-amber-900 text-sm">
-					<div className="flex items-center justify-between">
+				<div className="border-amber-200/50 border-b bg-linear-to-r from-amber-50/80 to-amber-50/40 px-2 py-2 text-amber-900 text-xs sm:px-4 sm:py-3 sm:text-sm">
+					<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
 						<div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
 							<div className="flex items-center gap-2">
-								<div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200">
+								<div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-200">
 									<PencilIcon className="h-3 w-3 text-amber-700" />
 								</div>
 								<span className="font-semibold">
 									Editing: "{editingFilter.name}"
 								</span>
 							</div>
-							<span className="text-amber-700 text-xs">
+							<span className="hidden text-amber-700 text-xs sm:inline">
 								Add, remove, or modify filters below, then save your changes.
 							</span>
 						</div>
-						<div className="flex shrink-0 gap-2">
+						<div className="flex shrink-0 flex-wrap gap-1.5 sm:gap-2">
 							<Button
-								className="h-8 font-medium text-sm"
+								className="h-8 flex-1 font-medium text-xs sm:flex-initial sm:text-sm"
 								data-filter-id={editingFilter.id}
 								data-total-filters={selectedFilters.length}
 								data-track="filter_edit_completed"
@@ -253,10 +254,10 @@ export function FiltersSection() {
 								size="sm"
 								variant="default"
 							>
-								{isSaving ? 'Saving...' : 'Save Changes'}
+								{isSaving ? "Saving..." : "Save Changes"}
 							</Button>
 							<Button
-								className="h-8 text-sm"
+								className="h-8 text-xs sm:text-sm"
 								disabled={isSaving}
 								onClick={handleCancelEdit}
 								size="sm"
@@ -265,20 +266,21 @@ export function FiltersSection() {
 								Cancel
 							</Button>
 							<Button
-								className="h-8 text-sm"
+								className="h-8 text-xs sm:text-sm"
 								onClick={() => {
 									setIsSaveDialogOpen(true);
 								}}
 								size="sm"
 								variant="ghost"
 							>
-								Rename...
+								<span className="hidden sm:inline">Rename...</span>
+								<span className="sm:hidden">Rename</span>
 							</Button>
 						</div>
 					</div>
 				</div>
 			)}
-			<div className="flex min-h-[52px] flex-wrap items-center gap-2 p-4">
+			<div className="flex min-h-[52px] flex-wrap items-center gap-2 p-2 sm:p-4">
 				<div className="flex flex-wrap items-center gap-2">
 					{selectedFilters.map((filter, index) => {
 						const fieldLabel = filterOptions.find(
@@ -286,28 +288,28 @@ export function FiltersSection() {
 						)?.label;
 						const operatorSymbol = getOperatorSymbol(filter.operator);
 						const valueLabel = Array.isArray(filter.value)
-							? filter.value.join(', ')
+							? filter.value.join(", ")
 							: filter.value;
 
 						return (
 							<div
-								className="group inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm transition-all hover:bg-muted/50 hover:shadow-sm"
-								key={`filter-${filter.field}-${filter.operator}-${Array.isArray(filter.value) ? filter.value.join('-') : filter.value}-${index}`}
+								className="group inline-flex min-h-[44px] items-center gap-1.5 rounded-md border bg-muted/30 px-2 py-1.5 text-xs transition-all hover:bg-muted/50 hover:shadow-sm sm:gap-2 sm:px-3 sm:text-sm"
+								key={`filter-${filter.field}-${filter.operator}-${Array.isArray(filter.value) ? filter.value.join("-") : filter.value}-${index}`}
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1.5 sm:gap-2">
 									<span className="font-medium text-foreground">
 										{fieldLabel}
 									</span>
 									<span className="text-muted-foreground text-xs">
 										{operatorSymbol}
 									</span>
-									<span className="font-mono text-foreground text-xs">
+									<span className="max-w-[120px] truncate font-mono text-foreground text-xs sm:max-w-none">
 										{valueLabel}
 									</span>
 								</div>
 								<button
 									aria-label={`Remove filter ${fieldLabel} ${operatorSymbol} ${valueLabel}`}
-									className="rounded-full p-0.5 text-muted-foreground opacity-60 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-80"
+									className="h-6 w-6 shrink-0 touch-manipulation rounded-full p-0.5 text-muted-foreground opacity-60 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-80"
 									onClick={() => handleRemoveFilter(index)}
 									type="button"
 								>
@@ -318,7 +320,7 @@ export function FiltersSection() {
 					})}
 				</div>
 
-				<div className="ml-auto flex flex-wrap items-center gap-2">
+				<div className="ml-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
 					<SavedFiltersMenu
 						currentFilters={selectedFilters}
 						isLoading={isSavedFiltersLoading}
@@ -331,9 +333,9 @@ export function FiltersSection() {
 					/>
 
 					{selectedFilters.length > 0 && !editingFilter && (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-1 sm:gap-2">
 							<Button
-								className="h-8 gap-2"
+								className="h-8 gap-1 text-xs sm:gap-2 sm:text-sm"
 								onClick={() => {
 									setEditingFilter(null);
 									setIsSaveDialogOpen(true);
@@ -341,11 +343,15 @@ export function FiltersSection() {
 								size="sm"
 								variant="outline"
 							>
-								<FloppyDiskIcon className="h-4 w-4" weight="duotone" />
-								<span>Save as New</span>
+								<FloppyDiskIcon
+									className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+									weight="duotone"
+								/>
+								<span className="hidden sm:inline">Save as New</span>
+								<span className="sm:hidden">Save</span>
 							</Button>
 							<Button
-								className="h-8"
+								className="h-8 text-xs sm:text-sm"
 								onClick={clearAllFilters}
 								size="sm"
 								variant="ghost"
@@ -359,7 +365,7 @@ export function FiltersSection() {
 						<div className="rounded-md bg-muted/30 px-3 py-1.5">
 							<span className="text-muted-foreground text-xs">
 								{selectedFilters.length} filter
-								{selectedFilters.length === 1 ? '' : 's'} configured
+								{selectedFilters.length === 1 ? "" : "s"} configured
 							</span>
 						</div>
 					)}

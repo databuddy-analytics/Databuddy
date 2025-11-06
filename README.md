@@ -15,6 +15,8 @@
 [![Security Scan](https://img.shields.io/badge/security-A%2B-green.svg)](https://github.com/databuddy-analytics/Databuddy/actions/workflows/security.yml)
 [![Dependency Status](https://img.shields.io/badge/dependencies-up%20to%20date-green.svg)](https://github.com/databuddy-analytics/Databuddy/actions/workflows/dependencies.yml)
 
+[<img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />](https://vercel.com/oss)
+
 [![Discord](https://img.shields.io/discord/123456789?label=Discord&logo=discord)](https://discord.gg/JTk7a38tCZ)
 [![GitHub Stars](https://img.shields.io/github/stars/databuddy-analytics/Databuddy?style=social)](https://github.com/databuddy-analytics/Databuddy/stargazers)
 [![Twitter](https://img.shields.io/twitter/follow/trydatabuddy?style=social)](https://twitter.com/trydatabuddy)

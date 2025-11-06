@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -7,11 +7,11 @@ import {
 	CopyIcon,
 	GearSixIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -19,11 +19,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 interface QuickSettingsModalProps {
 	webhookToken: string;
@@ -84,7 +84,7 @@ export function QuickSettingsModal({
 			isLiveMode: localIsLiveMode,
 		});
 		setHasUnsavedChanges(false);
-		toast.success('Settings saved successfully');
+		toast.success("Settings saved successfully");
 	};
 
 	const handleReset = () => {
@@ -97,7 +97,7 @@ export function QuickSettingsModal({
 		if (!newOpen && hasUnsavedChanges) {
 			if (
 				window.confirm(
-					'You have unsaved changes. Are you sure you want to close?'
+					"You have unsaved changes. Are you sure you want to close?"
 				)
 			) {
 				handleReset();
@@ -147,11 +147,11 @@ export function QuickSettingsModal({
 								/>
 							)}
 							<span className="font-medium text-sm">
-								{isSetupComplete ? 'Integration Active' : 'Setup Required'}
+								{isSetupComplete ? "Integration Active" : "Setup Required"}
 							</span>
 						</div>
-						<Badge variant={localIsLiveMode ? 'default' : 'secondary'}>
-							{localIsLiveMode ? 'Live Mode' : 'Test Mode'}
+						<Badge variant={localIsLiveMode ? "default" : "secondary"}>
+							{localIsLiveMode ? "Live Mode" : "Test Mode"}
 						</Badge>
 					</div>
 
@@ -166,7 +166,7 @@ export function QuickSettingsModal({
 									value={webhookUrl}
 								/>
 								<Button
-									onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}
+									onClick={() => copyToClipboard(webhookUrl, "Webhook URL")}
 									size="sm"
 									variant="outline"
 								>
@@ -175,8 +175,8 @@ export function QuickSettingsModal({
 								<Button
 									onClick={() =>
 										window.open(
-											'https://dashboard.stripe.com/webhooks',
-											'_blank'
+											"https://dashboard.stripe.com/webhooks",
+											"_blank"
 										)
 									}
 									size="sm"
@@ -221,8 +221,8 @@ export function QuickSettingsModal({
 								<Label className="font-medium text-sm">Live Mode</Label>
 								<p className="text-muted-foreground text-xs">
 									{localIsLiveMode
-										? 'Processing real payments'
-										: 'Using test data'}
+										? "Processing real payments"
+										: "Using test data"}
 								</p>
 							</div>
 							<Switch
@@ -248,7 +248,7 @@ export function QuickSettingsModal({
 								onClick={handleSave}
 								size="sm"
 							>
-								{isSaving ? 'Saving...' : 'Save Changes'}
+								{isSaving ? "Saving..." : "Save Changes"}
 							</Button>
 							{hasUnsavedChanges && (
 								<Button onClick={handleReset} size="sm" variant="outline">
@@ -266,13 +266,13 @@ export function QuickSettingsModal({
 								variant="outline"
 							>
 								<ArrowClockwiseIcon
-									className={`mr-2 h-4 w-4 ${isRegeneratingToken ? 'animate-spin' : ''}`}
+									className={`mr-2 h-4 w-4 ${isRegeneratingToken ? "animate-spin" : ""}`}
 									size={16}
 									weight="fill"
 								/>
 								{isRegeneratingToken
-									? 'Regenerating Token...'
-									: 'Regenerate Webhook Token'}
+									? "Regenerating Token..."
+									: "Regenerate Webhook Token"}
 							</Button>
 						)}
 					</div>

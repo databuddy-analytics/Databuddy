@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
+import { authClient } from "@databuddy/auth/client";
+import { track } from "@databuddy/sdk";
 import {
 	CaretLeftIcon,
 	CheckCircleIcon,
@@ -11,58 +12,72 @@ import {
 	InfoIcon,
 	SpinnerIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import VisuallyHidden from '@/components/ui/visuallyhidden';
+} from "@/components/ui/tooltip";
+import VisuallyHidden from "@/components/ui/visuallyhidden";
 
 function RegisterPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const selectedPlan = searchParams.get('plan');
-	const callbackUrl = searchParams.get('callback');
+	const selectedPlan = searchParams.get("plan");
+	const callbackUrl = searchParams.get("callback");
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
-		name: '',
-		email: '',
-		password: '',
-		confirmPassword: '',
+		name: "",
+		email: "",
+		password: "",
+		confirmPassword: "",
 	});
 	const [acceptTerms, setAcceptTerms] = useState(false);
 	const [isHoneypot, setIsHoneypot] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [registrationStep, setRegistrationStep] = useState<
-		'form' | 'success' | 'verification-needed'
-	>('form');
+		"form" | "success" | "verification-needed"
+	>("form");
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value } = e.target;
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
+	const trackSignUp = async (
+		method: "email" | "social",
+		provider?: "github" | "google"
+	) => {
+		try {
+			await track("signup_completed", {
+				method: method === "social" ? `${method}_${provider}` : method,
+				plan: selectedPlan || undefined,
+			});
+		} catch (error) {
+			console.error("Failed to track sign up event:", error);
+		}
+	};
+
 	const handleAuthSuccess = () => {
 		if (callbackUrl) {
-			toast.success('Account created! Completing integration...');
+			toast.success("Account created! Completing integration...");
 			router.push(callbackUrl);
 		} else if (selectedPlan) {
-			localStorage.setItem('pendingPlanSelection', selectedPlan);
+			localStorage.setItem("pendingPlanSelection", selectedPlan);
 			router.push(`/billing?tab=plans&plan=${selectedPlan}`);
 		} else {
-			router.push('/websites');
+			router.push("/websites");
 		}
 	};
 
@@ -70,17 +85,17 @@ function RegisterPageContent() {
 		e.preventDefault();
 
 		if (formData.password !== formData.confirmPassword) {
-			toast.error('Passwords do not match');
+			toast.error("Passwords do not match");
 			return;
 		}
 
 		if (!acceptTerms) {
-			toast.error('You must accept the terms and conditions');
+			toast.error("You must accept the terms and conditions");
 			return;
 		}
 
 		if (isHoneypot) {
-			toast.error('Server error, please try again later');
+			toast.error("Server error, please try again later");
 			return;
 		}
 
@@ -92,15 +107,16 @@ function RegisterPageContent() {
 			name: formData.name,
 			fetchOptions: {
 				onSuccess: () => {
+					trackSignUp("email").catch(console.error);
 					if (callbackUrl) {
 						handleAuthSuccess();
 					} else {
 						toast.success(
-							'Account created! Please check your email to verify your account.'
+							"Account created! Please check your email to verify your account."
 						);
-						setRegistrationStep('verification-needed');
+						setRegistrationStep("verification-needed");
 						if (selectedPlan) {
-							localStorage.setItem('pendingPlanSelection', selectedPlan);
+							localStorage.setItem("pendingPlanSelection", selectedPlan);
 						}
 					}
 				},
@@ -108,7 +124,7 @@ function RegisterPageContent() {
 		});
 
 		if (error) {
-			toast.error(error.message || 'Failed to create account');
+			toast.error(error.message || "Failed to create account");
 		}
 
 		setIsLoading(false);
@@ -119,14 +135,14 @@ function RegisterPageContent() {
 
 		await authClient.sendVerificationEmail({
 			email: formData.email,
-			callbackURL: '/onboarding',
+			callbackURL: "/onboarding",
 			fetchOptions: {
 				onSuccess: () => {
-					toast.success('Verification email sent!');
+					toast.success("Verification email sent!");
 				},
 				onError: () => {
 					toast.error(
-						'Failed to send verification email. Please try again later.'
+						"Failed to send verification email. Please try again later."
 					);
 				},
 			},
@@ -135,28 +151,29 @@ function RegisterPageContent() {
 		setIsLoading(false);
 	};
 
-	const handleSocialLogin = async (provider: 'github' | 'google') => {
+	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
 
 		try {
 			await authClient.signIn.social({
 				provider,
-				callbackURL: callbackUrl || '/websites',
+				callbackURL: callbackUrl || "/websites",
 				fetchOptions: {
 					onSuccess: () => {
-						toast.success('Registration successful!');
+						trackSignUp("social", provider).catch(console.error);
+						toast.success("Registration successful!");
 						handleAuthSuccess();
 					},
 					onError: () => {
 						toast.error(
-							`${provider === 'github' ? 'GitHub' : 'Google'} login failed. Please try again.`
+							`${provider === "github" ? "GitHub" : "Google"} login failed. Please try again.`
 						);
 						setIsLoading(false);
 					},
 				},
 			});
 		} catch (_error) {
-			toast.error('Login failed. Please try again.');
+			toast.error("Login failed. Please try again.");
 			setIsLoading(false);
 		}
 	};
@@ -164,7 +181,7 @@ function RegisterPageContent() {
 	// Render header content based on current registration step
 	const renderHeaderContent = () => {
 		switch (registrationStep) {
-			case 'verification-needed':
+			case "verification-needed":
 				return (
 					<>
 						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-warning/10 p-3">
@@ -178,14 +195,14 @@ function RegisterPageContent() {
 							Verify your email
 						</h1>
 						<p className="mt-2 text-muted-foreground">
-							We've sent a verification link to{' '}
+							We've sent a verification link to{" "}
 							<strong className="font-medium text-warning">
 								{formData.email}
 							</strong>
 						</p>
 					</>
 				);
-			case 'success':
+			case "success":
 				return (
 					<>
 						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/10 p-3">
@@ -249,7 +266,7 @@ function RegisterPageContent() {
 
 				<Button
 					className="w-full border-warning/20 text-sm text-warning hover:bg-warning/5 sm:text-base"
-					onClick={() => setRegistrationStep('form')}
+					onClick={() => setRegistrationStep("form")}
 					variant="outline"
 				>
 					<CaretLeftIcon className="mr-2 h-4 w-4" />
@@ -271,7 +288,7 @@ function RegisterPageContent() {
 
 			<Button
 				className="w-full bg-success text-sm text-success-foreground hover:bg-success/90 sm:text-base"
-				onClick={() => router.push('/login')}
+				onClick={() => router.push("/login")}
 			>
 				<span className="hidden sm:inline">Continue to login</span>
 				<span className="sm:hidden">Continue</span>
@@ -285,7 +302,7 @@ function RegisterPageContent() {
 				<Button
 					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
-					onClick={() => handleSocialLogin('github')}
+					onClick={() => handleSocialLogin("github")}
 					type="button"
 					variant="outline"
 				>
@@ -296,7 +313,7 @@ function RegisterPageContent() {
 				<Button
 					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
-					onClick={() => handleSocialLogin('google')}
+					onClick={() => handleSocialLogin("google")}
 					type="button"
 					variant="outline"
 				>
@@ -382,11 +399,11 @@ function RegisterPageContent() {
 								onChange={handleChange}
 								placeholder="••••••••"
 								required
-								type={showPassword ? 'text' : 'password'}
+								type={showPassword ? "text" : "password"}
 								value={formData.password}
 							/>
 							<Button
-								aria-label={showPassword ? 'Hide password' : 'Show password'}
+								aria-label={showPassword ? "Hide password" : "Show password"}
 								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
 								onClick={() => setShowPassword(!showPassword)}
 								size="sm"
@@ -420,12 +437,12 @@ function RegisterPageContent() {
 								onChange={handleChange}
 								placeholder="••••••••"
 								required
-								type={showConfirmPassword ? 'text' : 'password'}
+								type={showConfirmPassword ? "text" : "password"}
 								value={formData.confirmPassword}
 							/>
 							<Button
 								aria-label={
-									showConfirmPassword ? 'Hide password' : 'Show password'
+									showConfirmPassword ? "Hide password" : "Show password"
 								}
 								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
 								onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -468,15 +485,15 @@ function RegisterPageContent() {
 							htmlFor="terms"
 						>
 							<span className="hidden sm:inline">
-								I agree to the{' '}
+								I agree to the{" "}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
 									Terms of Service
-								</Link>{' '}
-								and{' '}
+								</Link>{" "}
+								and{" "}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/privacy"
@@ -486,15 +503,15 @@ function RegisterPageContent() {
 								</Link>
 							</span>
 							<span className="sm:hidden">
-								I agree to{' '}
+								I agree to{" "}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
 									Terms
-								</Link>{' '}
-								&{' '}
+								</Link>{" "}
+								&{" "}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/privacy"
@@ -532,9 +549,9 @@ function RegisterPageContent() {
 	// Render content based on current registration step
 	const renderContent = () => {
 		switch (registrationStep) {
-			case 'verification-needed':
+			case "verification-needed":
 				return renderVerificationContent();
-			case 'success':
+			case "success":
 				return renderSuccessContent();
 			default:
 				return renderFormContent();
@@ -549,16 +566,16 @@ function RegisterPageContent() {
 				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 blur-3xl" />
 				<div className="relative z-10">{renderContent()}</div>
 			</div>
-			{registrationStep === 'form' && (
+			{registrationStep === "form" && (
 				<div className="mt-2 text-center">
 					<p className="text-muted-foreground text-sm">
-						Already have an account?{' '}
+						Already have an account?{" "}
 						<Link
 							className="font-medium text-primary hover:text-primary/80"
 							href={
 								callbackUrl
 									? `/login?callback=${encodeURIComponent(callbackUrl)}`
-									: '/login'
+									: "/login"
 							}
 						>
 							Sign in

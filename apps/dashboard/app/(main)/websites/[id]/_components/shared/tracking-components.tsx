@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
 import {
 	CheckIcon,
 	ClipboardIcon,
 	InfoIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
-import { codeToHtml } from 'shiki';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
+import { codeToHtml } from "shiki";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import type {
 	CodeBlockProps,
 	TrackingOptionCardProps,
 	TrackingOptionsGridProps,
-} from '../utils/types';
+} from "../utils/types";
 
 /**
  * Shared CodeBlock component for displaying syntax-highlighted code
@@ -28,31 +28,31 @@ export function CodeBlock({
 	copied,
 	onCopy,
 }: CodeBlockProps) {
-	const [highlightedCode, setHighlightedCode] = useState<string>('');
+	const [highlightedCode, setHighlightedCode] = useState<string>("");
 
 	const getLanguage = useCallback((codeContent: string) => {
 		if (
-			codeContent.includes('npm install') ||
-			codeContent.includes('yarn add') ||
-			codeContent.includes('pnpm add') ||
-			codeContent.includes('bun add')
+			codeContent.includes("npm install") ||
+			codeContent.includes("yarn add") ||
+			codeContent.includes("pnpm add") ||
+			codeContent.includes("bun add")
 		) {
-			return 'bash';
+			return "bash";
 		}
-		if (codeContent.includes('<script')) {
-			return 'html';
+		if (codeContent.includes("<script")) {
+			return "html";
 		}
-		if (codeContent.includes('import') && codeContent.includes('from')) {
-			return 'jsx';
+		if (codeContent.includes("import") && codeContent.includes("from")) {
+			return "jsx";
 		}
-		return 'javascript';
+		return "javascript";
 	}, []);
 
 	useEffect(() => {
 		const highlightCode = async () => {
 			try {
-				const isDarkMode = document.documentElement.classList.contains('dark');
-				const theme = isDarkMode ? 'github-dark' : 'github-light';
+				const isDarkMode = document.documentElement.classList.contains("dark");
+				const theme = isDarkMode ? "github-dark" : "github-light";
 
 				const html = await codeToHtml(code, {
 					lang: getLanguage(code),
@@ -60,7 +60,7 @@ export function CodeBlock({
 				});
 				setHighlightedCode(html);
 			} catch (error) {
-				console.error('Error highlighting code:', error);
+				console.error("Error highlighting code:", error);
 				setHighlightedCode(`<pre><code>${code}</code></pre>`);
 			}
 		};
@@ -74,7 +74,7 @@ export function CodeBlock({
 
 		observer.observe(document.documentElement, {
 			attributes: true,
-			attributeFilter: ['class'],
+			attributeFilter: ["class"],
 		});
 
 		return () => observer.disconnect();
@@ -85,12 +85,12 @@ export function CodeBlock({
 			{description && (
 				<p className="text-muted-foreground text-sm">
 					{description ===
-					'Add this script to the <head> section of your website:' ? (
+					"Add this script to the <head> section of your website:" ? (
 						<>
-							Add this script to the{' '}
+							Add this script to the{" "}
 							<code className="rounded bg-muted px-1 py-0.5 text-xs">
 								&lt;head&gt;
-							</code>{' '}
+							</code>{" "}
 							section of your website:
 						</>
 					) : (
@@ -103,8 +103,8 @@ export function CodeBlock({
 					className="[&_pre]:!bg-transparent [&_code]:!bg-transparent [&_*]:!font-mono overflow-hidden rounded border bg-muted p-6 text-sm leading-relaxed"
 					dangerouslySetInnerHTML={{ __html: highlightedCode }}
 					style={{
-						fontSize: '14px',
-						lineHeight: '1.6',
+						fontSize: "14px",
+						lineHeight: "1.6",
 						fontFamily:
 							'var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
 					}}
@@ -143,10 +143,10 @@ export function PackageManagerTabs({
 	onCopyCode: (code: string, blockId: string, message: string) => void;
 }) {
 	const installCommands = {
-		npm: 'npm install @databuddy/sdk',
-		yarn: 'yarn add @databuddy/sdk',
-		pnpm: 'pnpm add @databuddy/sdk',
-		bun: 'bun add @databuddy/sdk',
+		npm: "npm install @databuddy/sdk",
+		yarn: "yarn add @databuddy/sdk",
+		pnpm: "pnpm add @databuddy/sdk",
+		bun: "bun add @databuddy/sdk",
 	};
 
 	return (
@@ -176,7 +176,7 @@ export function PackageManagerTabs({
 							onCopyCode(
 								command,
 								`${manager}-install`,
-								'Command copied to clipboard!'
+								"Command copied to clipboard!"
 							)
 						}
 					/>
@@ -309,21 +309,21 @@ export function TrackingStatusCard({
 					<div className="flex flex-col gap-0.5">
 						<span className="font-medium text-sm">
 							{isSetup
-								? integrationType === 'vercel'
-									? 'Vercel Integration Active'
-									: 'Tracking Active'
-								: integrationType === 'vercel'
-									? 'Vercel Integration Ready'
-									: 'Tracking Not Setup'}
+								? integrationType === "vercel"
+									? "Vercel Integration Active"
+									: "Tracking Active"
+								: integrationType === "vercel"
+									? "Vercel Integration Ready"
+									: "Tracking Not Setup"}
 						</span>
 						<span className="text-muted-foreground text-xs">
 							{isSetup
-								? integrationType === 'vercel'
-									? 'Data is being collected via Vercel integration'
-									: 'Data is being collected successfully'
-								: integrationType === 'vercel'
-									? 'Environment variables configured, waiting for traffic'
-									: 'Install the tracking script to start collecting data'}
+								? integrationType === "vercel"
+									? "Data is being collected via Vercel integration"
+									: "Data is being collected successfully"
+								: integrationType === "vercel"
+									? "Environment variables configured, waiting for traffic"
+									: "Install the tracking script to start collecting data"}
 						</span>
 					</div>
 				</div>
@@ -400,13 +400,13 @@ export function InstallationTabs({
 			<TabsContent className="space-y-4" value="script">
 				<CodeBlock
 					code={trackingCode}
-					copied={copiedBlockId === 'script-tag'}
+					copied={copiedBlockId === "script-tag"}
 					description="Add this script to the <head> section of your HTML:"
 					onCopy={() =>
 						onCopyCode(
 							trackingCode,
-							'script-tag',
-							'Script tag copied to clipboard!'
+							"script-tag",
+							"Script tag copied to clipboard!"
 						)
 					}
 				/>
@@ -428,13 +428,13 @@ export function InstallationTabs({
 
 					<CodeBlock
 						code={npmCode}
-						copied={copiedBlockId === 'tracking-code'}
+						copied={copiedBlockId === "tracking-code"}
 						description="Then initialize the tracker in your code:"
 						onCopy={() =>
 							onCopyCode(
 								npmCode,
-								'tracking-code',
-								'Tracking code copied to clipboard!'
+								"tracking-code",
+								"Tracking code copied to clipboard!"
 							)
 						}
 					/>

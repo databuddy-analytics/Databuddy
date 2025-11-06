@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowSquareOutIcon,
@@ -6,14 +6,14 @@ import {
 	CopyIcon,
 	FloppyDiskBackIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+} from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 interface WebhookStepProps {
 	webhookSecret: string;
@@ -79,7 +79,7 @@ export function WebhookStep({
 								value={webhookUrl}
 							/>
 							<Button
-								onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}
+								onClick={() => copyToClipboard(webhookUrl, "Webhook URL")}
 								size="sm"
 								variant="outline"
 							>
@@ -123,8 +123,8 @@ export function WebhookStep({
 							onCheckedChange={setLocalIsLiveMode}
 						/>
 						<Label htmlFor="live-mode">Live Mode</Label>
-						<Badge variant={localIsLiveMode ? 'default' : 'secondary'}>
-							{localIsLiveMode ? 'Production' : 'Test'}
+						<Badge variant={localIsLiveMode ? "default" : "secondary"}>
+							{localIsLiveMode ? "Production" : "Test"}
 						</Badge>
 					</div>
 
@@ -142,7 +142,7 @@ export function WebhookStep({
 									size={16}
 									weight="fill"
 								/>
-								{isSaving ? 'Saving...' : 'Save Changes'}
+								{isSaving ? "Saving..." : "Save Changes"}
 							</Button>
 						</div>
 					)}
@@ -169,7 +169,7 @@ export function WebhookStep({
 						<Button
 							className="mt-2"
 							onClick={() =>
-								window.open('https://dashboard.stripe.com/webhooks', '_blank')
+								window.open("https://dashboard.stripe.com/webhooks", "_blank")
 							}
 							size="sm"
 							variant="outline"

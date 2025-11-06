@@ -1,22 +1,22 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { type EmailEvent } from '@databuddy/db';
-import { redis } from '@databuddy/redis';
+import { createHash, randomUUID } from "node:crypto";
+import type { EmailEvent } from "@databuddy/db";
+import { redis } from "@databuddy/redis";
 import {
 	batchEmailEventSchema,
 	type EmailEventInput,
 	emailEventSchema,
-} from '@databuddy/validation';
-import { sendEvent } from '../lib/producer';
-import { Elysia } from 'elysia';
-import { logger } from '../lib/logger';
+} from "@databuddy/validation";
+import { Elysia } from "elysia";
+import { logger } from "../lib/logger";
+import { sendEvent } from "../lib/producer";
 
 const expectedKey = process.env.EMAIL_API_KEY;
 
 function validateApiKey(request: Request): boolean {
-	const apiKey = request.headers.get('x-api-key');
+	const apiKey = request.headers.get("x-api-key");
 
 	if (!expectedKey) {
-		logger.error('EMAIL_API_KEY not configured');
+		logger.error("EMAIL_API_KEY not configured");
 		return false;
 	}
 
@@ -24,7 +24,7 @@ function validateApiKey(request: Request): boolean {
 }
 
 function hashEmailId(emailId: string, domain: string): string {
-	return createHash('sha256').update(`${emailId}:${domain}`).digest('hex');
+	return createHash("sha256").update(`${emailId}:${domain}`).digest("hex");
 }
 
 async function insertEmailEvent(emailData: EmailEventInput): Promise<void> {
@@ -40,23 +40,20 @@ async function insertEmailEvent(emailData: EmailEventInput): Promise<void> {
 		event_time: emailData.event_time || now,
 		received_at: emailData.received_at || now,
 		ingestion_time: now,
-		metadata_json: emailData.metadata || {},
+		metadata_json: emailData.metadata
+			? JSON.stringify(emailData.metadata)
+			: "{}",
 	};
 
 	try {
-		sendEvent('analytics-email-events', emailEvent);
+		sendEvent("analytics-email-events", emailEvent);
 
-		logger.info('Email event sent to Kafka successfully', {
-			domain: emailEvent.domain,
-			labels: emailEvent.labels,
-			eventId: emailEvent.event_id,
-		});
+		logger.info({ emailEvent }, "Email event sent to Kafka successfully");
 	} catch (err) {
-		logger.error('Failed to send email event to Kafka', {
-			error: err as Error,
-			domain: emailEvent.domain,
-			eventId: emailEvent.event_id,
-		});
+		logger.error(
+			{ error: err as Error, emailEvent },
+			"Failed to send email event to Kafka"
+		);
 		throw err;
 	}
 }
@@ -70,19 +67,19 @@ async function checkEmailDuplicate(
 		return true;
 	}
 
-	await redis.setex(key, 604_800, '1');
+	await redis.setex(key, 604_800, "1");
 	return false;
 }
 
 const app = new Elysia()
 	.post(
-		'/email',
+		"/email",
 		async ({ body, request }: { body: unknown; request: Request }) => {
 			// Validate API key
 			if (!validateApiKey(request)) {
 				return {
-					status: 'error',
-					message: 'Invalid or missing API key',
+					status: "error",
+					message: "Invalid or missing API key",
 				};
 			}
 
@@ -90,8 +87,8 @@ const app = new Elysia()
 			const parseResult = emailEventSchema.safeParse(body);
 			if (!parseResult.success) {
 				return {
-					status: 'error',
-					message: 'Invalid email event schema',
+					status: "error",
+					message: "Invalid email event schema",
 					errors: parseResult.error.issues,
 				};
 			}
@@ -101,36 +98,33 @@ const app = new Elysia()
 			const eventTime = emailData.event_time || Date.now();
 
 			if (await checkEmailDuplicate(emailHash, eventTime)) {
-				return { status: 'success', message: 'Duplicate event ignored' };
+				return { status: "success", message: "Duplicate event ignored" };
 			}
 
 			try {
 				await insertEmailEvent(emailData);
 				return {
-					status: 'success',
-					type: 'email',
+					status: "success",
+					type: "email",
 					event_id: emailHash,
 				};
 			} catch (error) {
-				logger.error('Email event processing failed', {
-					error: error as Error,
-					domain: emailData.domain,
-				});
+				logger.error({ error }, "Email event processing failed");
 				return {
-					status: 'error',
-					message: 'Failed to process email event',
+					status: "error",
+					message: "Failed to process email event",
 				};
 			}
 		}
 	)
 	.post(
-		'/email/batch',
+		"/email/batch",
 		async ({ body, request }: { body: unknown; request: Request }) => {
 			// Validate API key
 			if (!validateApiKey(request)) {
 				return {
-					status: 'error',
-					message: 'Invalid or missing API key',
+					status: "error",
+					message: "Invalid or missing API key",
 				};
 			}
 
@@ -138,8 +132,8 @@ const app = new Elysia()
 			const parseResult = batchEmailEventSchema.safeParse(body);
 			if (!parseResult.success) {
 				return {
-					status: 'error',
-					message: 'Invalid batch email event schema',
+					status: "error",
+					message: "Invalid batch email event schema",
 					errors: parseResult.error.issues,
 				};
 			}
@@ -153,8 +147,8 @@ const app = new Elysia()
 
 					if (await checkEmailDuplicate(emailHash, eventTime)) {
 						return {
-							status: 'success',
-							message: 'Duplicate event ignored',
+							status: "success",
+							message: "Duplicate event ignored",
 							email_hash: emailHash,
 						};
 					}
@@ -162,14 +156,14 @@ const app = new Elysia()
 					try {
 						await insertEmailEvent(emailData);
 						return {
-							status: 'success',
-							type: 'email',
+							status: "success",
+							type: "email",
 							email_hash: emailHash,
 						};
 					} catch (error) {
 						return {
-							status: 'error',
-							message: 'Processing failed',
+							status: "error",
+							message: "Processing failed",
 							error: String(error),
 							email_hash: emailHash,
 						};
@@ -180,7 +174,7 @@ const app = new Elysia()
 			results.push(...(await Promise.all(processingPromises)));
 
 			return {
-				status: 'success',
+				status: "success",
 				batch: true,
 				processed: results.length,
 				results,

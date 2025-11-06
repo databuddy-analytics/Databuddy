@@ -1,4 +1,4 @@
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 	custom_events: {
@@ -6,18 +6,18 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const limit = _limit || 10_000;
 			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(' AND ')}`
-				: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -59,7 +59,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						MAX(timestamp) as last_occurrence,
 						MIN(timestamp) as first_occurrence,
 						countIf(properties != '{}' AND isValidJSON(properties)) as events_with_properties,
-						ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage
+						ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
 					FROM enriched_events
 					GROUP BY event_name
 					ORDER BY total_events DESC
@@ -74,21 +74,21 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'timestamp',
+		timeField: "timestamp",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'client_id',
-			'anonymous_id',
-			'session_id',
-			'event_name',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"event_name",
 		],
 		customizable: true,
 	},
@@ -97,18 +97,18 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			_limit?: number,
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const limit = _limit || 10_000;
 			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(' AND ')}`
-				: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -163,21 +163,21 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
-		timeField: 'timestamp',
+		timeField: "timestamp",
 		allowedFilters: [
-			'path',
-			'country',
-			'device_type',
-			'browser_name',
-			'os_name',
-			'referrer',
-			'utm_source',
-			'utm_medium',
-			'utm_campaign',
-			'client_id',
-			'anonymous_id',
-			'session_id',
-			'event_name',
+			"path",
+			"country",
+			"device_type",
+			"browser_name",
+			"os_name",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"event_name",
 		],
 		customizable: true,
 	},

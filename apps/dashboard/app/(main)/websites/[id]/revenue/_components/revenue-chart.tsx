@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CreditCardIcon, CurrencyDollarIcon } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { CreditCardIcon, CurrencyDollarIcon } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
 import {
 	Area,
 	AreaChart,
@@ -11,24 +11,24 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import { SkeletonChart } from '@/components/charts/skeleton-chart';
-import { formatCurrency } from '@/lib/formatters';
-import { cn } from '@/lib/utils';
+} from "recharts";
+import { SkeletonChart } from "@/components/charts/skeleton-chart";
+import { formatCurrency } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 
 // Enhanced color palette with gradients
 const REVENUE_COLORS = {
 	revenue: {
-		primary: '#10b981',
-		secondary: '#059669',
-		light: '#d1fae5',
-		gradient: 'from-emerald-500/20 to-emerald-600/5',
+		primary: "#10b981",
+		secondary: "#059669",
+		light: "#d1fae5",
+		gradient: "from-emerald-500/20 to-emerald-600/5",
 	},
 	transactions: {
-		primary: '#3b82f6',
-		secondary: '#1d4ed8',
-		light: '#dbeafe',
-		gradient: 'from-blue-500/20 to-blue-600/5',
+		primary: "#3b82f6",
+		secondary: "#1d4ed8",
+		light: "#dbeafe",
+		gradient: "from-blue-500/20 to-blue-600/5",
 	},
 };
 
@@ -39,10 +39,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 	}
 
 	const getMetricIcon = (name: string) => {
-		if (name.toLowerCase().includes('revenue')) {
+		if (name.toLowerCase().includes("revenue")) {
 			return <CurrencyDollarIcon className="h-3 w-3" />;
 		}
-		if (name.toLowerCase().includes('transaction')) {
+		if (name.toLowerCase().includes("transaction")) {
 			return <CreditCardIcon className="h-3 w-3" />;
 		}
 		return <CurrencyDollarIcon className="h-3 w-3" />;
@@ -57,7 +57,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 			<div className="space-y-2.5">
 				{payload.map((entry: any, _index: number) => {
 					let displayValue: string;
-					if (entry.name.toLowerCase().includes('revenue')) {
+					if (entry.name.toLowerCase().includes("revenue")) {
 						displayValue = formatCurrency(entry.value);
 					} else {
 						displayValue = entry.value.toLocaleString();
@@ -147,8 +147,8 @@ export function RevenueChart({
 	}
 
 	return (
-		<div className={cn('w-full', className)}>
-			<div className="relative" style={{ width: '100%', height: height + 20 }}>
+		<div className={cn("w-full", className)}>
+			<div className="relative" style={{ width: "100%", height: height + 20 }}>
 				{/* Background gradient overlay */}
 				<div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-muted/5" />
 
@@ -211,12 +211,12 @@ export function RevenueChart({
 						/>
 
 						<XAxis
-							axisLine={{ stroke: 'var(--border)', strokeOpacity: 0.5 }}
+							axisLine={{ stroke: "var(--border)", strokeOpacity: 0.5 }}
 							dataKey="date"
 							dy={10}
 							tick={{
 								fontSize: 11,
-								fill: 'var(--muted-foreground)',
+								fill: "var(--muted-foreground)",
 								fontWeight: 500,
 							}}
 							tickLine={false}
@@ -226,7 +226,7 @@ export function RevenueChart({
 							axisLine={false}
 							tick={{
 								fontSize: 11,
-								fill: 'var(--muted-foreground)',
+								fill: "var(--muted-foreground)",
 								fontWeight: 500,
 							}}
 							tickFormatter={valueFormatter}
@@ -240,7 +240,7 @@ export function RevenueChart({
 							orientation="right"
 							tick={{
 								fontSize: 11,
-								fill: 'var(--muted-foreground)',
+								fill: "var(--muted-foreground)",
 								fontWeight: 500,
 							}}
 							tickFormatter={(value) => value.toLocaleString()}
@@ -253,22 +253,22 @@ export function RevenueChart({
 							animationDuration={200}
 							content={<CustomTooltip />}
 							cursor={{
-								stroke: 'var(--primary)',
+								stroke: "var(--primary)",
 								strokeWidth: 1,
 								strokeOpacity: 0.5,
-								strokeDasharray: '4 4',
+								strokeDasharray: "4 4",
 							}}
-							wrapperStyle={{ outline: 'none' }}
+							wrapperStyle={{ outline: "none" }}
 						/>
 
 						<Legend
 							formatter={(value, _entry: any) => (
 								<span
 									className={cn(
-										'cursor-pointer font-medium text-xs transition-all duration-200',
+										"cursor-pointer font-medium text-xs transition-all duration-200",
 										hoveredMetric === value
-											? 'text-primary'
-											: 'text-muted-foreground hover:text-foreground'
+											? "text-primary"
+											: "text-muted-foreground hover:text-foreground"
 									)}
 									onMouseEnter={() => setHoveredMetric(value)}
 									onMouseLeave={() => setHoveredMetric(null)}
@@ -279,8 +279,8 @@ export function RevenueChart({
 							iconSize={10}
 							iconType="circle"
 							wrapperStyle={{
-								fontSize: '12px',
-								paddingTop: '20px',
+								fontSize: "12px",
+								paddingTop: "20px",
 								bottom: chartData.length > 5 ? 35 : 5,
 								fontWeight: 500,
 							}}
@@ -291,8 +291,8 @@ export function RevenueChart({
 								r: 6,
 								strokeWidth: 3,
 								stroke: REVENUE_COLORS.revenue.primary,
-								fill: 'var(--background)',
-								filter: 'url(#glow-revenue)',
+								fill: "var(--background)",
+								filter: "url(#glow-revenue)",
 							}}
 							className="transition-all duration-300"
 							dataKey="revenue"
@@ -311,8 +311,8 @@ export function RevenueChart({
 								r: 6,
 								strokeWidth: 3,
 								stroke: REVENUE_COLORS.transactions.primary,
-								fill: 'var(--background)',
-								filter: 'url(#glow-transactions)',
+								fill: "var(--background)",
+								filter: "url(#glow-transactions)",
 							}}
 							className="transition-all duration-300"
 							dataKey="transactions"

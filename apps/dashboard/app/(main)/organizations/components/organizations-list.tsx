@@ -1,36 +1,26 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import {
-	BuildingsIcon,
-	CalendarIcon,
-	CheckIcon,
-	GearIcon,
-} from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn, getOrganizationInitials } from '@/lib/utils';
-import { EmptyState } from './empty-state';
+import { authClient } from "@databuddy/auth/client";
+import { BuildingsIcon, CalendarIcon, CheckIcon } from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn, getOrganizationInitials } from "@/lib/utils";
+import { EmptyState } from "./empty-state";
 
 dayjs.extend(relativeTime);
 
 interface OrganizationsListProps {
-	organizations: ReturnType<typeof authClient.useListOrganizations>['data'];
-	activeOrganization: ReturnType<typeof authClient.useActiveOrganization>['data'];
+	organizations: ReturnType<typeof authClient.useListOrganizations>["data"];
+	activeOrganization: ReturnType<
+		typeof authClient.useActiveOrganization
+	>["data"];
 	isLoading: boolean;
 }
 
@@ -57,14 +47,14 @@ function OrganizationSkeleton() {
 function OrganizationsEmptyState() {
 	return (
 		<EmptyState
-			icon={BuildingsIcon}
-			title="Start Building Together"
 			description="Organizations help you collaborate with your team and manage projects more effectively. Create your first organization to get started."
 			features={[
-				{ label: 'Team collaboration' },
-				{ label: 'Project management' },
-				{ label: 'Shared resources' },
+				{ label: "Team collaboration" },
+				{ label: "Project management" },
+				{ label: "Shared resources" },
 			]}
+			icon={BuildingsIcon}
+			title="Start Building Together"
 		/>
 	);
 }
@@ -79,24 +69,26 @@ export function OrganizationsList({
 
 	const handleCardClick = async (orgId: string) => {
 		const isCurrentlyActive = activeOrganization?.id === orgId;
-		
+
 		if (isCurrentlyActive) {
-			router.push('/organizations/settings');
+			router.push("/organizations/settings");
 			return;
 		}
 
 		setProcessingId(orgId);
 		try {
-			const { error } = await authClient.organization.setActive({ organizationId: orgId });
+			const { error } = await authClient.organization.setActive({
+				organizationId: orgId,
+			});
 			if (error) {
-				toast.error(error.message || 'Failed to switch workspace');
+				toast.error(error.message || "Failed to switch workspace");
 			} else {
-				toast.success('Workspace updated');
+				toast.success("Workspace updated");
 				await new Promise((resolve) => setTimeout(resolve, 300));
-				router.push('/organizations/settings');
+				router.push("/organizations/settings");
 			}
 		} catch (_error) {
-			toast.error('Failed to switch workspace');
+			toast.error("Failed to switch workspace");
 		} finally {
 			setProcessingId(null);
 		}
@@ -105,7 +97,7 @@ export function OrganizationsList({
 	if (isLoading) {
 		return (
 			<div className="p-4 sm:p-6">
-				<div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
 					{Array.from({ length: 6 }).map((_, i) => (
 						<OrganizationSkeleton key={i.toString()} />
 					))}
@@ -120,7 +112,7 @@ export function OrganizationsList({
 
 	return (
 		<div className="p-4 sm:p-6">
-			<div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
 				{organizations?.map((org) => {
 					const isActive = activeOrganization?.id === org.id;
 					const isProcessing = processingId === org.id;
@@ -128,11 +120,11 @@ export function OrganizationsList({
 					return (
 						<Card
 							className={cn(
-								'group relative cursor-pointer overflow-hidden transition-all duration-200',
+								"group relative cursor-pointer overflow-hidden transition-all duration-200",
 								isActive
-									? 'border-primary/30 bg-primary/5 shadow-sm'
-									: 'hover:border-border/60 hover:bg-muted/30',
-								isProcessing && 'opacity-70 pointer-events-none'
+									? "border-primary/30 bg-primary/5 shadow-sm"
+									: "hover:border-border/60 hover:bg-muted/30",
+								isProcessing && "pointer-events-none opacity-70"
 							)}
 							key={org.id}
 							onClick={() => handleCardClick(org.id)}

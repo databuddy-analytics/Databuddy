@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { SciFiCard } from '@/components/scifi-card';
-import { cn } from '@/lib/utils';
-import type { Sponsor } from './sponsors-data';
+import Image from "next/image";
+import Link from "next/link";
+import { SciFiCard } from "@/components/scifi-card";
+import { cn } from "@/lib/utils";
+import type { Sponsor } from "./sponsors-data";
 
 interface SponsorsGridProps {
 	sponsors: Sponsor[];
@@ -12,17 +12,17 @@ interface SponsorsGridProps {
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 	const tierColors = {
-		platinum: 'border-purple-500/30 bg-purple-500/5',
-		gold: 'border-yellow-500/30 bg-yellow-500/5',
-		silver: 'border-gray-400/30 bg-gray-400/5',
-		bronze: 'border-orange-600/30 bg-orange-600/5',
+		platinum: "border-purple-500/30 bg-purple-500/5",
+		gold: "border-yellow-500/30 bg-yellow-500/5",
+		silver: "border-gray-400/30 bg-gray-400/5",
+		bronze: "border-orange-600/30 bg-orange-600/5",
 	};
 
 	const tierLabels = {
-		platinum: 'Platinum',
-		gold: 'Gold',
-		silver: 'Silver',
-		bronze: 'Bronze',
+		platinum: "Platinum",
+		gold: "Gold",
+		silver: "Silver",
+		bronze: "Bronze",
 	};
 
 	return (
@@ -46,10 +46,10 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 						<Image
 							alt={`${sponsor.name} logo`}
 							className={cn(
-								'max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105',
-								sponsor.name === 'Upstash'
-									? 'dark:brightness-0 dark:invert'
-									: 'brightness-0 dark:brightness-100'
+								"max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105",
+								sponsor.name === "Upstash"
+									? "dark:brightness-0 dark:invert"
+									: "brightness-0 dark:brightness-100"
 							)}
 							height={96}
 							src={sponsor.logo}
@@ -99,7 +99,7 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 			{} as Record<string, Sponsor[]>
 		);
 
-	const tierOrder = ['platinum', 'gold', 'silver', 'bronze'] as const;
+	const tierOrder = ["platinum", "gold", "silver", "bronze"] as const;
 
 	return (
 		<div>
@@ -123,28 +123,28 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 					}
 
 					const tierLabels: Record<typeof tier, string> = {
-						platinum: 'Platinum Sponsors',
-						gold: 'Gold Sponsors',
-						silver: 'Silver Sponsors',
-						bronze: 'Bronze Sponsors',
+						platinum: "Platinum Sponsors",
+						gold: "Gold Sponsors",
+						silver: "Silver Sponsors",
+						bronze: "Bronze Sponsors",
 					};
 
 					// Dynamic grid columns based on number of items
 					const getGridCols = (count: number, tierType: string) => {
 						if (count === 1) {
-							return 'grid-cols-1 place-items-center max-w-md mx-auto';
+							return "grid-cols-1 place-items-center max-w-md mx-auto";
 						}
 						if (count === 2) {
-							return 'grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto';
+							return "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto";
 						}
 
 						const tierCols: Record<string, string> = {
-							platinum: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2',
-							gold: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+							platinum: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2",
+							gold: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
 							silver:
-								'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+								"grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
 							bronze:
-								'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+								"grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
 						};
 						return tierCols[tierType] || tierCols.bronze;
 					};

@@ -1,9 +1,9 @@
-import { CheckIcon } from '@phosphor-icons/react/ssr';
-import React from 'react';
+import { CheckIcon } from "@phosphor-icons/react/ssr";
+import React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-interface StepsProps extends React.ComponentProps<'div'> {
+interface StepsProps extends React.ComponentProps<"div"> {
 	children: React.ReactNode;
 }
 
@@ -11,7 +11,7 @@ function Steps({ className, children, ...props }: StepsProps) {
 	const childrenArray = React.Children.toArray(children);
 
 	return (
-		<div className={cn('space-y-6', className)} {...props}>
+		<div className={cn("space-y-6", className)} {...props}>
 			{childrenArray.map((child, index) => {
 				if (React.isValidElement(child) && child.type === Step) {
 					const stepProps = {
@@ -27,7 +27,7 @@ function Steps({ className, children, ...props }: StepsProps) {
 	);
 }
 
-interface StepProps extends React.ComponentProps<'div'> {
+interface StepProps extends React.ComponentProps<"div"> {
 	title?: string;
 	stepNumber?: number;
 	total?: number;
@@ -44,7 +44,7 @@ function Step({
 	const isLast = stepNumber === total;
 
 	return (
-		<div className={cn('relative', !isLast && 'pb-6', className)} {...props}>
+		<div className={cn("relative", !isLast && "pb-6", className)} {...props}>
 			{!isLast && (
 				<div className="absolute top-8 left-6 h-full w-px bg-border" />
 			)}
@@ -69,7 +69,7 @@ function Step({
 	);
 }
 
-interface CompletedStepProps extends Omit<StepProps, 'stepNumber'> {
+interface CompletedStepProps extends Omit<StepProps, "stepNumber"> {
 	stepNumber?: number;
 }
 
@@ -85,7 +85,7 @@ function CompletedStep({
 
 	return (
 		<div
-			className={cn('relative opacity-70', !isLast && 'pb-6', className)}
+			className={cn("relative opacity-70", !isLast && "pb-6", className)}
 			{...props}
 		>
 			{!isLast && (

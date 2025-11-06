@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 export function useFullScreen() {
 	const [fullScreen, setFullScreen] = useState(false);
@@ -25,10 +25,10 @@ export function useFullScreen() {
 		}
 
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
+			if (e.key === "Escape") {
 				setFullScreen(false);
 			}
-			if (e.key === 'Tab' && focusable && focusable.length) {
+			if (e.key === "Tab" && focusable && focusable.length) {
 				const first = focusable[0];
 				const last = Array.from(focusable).at(-1);
 				if (e.shiftKey && document.activeElement === first) {
@@ -41,9 +41,9 @@ export function useFullScreen() {
 			}
 		};
 
-		window.addEventListener('keydown', handleKeyDown);
+		window.addEventListener("keydown", handleKeyDown);
 		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
+			window.removeEventListener("keydown", handleKeyDown);
 			lastFocusedElement.current?.focus();
 		};
 	}, [fullScreen]);

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowRightIcon,
@@ -10,21 +10,21 @@ import {
 	GlobeIcon,
 	LightningIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useWebsites } from '@/hooks/use-websites';
-import { QuickSettingsModal } from './_components/quick-settings-modal';
-import { RevenueOverviewTab } from './_components/tabs/overview-tab';
-import { RevenueSettingsTab } from './_components/tabs/settings-tab';
-import { useRevenueConfig } from './hooks/use-revenue-config';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWebsites } from "@/hooks/use-websites";
+import { QuickSettingsModal } from "./_components/quick-settings-modal";
+import { RevenueOverviewTab } from "./_components/tabs/overview-tab";
+import { RevenueSettingsTab } from "./_components/tabs/settings-tab";
+import { useRevenueConfig } from "./hooks/use-revenue-config";
 
 export default function RevenuePage() {
-	const [activeTab, setActiveTab] = useState('overview');
+	const [activeTab, setActiveTab] = useState("overview");
 	const revenueConfig = useRevenueConfig();
 	const { websites, isLoading: websitesLoading } = useWebsites();
 
@@ -63,7 +63,7 @@ export default function RevenuePage() {
 									weight="fill"
 								/>
 								<span className="font-medium text-green-600 text-sm dark:text-green-400">
-									{revenueConfig.isLiveMode ? 'Live Mode' : 'Test Mode'}
+									{revenueConfig.isLiveMode ? "Live Mode" : "Test Mode"}
 								</span>
 							</div>
 						) : (
@@ -118,7 +118,7 @@ export default function RevenuePage() {
 								<div className="flex flex-col gap-3 sm:flex-row">
 									<Button
 										className="gap-2"
-										onClick={() => setActiveTab('settings')}
+										onClick={() => setActiveTab("settings")}
 										size="sm"
 									>
 										<LightningIcon
@@ -162,7 +162,7 @@ export default function RevenuePage() {
 								weight="duotone"
 							/>
 							Overview
-							{activeTab === 'overview' && (
+							{activeTab === "overview" && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 							)}
 						</TabsTrigger>
@@ -179,7 +179,7 @@ export default function RevenuePage() {
 							{!revenueConfig.isSetupComplete && (
 								<div className="ml-1 h-2 w-2 animate-pulse rounded-full bg-orange-500" />
 							)}
-							{activeTab === 'settings' && (
+							{activeTab === "settings" && (
 								<div className="absolute bottom-0 left-0 h-[2px] w-full bg-primary" />
 							)}
 						</TabsTrigger>
@@ -192,7 +192,7 @@ export default function RevenuePage() {
 						<RevenueOverviewTab
 							isLiveMode={revenueConfig.isLiveMode}
 							isSetupComplete={revenueConfig.isSetupComplete}
-							onSetupClick={() => setActiveTab('settings')}
+							onSetupClick={() => setActiveTab("settings")}
 							setupProgress={revenueConfig.setupProgress}
 						/>
 					)}
@@ -206,7 +206,7 @@ export default function RevenuePage() {
 								</h2>
 								<Badge className="text-xs" variant="secondary">
 									{websites?.length || 0} website
-									{(websites?.length || 0) !== 1 ? 's' : ''}
+									{(websites?.length || 0) !== 1 ? "s" : ""}
 								</Badge>
 							</div>
 

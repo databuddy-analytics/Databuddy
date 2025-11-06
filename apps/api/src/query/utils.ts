@@ -1,6 +1,10 @@
-import { getCountryCode, getCountryName, referrers } from '@databuddy/shared';
-import { mapScreenResolutionToDeviceType } from './screen-resolution-to-device-type';
-import type { SimpleQueryConfig } from './types';
+import {
+	getCountryCode,
+	getCountryName,
+} from "@databuddy/shared/country-codes";
+import { referrers } from "@databuddy/shared/lists/referrers";
+import { mapScreenResolutionToDeviceType } from "./screen-resolution-to-device-type";
+import type { SimpleQueryConfig } from "./types";
 
 export interface ParsedReferrer {
 	type: string;
@@ -14,7 +18,7 @@ function parseReferrer(
 	currentDomain?: string | null
 ): ParsedReferrer {
 	if (!referrerUrl) {
-		return { type: 'direct', name: 'Direct', url: '', domain: '' };
+		return { type: "direct", name: "Direct", url: "", domain: "" };
 	}
 
 	try {
@@ -25,7 +29,7 @@ function parseReferrer(
 			currentDomain &&
 			(hostname === currentDomain || hostname.endsWith(`.${currentDomain}`))
 		) {
-			return { type: 'direct', name: 'Direct', url: '', domain: '' };
+			return { type: "direct", name: "Direct", url: "", domain: "" };
 		}
 
 		const match = getReferrerByDomain(hostname);
@@ -39,12 +43,12 @@ function parseReferrer(
 		}
 
 		if (
-			url.searchParams.has('q') ||
-			url.searchParams.has('query') ||
-			url.searchParams.has('search')
+			url.searchParams.has("q") ||
+			url.searchParams.has("query") ||
+			url.searchParams.has("search")
 		) {
 			return {
-				type: 'search',
+				type: "search",
 				name: hostname,
 				url: referrerUrl,
 				domain: hostname,
@@ -52,13 +56,13 @@ function parseReferrer(
 		}
 
 		return {
-			type: 'unknown',
+			type: "unknown",
 			name: hostname,
 			url: referrerUrl,
 			domain: hostname,
 		};
 	} catch {
-		return { type: 'direct', name: 'Direct', url: referrerUrl, domain: '' };
+		return { type: "direct", name: "Direct", url: referrerUrl, domain: "" };
 	}
 }
 
@@ -70,9 +74,9 @@ function getReferrerByDomain(
 		return match || null;
 	}
 
-	const parts = domain.split('.');
+	const parts = domain.split(".");
 	for (let i = 1; i < parts.length - 1; i++) {
-		const partial = parts.slice(i).join('.');
+		const partial = parts.slice(i).join(".");
 		if (partial in referrers) {
 			const match = referrers[partial];
 			return match || null;
@@ -94,10 +98,10 @@ interface DataRow {
 }
 
 const getNumber = (value: unknown): number =>
-	typeof value === 'number' ? value : 0;
+	typeof value === "number" ? value : 0;
 
 const getString = (value: unknown): string =>
-	typeof value === 'string' ? value : '';
+	typeof value === "string" ? value : "";
 
 export function applyPlugins(
 	data: DataRow[],
@@ -152,13 +156,18 @@ export function deduplicateGeoRows(rows: DataRow[]): DataRow[] {
 	for (const row of aggregated.values()) {
 		totalVisitors += getNumber(row.visitors);
 	}
-	for (const row of aggregated.values()) {
+	const result = Array.from(aggregated.values());
+	for (const row of result) {
 		row.percentage =
 			totalVisitors > 0
-				? Math.round((getNumber(row.visitors) / totalVisitors) * 100)
+				? Math.round((getNumber(row.visitors) / totalVisitors) * 10_000) / 100
 				: 0;
 	}
-	return Array.from(aggregated.values());
+	return result.sort((a, b) => {
+		const visitorsA = getNumber(a.visitors);
+		const visitorsB = getNumber(b.visitors);
+		return visitorsB - visitorsA;
+	});
 }
 
 function shouldApplyReferrerParsing(config: SimpleQueryConfig): boolean {
@@ -207,7 +216,7 @@ function applyGeoNormalization(data: DataRow[]): DataRow[] {
 function shouldAutoParseReferrers(
 	config: SimpleQueryConfig | { type?: string; name?: string }
 ): boolean {
-	const referrerConfigs = ['top_referrers', 'referrer', 'traffic_sources'];
+	const referrerConfigs = ["top_referrers", "referrer", "traffic_sources"];
 	const typeOrName =
 		(config as { type?: string; name?: string }).type ||
 		(config as { type?: string; name?: string }).name;
@@ -216,7 +225,7 @@ function shouldAutoParseReferrers(
 
 /**
  * Groups and maps screen resolutions to device types, summing pageviews/visitors by type.
- * Preserves all original fields (e.g., percentage) from the first row of each device type.
+ * Calculates percentages based on visitors to match the frontend display.
  */
 export function mapDeviceTypesPlugin(rows: DataRow[]): DataRow[] {
 	const grouped = new Map<string, DataRow>();
@@ -230,24 +239,24 @@ export function mapDeviceTypesPlugin(rows: DataRow[]): DataRow[] {
 		if (agg) {
 			agg.pageviews = getNumber(agg.pageviews) + getNumber(row.pageviews);
 			agg.visitors = getNumber(agg.visitors) + getNumber(row.visitors);
-			const aggPct = agg.percentage;
-			const rowPct = row.percentage;
-			if (typeof aggPct === 'number' && typeof rowPct === 'number') {
-				agg.percentage = aggPct + rowPct;
-			}
 		}
 	}
-	let totalPageviews = 0;
-	for (const row of grouped.values()) {
-		totalPageviews += getNumber(row.pageviews);
+	let totalVisitors = 0;
+	const groupedArray = Array.from(grouped.values());
+	for (const row of groupedArray) {
+		totalVisitors += getNumber(row.visitors);
 	}
-	for (const row of grouped.values()) {
+	for (const row of groupedArray) {
 		row.percentage =
-			totalPageviews > 0
-				? Math.round((getNumber(row.pageviews) / totalPageviews) * 10_000) / 100
+			totalVisitors > 0
+				? Math.round((getNumber(row.visitors) / totalVisitors) * 10_000) / 100
 				: 0;
 	}
-	return Array.from(grouped.values());
+	return groupedArray.sort((a, b) => {
+		const visitorsA = getNumber(a.visitors);
+		const visitorsB = getNumber(b.visitors);
+		return visitorsB - visitorsA;
+	});
 }
 
 function applyUrlNormalization(data: DataRow[]): DataRow[] {
@@ -259,16 +268,16 @@ function applyUrlNormalization(data: DataRow[]): DataRow[] {
 		let normalized = original;
 		try {
 			if (
-				normalized.startsWith('http://') ||
-				normalized.startsWith('https://')
+				normalized.startsWith("http://") ||
+				normalized.startsWith("https://")
 			) {
 				const url = new URL(normalized);
-				normalized = url.pathname || '/';
+				normalized = url.pathname || "/";
 			}
-			if (!normalized.startsWith('/')) {
+			if (!normalized.startsWith("/")) {
 				normalized = `/${normalized}`;
 			}
-			if (normalized.length > 1 && normalized.endsWith('/')) {
+			if (normalized.length > 1 && normalized.endsWith("/")) {
 				normalized = normalized.slice(0, -1);
 			}
 			return { ...row, name: normalized } as DataRow;
@@ -282,11 +291,11 @@ const UNSAFE_CLAUSE_REGEX = /;|--|\/\*|\*\//;
 
 export function buildWhereClause(conditions?: string[]): string {
 	if (!conditions?.length) {
-		return '';
+		return "";
 	}
 
 	const safeClauses = conditions.filter(
 		(clause) => !UNSAFE_CLAUSE_REGEX.test(clause)
 	);
-	return `WHERE (${safeClauses.join(' AND ')})`;
+	return `WHERE (${safeClauses.join(" AND ")})`;
 }

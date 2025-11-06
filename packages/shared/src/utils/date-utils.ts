@@ -1,8 +1,8 @@
-import dayjs from 'dayjs';
-import relativeTimePlugin from 'dayjs/plugin/relativeTime';
-import timezonePlugin from 'dayjs/plugin/timezone';
-import utcPlugin from 'dayjs/plugin/utc';
-import { TIMEZONES } from '../lists/timezones';
+import dayjs from "dayjs";
+import relativeTimePlugin from "dayjs/plugin/relativeTime";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
+import { TIMEZONES } from "../lists/timezones";
 
 // Initialize dayjs plugins
 dayjs.extend(utcPlugin);
@@ -10,8 +10,8 @@ dayjs.extend(timezonePlugin);
 dayjs.extend(relativeTimePlugin);
 
 // Default format constants
-const DEFAULT_DATE_FORMAT = 'MMM D, YYYY';
-const DEFAULT_TIME_FORMAT = 'h:mm A';
+const DEFAULT_DATE_FORMAT = "MMM D, YYYY";
+const DEFAULT_TIME_FORMAT = "h:mm A";
 
 interface DateFormatOptions {
 	timezone?: string;
@@ -34,10 +34,10 @@ export function formatDate(
 	options?: DateFormatOptions
 ): string {
 	if (!date) {
-		return '';
+		return "";
 	}
 
-	const timezone = options?.timezone || 'UTC';
+	const timezone = options?.timezone || "UTC";
 	const dayjsDate = dayjs(date).tz(timezone);
 
 	if (options?.customFormat) {
@@ -59,7 +59,7 @@ export function formatDate(
  */
 export function convertToTimezone(
 	date: Exclude<DateInput, null>,
-	timezone = 'UTC'
+	timezone = "UTC"
 ): Date {
 	return dayjs(date).tz(timezone).toDate();
 }
@@ -88,7 +88,7 @@ export function findTimezoneByRegion(region: string) {
  */
 export function formatRelativeTime(date: DateInput): string {
 	if (!date) {
-		return '';
+		return "";
 	}
 	return dayjs(date).fromNow();
 }

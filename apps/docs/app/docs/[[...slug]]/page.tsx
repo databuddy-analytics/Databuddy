@@ -1,8 +1,8 @@
-import defaultMdxComponents from 'fumadocs-ui/mdx';
-import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/page';
-import { notFound } from 'next/navigation';
-import { DocsFooter } from '@/components/docs-footer';
-import { source } from '@/lib/source';
+import defaultMdxComponents from "fumadocs-ui/mdx";
+import { DocsBody, DocsPage, DocsTitle } from "fumadocs-ui/page";
+import { notFound } from "next/navigation";
+import { DocsFooter } from "@/components/docs-footer";
+import { source } from "@/lib/source";
 
 export default async function Page(props: {
 	params: Promise<{ slug?: string[] }>;
@@ -18,9 +18,9 @@ export default async function Page(props: {
 	return (
 		<DocsPage
 			editOnGithub={{
-				owner: 'databuddy-analytics',
-				repo: 'databuddy',
-				sha: 'main',
+				owner: "databuddy-analytics",
+				repo: "databuddy",
+				sha: "main",
 				path: `/docs/content/docs/${page.file.path}`,
 			}}
 			footer={{
@@ -29,7 +29,7 @@ export default async function Page(props: {
 			}}
 			full={page.data.full}
 			tableOfContent={{
-				style: 'clerk',
+				style: "clerk",
 			}}
 			toc={page.data.toc}
 		>
@@ -62,41 +62,41 @@ export async function generateMetadata(props: {
 
 	const baseKeywords = [
 		page.data.title.toLowerCase(),
-		'databuddy',
-		'analytics',
-		'privacy-first',
-		'documentation',
-		'web analytics',
-		'GDPR compliant',
-		'cookieless analytics',
-		'data ownership',
+		"databuddy",
+		"analytics",
+		"privacy-first",
+		"documentation",
+		"web analytics",
+		"GDPR compliant",
+		"cookieless analytics",
+		"data ownership",
 	];
 
 	const contextKeywords = [
-		...(page.url.includes('integration') || page.url.includes('Integrations')
-			? ['integration', 'setup guide', 'installation']
+		...(page.url.includes("integration") || page.url.includes("Integrations")
+			? ["integration", "setup guide", "installation"]
 			: []),
-		...(page.url.includes('api')
-			? ['API', 'reference', 'endpoints', 'REST API']
+		...(page.url.includes("api")
+			? ["API", "reference", "endpoints", "REST API"]
 			: []),
-		...(page.url.includes('getting-started')
-			? ['tutorial', 'quickstart', 'setup']
+		...(page.url.includes("getting-started")
+			? ["tutorial", "quickstart", "setup"]
 			: []),
-		...(page.url.includes('sdk') ? ['SDK', 'JavaScript', 'tracking'] : []),
-		...(page.url.includes('dashboard') ? ['dashboard', 'interface', 'UI'] : []),
-		...(page.url.includes('security')
-			? ['security', 'privacy', 'compliance']
+		...(page.url.includes("sdk") ? ["SDK", "JavaScript", "tracking"] : []),
+		...(page.url.includes("dashboard") ? ["dashboard", "interface", "UI"] : []),
+		...(page.url.includes("security")
+			? ["security", "privacy", "compliance"]
 			: []),
-		...(page.url.includes('performance')
-			? ['performance', 'core web vitals', 'optimization']
+		...(page.url.includes("performance")
+			? ["performance", "core web vitals", "optimization"]
 			: []),
-		...(page.url.includes('react') ? ['React', 'React.js', 'component'] : []),
-		...(page.url.includes('nextjs')
-			? ['Next.js', 'React framework', 'SSR']
+		...(page.url.includes("react") ? ["React", "React.js", "component"] : []),
+		...(page.url.includes("nextjs")
+			? ["Next.js", "React framework", "SSR"]
 			: []),
-		...(page.url.includes('wordpress') ? ['WordPress', 'plugin', 'CMS'] : []),
-		...(page.url.includes('shopify')
-			? ['Shopify', 'e-commerce', 'online store']
+		...(page.url.includes("wordpress") ? ["WordPress", "plugin", "CMS"] : []),
+		...(page.url.includes("shopify")
+			? ["Shopify", "e-commerce", "online store"]
 			: []),
 	];
 
@@ -104,20 +104,20 @@ export async function generateMetadata(props: {
 		title,
 		description,
 		keywords: [...baseKeywords, ...contextKeywords],
-		authors: [{ name: 'Databuddy Team' }],
-		creator: 'Databuddy',
-		publisher: 'Databuddy',
-		category: 'Documentation',
+		authors: [{ name: "Databuddy Team" }],
+		creator: "Databuddy",
+		publisher: "Databuddy",
+		category: "Documentation",
 		openGraph: {
 			title,
 			description,
 			url,
-			siteName: 'Databuddy Documentation',
-			type: 'article',
-			locale: 'en_US',
+			siteName: "Databuddy Documentation",
+			type: "article",
+			locale: "en_US",
 			images: [
 				{
-					url: 'https://www.databuddy.cc/og-image.png',
+					url: "https://www.databuddy.cc/og-image.png",
 					width: 1200,
 					height: 630,
 					alt: `${page.data.title} - Databuddy Documentation`,
@@ -125,12 +125,12 @@ export async function generateMetadata(props: {
 			],
 		},
 		twitter: {
-			card: 'summary_large_image',
+			card: "summary_large_image",
 			title,
 			description,
-			images: ['https://www.databuddy.cc/og-image.png'],
-			creator: '@databuddyps',
-			site: '@databuddyps',
+			images: ["https://www.databuddy.cc/og-image.png"],
+			creator: "@databuddyps",
+			site: "@databuddyps",
 		},
 		alternates: {
 			canonical: url,
@@ -138,22 +138,22 @@ export async function generateMetadata(props: {
 		robots: {
 			index: true,
 			follow: true,
-			'max-image-preview': 'large',
-			'max-snippet': -1,
-			'max-video-preview': -1,
+			"max-image-preview": "large",
+			"max-snippet": -1,
+			"max-video-preview": -1,
 			googleBot: {
 				index: true,
 				follow: true,
-				'max-video-preview': -1,
-				'max-image-preview': 'large',
-				'max-snippet': -1,
+				"max-video-preview": -1,
+				"max-image-preview": "large",
+				"max-snippet": -1,
 			},
 		},
 		other: {
-			'article:section': 'Documentation',
-			'article:tag': page.data.title,
-			'article:author': 'Databuddy Team',
-			'og:site_name': 'Databuddy Documentation',
+			"article:section": "Documentation",
+			"article:tag": page.data.title,
+			"article:author": "Databuddy Team",
+			"og:site_name": "Databuddy Documentation",
 		},
 	};
 }

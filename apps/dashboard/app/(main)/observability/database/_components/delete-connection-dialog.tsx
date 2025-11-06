@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { TrashIcon, WarningIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +9,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface DeleteConnectionDialogProps {
 	connection: { id: string; name: string } | null;
@@ -46,7 +46,7 @@ export function DeleteConnectionDialog({
 
 				<div className="py-4">
 					<p className="text-muted-foreground text-sm">
-						Are you sure you want to delete the connection{' '}
+						Are you sure you want to delete the connection{" "}
 						<span className="font-medium text-foreground">
 							{connection?.name}
 						</span>
@@ -71,7 +71,7 @@ export function DeleteConnectionDialog({
 						variant="destructive"
 					>
 						{isLoading ? (
-							'Deleting...'
+							"Deleting..."
 						) : (
 							<>
 								<TrashIcon className="h-4 w-4" />

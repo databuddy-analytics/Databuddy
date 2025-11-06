@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { Website } from '@databuddy/shared';
-import { GlobeIcon } from '@phosphor-icons/react';
-import { FaviconImage } from '@/components/analytics/favicon-image';
-import { cn } from '@/lib/utils';
+import type { Website } from "@databuddy/shared/types/website";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { cn } from "@/lib/utils";
 
 function WebsiteCard({
 	website,
@@ -17,10 +17,10 @@ function WebsiteCard({
 	return (
 		<button
 			className={cn(
-				'flex w-full items-center gap-3 rounded border p-2 text-left transition-all duration-200',
+				"flex w-full items-center gap-3 rounded border p-2 text-left transition-all duration-200",
 				selected
-					? 'border-primary/30 bg-primary/10 shadow-sm ring-1 ring-primary/20'
-					: 'border-border/30 bg-background/50 hover:border-border/60 hover:bg-muted/60'
+					? "border-primary/30 bg-primary/10 shadow-sm ring-1 ring-primary/20"
+					: "border-border/30 bg-background/50 hover:border-border/60 hover:bg-muted/60"
 			)}
 			onClick={onClick}
 			type="button"

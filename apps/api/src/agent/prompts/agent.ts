@@ -1,31 +1,31 @@
-import { z } from 'zod';
-import type { AssistantRequestType } from '../../schemas/assistant-schemas';
+import { z } from "zod";
+import type { AssistantRequestType } from "../../schemas/assistant-schemas";
 
 export const AIResponseJsonSchema = z.object({
 	sql: z.string().optional(),
 	chart_type: z
 		.enum([
-			'bar',
-			'horizontal_bar',
-			'line',
-			'sparkline',
-			'pie',
-			'donut',
-			'area',
-			'unstacked_area',
-			'stacked_bar',
-			'multi_line',
-			'scatter',
-			'bubble',
-			'radar',
-			'funnel',
-			'grouped_bar',
-			'histogram',
-			'treemap',
-			'gauge',
+			"bar",
+			"horizontal_bar",
+			"line",
+			"sparkline",
+			"pie",
+			"donut",
+			"area",
+			"unstacked_area",
+			"stacked_bar",
+			"multi_line",
+			"scatter",
+			"bubble",
+			"radar",
+			"funnel",
+			"grouped_bar",
+			"histogram",
+			"treemap",
+			"gauge",
 		])
 		.optional(),
-	response_type: z.enum(['chart', 'text', 'metric']),
+	response_type: z.enum(["chart", "text", "metric"]),
 	text_response: z.string().optional(),
 	metric_value: z.string().optional(),
 	metric_label: z.string().optional(),
@@ -36,18 +36,18 @@ export type AIResponse = z.infer<typeof AIResponseJsonSchema>;
 
 export const AIPlanSchema = z.object({
 	thinking: z.array(z.string()),
-	complexity: z.enum(['low', 'high']),
+	complexity: z.enum(["low", "high"]),
 	reasoning: z.string(),
 	confidence: z.number().min(0).max(1),
-	suggested_mode: z.enum(['chat', 'agent']),
+	suggested_mode: z.enum(["chat", "agent"]),
 	plan: z.array(z.string()),
 });
 
 export const comprehensiveSystemPrompt = (
 	websiteId: string,
 	websiteHostname: string,
-	mode: 'analysis_only' | 'execute_chat' | 'execute_agent_step',
-	_model?: AssistantRequestType['model']
+	mode: "analysis_only" | "execute_chat" | "execute_agent_step",
+	_model?: AssistantRequestType["model"]
 ) => `
 <persona>
 You are Databunny, a world-class, specialized data analyst for the website ${websiteHostname}. You are precise, analytical, and secure. Your sole purpose is to help users understand their website's analytics data by providing insights, generating SQL queries, and creating visualizations.
@@ -170,7 +170,7 @@ You are Databunny, a world-class, specialized data analyst for the website ${web
   <website_id>${websiteId}</website_id>
   <website_hostname>${websiteHostname}</website_hostname>
   <mode>${mode}</mode>
-  <current_date_utc>${new Date().toISOString().split('T')[0]}</current_date_utc>
+  <current_date_utc>${new Date().toISOString().split("T")[0]}</current_date_utc>
   <current_timestamp_utc>${new Date().toISOString()}</current_timestamp_utc>
 </request_context>
 

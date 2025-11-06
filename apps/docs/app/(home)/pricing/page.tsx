@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { Footer } from '@/components/footer';
-import { displayNameForPlan, selectBestPlan } from './_pricing/best-plan';
-import { Estimator } from './_pricing/estimator';
-import { estimateTieredOverageCostFromTiers } from './_pricing/estimator-utils';
-import { normalizePlans } from './_pricing/normalize';
-import { PlansComparisonTable } from './_pricing/table';
-import type { NormalizedPlan } from './_pricing/types';
-import { RAW_PLANS } from './data';
+import { useMemo, useState } from "react";
+import { Footer } from "@/components/footer";
+import { displayNameForPlan, selectBestPlan } from "./_pricing/best-plan";
+import { Estimator } from "./_pricing/estimator";
+import { estimateTieredOverageCostFromTiers } from "./_pricing/estimator-utils";
+import { normalizePlans } from "./_pricing/normalize";
+import { PlansComparisonTable } from "./_pricing/table";
+import type { NormalizedPlan } from "./_pricing/types";
+import { RAW_PLANS } from "./data";
 
 const PLANS: NormalizedPlan[] = normalizePlans(RAW_PLANS);
 

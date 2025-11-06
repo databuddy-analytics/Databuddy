@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
 import {
 	FlagIcon,
 	FunnelSimpleIcon,
 	MagnifyingGlassIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { EmptyState } from '@/components/empty-state';
-import { Input } from '@/components/ui/input';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { EmptyState } from "@/components/empty-state";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { FlagRow } from './flag-row';
-import type { Flag } from './types';
+} from "@/components/ui/select";
+import { FlagRow } from "./flag-row";
+import type { Flag } from "./types";
 
 interface FlagsListProps {
 	flags: Flag[];
@@ -25,7 +25,7 @@ interface FlagsListProps {
 	onEditFlag: (flag: Flag) => void;
 }
 
-type FlagStatus = 'active' | 'inactive' | 'archived';
+type FlagStatus = "active" | "inactive" | "archived";
 
 export function FlagsList({
 	flags,
@@ -33,12 +33,12 @@ export function FlagsList({
 	onCreateFlag,
 	onEditFlag,
 }: FlagsListProps) {
-	const [searchQuery, setSearchQuery] = useState('');
-	const [statusFilter, setStatusFilter] = useState<FlagStatus | 'all'>('all');
+	const [searchQuery, setSearchQuery] = useState("");
+	const [statusFilter, setStatusFilter] = useState<FlagStatus | "all">("all");
 
 	const filteredFlags = flags.filter((flag) => {
 		// Status filter
-		if (statusFilter !== 'all' && flag.status !== statusFilter) {
+		if (statusFilter !== "all" && flag.status !== statusFilter) {
 			return false;
 		}
 
@@ -62,7 +62,7 @@ export function FlagsList({
 		return (
 			<EmptyState
 				action={{
-					label: 'Create Your First Flag',
+					label: "Create Your First Flag",
 					onClick: onCreateFlag,
 				}}
 				description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
@@ -96,7 +96,7 @@ export function FlagsList({
 					<div className="flex items-center gap-2">
 						<FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
 						<Select
-							onValueChange={(value: FlagStatus | 'all') =>
+							onValueChange={(value: FlagStatus | "all") =>
 								setStatusFilter(value)
 							}
 							value={statusFilter}
@@ -114,7 +114,7 @@ export function FlagsList({
 					</div>
 				</div>
 				<div className="text-muted-foreground text-sm">
-					{filteredFlags.length} flag{filteredFlags.length !== 1 ? 's' : ''}
+					{filteredFlags.length} flag{filteredFlags.length !== 1 ? "s" : ""}
 				</div>
 			</div>
 

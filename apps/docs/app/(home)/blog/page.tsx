@@ -3,19 +3,19 @@ import {
 	ClockIcon,
 	TagIcon,
 	UserIcon,
-} from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
-import { Footer } from '@/components/footer';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
-import { SciFiCard } from '@/components/scifi-card';
-import { StructuredData } from '@/components/structured-data';
-import { getPosts } from '@/lib/blog-query';
-import type { Post } from '@usemarble/core';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from "@phosphor-icons/react/ssr";
+import type { Post } from "@usemarble/core";
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { Footer } from "@/components/footer";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
+import { SciFiCard } from "@/components/scifi-card";
+import { StructuredData } from "@/components/structured-data";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getPosts } from "@/lib/blog-query";
 
 export const revalidate = 3600;
 
@@ -23,29 +23,28 @@ export const revalidate = 3600;
 const WORD_SPLIT_REGEX = /\s+/;
 
 export const metadata: Metadata = {
-	title: 'Blog | Databuddy',
+	title: "Blog | Databuddy",
 	description:
-		'Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.',
+		"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.",
 	alternates: {
-		canonical: 'https://www.databuddy.cc/blog',
+		canonical: "https://www.databuddy.cc/blog",
 	},
 	openGraph: {
-		title: 'Blog | Databuddy',
+		title: "Blog | Databuddy",
 		description:
-			'Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.',
-		url: 'https://www.databuddy.cc/blog',
-		images: ['/og-image.png'],
+			"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.",
+		url: "https://www.databuddy.cc/blog",
+		images: ["/og-image.png"],
 	},
 };
 
 function BlogPostCard({ post }: { post: Post }) {
-	const formatDate = (date: Date) => {
-		return new Date(date).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
+	const formatDate = (date: Date) =>
+		new Date(date).toLocaleDateString("en-US", {
+			year: "numeric",
+			month: "short",
+			day: "numeric",
 		});
-	};
 
 	const getReadingTime = (content: string) => {
 		const wordsPerMinute = 200;
@@ -132,16 +131,22 @@ function BlogPostCard({ post }: { post: Post }) {
 							/>
 							<div className="-space-x-2 flex">
 								{post.authors.slice(0, 2).map((author) => (
-									<Avatar className="size-6 rounded border-2 border-background" key={author.id}>
-      								  <AvatarImage src={author.image ?? undefined} alt={author.name} />
-      								  <AvatarFallback>{author.name[0]}</AvatarFallback>
-      								</Avatar>
+									<Avatar
+										className="size-6 rounded border-2 border-background"
+										key={author.id}
+									>
+										<AvatarImage
+											alt={author.name}
+											src={author.image ?? undefined}
+										/>
+										<AvatarFallback>{author.name[0]}</AvatarFallback>
+									</Avatar>
 								))}
 							</div>
 							<span className="text-muted-foreground text-xs">
 								{post.authors.length === 1
 									? post.authors[0].name
-									: `${post.authors[0].name} ${post.authors.length > 1 ? `+${post.authors.length - 1}` : ''}`}
+									: `${post.authors[0].name} ${post.authors.length > 1 ? `+${post.authors.length - 1}` : ""}`}
 							</span>
 						</div>
 
@@ -159,16 +164,16 @@ function BlogPostCard({ post }: { post: Post }) {
 
 export default async function BlogPage() {
 	const result = await getPosts();
-	const posts = 'error' in result ? [] : result.posts;
+	const posts = "error" in result ? [] : result.posts;
 	const sortedPosts = [...posts].sort(
 		(a, b) =>
 			new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
 	);
 
-	const title = 'Blog | Databuddy';
+	const title = "Blog | Databuddy";
 	const description =
-		'Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.';
-	const url = 'https://www.databuddy.cc/blog';
+		"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.";
+	const url = "https://www.databuddy.cc/blog";
 
 	return (
 		<div className="overflow-hidden">

@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import type { QueryPerformanceSummary } from '@databuddy/shared';
-import { CopyIcon, DatabaseIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import type { QueryPerformanceSummary } from "@databuddy/shared/types/performance";
+import { CopyIcon, DatabaseIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import { SqlHighlighter } from './sql-highlighter';
+} from "@/components/ui/sheet";
+import { SqlHighlighter } from "./sql-highlighter";
 
 interface QueryDetailSheetProps {
 	query: (QueryPerformanceSummary & { name: string }) | null;
@@ -67,8 +67,8 @@ export const QueryDetailSheet = ({
 			toast.success(`${section} copied to clipboard`);
 			setTimeout(() => setCopiedSection(null), 2000);
 		} catch (err) {
-			toast.error('Failed to copy to clipboard', {
-				description: err instanceof Error ? err.message : 'Unknown error',
+			toast.error("Failed to copy to clipboard", {
+				description: err instanceof Error ? err.message : "Unknown error",
 			});
 		}
 	};
@@ -76,31 +76,31 @@ export const QueryDetailSheet = ({
 	const getPerformanceLevel = (time: number) => {
 		if (time < 10) {
 			return {
-				level: 'Excellent',
-				color: 'bg-green-100 text-green-800 border-green-200',
+				level: "Excellent",
+				color: "bg-green-100 text-green-800 border-green-200",
 			};
 		}
 		if (time < 50) {
 			return {
-				level: 'Good',
-				color: 'bg-muted text-muted-foreground border-border',
+				level: "Good",
+				color: "bg-muted text-muted-foreground border-border",
 			};
 		}
 		if (time < 100) {
 			return {
-				level: 'Fair',
-				color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+				level: "Fair",
+				color: "bg-yellow-100 text-yellow-800 border-yellow-200",
 			};
 		}
 		if (time < 500) {
 			return {
-				level: 'Poor',
-				color: 'bg-orange-100 text-orange-800 border-orange-200',
+				level: "Poor",
+				color: "bg-orange-100 text-orange-800 border-orange-200",
 			};
 		}
 		return {
-			level: 'Critical',
-			color: 'bg-red-100 text-red-800 border-red-200',
+			level: "Critical",
+			color: "bg-red-100 text-red-800 border-red-200",
 		};
 	};
 
@@ -134,7 +134,7 @@ Resource Usage:
 - Query ID: ${query.queryid}
 		`.trim();
 
-		copyToClipboard(fullDetails, 'Full query details');
+		copyToClipboard(fullDetails, "Full query details");
 	};
 
 	return (
@@ -207,13 +207,13 @@ Resource Usage:
 									Query Pattern
 								</h3>
 								<Button
-									onClick={() => copyToClipboard(query.query, 'Query pattern')}
+									onClick={() => copyToClipboard(query.query, "Query pattern")}
 									size="sm"
 									variant="ghost"
 								>
 									<CopyIcon
 										className={`h-4 w-4 ${
-											copiedSection === 'Query pattern' ? 'text-green-600' : ''
+											copiedSection === "Query pattern" ? "text-green-600" : ""
 										}`}
 									/>
 								</Button>

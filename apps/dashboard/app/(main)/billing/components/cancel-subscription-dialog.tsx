@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CalendarIcon, LightningIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { CalendarIcon, LightningIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +9,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 interface CancelSubscriptionDialogProps {
 	open: boolean;
@@ -64,7 +64,7 @@ export function CancelSubscriptionDialog({
 						<p className="ml-11 text-muted-foreground text-sm">
 							{periodEndDate
 								? `Keep access until ${periodEndDate}. No additional charges.`
-								: 'Keep access until your current billing period ends. No additional charges.'}
+								: "Keep access until your current billing period ends. No additional charges."}
 						</p>
 					</button>
 

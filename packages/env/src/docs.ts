@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { commonEnvSchema, createEnv, shouldSkipValidation } from './base';
+import { z } from "zod";
+import { commonEnvSchema, createEnv, shouldSkipValidation } from "./base";
 
 /**
  * Docs-specific environment schema

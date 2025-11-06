@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	CheckCircleIcon,
@@ -6,32 +6,32 @@ import {
 	LinkIcon,
 	PlusIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import Image from "next/image";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	type Integration,
 	useDisconnectIntegration,
 	useIntegrations,
-} from '@/hooks/use-integrations';
+} from "@/hooks/use-integrations";
 
 const categoryLabels = {
-	deployment: 'Deployment',
-	analytics: 'Analytics',
-	monitoring: 'Monitoring',
-	communication: 'Communication',
+	deployment: "Deployment",
+	analytics: "Analytics",
+	monitoring: "Monitoring",
+	communication: "Communication",
 };
 
 function LoadingSkeleton() {
@@ -101,14 +101,14 @@ export default function IntegrationsPage() {
 
 	// Check for success message from OAuth callback
 	useEffect(() => {
-		if (searchParams.get('vercel_integrated') === 'true') {
+		if (searchParams.get("vercel_integrated") === "true") {
 			setShowSuccessMessage(true);
 			refetch(); // Refresh integrations to show the new connection
 
 			// Remove the query parameter from URL
 			const url = new URL(window.location.href);
-			url.searchParams.delete('vercel_integrated');
-			window.history.replaceState({}, '', url.toString());
+			url.searchParams.delete("vercel_integrated");
+			window.history.replaceState({}, "", url.toString());
 
 			// Hide success message after 5 seconds
 			const timer = setTimeout(() => {
@@ -120,19 +120,19 @@ export default function IntegrationsPage() {
 	}, [searchParams, refetch]);
 
 	const handleConnect = (integration: Integration) => {
-		if (integration.id === 'vercel') {
+		if (integration.id === "vercel") {
 			setConnectingProvider(integration.id);
-			window.location.href = 'https://vercel.com/marketplace/databuddy';
+			window.location.href = "https://vercel.com/marketplace/databuddy";
 		}
 	};
 
 	const handleDisconnect = async (integration: Integration) => {
 		try {
 			await disconnectMutation.mutateAsync({
-				provider: integration.id as 'vercel',
+				provider: integration.id as "vercel",
 			});
 		} catch (error) {
-			console.error('Failed to disconnect integration:', error);
+			console.error("Failed to disconnect integration:", error);
 		}
 	};
 
@@ -242,8 +242,8 @@ export default function IntegrationsPage() {
 																		}}
 																	>
 																		{disconnectMutation.isPending
-																			? 'Disconnecting...'
-																			: 'Disconnect'}
+																			? "Disconnecting..."
+																			: "Disconnect"}
 																	</DropdownMenuItem>
 																</DropdownMenuContent>
 															</DropdownMenu>
@@ -292,7 +292,7 @@ export default function IntegrationsPage() {
 														onClick={() => handleConnect(integration)}
 													>
 														{connectingProvider === integration.id ? (
-															'Connecting...'
+															"Connecting..."
 														) : (
 															<>
 																<PlusIcon className="mr-2 h-4 w-4" />

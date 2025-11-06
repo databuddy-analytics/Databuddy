@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { ArrowsOutSimple as ArrowsOutSimpleIcon } from '@phosphor-icons/react';
-import { useRef } from 'react';
+import { ArrowsOutSimple as ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { useRef } from "react";
 
 export default function DemoContainer() {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -23,11 +23,11 @@ export default function DemoContainer() {
 					style={{
 						backgroundImage: `url("${dotPattern}")`,
 						WebkitMaskImage:
-							'linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)',
+							"linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)",
 						maskImage:
-							'linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)',
-						marginLeft: '-4rem',
-						marginRight: '-4rem',
+							"linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)",
+						marginLeft: "-4rem",
+						marginRight: "-4rem",
 					}}
 				/>
 
@@ -36,11 +36,11 @@ export default function DemoContainer() {
 					style={{
 						backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 4'%3E%3Crect width='1' height='1' fill='%23666666'/%3E%3C/svg%3E")`,
 						WebkitMaskImage:
-							'linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)',
+							"linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)",
 						maskImage:
-							'linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)',
-						marginTop: '-4rem',
-						marginBottom: '-4rem',
+							"linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)",
+						marginTop: "-4rem",
+						marginBottom: "-4rem",
 					}}
 				/>
 				<div
@@ -48,25 +48,25 @@ export default function DemoContainer() {
 					style={{
 						backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 4'%3E%3Crect width='1' height='1' fill='%23666666'/%3E%3C/svg%3E")`,
 						WebkitMaskImage:
-							'linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)',
+							"linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)",
 						maskImage:
-							'linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)',
-						marginTop: '-4rem',
-						marginBottom: '-4rem',
+							"linear-gradient(to bottom, transparent, white 4rem, white calc(100% - 4rem), transparent)",
+						marginTop: "-4rem",
+						marginBottom: "-4rem",
 					}}
 				/>
 
 				<div
 					className="absolute inset-x-0 h-px opacity-30"
 					style={{
-						bottom: '-1px',
+						bottom: "-1px",
 						backgroundImage: `url("${dotPattern}")`,
 						WebkitMaskImage:
-							'linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)',
+							"linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)",
 						maskImage:
-							'linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)',
-						marginLeft: '-4rem',
-						marginRight: '-4rem',
+							"linear-gradient(to right, transparent, white 4rem, white calc(100% - 4rem), transparent)",
+						marginLeft: "-4rem",
+						marginRight: "-4rem",
 					}}
 				/>
 

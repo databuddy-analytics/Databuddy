@@ -4,4 +4,4 @@ export {
 	errorEventSchema,
 	outgoingLinkSchema,
 	webVitalsEventSchema,
-} from '@databuddy/validation';
+} from "@databuddy/validation";

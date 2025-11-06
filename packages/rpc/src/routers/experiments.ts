@@ -1,13 +1,20 @@
-import { abExperiments, abGoals, abVariants } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
-import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+import {
+	abExperiments,
+	abGoals,
+	abVariants,
+	and,
+	desc,
+	eq,
+	isNull,
+} from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { logger } from "../lib/logger";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'experiments' });
+const drizzleCache = createDrizzleCache({ redis, namespace: "experiments" });
 
 const CACHE_TTL = 300;
 
@@ -16,7 +23,7 @@ const variantContentSchema = z.record(z.string(), z.any());
 
 const variantSchema = z.object({
 	name: z.string().min(1).max(100),
-	type: z.enum(['visual', 'redirect', 'code']),
+	type: z.enum(["visual", "redirect", "code"]),
 	content: variantContentSchema,
 	trafficWeight: z.number().min(0).max(100).default(50),
 	isControl: z.boolean().default(false),
@@ -30,7 +37,7 @@ const createVariantSchema = z.object({
 const updateVariantSchema = z.object({
 	id: z.string(),
 	name: z.string().min(1).max(100).optional(),
-	type: z.enum(['visual', 'redirect', 'code']).optional(),
+	type: z.enum(["visual", "redirect", "code"]).optional(),
 	content: variantContentSchema.optional(),
 	trafficWeight: z.number().min(0).max(100).optional(),
 	isControl: z.boolean().optional(),
@@ -61,7 +68,7 @@ const updateGoalSchema = z.object({
 const experimentSchema = z.object({
 	name: z.string().min(1).max(100),
 	description: z.string().optional(),
-	status: z.enum(['draft', 'running', 'paused', 'completed']).default('draft'),
+	status: z.enum(["draft", "running", "paused", "completed"]).default("draft"),
 	trafficAllocation: z.number().min(0).max(100).default(100),
 	startDate: z.string().datetime().optional(),
 	endDate: z.string().datetime().optional(),
@@ -79,7 +86,7 @@ const updateExperimentSchema = z.object({
 	id: z.string(),
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().optional(),
-	status: z.enum(['draft', 'running', 'paused', 'completed']).optional(),
+	status: z.enum(["draft", "running", "paused", "completed"]).optional(),
 	trafficAllocation: z.number().min(0).max(100).optional(),
 	startDate: z.string().datetime().optional(),
 	endDate: z.string().datetime().optional(),
@@ -96,9 +103,9 @@ export const experimentsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['abExperiments', 'abVariants', 'abGoals'],
+				tables: ["abExperiments", "abVariants", "abGoals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					const experiments = await ctx.db
 						.select()
@@ -149,9 +156,9 @@ export const experimentsRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['abExperiments', 'abVariants', 'abGoals'],
+				tables: ["abExperiments", "abVariants", "abGoals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 
 					// Get experiment
 					const experiment = await ctx.db
@@ -168,8 +175,8 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!experiment.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Experiment not found',
+							code: "NOT_FOUND",
+							message: "Experiment not found",
 						});
 					}
 
@@ -200,7 +207,7 @@ export const experimentsRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createExperimentSchema)
 		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 
 			const { variants = [], goals = [], ...experimentData } = input;
 
@@ -246,9 +253,9 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					// Invalidate cache
-					await drizzleCache.invalidateByTables(['abExperiments']);
+					await drizzleCache.invalidateByTables(["abExperiments"]);
 
-					logger.info('Created experiment', {
+					logger.info("Created experiment", {
 						experimentId: experiment.id,
 						websiteId: input.websiteId,
 						userId: ctx.user.id,
@@ -257,15 +264,15 @@ export const experimentsRouter = createTRPCRouter({
 					return experiment;
 				});
 			} catch (error) {
-				logger.error('Failed to create experiment', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to create experiment", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					websiteId: input.websiteId,
 					userId: ctx.user.id,
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to create experiment',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create experiment",
 				});
 			}
 		}),
@@ -286,12 +293,12 @@ export const experimentsRouter = createTRPCRouter({
 
 				if (!existing.length) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Experiment not found',
+						code: "NOT_FOUND",
+						message: "Experiment not found",
 					});
 				}
 
-				await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'update');
+				await authorizeWebsiteAccess(ctx, existing[0].websiteId, "update");
 
 				const [updated] = await ctx.db
 					.update(abExperiments)
@@ -304,13 +311,13 @@ export const experimentsRouter = createTRPCRouter({
 
 				// Invalidate cache
 				await Promise.all([
-					drizzleCache.invalidateByTables(['abExperiments']),
+					drizzleCache.invalidateByTables(["abExperiments"]),
 					drizzleCache.invalidateByKey(
 						`experiments:byId:${id}:${existing[0].websiteId}`
 					),
 				]);
 
-				logger.info('Updated experiment', {
+				logger.info("Updated experiment", {
 					experimentId: id,
 					websiteId: existing[0].websiteId,
 					userId: ctx.user.id,
@@ -322,15 +329,15 @@ export const experimentsRouter = createTRPCRouter({
 					throw error;
 				}
 
-				logger.error('Failed to update experiment', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to update experiment", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					experimentId: id,
 					userId: ctx.user.id,
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to update experiment',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to update experiment",
 				});
 			}
 		}),
@@ -351,12 +358,12 @@ export const experimentsRouter = createTRPCRouter({
 
 				if (!existing.length) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Experiment not found',
+						code: "NOT_FOUND",
+						message: "Experiment not found",
 					});
 				}
 
-				await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'delete');
+				await authorizeWebsiteAccess(ctx, existing[0].websiteId, "delete");
 
 				await ctx.db
 					.update(abExperiments)
@@ -368,13 +375,13 @@ export const experimentsRouter = createTRPCRouter({
 
 				// Invalidate cache
 				await Promise.all([
-					drizzleCache.invalidateByTables(['abExperiments']),
+					drizzleCache.invalidateByTables(["abExperiments"]),
 					drizzleCache.invalidateByKey(
 						`experiments:byId:${input.id}:${existing[0].websiteId}`
 					),
 				]);
 
-				logger.info('Deleted experiment', {
+				logger.info("Deleted experiment", {
 					experimentId: input.id,
 					websiteId: existing[0].websiteId,
 					userId: ctx.user.id,
@@ -386,15 +393,15 @@ export const experimentsRouter = createTRPCRouter({
 					throw error;
 				}
 
-				logger.error('Failed to delete experiment', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to delete experiment", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					experimentId: input.id,
 					userId: ctx.user.id,
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to delete experiment',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete experiment",
 				});
 			}
 		}),
@@ -420,12 +427,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!experiment.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Experiment not found',
+							code: "NOT_FOUND",
+							message: "Experiment not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, experiment[0].websiteId, 'update');
+					await authorizeWebsiteAccess(ctx, experiment[0].websiteId, "update");
 
 					const [variant] = await ctx.db
 						.insert(abVariants)
@@ -449,8 +456,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to create variant',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to create variant",
 					});
 				}
 			}),
@@ -478,12 +485,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!existing.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Variant not found',
+							code: "NOT_FOUND",
+							message: "Variant not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'update');
+					await authorizeWebsiteAccess(ctx, existing[0].websiteId, "update");
 
 					const [updated] = await ctx.db
 						.update(abVariants)
@@ -506,8 +513,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to update variant',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to update variant",
 					});
 				}
 			}),
@@ -533,12 +540,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!existing.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Variant not found',
+							code: "NOT_FOUND",
+							message: "Variant not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'delete');
+					await authorizeWebsiteAccess(ctx, existing[0].websiteId, "delete");
 
 					await ctx.db.delete(abVariants).where(eq(abVariants.id, input.id));
 
@@ -554,8 +561,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to delete variant',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to delete variant",
 					});
 				}
 			}),
@@ -582,12 +589,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!experiment.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Experiment not found',
+							code: "NOT_FOUND",
+							message: "Experiment not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, experiment[0].websiteId, 'update');
+					await authorizeWebsiteAccess(ctx, experiment[0].websiteId, "update");
 
 					const [goal] = await ctx.db
 						.insert(abGoals)
@@ -611,8 +618,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to create goal',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to create goal",
 					});
 				}
 			}),
@@ -640,12 +647,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!existing.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Goal not found',
+							code: "NOT_FOUND",
+							message: "Goal not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'update');
+					await authorizeWebsiteAccess(ctx, existing[0].websiteId, "update");
 
 					const [updated] = await ctx.db
 						.update(abGoals)
@@ -668,8 +675,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to update goal',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to update goal",
 					});
 				}
 			}),
@@ -695,12 +702,12 @@ export const experimentsRouter = createTRPCRouter({
 
 					if (!existing.length) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Goal not found',
+							code: "NOT_FOUND",
+							message: "Goal not found",
 						});
 					}
 
-					await authorizeWebsiteAccess(ctx, existing[0].websiteId, 'delete');
+					await authorizeWebsiteAccess(ctx, existing[0].websiteId, "delete");
 
 					await ctx.db.delete(abGoals).where(eq(abGoals.id, input.id));
 
@@ -716,8 +723,8 @@ export const experimentsRouter = createTRPCRouter({
 					}
 
 					throw new TRPCError({
-						code: 'INTERNAL_SERVER_ERROR',
-						message: 'Failed to delete goal',
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to delete goal",
 					});
 				}
 			}),

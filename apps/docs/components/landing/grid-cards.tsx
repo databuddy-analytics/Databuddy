@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	EyeIcon,
@@ -7,48 +7,48 @@ import {
 	ShieldIcon,
 	TrendUpIcon,
 	UsersFourIcon,
-} from '@phosphor-icons/react';
-import { SciFiGridCard } from './card';
+} from "@phosphor-icons/react";
+import { SciFiGridCard } from "./card";
 
 const cards = [
 	{
 		id: 1,
-		title: 'Privacy First Approach',
+		title: "Privacy First Approach",
 		description:
-			'Build trust & reduce legal risk with built-in GDPR/CCPA compliance.',
+			"Build trust & reduce legal risk with built-in GDPR/CCPA compliance.",
 		icon: ShieldIcon,
 	},
 	{
 		id: 2,
-		title: 'Real-time Analytics',
+		title: "Real-time Analytics",
 		description:
-			'Make smarter, data-driven decisions instantly with live dashboards.',
+			"Make smarter, data-driven decisions instantly with live dashboards.",
 		icon: TrendUpIcon,
 	},
 	{
 		id: 3,
-		title: 'Data Ownership',
-		description: 'Full control of your valuable business data.',
+		title: "Data Ownership",
+		description: "Full control of your valuable business data.",
 		icon: UsersFourIcon,
 	},
 	{
 		id: 4,
-		title: 'Energy Efficient',
+		title: "Energy Efficient",
 		description:
-			'Up to 10x more eco-friendly with a significantly lower carbon footprint.',
+			"Up to 10x more eco-friendly with a significantly lower carbon footprint.",
 		icon: LeafIcon,
 	},
 	{
 		id: 5,
-		title: 'Transparency',
-		description: 'Fully transparent, no hidden fees or data games.',
+		title: "Transparency",
+		description: "Fully transparent, no hidden fees or data games.",
 		icon: EyeIcon,
 	},
 	{
 		id: 6,
-		title: 'Lightweight',
+		title: "Lightweight",
 		description:
-			'Lightweight, no cookies, no fingerprinting, no consent needed.',
+			"Lightweight, no cookies, no fingerprinting, no consent needed.",
 		icon: RocketLaunchIcon,
 	},
 ];

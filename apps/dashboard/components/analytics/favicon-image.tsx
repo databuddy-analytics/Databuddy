@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { GlobeIcon } from '@phosphor-icons/react';
-import Image from 'next/image';
-import { useState } from 'react';
+import { GlobeIcon } from "@phosphor-icons/react";
+import Image from "next/image";
+import { useState } from "react";
 
 interface FaviconImageProps {
 	domain: string;
@@ -19,26 +19,26 @@ export function FaviconImage({
 	domain,
 	altText,
 	size = 20,
-	className = '',
+	className = "",
 	fallbackIcon,
 }: FaviconImageProps) {
 	const [error, setError] = useState(false);
 
 	const hostname = domain
-		.replace(hostnameRegex, '')
-		.replace(wwwRegex, '')
-		.split('/')[0]
-		.split('?')[0]
-		.split('#')[0];
+		.replace(hostnameRegex, "")
+		.replace(wwwRegex, "")
+		.split("/")[0]
+		.split("?")[0]
+		.split("#")[0];
 
 	const invalid =
 		!hostname ||
 		hostname.length < 3 ||
-		!hostname.includes('.') ||
-		hostname === 'direct' ||
-		hostname === 'unknown' ||
-		hostname.includes('localhost') ||
-		hostname.includes('127.0.0.1');
+		!hostname.includes(".") ||
+		hostname === "direct" ||
+		hostname === "unknown" ||
+		hostname.includes("localhost") ||
+		hostname.includes("127.0.0.1");
 
 	if (invalid || error) {
 		return (
@@ -48,7 +48,7 @@ export function FaviconImage({
 			>
 				{fallbackIcon || (
 					<GlobeIcon
-						aria-label={altText || 'Website icon'}
+						aria-label={altText || "Website icon"}
 						className="not-dark:text-primary text-muted-foreground"
 						size={size}
 						weight="duotone"
@@ -58,12 +58,12 @@ export function FaviconImage({
 		);
 	}
 
-	const isGitHub = hostname === 'github.com';
-	
+	const isGitHub = hostname === "github.com";
+
 	return (
 		<Image
 			alt={altText || `${domain} favicon`}
-			className={`${className} ${isGitHub ? 'dark:invert ' : ''}`}
+			className={`${className} ${isGitHub ? "dark:invert" : ""}`}
 			height={size}
 			onError={() => setError(true)}
 			src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`}

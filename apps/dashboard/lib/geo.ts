@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
-const countriesGeoUrl = '/countries.json';
-const subdivisionsGeoUrl = '/subdivisions.json';
+const countriesGeoUrl = "/countries.json";
+const subdivisionsGeoUrl = "/subdivisions.json";
 
 export type Subdivisions = {
 	type: string;
@@ -37,28 +37,25 @@ export type Country = {
 	}>;
 };
 
-export const useSubdivisions = () => {
-	return useQuery<Subdivisions>({
-		queryKey: ['subdivisions'],
+export const useSubdivisions = () =>
+	useQuery<Subdivisions>({
+		queryKey: ["subdivisions"],
 		queryFn: () => fetch(subdivisionsGeoUrl).then((res) => res.json()),
 	});
-};
 
-export const useCountries = () => {
-	return useQuery<Country>({
-		queryKey: ['countries'],
+export const useCountries = () =>
+	useQuery<Country>({
+		queryKey: ["countries"],
 		queryFn: () => fetch(countriesGeoUrl).then((res) => res.json()),
 	});
-};
 
 export const useGetRegionName = () => {
 	const { data: subdivisions } = useSubdivisions();
 
 	return {
-		getRegionName: (region: string) => {
-			return subdivisions?.features.find(
+		getRegionName: (region: string) =>
+			subdivisions?.features.find(
 				(feature) => feature.properties.iso_3166_2 === region
-			)?.properties.name;
-		},
+			)?.properties.name,
 	};
 };

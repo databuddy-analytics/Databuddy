@@ -1,19 +1,19 @@
 const FORBIDDEN_SQL_KEYWORDS = [
-	'INSERT INTO',
-	'UPDATE SET',
-	'DELETE FROM',
-	'DROP TABLE',
-	'DROP DATABASE',
-	'CREATE TABLE',
-	'CREATE DATABASE',
-	'ALTER TABLE',
-	'EXEC ',
-	'EXECUTE ',
-	'TRUNCATE',
-	'MERGE',
-	'BULK',
-	'RESTORE',
-	'BACKUP',
+	"INSERT INTO",
+	"UPDATE SET",
+	"DELETE FROM",
+	"DROP TABLE",
+	"DROP DATABASE",
+	"CREATE TABLE",
+	"CREATE DATABASE",
+	"ALTER TABLE",
+	"EXEC ",
+	"EXECUTE ",
+	"TRUNCATE",
+	"MERGE",
+	"BULK",
+	"RESTORE",
+	"BACKUP",
 ] as const;
 
 export function validateSQL(sql: string): boolean {
@@ -28,5 +28,5 @@ export function validateSQL(sql: string): boolean {
 	}
 
 	// Must start with SELECT or WITH (for CTEs)
-	return trimmed.startsWith('SELECT') || trimmed.startsWith('WITH');
+	return trimmed.startsWith("SELECT") || trimmed.startsWith("WITH");
 }

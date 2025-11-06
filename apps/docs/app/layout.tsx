@@ -1,59 +1,59 @@
-import './global.css';
-import { Databuddy } from '@databuddy/sdk/react';
-import { RootProvider } from 'fumadocs-ui/provider';
-import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Manrope } from 'next/font/google';
-import { ThemeProvider } from 'next-themes';
-import type { ReactNode } from 'react';
-import { Toaster } from '@/components/ui/sonner';
-import { SITE_URL } from './util/constants';
+import "./global.css";
+import { Databuddy } from "@databuddy/sdk/react";
+import { RootProvider } from "fumadocs-ui/provider";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Manrope } from "next/font/google";
+import { ThemeProvider } from "next-themes";
+import type { ReactNode } from "react";
+import { Toaster } from "@/components/ui/sonner";
+import { SITE_URL } from "./util/constants";
 
 const geist = Geist({
-	subsets: ['latin'],
-	weight: ['400', '500', '600', '700'],
-	variable: '--font-geist',
+	subsets: ["latin"],
+	weight: ["400", "500", "600", "700"],
+	variable: "--font-geist",
 });
 
 const geistMono = Geist_Mono({
-	subsets: ['latin'],
-	weight: ['400', '500', '600', '700'],
-	variable: '--font-geist-mono',
+	subsets: ["latin"],
+	weight: ["400", "500", "600", "700"],
+	variable: "--font-geist-mono",
 });
 
 const manrope = Manrope({
-	subsets: ['latin'],
-	weight: ['400', '500', '600', '700'],
-	variable: '--font-manrope',
+	subsets: ["latin"],
+	weight: ["400", "500", "600", "700"],
+	variable: "--font-manrope",
 });
 
 export const metadata: Metadata = {
 	title:
-		'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 	description:
-		'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-	authors: [{ name: 'Databuddy Team' }],
-	creator: 'Databuddy',
-	publisher: 'Databuddy',
+		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+	authors: [{ name: "Databuddy Team" }],
+	creator: "Databuddy",
+	publisher: "Databuddy",
 	metadataBase: new URL(SITE_URL),
 	openGraph: {
-		type: 'website',
-		locale: 'en_US',
+		type: "website",
+		locale: "en_US",
 		url: SITE_URL,
 		title:
-			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 		description:
-			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-		siteName: 'Databuddy',
+			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+		siteName: "Databuddy",
 	},
 	twitter: {
-		card: 'summary_large_image',
+		card: "summary_large_image",
 		title:
-			'Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy',
+			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
 		description:
-			'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
-		images: ['/og-image.png'],
-		creator: '@databuddyps',
-		site: '@databuddyps',
+			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+		images: ["/og-image.png"],
+		creator: "@databuddyps",
+		site: "@databuddyps",
 	},
 	robots: {
 		index: true,
@@ -61,9 +61,9 @@ export const metadata: Metadata = {
 		googleBot: {
 			index: true,
 			follow: true,
-			'max-video-preview': -1,
-			'max-image-preview': 'large',
-			'max-snippet': -1,
+			"max-video-preview": -1,
+			"max-image-preview": "large",
+			"max-snippet": -1,
 		},
 	},
 	alternates: {
@@ -76,10 +76,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
 	themeColor: [
-		{ media: '(prefers-color-scheme: light)', color: 'white' },
-		{ media: '(prefers-color-scheme: dark)', color: '#0f172a' },
+		{ media: "(prefers-color-scheme: light)", color: "white" },
+		{ media: "(prefers-color-scheme: dark)", color: "#0f172a" },
 	],
-	width: 'device-width',
+	width: "device-width",
 	initialScale: 1,
 	userScalable: true,
 };
@@ -91,7 +91,13 @@ export default function Layout({ children }: { children: ReactNode }) {
 			lang="en"
 			suppressHydrationWarning
 		>
-			<Databuddy clientId="OXmNQsViBT-FOS_wZCTHc" trackErrors trackAttributes trackOutgoingLinks trackWebVitals />
+			<Databuddy
+				clientId="OXmNQsViBT-FOS_wZCTHc"
+				trackAttributes
+				trackErrors
+				trackOutgoingLinks
+				trackWebVitals
+			/>
 			<body>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 					<RootProvider>

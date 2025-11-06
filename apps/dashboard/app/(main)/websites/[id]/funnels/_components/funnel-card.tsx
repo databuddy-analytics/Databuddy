@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	CaretDownIcon,
@@ -10,16 +10,16 @@ import {
 	MouseRightClickIcon,
 	PencilIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import type { Funnel } from '@/hooks/use-funnels';
+} from "@/components/ui/tooltip";
+import type { Funnel } from "@/hooks/use-funnels";
 
 interface FunnelCardProps {
 	funnel: Funnel;
@@ -31,20 +31,20 @@ interface FunnelCardProps {
 }
 
 const getStepIcon = (stepType: string) => {
-	if (stepType === 'PAGE_VIEW') {
+	if (stepType === "PAGE_VIEW") {
 		return (
 			<FileTextIcon
 				className="mr-1 h-3 w-3"
-				style={{ color: 'var(--color-primary)' }}
+				style={{ color: "var(--color-primary)" }}
 				weight="duotone"
 			/>
 		);
 	}
-	if (stepType === 'EVENT') {
+	if (stepType === "EVENT") {
 		return (
 			<MouseRightClickIcon
 				className="mr-1 h-3 w-3"
-				style={{ color: 'var(--color-warning)' }}
+				style={{ color: "var(--color-warning)" }}
 				weight="duotone"
 			/>
 		);
@@ -52,17 +52,17 @@ const getStepIcon = (stepType: string) => {
 	return (
 		<DotsThreeIcon
 			className="mr-1 h-3 w-3"
-			style={{ color: 'var(--color-muted-foreground)' }}
+			style={{ color: "var(--color-muted-foreground)" }}
 			weight="duotone"
 		/>
 	);
 };
 
 const getStepTooltipText = (stepType: string, target: string) => {
-	if (stepType === 'PAGE_VIEW') {
+	if (stepType === "PAGE_VIEW") {
 		return `Page: ${target}`;
 	}
-	if (stepType === 'EVENT') {
+	if (stepType === "EVENT") {
 		return `Event: ${target}`;
 	}
 	return target;
@@ -78,7 +78,7 @@ export function FunnelCard({
 }: FunnelCardProps) {
 	const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement;
-		if (target.closest('button')) {
+		if (target.closest("button")) {
 			return;
 		}
 		onToggle(funnel.id);
@@ -86,14 +86,14 @@ export function FunnelCard({
 
 	return (
 		<Card
-			className="mb-4 cursor-pointer select-none overflow-hidden rounded border bg-background transition focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+			className="mb-4 cursor-pointer select-none overflow-hidden border bg-background transition focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
 			onClick={handleCardClick}
 			onKeyDown={(e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
+				if (e.key === "Enter" || e.key === " ") {
 					onToggle(funnel.id);
 				}
 			}}
-			style={{ outline: 'none' }}
+			style={{ outline: "none" }}
 			tabIndex={0}
 		>
 			<div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
@@ -101,7 +101,7 @@ export function FunnelCard({
 					<div className="mb-1 flex flex-wrap items-center gap-2">
 						<h3
 							className="mr-2 truncate font-semibold text-base"
-							style={{ color: 'var(--color-foreground)' }}
+							style={{ color: "var(--color-foreground)" }}
 						>
 							{funnel.name}
 						</h3>
@@ -113,7 +113,7 @@ export function FunnelCard({
 								{index > 0 && (
 									<CaretRightIcon
 										className="mx-1 h-3 w-3"
-										style={{ color: 'var(--color-muted-foreground)' }}
+										style={{ color: "var(--color-muted-foreground)" }}
 										weight="fill"
 									/>
 								)}
@@ -123,9 +123,9 @@ export function FunnelCard({
 											<span
 												className="flex items-center gap-1 rounded border px-2 py-0.5 text-xs"
 												style={{
-													background: 'var(--color-muted)',
-													color: 'var(--color-foreground)',
-													borderColor: 'var(--color-border)',
+													background: "var(--color-muted)",
+													color: "var(--color-foreground)",
+													borderColor: "var(--color-border)",
 												}}
 											>
 												{getStepIcon(step.type)}
@@ -146,7 +146,7 @@ export function FunnelCard({
 						<div className="mt-1 flex items-center gap-2">
 							<FunnelIcon
 								className="h-3 w-3"
-								style={{ color: 'var(--color-muted-foreground)' }}
+								style={{ color: "var(--color-muted-foreground)" }}
 								weight="duotone"
 							/>
 							<div className="flex flex-wrap gap-2">
@@ -155,35 +155,35 @@ export function FunnelCard({
 										className="flex items-center gap-1 rounded border px-2 py-0.5 text-xs"
 										key={filter.field + filter.operator + String(filter.value)}
 										style={{
-											background: 'var(--color-muted)',
-											color: 'var(--color-foreground)',
-											borderColor: 'var(--color-border)',
+											background: "var(--color-muted)",
+											color: "var(--color-foreground)",
+											borderColor: "var(--color-border)",
 										}}
 									>
-										<span style={{ color: 'var(--color-muted-foreground)' }}>
+										<span style={{ color: "var(--color-muted-foreground)" }}>
 											{filter.field}
 										</span>
 										<span
 											className="mx-1"
 											style={{
 												color:
-													filter.operator === 'not_equals' ||
-													filter.operator === 'not_in'
-														? 'var(--color-destructive)'
-														: 'var(--color-success)',
+													filter.operator === "not_equals" ||
+													filter.operator === "not_in"
+														? "var(--color-destructive)"
+														: "var(--color-success)",
 											}}
 										>
 											{filter.operator}
 										</span>
 										<span
 											className="inline-block max-w-[100px] overflow-hidden text-ellipsis"
-											style={{ color: 'var(--color-foreground)' }}
+											style={{ color: "var(--color-foreground)" }}
 										>
 											{filter.value &&
-											typeof filter.value === 'string' &&
+											typeof filter.value === "string" &&
 											filter.value.length > 0
 												? filter.value
-												: 'empty'}
+												: "empty"}
 										</span>
 									</span>
 								))}

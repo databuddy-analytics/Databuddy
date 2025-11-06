@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { CheckCircle, Warning } from '@phosphor-icons/react';
+import { CheckCircle, Warning } from "@phosphor-icons/react";
 import {
 	formatPerformanceTime,
 	getMetricStyles,
-} from '../_utils/performance-utils';
+} from "../_utils/performance-utils";
 
-interface PerformanceMetricCellProps {
+type PerformanceMetricCellProps = {
 	value?: number;
-	type?: 'time' | 'cls';
-}
+	type?: "time" | "cls";
+};
 
 export function PerformanceMetricCell({
 	value,
-	type = 'time',
+	type = "time",
 }: PerformanceMetricCellProps) {
 	if (!value || value === 0) {
 		return <span className="text-muted-foreground">N/A</span>;
 	}
 
 	const formatted =
-		type === 'cls' ? value.toFixed(3) : formatPerformanceTime(value);
+		type === "cls" ? value.toFixed(3) : formatPerformanceTime(value);
 	const { colorClass, isGood, isPoor } = getMetricStyles(value, type);
 	const showIcon = isGood || isPoor;
 

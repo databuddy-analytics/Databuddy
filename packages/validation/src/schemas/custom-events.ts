@@ -1,5 +1,5 @@
-import z from 'zod';
-import { VALIDATION_LIMITS } from '../constants';
+import z from "zod";
+import { VALIDATION_LIMITS } from "../constants";
 
 export const customEventSchema = z.object({
 	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),

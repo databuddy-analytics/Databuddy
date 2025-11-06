@@ -1,6 +1,6 @@
-import type React from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { BORDER_RADIUS } from './ui-components';
+import type React from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BORDER_RADIUS } from "./ui-components";
 
 interface TabLayoutProps {
 	title?: string;
@@ -16,7 +16,7 @@ export function TabLayout({
 	description,
 	isLoading = false,
 	children,
-	className = '',
+	className = "",
 	actions,
 }: TabLayoutProps) {
 	if (isLoading) {
@@ -45,10 +45,10 @@ export function TabLayout({
 
 export function TabLoadingSkeleton() {
 	const loadingSkeletonIds = [
-		'loading-skeleton-1',
-		'loading-skeleton-2',
-		'loading-skeleton-3',
-		'loading-skeleton-4',
+		"loading-skeleton-1",
+		"loading-skeleton-2",
+		"loading-skeleton-3",
+		"loading-skeleton-4",
 	];
 	return (
 		<div className="space-y-4 pt-2">

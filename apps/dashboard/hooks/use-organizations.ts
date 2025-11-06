@@ -1,9 +1,9 @@
-import { authClient } from '@databuddy/auth/client';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
-export type OrganizationRole = 'owner' | 'admin' | 'member';
+export type OrganizationRole = "owner" | "admin" | "member";
 
 type CreateOrganizationData = {
 	name: string;
@@ -34,10 +34,10 @@ export type UpdateMemberData = {
 
 const QUERY_KEYS = {
 	organizationMembers: (orgId: string) =>
-		['organizations', orgId, 'members'] as const,
+		["organizations", orgId, "members"] as const,
 	organizationInvitations: (orgId: string) =>
-		['organizations', orgId, 'invitations'] as const,
-	userInvitations: ['organizations', 'invitations', 'user'] as const,
+		["organizations", orgId, "invitations"] as const,
+	userInvitations: ["organizations", "invitations", "user"] as const,
 } as const;
 
 const createMutation = <TData, TVariables>(
@@ -82,17 +82,17 @@ export function useOrganizations() {
 					await authClient.organization.create({
 						name: orgInput.name,
 						slug:
-							orgInput.slug || orgInput.name.toLowerCase().replace(/\s+/g, '-'),
+							orgInput.slug || orgInput.name.toLowerCase().replace(/\s+/g, "-"),
 						logo: orgInput.logo,
 						metadata: orgInput.metadata,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to create organization');
+					throw new Error(apiError.message || "Failed to create organization");
 				}
 				return result;
 			},
-			'Organization created successfully',
-			'Failed to create organization'
+			"Organization created successfully",
+			"Failed to create organization"
 		)
 	);
 
@@ -106,7 +106,7 @@ export function useOrganizations() {
 				data: UpdateOrganizationData;
 			}) => {
 				if (!organizationId) {
-					throw new Error('Organization ID is required');
+					throw new Error("Organization ID is required");
 				}
 				const { data: result, error: apiError } =
 					await authClient.organization.update({
@@ -119,32 +119,32 @@ export function useOrganizations() {
 						},
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to update organization');
+					throw new Error(apiError.message || "Failed to update organization");
 				}
 				return result;
 			},
-			'Organization updated successfully',
-			'Failed to update organization'
+			"Organization updated successfully",
+			"Failed to update organization"
 		)
 	);
 
 	const uploadOrganizationLogoMutation =
 		trpc.organizations.uploadLogo.useMutation({
 			onSuccess: () => {
-				toast.success('Logo uploaded successfully');
+				toast.success("Logo uploaded successfully");
 			},
 			onError: (error) => {
-				toast.error(error.message || 'Failed to upload logo');
+				toast.error(error.message || "Failed to upload logo");
 			},
 		});
 
 	const deleteOrganizationLogoMutation =
 		trpc.organizations.deleteLogo.useMutation({
 			onSuccess: () => {
-				toast.success('Logo deleted successfully');
+				toast.success("Logo deleted successfully");
 			},
 			onError: (error) => {
-				toast.error(error.message || 'Failed to delete logo');
+				toast.error(error.message || "Failed to delete logo");
 			},
 		});
 
@@ -156,12 +156,12 @@ export function useOrganizations() {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to delete organization');
+					throw new Error(apiError.message || "Failed to delete organization");
 				}
 				return result;
 			},
-			'Organization deleted successfully',
-			'Failed to delete organization'
+			"Organization deleted successfully",
+			"Failed to delete organization"
 		)
 	);
 
@@ -174,7 +174,7 @@ export function useOrganizations() {
 					});
 				if (apiError) {
 					throw new Error(
-						apiError.message || 'Failed to unset active organization'
+						apiError.message || "Failed to unset active organization"
 					);
 				}
 				return setActiveData;
@@ -185,23 +185,23 @@ export function useOrganizations() {
 				});
 			if (apiError2) {
 				throw new Error(
-					apiError2.message || 'Failed to set active organization'
+					apiError2.message || "Failed to set active organization"
 				);
 			}
 			return setActiveData2;
 		},
 		onSuccess: () => {
-			toast.success('Workspace updated');
+			toast.success("Workspace updated");
 		},
 		onError: (error: Error) => {
 			// Don't show error toast for organization not found - we handle this gracefully
 			if (
 				!(
-					error.message?.includes('ORGANIZATION_NOT_FOUND') ||
-					error.message?.includes('Organization not found')
+					error.message?.includes("ORGANIZATION_NOT_FOUND") ||
+					error.message?.includes("Organization not found")
 				)
 			) {
-				toast.error(error.message || 'Failed to update workspace');
+				toast.error(error.message || "Failed to update workspace");
 			}
 		},
 	});
@@ -214,12 +214,12 @@ export function useOrganizations() {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to leave organization');
+					throw new Error(apiError.message || "Failed to leave organization");
 				}
 				return result;
 			},
-			'Left organization successfully',
-			'Failed to leave organization'
+			"Left organization successfully",
+			"Failed to leave organization"
 		)
 	);
 
@@ -274,7 +274,7 @@ export function useOrganizationMembers(organizationId: string) {
 					query: { organizationId },
 				});
 			if (apiError) {
-				throw new Error(apiError.message || 'Failed to fetch members');
+				throw new Error(apiError.message || "Failed to fetch members");
 			}
 			return fullOrgData?.members || [];
 		},
@@ -298,12 +298,12 @@ export function useOrganizationMembers(organizationId: string) {
 						resend: data.resend,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to invite member');
+					throw new Error(apiError.message || "Failed to invite member");
 				}
 				return result;
 			},
-			'Member invited successfully',
-			'Failed to invite member',
+			"Member invited successfully",
+			"Failed to invite member",
 			invalidateMembers
 		)
 	);
@@ -318,12 +318,12 @@ export function useOrganizationMembers(organizationId: string) {
 						organizationId: data.organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to update member role');
+					throw new Error(apiError.message || "Failed to update member role");
 				}
 				return result;
 			},
-			'Member role updated successfully',
-			'Failed to update member role',
+			"Member role updated successfully",
+			"Failed to update member role",
 			invalidateMembers
 		)
 	);
@@ -337,12 +337,12 @@ export function useOrganizationMembers(organizationId: string) {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to remove member');
+					throw new Error(apiError.message || "Failed to remove member");
 				}
 				return result;
 			},
-			'Member removed successfully',
-			'Failed to remove member',
+			"Member removed successfully",
+			"Failed to remove member",
 			invalidateMembers
 		)
 	);
@@ -383,7 +383,7 @@ export function useUserInvitations() {
 			const { data, error: apiError } =
 				await authClient.organization.listUserInvitations();
 			if (apiError) {
-				throw new Error(apiError.message || 'Failed to fetch user invitations');
+				throw new Error(apiError.message || "Failed to fetch user invitations");
 			}
 			return data || [];
 		},
@@ -401,12 +401,12 @@ export function useUserInvitations() {
 						invitationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to accept invitation');
+					throw new Error(apiError.message || "Failed to accept invitation");
 				}
 				return result;
 			},
-			'Invitation accepted successfully',
-			'Failed to accept invitation',
+			"Invitation accepted successfully",
+			"Failed to accept invitation",
 			invalidateUserInvitations
 		)
 	);
@@ -419,12 +419,12 @@ export function useUserInvitations() {
 						invitationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || 'Failed to reject invitation');
+					throw new Error(apiError.message || "Failed to reject invitation");
 				}
 				return result;
 			},
-			'Invitation rejected',
-			'Failed to reject invitation',
+			"Invitation rejected",
+			"Failed to reject invitation",
 			invalidateUserInvitations
 		)
 	);
@@ -448,21 +448,21 @@ export function useUserInvitations() {
 
 export type Organization = ReturnType<
 	typeof useOrganizations
->['organizations'][number];
+>["organizations"][number];
 
 export type ActiveOrganization = ReturnType<
 	typeof useOrganizations
->['activeOrganization'];
+>["activeOrganization"];
 
 export type OrganizationsError = ReturnType<
 	typeof useOrganizations
->['organizationsError'];
+>["organizationsError"];
 
 export type OrganizationMember = ReturnType<
 	typeof useOrganizationMembers
->['members'][number];
+>["members"][number];
 
 // Invitation types are now in @/stores/jotai/organizationAtoms
-export type { Invitation } from '@/stores/jotai/organizationAtoms';
+export type { Invitation } from "@/stores/jotai/organizationAtoms";
 
 export type CancelInvitation = (invitationId: string) => Promise<void>;

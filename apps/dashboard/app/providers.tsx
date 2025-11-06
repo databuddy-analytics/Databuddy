@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { FlagsProvider } from '@databuddy/sdk/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { httpBatchLink } from '@trpc/client';
-import { AutumnProvider } from 'autumn-js/react';
-import { ThemeProvider } from 'next-themes';
-import { NuqsAdapter } from 'nuqs/adapters/next/app';
-import { useState } from 'react';
-import superjson from 'superjson';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import { FlagsProvider } from "@databuddy/sdk/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { httpBatchLink } from "@trpc/client";
+import { AutumnProvider } from "autumn-js/react";
+import { ThemeProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { useState } from "react";
+import superjson from "superjson";
+import { trpc } from "@/lib/trpc";
 
 const defaultQueryClientOptions = {
 	defaultOptions: {
@@ -49,11 +49,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 		trpc.createClient({
 			links: [
 				httpBatchLink({
-					url: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/trpc`,
+					url: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/trpc`,
 					fetch: (url, options) =>
 						fetch(url, {
 							...options,
-							credentials: 'include',
+							credentials: "include",
 						}),
 					transformer: superjson,
 				}),
@@ -68,7 +68,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 					<FlagsProviderWrapper>
 						<AutumnProvider
 							backendUrl={
-								process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+								process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 							}
 						>
 							<NuqsAdapter>{children}</NuqsAdapter>

@@ -4,7 +4,7 @@ export interface FlagResult {
 	payload: any;
 	reason: string;
 	flagId?: string;
-	flagType?: 'boolean' | 'rollout';
+	flagType?: "boolean" | "rollout";
 }
 
 export interface FlagsConfig {
@@ -36,7 +36,7 @@ export interface FlagState {
 export interface FlagsContext {
 	isEnabled: (key: string) => FlagState;
 	fetchAllFlags: () => Promise<void>;
-	updateUser: (user: FlagsConfig['user']) => void;
+	updateUser: (user: FlagsConfig["user"]) => void;
 	refresh: (forceClear?: boolean) => Promise<void>;
 }
 
@@ -60,7 +60,7 @@ export interface FlagsManager {
 	getFlag: (key: string) => Promise<FlagResult>;
 	isEnabled: (key: string) => FlagState;
 	fetchAllFlags: () => Promise<void>;
-	updateUser: (user: FlagsConfig['user']) => void;
+	updateUser: (user: FlagsConfig["user"]) => void;
 	refresh: (forceClear?: boolean) => void;
 	updateConfig: (config: FlagsConfig) => void;
 	getMemoryFlags: () => Record<string, FlagResult>;

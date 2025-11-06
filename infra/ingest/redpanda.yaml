@@ -1,0 +1,32 @@
+redpanda:
+  data_directory: /var/lib/redpanda/data
+  node_id: 0
+  rpc_server:
+    address: 0.0.0.0
+    port: 33145
+  kafka_api:
+    - address: 0.0.0.0
+      port: 9092
+      name: internal
+      authentication_method: sasl
+    - address: 0.0.0.0
+      port: 19092
+      name: external
+      authentication_method: sasl
+  admin:
+    - address: 0.0.0.0
+      port: 9644
+  admin_api_doc_dir: /usr/share/redpanda/admin-api-doc
+
+rpk:
+  enable_usage_stats: false
+
+pandaproxy:
+  pandaproxy_api:
+    - address: 0.0.0.0
+      port: 8082
+
+schema_registry:
+  schema_registry_api:
+    - address: 0.0.0.0
+      port: 8081

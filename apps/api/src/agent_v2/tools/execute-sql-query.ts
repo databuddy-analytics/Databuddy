@@ -1,6 +1,6 @@
-import { chQuery } from '@databuddy/db';
-import { tool } from 'ai';
-import { z } from 'zod';
+import { chQuery } from "@databuddy/db";
+import { tool } from "ai";
+import { z } from "zod";
 
 export interface QueryResult {
 	data: unknown[];
@@ -9,21 +9,21 @@ export interface QueryResult {
 }
 
 const FORBIDDEN_SQL_KEYWORDS = [
-	'INSERT INTO',
-	'UPDATE SET',
-	'DELETE FROM',
-	'DROP TABLE',
-	'DROP DATABASE',
-	'CREATE TABLE',
-	'CREATE DATABASE',
-	'ALTER TABLE',
-	'EXEC ',
-	'EXECUTE ',
-	'TRUNCATE',
-	'MERGE',
-	'BULK',
-	'RESTORE',
-	'BACKUP',
+	"INSERT INTO",
+	"UPDATE SET",
+	"DELETE FROM",
+	"DROP TABLE",
+	"DROP DATABASE",
+	"CREATE TABLE",
+	"CREATE DATABASE",
+	"ALTER TABLE",
+	"EXEC ",
+	"EXECUTE ",
+	"TRUNCATE",
+	"MERGE",
+	"BULK",
+	"RESTORE",
+	"BACKUP",
 ] as const;
 
 function validateSQL(sql: string): boolean {
@@ -36,23 +36,23 @@ function validateSQL(sql: string): boolean {
 		}
 	}
 
-	return trimmed.startsWith('SELECT') || trimmed.startsWith('WITH');
+	return trimmed.startsWith("SELECT") || trimmed.startsWith("WITH");
 }
 
 export const executeSqlQueryTool = tool({
 	description:
-		'Executes a validated, read-only ClickHouse SQL query against analytics data. Only SELECT and WITH statements are allowed for security.',
+		"Executes a validated, read-only ClickHouse SQL query against analytics data. Only SELECT and WITH statements are allowed for security.",
 	inputSchema: z.object({
 		sql: z
 			.string()
 			.describe(
-				'The SQL query to execute. Must be a SELECT or WITH statement.'
+				"The SQL query to execute. Must be a SELECT or WITH statement."
 			),
 	}),
 	execute: async ({ sql }) => {
 		if (!validateSQL(sql)) {
 			throw new Error(
-				'Query failed security validation. Only SELECT and WITH statements are allowed.'
+				"Query failed security validation. Only SELECT and WITH statements are allowed."
 			);
 		}
 
@@ -61,10 +61,10 @@ export const executeSqlQueryTool = tool({
 			const result = await chQuery(sql);
 			const queryTime = Date.now() - queryStart;
 
-			console.info('🔍 [Execute SQL Tool] Query completed', {
+			console.info("🔍 [Execute SQL Tool] Query completed", {
 				timeTaken: `${queryTime}ms`,
 				resultCount: result.length,
-				sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
+				sql: sql.substring(0, 100) + (sql.length > 100 ? "..." : ""),
 			});
 
 			return {
@@ -73,13 +73,13 @@ export const executeSqlQueryTool = tool({
 				rowCount: result.length,
 			};
 		} catch (error) {
-			console.error('❌ [Execute SQL Tool] Query failed', {
-				error: error instanceof Error ? error.message : 'Unknown error',
-				sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
+			console.error("❌ [Execute SQL Tool] Query failed", {
+				error: error instanceof Error ? error.message : "Unknown error",
+				sql: sql.substring(0, 100) + (sql.length > 100 ? "..." : ""),
 			});
 
 			throw new Error(
-				error instanceof Error ? error.message : 'Unknown query error'
+				error instanceof Error ? error.message : "Unknown query error"
 			);
 		}
 	},

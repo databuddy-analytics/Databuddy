@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowRightIcon,
@@ -7,12 +7,12 @@ import {
 	InfoIcon,
 	UserIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { useParams, useRouter } from 'next/navigation';
-import { Suspense, useCallback, useState } from 'react';
-import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { useParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useState } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -20,38 +20,40 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { useOrganizations, type Organization } from '@/hooks/use-organizations';
-import { useWebsiteTransferToOrg } from '@/hooks/use-website-transfer-to-org';
-import { useWebsite } from '@/hooks/use-websites';
+} from "@/components/ui/select";
+import { type Organization, useOrganizations } from "@/hooks/use-organizations";
+import { useWebsiteTransferToOrg } from "@/hooks/use-website-transfer-to-org";
+import { useWebsite } from "@/hooks/use-websites";
 
 function TransferPageContent() {
 	const params = useParams();
 	const router = useRouter();
 	const websiteId = params.id as string;
-	const { data: websiteData, isLoading: isLoadingWebsite } = useWebsite(websiteId);
-	const { organizations, isLoading: isLoadingOrganizations } = useOrganizations();
+	const { data: websiteData, isLoading: isLoadingWebsite } =
+		useWebsite(websiteId);
+	const { organizations, isLoading: isLoadingOrganizations } =
+		useOrganizations();
 	const { transferWebsiteToOrg, isTransferring } = useWebsiteTransferToOrg();
 
-	const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+	const [selectedOrgId, setSelectedOrgId] = useState<string>("");
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
 	const handleTransfer = useCallback(() => {
-		if (!selectedOrgId || !websiteData) {
+		if (!(selectedOrgId && websiteData)) {
 			return;
 		}
 
 		const targetOrg = organizations?.find((org) => org.id === selectedOrgId);
 		if (!targetOrg) {
-			toast.error('Selected organization not found');
+			toast.error("Selected organization not found");
 			return;
 		}
 
@@ -66,20 +68,27 @@ function TransferPageContent() {
 						`Website "${websiteData.name}" has been transferred to "${targetOrg.name}"`
 					);
 					setShowConfirmDialog(false);
-					setSelectedOrgId('');
+					setSelectedOrgId("");
 					// Redirect to websites page after successful transfer
 					setTimeout(() => {
-						router.push('/websites');
+						router.push("/websites");
 					}, 500);
 				},
 				onError: (error) => {
 					toast.error(
-						error?.message || 'Failed to transfer website. Please try again.'
+						error?.message || "Failed to transfer website. Please try again."
 					);
 				},
 			}
 		);
-	}, [selectedOrgId, websiteData, organizations, transferWebsiteToOrg, websiteId, router]);
+	}, [
+		selectedOrgId,
+		websiteData,
+		organizations,
+		transferWebsiteToOrg,
+		websiteId,
+		router,
+	]);
 
 	if (isLoadingWebsite || isLoadingOrganizations || !websiteData) {
 		return (
@@ -106,7 +115,9 @@ function TransferPageContent() {
 				<div className="flex flex-1 items-center justify-center">
 					<div className="flex flex-col items-center gap-3">
 						<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
-						<p className="text-muted-foreground text-sm">Loading transfer options...</p>
+						<p className="text-muted-foreground text-sm">
+							Loading transfer options...
+						</p>
 					</div>
 				</div>
 			</div>
@@ -114,20 +125,24 @@ function TransferPageContent() {
 	}
 
 	const currentOrg = websiteData.organizationId
-		? organizations?.find((org: Organization) => org.id === websiteData.organizationId) || {
-			id: websiteData.organizationId,
-			name: 'Organization',
-			slug: '',
-			createdAt: new Date(),
-		}
+		? organizations?.find(
+				(org: Organization) => org.id === websiteData.organizationId
+			) || {
+				id: websiteData.organizationId,
+				name: "Organization",
+				slug: "",
+				createdAt: new Date(),
+			}
 		: null;
 
-	const availableOrgs = organizations?.filter(
-		(org: Organization) => org.id !== websiteData.organizationId
-	) || [];
+	const availableOrgs =
+		organizations?.filter(
+			(org: Organization) => org.id !== websiteData.organizationId
+		) || [];
 
 	const selectedOrg = selectedOrgId
-		? organizations?.find((org: Organization) => org.id === selectedOrgId) || null
+		? organizations?.find((org: Organization) => org.id === selectedOrgId) ||
+			null
 		: null;
 
 	return (
@@ -168,7 +183,7 @@ function TransferPageContent() {
 									<div className="min-w-0 flex-1">
 										<p className="mb-0.5 text-muted-foreground text-xs">From</p>
 										<p className="truncate font-medium text-sm">
-											{currentOrg?.name || 'Personal'}
+											{currentOrg?.name || "Personal"}
 										</p>
 									</div>
 								</div>
@@ -182,7 +197,7 @@ function TransferPageContent() {
 									<div className="min-w-0 flex-1">
 										<p className="mb-0.5 text-muted-foreground text-xs">To</p>
 										<p className="truncate font-medium text-sm">
-											{selectedOrg?.name || 'Select organization'}
+											{selectedOrg?.name || "Select organization"}
 										</p>
 									</div>
 								</div>
@@ -193,8 +208,9 @@ function TransferPageContent() {
 						<Alert className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
 							<InfoIcon className="h-4 w-4" />
 							<AlertDescription className="text-xs">
-								This will transfer ownership and all associated data to the selected
-								organization. Members of the new organization will gain access.
+								This will transfer ownership and all associated data to the
+								selected organization. Members of the new organization will gain
+								access.
 							</AlertDescription>
 						</Alert>
 					</div>
@@ -204,7 +220,7 @@ function TransferPageContent() {
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-3">
 						<div className="space-y-2">
-							<Label htmlFor="target-org" className="font-medium text-sm">
+							<Label className="font-medium text-sm" htmlFor="target-org">
 								Select Target Organization
 							</Label>
 							<Select
@@ -253,9 +269,10 @@ function TransferPageContent() {
 						<Alert className="border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
 							<WarningIcon className="h-4 w-4" />
 							<AlertDescription className="text-xs">
-								<strong className="font-semibold">Important:</strong> This action is
-								irreversible. All data, settings, and analytics will be transferred
-								to <strong className="font-semibold">{selectedOrg?.name}</strong>.
+								<strong className="font-semibold">Important:</strong> This
+								action is irreversible. All data, settings, and analytics will
+								be transferred to{" "}
+								<strong className="font-semibold">{selectedOrg?.name}</strong>.
 								Ensure you have the necessary permissions on both organizations.
 							</AlertDescription>
 						</Alert>
@@ -267,8 +284,8 @@ function TransferPageContent() {
 					<div className="flex items-center justify-between gap-3">
 						<p className="text-muted-foreground text-xs">
 							{selectedOrgId
-								? 'Review the details and confirm to proceed'
-								: 'Select a target organization to continue'}
+								? "Review the details and confirm to proceed"
+								: "Select a target organization to continue"}
 						</p>
 						<Button
 							disabled={!selectedOrgId || isTransferring}
@@ -286,7 +303,9 @@ function TransferPageContent() {
 			<Dialog onOpenChange={setShowConfirmDialog} open={showConfirmDialog}>
 				<DialogContent className="max-w-lg">
 					<DialogHeader>
-						<DialogTitle className="text-xl">Confirm Website Transfer</DialogTitle>
+						<DialogTitle className="text-xl">
+							Confirm Website Transfer
+						</DialogTitle>
 						<DialogDescription className="text-sm">
 							This action cannot be undone. Please review the transfer details
 							carefully before proceeding.
@@ -302,11 +321,14 @@ function TransferPageContent() {
 							<div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
 								<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
 									<span className="font-semibold text-primary text-sm">
-										{websiteData.name?.charAt(0).toUpperCase() || websiteData.domain.charAt(0).toUpperCase()}
+										{websiteData.name?.charAt(0).toUpperCase() ||
+											websiteData.domain.charAt(0).toUpperCase()}
 									</span>
 								</div>
 								<div className="min-w-0 flex-1">
-									<p className="font-semibold text-sm">{websiteData.name || websiteData.domain}</p>
+									<p className="font-semibold text-sm">
+										{websiteData.name || websiteData.domain}
+									</p>
 									<p className="truncate text-muted-foreground text-xs">
 										{websiteData.domain}
 									</p>
@@ -338,14 +360,17 @@ function TransferPageContent() {
 									<div className="min-w-0 flex-1">
 										<p className="mb-0.5 text-muted-foreground text-xs">From</p>
 										<p className="truncate font-medium text-sm">
-											{currentOrg?.name || 'Personal'}
+											{currentOrg?.name || "Personal"}
 										</p>
 									</div>
 								</div>
 
 								{/* Arrow */}
 								<div className="flex shrink-0 items-center justify-center">
-									<ArrowRightIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+									<ArrowRightIcon
+										className="h-5 w-5 text-muted-foreground"
+										weight="bold"
+									/>
 								</div>
 
 								{/* To Organization */}
@@ -375,8 +400,8 @@ function TransferPageContent() {
 						<Alert className="border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
 							<WarningIcon className="h-4 w-4" weight="duotone" />
 							<AlertDescription className="text-xs leading-relaxed">
-								This will immediately transfer all ownership, data, settings, and
-								analytics to{' '}
+								This will immediately transfer all ownership, data, settings,
+								and analytics to{" "}
 								<strong className="font-semibold">{selectedOrg?.name}</strong>.
 								Members of that organization will gain full access.
 							</AlertDescription>

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import type { IconWeight } from '@phosphor-icons/react';
+import type { IconWeight } from "@phosphor-icons/react";
 import {
 	GitForkIcon,
 	StarIcon,
 	UsersIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 
 interface ContributorsHeroProps {
 	stars: number;

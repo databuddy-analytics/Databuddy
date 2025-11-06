@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import { AnimatePresence, motion, type Variants } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { AnimatePresence, motion, type Variants } from "motion/react";
+import { useEffect, useState } from "react";
 
 const analyticsData = [
 	{
-		title: 'Bloated and Creepy',
+		title: "Bloated and Creepy",
 		content:
-			'Google Analytics tracks everything, slows down your site, and requires cookie banners that hurt conversion rates.',
+			"Google Analytics tracks everything, slows down your site, and requires cookie banners that hurt conversion rates.",
 		isActive: true,
 	},
 	{
-		title: 'Minimal but useless',
+		title: "Minimal but useless",
 		content:
-			'Simple analytics tools give you basic metrics but lack the depth needed for meaningful business insights.',
+			"Simple analytics tools give you basic metrics but lack the depth needed for meaningful business insights.",
 		isActive: false,
 	},
 	{
-		title: 'Complex Product Analysis',
+		title: "Complex Product Analysis",
 		content:
 			"Enterprise tools overwhelm you with features you don't need while hiding the metrics that actually matter.",
 		isActive: false,
@@ -48,12 +48,12 @@ export const Description = () => {
 	const titleVariants: Variants = {
 		active: {
 			opacity: 1,
-			color: 'var(--color-foreground)',
+			color: "var(--color-foreground)",
 			transition: { duration: 0.3 },
 		},
 		inactive: {
 			opacity: 0.4,
-			color: 'var(--color-muted-foreground)',
+			color: "var(--color-muted-foreground)",
 			transition: { duration: 0.3 },
 		},
 	};
@@ -68,7 +68,7 @@ export const Description = () => {
 			y: 0,
 			transition: {
 				duration: 0.4,
-				ease: 'easeOut',
+				ease: "easeOut",
 			},
 		},
 		exit: {
@@ -76,7 +76,7 @@ export const Description = () => {
 			y: -20,
 			transition: {
 				duration: 0.3,
-				ease: 'easeIn',
+				ease: "easeIn",
 			},
 		},
 	};
@@ -127,7 +127,7 @@ export const Description = () => {
 						<div className="space-y-2 xl:space-y-3">
 							{data.map((item, index) => (
 								<motion.div
-									animate={item.isActive ? 'active' : 'inactive'}
+									animate={item.isActive ? "active" : "inactive"}
 									className="cursor-pointer font-normal text-lg transition-colors duration-200 hover:opacity-80 xl:text-xl"
 									key={`title-${item.title}`}
 									onClick={() => setCurrentIndex(index)}

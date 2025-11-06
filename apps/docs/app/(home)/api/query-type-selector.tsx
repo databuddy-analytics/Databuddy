@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { XIcon } from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { XIcon } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 interface QueryType {
 	name: string;
@@ -42,8 +42,8 @@ export function QueryTypeSelector({
 							aria-label="Clear selection"
 							className={`${
 								selectedTypes.size > 5
-									? 'pointer-events-auto ml-1 w-4 scale-100 opacity-100'
-									: 'pointer-events-none ml-0 w-0 scale-95 opacity-0'
+									? "pointer-events-auto ml-1 w-4 scale-100 opacity-100"
+									: "pointer-events-none ml-0 w-0 scale-95 opacity-0"
 							} inline-flex h-4 items-center justify-center rounded transition-all duration-200 hover:bg-muted/40`}
 							onClick={onClearSelection}
 							type="button"
@@ -59,7 +59,7 @@ export function QueryTypeSelector({
 					{[...selectedTypes].map((type) => (
 						<Card
 							className={
-								'group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm '
+								"group relative cursor-pointer border transition-all duration-200 hover:border-border/80 hover:shadow-sm"
 							}
 							key={type}
 							onClick={() => onTypeToggle(type)}
@@ -94,7 +94,7 @@ export function QueryTypeSelector({
 									</div>
 									<div
 										className={
-											'h-3 w-3 flex-shrink-0 rounded-full border border-primary bg-primary transition-colors'
+											"h-3 w-3 flex-shrink-0 rounded-full border border-primary bg-primary transition-colors"
 										}
 									/>
 								</div>
@@ -136,7 +136,7 @@ export function QueryTypeSelector({
 										</div>
 										<div
 											className={
-												'h-3 w-3 flex-shrink-0 rounded-full border border-muted-foreground/30 transition-colors'
+												"h-3 w-3 flex-shrink-0 rounded-full border border-muted-foreground/30 transition-colors"
 											}
 										/>
 									</div>
@@ -152,7 +152,7 @@ export function QueryTypeSelector({
 				onClick={onExecuteQuery}
 				size="lg"
 			>
-				{isLoading ? 'Executing...' : 'Execute Query'}
+				{isLoading ? "Executing..." : "Execute Query"}
 			</Button>
 		</div>
 	);

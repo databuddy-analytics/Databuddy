@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import type { IconWeight } from '@phosphor-icons/react';
+import type { IconWeight } from "@phosphor-icons/react";
 import {
 	CodeIcon,
 	GitMergeIcon,
 	GitPullRequestIcon,
 	XIcon,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 
 interface Language {
 	name: string;
@@ -28,17 +28,17 @@ interface ActivityStatsProps {
 }
 
 const LANGUAGE_COLORS: Record<string, string> = {
-	TypeScript: '#3178c6',
-	JavaScript: '#f1e05a',
-	CSS: '#563d7c',
-	HTML: '#e34c26',
-	Dockerfile: '#384d54',
-	Shell: '#89e051',
-	Python: '#3572A5',
-	Go: '#00ADD8',
-	Rust: '#dea584',
-	Java: '#b07219',
-	default: '#8b5cf6',
+	TypeScript: "#3178c6",
+	JavaScript: "#f1e05a",
+	CSS: "#563d7c",
+	HTML: "#e34c26",
+	Dockerfile: "#384d54",
+	Shell: "#89e051",
+	Python: "#3572A5",
+	Go: "#00ADD8",
+	Rust: "#dea584",
+	Java: "#b07219",
+	default: "#8b5cf6",
 };
 
 function LanguageBar({ language }: { language: Language }) {
@@ -67,7 +67,7 @@ function StatCard({
 	label,
 	value,
 	description,
-	color = 'text-muted-foreground',
+	color = "text-muted-foreground",
 	href,
 }: {
 	icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
-import { JsonNode } from './json-viewer';
-import type { BatchQueryResponse } from './types';
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { JsonNode } from "./json-viewer";
+import type { BatchQueryResponse } from "./types";
 
 interface QueryResultsProps {
 	isLoading: boolean;
@@ -20,9 +20,9 @@ export function QueryResults({ isLoading, result }: QueryResultsProps) {
 				{result && (
 					<Badge
 						className="rounded-none text-xs"
-						variant={result.success ? 'default' : 'destructive'}
+						variant={result.success ? "default" : "destructive"}
 					>
-						{result.success ? 'Success' : 'Failed'}
+						{result.success ? "Success" : "Failed"}
 					</Badge>
 				)}
 			</div>

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { CaretDownIcon, CaretUpIcon, FlagIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { trpc } from '@/lib/trpc';
-import { FlagActions } from './flag-actions';
-import type { Flag } from './types';
+import { CaretDownIcon, CaretUpIcon, FlagIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { trpc } from "@/lib/trpc";
+import { FlagActions } from "./flag-actions";
+import type { Flag } from "./types";
 
 interface FlagRowProps {
 	flag: Flag;
@@ -29,7 +29,7 @@ export function FlagRow({
 
 	const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement;
-		if (target.closest('button')) {
+		if (target.closest("button")) {
 			return;
 		}
 		if (onToggle) {
@@ -38,7 +38,7 @@ export function FlagRow({
 	};
 
 	const getStatusBadge = (status: string) => {
-		if (status === 'active') {
+		if (status === "active") {
 			return (
 				<span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700 text-xs dark:border-green-900/60 dark:bg-green-950 dark:text-green-300">
 					<span className="h-1.5 w-1.5 rounded bg-green-500" />
@@ -46,7 +46,7 @@ export function FlagRow({
 				</span>
 			);
 		}
-		if (status === 'inactive') {
+		if (status === "inactive") {
 			return (
 				<span className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
 					<span className="h-1.5 w-1.5 rounded bg-zinc-400" />
@@ -54,7 +54,7 @@ export function FlagRow({
 				</span>
 			);
 		}
-		if (status === 'archived') {
+		if (status === "archived") {
 			return (
 				<span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700 text-xs dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-300">
 					<span className="h-1.5 w-1.5 rounded bg-amber-500" />
@@ -71,29 +71,29 @@ export function FlagRow({
 
 	const ruleCount = Array.isArray(flag.rules) ? flag.rules.length : 0;
 	const rollout =
-		typeof flag.rolloutPercentage === 'number' ? flag.rolloutPercentage : 0;
-	const isBooleanFlag = String(flag.type).toLowerCase() === 'boolean';
+		typeof flag.rolloutPercentage === "number" ? flag.rolloutPercentage : 0;
+	const isBooleanFlag = String(flag.type).toLowerCase() === "boolean";
 	const defaultLabel =
-		isBooleanFlag && typeof flag.defaultValue === 'boolean'
-			? `Default: ${flag.defaultValue ? 'On' : 'Off'}`
+		isBooleanFlag && typeof flag.defaultValue === "boolean"
+			? `Default: ${flag.defaultValue ? "On" : "Off"}`
 			: undefined;
 
 	return (
 		<Card
 			className={`mb-4 cursor-pointer select-none overflow-hidden rounded border bg-background transition focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
-				flag.status === 'active'
-					? 'border-l-4 border-l-green-500'
-					: flag.status === 'inactive'
-						? 'border-l-4 border-l-zinc-400'
-						: 'border-l-4 border-l-amber-500'
+				flag.status === "active"
+					? "border-l-4 border-l-green-500"
+					: flag.status === "inactive"
+						? "border-l-4 border-l-zinc-400"
+						: "border-l-4 border-l-amber-500"
 			}`}
 			onClick={handleCardClick}
 			onKeyDown={(e) => {
-				if ((e.key === 'Enter' || e.key === ' ') && onToggle) {
+				if ((e.key === "Enter" || e.key === " ") && onToggle) {
 					onToggle(flag.id);
 				}
 			}}
-			style={{ outline: 'none' }}
+			style={{ outline: "none" }}
 			tabIndex={0}
 		>
 			<div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
@@ -101,7 +101,7 @@ export function FlagRow({
 					<div className="mb-1 flex flex-wrap items-center gap-2">
 						<h3
 							className="mr-2 truncate font-mono font-semibold text-base"
-							style={{ color: 'var(--color-foreground)' }}
+							style={{ color: "var(--color-foreground)" }}
 						>
 							{flag.key}
 						</h3>
@@ -119,7 +119,7 @@ export function FlagRow({
 						)}
 						{ruleCount > 0 && (
 							<span className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-muted-foreground text-xs">
-								{ruleCount} rule{ruleCount !== 1 ? 's' : ''}
+								{ruleCount} rule{ruleCount !== 1 ? "s" : ""}
 							</span>
 						)}
 						{defaultLabel && (

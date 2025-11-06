@@ -1,22 +1,22 @@
-import { createClient, type ResponseJSON } from '@clickhouse/client';
-import type { NodeClickHouseClientConfigOptions } from '@clickhouse/client/dist/config';
+import { createClient, type ResponseJSON } from "@clickhouse/client";
+import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
-export { createClient } from '@clickhouse/client';
+export { createClient } from "@clickhouse/client";
 
 /**
  * ClickHouse table names used throughout the application
  */
 export const TABLE_NAMES = {
-	events: 'analytics.events',
-	errors: 'analytics.errors',
-	outgoing_links: 'analytics.outgoing_links',
-	custom_events: 'analytics.custom_events',
-	web_vitals: 'analytics.web_vitals',
-	stripe_payment_intents: 'analytics.stripe_payment_intents',
-	stripe_charges: 'analytics.stripe_charges',
-	stripe_refunds: 'analytics.stripe_refunds',
-	blocked_traffic: 'analytics.blocked_traffic',
-	email_events: 'analytics.email_events',
+	events: "analytics.events",
+	errors: "analytics.errors",
+	outgoing_links: "analytics.outgoing_links",
+	custom_events: "analytics.custom_events",
+	web_vitals: "analytics.web_vitals",
+	stripe_payment_intents: "analytics.stripe_payment_intents",
+	stripe_charges: "analytics.stripe_charges",
+	stripe_refunds: "analytics.stripe_refunds",
+	blocked_traffic: "analytics.blocked_traffic",
+	email_events: "analytics.email_events",
 };
 
 const logger = console;
@@ -50,16 +50,16 @@ async function withRetry<T>(
 		try {
 			const res = await operation();
 			if (attempt > 0) {
-				logger.info('Retry operation succeeded', { attempt });
+				logger.info("Retry operation succeeded", { attempt });
 			}
 			return res;
 		} catch (error: any) {
 			lastError = error;
 
 			if (
-				error.message.includes('Connect') ||
-				error.message.includes('socket hang up') ||
-				error.message.includes('Timeout error')
+				error.message.includes("Connect") ||
+				error.message.includes("socket hang up") ||
+				error.message.includes("Timeout error")
 			) {
 				const delay = baseDelay * 2 ** attempt;
 				logger.warn(
@@ -83,7 +83,7 @@ export const clickHouse = new Proxy(clickHouseOG, {
 	get(target, property, receiver) {
 		const value = Reflect.get(target, property, receiver);
 
-		if (property === 'insert') {
+		if (property === "insert") {
 			return (...args: any[]) => withRetry(() => value.apply(target, args));
 		}
 
@@ -103,19 +103,19 @@ export async function chQueryWithMeta<T extends Record<string, any>>(
 	const keys = Object.keys(json.data[0] || {});
 	const response = {
 		...json,
-		data: json.data.map((item) => {
-			return keys.reduce(
+		data: json.data.map((item) =>
+			keys.reduce(
 				(acc, key) => {
 					const meta = json.meta?.find((m) => m.name === key);
 					acc[key] =
-						item[key] && meta?.type.includes('Int')
+						item[key] && meta?.type.includes("Int")
 							? Number.parseFloat(item[key] as string)
 							: item[key];
 					return acc;
 				},
 				{} as Record<string, any>
-			);
-		}),
+			)
+		),
 	};
 
 	return response as ResponseJSON<T>;
@@ -147,13 +147,13 @@ export function formatClickhouseDate(
 	skipTime = false
 ): string {
 	if (skipTime) {
-		return new Date(date).toISOString().split('T')[0] ?? '';
+		return new Date(date).toISOString().split("T")[0] ?? "";
 	}
-	return new Date(date).toISOString().replace('T', ' ').replace(Z_REGEX, '');
+	return new Date(date).toISOString().replace("T", " ").replace(Z_REGEX, "");
 }
 
 export function toDate(str: string, interval?: string) {
-	if (!interval || interval === 'minute' || interval === 'hour') {
+	if (!interval || interval === "minute" || interval === "hour") {
 		if (str.match(DATE_REGEX)) {
 			return escape(str);
 		}
@@ -162,12 +162,12 @@ export function toDate(str: string, interval?: string) {
 	}
 
 	if (str.match(DATE_REGEX)) {
-		return `toDate(${escape(str.split(' ')[0])})`;
+		return `toDate(${escape(str.split(" ")[0])})`;
 	}
 
 	return `toDate(${str})`;
 }
 
 export function convertClickhouseDateToJs(date: string) {
-	return new Date(`${date.replace(' ', 'T')}Z`);
+	return new Date(`${date.replace(" ", "T")}Z`);
 }

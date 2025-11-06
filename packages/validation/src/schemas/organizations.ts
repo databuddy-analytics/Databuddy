@@ -1,24 +1,24 @@
-import z from 'zod';
+import z from "zod";
 
 export const organizationNameSchema = z
 	.string()
-	.min(1, 'Organization name is required')
-	.max(100, 'Organization name must be less than 100 characters')
+	.min(1, "Organization name is required")
+	.max(100, "Organization name must be less than 100 characters")
 	.trim();
 
 export const organizationSlugSchema = z
 	.string()
-	.min(1, 'Organization slug is required')
-	.max(50, 'Organization slug must be less than 50 characters')
+	.min(1, "Organization slug is required")
+	.max(50, "Organization slug must be less than 50 characters")
 	.regex(
 		/^[a-z0-9-]+$/,
-		'Slug can only contain lowercase letters, numbers, and hyphens'
+		"Slug can only contain lowercase letters, numbers, and hyphens"
 	)
 	.trim();
 
 export const organizationLogoSchema = z
 	.string()
-	.url('Logo must be a valid URL')
+	.url("Logo must be a valid URL")
 	.optional();
 
 export const createOrganizationSchema = z.object({
@@ -29,7 +29,7 @@ export const createOrganizationSchema = z.object({
 });
 
 export const updateOrganizationSchema = z.object({
-	id: z.string().min(1, 'Organization ID is required'),
+	id: z.string().min(1, "Organization ID is required"),
 	name: organizationNameSchema.optional(),
 	slug: organizationSlugSchema.optional(),
 	logo: organizationLogoSchema,
@@ -37,17 +37,17 @@ export const updateOrganizationSchema = z.object({
 });
 
 export const uploadOrganizationLogoSchema = z.object({
-	organizationId: z.string().min(1, 'Organization ID is required'),
-	fileData: z.string().min(1, 'File data is required'),
-	fileName: z.string().min(1, 'File name is required'),
-	fileType: z.string().min(1, 'File type is required'),
+	organizationId: z.string().min(1, "Organization ID is required"),
+	fileData: z.string().min(1, "File data is required"),
+	fileName: z.string().min(1, "File name is required"),
+	fileType: z.string().min(1, "File type is required"),
 });
 
 export const deleteOrganizationSchema = z.object({
-	id: z.string().min(1, 'Organization ID is required'),
+	id: z.string().min(1, "Organization ID is required"),
 });
 
 export const getPendingInvitationsSchema = z.object({
-	organizationId: z.string().min(1, 'Organization ID is required'),
+	organizationId: z.string().min(1, "Organization ID is required"),
 	includeExpired: z.boolean().optional(),
 });

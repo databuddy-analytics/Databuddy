@@ -1,5 +1,5 @@
-import { t } from 'elysia';
-import { QueryBuilders } from '../query/builders';
+import { t } from "elysia";
+import { QueryBuilders } from "../query/builders";
 
 const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
@@ -8,13 +8,13 @@ const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 export const FilterSchema = t.Object({
 	field: t.String(),
 	op: t.Enum({
-		eq: 'eq',
-		ne: 'ne',
-		like: 'like',
-		gt: 'gt',
-		lt: 'lt',
-		in: 'in',
-		notIn: 'notIn',
+		eq: "eq",
+		ne: "ne",
+		like: "like",
+		gt: "gt",
+		lt: "lt",
+		in: "in",
+		notIn: "notIn",
 	}),
 	value: t.Union([
 		t.String(),
@@ -29,10 +29,10 @@ export const ParameterWithDatesSchema = t.Object({
 	end_date: t.Optional(t.String()),
 	granularity: t.Optional(
 		t.Union([
-			t.Literal('hourly'),
-			t.Literal('daily'),
-			t.Literal('hour'),
-			t.Literal('day'),
+			t.Literal("hourly"),
+			t.Literal("daily"),
+			t.Literal("hour"),
+			t.Literal("day"),
 		])
 	),
 	id: t.Optional(t.String()),
@@ -46,10 +46,10 @@ export const DynamicQueryRequestSchema = t.Object({
 	filters: t.Optional(t.Array(FilterSchema)),
 	granularity: t.Optional(
 		t.Union([
-			t.Literal('hourly'),
-			t.Literal('daily'),
-			t.Literal('hour'),
-			t.Literal('day'),
+			t.Literal("hourly"),
+			t.Literal("daily"),
+			t.Literal("hour"),
+			t.Literal("day"),
 		])
 	),
 	groupBy: t.Optional(t.Union([t.String(), t.Array(t.String())])),
@@ -65,11 +65,11 @@ export const CompileRequestSchema = t.Object({
 	to: t.String(),
 	timeUnit: t.Optional(
 		t.Enum({
-			minute: 'minute',
-			hour: 'hour',
-			day: 'day',
-			week: 'week',
-			month: 'month',
+			minute: "minute",
+			hour: "hour",
+			day: "day",
+			week: "week",
+			month: "month",
 		})
 	),
 	filters: t.Optional(t.Array(FilterSchema)),
@@ -81,7 +81,7 @@ export const CompileRequestSchema = t.Object({
 
 export type FilterType = {
 	field: string;
-	op: 'eq' | 'ne' | 'like' | 'gt' | 'lt' | 'in' | 'notIn';
+	op: "eq" | "ne" | "like" | "gt" | "lt" | "in" | "notIn";
 	value: string | number | Array<string | number>;
 };
 
@@ -89,7 +89,7 @@ export type ParameterWithDatesType = {
 	name: string;
 	start_date?: string;
 	end_date?: string;
-	granularity?: 'hourly' | 'daily' | 'hour' | 'day';
+	granularity?: "hourly" | "daily" | "hour" | "day";
 	id?: string;
 };
 
@@ -99,7 +99,7 @@ export type DynamicQueryRequestType = {
 	limit?: number;
 	page?: number;
 	filters?: FilterType[];
-	granularity?: 'hourly' | 'daily' | 'hour' | 'day';
+	granularity?: "hourly" | "daily" | "hour" | "day";
 	groupBy?: string | string[];
 	startDate?: string;
 	endDate?: string;
@@ -111,7 +111,7 @@ export type CompileRequestType = {
 	type: keyof typeof QueryBuilders;
 	from: string;
 	to: string;
-	timeUnit?: 'minute' | 'hour' | 'day' | 'week' | 'month';
+	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
 	filters?: FilterType[];
 	groupBy?: string[];
 	orderBy?: string;

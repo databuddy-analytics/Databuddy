@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { BellIcon, GearSixIcon } from '@phosphor-icons/react';
-import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-import { ApiKeyDetailDialog } from '@/components/organizations/api-key-detail-dialog';
+import { BellIcon, GearSixIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { ApiKeyDetailDialog } from "@/components/organizations/api-key-detail-dialog";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ApiKeyCreateDialog, ApiKeyList } from './_components';
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ApiKeyCreateDialog, ApiKeyList } from "./_components";
 
 const IntegrationsPage = dynamic(
-	() => import('./integrations/page').then((mod) => ({ default: mod.default })),
+	() => import("./integrations/page").then((mod) => ({ default: mod.default })),
 	{
 		loading: () => <Skeleton className="h-64 w-full rounded" />,
 		ssr: false,
@@ -25,7 +25,7 @@ const IntegrationsPage = dynamic(
 
 const EmailForm = dynamic(
 	() =>
-		import('./_components/email-form').then((mod) => ({
+		import("./_components/email-form").then((mod) => ({
 			default: mod.EmailForm,
 		})),
 	{
@@ -36,7 +36,7 @@ const EmailForm = dynamic(
 
 const PasswordForm = dynamic(
 	() =>
-		import('./_components/password-form').then((mod) => ({
+		import("./_components/password-form").then((mod) => ({
 			default: mod.PasswordForm,
 		})),
 	{
@@ -47,7 +47,7 @@ const PasswordForm = dynamic(
 
 const TwoFactorForm = dynamic(
 	() =>
-		import('./_components/two-factor-form').then((mod) => ({
+		import("./_components/two-factor-form").then((mod) => ({
 			default: mod.TwoFactorForm,
 		})),
 	{
@@ -58,7 +58,7 @@ const TwoFactorForm = dynamic(
 
 const SessionsForm = dynamic(
 	() =>
-		import('./_components/sessions-form').then((mod) => ({
+		import("./_components/sessions-form").then((mod) => ({
 			default: mod.SessionsForm,
 		})),
 	{
@@ -69,7 +69,7 @@ const SessionsForm = dynamic(
 
 const AccountDeletion = dynamic(
 	() =>
-		import('./_components/account-deletion').then((mod) => ({
+		import("./_components/account-deletion").then((mod) => ({
 			default: mod.AccountDeletion,
 		})),
 	{
@@ -80,7 +80,7 @@ const AccountDeletion = dynamic(
 
 const ProfileForm = dynamic(
 	() =>
-		import('./_components/profile-form').then((mod) => ({
+		import("./_components/profile-form").then((mod) => ({
 			default: mod.ProfileForm,
 		})),
 	{
@@ -91,7 +91,7 @@ const ProfileForm = dynamic(
 
 const TimezonePreferences = dynamic(
 	() =>
-		import('./_components/timezone-preferences').then((mod) => ({
+		import("./_components/timezone-preferences").then((mod) => ({
 			default: mod.TimezonePreferences,
 		})),
 	{
@@ -102,40 +102,40 @@ const TimezonePreferences = dynamic(
 
 export default function SettingsPage() {
 	const searchParams = useSearchParams();
-	const activeTab = searchParams.get('tab') || 'profile';
+	const activeTab = searchParams.get("tab") || "profile";
 
 	const getPageTitle = () => {
 		switch (activeTab) {
-			case 'profile':
+			case "profile":
 				return {
-					title: 'Profile',
-					description: 'Manage your personal information and preferences',
+					title: "Profile",
+					description: "Manage your personal information and preferences",
 				};
-			case 'account':
+			case "account":
 				return {
-					title: 'Account',
-					description: 'Update your email, password, and account settings',
+					title: "Account",
+					description: "Update your email, password, and account settings",
 				};
-			case 'security':
+			case "security":
 				return {
-					title: 'Security',
+					title: "Security",
 					description:
-						'Manage your security settings and two-factor authentication',
+						"Manage your security settings and two-factor authentication",
 				};
-			case 'api-keys':
+			case "api-keys":
 				return {
-					title: 'API Keys',
-					description: 'Create and manage API keys for integrations',
+					title: "API Keys",
+					description: "Create and manage API keys for integrations",
 				};
-			case 'integrations':
+			case "integrations":
 				return {
-					title: 'Integrations',
-					description: 'Connect your favorite tools and services',
+					title: "Integrations",
+					description: "Connect your favorite tools and services",
 				};
 			default:
 				return {
-					title: 'Settings',
-					description: 'Manage your account and preferences',
+					title: "Settings",
+					description: "Manage your account and preferences",
 				};
 		}
 	};
@@ -168,14 +168,14 @@ export default function SettingsPage() {
 				</div>
 			</div>
 			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
-				{activeTab === 'profile' && (
+				{activeTab === "profile" && (
 					<Card className="shadow-sm">
 						<CardContent className="pt-6">
 							<ProfileForm />
 						</CardContent>
 					</Card>
 				)}
-				{activeTab === 'account' && (
+				{activeTab === "account" && (
 					<div className="space-y-6">
 						<Card className="shadow-sm">
 							<CardHeader>
@@ -229,7 +229,7 @@ export default function SettingsPage() {
 						</Card>
 					</div>
 				)}
-				{activeTab === 'security' && (
+				{activeTab === "security" && (
 					<div className="space-y-6">
 						<Card className="shadow-sm">
 							<CardHeader>
@@ -257,15 +257,15 @@ export default function SettingsPage() {
 						</Card>
 					</div>
 				)}
-				{activeTab === 'api-keys' && (
+				{activeTab === "api-keys" && (
 					<Card className="shadow-sm">
 						<CardContent className="pt-6">
 							<ApiKeysSection />
 						</CardContent>
 					</Card>
 				)}
-				{activeTab === 'integrations' && <IntegrationsSection />}
-				{activeTab === 'notifications' && (
+				{activeTab === "integrations" && <IntegrationsSection />}
+				{activeTab === "notifications" && (
 					<div className="flex h-full items-center justify-center">
 						<div className="text-center">
 							<BellIcon className="mx-auto h-12 w-12 text-muted-foreground" />

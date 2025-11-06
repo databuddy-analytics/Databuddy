@@ -1,7 +1,7 @@
-import z from 'zod/v4';
+import z from "zod/v4";
 
 export const batchAnalyticsEventSchema = z.object({
-	type: z.enum(['track']),
+	type: z.enum(["track"]),
 	payload: z.object({
 		name: z.string().max(255).optional(),
 		anonymousId: z.string().max(128).optional(),

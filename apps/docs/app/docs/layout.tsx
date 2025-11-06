@@ -1,17 +1,17 @@
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import type { ReactNode } from 'react';
-import { baseOptions } from '@/app/layout.config';
-import CustomSidebar from '@/components/custom-sidebar';
-import { DocsNavbar } from '@/components/docs-navbar';
-import { source } from '@/lib/source';
+import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import type { ReactNode } from "react";
+import { baseOptions } from "@/app/layout.config";
+import CustomSidebar from "@/components/custom-sidebar";
+import { DocsNavbar } from "@/components/docs-navbar";
+import { source } from "@/lib/source";
 
 async function getGithubStars(): Promise<number | null> {
 	try {
 		const response = await fetch(
-			'https://api.github.com/repos/databuddy-analytics/databuddy',
+			"https://api.github.com/repos/databuddy-analytics/databuddy",
 			{
 				headers: {
-					Accept: 'application/vnd.github+json',
+					Accept: "application/vnd.github+json",
 				},
 				next: { revalidate: 3600 },
 			}
@@ -22,7 +22,7 @@ async function getGithubStars(): Promise<number | null> {
 		}
 
 		const data = (await response.json()) as { stargazers_count?: number };
-		return typeof data.stargazers_count === 'number'
+		return typeof data.stargazers_count === "number"
 			? data.stargazers_count
 			: null;
 	} catch {

@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import type { ProfileData } from '@databuddy/shared';
-import { getCountryName } from '@databuddy/shared';
-import { SpinnerIcon, UsersIcon } from '@phosphor-icons/react';
+import { getCountryName } from "@databuddy/shared/country-codes";
+import type { ProfileData } from "@databuddy/shared/types/analytics";
+import { SpinnerIcon, UsersIcon } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
 	flexRender,
 	getCoreRowModel,
 	useReactTable,
-} from '@tanstack/react-table';
-import dayjs from 'dayjs';
-import { useAtom } from 'jotai';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BrowserIcon, CountryFlag, OSIcon } from '@/components/icon';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@tanstack/react-table";
+import dayjs from "dayjs";
+import { useAtom } from "jotai";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -23,12 +23,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from '@/components/ui/table';
-import { useDateFilters } from '@/hooks/use-date-filters';
-import { useProfilesData } from '@/hooks/use-dynamic-query';
-import { getDeviceIcon } from '@/lib/utils';
-import { dynamicQueryFiltersAtom } from '@/stores/jotai/filterAtoms';
-import { generateProfileName } from '../[userId]/_components/generate-profile-name';
+} from "@/components/ui/table";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useProfilesData } from "@/hooks/use-dynamic-query";
+import { getDeviceIcon } from "@/lib/utils";
+import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
+import { generateProfileName } from "../[userId]/_components/generate-profile-name";
 
 interface UsersListProps {
 	websiteId: string;
@@ -73,14 +73,14 @@ export function UsersList({ websiteId }: UsersListProps) {
 	);
 
 	useEffect(() => {
-		if (!loadMoreRef || !scrollContainerRef) {
+		if (!(loadMoreRef && scrollContainerRef)) {
 			return;
 		}
 
 		const observer = new IntersectionObserver(handleIntersection, {
 			root: scrollContainerRef,
 			threshold: 0.1,
-			rootMargin: '300px',
+			rootMargin: "300px",
 		});
 
 		observer.observe(loadMoreRef);
@@ -118,8 +118,8 @@ export function UsersList({ websiteId }: UsersListProps) {
 	const columns = useMemo<ColumnDef<ProfileData>[]>(
 		() => [
 			{
-				id: 'index',
-				header: '#',
+				id: "index",
+				header: "#",
 				cell: ({ row }) => (
 					<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-semibold text-primary text-sm">
 						{row.index + 1}
@@ -128,9 +128,9 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 60,
 			},
 			{
-				id: 'user_id',
-				header: 'User',
-				accessorKey: 'visitor_id',
+				id: "user_id",
+				header: "User",
+				accessorKey: "visitor_id",
 				cell: ({ row }) => {
 					const profileName = generateProfileName(row.original.visitor_id);
 					return (
@@ -149,16 +149,16 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 200,
 			},
 			{
-				id: 'location',
-				header: 'Location',
+				id: "location",
+				header: "Location",
 				cell: ({ row }) => (
 					<div className="flex items-center gap-2">
 						<CountryFlag country={row.original.country} size="sm" />
 						<div className="min-w-0">
 							<div className="truncate font-medium text-foreground text-sm">
-								{getCountryName(row.original.country) || 'Unknown'}
+								{getCountryName(row.original.country) || "Unknown"}
 							</div>
-							{row.original.region && row.original.region !== 'Unknown' && (
+							{row.original.region && row.original.region !== "Unknown" && (
 								<div className="truncate text-muted-foreground text-xs">
 									{row.original.region}
 								</div>
@@ -169,8 +169,8 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 180,
 			},
 			{
-				id: 'device',
-				header: 'Device & Browser',
+				id: "device",
+				header: "Device & Browser",
 				cell: ({ row }) => (
 					<div className="flex items-center gap-2">
 						<div className="flex items-center gap-1">
@@ -191,9 +191,9 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 200,
 			},
 			{
-				id: 'sessions',
-				header: 'Sessions',
-				accessorKey: 'total_sessions',
+				id: "sessions",
+				header: "Sessions",
+				accessorKey: "total_sessions",
 				cell: ({ row }) => (
 					<div className="text-center">
 						<div className="font-semibold text-foreground text-lg">
@@ -205,9 +205,9 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 100,
 			},
 			{
-				id: 'pageviews',
-				header: 'Pages',
-				accessorKey: 'total_pageviews',
+				id: "pageviews",
+				header: "Pages",
+				accessorKey: "total_pageviews",
 				cell: ({ row }) => (
 					<div className="text-center">
 						<div className="font-semibold text-foreground text-lg">
@@ -219,17 +219,17 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 100,
 			},
 			{
-				id: 'type',
-				header: 'Type',
+				id: "type",
+				header: "Type",
 				cell: ({ row }) => {
 					const isReturning = row.original.total_sessions > 1;
 					return (
 						<div className="flex justify-center">
 							<Badge
 								className="px-2 py-1 font-semibold text-xs"
-								variant={isReturning ? 'default' : 'secondary'}
+								variant={isReturning ? "default" : "secondary"}
 							>
-								{isReturning ? 'Return' : 'New'}
+								{isReturning ? "Return" : "New"}
 							</Badge>
 						</div>
 					);
@@ -237,20 +237,20 @@ export function UsersList({ websiteId }: UsersListProps) {
 				size: 100,
 			},
 			{
-				id: 'last_visit',
-				header: 'Last Visit',
-				accessorKey: 'last_visit',
+				id: "last_visit",
+				header: "Last Visit",
+				accessorKey: "last_visit",
 				cell: ({ row }) => (
 					<div>
 						<div className="font-medium text-foreground text-sm">
 							{row.original.last_visit
-								? dayjs(row.original.last_visit).format('MMM D, YYYY')
-								: 'Unknown'}
+								? dayjs(row.original.last_visit).format("MMM D, YYYY")
+								: "Unknown"}
 						</div>
 						<div className="text-muted-foreground text-xs">
 							{row.original.last_visit
-								? dayjs(row.original.last_visit).format('HH:mm')
-								: ''}
+								? dayjs(row.original.last_visit).format("HH:mm")
+								: ""}
 						</div>
 					</div>
 				),
@@ -297,9 +297,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 								<TableRow>
 									{columns.map((column) => (
 										<TableHead key={column.id}>
-											{typeof column.header === 'string'
-												? column.header
-												: null}
+											{typeof column.header === "string" ? column.header : null}
 										</TableHead>
 									))}
 								</TableRow>
@@ -356,7 +354,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 					<UsersIcon className="mb-4 h-12 w-12 opacity-50" />
 					<p className="mb-2 font-medium text-lg">Failed to load users</p>
 					<p className="text-sm">
-						{error?.message || 'There was an error loading the users'}
+						{error?.message || "There was an error loading the users"}
 					</p>
 				</div>
 			</div>
@@ -434,7 +432,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="overflow-auto" ref={setScrollContainerRef}>
+				<div className="h-full overflow-auto" ref={setScrollContainerRef}>
 					<Table>
 						<TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
 							{table.getHeaderGroups().map((headerGroup) => (

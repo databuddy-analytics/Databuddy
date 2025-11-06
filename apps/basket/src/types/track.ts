@@ -1,4 +1,4 @@
-import { t } from 'elysia';
+import { t } from "elysia";
 
 // Base event structure shared by all events
 const BaseEventPayload = t.Object({
@@ -31,7 +31,7 @@ const BaseEventPayload = t.Object({
 });
 
 export const TrackEvent = t.Object({
-	type: t.Literal('track'),
+	type: t.Literal("track"),
 	payload: t.Intersect([
 		BaseEventPayload,
 		t.Object({
@@ -74,7 +74,7 @@ const MinimalBasePayload = t.Object({
 
 // Error events
 export const ErrorEvent = t.Object({
-	type: t.Literal('error'),
+	type: t.Literal("error"),
 	payload: t.Intersect([
 		MinimalBasePayload,
 		t.Object({
@@ -90,7 +90,7 @@ export const ErrorEvent = t.Object({
 
 // Web Vitals events
 export const WebVitalsEvent = t.Object({
-	type: t.Literal('web_vitals'),
+	type: t.Literal("web_vitals"),
 	payload: t.Intersect([
 		MinimalBasePayload,
 		t.Object({

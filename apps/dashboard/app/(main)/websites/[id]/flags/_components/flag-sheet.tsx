@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { FlagIcon } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/elastic-slider';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { FlagIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/elastic-slider";
 import {
 	Form,
 	FormControl,
@@ -16,39 +16,39 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { trpc } from '@/lib/trpc';
-import type { Flag } from './types';
-import { UserRulesBuilder } from './user-rules-builder';
+} from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
+import type { Flag } from "./types";
+import { UserRulesBuilder } from "./user-rules-builder";
 
 const userRuleSchema = z.object({
-	type: z.enum(['user_id', 'email', 'property']),
+	type: z.enum(["user_id", "email", "property"]),
 	operator: z.enum([
-		'equals',
-		'contains',
-		'starts_with',
-		'ends_with',
-		'in',
-		'not_in',
-		'exists',
-		'not_exists',
+		"equals",
+		"contains",
+		"starts_with",
+		"ends_with",
+		"in",
+		"not_in",
+		"exists",
+		"not_exists",
 	]),
 	field: z.string().optional(),
 	value: z.string().optional(),
@@ -61,20 +61,20 @@ const userRuleSchema = z.object({
 const flagFormSchema = z.object({
 	key: z
 		.string()
-		.min(1, 'Key is required')
-		.max(100, 'Key too long')
+		.min(1, "Key is required")
+		.max(100, "Key too long")
 		.regex(
 			/^[a-zA-Z0-9_-]+$/,
-			'Key must contain only letters, numbers, underscores, and hyphens'
+			"Key must contain only letters, numbers, underscores, and hyphens"
 		),
 	name: z
 		.string()
-		.min(1, 'Name is required')
-		.max(100, 'Name too long')
+		.min(1, "Name is required")
+		.max(100, "Name too long")
 		.optional(),
 	description: z.string().optional(),
-	type: z.enum(['boolean', 'rollout']),
-	status: z.enum(['active', 'inactive', 'archived']),
+	type: z.enum(["boolean", "rollout"]),
+	status: z.enum(["active", "inactive", "archived"]),
 	defaultValue: z.boolean(),
 	rolloutPercentage: z.number().min(0).max(100),
 	rules: z.array(userRuleSchema).optional(),
@@ -101,11 +101,11 @@ export function FlagSheet({
 	const form = useForm<FlagFormData>({
 		resolver: zodResolver(flagFormSchema),
 		defaultValues: {
-			key: '',
-			name: '',
-			description: '',
-			type: 'boolean',
-			status: 'active',
+			key: "",
+			name: "",
+			description: "",
+			type: "boolean",
+			status: "active",
 			defaultValue: false,
 			rolloutPercentage: 0,
 			rules: [],
@@ -121,10 +121,10 @@ export function FlagSheet({
 			if (flag && isEditing) {
 				form.reset({
 					key: flag.key,
-					name: flag.name || '',
-					description: flag.description || '',
-					type: flag.type as 'boolean' | 'rollout',
-					status: flag.status as 'active' | 'inactive' | 'archived',
+					name: flag.name || "",
+					description: flag.description || "",
+					type: flag.type as "boolean" | "rollout",
+					status: flag.status as "active" | "inactive" | "archived",
 					defaultValue: Boolean(flag.defaultValue),
 					rolloutPercentage: flag.rolloutPercentage || 0,
 					rules: flag.rules || [],
@@ -136,8 +136,8 @@ export function FlagSheet({
 		}
 	}, [isOpen, flag, isEditing, form]);
 
-	const watchedName = form.watch('name');
-	const watchedType = form.watch('type');
+	const watchedName = form.watch("name");
+	const watchedType = form.watch("type");
 
 	useEffect(() => {
 		if (isEditing || keyManuallyEdited || !watchedName) {
@@ -146,16 +146,16 @@ export function FlagSheet({
 
 		const key = watchedName
 			.toLowerCase()
-			.replace(/[^a-z0-9\s]/g, '')
-			.replace(/\s+/g, '-')
-			.replace(/-+/g, '-')
-			.replace(/^-+|-+$/g, '')
+			.replace(/[^a-z0-9\s]/g, "")
+			.replace(/\s+/g, "-")
+			.replace(/-+/g, "-")
+			.replace(/^-+|-+$/g, "")
 			.slice(0, 50);
-		form.setValue('key', key);
+		form.setValue("key", key);
 	}, [watchedName, keyManuallyEdited, isEditing, form]);
 
 	// Show rollout percentage only for rollout type
-	const showRolloutPercentage = watchedType === 'rollout';
+	const showRolloutPercentage = watchedType === "rollout";
 
 	const onSubmit = async (data: FlagFormData) => {
 		try {
@@ -185,23 +185,23 @@ export function FlagSheet({
 						};
 
 			await mutation.mutateAsync(mutationData as any);
-			toast.success(`Flag ${isEditing ? 'updated' : 'created'} successfully`);
+			toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
 
 			// Invalidate to refresh with real server data
 			utils.flags.list.invalidate();
 			onClose();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : 'Unknown error';
+				error instanceof Error ? error.message : "Unknown error";
 			if (
-				errorMessage.includes('unique') ||
-				errorMessage.includes('CONFLICT')
+				errorMessage.includes("unique") ||
+				errorMessage.includes("CONFLICT")
 			) {
-				toast.error('A flag with this key already exists in this scope');
-			} else if (errorMessage.includes('FORBIDDEN')) {
-				toast.error('You do not have permission to perform this action');
+				toast.error("A flag with this key already exists in this scope");
+			} else if (errorMessage.includes("FORBIDDEN")) {
+				toast.error("You do not have permission to perform this action");
 			} else {
-				toast.error(`Failed to ${isEditing ? 'update' : 'create'} flag`);
+				toast.error(`Failed to ${isEditing ? "update" : "create"} flag`);
 			}
 		}
 	};
@@ -221,12 +221,12 @@ export function FlagSheet({
 						</div>
 						<div>
 							<SheetTitle className="font-semibold text-foreground text-xl">
-								{isEditing ? 'Edit Feature Flag' : 'Create Feature Flag'}
+								{isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
 							</SheetTitle>
 							<SheetDescription className="mt-1 text-muted-foreground">
 								{isEditing
-									? 'Update flag configuration and settings'
-									: 'Set up a new feature flag for controlled rollouts'}
+									? "Update flag configuration and settings"
+									: "Set up a new feature flag for controlled rollouts"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -261,7 +261,7 @@ export function FlagSheet({
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>
-													Key{' '}
+													Key{" "}
 													{!isEditing && (
 														<span aria-hidden="true" className="text-red-500">
 															*
@@ -381,8 +381,8 @@ export function FlagSheet({
 															<span
 																className={
 																	field.value
-																		? 'text-muted-foreground'
-																		: 'font-medium'
+																		? "text-muted-foreground"
+																		: "font-medium"
 																}
 															>
 																Off
@@ -395,8 +395,8 @@ export function FlagSheet({
 															<span
 																className={
 																	field.value
-																		? 'font-medium'
-																		: 'text-muted-foreground'
+																		? "font-medium"
+																		: "text-muted-foreground"
 																}
 															>
 																On
@@ -435,11 +435,11 @@ export function FlagSheet({
 															<div className="flex flex-wrap justify-center gap-2">
 																{[0, 25, 50, 75, 100].map((preset) => (
 																	<button
-																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? '(disabled)' : preset === 100 ? '(enabled)' : ''}`}
+																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
 																		className={`rounded border px-3 py-2 text-sm transition-colors ${
 																			currentValue === preset
-																				? 'border-primary bg-primary text-primary-foreground'
-																				: 'border-border hover:border-primary/50'
+																				? "border-primary bg-primary text-primary-foreground"
+																				: "border-border hover:border-primary/50"
 																		}`}
 																		key={preset}
 																		onClick={() => field.onChange(preset)}
@@ -491,7 +491,7 @@ export function FlagSheet({
 									Cancel
 								</Button>
 								<Button disabled={isLoading} type="submit">
-									{isLoading ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+									{isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
 								</Button>
 							</div>
 						</form>

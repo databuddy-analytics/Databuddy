@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import type { QueryPerformanceSummary } from '@databuddy/shared';
+import type { QueryPerformanceSummary } from "@databuddy/shared/types/performance";
 import {
 	ArrowClockwiseIcon,
 	ChartLineIcon,
@@ -9,12 +9,12 @@ import {
 	EyeIcon,
 	TrendUpIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { use, useCallback, useMemo, useState } from 'react';
-import { StatCard } from '@/components/analytics';
-import { DataTable } from '@/components/table/data-table';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import { use, useCallback, useMemo, useState } from "react";
+import { StatCard } from "@/components/analytics";
+import { DataTable } from "@/components/table/data-table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -22,15 +22,15 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { formatMetricNumber } from '@/lib/formatters';
-import { trpc } from '@/lib/trpc';
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatMetricNumber } from "@/lib/formatters";
+import { trpc } from "@/lib/trpc";
 import {
 	ResourceConsumptionChart,
 	ResponseTimeChart,
-} from './_components/performance-charts';
-import { QueryDetailSheet } from './_components/query-detail-sheet';
+} from "./_components/performance-charts";
+import { QueryDetailSheet } from "./_components/query-detail-sheet";
 
 interface PerformancePageProps {
 	params: Promise<{ id: string }>;
@@ -192,7 +192,7 @@ function ResetStatsDialog({
 						onClick={handleReset}
 						variant="destructive"
 					>
-						{resetMutation.isPending ? 'Resetting...' : 'Reset Statistics'}
+						{resetMutation.isPending ? "Resetting..." : "Reset Statistics"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -217,14 +217,14 @@ interface CellInfo {
 
 const createQueryColumns = () => [
 	{
-		id: 'query',
-		accessorKey: 'query',
-		header: 'Query',
+		id: "query",
+		accessorKey: "query",
+		header: "Query",
 		cell: (info: CellInfo) => {
 			const query = info.getValue() as string;
 			const cleanQuery = query
-				.replace(/--.*$/gm, '')
-				.replace(/\/\*[\s\S]*?\*\//g, '')
+				.replace(/--.*$/gm, "")
+				.replace(/\/\*[\s\S]*?\*\//g, "")
 				.trim();
 			const displayQuery =
 				cleanQuery.length > 60 ? `${cleanQuery.slice(0, 60)}...` : cleanQuery;
@@ -238,27 +238,27 @@ const createQueryColumns = () => [
 		},
 	},
 	{
-		id: 'calls',
-		accessorKey: 'calls',
-		header: 'Calls',
+		id: "calls",
+		accessorKey: "calls",
+		header: "Calls",
 		cell: (info: CellInfo) => {
 			const calls = info.getValue() as number;
 			return <div>{calls.toLocaleString()}</div>;
 		},
 	},
 	{
-		id: 'mean_exec_time',
-		accessorKey: 'mean_exec_time',
-		header: 'Avg Time',
+		id: "mean_exec_time",
+		accessorKey: "mean_exec_time",
+		header: "Avg Time",
 		cell: (info: CellInfo) => {
 			const time = info.getValue() as number;
 			return <div>{formatTime(time)}</div>;
 		},
 	},
 	{
-		id: 'cache_hit_ratio',
-		accessorKey: 'cache_hit_ratio',
-		header: 'Cache Hit',
+		id: "cache_hit_ratio",
+		accessorKey: "cache_hit_ratio",
+		header: "Cache Hit",
 		cell: (info: CellInfo) => {
 			const ratio = info.getValue() as number;
 			return <div>{ratio.toFixed(1)}%</div>;
@@ -320,8 +320,8 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 	const queryTabs = useMemo(
 		() => [
 			{
-				id: 'all_queries',
-				label: 'All Queries',
+				id: "all_queries",
+				label: "All Queries",
 				data: transformQueryData(
 					[
 						...(metrics?.top_queries_by_time.slice(0, 10) || []),
@@ -412,7 +412,7 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 					<Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
 						<WarningIcon className="h-4 w-4 text-red-600" />
 						<AlertDescription className="text-red-800 dark:text-red-200">
-							<strong>Performance Issue Detected:</strong> P99 response time is{' '}
+							<strong>Performance Issue Detected:</strong> P99 response time is{" "}
 							{metrics.p99_exec_time.toFixed(0)}ms. Consider optimizing slow
 							queries or adding database indexes.
 						</AlertDescription>
@@ -421,7 +421,7 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 
 				{/* Query Text Permission Info */}
 				{metrics.top_queries_by_time.some((q) =>
-					q.query.includes('Query ID:')
+					q.query.includes("Query ID:")
 				) && (
 					<Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
 						<DatabaseIcon className="h-4 w-4 text-muted-foreground" />
@@ -438,12 +438,12 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 											<strong>Current User:</strong> {userInfo.username}
 										</div>
 										<div>
-											<strong>Has pg_read_all_stats:</strong>{' '}
-											{userInfo.hasReadAllStats ? '✅ Yes' : '❌ No'}
+											<strong>Has pg_read_all_stats:</strong>{" "}
+											{userInfo.hasReadAllStats ? "✅ Yes" : "❌ No"}
 										</div>
 										{userInfo.roles.length > 0 && (
 											<div>
-												<strong>Roles:</strong> {userInfo.roles.join(', ')}
+												<strong>Roles:</strong> {userInfo.roles.join(", ")}
 											</div>
 										)}
 									</div>
@@ -451,8 +451,8 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 								<div>
 									<strong>To fix:</strong> Run as superuser:
 									<code className="mx-1 rounded bg-blue-100 px-1 text-xs dark:bg-blue-900">
-										GRANT pg_read_all_stats TO{' '}
-										{userInfo?.username || 'your_user'}
+										GRANT pg_read_all_stats TO{" "}
+										{userInfo?.username || "your_user"}
 									</code>
 									Then <strong>reconnect</strong> to refresh permissions.
 								</div>
@@ -470,10 +470,10 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 						value={`${metrics.p99_exec_time.toFixed(0)}ms`}
 						variant={
 							metrics.p99_exec_time > 1000
-								? 'danger'
+								? "danger"
 								: metrics.p99_exec_time > 500
-									? 'warning'
-									: 'success'
+									? "warning"
+									: "success"
 						}
 					/>
 					<StatCard
@@ -481,7 +481,7 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 						icon={TrendUpIcon}
 						title="P50 RESPONSE"
 						value={`${metrics.p50_exec_time.toFixed(0)}ms`}
-						variant={metrics.p50_exec_time > 100 ? 'warning' : 'success'}
+						variant={metrics.p50_exec_time > 100 ? "warning" : "success"}
 					/>
 					<StatCard
 						description="Buffer cache effectiveness"
@@ -490,10 +490,10 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 						value={`${metrics.cache_hit_ratio.toFixed(1)}%`}
 						variant={
 							metrics.cache_hit_ratio > 95
-								? 'success'
+								? "success"
 								: metrics.cache_hit_ratio > 85
-									? 'warning'
-									: 'danger'
+									? "warning"
+									: "danger"
 						}
 					/>
 					<StatCard
@@ -569,7 +569,7 @@ export default function PerformancePage({ params }: PerformancePageProps) {
 					connectionId={connectionId}
 					onOpenChange={setResetDialog}
 					onSuccess={() =>
-						handleSuccess('Performance statistics reset successfully')
+						handleSuccess("Performance statistics reset successfully")
 					}
 					open={resetDialog}
 				/>

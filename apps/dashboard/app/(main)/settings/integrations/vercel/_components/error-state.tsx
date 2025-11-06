@@ -1,5 +1,5 @@
-import { WarningIcon } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
+import { WarningIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
 	message: string;

@@ -1,4 +1,4 @@
-import type { StorageInterface } from './types';
+import type { StorageInterface } from "./types";
 
 export class BrowserFlagStorage implements StorageInterface {
 	private ttl = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -16,11 +16,11 @@ export class BrowserFlagStorage implements StorageInterface {
 		const now = Date.now();
 
 		const keys = Object.keys(localStorage).filter((key) =>
-			key.startsWith('db-flag-')
+			key.startsWith("db-flag-")
 		);
 
 		for (const key of keys) {
-			const flagKey = key.replace('db-flag-', '');
+			const flagKey = key.replace("db-flag-", "");
 			try {
 				const item = localStorage.getItem(key);
 				if (item) {
@@ -38,7 +38,7 @@ export class BrowserFlagStorage implements StorageInterface {
 
 	clear(): void {
 		const keys = Object.keys(localStorage).filter((key) =>
-			key.startsWith('db-flag-')
+			key.startsWith("db-flag-")
 		);
 		for (const key of keys) {
 			localStorage.removeItem(key);
@@ -115,7 +115,7 @@ export class BrowserFlagStorage implements StorageInterface {
 	cleanupExpired(): void {
 		const now = Date.now();
 		const keys = Object.keys(localStorage).filter((key) =>
-			key.startsWith('db-flag-')
+			key.startsWith("db-flag-")
 		);
 
 		for (const key of keys) {

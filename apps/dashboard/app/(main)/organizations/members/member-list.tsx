@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ClockIcon,
@@ -6,10 +6,10 @@ import {
 	TrashIcon,
 	UserIcon,
 	UsersIcon,
-} from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { useState } from 'react';
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -19,21 +19,21 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import type {
 	OrganizationMember,
 	UpdateMemberData,
-} from '@/hooks/use-organizations';
+} from "@/hooks/use-organizations";
 
 dayjs.extend(relativeTime);
 
@@ -52,10 +52,10 @@ interface MemberListProps {
 }
 
 interface RoleSelectorProps {
-	member: MemberListProps['members'][number];
-	onUpdateRole: MemberListProps['onUpdateRole'];
-	isUpdatingMember: MemberListProps['isUpdatingMember'];
-	organizationId: MemberListProps['organizationId'];
+	member: MemberListProps["members"][number];
+	onUpdateRole: MemberListProps["onUpdateRole"];
+	isUpdatingMember: MemberListProps["isUpdatingMember"];
+	organizationId: MemberListProps["organizationId"];
 }
 
 function RoleSelector({
@@ -64,7 +64,7 @@ function RoleSelector({
 	isUpdatingMember,
 	organizationId,
 }: RoleSelectorProps) {
-	if (member.role === 'owner') {
+	if (member.role === "owner") {
 		return (
 			<Badge
 				className="border-amber-200 bg-amber-100 px-2 py-1 text-amber-800"
@@ -81,7 +81,7 @@ function RoleSelector({
 			onValueChange={(newRole) =>
 				onUpdateRole({
 					memberId: member.id,
-					role: newRole as UpdateMemberData['role'],
+					role: newRole as UpdateMemberData["role"],
 					organizationId,
 				})
 			}
@@ -152,7 +152,7 @@ export function MemberList({
 										<p className="truncate font-medium text-sm">
 											{member.user.name}
 										</p>
-										{member.role === 'owner' && (
+										{member.role === "owner" && (
 											<CrownIcon
 												className="h-3 w-3 flex-shrink-0 text-amber-500"
 												size={12}
@@ -175,7 +175,7 @@ export function MemberList({
 									onUpdateRole={onUpdateRole}
 									organizationId={organizationId}
 								/>
-								{member.role !== 'owner' && (
+								{member.role !== "owner" && (
 									<Button
 										className="h-7 w-7 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
 										disabled={isRemovingMember}

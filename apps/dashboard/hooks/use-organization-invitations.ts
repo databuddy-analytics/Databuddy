@@ -1,9 +1,9 @@
-import { authClient } from '@databuddy/auth/client';
-import { useAtom } from 'jotai';
-import { useCallback, useEffect } from 'react';
-import { toast } from 'sonner';
-import type { OrganizationRole } from '@/hooks/use-organizations';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import { useAtom } from "jotai";
+import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
+import type { OrganizationRole } from "@/hooks/use-organizations";
+import { trpc } from "@/lib/trpc";
 import {
 	acceptedCountAtom,
 	expiredCountAtom,
@@ -16,7 +16,7 @@ import {
 	isLoadingInvitationsAtom,
 	pendingCountAtom,
 	selectedTabAtom,
-} from '@/stores/jotai/organizationAtoms';
+} from "@/stores/jotai/organizationAtoms";
 
 export function useOrganizationInvitations(organizationId: string) {
 	const [invitations, setInvitations] = useAtom(invitationsAtom);
@@ -69,12 +69,12 @@ export function useOrganizationInvitations(organizationId: string) {
 					throw new Error(error.message);
 				}
 
-				toast.success('Member invited successfully');
+				toast.success("Member invited successfully");
 				// Refresh invitations
 				fetchInvitations();
 			} catch (error) {
 				toast.error(
-					error instanceof Error ? error.message : 'Failed to invite member'
+					error instanceof Error ? error.message : "Failed to invite member"
 				);
 				throw error;
 			} finally {
@@ -97,12 +97,12 @@ export function useOrganizationInvitations(organizationId: string) {
 					throw new Error(error.message);
 				}
 
-				toast.success('Invitation cancelled successfully');
+				toast.success("Invitation cancelled successfully");
 				// Refresh invitations
 				await fetchInvitations();
 			} catch (error) {
 				toast.error(
-					error instanceof Error ? error.message : 'Failed to cancel invitation'
+					error instanceof Error ? error.message : "Failed to cancel invitation"
 				);
 				throw error;
 			} finally {

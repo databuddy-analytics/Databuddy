@@ -1,4 +1,4 @@
-import type { redis as redisClient } from './redis';
+import type { redis as redisClient } from "./redis";
 
 export type CacheConfig = {
 	redis: typeof redisClient;
@@ -11,11 +11,12 @@ export type WithCacheArgs<T> = {
 	tables?: string[];
 	tag?: string;
 	autoInvalidate?: boolean;
+	disabled?: boolean;
 	queryFn: () => Promise<T>;
 };
 
 function debugLog(
-	level: 'info' | 'error',
+	level: "info" | "error",
 	message: string,
 	...args: unknown[]
 ) {
@@ -29,7 +30,7 @@ const inflightRequests = new Map<string, Promise<unknown>>();
 
 export function createDrizzleCache({
 	redis,
-	namespace = 'cache',
+	namespace = "cache",
 }: CacheConfig) {
 	const formatCacheKey = (key: string) => `${namespace}:${key}`;
 	const formatDependencyKey = (table: string) => `${namespace}:dep:${table}`;
@@ -53,11 +54,11 @@ export function createDrizzleCache({
 	) {
 		const start = Date.now();
 		try {
-			await redis.set(cacheKey, JSON.stringify(result), 'EX', ttl);
+			await redis.set(cacheKey, JSON.stringify(result), "EX", ttl);
 			const duration = Date.now() - start;
-			debugLog('info', `SET: ${cacheKey} (${duration}ms, ttl=${ttl}s)`);
+			debugLog("info", `SET: ${cacheKey} (${duration}ms, ttl=${ttl}s)`);
 		} catch (error) {
-			debugLog('error', `Redis SET failed for ${cacheKey}`, error);
+			debugLog("error", `Redis SET failed for ${cacheKey}`, error);
 		}
 	}
 
@@ -89,11 +90,11 @@ export function createDrizzleCache({
 
 			const duration = Date.now() - start;
 			debugLog(
-				'info',
-				`TRACKING: tables=[${tables.join(',')}] tag=${tag ?? ''} (${duration}ms)`
+				"info",
+				`TRACKING: tables=[${tables.join(",")}] tag=${tag ?? ""} (${duration}ms)`
 			);
 		} catch (error) {
-			debugLog('error', `Invalidation tracking failed for key ${key}`, error);
+			debugLog("error", `Invalidation tracking failed for key ${key}`, error);
 		}
 	}
 
@@ -104,8 +105,13 @@ export function createDrizzleCache({
 			tables = [],
 			tag,
 			autoInvalidate = true,
+			disabled = false,
 			queryFn,
 		}: WithCacheArgs<T>): Promise<T> {
+			if (disabled) {
+				return queryFn();
+			}
+
 			const cacheKey = formatCacheKey(key);
 			const start = Date.now();
 
@@ -113,21 +119,21 @@ export function createDrizzleCache({
 				const cached = await redis.get(cacheKey);
 				if (cached) {
 					const duration = Date.now() - start;
-					debugLog('info', `HIT: ${cacheKey} (${duration}ms)`);
+					debugLog("info", `HIT: ${cacheKey} (${duration}ms)`);
 					return JSON.parse(cached);
 				}
 			} catch (error) {
-				debugLog('error', `Redis GET failed for ${cacheKey}`, error);
+				debugLog("error", `Redis GET failed for ${cacheKey}`, error);
 			}
 
 			// Single-flight protection: wait for existing request
 			if (inflightRequests.has(cacheKey)) {
-				debugLog('info', `WAIT: ${cacheKey} (single-flight)`);
+				debugLog("info", `WAIT: ${cacheKey} (single-flight)`);
 				return inflightRequests.get(cacheKey) as Promise<T>;
 			}
 
 			const missStart = Date.now();
-			debugLog('info', `MISS: ${cacheKey}`);
+			debugLog("info", `MISS: ${cacheKey}`);
 
 			const promise = (async () => {
 				const result = await queryFn();
@@ -138,7 +144,7 @@ export function createDrizzleCache({
 				}
 
 				const duration = Date.now() - missStart;
-				debugLog('info', `RESOLVED: ${cacheKey} (${duration}ms)`);
+				debugLog("info", `RESOLVED: ${cacheKey} (${duration}ms)`);
 				return result;
 			})();
 

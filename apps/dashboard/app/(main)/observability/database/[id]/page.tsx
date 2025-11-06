@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ChartLineIcon,
@@ -7,14 +7,14 @@ import {
 	PlugIcon,
 	SpinnerIcon,
 	TableIcon,
-} from '@phosphor-icons/react';
-import type { ColumnDef } from '@tanstack/react-table';
-import { use } from 'react';
-import { DataTable } from '@/components/table/data-table';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { useDbConnection } from '@/hooks/use-db-connections';
-import { trpc } from '@/lib/trpc';
+} from "@phosphor-icons/react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { use } from "react";
+import { DataTable } from "@/components/table/data-table";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { useDbConnection } from "@/hooks/use-db-connections";
+import { trpc } from "@/lib/trpc";
 
 interface DatabasePageProps {
 	params: Promise<{ id: string }>;
@@ -37,8 +37,8 @@ interface TableStat {
 // Column definitions for the table statistics
 const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 	{
-		accessorKey: 'tableName',
-		header: 'Table Name',
+		accessorKey: "tableName",
+		header: "Table Name",
 		size: 200,
 		cell: ({ row }) => (
 			<div className="font-medium text-foreground">
@@ -47,42 +47,42 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 		),
 	},
 	{
-		accessorKey: 'schemaName',
-		header: 'Schema',
+		accessorKey: "schemaName",
+		header: "Schema",
 		size: 120,
 		cell: ({ row }) => (
 			<div className="text-muted-foreground">{row.original.schemaName}</div>
 		),
 	},
 	{
-		accessorKey: 'rowCount',
-		header: 'Rows',
+		accessorKey: "rowCount",
+		header: "Rows",
 		size: 100,
 		cell: ({ row }) => (
 			<div className="font-mono">
-				{row.original.rowCount?.toLocaleString() || '-'}
+				{row.original.rowCount?.toLocaleString() || "-"}
 			</div>
 		),
 	},
 	{
-		accessorKey: 'totalSize',
-		header: 'Total Size',
+		accessorKey: "totalSize",
+		header: "Total Size",
 		size: 110,
 		cell: ({ row }) => (
-			<div className="font-mono text-sm">{row.original.totalSize || '-'}</div>
+			<div className="font-mono text-sm">{row.original.totalSize || "-"}</div>
 		),
 	},
 	{
-		accessorKey: 'indexSize',
-		header: 'Index Size',
+		accessorKey: "indexSize",
+		header: "Index Size",
 		size: 110,
 		cell: ({ row }) => (
-			<div className="font-mono text-sm">{row.original.indexSize || '-'}</div>
+			<div className="font-mono text-sm">{row.original.indexSize || "-"}</div>
 		),
 	},
 	{
-		accessorKey: 'lastVacuum',
-		header: 'Last Vacuum',
+		accessorKey: "lastVacuum",
+		header: "Last Vacuum",
 		size: 140,
 		cell: ({ row }) => {
 			const lastVacuum = row.original.lastVacuum;
@@ -92,18 +92,18 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 			const date = new Date(lastVacuum);
 			return (
 				<div className="text-sm">
-					{date.toLocaleDateString()}{' '}
+					{date.toLocaleDateString()}{" "}
 					{date.toLocaleTimeString([], {
-						hour: '2-digit',
-						minute: '2-digit',
+						hour: "2-digit",
+						minute: "2-digit",
 					})}
 				</div>
 			);
 		},
 	},
 	{
-		accessorKey: 'lastAnalyze',
-		header: 'Last Analyze',
+		accessorKey: "lastAnalyze",
+		header: "Last Analyze",
 		size: 140,
 		cell: ({ row }) => {
 			const lastAnalyze = row.original.lastAnalyze;
@@ -113,18 +113,18 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 			const date = new Date(lastAnalyze);
 			return (
 				<div className="text-sm">
-					{date.toLocaleDateString()}{' '}
+					{date.toLocaleDateString()}{" "}
 					{date.toLocaleTimeString([], {
-						hour: '2-digit',
-						minute: '2-digit',
+						hour: "2-digit",
+						minute: "2-digit",
 					})}
 				</div>
 			);
 		},
 	},
 	{
-		accessorKey: 'sequentialScans',
-		header: 'Seq Scans',
+		accessorKey: "sequentialScans",
+		header: "Seq Scans",
 		size: 100,
 		cell: ({ row }) => (
 			<div className="font-mono text-sm">
@@ -133,8 +133,8 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 		),
 	},
 	{
-		accessorKey: 'indexScans',
-		header: 'Index Scans',
+		accessorKey: "indexScans",
+		header: "Index Scans",
 		size: 110,
 		cell: ({ row }) => (
 			<div className="font-mono text-sm">
@@ -143,8 +143,8 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 		),
 	},
 	{
-		accessorKey: 'deadTuples',
-		header: 'Dead Tuples',
+		accessorKey: "deadTuples",
+		header: "Dead Tuples",
 		size: 110,
 		cell: ({ row }) => {
 			const deadTuples = row.original.deadTuples;
@@ -154,7 +154,7 @@ const tableStatsColumns: ColumnDef<TableStat, unknown>[] = [
 			return (
 				<div
 					className={`font-mono text-sm ${
-						isHigh ? 'text-yellow-600 dark:text-yellow-400' : ''
+						isHigh ? "text-yellow-600 dark:text-yellow-400" : ""
 					}`}
 				>
 					{deadTuplesFormatted}
@@ -464,8 +464,8 @@ export default function DatabasePage({ params }: DatabasePageProps) {
 						</div>
 						{tableStats && tableStats.length > 0 && (
 							<Badge className="rounded" variant="secondary">
-								{tableStats.length}{' '}
-								{tableStats.length === 1 ? 'table' : 'tables'}
+								{tableStats.length}{" "}
+								{tableStats.length === 1 ? "table" : "tables"}
 							</Badge>
 						)}
 					</div>

@@ -1,34 +1,34 @@
-import type { Metadata } from 'next';
-import { Footer } from '@/components/footer';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
-import { StructuredData } from '@/components/structured-data';
-import HonorableMentions from './honorable-mentions';
-import { honorableMentions, sponsorStats, sponsors } from './sponsors-data';
-import SponsorsGrid from './sponsors-grid';
-import SponsorsHero from './sponsors-hero';
+import type { Metadata } from "next";
+import { Footer } from "@/components/footer";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
+import { StructuredData } from "@/components/structured-data";
+import HonorableMentions from "./honorable-mentions";
+import { honorableMentions, sponsorStats, sponsors } from "./sponsors-data";
+import SponsorsGrid from "./sponsors-grid";
+import SponsorsHero from "./sponsors-hero";
 
 export const metadata: Metadata = {
-	title: 'Sponsors | Databuddy',
+	title: "Sponsors | Databuddy",
 	description:
-		'Support Databuddy and help us build the future of privacy-first analytics',
+		"Support Databuddy and help us build the future of privacy-first analytics",
 	alternates: {
-		canonical: 'https://www.databuddy.cc/sponsors',
+		canonical: "https://www.databuddy.cc/sponsors",
 	},
 	openGraph: {
-		title: 'Sponsors | Databuddy',
+		title: "Sponsors | Databuddy",
 		description:
-			'Support Databuddy and help us build the future of privacy-first analytics',
-		url: 'https://www.databuddy.cc/sponsors',
-		images: ['/og-image.png'],
+			"Support Databuddy and help us build the future of privacy-first analytics",
+		url: "https://www.databuddy.cc/sponsors",
+		images: ["/og-image.png"],
 	},
 };
 
 export default function SponsorsPage() {
-	const title = 'Sponsors | Databuddy';
+	const title = "Sponsors | Databuddy";
 	const description =
-		'Support Databuddy and help us build the future of privacy-first analytics';
-	const url = 'https://www.databuddy.cc/sponsors';
+		"Support Databuddy and help us build the future of privacy-first analytics";
+	const url = "https://www.databuddy.cc/sponsors";
 
 	return (
 		<div className="overflow-hidden">

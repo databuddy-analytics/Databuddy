@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { authClient, useSession } from '@databuddy/auth/client';
+import { authClient, useSession } from "@databuddy/auth/client";
 import {
 	ArrowClockwiseIcon,
 	ClockIcon,
@@ -8,14 +8,14 @@ import {
 	MonitorIcon,
 	PhoneIcon,
 	SignOutIcon,
-} from '@phosphor-icons/react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 dayjs.extend(relativeTime);
 
@@ -53,7 +53,7 @@ export function SessionsForm() {
 
 			setSessions(formattedSessions || []);
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to load sessions');
+			toast.error(error.message || "Failed to load sessions");
 		} finally {
 			setIsLoading(false);
 		}
@@ -64,13 +64,13 @@ export function SessionsForm() {
 		try {
 			const response = await authClient.revokeSession({ token: sessionId });
 			if (response.error) {
-				toast.error(response.error.message || 'Failed to revoke session');
+				toast.error(response.error.message || "Failed to revoke session");
 			} else {
-				toast.success('Session revoked successfully');
+				toast.success("Session revoked successfully");
 
 				// If current session was revoked, redirect to login
 				if (sessionId === session?.session?.id) {
-					router.push('/login');
+					router.push("/login");
 					return;
 				}
 
@@ -78,7 +78,7 @@ export function SessionsForm() {
 				fetchSessions();
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to revoke session');
+			toast.error(error.message || "Failed to revoke session");
 		} finally {
 			setRevokeLoading(null);
 		}
@@ -97,13 +97,13 @@ export function SessionsForm() {
 		try {
 			const response = await authClient.revokeOtherSessions();
 			if (response.error) {
-				toast.error(response.error.message || 'Failed to revoke sessions');
+				toast.error(response.error.message || "Failed to revoke sessions");
 			} else {
-				toast.success('All other sessions revoked successfully');
+				toast.success("All other sessions revoked successfully");
 				fetchSessions();
 			}
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to revoke sessions');
+			toast.error(error.message || "Failed to revoke sessions");
 		} finally {
 			setIsLoading(false);
 		}
@@ -116,10 +116,10 @@ export function SessionsForm() {
 
 		const ua = userAgent.toLowerCase();
 		if (
-			ua.includes('mobile') ||
-			ua.includes('android') ||
-			ua.includes('iphone') ||
-			ua.includes('ipad')
+			ua.includes("mobile") ||
+			ua.includes("android") ||
+			ua.includes("iphone") ||
+			ua.includes("ipad")
 		) {
 			return <PhoneIcon className="h-4 w-4" size={16} weight="duotone" />;
 		}
@@ -128,33 +128,33 @@ export function SessionsForm() {
 
 	const formatUserAgent = (userAgent?: string | null) => {
 		if (!userAgent) {
-			return 'Unknown Device';
+			return "Unknown Device";
 		}
 
 		// Extract browser and OS information
-		let browser = 'Unknown Browser';
-		let os = 'Unknown OS';
+		let browser = "Unknown Browser";
+		let os = "Unknown OS";
 
-		if (userAgent.includes('Firefox')) {
-			browser = 'Firefox';
-		} else if (userAgent.includes('Chrome')) {
-			browser = 'Chrome';
-		} else if (userAgent.includes('Safari')) {
-			browser = 'Safari';
-		} else if (userAgent.includes('Edge')) {
-			browser = 'Edge';
+		if (userAgent.includes("Firefox")) {
+			browser = "Firefox";
+		} else if (userAgent.includes("Chrome")) {
+			browser = "Chrome";
+		} else if (userAgent.includes("Safari")) {
+			browser = "Safari";
+		} else if (userAgent.includes("Edge")) {
+			browser = "Edge";
 		}
 
-		if (userAgent.includes('Windows')) {
-			os = 'Windows';
-		} else if (userAgent.includes('Mac OS')) {
-			os = 'macOS';
-		} else if (userAgent.includes('Linux')) {
-			os = 'Linux';
-		} else if (userAgent.includes('Android')) {
-			os = 'Android';
-		} else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-			os = 'iOS';
+		if (userAgent.includes("Windows")) {
+			os = "Windows";
+		} else if (userAgent.includes("Mac OS")) {
+			os = "macOS";
+		} else if (userAgent.includes("Linux")) {
+			os = "Linux";
+		} else if (userAgent.includes("Android")) {
+			os = "Android";
+		} else if (userAgent.includes("iPhone") || userAgent.includes("iPad")) {
+			os = "iOS";
 		}
 
 		return `${browser} on ${os}`;
@@ -197,7 +197,7 @@ export function SessionsForm() {
 					{sessions.map((s) => (
 						<div
 							className={`flex items-start justify-between rounded-md border p-4 ${
-								s.isCurrent ? 'border-primary/20 bg-primary/5' : ''
+								s.isCurrent ? "border-primary/20 bg-primary/5" : ""
 							}`}
 							key={s.expiresAt.toString()}
 						>
@@ -221,7 +221,7 @@ export function SessionsForm() {
 												size={16}
 												weight="duotone"
 											/>
-											<span>{s.ipAddress || 'Unknown IP'}</span>
+											<span>{s.ipAddress || "Unknown IP"}</span>
 										</div>
 										<div className="mt-1 flex items-center gap-2">
 											<ClockIcon
@@ -230,7 +230,7 @@ export function SessionsForm() {
 												weight="duotone"
 											/>
 											<span>
-												Created {dayjs(s.createdAt).fromNow()}, expires{' '}
+												Created {dayjs(s.createdAt).fromNow()}, expires{" "}
 												{dayjs(s.expiresAt).fromNow()}
 											</span>
 										</div>
@@ -250,7 +250,7 @@ export function SessionsForm() {
 										weight="fill"
 									/>
 								) : (
-									'Revoke'
+									"Revoke"
 								)}
 							</Button>
 						</div>

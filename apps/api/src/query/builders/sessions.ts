@@ -1,99 +1,99 @@
-import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import { Analytics } from "../../types/tables";
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
 		table: Analytics.events,
 		fields: [
-			'COUNT(DISTINCT session_id) as total_sessions',
-			'AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END) as avg_session_duration',
-			'AVG(CASE WHEN is_bounce = 1 THEN 100 ELSE 0 END) as bounce_rate',
-			'COUNT(*) as total_events',
+			"COUNT(DISTINCT session_id) as total_sessions",
+			"AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END) as avg_session_duration",
+			"AVG(CASE WHEN is_bounce = 1 THEN 100 ELSE 0 END) as bounce_rate",
+			"COUNT(*) as total_events",
 		],
 		where: ["event_name = 'screen_view'"],
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
 	session_duration_distribution: {
 		table: Analytics.events,
 		fields: [
-			'CASE ' +
+			"CASE " +
 				"WHEN time_on_page < 30 THEN '0-30s' " +
 				"WHEN time_on_page < 60 THEN '30s-1m' " +
 				"WHEN time_on_page < 300 THEN '1m-5m' " +
 				"WHEN time_on_page < 900 THEN '5m-15m' " +
 				"WHEN time_on_page < 3600 THEN '15m-1h' " +
 				"ELSE '1h+' " +
-				'END as duration_range',
-			'COUNT(DISTINCT session_id) as sessions',
-			'COUNT(DISTINCT anonymous_id) as visitors',
+				"END as duration_range",
+			"COUNT(DISTINCT session_id) as sessions",
+			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
-		where: ["event_name = 'screen_view'", 'time_on_page > 0'],
-		groupBy: ['duration_range'],
-		orderBy: 'sessions DESC',
-		timeField: 'time',
+		where: ["event_name = 'screen_view'", "time_on_page > 0"],
+		groupBy: ["duration_range"],
+		orderBy: "sessions DESC",
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
 	sessions_by_device: {
 		table: Analytics.events,
 		fields: [
-			'device_type as name',
-			'COUNT(DISTINCT session_id) as sessions',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration',
+			"device_type as name",
+			"COUNT(DISTINCT session_id) as sessions",
+			"COUNT(DISTINCT anonymous_id) as visitors",
+			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'", "device_type != ''"],
-		groupBy: ['device_type'],
-		orderBy: 'sessions DESC',
-		timeField: 'time',
+		groupBy: ["device_type"],
+		orderBy: "sessions DESC",
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
 	sessions_by_browser: {
 		table: Analytics.events,
 		fields: [
-			'browser_name as name',
-			'COUNT(DISTINCT session_id) as sessions',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration',
+			"browser_name as name",
+			"COUNT(DISTINCT session_id) as sessions",
+			"COUNT(DISTINCT anonymous_id) as visitors",
+			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'", "browser_name != ''"],
-		groupBy: ['browser_name'],
-		orderBy: 'sessions DESC',
+		groupBy: ["browser_name"],
+		orderBy: "sessions DESC",
 		limit: 100,
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
 	sessions_time_series: {
 		table: Analytics.events,
 		fields: [
-			'toDate(time) as date',
-			'COUNT(DISTINCT session_id) as sessions',
-			'COUNT(DISTINCT anonymous_id) as visitors',
-			'ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration',
+			"toDate(time) as date",
+			"COUNT(DISTINCT session_id) as sessions",
+			"COUNT(DISTINCT anonymous_id) as visitors",
+			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'"],
-		groupBy: ['toDate(time)'],
-		orderBy: 'date ASC',
-		timeField: 'time',
+		groupBy: ["toDate(time)"],
+		orderBy: "date ASC",
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
 	session_flow: {
 		table: Analytics.events,
 		fields: [
-			'path as name',
-			'COUNT(DISTINCT session_id) as sessions',
-			'COUNT(DISTINCT anonymous_id) as visitors',
+			"path as name",
+			"COUNT(DISTINCT session_id) as sessions",
+			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'", "path != ''"],
-		groupBy: ['path'],
-		orderBy: 'sessions DESC',
+		groupBy: ["path"],
+		orderBy: "sessions DESC",
 		limit: 100,
-		timeField: 'time',
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -102,17 +102,17 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit = 25,
 			offset = 0,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -227,19 +227,19 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_events: {
 		table: Analytics.events,
 		fields: [
-			'session_id',
-			'event_id',
-			'time',
-			'event_name',
-			'path',
-			'properties',
-			'device_type',
-			'browser_name',
-			'country',
+			"session_id",
+			"event_id",
+			"time",
+			"event_name",
+			"path",
+			"properties",
+			"device_type",
+			"browser_name",
+			"country",
 		],
-		where: ['session_id = ?'],
-		orderBy: 'time ASC',
-		timeField: 'time',
+		where: ["session_id = ?"],
+		orderBy: "time ASC",
+		timeField: "time",
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 };

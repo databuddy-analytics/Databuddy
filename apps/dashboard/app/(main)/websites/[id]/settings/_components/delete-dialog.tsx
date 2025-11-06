@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import type { Website } from '@databuddy/shared';
-import { WarningCircleIcon } from '@phosphor-icons/react';
+import type { Website } from "@databuddy/shared/types/website";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -11,7 +11,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 interface DeleteWebsiteDialogProps {
 	open: boolean;
@@ -36,7 +36,7 @@ export function DeleteWebsiteDialog({
 					<AlertDialogDescription asChild>
 						<div className="space-y-4">
 							<p className="text-muted-foreground text-sm">
-								Are you sure you want to delete{' '}
+								Are you sure you want to delete{" "}
 								<span className="font-medium">
 									{websiteData.name || websiteData.domain}
 								</span>
@@ -66,7 +66,7 @@ export function DeleteWebsiteDialog({
 						disabled={isDeleting}
 						onClick={onConfirmDelete}
 					>
-						{isDeleting ? 'Deleting...' : 'Delete Website'}
+						{isDeleting ? "Deleting..." : "Delete Website"}
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

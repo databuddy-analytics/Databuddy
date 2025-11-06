@@ -1,13 +1,13 @@
-import { Autumn as autumn } from 'autumn-js';
-import { getWebsiteByIdV2, isValidOrigin } from '../hooks/auth';
-import { logBlockedTraffic } from './blocked-traffic';
-import { extractIpFromRequest } from '../utils/ip-geo';
-import { detectBot } from '../utils/user-agent';
+import { Autumn as autumn } from "autumn-js";
+import { getWebsiteByIdV2, isValidOrigin } from "../hooks/auth";
+import { extractIpFromRequest } from "../utils/ip-geo";
+import { detectBot } from "../utils/user-agent";
 import {
 	sanitizeString,
 	VALIDATION_LIMITS,
 	validatePayloadSize,
-} from '../utils/validation';
+} from "../utils/validation";
+import { logBlockedTraffic } from "./blocked-traffic";
 
 interface ValidationResult {
 	success: true;
@@ -34,10 +34,10 @@ export async function validateRequest(
 			request,
 			body,
 			query,
-			'payload_too_large',
-			'Validation Error'
+			"payload_too_large",
+			"Validation Error"
 		);
-		return { error: { status: 'error', message: 'Payload too large' } };
+		return { error: { status: "error", message: "Payload too large" } };
 	}
 
 	const clientId = sanitizeString(
@@ -49,32 +49,32 @@ export async function validateRequest(
 			request,
 			body,
 			query,
-			'missing_client_id',
-			'Validation Error'
+			"missing_client_id",
+			"Validation Error"
 		);
-		return { error: { status: 'error', message: 'Missing client ID' } };
+		return { error: { status: "error", message: "Missing client ID" } };
 	}
 
 	const website = await getWebsiteByIdV2(clientId);
-	if (!website || website.status !== 'ACTIVE') {
+	if (!website || website.status !== "ACTIVE") {
 		await logBlockedTraffic(
 			request,
 			body,
 			query,
-			'invalid_client_id',
-			'Validation Error',
+			"invalid_client_id",
+			"Validation Error",
 			undefined,
 			clientId
 		);
 		return {
-			error: { status: 'error', message: 'Invalid or inactive client ID' },
+			error: { status: "error", message: "Invalid or inactive client ID" },
 		};
 	}
 
 	if (website.ownerId) {
 		const { data } = await autumn.check({
 			customer_id: website.ownerId,
-			feature_id: 'events',
+			feature_id: "events",
 			send_event: true,
 		});
 
@@ -83,34 +83,34 @@ export async function validateRequest(
 				request,
 				body,
 				query,
-				'exceeded_event_limit',
-				'Validation Error',
+				"exceeded_event_limit",
+				"Validation Error",
 				undefined,
 				clientId
 			);
-			return { error: { status: 'error', message: 'Exceeded event limit' } };
+			return { error: { status: "error", message: "Exceeded event limit" } };
 		}
 	}
 
-	const origin = request.headers.get('origin');
+	const origin = request.headers.get("origin");
 	if (origin && !isValidOrigin(origin, website.domain)) {
 		await logBlockedTraffic(
 			request,
 			body,
 			query,
-			'origin_not_authorized',
-			'Security Check',
+			"origin_not_authorized",
+			"Security Check",
 			undefined,
 			clientId
 		);
-		return { error: { status: 'error', message: 'Origin not authorized' } };
+		return { error: { status: "error", message: "Origin not authorized" } };
 	}
 
 	const userAgent =
 		sanitizeString(
-			request.headers.get('user-agent'),
+			request.headers.get("user-agent"),
 			VALIDATION_LIMITS.STRING_MAX_LENGTH
-		) || '';
+		) || "";
 
 	const ip = extractIpFromRequest(request);
 
@@ -140,13 +140,12 @@ export async function checkForBot(
 			request,
 			body,
 			query,
-			botCheck.reason || 'unknown_bot',
-			botCheck.category || 'Bot Detection',
+			botCheck.reason || "unknown_bot",
+			botCheck.category || "Bot Detection",
 			botCheck.botName,
 			clientId
 		);
-		return { error: { status: 'ignored' } };
+		return { error: { status: "ignored" } };
 	}
-	return undefined;
+	return;
 }
-

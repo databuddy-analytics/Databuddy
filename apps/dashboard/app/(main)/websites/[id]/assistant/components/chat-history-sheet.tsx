@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ChatIcon,
@@ -7,10 +7,10 @@ import {
 	DownloadIcon,
 	MagnifyingGlassIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import type React from 'react';
-import { useEffect, useState } from 'react';
+} from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import type React from "react";
+import { useEffect, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -20,28 +20,28 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { websiteDataAtom, websiteIdAtom } from '@/stores/jotai/assistantAtoms';
-import { getChatDB } from '../lib/chat-db';
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { websiteDataAtom, websiteIdAtom } from "@/stores/jotai/assistantAtoms";
+import { getChatDB } from "../lib/chat-db";
 
 interface ChatHistoryItem {
 	websiteId: string;
@@ -65,7 +65,7 @@ function formatRelativeTime(timestamp: number): string {
 	const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
 	if (minutes < 1) {
-		return 'Just now';
+		return "Just now";
 	}
 	if (minutes < 60) {
 		return `${minutes}m ago`;
@@ -82,7 +82,7 @@ function formatRelativeTime(timestamp: number): string {
 export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 	const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const [searchQuery, setSearchQuery] = useState('');
+	const [searchQuery, setSearchQuery] = useState("");
 	const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 	const chatDB = getChatDB();
 	const [websiteId] = useAtom(websiteIdAtom);
@@ -100,12 +100,12 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 						try {
 							const messages = await chatDB.getMessages(chat.websiteId);
 							const lastUserMessage = messages
-								.filter((m) => m.type === 'user')
+								.filter((m) => m.type === "user")
 								.pop();
 
 							return {
 								...chat,
-								lastMessage: lastUserMessage?.content || 'No messages yet',
+								lastMessage: lastUserMessage?.content || "No messages yet",
 							};
 						} catch (error) {
 							console.error(
@@ -114,7 +114,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 							);
 							return {
 								...chat,
-								lastMessage: 'Error loading messages',
+								lastMessage: "Error loading messages",
 							};
 						}
 					})
@@ -122,7 +122,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 
 				setChatHistory(chatsWithPreview);
 			} catch (error) {
-				console.error('Failed to load chat history:', error);
+				console.error("Failed to load chat history:", error);
 			} finally {
 				setIsLoading(false);
 			}
@@ -141,7 +141,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 			);
 			setDeleteConfirm(null);
 		} catch (error) {
-			console.error('Failed to delete chat:', error);
+			console.error("Failed to delete chat:", error);
 		}
 	};
 
@@ -149,18 +149,18 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 		try {
 			const exportData = await chatDB.exportChat(websiteId);
 			const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-				type: 'application/json',
+				type: "application/json",
 			});
 			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
+			const a = document.createElement("a");
 			a.href = url;
-			a.download = `chat-${websiteName || websiteId}-${new Date().toISOString().split('T')[0]}.json`;
+			a.download = `chat-${websiteName || websiteId}-${new Date().toISOString().split("T")[0]}.json`;
 			document.body.appendChild(a);
 			a.click();
 			document.body.removeChild(a);
 			URL.revokeObjectURL(url);
 		} catch (error) {
-			console.error('Failed to export chat:', error);
+			console.error("Failed to export chat:", error);
 		}
 	};
 
@@ -185,7 +185,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 				<SheetContent
 					className="w-[90vw] overflow-y-auto sm:w-[80vw] md:w-[60vw] lg:w-[40vw] xl:w-[500px]"
 					side="right"
-					style={{ width: '90vw', padding: '1rem', maxWidth: '600px' }}
+					style={{ width: "90vw", padding: "1rem", maxWidth: "600px" }}
 				>
 					<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 						<div className="flex items-center gap-3">
@@ -197,8 +197,8 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 									Chat History
 								</SheetTitle>
 								<SheetDescription className="mt-1 text-muted-foreground">
-									{chatHistory.length}{' '}
-									{chatHistory.length === 1 ? 'chat' : 'chats'}
+									{chatHistory.length}{" "}
+									{chatHistory.length === 1 ? "chat" : "chats"}
 								</SheetDescription>
 							</div>
 						</div>
@@ -241,8 +241,8 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 									<ChatIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
 									<p className="text-muted-foreground text-sm">
 										{searchQuery
-											? 'No chats match your search'
-											: 'No chat history yet'}
+											? "No chats match your search"
+											: "No chat history yet"}
 									</p>
 								</div>
 							) : (
@@ -250,11 +250,11 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 									{filteredChats.map((chat) => (
 										<button
 											className={cn(
-												'group w-full text-left transition-all duration-200',
-												'flex items-start gap-4 rounded-xl border border-border/50 bg-background p-4 shadow-sm',
-												'hover:border-primary/30 hover:bg-primary/5',
+												"group w-full text-left transition-all duration-200",
+												"flex items-start gap-4 rounded-xl border border-border/50 bg-background p-4 shadow-sm",
+												"hover:border-primary/30 hover:bg-primary/5",
 												chat.websiteId === websiteId &&
-													'border-primary/40 bg-primary/10'
+													"border-primary/40 bg-primary/10"
 											)}
 											key={chat.websiteId}
 											onClick={(e: React.MouseEvent) => {
@@ -263,7 +263,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 												handleSelectChat(chat.websiteId, chat.websiteName);
 											}}
 											onKeyDown={(e: React.KeyboardEvent) => {
-												if (e.key === 'Enter' || e.key === ' ') {
+												if (e.key === "Enter" || e.key === " ") {
 													e.preventDefault();
 													e.stopPropagation();
 													handleSelectChat(chat.websiteId, chat.websiteName);

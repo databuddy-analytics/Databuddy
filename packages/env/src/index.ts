@@ -10,11 +10,11 @@
  * - import { env } from '@databuddy/env/docs'
  */
 
-export type { ApiEnv } from './api';
-export * from './base';
-export type { BasketEnv } from './basket';
-export type { BetterAdminEnv } from './better-admin';
+export type { ApiEnv } from "./api";
+export * from "./base";
+export type { BasketEnv } from "./basket";
+export type { BetterAdminEnv } from "./better-admin";
 // Re-export types for convenience
-export type { DashboardEnv } from './dashboard';
-export type { DatabaseEnv } from './database';
-export type { DocsEnv } from './docs';
+export type { DashboardEnv } from "./dashboard";
+export type { DatabaseEnv } from "./database";
+export type { DocsEnv } from "./docs";

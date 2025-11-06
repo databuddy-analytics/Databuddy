@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
@@ -10,9 +10,9 @@ import {
 	LightningIcon,
 	TestTubeIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -23,33 +23,33 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 	AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import type { useRevenueConfig } from '../../hooks/use-revenue-config';
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import type { useRevenueConfig } from "../../hooks/use-revenue-config";
 
 export function RevenueSettingsTab({
 	revenueConfig,
 }: {
 	revenueConfig: ReturnType<typeof useRevenueConfig>;
 }) {
-	const [webhookSecret, setWebhookSecret] = useState('');
+	const [webhookSecret, setWebhookSecret] = useState("");
 	const [isLiveMode, setIsLiveMode] = useState(revenueConfig.isLiveMode);
 
 	// Check if the webhook secret is masked (contains asterisks)
 	const isMaskedSecret = useCallback(
-		(secret: string) => secret.includes('*'),
+		(secret: string) => secret.includes("*"),
 		[]
 	);
 
 	// Initialize webhook secret only if it's not masked
 	useEffect(() => {
-		const currentSecret = revenueConfig.webhookSecret || '';
+		const currentSecret = revenueConfig.webhookSecret || "";
 		if (!isMaskedSecret(currentSecret)) {
 			setWebhookSecret(currentSecret);
 		}
@@ -117,7 +117,7 @@ export function RevenueSettingsTab({
 							/>
 							<Button
 								onClick={() =>
-									handleCopy(revenueConfig.webhookUrl, 'Webhook URL')
+									handleCopy(revenueConfig.webhookUrl, "Webhook URL")
 								}
 								size="icon"
 								variant="outline"
@@ -142,7 +142,7 @@ export function RevenueSettingsTab({
 							/>
 							<Button
 								onClick={() =>
-									handleCopy(revenueConfig.webhookToken, 'Webhook Token')
+									handleCopy(revenueConfig.webhookToken, "Webhook Token")
 								}
 								size="icon"
 								variant="outline"
@@ -156,7 +156,7 @@ export function RevenueSettingsTab({
 								variant="outline"
 							>
 								<ArrowClockwiseIcon
-									className={`h-4 w-4 ${revenueConfig.isRegeneratingToken ? 'animate-spin' : ''}`}
+									className={`h-4 w-4 ${revenueConfig.isRegeneratingToken ? "animate-spin" : ""}`}
 									size={16}
 									weight="fill"
 								/>
@@ -176,14 +176,14 @@ export function RevenueSettingsTab({
 								id="webhook-secret"
 								onChange={(e) => setWebhookSecret(e.target.value)}
 								placeholder={
-									isMaskedSecret(revenueConfig.webhookSecret || '')
-										? 'Enter new webhook secret to update...'
-										: 'whsec_...'
+									isMaskedSecret(revenueConfig.webhookSecret || "")
+										? "Enter new webhook secret to update..."
+										: "whsec_..."
 								}
 								type="password"
 								value={webhookSecret}
 							/>
-							{isMaskedSecret(revenueConfig.webhookSecret || '') && (
+							{isMaskedSecret(revenueConfig.webhookSecret || "") && (
 								<div className="absolute inset-y-0 right-3 flex items-center">
 									<span className="font-mono text-muted-foreground text-xs">
 										{revenueConfig.webhookSecret}
@@ -192,9 +192,9 @@ export function RevenueSettingsTab({
 							)}
 						</div>
 						<p className="text-muted-foreground text-xs">
-							{isMaskedSecret(revenueConfig.webhookSecret || '')
-								? 'Current secret is hidden for security. Enter a new secret to update it.'
-								: 'Get this from your Stripe webhook endpoint settings'}
+							{isMaskedSecret(revenueConfig.webhookSecret || "")
+								? "Current secret is hidden for security. Enter a new secret to update it."
+								: "Get this from your Stripe webhook endpoint settings"}
 						</p>
 					</div>
 				</CardContent>
@@ -215,7 +215,7 @@ export function RevenueSettingsTab({
 								<Label htmlFor="live-mode">Live Mode</Label>
 								<Badge
 									className="text-xs"
-									variant={isLiveMode ? 'default' : 'secondary'}
+									variant={isLiveMode ? "default" : "secondary"}
 								>
 									{isLiveMode ? (
 										<>
@@ -240,8 +240,8 @@ export function RevenueSettingsTab({
 							</div>
 							<p className="text-muted-foreground text-sm">
 								{isLiveMode
-									? 'Track real payments from live Stripe events'
-									: 'Track test payments for development and testing'}
+									? "Track real payments from live Stripe events"
+									: "Track test payments for development and testing"}
 							</p>
 						</div>
 						<Switch
@@ -377,14 +377,14 @@ export function RevenueSettingsTab({
 								disabled={revenueConfig.isDeleting}
 								onClick={() => revenueConfig.deleteConfig()}
 							>
-								{revenueConfig.isDeleting ? 'Deleting...' : 'Delete'}
+								{revenueConfig.isDeleting ? "Deleting..." : "Delete"}
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>
 				</AlertDialog>
 
 				<Button disabled={revenueConfig.isCreating} onClick={handleSave}>
-					{revenueConfig.isCreating ? 'Saving...' : 'Save Configuration'}
+					{revenueConfig.isCreating ? "Saving..." : "Save Configuration"}
 				</Button>
 			</div>
 		</div>

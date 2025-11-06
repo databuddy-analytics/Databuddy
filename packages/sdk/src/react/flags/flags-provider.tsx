@@ -1,9 +1,9 @@
-import { atom, createStore, Provider, useAtom } from 'jotai';
-import type { ReactNode } from 'react';
-import { createElement, useEffect, useRef } from 'react';
-import type { FlagResult, FlagState, FlagsConfig } from '@/core/flags';
-import { BrowserFlagStorage, CoreFlagsManager } from '@/core/flags';
-import { logger } from '@/logger';
+import { atom, createStore, Provider, useAtom } from "jotai";
+import type { ReactNode } from "react";
+import { createElement, useEffect, useRef } from "react";
+import type { FlagResult, FlagState, FlagsConfig } from "@/core/flags";
+import { BrowserFlagStorage, CoreFlagsManager } from "@/core/flags";
+import { logger } from "@/logger";
 
 const flagsStore = createStore();
 
@@ -76,7 +76,7 @@ export function useFlags() {
 		store: flagsStore,
 	});
 
-	logger.debug('useFlags called with manager:', {
+	logger.debug("useFlags called with manager:", {
 		hasManager: !!manager,
 		memoryFlagsCount: Object.keys(memoryFlags).length,
 		memoryFlags: Object.keys(memoryFlags),
@@ -95,15 +95,15 @@ export function useFlags() {
 
 	const fetchAllFlags = () => {
 		if (!manager) {
-			logger.warn('No manager for bulk fetch');
+			logger.warn("No manager for bulk fetch");
 			return;
 		}
 		return manager.fetchAllFlags();
 	};
 
-	const updateUser = (user: FlagsConfig['user']) => {
+	const updateUser = (user: FlagsConfig["user"]) => {
 		if (!manager) {
-			logger.warn('No manager for user update');
+			logger.warn("No manager for user update");
 			return;
 		}
 		manager.updateUser(user);
@@ -111,7 +111,7 @@ export function useFlags() {
 
 	const refresh = (forceClear = false): void => {
 		if (!manager) {
-			logger.warn('No manager for refresh');
+			logger.warn("No manager for refresh");
 			return;
 		}
 		manager.refresh(forceClear);

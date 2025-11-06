@@ -105,6 +105,9 @@ export type ParameterDataMap = {
 	session_list: any;
 	// Profiles
 	profile_list: any;
+	// Retention
+	retention_cohorts: any;
+	retention_rate: any;
 };
 
 // Helper type to extract data types from parameters

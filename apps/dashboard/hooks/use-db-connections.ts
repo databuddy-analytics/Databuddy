@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import type { AppRouter } from '@databuddy/rpc';
-import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
-import { trpc } from '@/lib/trpc';
+import { authClient } from "@databuddy/auth/client";
+import type { AppRouter } from "@databuddy/rpc";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
+import { trpc } from "@/lib/trpc";
 
 type RouterInput = inferRouterInputs<AppRouter>;
 type RouterOutput = inferRouterOutputs<AppRouter>;
 
-export type DbConnection = RouterOutput['dbConnections']['list'][number];
-export type CreateDbConnectionData = RouterInput['dbConnections']['create'];
-export type UpdateDbConnectionData = RouterInput['dbConnections']['update'];
+export type DbConnection = RouterOutput["dbConnections"]["list"][number];
+export type CreateDbConnectionData = RouterInput["dbConnections"]["create"];
+export type UpdateDbConnectionData = RouterInput["dbConnections"]["update"];
 
 export function useDbConnections() {
 	const { data: activeOrganization, isPending: isLoadingOrganization } =
@@ -60,7 +60,7 @@ export function useCreateDbConnection({
 			onSuccess?.();
 		},
 		onError: (error) => {
-			console.error('Failed to create database connection:', error);
+			console.error("Failed to create database connection:", error);
 			onError?.(error.message);
 		},
 	});
@@ -96,7 +96,7 @@ export function useUpdateDbConnection({
 			onSuccess?.();
 		},
 		onError: (error) => {
-			console.error('Failed to update database connection:', error);
+			console.error("Failed to update database connection:", error);
 			onError?.(error.message);
 		},
 	});

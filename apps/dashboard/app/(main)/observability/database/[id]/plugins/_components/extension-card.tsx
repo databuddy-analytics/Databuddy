@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	CheckIcon,
 	PlusIcon,
 	TrashIcon,
-} from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Extension {
 	name: string;
@@ -23,7 +23,7 @@ interface Extension {
 
 interface ExtensionCardProps {
 	extension: Extension;
-	type: 'installed' | 'available';
+	type: "installed" | "available";
 	onInstall?: () => void;
 	onUpdate?: () => void;
 	onRemove?: () => void;
@@ -40,11 +40,11 @@ function ExtensionBadges({
 	type,
 }: {
 	extension: Extension;
-	type: 'installed' | 'available';
+	type: "installed" | "available";
 }) {
 	return (
 		<div className="flex flex-wrap gap-1">
-			{type === 'installed' ? (
+			{type === "installed" ? (
 				<Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
 					<CheckIcon className="mr-1 h-3 w-3" />
 					Installed
@@ -70,16 +70,16 @@ function ExtensionMetadata({
 	type,
 }: {
 	extension: Extension;
-	type: 'installed' | 'available';
+	type: "installed" | "available";
 }) {
 	return (
 		<div className="flex flex-wrap gap-2">
-			{type === 'installed' && extension.version && (
+			{type === "installed" && extension.version && (
 				<Badge className="text-xs" variant="secondary">
 					v{extension.version}
 				</Badge>
 			)}
-			{type === 'available' && extension.defaultVersion && (
+			{type === "available" && extension.defaultVersion && (
 				<Badge className="text-xs" variant="secondary">
 					v{extension.defaultVersion}
 				</Badge>
@@ -149,7 +149,7 @@ export function ExtensionCard({
 					{/* Actions */}
 					<div className="flex items-center justify-between pt-2">
 						<div>
-							{type === 'installed' && extension.needsUpdate && onUpdate && (
+							{type === "installed" && extension.needsUpdate && onUpdate && (
 								<Button
 									disabled={!canManage || isLoading}
 									onClick={onUpdate}
@@ -157,23 +157,23 @@ export function ExtensionCard({
 									variant="outline"
 								>
 									<ArrowClockwiseIcon className="h-3 w-3" />
-									{isUpdating ? 'Updating...' : 'Update'}
+									{isUpdating ? "Updating..." : "Update"}
 								</Button>
 							)}
-							{type === 'installed' && extension.hasStatefulData && onReset && (
+							{type === "installed" && extension.hasStatefulData && onReset && (
 								<Button
 									disabled={!canManage || isLoading}
 									onClick={onReset}
 									size="sm"
 									variant="outline"
 								>
-									{isResetting ? 'Resetting...' : 'Reset Stats'}
+									{isResetting ? "Resetting..." : "Reset Stats"}
 								</Button>
 							)}
 						</div>
 
 						<div>
-							{type === 'available' && onInstall && (
+							{type === "available" && onInstall && (
 								<Button
 									className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
 									disabled={!canManage || isLoading}
@@ -181,10 +181,10 @@ export function ExtensionCard({
 									size="sm"
 								>
 									<PlusIcon className="h-3 w-3" />
-									{isInstalling ? 'Installing...' : 'Install'}
+									{isInstalling ? "Installing..." : "Install"}
 								</Button>
 							)}
-							{type === 'installed' && onRemove && (
+							{type === "installed" && onRemove && (
 								<Button
 									disabled={!canManage || isLoading}
 									onClick={onRemove}
@@ -192,7 +192,7 @@ export function ExtensionCard({
 									variant="destructive"
 								>
 									<TrashIcon className="h-3 w-3" />
-									{isRemoving ? 'Removing...' : 'Remove'}
+									{isRemoving ? "Removing..." : "Remove"}
 								</Button>
 							)}
 						</div>

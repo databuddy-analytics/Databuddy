@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
 import {
 	ArrowClockwiseIcon,
 	ArrowLeftIcon,
 	BookIcon,
 	PlusIcon,
-} from '@phosphor-icons/react';
-import Link from 'next/link';
-import type { ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface WebsitePageHeaderProps {
 	title: string;
@@ -33,7 +33,7 @@ interface WebsitePageHeaderProps {
 	subtitle?: string | ReactNode;
 
 	showBackButton?: boolean;
-	variant?: 'default' | 'minimal';
+	variant?: "default" | "minimal";
 
 	additionalActions?: ReactNode;
 
@@ -51,10 +51,10 @@ export function WebsitePageHeader({
 	errorMessage,
 	onRefresh,
 	onCreateAction,
-	createActionLabel = 'Create',
+	createActionLabel = "Create",
 	subtitle,
 	showBackButton = false,
-	variant = 'default',
+	variant = "default",
 	additionalActions,
 	docsUrl,
 }: WebsitePageHeaderProps) {
@@ -64,7 +64,7 @@ export function WebsitePageHeader({
 		}
 
 		if (subtitle) {
-			return typeof subtitle === 'string' ? (
+			return typeof subtitle === "string" ? (
 				<p className="text-muted-foreground text-sm sm:text-base">{subtitle}</p>
 			) : (
 				subtitle
@@ -82,7 +82,7 @@ export function WebsitePageHeader({
 		return null;
 	};
 
-	if (variant === 'minimal') {
+	if (variant === "minimal") {
 		return (
 			<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
 				<div className="flex items-center gap-3">
@@ -128,7 +128,7 @@ export function WebsitePageHeader({
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? 'animate-spin' : ''}
+								className={isRefreshing ? "animate-spin" : ""}
 								size={16}
 							/>
 							<span className="xs:inline hidden">Refresh</span>
@@ -187,7 +187,7 @@ export function WebsitePageHeader({
 								variant="outline"
 							>
 								<ArrowClockwiseIcon
-									className={isRefreshing ? 'animate-spin' : ''}
+									className={isRefreshing ? "animate-spin" : ""}
 									size={16}
 								/>
 								Refresh Data

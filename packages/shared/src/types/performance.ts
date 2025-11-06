@@ -100,6 +100,6 @@ export interface PerformanceFilters {
 	limit?: number;
 	min_calls?: number;
 	min_exec_time?: number;
-	order_by?: 'total_exec_time' | 'calls' | 'mean_exec_time' | 'rows';
-	order_direction?: 'asc' | 'desc';
+	order_by?: "total_exec_time" | "calls" | "mean_exec_time" | "rows";
+	order_direction?: "asc" | "desc";
 }

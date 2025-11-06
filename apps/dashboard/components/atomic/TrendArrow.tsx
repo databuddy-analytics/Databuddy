@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import type React from 'react';
-import { cn } from '@/lib/utils';
+import type React from "react";
+import { cn } from "@/lib/utils";
 
 interface TrendArrowProps {
 	id?: string;
@@ -16,14 +16,14 @@ export const TrendArrow: React.FC<TrendArrowProps> = ({
 	invertColor = false,
 	className,
 }) => {
-	const arrow = value > 0 ? '↑' : value < 0 ? '↓' : '→';
-	let colorClass = 'text-muted-foreground'; // Default for zero
+	const arrow = value > 0 ? "↑" : value < 0 ? "↓" : "→";
+	let colorClass = "text-muted-foreground"; // Default for zero
 
 	if (value > 0) {
-		colorClass = invertColor ? 'text-destructive' : 'text-success';
+		colorClass = invertColor ? "text-destructive" : "text-success";
 	}
 	if (value < 0) {
-		colorClass = invertColor ? 'text-success' : 'text-destructive';
+		colorClass = invertColor ? "text-success" : "text-destructive";
 	}
 
 	return (

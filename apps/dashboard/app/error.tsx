@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { WarningCircleIcon } from '@phosphor-icons/react';
-import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { WarningCircleIcon } from "@phosphor-icons/react";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function GlobalError({
 	error,
@@ -12,11 +12,11 @@ export default function GlobalError({
 	reset: () => void;
 }) {
 	useEffect(() => {
-		console.error('Global error occurred:', error);
+		console.error("Global error occurred:", error);
 	}, [error]);
 
 	const handleGoToHomepage = () => {
-		window.location.href = '/';
+		window.location.href = "/";
 	};
 
 	return (

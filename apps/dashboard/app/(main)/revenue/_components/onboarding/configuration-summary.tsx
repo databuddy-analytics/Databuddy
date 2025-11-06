@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { CheckCircleIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import type { ConfigurationSummaryProps } from '../../utils/types';
+import { CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import type { ConfigurationSummaryProps } from "../../utils/types";
 
 export function ConfigurationSummary({
 	webhookToken,
@@ -40,7 +40,7 @@ export function ConfigurationSummary({
 							Webhook Token
 						</Label>
 						<div className="flex items-center gap-2">
-							<p className="font-mono">{webhookToken || 'Not configured'}</p>
+							<p className="font-mono">{webhookToken || "Not configured"}</p>
 							{webhookToken && (
 								<Badge className="text-xs" variant="outline">
 									Active
@@ -51,19 +51,19 @@ export function ConfigurationSummary({
 					<div>
 						<Label className="text-muted-foreground text-xs">Mode</Label>
 						<div className="flex items-center gap-2">
-							<p>{isLiveMode ? 'Production' : 'Test'}</p>
+							<p>{isLiveMode ? "Production" : "Test"}</p>
 							<Badge
 								className="text-xs"
-								variant={isLiveMode ? 'default' : 'secondary'}
+								variant={isLiveMode ? "default" : "secondary"}
 							>
-								{isLiveMode ? 'Live' : 'Test'}
+								{isLiveMode ? "Live" : "Test"}
 							</Badge>
 						</div>
 					</div>
 					<div className="md:col-span-2">
 						<Label className="text-muted-foreground text-xs">Webhook URL</Label>
 						<p className="break-all font-mono text-xs">
-							{webhookUrl || 'Not configured'}
+							{webhookUrl || "Not configured"}
 						</p>
 					</div>
 				</div>

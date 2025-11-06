@@ -1,1 +1,1 @@
-export const SITE_URL = 'https://www.databuddy.cc';
+export const SITE_URL = "https://www.databuddy.cc";

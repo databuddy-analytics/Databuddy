@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import type { AppRouter } from '@databuddy/rpc';
-import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
-import { trpc } from '@/lib/trpc';
+import type { AppRouter } from "@databuddy/rpc";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
+import { trpc } from "@/lib/trpc";
 
 type RouterInput = inferRouterInputs<AppRouter>;
 type RouterOutput = inferRouterOutputs<AppRouter>;
 
 export type Integration =
-	RouterOutput['integrations']['getIntegrations']['integrations'][number];
-export type IntegrationStats = RouterOutput['integrations']['getStats'];
+	RouterOutput["integrations"]["getIntegrations"]["integrations"][number];
+export type IntegrationStats = RouterOutput["integrations"]["getStats"];
 export type DisconnectIntegrationData =
-	RouterInput['integrations']['disconnect'];
+	RouterInput["integrations"]["disconnect"];
 
 export function useIntegrations() {
 	const { data, isLoading, isError, refetch, isFetching } =
@@ -27,7 +27,7 @@ export function useIntegrations() {
 	};
 }
 
-export function useIntegration(provider: 'vercel') {
+export function useIntegration(provider: "vercel") {
 	return trpc.integrations.getIntegration.useQuery(
 		{ provider },
 		{ enabled: !!provider }
@@ -43,7 +43,7 @@ export function useDisconnectIntegration() {
 			utils.integrations.getStats.invalidate();
 		},
 		onError: (error) => {
-			console.error('Failed to disconnect integration:', error);
+			console.error("Failed to disconnect integration:", error);
 		},
 	});
 }

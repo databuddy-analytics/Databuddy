@@ -1,8 +1,8 @@
-import { CaretLeftIcon, DatabaseIcon } from '@phosphor-icons/react';
-import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { DbConnection } from '@/hooks/use-db-connections';
+import { CaretLeftIcon, DatabaseIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { DbConnection } from "@/hooks/use-db-connections";
 
 interface DatabaseHeaderProps {
 	database: DbConnection | null | undefined;

@@ -1,2 +1,2 @@
-export * from './Databuddy';
-export * from './flags';
+export * from "./Databuddy";
+export * from "./flags";

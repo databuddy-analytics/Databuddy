@@ -1,11 +1,11 @@
-import { account, db } from '@databuddy/db';
-import { TRPCError } from '@trpc/server';
-import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { account, db } from "@databuddy/db";
+import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 const disconnectIntegrationSchema = z.object({
-	provider: z.enum(['vercel']),
+	provider: z.enum(["vercel"]),
 });
 
 export interface IntegrationInfo {
@@ -39,12 +39,12 @@ export const integrationsRouter = createTRPCRouter({
 			// Define available integrations
 			const availableIntegrations = [
 				{
-					id: 'vercel',
-					name: 'Vercel',
+					id: "vercel",
+					name: "Vercel",
 					description:
-						'Deploy and host your websites with automatic deployments from Git.',
-					logo: '/vercel.svg',
-					category: 'deployment' as const,
+						"Deploy and host your websites with automatic deployments from Git.",
+					logo: "/vercel.svg",
+					category: "deployment" as const,
 				},
 			];
 
@@ -73,17 +73,17 @@ export const integrationsRouter = createTRPCRouter({
 				totalConnected: connectedAccounts.length,
 			};
 		} catch (error) {
-			console.error('Error fetching integrations:', error);
+			console.error("Error fetching integrations:", error);
 			throw new TRPCError({
-				code: 'INTERNAL_SERVER_ERROR',
-				message: 'Failed to fetch integrations',
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to fetch integrations",
 			});
 		}
 	}),
 
 	// Get specific integration details
 	getIntegration: protectedProcedure
-		.input(z.object({ provider: z.enum(['vercel']) }))
+		.input(z.object({ provider: z.enum(["vercel"]) }))
 		.query(async ({ input, ctx }) => {
 			try {
 				const userId = ctx.user.id;
@@ -134,10 +134,10 @@ export const integrationsRouter = createTRPCRouter({
 					scope: parsedScope,
 				};
 			} catch (error) {
-				console.error('Error fetching integration:', error);
+				console.error("Error fetching integration:", error);
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch integration details',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to fetch integration details",
 				});
 			}
 		}),
@@ -163,8 +163,8 @@ export const integrationsRouter = createTRPCRouter({
 
 				if (!connectedAccount.length) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Integration not found or not connected',
+						code: "NOT_FOUND",
+						message: "Integration not found or not connected",
 					});
 				}
 
@@ -176,15 +176,15 @@ export const integrationsRouter = createTRPCRouter({
 					message: `${input.provider} integration disconnected successfully`,
 				};
 			} catch (error) {
-				console.error('Error disconnecting integration:', error);
+				console.error("Error disconnecting integration:", error);
 
 				if (error instanceof TRPCError) {
 					throw error;
 				}
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to disconnect integration',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to disconnect integration",
 				});
 			}
 		}),
@@ -225,10 +225,10 @@ export const integrationsRouter = createTRPCRouter({
 
 			return stats;
 		} catch (error) {
-			console.error('Error fetching integration stats:', error);
+			console.error("Error fetching integration stats:", error);
 			throw new TRPCError({
-				code: 'INTERNAL_SERVER_ERROR',
-				message: 'Failed to fetch integration statistics',
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to fetch integration statistics",
 			});
 		}
 	}),

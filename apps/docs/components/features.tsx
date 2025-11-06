@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 // Credits to better-auth for the inspiration
 
@@ -12,32 +12,32 @@ import {
 	Shield,
 	TrendingUp,
 	Users,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { cn } from '@/lib/utils';
-import Testimonials from './landing/testimonials';
+import { cn } from "@/lib/utils";
+import Testimonials from "./landing/testimonials";
 
 const whyWeExist = [
 	{
 		id: 1,
-		label: 'Bloated and creepy',
+		label: "Bloated and creepy",
 		title:
-			'Most analytics tools are either <strong>bloated and creepy</strong> (hi Google)',
+			"Most analytics tools are either <strong>bloated and creepy</strong> (hi Google)",
 		description:
-			'Google Analytics tracks everything, slows down your site, and requires cookie banners that hurt conversion rates.',
+			"Google Analytics tracks everything, slows down your site, and requires cookie banners that hurt conversion rates.",
 		icon: AlertTriangle,
 	},
 	{
 		id: 2,
-		label: 'Minimal but useless',
-		title: 'Or <strong>minimal but useless</strong> (hi SimpleAnalytics)',
+		label: "Minimal but useless",
+		title: "Or <strong>minimal but useless</strong> (hi SimpleAnalytics)",
 		description:
-			'Simple tools give you basic pageviews but lack the depth developers need to make informed decisions about their products.',
+			"Simple tools give you basic pageviews but lack the depth developers need to make informed decisions about their products.",
 		icon: BarChart3,
 	},
 	{
 		id: 3,
-		label: 'Complex product analytics',
+		label: "Complex product analytics",
 		title:
 			'Or "product analytics" platforms that need <strong>a data team to set up</strong> (hi PostHog)',
 		description:
@@ -49,52 +49,52 @@ const whyWeExist = [
 const whatYouGet = [
 	{
 		id: 4,
-		label: 'Privacy-First Approach',
+		label: "Privacy-First Approach",
 		title:
-			'Build trust & reduce legal risk with built-in <strong>GDPR/CCPA compliance</strong>.',
+			"Build trust & reduce legal risk with built-in <strong>GDPR/CCPA compliance</strong>.",
 		description:
-			'No cookies required, complete data anonymization, and full GDPR/CCPA compliance out of the box. Build user trust while staying compliant.',
+			"No cookies required, complete data anonymization, and full GDPR/CCPA compliance out of the box. Build user trust while staying compliant.",
 		icon: Shield,
 	},
 	{
 		id: 5,
-		label: 'Real-time Analytics',
+		label: "Real-time Analytics",
 		title:
-			'Make data-driven decisions instantly with <strong>live dashboards</strong>.',
+			"Make data-driven decisions instantly with <strong>live dashboards</strong>.",
 		description:
-			'See your data update in real-time with beautiful dashboards. No data sampling means 100% accurate data for confident decision making.',
+			"See your data update in real-time with beautiful dashboards. No data sampling means 100% accurate data for confident decision making.",
 		icon: TrendingUp,
 	},
 	{
 		id: 6,
-		label: 'Data Ownership',
-		title: 'Full control of your <strong>valuable business data</strong>.',
+		label: "Data Ownership",
+		title: "Full control of your <strong>valuable business data</strong>.",
 		description:
-			'Your data stays yours. Export raw data, integrate with existing tools, and maintain complete control over your analytics.',
+			"Your data stays yours. Export raw data, integrate with existing tools, and maintain complete control over your analytics.",
 		icon: Users,
 	},
 	{
 		id: 7,
-		label: 'Energy Efficient',
+		label: "Energy Efficient",
 		title:
-			'Up to 10x more eco-friendly with <strong>lower carbon footprint</strong>.',
+			"Up to 10x more eco-friendly with <strong>lower carbon footprint</strong>.",
 		description:
-			'Reduce your environmental impact with our energy-efficient analytics platform while maintaining powerful insights.',
+			"Reduce your environmental impact with our energy-efficient analytics platform while maintaining powerful insights.",
 		icon: Globe2Icon,
 	},
 	{
 		id: 8,
-		label: '100% Transparency',
-		title: 'Fully transparent, <strong>no hidden fees or data games</strong>.',
+		label: "100% Transparency",
+		title: "Fully transparent, <strong>no hidden fees or data games</strong>.",
 		description:
-			'Clear pricing, open about what data we collect, and honest about our limitations. No vendor lock-in, export your data anytime, and only pay for what you actually use.',
+			"Clear pricing, open about what data we collect, and honest about our limitations. No vendor lock-in, export your data anytime, and only pay for what you actually use.",
 		icon: Code,
 	},
 	{
 		id: 9,
-		label: 'Lightweight',
+		label: "Lightweight",
 		title:
-			'Lightweight, <strong>no cookies, no fingerprinting, no consent needed</strong>.',
+			"Lightweight, <strong>no cookies, no fingerprinting, no consent needed</strong>.",
 		description:
 			"Databuddy is lightweight, no cookies, no fingerprinting, no consent needed. It's GDPR compliant out of the box.",
 		icon: Code,
@@ -130,7 +130,7 @@ export default function Features() {
 					{whyWeExist.map((item) => (
 						<div
 							className={cn(
-								'flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0'
+								"flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0"
 							)}
 							key={item.id}
 						>
@@ -180,7 +180,7 @@ export default function Features() {
 					{whatYouGet.map((item) => (
 						<div
 							className={cn(
-								'flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-b-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0'
+								"flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-b-[1.2px] border-l-[1.2px] p-10 md:min-h-[240px] md:border-t-0"
 							)}
 							key={item.id}
 						>

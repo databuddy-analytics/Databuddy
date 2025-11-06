@@ -28,20 +28,20 @@ export type RecentError = {
 	country_name?: string;
 	created_at?: string;
 	severity?: string;
-}
+};
 
 export type ErrorType = {
 	name: string;
 	count: number;
 	users: number;
 	last_seen: string;
-}
+};
 
 export type ErrorByPage = {
 	name: string;
 	errors: number;
 	users: number;
-}
+};
 
 export type ErrorSummary = {
 	totalErrors: number;
@@ -49,16 +49,16 @@ export type ErrorSummary = {
 	affectedUsers: number;
 	affectedSessions: number;
 	errorRate: number;
-}
+};
 
 export type ErrorChartData = {
 	date: string;
 	totalErrors: number;
 	affectedUsers: number;
-}
+};
 
 export type ProcessedChartData = {
 	date: string;
-	'Total Errors': number;
-	'Affected Users': number;
-}
+	"Total Errors": number;
+	"Affected Users": number;
+};

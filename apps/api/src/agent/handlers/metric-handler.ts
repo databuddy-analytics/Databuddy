@@ -1,8 +1,8 @@
-import type { StreamingUpdate } from '@databuddy/shared';
-import type { z } from 'zod';
-import type { AIResponseJsonSchema } from '../prompts/agent';
-import { executeQuery } from '../utils/query-executor';
-import { validateSQL } from '../utils/sql-validator';
+import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
+import type { z } from "zod";
+import type { AIResponseJsonSchema } from "../prompts/agent";
+import { executeQuery } from "../utils/query-executor";
+import { validateSQL } from "../utils/sql-validator";
 
 export async function handleMetricResponse(
 	parsedAiJson: z.infer<typeof AIResponseJsonSchema>
@@ -10,8 +10,8 @@ export async function handleMetricResponse(
 	if (parsedAiJson.sql) {
 		if (!validateSQL(parsedAiJson.sql)) {
 			return {
-				type: 'error',
-				content: 'Generated query failed security validation.',
+				type: "error",
+				content: "Generated query failed security validation.",
 			};
 		}
 
@@ -40,7 +40,7 @@ function extractMetricValue(
 
 	const firstRow = queryData[0] as Record<string, unknown>;
 	const valueKey =
-		Object.keys(firstRow).find((key) => typeof firstRow[key] === 'number') ||
+		Object.keys(firstRow).find((key) => typeof firstRow[key] === "number") ||
 		Object.keys(firstRow)[0];
 
 	return valueKey ? firstRow[valueKey] : defaultValue;
@@ -53,22 +53,22 @@ function generateTextResponseWithActualValue(
 ): string {
 	if (!textResponse) {
 		const formattedValue =
-			typeof actualValue === 'number'
+			typeof actualValue === "number"
 				? actualValue.toLocaleString()
 				: actualValue;
-		return `${metricLabel || 'Result'}: ${String(formattedValue)}`;
+		return `${metricLabel || "Result"}: ${String(formattedValue)}`;
 	}
 
 	// Handle [RESULT] placeholders first - this is what the AI should use
-	if (textResponse.includes('[RESULT]')) {
+	if (textResponse.includes("[RESULT]")) {
 		const formattedValue =
-			typeof actualValue === 'number'
+			typeof actualValue === "number"
 				? actualValue.toLocaleString()
 				: String(actualValue);
 		return textResponse.replace(/\[RESULT\]/g, formattedValue);
 	}
 
-	if (typeof actualValue === 'number') {
+	if (typeof actualValue === "number") {
 		const roundedValue = Math.round(actualValue * 100) / 100;
 		const formattedValue = roundedValue.toLocaleString();
 
@@ -101,18 +101,18 @@ function sendMetricResponse(
 	);
 
 	const typedMetricValue =
-		typeof metricValue === 'string' ||
-		typeof metricValue === 'number' ||
+		typeof metricValue === "string" ||
+		typeof metricValue === "number" ||
 		metricValue === undefined
 			? metricValue
 			: String(metricValue);
 
 	return {
-		type: 'complete',
+		type: "complete",
 		content: textResponse,
 		data: {
 			hasVisualization: false,
-			responseType: 'metric',
+			responseType: "metric",
 			metricValue: typedMetricValue,
 			metricLabel: parsedAiJson.metric_label,
 		},

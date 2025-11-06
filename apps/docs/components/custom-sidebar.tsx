@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { CaretDownIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
-import { useSearchContext } from 'fumadocs-ui/provider';
-import { AnimatePresence, MotionConfig, motion } from 'motion/react';
-import { usePathname } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
-import { AsideLink } from '@/components/ui/aside-link';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { contents } from './sidebar-content';
+import { CaretDownIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { useSearchContext } from "fumadocs-ui/provider";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { usePathname } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { AsideLink } from "@/components/ui/aside-link";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { contents } from "./sidebar-content";
 
 export default function CustomSidebar() {
 	const [currentOpen, setCurrentOpen] = useState<number>(0);
@@ -47,7 +47,7 @@ export default function CustomSidebar() {
 					</button>
 
 					<MotionConfig
-						transition={{ duration: 0.4, type: 'spring', bounce: 0 }}
+						transition={{ duration: 0.4, type: "spring", bounce: 0 }}
 					>
 						<div className="flex flex-col">
 							{contents.map((item, index) => (
@@ -82,7 +82,7 @@ export default function CustomSidebar() {
 									<AnimatePresence initial={false}>
 										{currentOpen === index && (
 											<motion.div
-												animate={{ opacity: 1, height: 'auto' }}
+												animate={{ opacity: 1, height: "auto" }}
 												className="relative overflow-hidden"
 												exit={{ opacity: 0, height: 0 }}
 												initial={{ opacity: 0, height: 0 }}
@@ -102,7 +102,7 @@ export default function CustomSidebar() {
 																	<AsideLink
 																		activeClassName="!bg-muted !text-foreground font-medium"
 																		className="flex items-center gap-3 px-6 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground"
-																		href={listItem.href || '#'}
+																		href={listItem.href || "#"}
 																		startWith="/docs"
 																		title={listItem.title}
 																	>
@@ -138,10 +138,10 @@ function NewBadge({ isSelected }: { isSelected?: boolean }) {
 		<div className="flex w-full items-center justify-end">
 			<Badge
 				className={cn(
-					' !no-underline !decoration-transparent pointer-events-none border-dashed',
-					isSelected && '!border-solid'
+					"!no-underline !decoration-transparent pointer-events-none border-dashed",
+					isSelected && "!border-solid"
 				)}
-				variant={isSelected ? 'default' : 'outline'}
+				variant={isSelected ? "default" : "outline"}
 			>
 				New
 			</Badge>

@@ -1,10 +1,10 @@
-import type { StreamingUpdate } from '@databuddy/shared';
-import type { z } from 'zod';
-import { handleChartResponse } from '../handlers/chart-handler';
-import { handleMetricResponse } from '../handlers/metric-handler';
-import type { AIResponseJsonSchema } from '../prompts/agent';
-import { generateThinkingSteps } from '../utils/stream-utils';
-import type { AssistantSession } from './assistant-session';
+import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
+import type { z } from "zod";
+import { handleChartResponse } from "../handlers/chart-handler";
+import { handleMetricResponse } from "../handlers/metric-handler";
+import type { AIResponseJsonSchema } from "../prompts/agent";
+import { generateThinkingSteps } from "../utils/stream-utils";
+import type { AssistantSession } from "./assistant-session";
 
 export type AIResponseContent = z.infer<typeof AIResponseJsonSchema>;
 
@@ -44,28 +44,28 @@ export class ResponseProcessor {
 			let result: StreamingUpdate;
 
 			switch (response.response_type) {
-				case 'text': {
+				case "text": {
 					result = {
-						type: 'complete',
+						type: "complete",
 						content:
 							response.text_response || "Here's the answer to your question.",
-						data: { hasVisualization: false, responseType: 'text' },
+						data: { hasVisualization: false, responseType: "text" },
 					};
 					break;
 				}
 
-				case 'metric': {
+				case "metric": {
 					result = await handleMetricResponse(response);
 					break;
 				}
 
-				case 'chart': {
+				case "chart": {
 					if (response.sql) {
 						result = await handleChartResponse(response);
 					} else {
 						result = {
-							type: 'error',
-							content: 'Invalid chart configuration.',
+							type: "error",
+							content: "Invalid chart configuration.",
 						};
 					}
 					break;
@@ -73,8 +73,8 @@ export class ResponseProcessor {
 
 				default: {
 					result = {
-						type: 'error',
-						content: 'Invalid response format from AI.',
+						type: "error",
+						content: "Invalid response format from AI.",
 					};
 				}
 			}
@@ -88,12 +88,12 @@ export class ResponseProcessor {
 		} catch (error) {
 			const processingTime = Date.now() - startTime;
 			session.log(
-				`Response processing failed in ${processingTime}ms: ${error instanceof Error ? error.message : 'Unknown error'}`
+				`Response processing failed in ${processingTime}ms: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
 
 			return {
-				type: 'error',
-				content: 'Failed to process the response.',
+				type: "error",
+				content: "Failed to process the response.",
 			};
 		}
 	}

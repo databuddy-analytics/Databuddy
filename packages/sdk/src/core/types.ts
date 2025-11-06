@@ -349,6 +349,16 @@ export type PropertiesForEvent<T extends EventName> =
  */
 export interface DatabuddyTracker {
 	/**
+	 * Current anonymous user ID
+	 */
+	anonymousId: string;
+
+	/**
+	 * Current session ID
+	 */
+	sessionId: string;
+
+	/**
 	 * Track a custom event
 	 */
 	track<T extends EventName>(
@@ -389,12 +399,12 @@ declare global {
 	interface Window {
 		databuddy?: DatabuddyTracker;
 		db?: {
-			track: DatabuddyTracker['track'];
-			screenView: DatabuddyTracker['screenView'];
-			clear: DatabuddyTracker['clear'];
-			flush: DatabuddyTracker['flush'];
-			setGlobalProperties: DatabuddyTracker['setGlobalProperties'];
-			trackCustomEvent: DatabuddyTracker['trackCustomEvent'];
+			track: DatabuddyTracker["track"];
+			screenView: DatabuddyTracker["screenView"];
+			clear: DatabuddyTracker["clear"];
+			flush: DatabuddyTracker["flush"];
+			setGlobalProperties: DatabuddyTracker["setGlobalProperties"];
+			trackCustomEvent: DatabuddyTracker["trackCustomEvent"];
 		};
 	}
 }
@@ -404,7 +414,7 @@ declare global {
  */
 export interface DataAttributes {
 	/** Event name to track when element is clicked */
-	'data-track': string;
+	"data-track": string;
 	/** Additional data attributes (converted to camelCase) */
 	[key: `data-${string}`]: string;
 }

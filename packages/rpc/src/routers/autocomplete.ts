@@ -1,12 +1,12 @@
-import { chQuery } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod/v4';
-import { logger } from '../lib/logger';
-import { createTRPCRouter, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+import { chQuery } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
+import { logger } from "../lib/logger";
+import { createTRPCRouter, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: 'autocomplete' });
+const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
 
 const CACHE_TTL = 1800;
 
@@ -17,10 +17,10 @@ const analyticsDateRangeSchema = z.object({
 });
 
 const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split('T')[0];
+	const endDate = new Date().toISOString().split("T")[0];
 	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		.toISOString()
-		.split('T')[0];
+		.split("T")[0];
 	return { startDate, endDate };
 };
 
@@ -111,31 +111,31 @@ const categorizeAutocompleteResults = (
 	results: Array<{ category: string; value: string }>
 ) => ({
 	customEvents: results
-		.filter((r) => r.category === 'customEvents')
+		.filter((r) => r.category === "customEvents")
 		.map((r) => r.value),
 	pagePaths: results
-		.filter((r) => r.category === 'pagePaths')
+		.filter((r) => r.category === "pagePaths")
 		.map((r) => r.value),
 	browsers: results
-		.filter((r) => r.category === 'browsers')
+		.filter((r) => r.category === "browsers")
 		.map((r) => r.value),
 	operatingSystems: results
-		.filter((r) => r.category === 'operatingSystems')
+		.filter((r) => r.category === "operatingSystems")
 		.map((r) => r.value),
 	countries: results
-		.filter((r) => r.category === 'countries')
+		.filter((r) => r.category === "countries")
 		.map((r) => r.value),
 	deviceTypes: results
-		.filter((r) => r.category === 'deviceTypes')
+		.filter((r) => r.category === "deviceTypes")
 		.map((r) => r.value),
 	utmSources: results
-		.filter((r) => r.category === 'utmSources')
+		.filter((r) => r.category === "utmSources")
 		.map((r) => r.value),
 	utmMediums: results
-		.filter((r) => r.category === 'utmMediums')
+		.filter((r) => r.category === "utmMediums")
 		.map((r) => r.value),
 	utmCampaigns: results
-		.filter((r) => r.category === 'utmCampaigns')
+		.filter((r) => r.category === "utmCampaigns")
 		.map((r) => r.value),
 });
 
@@ -153,9 +153,9 @@ export const autocompleteRouter = createTRPCRouter({
 			return drizzleCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_TTL,
-				tables: ['websites'],
+				tables: ["websites"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					const params = { websiteId: input.websiteId, startDate, endDate };
 
 					try {
@@ -166,13 +166,13 @@ export const autocompleteRouter = createTRPCRouter({
 
 						return categorizeAutocompleteResults(results);
 					} catch (error) {
-						logger.error('Failed to fetch autocomplete data', {
+						logger.error("Failed to fetch autocomplete data", {
 							error: error instanceof Error ? error.message : String(error),
 							websiteId: input.websiteId,
 						});
 						throw new TRPCError({
-							code: 'INTERNAL_SERVER_ERROR',
-							message: 'Failed to fetch autocomplete data',
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to fetch autocomplete data",
 						});
 					}
 				},

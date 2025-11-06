@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { DatabaseIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
-import { EmptyState } from '@/components/empty-state';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ExtensionCard } from './extension-card';
+import { DatabaseIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExtensionCard } from "./extension-card";
 
 interface Extension {
 	name: string;
@@ -83,16 +83,16 @@ export function ExtensionTabs({
 							action={
 								onClearSearch
 									? {
-											label: 'Clear Search',
+											label: "Clear Search",
 											onClick: onClearSearch,
-											variant: 'outline',
+											variant: "outline",
 										}
 									: undefined
 							}
 							description={
 								searchTerm
 									? `No extensions match "${searchTerm}". Try adjusting your search terms.`
-									: 'No extensions match your search criteria.'
+									: "No extensions match your search criteria."
 							}
 							icon={
 								<MagnifyingGlassIcon
@@ -110,7 +110,7 @@ export function ExtensionTabs({
 							action={
 								canManage && onInstallExtension
 									? {
-											label: 'Install Extension',
+											label: "Install Extension",
 											onClick: onInstallExtension,
 										}
 									: undefined
@@ -158,16 +158,16 @@ export function ExtensionTabs({
 							action={
 								onClearSearch
 									? {
-											label: 'Clear Search',
+											label: "Clear Search",
 											onClick: onClearSearch,
-											variant: 'outline',
+											variant: "outline",
 										}
 									: undefined
 							}
 							description={
 								searchTerm
 									? `No extensions match "${searchTerm}". Try adjusting your search terms.`
-									: 'No extensions match your search criteria.'
+									: "No extensions match your search criteria."
 							}
 							icon={
 								<MagnifyingGlassIcon

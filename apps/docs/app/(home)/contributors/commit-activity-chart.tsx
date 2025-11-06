@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
+import { useMemo } from "react";
 import {
 	Bar,
 	BarChart,
@@ -9,8 +9,8 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
-import { SciFiCard } from '@/components/scifi-card';
+} from "recharts";
+import { SciFiCard } from "@/components/scifi-card";
 
 interface CommitActivity {
 	week: string;
@@ -40,19 +40,18 @@ const CustomTooltip = ({
 		return null;
 	}
 
-	const formatDate = (dateStr: string) => {
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
+	const formatDate = (dateStr: string) =>
+		new Date(dateStr).toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
 		});
-	};
 
 	return (
 		<div className="min-w-[200px] rounded border border-border/50 bg-background/95 p-3 shadow-lg backdrop-blur-sm">
 			<div className="mb-2 border-border/30 border-b pb-2">
 				<p className="font-medium text-foreground text-sm">
-					{formatDate(label || '')}
+					{formatDate(label || "")}
 				</p>
 			</div>
 			<div className="space-y-1">
@@ -83,7 +82,7 @@ export default function CommitActivityChart({
 			return {
 				chartData: [],
 				totalCommits: 0,
-				insights: { avgCommitsPerWeek: 0, trend: 'stable' as const },
+				insights: { avgCommitsPerWeek: 0, trend: "stable" as const },
 			};
 		}
 
@@ -104,10 +103,10 @@ export default function CommitActivityChart({
 			.reduce((sum, d) => sum + d.commits, 0);
 		const trend =
 			recentActivity > earlierActivity
-				? 'up'
+				? "up"
 				: recentActivity < earlierActivity
-					? 'down'
-					: 'stable';
+					? "down"
+					: "stable";
 
 		return {
 			chartData: sortedData,
@@ -166,18 +165,18 @@ export default function CommitActivityChart({
 					<div className="flex items-center gap-3">
 						<div
 							className={`font-bold text-2xl ${
-								insights.trend === 'up'
-									? 'text-green-500'
-									: insights.trend === 'down'
-										? 'text-red-500'
-										: 'text-muted-foreground'
+								insights.trend === "up"
+									? "text-green-500"
+									: insights.trend === "down"
+										? "text-red-500"
+										: "text-muted-foreground"
 							}`}
 						>
-							{insights.trend === 'up'
-								? '↗'
-								: insights.trend === 'down'
-									? '↘'
-									: '→'}
+							{insights.trend === "up"
+								? "↗"
+								: insights.trend === "down"
+									? "↘"
+									: "→"}
 						</div>
 						<div className="font-bold text-lg capitalize">{insights.trend}</div>
 					</div>
@@ -236,9 +235,9 @@ export default function CommitActivityChart({
 								}}
 								tickFormatter={(value) => {
 									const date = new Date(value);
-									return date.toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
+									return date.toLocaleDateString("en-US", {
+										month: "short",
+										day: "numeric",
 									});
 								}}
 								tickLine={false}
@@ -258,9 +257,9 @@ export default function CommitActivityChart({
 							<Tooltip
 								content={<CustomTooltip />}
 								cursor={{
-									fill: 'rgba(59, 130, 246, 0.1)',
+									fill: "rgba(59, 130, 246, 0.1)",
 								}}
-								wrapperStyle={{ outline: 'none' }}
+								wrapperStyle={{ outline: "none" }}
 							/>
 							<Bar
 								dataKey="commits"

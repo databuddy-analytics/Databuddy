@@ -5,13 +5,13 @@ import {
 	ScalesIcon,
 	ShieldIcon,
 	WarningIcon,
-} from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import { Footer } from '@/components/footer';
-import { StructuredData } from '@/components/structured-data';
+} from "@phosphor-icons/react/ssr";
+import type { Metadata } from "next";
+import { Footer } from "@/components/footer";
+import { StructuredData } from "@/components/structured-data";
 
-const title = 'Terms of Service — Usage Policies & Legal Agreement | Databuddy';
-const url = 'https://www.databuddy.cc/terms';
+const title = "Terms of Service — Usage Policies & Legal Agreement | Databuddy";
+const url = "https://www.databuddy.cc/terms";
 
 export const metadata: Metadata = {
 	title,
@@ -25,12 +25,12 @@ export const metadata: Metadata = {
 		description:
 			"Clear and fair terms that govern your use of Databuddy's analytics platform. We believe in transparency and straightforward language.",
 		url,
-		images: ['/og-image.png'],
+		images: ["/og-image.png"],
 	},
 };
 
 export default function TermsPage() {
-	const lastUpdated = 'June 23rd, 2025';
+	const lastUpdated = "June 23rd, 2025";
 
 	return (
 		<>
@@ -38,7 +38,7 @@ export default function TermsPage() {
 				page={{
 					title,
 					description:
-						'Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.',
+						"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
 					url,
 				}}
 			/>
@@ -52,7 +52,7 @@ export default function TermsPage() {
 						Terms of Service
 					</h1>
 					<p className="mb-4 text-muted-foreground">
-						Last Updated{' '}
+						Last Updated{" "}
 						<span className="font-medium text-foreground">{lastUpdated}</span>
 					</p>
 					{/* TL;DR */}

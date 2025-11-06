@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import type { AppRouter } from '@databuddy/rpc';
-import { ChartBarIcon, TrendDownIcon, UsersIcon } from '@phosphor-icons/react';
-import type { TRPCClientErrorLike } from '@trpc/client';
-import type { UseTRPCQueryResult } from '@trpc/react-query/shared';
-import { useMemo, useState } from 'react';
-import { ReferrerSourceCell } from '@/components/atomic/ReferrerSourceCell';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import type { AppRouter } from "@databuddy/rpc";
+import { ChartBarIcon, TrendDownIcon, UsersIcon } from "@phosphor-icons/react";
+import type { TRPCClientErrorLike } from "@trpc/client";
+import type { UseTRPCQueryResult } from "@trpc/react-query/shared";
+import { useMemo, useState } from "react";
+import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { FunnelAnalyticsByReferrerResult } from '@/hooks/use-funnels';
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { FunnelAnalyticsByReferrerResult } from "@/hooks/use-funnels";
 
 interface Props {
 	websiteId: string;
@@ -26,7 +26,7 @@ interface Props {
 	data: UseTRPCQueryResult<
 		{ referrer_analytics: FunnelAnalyticsByReferrerResult[] },
 		TRPCClientErrorLike<AppRouter>
-	>['data'];
+	>["data"];
 	isLoading: boolean;
 	error: TRPCClientErrorLike<AppRouter> | null;
 }
@@ -37,13 +37,13 @@ export default function FunnelAnalyticsByReferrer({
 	isLoading,
 	error,
 }: Props) {
-	const [selectedReferrer, setSelectedReferrer] = useState('all');
+	const [selectedReferrer, setSelectedReferrer] = useState("all");
 
 	const handleChange = (referrer: string) => {
 		setSelectedReferrer(referrer);
 		onReferrerChange?.(referrer);
 	};
-	
+
 	const referrers = useMemo(() => {
 		if (!data?.referrer_analytics) {
 			return [];
@@ -52,13 +52,13 @@ export default function FunnelAnalyticsByReferrer({
 			string,
 			{
 				label: string;
-				parsed: FunnelAnalyticsByReferrerResult['referrer_parsed'];
+				parsed: FunnelAnalyticsByReferrerResult["referrer_parsed"];
 				users: number;
 			}
 		>();
 		for (const r of data.referrer_analytics) {
-			const domain = r.referrer_parsed?.domain?.toLowerCase() || 'direct';
-			const label = r.referrer_parsed?.name || domain || 'Direct';
+			const domain = r.referrer_parsed?.domain?.toLowerCase() || "direct";
+			const label = r.referrer_parsed?.name || domain || "Direct";
 			if (!grouped.has(domain)) {
 				grouped.set(domain, { label, parsed: r.referrer_parsed, users: 0 });
 			}
@@ -164,7 +164,7 @@ export default function FunnelAnalyticsByReferrer({
 							<div className="flex w-full items-center gap-2">
 								<ReferrerSourceCell
 									className="flex-shrink-0"
-									domain={option.parsed?.domain || ''}
+									domain={option.parsed?.domain || ""}
 									name={option.label}
 									referrer={option.value}
 								/>

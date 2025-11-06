@@ -1,25 +1,25 @@
-import type { QueryBuilderMeta } from '@databuddy/shared';
+import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
 
 export const FilterOperators = {
-	eq: '=',
-	ne: '!=',
-	like: 'LIKE',
-	gt: '>',
-	lt: '<',
-	in: 'IN',
-	notIn: 'NOT IN',
+	eq: "=",
+	ne: "!=",
+	like: "LIKE",
+	gt: ">",
+	lt: "<",
+	in: "IN",
+	notIn: "NOT IN",
 } as const;
 
 export const TimeGranularity = {
-	minute: 'toStartOfMinute',
-	hour: 'toStartOfHour',
-	day: 'toStartOfDay',
-	week: 'toStartOfWeek',
-	month: 'toStartOfMonth',
+	minute: "toStartOfMinute",
+	hour: "toStartOfHour",
+	day: "toStartOfDay",
+	week: "toStartOfWeek",
+	month: "toStartOfMonth",
 } as const;
 
 export type FilterOperator = keyof typeof FilterOperators;
-export type TimeUnit = keyof typeof TimeGranularity | 'hourly' | 'daily';
+export type TimeUnit = keyof typeof TimeGranularity | "hourly" | "daily";
 
 export interface Filter {
 	field: string;
@@ -55,7 +55,7 @@ export interface SimpleQueryConfig {
 		offset?: number,
 		timezone?: string,
 		filterConditions?: string[],
-		filterParams?: Record<string, Filter['value']>,
+		filterParams?: Record<string, Filter["value"]>,
 		helpers?: {
 			sessionAttributionCTE: (timeField?: string) => string;
 			sessionAttributionJoin: (alias?: string) => string;

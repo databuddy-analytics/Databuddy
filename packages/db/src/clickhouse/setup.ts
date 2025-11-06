@@ -1,4 +1,4 @@
-import { initClickHouseSchema } from './schema';
+import { initClickHouseSchema } from "./schema";
 
 (async () => {
 	const result = await initClickHouseSchema();

@@ -1,14 +1,14 @@
-import { websitesApi } from '@databuddy/auth';
-import { flags } from '@databuddy/db';
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
-import { logger } from '../lib/logger';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
-import { authorizeWebsiteAccess } from '../utils/auth';
+import { websitesApi } from "@databuddy/auth";
+import { flags } from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
+import { logger } from "../lib/logger";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { authorizeWebsiteAccess } from "../utils/auth";
 
-const flagsCache = createDrizzleCache({ redis, namespace: 'flags' });
+const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 const CACHE_DURATION = 60; // seconds
 
 // ============================================================================
@@ -16,16 +16,16 @@ const CACHE_DURATION = 60; // seconds
 // ============================================================================
 
 const userRuleSchema = z.object({
-	type: z.enum(['user_id', 'email', 'property']),
+	type: z.enum(["user_id", "email", "property"]),
 	operator: z.enum([
-		'equals',
-		'contains',
-		'starts_with',
-		'ends_with',
-		'in',
-		'not_in',
-		'exists',
-		'not_exists',
+		"equals",
+		"contains",
+		"starts_with",
+		"ends_with",
+		"in",
+		"not_in",
+		"exists",
+		"not_exists",
 	]),
 	field: z.string().optional(), // For property rules
 	value: z.string().optional(),
@@ -43,12 +43,12 @@ const flagSchema = z.object({
 		.max(100)
 		.regex(
 			/^[a-zA-Z0-9_-]+$/,
-			'Key must contain only letters, numbers, underscores, and hyphens'
+			"Key must contain only letters, numbers, underscores, and hyphens"
 		),
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().optional(),
-	type: z.enum(['boolean', 'rollout']).default('boolean'),
-	status: z.enum(['active', 'inactive', 'archived']).default('active'),
+	type: z.enum(["boolean", "rollout"]).default("boolean"),
+	status: z.enum(["active", "inactive", "archived"]).default("active"),
 	defaultValue: z.boolean().default(false),
 	payload: z.any().optional(),
 	rules: z.array(userRuleSchema).default([]),
@@ -63,16 +63,16 @@ const createFlagSchema = z
 		...flagSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
-		message: 'Either websiteId or organizationId must be provided',
-		path: ['websiteId'],
+		message: "Either websiteId or organizationId must be provided",
+		path: ["websiteId"],
 	});
 
 const updateFlagSchema = z.object({
 	id: z.string(),
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().optional(),
-	type: z.enum(['boolean', 'rollout']).optional(),
-	status: z.enum(['active', 'inactive', 'archived']).optional(),
+	type: z.enum(["boolean", "rollout"]).optional(),
+	status: z.enum(["active", "inactive", "archived"]).optional(),
 	defaultValue: z.boolean().optional(),
 	payload: z.any().optional(),
 	rules: z.array(userRuleSchema).optional(),
@@ -84,11 +84,11 @@ const listFlagsSchema = z
 	.object({
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
-		status: z.enum(['active', 'inactive', 'archived']).optional(),
+		status: z.enum(["active", "inactive", "archived"]).optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
-		message: 'Either websiteId or organizationId must be provided',
-		path: ['websiteId'],
+		message: "Either websiteId or organizationId must be provided",
+		path: ["websiteId"],
 	});
 
 const getFlagSchema = z
@@ -98,8 +98,8 @@ const getFlagSchema = z
 		organizationId: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
-		message: 'Either websiteId or organizationId must be provided',
-		path: ['websiteId'],
+		message: "Either websiteId or organizationId must be provided",
+		path: ["websiteId"],
 	});
 
 export const flagsRouter = createTRPCRouter({
@@ -107,24 +107,24 @@ export const flagsRouter = createTRPCRouter({
 		const scope = input.websiteId
 			? `website:${input.websiteId}`
 			: `org:${input.organizationId}`;
-		const cacheKey = `list:${scope}:${input.status || 'all'}`;
+		const cacheKey = `list:${scope}:${input.status || "all"}`;
 
 		return flagsCache.withCache({
 			key: cacheKey,
 			ttl: CACHE_DURATION,
-			tables: ['flags'],
+			tables: ["flags"],
 			queryFn: async () => {
 				if (input.websiteId) {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 				} else if (input.organizationId) {
 					const { success } = await websitesApi.hasPermission({
 						headers: ctx.headers,
-						body: { permissions: { website: ['read'] } },
+						body: { permissions: { website: ["read"] } },
 					});
 					if (!success) {
 						throw new TRPCError({
-							code: 'FORBIDDEN',
-							message: 'Missing organization permissions.',
+							code: "FORBIDDEN",
+							message: "Missing organization permissions.",
 						});
 					}
 				}
@@ -133,7 +133,7 @@ export const flagsRouter = createTRPCRouter({
 					isNull(flags.deletedAt),
 					input.websiteId
 						? eq(flags.websiteId, input.websiteId)
-						: eq(flags.organizationId, input.organizationId ?? ''),
+						: eq(flags.organizationId, input.organizationId ?? ""),
 				];
 
 				if (input.status) {
@@ -158,10 +158,10 @@ export const flagsRouter = createTRPCRouter({
 		return flagsCache.withCache({
 			key: cacheKey,
 			ttl: CACHE_DURATION,
-			tables: ['flags'],
+			tables: ["flags"],
 			queryFn: async () => {
 				if (input.websiteId) {
-					await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 				}
 
 				const result = await ctx.db
@@ -172,7 +172,7 @@ export const flagsRouter = createTRPCRouter({
 							eq(flags.id, input.id),
 							input.websiteId
 								? eq(flags.websiteId, input.websiteId)
-								: eq(flags.organizationId, input.organizationId ?? ''),
+								: eq(flags.organizationId, input.organizationId ?? ""),
 							isNull(flags.deletedAt)
 						)
 					)
@@ -180,8 +180,8 @@ export const flagsRouter = createTRPCRouter({
 
 				if (result.length === 0) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Flag not found',
+						code: "NOT_FOUND",
+						message: "Flag not found",
 					});
 				}
 
@@ -199,8 +199,8 @@ export const flagsRouter = createTRPCRouter({
 					organizationId: z.string().optional(),
 				})
 				.refine((data) => data.websiteId || data.organizationId, {
-					message: 'Either websiteId or organizationId must be provided',
-					path: ['websiteId'],
+					message: "Either websiteId or organizationId must be provided",
+					path: ["websiteId"],
 				})
 		)
 		.query(({ ctx, input }) => {
@@ -212,10 +212,10 @@ export const flagsRouter = createTRPCRouter({
 			return flagsCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_DURATION,
-				tables: ['flags'],
+				tables: ["flags"],
 				queryFn: async () => {
 					if (input.websiteId) {
-						await authorizeWebsiteAccess(ctx, input.websiteId, 'read');
+						await authorizeWebsiteAccess(ctx, input.websiteId, "read");
 					}
 
 					const result = await ctx.db
@@ -226,8 +226,8 @@ export const flagsRouter = createTRPCRouter({
 								eq(flags.key, input.key),
 								input.websiteId
 									? eq(flags.websiteId, input.websiteId)
-									: eq(flags.organizationId, input.organizationId ?? ''),
-								eq(flags.status, 'active'),
+									: eq(flags.organizationId, input.organizationId ?? ""),
+								eq(flags.status, "active"),
 								isNull(flags.deletedAt)
 							)
 						)
@@ -235,8 +235,8 @@ export const flagsRouter = createTRPCRouter({
 
 					if (result.length === 0) {
 						throw new TRPCError({
-							code: 'NOT_FOUND',
-							message: 'Flag not found',
+							code: "NOT_FOUND",
+							message: "Flag not found",
 						});
 					}
 
@@ -249,16 +249,16 @@ export const flagsRouter = createTRPCRouter({
 		.input(createFlagSchema)
 		.mutation(async ({ ctx, input }) => {
 			if (input.websiteId) {
-				await authorizeWebsiteAccess(ctx, input.websiteId, 'update');
+				await authorizeWebsiteAccess(ctx, input.websiteId, "update");
 			} else if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['create'] } },
+					body: { permissions: { website: ["create"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -287,9 +287,9 @@ export const flagsRouter = createTRPCRouter({
 					})
 					.returning();
 
-				await flagsCache.invalidateByTables(['flags']);
+				await flagsCache.invalidateByTables(["flags"]);
 
-				logger.info('Flag created', {
+				logger.info("Flag created", {
 					flagId: newFlag.id,
 					key: input.key,
 					websiteId: input.websiteId,
@@ -299,15 +299,15 @@ export const flagsRouter = createTRPCRouter({
 
 				return newFlag;
 			} catch (error) {
-				if (error instanceof Error && error.message.includes('unique')) {
+				if (error instanceof Error && error.message.includes("unique")) {
 					throw new TRPCError({
-						code: 'CONFLICT',
-						message: 'A flag with this key already exists in this scope',
+						code: "CONFLICT",
+						message: "A flag with this key already exists in this scope",
 					});
 				}
 
-				logger.error('Failed to create flag', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to create flag", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					key: input.key,
 					websiteId: input.websiteId,
 					organizationId: input.organizationId,
@@ -315,8 +315,8 @@ export const flagsRouter = createTRPCRouter({
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to create flag',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create flag",
 				});
 			}
 		}),
@@ -337,23 +337,23 @@ export const flagsRouter = createTRPCRouter({
 
 				if (existingFlag.length === 0) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Flag not found',
+						code: "NOT_FOUND",
+						message: "Flag not found",
 					});
 				}
 
 				const flag = existingFlag[0];
 
 				if (flag.websiteId) {
-					await authorizeWebsiteAccess(ctx, flag.websiteId, 'update');
+					await authorizeWebsiteAccess(ctx, flag.websiteId, "update");
 				} else if (
 					flag.userId &&
 					flag.userId !== ctx.user.id &&
-					ctx.user.role !== 'ADMIN'
+					ctx.user.role !== "ADMIN"
 				) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Not authorized to update this flag',
+						code: "FORBIDDEN",
+						message: "Not authorized to update this flag",
 					});
 				}
 
@@ -372,11 +372,11 @@ export const flagsRouter = createTRPCRouter({
 					? `website:${flag.websiteId}`
 					: `org:${flag.organizationId}`;
 				await Promise.all([
-					flagsCache.invalidateByTables(['flags']),
+					flagsCache.invalidateByTables(["flags"]),
 					flagsCache.invalidateByKey(`byId:${id}:${scope}`),
 				]);
 
-				logger.info('Flag updated', {
+				logger.info("Flag updated", {
 					flagId: id,
 					websiteId: flag.websiteId,
 					organizationId: flag.organizationId,
@@ -389,15 +389,15 @@ export const flagsRouter = createTRPCRouter({
 					throw error;
 				}
 
-				logger.error('Failed to update flag', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to update flag", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					flagId: input.id,
 					userId: ctx.user.id,
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to update flag',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to update flag",
 				});
 			}
 		}),
@@ -418,8 +418,8 @@ export const flagsRouter = createTRPCRouter({
 
 				if (existingFlag.length === 0) {
 					throw new TRPCError({
-						code: 'NOT_FOUND',
-						message: 'Flag not found',
+						code: "NOT_FOUND",
+						message: "Flag not found",
 					});
 				}
 
@@ -427,15 +427,15 @@ export const flagsRouter = createTRPCRouter({
 
 				// Authorize access based on scope
 				if (flag.websiteId) {
-					await authorizeWebsiteAccess(ctx, flag.websiteId, 'delete');
+					await authorizeWebsiteAccess(ctx, flag.websiteId, "delete");
 				} else if (
 					flag.userId &&
 					flag.userId !== ctx.user.id &&
-					ctx.user.role !== 'ADMIN'
+					ctx.user.role !== "ADMIN"
 				) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Not authorized to delete this flag',
+						code: "FORBIDDEN",
+						message: "Not authorized to delete this flag",
 					});
 				}
 
@@ -444,7 +444,7 @@ export const flagsRouter = createTRPCRouter({
 					.update(flags)
 					.set({
 						deletedAt: new Date(),
-						status: 'archived',
+						status: "archived",
 					})
 					.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)));
 
@@ -453,11 +453,11 @@ export const flagsRouter = createTRPCRouter({
 					? `website:${flag.websiteId}`
 					: `org:${flag.organizationId}`;
 				await Promise.all([
-					flagsCache.invalidateByTables(['flags']),
+					flagsCache.invalidateByTables(["flags"]),
 					flagsCache.invalidateByKey(`byId:${input.id}:${scope}`),
 				]);
 
-				logger.info('Flag deleted', {
+				logger.info("Flag deleted", {
 					flagId: input.id,
 					websiteId: flag.websiteId,
 					organizationId: flag.organizationId,
@@ -470,15 +470,15 @@ export const flagsRouter = createTRPCRouter({
 					throw error;
 				}
 
-				logger.error('Failed to delete flag', {
-					error: error instanceof Error ? error.message : 'Unknown error',
+				logger.error("Failed to delete flag", {
+					error: error instanceof Error ? error.message : "Unknown error",
 					flagId: input.id,
 					userId: ctx.user.id,
 				});
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to delete flag',
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete flag",
 				});
 			}
 		}),

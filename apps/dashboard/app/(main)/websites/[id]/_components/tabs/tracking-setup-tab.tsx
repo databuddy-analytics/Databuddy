@@ -1,34 +1,34 @@
-'use client';
+"use client";
 
-import { BookOpenIcon, ChatCircleIcon } from '@phosphor-icons/react';
-import { useAtom } from 'jotai';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { trpc } from '@/lib/trpc';
+import { BookOpenIcon, ChatCircleIcon } from "@phosphor-icons/react";
+import { useAtom } from "jotai";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 import {
 	toggleTrackingOptionAtom,
 	trackingOptionsAtom,
-} from '@/stores/jotai/filterAtoms';
+} from "@/stores/jotai/filterAtoms";
 import {
 	CodeBlock,
 	InfoSection,
 	InstallationTabs,
 	TrackingOptionsGrid,
 	TrackingStatusCard,
-} from '../shared/tracking-components';
+} from "../shared/tracking-components";
 import {
 	ADVANCED_TRACKING_OPTIONS,
 	BASIC_TRACKING_OPTIONS,
 	COPY_SUCCESS_TIMEOUT,
-} from '../shared/tracking-constants';
+} from "../shared/tracking-constants";
 import {
 	generateNpmCode,
 	generateScriptTag,
 	generateVercelNpmCode,
-} from '../utils/code-generators';
+} from "../utils/code-generators";
 
-import type { TrackingOptions, WebsiteDataTabProps } from '../utils/types';
+import type { TrackingOptions, WebsiteDataTabProps } from "../utils/types";
 
 export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 		);
 
 	const handleRefresh = async () => {
-		toast.success('Checking tracking status...');
+		toast.success("Checking tracking status...");
 
 		try {
 			await utils.websites.isTrackingSetup.invalidate({ websiteId });
@@ -65,26 +65,26 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 
 			if (result.data?.tracking_setup) {
 				const integrationType = result.data.integration_type;
-				if (integrationType === 'vercel') {
-					toast.success('Vercel integration active! Data is being collected.');
+				if (integrationType === "vercel") {
+					toast.success("Vercel integration active! Data is being collected.");
 				} else {
-					toast.success('Tracking setup correctly! Data is being collected.');
+					toast.success("Tracking setup correctly! Data is being collected.");
 				}
 			} else {
 				const integrationType = result.data?.integration_type;
-				if (integrationType === 'vercel') {
+				if (integrationType === "vercel") {
 					toast.error(
-						'Vercel integration detected but no events yet. Make sure your site is deployed and receiving traffic.'
+						"Vercel integration detected but no events yet. Make sure your site is deployed and receiving traffic."
 					);
 				} else {
 					toast.error(
-						'Tracking not found. Please verify the script installation.'
+						"Tracking not found. Please verify the script installation."
 					);
 				}
 			}
 		} catch (error) {
-			console.error('Failed to check tracking status:', error);
-			toast.error('Failed to check tracking status. Please try again.');
+			console.error("Failed to check tracking status:", error);
+			toast.error("Failed to check tracking status. Please try again.");
 		}
 	};
 
@@ -98,7 +98,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 			/>
 
 			{/* Installation Instructions */}
-			{trackingSetupData?.integration_type === 'vercel' ? (
+			{trackingSetupData?.integration_type === "vercel" ? (
 				<InfoSection title="Vercel Integration Setup">
 					<div className="space-y-4">
 						<p className="text-muted-foreground text-sm">
@@ -108,10 +108,10 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 						<div className="rounded border bg-muted/30 p-3">
 							<p className="font-medium text-sm">Automatic SDK Detection</p>
 							<p className="text-muted-foreground text-xs leading-relaxed">
-								The Databuddy SDK will automatically detect the{' '}
+								The Databuddy SDK will automatically detect the{" "}
 								<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
 									NEXT_PUBLIC_DATABUDDY_CLIENT_ID
-								</code>{' '}
+								</code>{" "}
 								environment variable set by your Vercel integration.
 							</p>
 						</div>
@@ -120,13 +120,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 							<p className="font-medium text-sm">Add the SDK to your app:</p>
 							<CodeBlock
 								code={generateVercelNpmCode(trackingOptions)}
-								copied={copiedBlockId === 'vercel-setup'}
+								copied={copiedBlockId === "vercel-setup"}
 								description="Add this to your root layout or _app.js file:"
 								onCopy={() =>
 									handleCopyCode(
 										generateVercelNpmCode(trackingOptions),
-										'vercel-setup',
-										'Vercel setup code copied to clipboard!'
+										"vercel-setup",
+										"Vercel setup code copied to clipboard!"
 									)
 								}
 							/>

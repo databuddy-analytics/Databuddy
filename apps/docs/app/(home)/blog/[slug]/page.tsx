@@ -1,22 +1,22 @@
-import { formatDate } from '@databuddy/shared';
+import { formatDate } from "@databuddy/shared/utils/date-utils";
 import {
 	ArrowLeftIcon,
 	CalendarIcon,
 	ClockIcon,
 	UserIcon,
 	WarningCircleIcon,
-} from '@phosphor-icons/react/ssr';
-import type { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
-import { SITE_URL } from '@/app/util/constants';
-import { Footer } from '@/components/footer';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import { Prose } from '@/components/prose';
-import { SciFiCard } from '@/components/scifi-card';
-import { getPosts, getSinglePost } from '@/lib/blog-query';
-import type { Post } from '@usemarble/core';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from "@phosphor-icons/react/ssr";
+import type { Post } from "@usemarble/core";
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { SITE_URL } from "@/app/util/constants";
+import { Footer } from "@/components/footer";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import { Prose } from "@/components/prose";
+import { SciFiCard } from "@/components/scifi-card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getPosts, getSinglePost } from "@/lib/blog-query";
 
 const STRIP_HTML_REGEX = /<[^>]+>/g;
 const WORD_SPLIT_REGEX = /\s+/;
@@ -26,7 +26,7 @@ export const revalidate = 300;
 export async function generateStaticParams() {
 	try {
 		const result = await getPosts();
-		if ('error' in result) {
+		if ("error" in result) {
 			return [];
 		}
 		return result.posts.map((post) => ({
@@ -49,8 +49,8 @@ export async function generateMetadata({
 
 	try {
 		const data = await getSinglePost(slug);
-		if ('error' in data || !data?.post) {
-			return { title: 'Not Found | Databuddy' };
+		if ("error" in data || !data?.post) {
+			return { title: "Not Found | Databuddy" };
 		}
 
 		return {
@@ -59,12 +59,12 @@ export async function generateMetadata({
 			twitter: {
 				title: `${data.post.title} | Databuddy`,
 				description: data.post.description,
-				card: 'summary_large_image',
+				card: "summary_large_image",
 				images: [
 					{
 						url: data.post.coverImage ?? `${SITE_URL}/og.webp`,
-						width: '1200',
-						height: '630',
+						width: "1200",
+						height: "630",
 						alt: data.post.title,
 					},
 				],
@@ -72,12 +72,12 @@ export async function generateMetadata({
 			openGraph: {
 				title: `${data.post.title} | Databuddy`,
 				description: data.post.description,
-				type: 'article',
+				type: "article",
 				images: [
 					{
 						url: data.post.coverImage ?? `${SITE_URL}/og.webp`,
-						width: '1200',
-						height: '630',
+						width: "1200",
+						height: "630",
 						alt: data.post.title,
 					},
 				],
@@ -88,7 +88,7 @@ export async function generateMetadata({
 			},
 		};
 	} catch {
-		return { title: 'Not Found | Databuddy' };
+		return { title: "Not Found | Databuddy" };
 	}
 }
 
@@ -142,7 +142,7 @@ export default async function PostPage({
 	const post = result.post;
 
 	const estimateReadingTime = (htmlContent: string): string => {
-		const text = htmlContent.replace(STRIP_HTML_REGEX, ' ');
+		const text = htmlContent.replace(STRIP_HTML_REGEX, " ");
 		const words = text.trim().split(WORD_SPLIT_REGEX).filter(Boolean).length;
 		const minutes = Math.max(1, Math.ceil(words / 200));
 		return `${minutes} min read`;
@@ -173,17 +173,25 @@ export default async function PostPage({
 						<UserIcon className="h-4 w-4" weight="duotone" />
 						<div className="-space-x-2 flex">
 							{post.authors.slice(0, 3).map((author) => (
-              <Avatar className="size-6 rounded border-2 border-background" key={author.id}>
-                <AvatarImage src={author.image ?? undefined} alt={author.name} />
-                <AvatarFallback>{author.name[0]}</AvatarFallback>
-              </Avatar>
+								<Avatar
+									className="size-6 rounded border-2 border-background"
+									key={author.id}
+								>
+									<AvatarImage
+										alt={author.name}
+										src={author.image ?? undefined}
+									/>
+									<AvatarFallback>{author.name[0]}</AvatarFallback>
+								</Avatar>
 							))}
 						</div>
 						{post.authors[0]?.socials?.[0]?.url ? (
-							<Link href={post.authors[0].socials[0].url} target='_blank' rel='noopener noreferrer'>
-								<span>
-									{post.authors[0].name}
-								</span>
+							<Link
+								href={post.authors[0].socials[0].url}
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								<span>{post.authors[0].name}</span>
 							</Link>
 						) : (
 							<span>{post.authors[0].name}</span>

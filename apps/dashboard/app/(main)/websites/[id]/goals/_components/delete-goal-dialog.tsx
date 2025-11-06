@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Trash } from '@phosphor-icons/react';
+import { Trash } from "@phosphor-icons/react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -10,7 +10,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 interface DeleteGoalDialogProps {
 	isOpen: boolean;

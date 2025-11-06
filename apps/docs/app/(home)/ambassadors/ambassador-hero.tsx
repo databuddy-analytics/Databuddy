@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import type { IconWeight } from '@phosphor-icons/react';
+import type { IconWeight } from "@phosphor-icons/react";
 import {
 	GiftIcon,
 	HeartIcon,
 	RocketLaunchIcon,
 	SparkleIcon,
-} from '@phosphor-icons/react';
-import { SciFiCard } from '@/components/scifi-card';
+} from "@phosphor-icons/react";
+import { SciFiCard } from "@/components/scifi-card";
 
 function FeatureCard({
 	icon: Icon,
@@ -44,7 +44,7 @@ export default function AmbassadorHero() {
 				<div className="mb-8 text-center lg:mb-12">
 					<h1 className="mb-4 font-semibold text-2xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl">
 						<span className="block">
-							Become an{' '}
+							Become an{" "}
 							<span className="text-muted-foreground">ambassador</span>
 						</span>
 						<span className="block">

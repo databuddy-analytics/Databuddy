@@ -2,13 +2,13 @@
   "name": "databuddy",
   "module": "index.ts",
   "devDependencies": {
-    "@biomejs/biome": "2.2.5",
+    "@biomejs/biome": "^2.3.2",
     "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20251010.1",
+    "@typescript/native-preview": "^7.0.0-dev.20251102.1",
     "dotenv-cli": "^10.0.0",
-    "turbo": "^2.5.8",
+    "turbo": "^2.6.0",
     "typescript": "^5.9.3",
-    "ultracite": "5.0.49"
+    "ultracite": "^6.1.0"
   },
   "engines": {
     "node": ">=20"

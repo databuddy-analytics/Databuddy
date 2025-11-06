@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { authClient } from "@databuddy/auth/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface DeviceSessionDetails {
 	sessionToken: string;
@@ -51,15 +51,15 @@ function buildSessionDetails(
 ): DeviceSessionDetails {
 	return (
 		sessionItem.session || {
-			sessionToken: sessionItem.sessionToken ?? '',
-			userId: sessionItem.userId ?? '',
-			provider: sessionItem.provider ?? '',
+			sessionToken: sessionItem.sessionToken ?? "",
+			userId: sessionItem.userId ?? "",
+			provider: sessionItem.provider ?? "",
 			isCurrent: sessionItem.isCurrent ?? false,
 			ipAddress: sessionItem.ipAddress ?? null,
 			userAgent: sessionItem.userAgent ?? null,
-			lastActive: sessionItem.lastActive ?? '',
-			createdAt: sessionItem.createdAt ?? '',
-			expiresAt: sessionItem.expiresAt ?? '',
+			lastActive: sessionItem.lastActive ?? "",
+			createdAt: sessionItem.createdAt ?? "",
+			expiresAt: sessionItem.expiresAt ?? "",
 		}
 	);
 }
@@ -68,7 +68,7 @@ function buildSessionDetails(
 function buildUserDetails(sessionItem: RawSessionItem) {
 	return (
 		sessionItem.user ?? {
-			email: sessionItem.email ?? 'Unknown User',
+			email: sessionItem.email ?? "Unknown User",
 			name: sessionItem.name,
 		}
 	);
@@ -81,9 +81,9 @@ function processSessionItem(item: unknown): DeviceSessionEntry {
 	const sessionDetails = buildSessionDetails(sessionItem);
 	const userDetails = buildUserDetails(sessionItem);
 	const sessionToken =
-		sessionItem.sessionToken ?? sessionItem.session?.sessionToken ?? '';
+		sessionItem.sessionToken ?? sessionItem.session?.sessionToken ?? "";
 	const isCurrent =
-		typeof sessionItem.isCurrent === 'boolean'
+		typeof sessionItem.isCurrent === "boolean"
 			? sessionItem.isCurrent
 			: (sessionItem.session?.isCurrent ?? false);
 
@@ -92,8 +92,8 @@ function processSessionItem(item: unknown): DeviceSessionEntry {
 		user: userDetails,
 		sessionToken,
 		isCurrent,
-		provider: sessionItem.provider ?? sessionItem.session?.provider ?? 'N/A',
-		userId: sessionItem.userId ?? sessionItem.session?.userId ?? '',
+		provider: sessionItem.provider ?? sessionItem.session?.provider ?? "N/A",
+		userId: sessionItem.userId ?? sessionItem.session?.userId ?? "",
 	};
 }
 
@@ -121,7 +121,7 @@ export function useDeviceSessions() {
 		error,
 		refetch: fetchSessions,
 	} = useQuery({
-		queryKey: ['device-sessions'],
+		queryKey: ["device-sessions"],
 		queryFn: async () => {
 			const result = await authClient.multiSession.listDeviceSessions();
 			return processSessionData(result);
@@ -133,8 +133,8 @@ export function useDeviceSessions() {
 		retry: (failureCount, err) => {
 			// Don't retry auth failures
 			if (
-				err.message.includes('unauthorized') ||
-				err.message.includes('forbidden')
+				err.message.includes("unauthorized") ||
+				err.message.includes("forbidden")
 			) {
 				return false;
 			}
@@ -152,13 +152,13 @@ export function useDeviceSessions() {
 			return result;
 		},
 		onSuccess: () => {
-			toast.success('Session switched successfully. Reloading...');
+			toast.success("Session switched successfully. Reloading...");
 			// Clear all queries since we're switching context
 			queryClient.clear();
 			window.location.reload();
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || 'Failed to switch session.');
+			toast.error(err.message || "Failed to switch session.");
 		},
 	});
 
@@ -172,12 +172,12 @@ export function useDeviceSessions() {
 			return result;
 		},
 		onSuccess: () => {
-			toast.success('Session revoked successfully.');
+			toast.success("Session revoked successfully.");
 			// Invalidate and refetch sessions to update the list
-			queryClient.invalidateQueries({ queryKey: ['device-sessions'] });
+			queryClient.invalidateQueries({ queryKey: ["device-sessions"] });
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || 'Failed to revoke session.');
+			toast.error(err.message || "Failed to revoke session.");
 		},
 	});
 
@@ -187,7 +187,7 @@ export function useDeviceSessions() {
 		error: error?.message || null,
 		operatingSession:
 			setActiveSession.isPending || revokeSession.isPending
-				? 'operating'
+				? "operating"
 				: null,
 		fetchSessions,
 		setActiveSession: setActiveSession.mutate,

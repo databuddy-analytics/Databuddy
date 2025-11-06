@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { trpc } from '@/lib/trpc';
+import { trpc } from "@/lib/trpc";
 
 interface CreateAnnotationInput {
 	websiteId: string;
-	chartType: 'metrics';
+	chartType: "metrics";
 	chartContext: Record<string, any>;
-	annotationType: 'point' | 'line' | 'range';
+	annotationType: "point" | "line" | "range";
 	xValue: string;
 	xEndValue?: string;
 	yValue?: number;
@@ -26,16 +26,16 @@ interface UpdateAnnotationInput {
 
 interface ListAnnotationsInput {
 	websiteId: string;
-	chartType: 'metrics';
+	chartType: "metrics";
 	chartContext: {
 		dateRange: {
 			start_date: string;
 			end_date: string;
-			granularity: 'hourly' | 'daily' | 'weekly' | 'monthly';
+			granularity: "hourly" | "daily" | "weekly" | "monthly";
 		};
 		filters?: Array<{
 			field: string;
-			operator: 'eq' | 'ne' | 'gt' | 'lt' | 'contains';
+			operator: "eq" | "ne" | "gt" | "lt" | "contains";
 			value: string;
 		}>;
 		metrics?: string[];
@@ -48,10 +48,7 @@ export function useAnnotations(input: ListAnnotationsInput) {
 		data: annotations,
 		isLoading,
 		error,
-	} = trpc.annotations.list.useQuery(
-		input,
-		{ enabled: !!input.websiteId }
-	);
+	} = trpc.annotations.list.useQuery(input, { enabled: !!input.websiteId });
 
 	const createAnnotation = trpc.annotations.create.useMutation();
 
@@ -70,8 +67,5 @@ export function useAnnotations(input: ListAnnotationsInput) {
 }
 
 export function useAnnotationById(id: string) {
-	return trpc.annotations.getById.useQuery(
-		{ id },
-		{ enabled: !!id }
-	);
+	return trpc.annotations.getById.useQuery({ id }, { enabled: !!id });
 }

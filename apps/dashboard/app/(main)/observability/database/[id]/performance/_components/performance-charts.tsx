@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import type { QueryPerformanceSummary } from '@databuddy/shared';
+import type { QueryPerformanceSummary } from "@databuddy/shared/types/performance";
 import {
 	Bar,
 	BarChart,
@@ -11,14 +11,14 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from 'recharts';
+} from "recharts";
 
 const CHART_COLORS = [
-	'#3b82f6', // Blue
-	'#10b981', // Emerald
-	'#8b5cf6', // Violet
-	'#f59e0b', // Amber
-	'#ef4444', // Red
+	"#3b82f6", // Blue
+	"#10b981", // Emerald
+	"#8b5cf6", // Violet
+	"#f59e0b", // Amber
+	"#ef4444", // Red
 ];
 
 const formatTime = (ms: number): string => {
@@ -30,8 +30,8 @@ const formatTime = (ms: number): string => {
 
 const formatQuery = (query: string, maxLength = 30): string => {
 	const cleaned = query
-		.replace(/--.*$/gm, '')
-		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/--.*$/gm, "")
+		.replace(/\/\*[\s\S]*?\*\//g, "")
 		.trim();
 	if (cleaned.length <= maxLength) {
 		return cleaned;
@@ -81,7 +81,7 @@ export const ResourceConsumptionChart = ({
 								<Cell
 									fill={CHART_COLORS[index % CHART_COLORS.length]}
 									key={`cell-${index}-${query.name}`}
-									style={{ cursor: onQueryClick ? 'pointer' : 'default' }}
+									style={{ cursor: onQueryClick ? "pointer" : "default" }}
 								/>
 							))}
 						</Pie>
@@ -151,15 +151,15 @@ export const ResponseTimeChart = ({
 										<div className="rounded-lg border bg-background p-3 shadow-lg">
 											<p className="font-medium">{label}</p>
 											<p className="text-sm">
-												<span className="text-muted-foreground">Avg:</span>{' '}
+												<span className="text-muted-foreground">Avg:</span>{" "}
 												{formatTime(data.avgTime)}
 											</p>
 											<p className="text-sm">
-												<span className="text-muted-foreground">Min:</span>{' '}
+												<span className="text-muted-foreground">Min:</span>{" "}
 												{formatTime(data.minTime)}
 											</p>
 											<p className="text-sm">
-												<span className="text-muted-foreground">Max:</span>{' '}
+												<span className="text-muted-foreground">Max:</span>{" "}
 												{formatTime(data.maxTime)}
 											</p>
 										</div>
@@ -176,7 +176,7 @@ export const ResponseTimeChart = ({
 									onQueryClick(data.originalQuery);
 								}
 							}}
-							style={{ cursor: onQueryClick ? 'pointer' : 'default' }}
+							style={{ cursor: onQueryClick ? "pointer" : "default" }}
 						/>
 					</BarChart>
 				</ResponsiveContainer>

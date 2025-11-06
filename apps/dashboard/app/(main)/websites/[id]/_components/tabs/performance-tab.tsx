@@ -1,53 +1,56 @@
-'use client';
+"use client";
 
-import { getCountryCode, getCountryName } from '@databuddy/shared';
-import { LightningIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CountryFlag } from '@/components/analytics/icons/CountryFlag';
-import { BrowserIcon, OSIcon } from '@/components/icon';
-import { DataTable } from '@/components/table/data-table';
-import { useEnhancedPerformanceData } from '@/hooks/use-dynamic-query';
-import { calculatePerformanceSummary } from '@/lib/performance-utils';
-import type { PerformanceEntry } from '@/types/performance';
-import type { FullTabProps } from '../utils/types';
-import { PerformanceMetricCell } from './performance/_components/performance-metric-cell';
-import { PerformanceSummaryCard } from './performance/_components/performance-summary-card';
-import { WebVitalsChart } from './performance/_components/web-vitals-chart';
-import { WebVitalsMetricCell } from './performance/_components/web-vitals-metric-cell';
-import { formatNumber } from './performance/_utils/performance-utils';
+import {
+	getCountryCode,
+	getCountryName,
+} from "@databuddy/shared/country-codes";
+import { LightningIcon } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { BrowserIcon, OSIcon } from "@/components/icon";
+import { DataTable } from "@/components/table/data-table";
+import { useEnhancedPerformanceData } from "@/hooks/use-dynamic-query";
+import { calculatePerformanceSummary } from "@/lib/performance-utils";
+import type { PerformanceEntry } from "@/types/performance";
+import type { FullTabProps } from "../utils/types";
+import { PerformanceMetricCell } from "./performance/_components/performance-metric-cell";
+import { PerformanceSummaryCard } from "./performance/_components/performance-summary-card";
+import { WebVitalsChart } from "./performance/_components/web-vitals-chart";
+import { WebVitalsMetricCell } from "./performance/_components/web-vitals-metric-cell";
+import { formatNumber } from "./performance/_utils/performance-utils";
 
-interface CellProps {
+type CellProps = {
 	getValue: () => unknown;
 	row: { original: Record<string, unknown> };
-}
+};
 
 const performanceColumns = [
 	{
-		id: 'visitors',
-		accessorKey: 'visitors',
-		header: 'Visitors',
+		id: "visitors",
+		accessorKey: "visitors",
+		header: "Visitors",
 		cell: ({ getValue }: CellProps) => formatNumber(getValue() as number),
 	},
 	{
-		id: 'avg_load_time',
-		accessorKey: 'avg_load_time',
-		header: 'Load Time',
+		id: "avg_load_time",
+		accessorKey: "avg_load_time",
+		header: "Load Time",
 		cell: ({ row }: CellProps) => (
 			<PerformanceMetricCell value={row.original.avg_load_time as number} />
 		),
 	},
 	{
-		id: 'avg_ttfb',
-		accessorKey: 'avg_ttfb',
-		header: 'TTFB',
+		id: "avg_ttfb",
+		accessorKey: "avg_ttfb",
+		header: "TTFB",
 		cell: ({ row }: CellProps) => (
 			<PerformanceMetricCell value={row.original.avg_ttfb as number} />
 		),
 	},
 	{
-		id: 'avg_dom_ready_time',
-		accessorKey: 'avg_dom_ready_time',
-		header: 'DOM Ready',
+		id: "avg_dom_ready_time",
+		accessorKey: "avg_dom_ready_time",
+		header: "DOM Ready",
 		cell: ({ row }: CellProps) => (
 			<PerformanceMetricCell
 				value={row.original.avg_dom_ready_time as number}
@@ -55,9 +58,9 @@ const performanceColumns = [
 		),
 	},
 	{
-		id: 'avg_render_time',
-		accessorKey: 'avg_render_time',
-		header: 'Render Time',
+		id: "avg_render_time",
+		accessorKey: "avg_render_time",
+		header: "Render Time",
 		cell: ({ row }: CellProps) => (
 			<PerformanceMetricCell value={row.original.avg_render_time as number} />
 		),
@@ -66,15 +69,15 @@ const performanceColumns = [
 
 const webVitalsColumns = [
 	{
-		id: 'visitors',
-		accessorKey: 'visitors',
-		header: 'Visitors',
+		id: "visitors",
+		accessorKey: "visitors",
+		header: "Visitors",
 		cell: ({ getValue }: CellProps) => formatNumber(getValue() as number),
 	},
 	{
-		id: 'avg_lcp',
-		accessorKey: 'avg_lcp',
-		header: 'LCP',
+		id: "avg_lcp",
+		accessorKey: "avg_lcp",
+		header: "LCP",
 		cell: ({ row }: CellProps) => (
 			<WebVitalsMetricCell
 				metric="lcp"
@@ -83,9 +86,9 @@ const webVitalsColumns = [
 		),
 	},
 	{
-		id: 'avg_fcp',
-		accessorKey: 'avg_fcp',
-		header: 'FCP',
+		id: "avg_fcp",
+		accessorKey: "avg_fcp",
+		header: "FCP",
 		cell: ({ row }: CellProps) => (
 			<WebVitalsMetricCell
 				metric="fcp"
@@ -94,9 +97,9 @@ const webVitalsColumns = [
 		),
 	},
 	{
-		id: 'avg_fid',
-		accessorKey: 'avg_fid',
-		header: 'FID',
+		id: "avg_fid",
+		accessorKey: "avg_fid",
+		header: "FID",
 		cell: ({ row }: CellProps) => (
 			<WebVitalsMetricCell
 				metric="fid"
@@ -105,9 +108,9 @@ const webVitalsColumns = [
 		),
 	},
 	{
-		id: 'avg_inp',
-		accessorKey: 'avg_inp',
-		header: 'INP',
+		id: "avg_inp",
+		accessorKey: "avg_inp",
+		header: "INP",
 		cell: ({ row }: CellProps) => (
 			<WebVitalsMetricCell
 				metric="inp"
@@ -122,8 +125,8 @@ const createNameColumn = (
 	iconRenderer?: (name: string) => React.ReactNode,
 	nameFormatter?: (name: string) => string
 ) => ({
-	id: 'name',
-	accessorKey: 'name',
+	id: "name",
+	accessorKey: "name",
 	header,
 	cell: ({ getValue }: CellProps) => {
 		const name = getValue() as string;
@@ -145,9 +148,13 @@ export function WebsitePerformanceTab({
 	filters,
 	addFilter,
 }: FullTabProps) {
-	const [activeFilter, setActiveFilter] = useState<'fast' | 'slow' | null>(
+	const [activeFilter, setActiveFilter] = useState<"fast" | "slow" | null>(
 		null
 	);
+
+	const handleFilterChange = useCallback((filter: "fast" | "slow" | null) => {
+		setActiveFilter(filter);
+	}, []);
 
 	const {
 		results: performanceResults,
@@ -171,13 +178,13 @@ export function WebsitePerformanceTab({
 	}, [handleRefresh]);
 
 	const filterPagesByPerformance = useCallback(
-		(pages: PerformanceEntry[], filter: 'fast' | 'slow' | null) => {
+		(pages: PerformanceEntry[], filter: "fast" | "slow" | null) => {
 			if (!filter) {
 				return pages;
 			}
 			return pages.filter((page) => {
 				const loadTime = page.avg_load_time || 0;
-				return filter === 'fast' ? loadTime < 1500 : loadTime >= 3000;
+				return filter === "fast" ? loadTime < 1500 : loadTime >= 3000;
 			});
 		},
 		[]
@@ -185,7 +192,7 @@ export function WebsitePerformanceTab({
 
 	const onAddFilter = useCallback(
 		(field: string, value: string) => {
-			addFilter({ field, operator: 'eq' as const, value });
+			addFilter({ field, operator: "eq" as const, value });
 		},
 		[addFilter]
 	);
@@ -252,9 +259,9 @@ export function WebsitePerformanceTab({
 	const tabs = useMemo(() => {
 		const formatPageName = (name: string) => {
 			try {
-				return name.startsWith('http') ? new URL(name).pathname : name;
+				return name.startsWith("http") ? new URL(name).pathname : name;
 			} catch {
-				return name.startsWith('/') ? name : `/${name}`;
+				return name.startsWith("/") ? name : `/${name}`;
 			}
 		};
 
@@ -273,21 +280,21 @@ export function WebsitePerformanceTab({
 		};
 
 		const getRegionCountryIcon = (name: string) => {
-			if (typeof name !== 'string' || !name.includes(',')) {
-				return <CountryFlag country={''} size={16} />;
+			if (typeof name !== "string" || !name.includes(",")) {
+				return <CountryFlag country={""} size={16} />;
 			}
-			const countryPart = name.split(',')[1]?.trim();
-			const code = getCountryCode(countryPart || '');
+			const countryPart = name.split(",")[1]?.trim();
+			const code = getCountryCode(countryPart || "");
 			return <CountryFlag country={code} size={16} />;
 		};
 
 		const formatRegionName = (name: string) => {
-			if (typeof name !== 'string' || !name.includes(',')) {
-				return name || 'Unknown region';
+			if (typeof name !== "string" || !name.includes(",")) {
+				return name || "Unknown region";
 			}
-			const [region, countryPart] = name.split(',').map((s) => s.trim());
+			const [region, countryPart] = name.split(",").map((s) => s.trim());
 			if (!(region && countryPart)) {
-				return name || 'Unknown region';
+				return name || "Unknown region";
 			}
 			const code = getCountryCode(countryPart);
 			const countryName = getCountryName(code);
@@ -301,52 +308,52 @@ export function WebsitePerformanceTab({
 			return countryName ? `${region}, ${countryName}` : name;
 		};
 
-		interface TabConfig {
+		type TabConfig = {
 			id: string;
 			label: string;
 			data: PerformanceEntry[];
 			iconRenderer?: (name: string) => React.ReactNode;
 			nameFormatter?: (name: string) => string;
 			getFilter: (row: { name: string }) => { field: string; value: string };
-		}
+		};
 
 		const configs: TabConfig[] = [
 			{
-				id: 'pages',
-				label: 'Pages',
+				id: "pages",
+				label: "Pages",
 				data: processedData.pages,
 				iconRenderer: undefined,
 				nameFormatter: formatPageName,
-				getFilter: (row) => ({ field: 'path', value: row.name }),
+				getFilter: (row) => ({ field: "path", value: row.name }),
 			},
 			{
-				id: 'countries',
-				label: 'Country',
+				id: "countries",
+				label: "Country",
 				data: processedData.countries,
 				iconRenderer: getCountryIcon,
-				getFilter: (row) => ({ field: 'country', value: row.name }),
+				getFilter: (row) => ({ field: "country", value: row.name }),
 			},
 			{
-				id: 'regions',
-				label: 'Regions',
+				id: "regions",
+				label: "Regions",
 				data: processedData.regions,
 				iconRenderer: getRegionCountryIcon,
 				nameFormatter: formatRegionName,
-				getFilter: (row) => ({ field: 'region', value: row.name }),
+				getFilter: (row) => ({ field: "region", value: row.name }),
 			},
 			{
-				id: 'browsers',
-				label: 'Browsers',
+				id: "browsers",
+				label: "Browsers",
 				data: processedData.browsers,
 				iconRenderer: (name: string) => <BrowserIcon name={name} size="sm" />,
-				getFilter: (row) => ({ field: 'browser_name', value: row.name }),
+				getFilter: (row) => ({ field: "browser_name", value: row.name }),
 			},
 			{
-				id: 'operating_systems',
-				label: 'Operating Systems',
+				id: "operating_systems",
+				label: "Operating Systems",
 				data: processedData.operating_systems,
 				iconRenderer: (name: string) => <OSIcon name={name} size="sm" />,
-				getFilter: (row) => ({ field: 'os_name', value: row.name }),
+				getFilter: (row) => ({ field: "os_name", value: row.name }),
 			},
 		];
 
@@ -357,7 +364,7 @@ export function WebsitePerformanceTab({
 				name:
 					(item as { country_name?: string }).country_name ||
 					item.name ||
-					'Unknown',
+					"Unknown",
 				visitors: item.visitors || 0,
 				avg_load_time: item.avg_load_time || 0,
 				avg_ttfb: item.avg_ttfb,
@@ -381,9 +388,9 @@ export function WebsitePerformanceTab({
 	const webVitalsTabs = useMemo(() => {
 		const formatPageName = (name: string) => {
 			try {
-				return name.startsWith('http') ? new URL(name).pathname : name;
+				return name.startsWith("http") ? new URL(name).pathname : name;
 			} catch {
-				return name.startsWith('/') ? name : `/${name}`;
+				return name.startsWith("/") ? name : `/${name}`;
 			}
 		};
 
@@ -402,21 +409,21 @@ export function WebsitePerformanceTab({
 		};
 
 		const getRegionCountryIcon = (name: string) => {
-			if (typeof name !== 'string' || !name.includes(',')) {
-				return <CountryFlag country={''} size={16} />;
+			if (typeof name !== "string" || !name.includes(",")) {
+				return <CountryFlag country={""} size={16} />;
 			}
-			const countryPart = name.split(',')[1]?.trim();
-			const code = getCountryCode(countryPart || '');
+			const countryPart = name.split(",")[1]?.trim();
+			const code = getCountryCode(countryPart || "");
 			return <CountryFlag country={code} size={16} />;
 		};
 
 		const formatRegionName = (name: string) => {
-			if (typeof name !== 'string' || !name.includes(',')) {
-				return name || 'Unknown region';
+			if (typeof name !== "string" || !name.includes(",")) {
+				return name || "Unknown region";
 			}
-			const [region, countryPart] = name.split(',').map((s) => s.trim());
+			const [region, countryPart] = name.split(",").map((s) => s.trim());
 			if (!(region && countryPart)) {
-				return name || 'Unknown region';
+				return name || "Unknown region";
 			}
 			const code = getCountryCode(countryPart);
 			const countryName = getCountryName(code);
@@ -430,52 +437,52 @@ export function WebsitePerformanceTab({
 			return countryName ? `${region}, ${countryName}` : name;
 		};
 
-		interface WebVitalsTabConfig {
+		type WebVitalsTabConfig = {
 			id: string;
 			label: string;
 			data: unknown[];
 			iconRenderer?: (name: string) => React.ReactNode;
 			nameFormatter?: (name: string) => string;
 			getFilter: (row: { name: string }) => { field: string; value: string };
-		}
+		};
 
 		const webVitalsConfigs: WebVitalsTabConfig[] = [
 			{
-				id: 'web-vitals-pages',
-				label: 'Pages',
+				id: "web-vitals-pages",
+				label: "Pages",
 				data: processedData.webVitalsByPage,
 				iconRenderer: undefined,
 				nameFormatter: formatPageName,
-				getFilter: (row) => ({ field: 'path', value: row.name }),
+				getFilter: (row) => ({ field: "path", value: row.name }),
 			},
 			{
-				id: 'web-vitals-countries',
-				label: 'Country',
+				id: "web-vitals-countries",
+				label: "Country",
 				data: processedData.webVitalsByCountry,
 				iconRenderer: getCountryIcon,
-				getFilter: (row) => ({ field: 'country', value: row.name }),
+				getFilter: (row) => ({ field: "country", value: row.name }),
 			},
 			{
-				id: 'web-vitals-regions',
-				label: 'Regions',
+				id: "web-vitals-regions",
+				label: "Regions",
 				data: processedData.webVitalsByRegion,
 				iconRenderer: getRegionCountryIcon,
 				nameFormatter: formatRegionName,
-				getFilter: (row) => ({ field: 'region', value: row.name }),
+				getFilter: (row) => ({ field: "region", value: row.name }),
 			},
 			{
-				id: 'web-vitals-browsers',
-				label: 'Browsers',
+				id: "web-vitals-browsers",
+				label: "Browsers",
 				data: processedData.webVitalsByBrowser,
 				iconRenderer: (name: string) => <BrowserIcon name={name} size="sm" />,
-				getFilter: (row) => ({ field: 'browser_name', value: row.name }),
+				getFilter: (row) => ({ field: "browser_name", value: row.name }),
 			},
 			{
-				id: 'web-vitals-os',
-				label: 'Operating Systems',
+				id: "web-vitals-os",
+				label: "Operating Systems",
 				data: processedData.webVitalsByOS,
 				iconRenderer: (name: string) => <OSIcon name={name} size="sm" />,
-				getFilter: (row) => ({ field: 'os_name', value: row.name }),
+				getFilter: (row) => ({ field: "os_name", value: row.name }),
 			},
 		];
 
@@ -486,7 +493,7 @@ export function WebsitePerformanceTab({
 				name:
 					(item as { country_name?: string }).country_name ||
 					(item as { name?: string }).name ||
-					'Unknown',
+					"Unknown",
 				visitors: (item as { visitors?: number }).visitors || 0,
 				avg_lcp: (item as { avg_lcp?: number }).avg_lcp,
 				avg_fcp: (item as { avg_fcp?: number }).avg_fcp,
@@ -522,7 +529,7 @@ export function WebsitePerformanceTab({
 		(processedData.allPages?.length > 0 || processedData.pages.length > 0);
 	const description = activeFilter
 		? `Showing ${activeFilter} pages only. Detailed performance metrics across pages, locations, devices, and browsers`
-		: 'Detailed performance metrics across pages, locations, devices, and browsers';
+		: "Detailed performance metrics across pages, locations, devices, and browsers";
 
 	return (
 		<div className="space-y-4">
@@ -541,18 +548,18 @@ export function WebsitePerformanceTab({
 
 			<div className="rounded border bg-muted/20 p-4">
 				<div className="mb-4 flex items-start gap-2">
-					<LightningIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+					<LightningIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
 					<div>
 						<p className="mb-1 font-medium text-foreground">
 							Performance Overview
 						</p>
 						<p className="text-muted-foreground text-xs">
-							Core Web Vitals and performance metrics.{' '}
+							Core Web Vitals and performance metrics.{" "}
 							<span className="font-medium text-green-600">Good</span>,
 							<span className="ml-1 font-medium text-yellow-600">
 								Needs Improvement
 							</span>
-							,<span className="ml-1 font-medium text-red-600">Poor</span>{' '}
+							,<span className="ml-1 font-medium text-red-600">Poor</span>{" "}
 							ratings.
 						</p>
 					</div>
@@ -562,7 +569,7 @@ export function WebsitePerformanceTab({
 					<>
 						<PerformanceSummaryCard
 							activeFilter={activeFilter}
-							onFilterChange={setActiveFilter}
+							onFilterChange={handleFilterChange}
 							summary={performanceSummary}
 						/>
 

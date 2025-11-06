@@ -1,9 +1,9 @@
 import type {
-  MarbleAuthorList,
-  MarbleCategoryList,
-  MarblePost,
-  MarblePostList,
-  MarbleTagList,
+	MarbleAuthorList,
+	MarbleCategoryList,
+	MarblePost,
+	MarblePostList,
+	MarbleTagList,
 } from "@usemarble/core";
 import { cache } from "react";
 
@@ -14,15 +14,17 @@ async function fetchFromMarble<T>(
 	options?: { returnStatusOnError?: boolean }
 ): Promise<T | FetchError> {
 	try {
-		if (!process.env.MARBLE_API_URL || !process.env.MARBLE_WORKSPACE_KEY) {
+		if (!(process.env.MARBLE_API_URL && process.env.MARBLE_WORKSPACE_KEY)) {
 			if (options?.returnStatusOnError) {
 				return {
 					error: true,
 					status: 500,
-					statusText: 'Environment variables not configured',
+					statusText: "Environment variables not configured",
 				};
 			}
-			throw new Error('MARBLE_API_URL and MARBLE_WORKSPACE_KEY environment variables are required');
+			throw new Error(
+				"MARBLE_API_URL and MARBLE_WORKSPACE_KEY environment variables are required"
+			);
 		}
 
 		const response = await fetch(
@@ -47,31 +49,33 @@ async function fetchFromMarble<T>(
 			return {
 				error: true,
 				status: 500,
-				statusText: 'Internal Error',
+				statusText: "Internal Error",
 			};
 		}
 		throw error;
 	}
 }
 
-export const getPosts = cache(() => {
-	return fetchFromMarble<MarblePostList>('posts', { returnStatusOnError: true });
-});
-
-export const getTags = cache(() => {
-	return fetchFromMarble<MarbleTagList>('tags', { returnStatusOnError: true });
-});
-
-export const getSinglePost = cache((slug: string) => {
-	return fetchFromMarble<MarblePost>(`posts/${slug}`, {
+export const getPosts = cache(() =>
+	fetchFromMarble<MarblePostList>("posts", {
 		returnStatusOnError: true,
-	});
-});
+	})
+);
 
-export const getCategories = cache(() => {
-	return fetchFromMarble<MarbleCategoryList>('categories');
-});
+export const getTags = cache(() =>
+	fetchFromMarble<MarbleTagList>("tags", { returnStatusOnError: true })
+);
 
-export const getAuthors = cache(() => {
-	return fetchFromMarble<MarbleAuthorList>('authors');
-});
+export const getSinglePost = cache((slug: string) =>
+	fetchFromMarble<MarblePost>(`posts/${slug}`, {
+		returnStatusOnError: true,
+	})
+);
+
+export const getCategories = cache(() =>
+	fetchFromMarble<MarbleCategoryList>("categories")
+);
+
+export const getAuthors = cache(() =>
+	fetchFromMarble<MarbleAuthorList>("authors")
+);

@@ -1,16 +1,17 @@
-'use client';
+"use client";
 
-import { type DynamicQueryFilter, filterOptions } from '@databuddy/shared';
-import { FunnelIcon } from '@phosphor-icons/react';
-import { useParams } from 'next/navigation';
-import { Suspense, useCallback, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { useParams } from "next/navigation";
+import { Suspense, useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Command,
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from '@/components/ui/command';
+} from "@/components/ui/command";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -18,37 +19,37 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from '@/components/ui/popover';
+} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { operatorOptions } from '@/hooks/use-filters';
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { operatorOptions } from "@/hooks/use-filters";
 import {
 	type AutocompleteData,
 	useAutocompleteData,
-} from '@/hooks/use-funnels';
+} from "@/hooks/use-funnels";
 
 type OperatorOption = (typeof operatorOptions)[number];
 type FilterOption = (typeof filterOptions)[number];
 
-export function getOperatorShorthand(operator: OperatorOption['value']) {
+export function getOperatorShorthand(operator: OperatorOption["value"]) {
 	const operatorToShorthandMap: Record<
-		OperatorOption['value'],
-		DynamicQueryFilter['operator']
+		OperatorOption["value"],
+		DynamicQueryFilter["operator"]
 	> = {
-		equals: 'eq',
-		contains: 'like',
-		not_equals: 'ne',
+		equals: "eq",
+		contains: "like",
+		not_equals: "ne",
 	};
 	return operatorToShorthandMap[operator] || operator;
 }
@@ -67,9 +68,9 @@ function FilterEditorForm({
 	suggestions: string[];
 }) {
 	const [operator, setOperator] = useState<OperatorOption>(operatorOptions[0]);
-	const [value, setValue] = useState('');
+	const [value, setValue] = useState("");
 
-	const [searchValue, setSearchValue] = useState('');
+	const [searchValue, setSearchValue] = useState("");
 	const [isOpen, setIsOpen] = useState(false);
 	const [filteredSuggestions, setFilteredSuggestions] = useState(
 		suggestions.slice(0, MAX_SUGGESTIONS)
@@ -131,7 +132,7 @@ function FilterEditorForm({
 							onClick={() => setIsOpen(true)}
 							variant="outline"
 						>
-							{value === '' ? 'Select a value' : value}
+							{value === "" ? "Select a value" : value}
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent align="start" className="p-0">
@@ -224,21 +225,21 @@ function FilterForm({
 			}
 
 			switch (field) {
-				case 'browser_name':
+				case "browser_name":
 					return autocompleteData.browsers || [];
-				case 'os_name':
+				case "os_name":
 					return autocompleteData.operatingSystems || [];
-				case 'country':
+				case "country":
 					return autocompleteData.countries || [];
-				case 'device_type':
+				case "device_type":
 					return autocompleteData.deviceTypes || [];
-				case 'utm_source':
+				case "utm_source":
 					return autocompleteData.utmSources || [];
-				case 'utm_medium':
+				case "utm_medium":
 					return autocompleteData.utmMediums || [];
-				case 'utm_campaign':
+				case "utm_campaign":
 					return autocompleteData.utmCampaigns || [];
-				case 'path':
+				case "path":
 					return autocompleteData.pagePaths || [];
 				default:
 					return [];
@@ -291,7 +292,7 @@ function FilterForm({
 
 export function AddFilterForm({
 	addFilter,
-	buttonText = 'Filter',
+	buttonText = "Filter",
 	className,
 }: {
 	addFilter: (filter: DynamicQueryFilter) => void;
@@ -313,7 +314,7 @@ export function AddFilterForm({
 					aria-expanded={isOpen}
 					aria-haspopup="menu"
 					aria-label="Add filter"
-					className={className || 'h-8'}
+					className={className || "h-8"}
 					onClick={() => setIsOpen(!isOpen)}
 					variant="outline"
 				>
@@ -321,7 +322,11 @@ export function AddFilterForm({
 					{buttonText}
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-[300px]" side="bottom">
+			<DropdownMenuContent
+				align="end"
+				className="w-[calc(100vw-2rem)] max-w-[300px] sm:w-[300px]"
+				side="bottom"
+			>
 				<Suspense fallback={<div>Loading...</div>}>
 					<FilterForm
 						addFilter={addFilter}

@@ -1,4 +1,4 @@
-import type { StreamingUpdate } from '@databuddy/shared';
+import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
 
 export function createStreamingResponse(updates: StreamingUpdate[]): Response {
 	const stream = new ReadableStream({
@@ -12,9 +12,9 @@ export function createStreamingResponse(updates: StreamingUpdate[]): Response {
 				controller.close();
 			} catch (error) {
 				const errorUpdate: StreamingUpdate = {
-					type: 'error',
+					type: "error",
 					content:
-						error instanceof Error ? error.message : 'Unknown error occurred',
+						error instanceof Error ? error.message : "Unknown error occurred",
 				};
 				const data = `data: ${JSON.stringify(errorUpdate)}\n\n`;
 				controller.enqueue(new TextEncoder().encode(data));
@@ -25,9 +25,9 @@ export function createStreamingResponse(updates: StreamingUpdate[]): Response {
 
 	return new Response(stream, {
 		headers: {
-			'Content-Type': 'text/event-stream',
-			'Cache-Control': 'no-cache',
-			Connection: 'keep-alive',
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-cache",
+			Connection: "keep-alive",
 		},
 	});
 }
@@ -35,7 +35,7 @@ export function createStreamingResponse(updates: StreamingUpdate[]): Response {
 export function generateThinkingSteps(steps: string[]): StreamingUpdate[] {
 	const updates: StreamingUpdate[] = [];
 	for (const step of steps) {
-		updates.push({ type: 'thinking', content: step });
+		updates.push({ type: "thinking", content: step });
 	}
 	return updates;
 }

@@ -1,5 +1,5 @@
-import { createDrizzleCache, redis } from '@databuddy/redis';
-import { logger } from '@databuddy/shared';
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { logger } from "@databuddy/shared/utils/discord-webhook";
 
 /**
  * Invalidates basic website caches (websites table and getById key)
@@ -11,7 +11,7 @@ export const invalidateBasicWebsiteCaches = async (
 	websiteCache: ReturnType<typeof createDrizzleCache>
 ): Promise<void> => {
 	await Promise.all([
-		websiteCache.invalidateByTables(['websites']),
+		websiteCache.invalidateByTables(["websites"]),
 		websiteCache.invalidateByKey(`getById:${websiteId}`),
 	]);
 };
@@ -28,64 +28,64 @@ export const invalidateWebsiteCaches = async (
 	try {
 		await Promise.all([
 			// Website caches
-			createDrizzleCache({ redis, namespace: 'websites' }).invalidateByTables([
-				'websites',
+			createDrizzleCache({ redis, namespace: "websites" }).invalidateByTables([
+				"websites",
 			]),
-			createDrizzleCache({ redis, namespace: 'websites' }).invalidateByKey(
+			createDrizzleCache({ redis, namespace: "websites" }).invalidateByKey(
 				`getById:${websiteId}`
 			),
 
 			createDrizzleCache({
 				redis,
-				namespace: 'website_by_id',
+				namespace: "website_by_id",
 			}).invalidateByKey(`website_by_id:${websiteId}`),
-			createDrizzleCache({ redis, namespace: 'auth' }).invalidateByKey(
+			createDrizzleCache({ redis, namespace: "auth" }).invalidateByKey(
 				`auth:${userId}:${websiteId}`
 			),
 
 			// Funnel caches
 			createDrizzleCache({
 				redis,
-				namespace: 'funnels',
-			}).invalidateByTables(['funnelDefinitions']),
-			createDrizzleCache({ redis, namespace: 'funnels' }).invalidateByKey(
+				namespace: "funnels",
+			}).invalidateByTables(["funnelDefinitions"]),
+			createDrizzleCache({ redis, namespace: "funnels" }).invalidateByKey(
 				`funnels:list:${websiteId}`
 			),
-			createDrizzleCache({ redis, namespace: 'funnels' }).invalidateByKey(
+			createDrizzleCache({ redis, namespace: "funnels" }).invalidateByKey(
 				`funnels:listPublic:${websiteId}`
 			),
 
 			// Goals caches
-			createDrizzleCache({ redis, namespace: 'goals' }).invalidateByTables([
-				'goals',
+			createDrizzleCache({ redis, namespace: "goals" }).invalidateByTables([
+				"goals",
 			]),
-			createDrizzleCache({ redis, namespace: 'goals' }).invalidateByKey(
+			createDrizzleCache({ redis, namespace: "goals" }).invalidateByKey(
 				`goals:list:${websiteId}`
 			),
 
 			// Autocomplete caches
 			createDrizzleCache({
 				redis,
-				namespace: 'autocomplete',
-			}).invalidateByTables(['websites']),
+				namespace: "autocomplete",
+			}).invalidateByTables(["websites"]),
 
 			// Mini-charts caches
 			createDrizzleCache({
 				redis,
-				namespace: 'mini-charts',
-			}).invalidateByTables(['websites']),
+				namespace: "mini-charts",
+			}).invalidateByTables(["websites"]),
 			createDrizzleCache({
 				redis,
-				namespace: 'mini-charts',
+				namespace: "mini-charts",
 			}).invalidateByKey(`mini-charts:${userId}:${websiteId}`),
 			createDrizzleCache({
 				redis,
-				namespace: 'mini-charts',
+				namespace: "mini-charts",
 			}).invalidateByKey(`mini-charts:public:${websiteId}`),
 		]);
 	} catch (error) {
 		logger.error(
-			'Failed to invalidate caches',
+			"Failed to invalidate caches",
 			error instanceof Error ? error.message : String(error),
 			{
 				websiteId,

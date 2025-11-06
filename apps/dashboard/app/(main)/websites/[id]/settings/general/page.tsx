@@ -1,15 +1,20 @@
-'use client';
+"use client";
 
-import { ArrowSquareOutIcon, GearIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react';
-import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { WebsiteDialog } from '@/components/website-dialog';
-import { useDeleteWebsite, useWebsite } from '@/hooks/use-websites';
-import { TOAST_MESSAGES } from '../../_components/shared/tracking-constants';
-import { DeleteWebsiteDialog } from '../_components/delete-dialog';
+import {
+	ArrowSquareOutIcon,
+	GearIcon,
+	PencilSimpleIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { WebsiteDialog } from "@/components/website-dialog";
+import { useDeleteWebsite, useWebsite } from "@/hooks/use-websites";
+import { TOAST_MESSAGES } from "../../_components/shared/tracking-constants";
+import { DeleteWebsiteDialog } from "../_components/delete-dialog";
 
 export default function GeneralSettingsPage() {
 	const params = useParams();
@@ -36,7 +41,7 @@ export default function GeneralSettingsPage() {
 				{
 					loading: TOAST_MESSAGES.WEBSITE_DELETING,
 					success: () => {
-						router.push('/websites');
+						router.push("/websites");
 						return TOAST_MESSAGES.WEBSITE_DELETED;
 					},
 					error: TOAST_MESSAGES.WEBSITE_DELETE_ERROR,
@@ -86,7 +91,7 @@ export default function GeneralSettingsPage() {
 							<div className="min-w-0">
 								<Label className="mb-1 block font-medium text-sm">Name</Label>
 								<p className="truncate text-muted-foreground text-xs">
-									{websiteData.name || 'Not set'}
+									{websiteData.name || "Not set"}
 								</p>
 							</div>
 							<Button
@@ -105,7 +110,7 @@ export default function GeneralSettingsPage() {
 							<div className="min-w-0">
 								<Label className="mb-1 block font-medium text-sm">Domain</Label>
 								<p className="truncate text-muted-foreground text-xs">
-									{websiteData.domain || 'Not set'}
+									{websiteData.domain || "Not set"}
 								</p>
 							</div>
 							<Button
@@ -127,7 +132,9 @@ export default function GeneralSettingsPage() {
 								</p>
 							</div>
 							<Button
-								onClick={() => router.push(`/websites/${websiteId}/settings/transfer`)}
+								onClick={() =>
+									router.push(`/websites/${websiteId}/settings/transfer`)
+								}
 								size="sm"
 								variant="outline"
 							>

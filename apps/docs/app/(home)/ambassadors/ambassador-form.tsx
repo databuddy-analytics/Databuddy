@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { SciFiButton } from '@/components/landing/scifi-btn';
-import { SciFiCard } from '@/components/scifi-card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import { SciFiCard } from "@/components/scifi-card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface FormData {
 	name: string;
@@ -21,14 +21,14 @@ interface FormData {
 }
 
 const initialFormData: FormData = {
-	name: '',
-	email: '',
-	xHandle: '',
-	website: '',
-	whyAmbassador: '',
-	experience: '',
-	audience: '',
-	referralSource: '',
+	name: "",
+	email: "",
+	xHandle: "",
+	website: "",
+	whyAmbassador: "",
+	experience: "",
+	audience: "",
+	referralSource: "",
 };
 
 function FormField({
@@ -72,40 +72,40 @@ export default function AmbassadorForm() {
 
 		// Required field validations
 		if (!formData.name.trim()) {
-			newErrors.name = 'Name is required';
+			newErrors.name = "Name is required";
 		} else if (formData.name.trim().length < 2) {
-			newErrors.name = 'Name must be at least 2 characters';
+			newErrors.name = "Name must be at least 2 characters";
 		}
 
 		if (!formData.email.trim()) {
-			newErrors.email = 'Email is required';
+			newErrors.email = "Email is required";
 		} else if (
-			!(formData.email.includes('@') && formData.email.includes('.'))
+			!(formData.email.includes("@") && formData.email.includes("."))
 		) {
-			newErrors.email = 'Please enter a valid email address';
+			newErrors.email = "Please enter a valid email address";
 		}
 
 		if (!formData.whyAmbassador.trim()) {
 			newErrors.whyAmbassador =
-				'Please explain why you want to be an ambassador';
+				"Please explain why you want to be an ambassador";
 		} else if (formData.whyAmbassador.trim().length < 10) {
 			newErrors.whyAmbassador =
-				'Please provide more details (minimum 10 characters)';
+				"Please provide more details (minimum 10 characters)";
 		}
 
 		// Optional field validations
 		if (
 			formData.xHandle &&
-			(formData.xHandle.includes('@') || formData.xHandle.includes('http'))
+			(formData.xHandle.includes("@") || formData.xHandle.includes("http"))
 		) {
-			newErrors.xHandle = 'X handle should not include @ or URLs';
+			newErrors.xHandle = "X handle should not include @ or URLs";
 		}
 
 		if (formData.website?.trim()) {
 			try {
 				new URL(formData.website);
 			} catch {
-				newErrors.website = 'Please enter a valid URL';
+				newErrors.website = "Please enter a valid URL";
 			}
 		}
 
@@ -130,7 +130,7 @@ export default function AmbassadorForm() {
 
 		// Client-side validation
 		if (!validateForm()) {
-			toast.error('Please fix the validation errors before submitting.');
+			toast.error("Please fix the validation errors before submitting.");
 			return;
 		}
 
@@ -140,10 +140,10 @@ export default function AmbassadorForm() {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30 second timeout
 
-			const response = await fetch('/api/ambassador/submit', {
-				method: 'POST',
+			const response = await fetch("/api/ambassador/submit", {
+				method: "POST",
 				headers: {
-					'Content-Type': 'application/json',
+					"Content-Type": "application/json",
 				},
 				body: JSON.stringify(formData),
 				signal: controller.signal,
@@ -155,7 +155,7 @@ export default function AmbassadorForm() {
 			try {
 				data = await response.json();
 			} catch (_parseError) {
-				throw new Error('Invalid response from server. Please try again.');
+				throw new Error("Invalid response from server. Please try again.");
 			}
 
 			if (!response.ok) {
@@ -163,7 +163,7 @@ export default function AmbassadorForm() {
 				if (response.status === 429) {
 					const resetTime = data.resetTime
 						? new Date(data.resetTime).toLocaleTimeString()
-						: 'soon';
+						: "soon";
 					throw new Error(
 						`Too many submissions. Please try again after ${resetTime}.`
 					);
@@ -172,38 +172,38 @@ export default function AmbassadorForm() {
 				if (response.status === 400 && data.details) {
 					// Show validation errors
 					const errorMessage = Array.isArray(data.details)
-						? data.details.join('\n• ')
-						: data.error || 'Validation failed';
+						? data.details.join("\n• ")
+						: data.error || "Validation failed";
 					throw new Error(
 						`Please fix the following issues:\n• ${errorMessage}`
 					);
 				}
 
-				throw new Error(data.error || 'Submission failed. Please try again.');
+				throw new Error(data.error || "Submission failed. Please try again.");
 			}
 
-			toast.success('Application submitted successfully!', {
+			toast.success("Application submitted successfully!", {
 				description:
 					"We'll review your application and get back to you within 3-5 business days.",
 				duration: 5000,
 			});
 			setIsSubmitted(true);
 		} catch (error) {
-			console.error('Form submission error:', error);
+			console.error("Form submission error:", error);
 
 			if (error instanceof Error) {
 				// Handle specific error types
-				if (error.name === 'AbortError') {
+				if (error.name === "AbortError") {
 					toast.error(
-						'Request timed out. Please check your connection and try again.'
+						"Request timed out. Please check your connection and try again."
 					);
 				} else {
 					// Handle multi-line error messages
-					const errorLines = error.message.split('\n');
+					const errorLines = error.message.split("\n");
 					if (errorLines.length > 1) {
 						// For validation errors with multiple lines, show as error toast
 						toast.error(errorLines[0], {
-							description: errorLines.slice(1).join('\n'),
+							description: errorLines.slice(1).join("\n"),
 							duration: 5000,
 						});
 					} else {
@@ -211,7 +211,7 @@ export default function AmbassadorForm() {
 					}
 				}
 			} else {
-				toast.error('Failed to submit application. Please try again.');
+				toast.error("Failed to submit application. Please try again.");
 			}
 		} finally {
 			setIsSubmitting(false);
@@ -262,10 +262,10 @@ export default function AmbassadorForm() {
 						<FormField error={errors.name} label="Full Name" required>
 							<Input
 								aria-describedby={
-									errors.name ? 'name-error' : 'name-description'
+									errors.name ? "name-error" : "name-description"
 								}
 								aria-invalid={!!errors.name}
-								className={errors.name ? 'border-destructive' : ''}
+								className={errors.name ? "border-destructive" : ""}
 								id="name"
 								maxLength={100}
 								name="name"
@@ -287,7 +287,7 @@ export default function AmbassadorForm() {
 
 						<FormField error={errors.email} label="Email Address" required>
 							<Input
-								className={errors.email ? 'border-destructive' : ''}
+								className={errors.email ? "border-destructive" : ""}
 								maxLength={255}
 								name="email"
 								onChange={handleInputChange}
@@ -307,7 +307,7 @@ export default function AmbassadorForm() {
 							label="X (Twitter) Handle"
 						>
 							<Input
-								className={errors.xHandle ? 'border-destructive' : ''}
+								className={errors.xHandle ? "border-destructive" : ""}
 								maxLength={50}
 								name="xHandle"
 								onChange={handleInputChange}
@@ -323,7 +323,7 @@ export default function AmbassadorForm() {
 							label="Website"
 						>
 							<Input
-								className={errors.website ? 'border-destructive' : ''}
+								className={errors.website ? "border-destructive" : ""}
 								maxLength={500}
 								name="website"
 								onChange={handleInputChange}
@@ -360,7 +360,7 @@ export default function AmbassadorForm() {
 						required
 					>
 						<Textarea
-							className={errors.whyAmbassador ? 'border-destructive' : ''}
+							className={errors.whyAmbassador ? "border-destructive" : ""}
 							maxLength={1000}
 							name="whyAmbassador"
 							onChange={handleInputChange}
@@ -426,8 +426,8 @@ export default function AmbassadorForm() {
 						</SciFiButton>
 						<div className="sr-only" id="submit-status">
 							{isSubmitting
-								? 'Submitting application, please wait'
-								: 'Submit your ambassador application'}
+								? "Submitting application, please wait"
+								: "Submit your ambassador application"}
 						</div>
 					</div>
 				</form>

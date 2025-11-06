@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { QueryBuilderMeta } from '@databuddy/shared';
-import { CaretRightIcon } from '@phosphor-icons/react';
-import { Card, CardContent } from '@/components/ui/card';
-import { QueryTypeDialog } from './query-type-dialog';
+import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { Card, CardContent } from "@/components/ui/card";
+import { QueryTypeDialog } from "./query-type-dialog";
 
 export interface QueryTypeItem {
 	name: string;
@@ -52,7 +52,7 @@ export function QueryTypesGrid({ items }: { items: QueryTypeItem[] }) {
 										</div>
 										{config.meta?.category ? (
 											<div className="mt-1 text-muted-foreground text-xs">
-												<span className="font-medium">Category:</span>{' '}
+												<span className="font-medium">Category:</span>{" "}
 												{config.meta.category}
 											</div>
 										) : null}
@@ -90,7 +90,7 @@ export function QueryTypesGrid({ items }: { items: QueryTypeItem[] }) {
 											+{extra} more
 										</span>
 									) : null}
-									{typeof config.defaultLimit === 'number' ? (
+									{typeof config.defaultLimit === "number" ? (
 										<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
 											Limit {config.defaultLimit}
 										</span>

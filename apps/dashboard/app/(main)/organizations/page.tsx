@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { Suspense } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { OrganizationsList } from './components/organizations-list';
+import { authClient } from "@databuddy/auth/client";
+import { Suspense } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { OrganizationsList } from "./components/organizations-list";
 
 function OrganizationsSkeleton() {
 	return (
 		<div className="h-full p-4 sm:p-6">
-			<div className="grid auto-rows-fr gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+			<div className="grid auto-rows-fr gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
 				{Array.from({ length: 6 }).map((_, i) => (
 					<Card className="animate-pulse" key={`org-skeleton-${i.toString()}`}>
 						<CardContent className="p-4 sm:p-6">

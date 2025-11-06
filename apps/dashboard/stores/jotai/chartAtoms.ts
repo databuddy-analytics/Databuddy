@@ -1,5 +1,5 @@
-import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
+import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 
 export interface MetricVisibilityState {
 	pageviews: boolean;
@@ -18,7 +18,7 @@ const defaultVisibleMetrics: MetricVisibilityState = {
 };
 
 export const metricVisibilityAtom = atomWithStorage<MetricVisibilityState>(
-	'databuddy-metric-visibility',
+	"databuddy-metric-visibility",
 	defaultVisibleMetrics
 );
 

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { authClient, useSession } from '@databuddy/auth/client';
+import { authClient, useSession } from "@databuddy/auth/client";
 import {
 	ArrowClockwiseIcon,
 	CheckCircleIcon,
@@ -9,15 +9,15 @@ import {
 	ShieldCheckIcon,
 	SparkleIcon,
 	WarningIcon,
-} from '@phosphor-icons/react';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	Form,
 	FormControl,
@@ -26,14 +26,14 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 // Define form schema with validation
 const formSchema = z.object({
-	newEmail: z.string().email('Please enter a valid email address'),
-	password: z.string().min(1, 'Password is required'),
+	newEmail: z.string().email("Please enter a valid email address"),
+	password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -44,8 +44,8 @@ export function EmailForm() {
 
 	const form = useForm<FormValues>({
 		defaultValues: {
-			newEmail: '',
-			password: '',
+			newEmail: "",
+			password: "",
 		},
 	});
 
@@ -57,17 +57,17 @@ export function EmailForm() {
 			});
 
 			if (response.error) {
-				toast.error(response.error.message || 'Failed to update email');
+				toast.error(response.error.message || "Failed to update email");
 			} else {
 				form.reset();
 				toast.success(
-					'Email update request sent! Check your new email for verification.'
+					"Email update request sent! Check your new email for verification."
 				);
 			}
 
 			form.reset();
 		} catch (error: any) {
-			toast.error(error.message || 'Failed to update email');
+			toast.error(error.message || "Failed to update email");
 		} finally {
 			setIsLoading(false);
 		}
@@ -90,7 +90,7 @@ export function EmailForm() {
 							<div>
 								<p className="font-medium text-sm">Current Email</p>
 								<p className="text-muted-foreground text-sm">
-									{session?.user?.email || 'Not available'}
+									{session?.user?.email || "Not available"}
 								</p>
 							</div>
 						</div>
@@ -151,8 +151,8 @@ export function EmailForm() {
 									<div className="relative">
 										<Input
 											className={cn(
-												'pl-10 transition-all duration-200',
-												form.formState.errors.newEmail && 'border-destructive'
+												"pl-10 transition-all duration-200",
+												form.formState.errors.newEmail && "border-destructive"
 											)}
 											placeholder="Enter your new email address"
 											{...field}
@@ -186,8 +186,8 @@ export function EmailForm() {
 									<div className="relative">
 										<Input
 											className={cn(
-												'pl-10 transition-all duration-200',
-												form.formState.errors.password && 'border-destructive'
+												"pl-10 transition-all duration-200",
+												form.formState.errors.password && "border-destructive"
 											)}
 											placeholder="Enter your current password"
 											type="password"

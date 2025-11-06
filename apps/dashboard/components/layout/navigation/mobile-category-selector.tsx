@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { CaretDownIcon } from '@phosphor-icons/react';
-import { usePathname } from 'next/navigation';
-import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { usePathname } from "next/navigation";
+import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useDbConnections } from '@/hooks/use-db-connections';
-import { useWebsites } from '@/hooks/use-websites';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dropdown-menu";
+import { useDbConnections } from "@/hooks/use-db-connections";
+import { useWebsites } from "@/hooks/use-websites";
+import { cn } from "@/lib/utils";
 import {
 	categoryConfig,
 	createDatabasesNavigation,
@@ -22,7 +22,7 @@ import {
 	filterCategoriesForRoute,
 	getContextConfig,
 	getDefaultCategory,
-} from './navigation-config';
+} from "./navigation-config";
 
 interface MobileCategorySelectorProps {
 	onCategoryChange?: (categoryId: string) => void;
@@ -57,7 +57,10 @@ export function MobileCategorySelector({
 				: baseConfig;
 
 		const defaultCat = getDefaultCategory(pathname);
-		const filteredCategories = filterCategoriesForRoute(config.categories, pathname);
+		const filteredCategories = filterCategoriesForRoute(
+			config.categories,
+			pathname
+		);
 
 		return { categories: filteredCategories, defaultCategory: defaultCat };
 	}, [pathname, websites, isLoadingWebsites, databases, isLoadingDatabases]);
@@ -78,7 +81,7 @@ export function MobileCategorySelector({
 							{currentCategory?.icon && (
 								<currentCategory.icon className="h-4 w-4" weight="duotone" />
 							)}
-							<span>{currentCategory?.name || 'Select Category'}</span>
+							<span>{currentCategory?.name || "Select Category"}</span>
 						</div>
 						<CaretDownIcon className="h-4 w-4" weight="fill" />
 					</Button>
@@ -90,18 +93,18 @@ export function MobileCategorySelector({
 						return (
 							<DropdownMenuItem
 								className={cn(
-									'flex cursor-pointer items-center gap-2',
-									isActive && 'bg-sidebar-accent text-sidebar-accent-foreground'
+									"flex cursor-pointer items-center gap-2",
+									isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
 								)}
 								key={category.id}
 								onClick={() => onCategoryChange?.(category.id)}
 							>
 								<Icon
 									className={cn(
-										'h-4 w-4',
-										isActive ? 'text-sidebar-ring' : 'text-muted-foreground'
+										"h-4 w-4",
+										isActive ? "text-sidebar-ring" : "text-muted-foreground"
 									)}
-									weight={isActive ? 'fill' : 'duotone'}
+									weight={isActive ? "fill" : "duotone"}
 								/>
 								<span>{category.name}</span>
 							</DropdownMenuItem>

@@ -1,37 +1,37 @@
-import type { Metadata } from 'next';
-import { Footer } from '@/components/footer';
-import Section from '@/components/landing/section';
-import { Spotlight } from '@/components/landing/spotlight';
-import { SciFiCard } from '@/components/scifi-card';
-import { StructuredData } from '@/components/structured-data';
-import { calculateRoadmapStats, roadmapItems } from './roadmap-data';
-import RoadmapHero from './roadmap-hero';
-import RoadmapStatsComponent from './roadmap-stats';
-import RoadmapTimeline from './roadmap-timeline';
+import type { Metadata } from "next";
+import { Footer } from "@/components/footer";
+import Section from "@/components/landing/section";
+import { Spotlight } from "@/components/landing/spotlight";
+import { SciFiCard } from "@/components/scifi-card";
+import { StructuredData } from "@/components/structured-data";
+import { calculateRoadmapStats, roadmapItems } from "./roadmap-data";
+import RoadmapHero from "./roadmap-hero";
+import RoadmapStatsComponent from "./roadmap-stats";
+import RoadmapTimeline from "./roadmap-timeline";
 
 export const metadata: Metadata = {
-	title: 'Roadmap | Databuddy',
+	title: "Roadmap | Databuddy",
 	description:
 		"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.",
 	alternates: {
-		canonical: 'https://www.databuddy.cc/roadmap',
+		canonical: "https://www.databuddy.cc/roadmap",
 	},
 	openGraph: {
-		title: 'Roadmap | Databuddy',
+		title: "Roadmap | Databuddy",
 		description:
 			"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.",
-		url: 'https://www.databuddy.cc/roadmap',
-		images: ['/og-image.png'],
+		url: "https://www.databuddy.cc/roadmap",
+		images: ["/og-image.png"],
 	},
 };
 
 export default function RoadmapPage() {
 	const stats = calculateRoadmapStats();
 
-	const title = 'Roadmap | Databuddy';
+	const title = "Roadmap | Databuddy";
 	const description =
 		"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.";
-	const url = 'https://www.databuddy.cc/roadmap';
+	const url = "https://www.databuddy.cc/roadmap";
 
 	return (
 		<div className="overflow-hidden">
@@ -176,12 +176,12 @@ export default function RoadmapPage() {
 								Discord community, and blog updates.
 							</p>
 							<p>
-								<strong>Last updated:</strong>{' '}
-								{new Date().toLocaleDateString('en-US', {
-									year: 'numeric',
-									month: 'long',
-									day: 'numeric',
-								})}{' '}
+								<strong>Last updated:</strong>{" "}
+								{new Date().toLocaleDateString("en-US", {
+									year: "numeric",
+									month: "long",
+									day: "numeric",
+								})}{" "}
 								• <strong>Next review:</strong> End of current quarter
 							</p>
 						</div>

@@ -1,9 +1,10 @@
-import type { User } from '@databuddy/auth';
-import { createId, type Website } from '@databuddy/shared';
-import type { AssistantRequestType } from '../../schemas';
+import type { User } from "@databuddy/auth";
+import type { Website } from "@databuddy/shared/types/website";
+import { createId } from "@databuddy/shared/utils/ids";
+import type { AssistantRequestType } from "../../schemas";
 
 export interface AssistantMessage {
-	role: 'user' | 'assistant';
+	role: "user" | "assistant";
 	content: string;
 }
 
@@ -21,7 +22,7 @@ export interface SessionContext {
 	user: User;
 	website: Website;
 	conversationId: string;
-	model: 'chat' | 'agent' | 'agent-max';
+	model: "chat" | "agent" | "agent-max";
 }
 
 /**
@@ -40,11 +41,11 @@ export class AssistantSession {
 			user,
 			website,
 			conversationId: request.conversationId || createId(),
-			model: request.model || 'chat',
+			model: request.model || "chat",
 		};
 		this.messages = request.messages;
 		this.startTime = Date.now();
-		this.log('Session created');
+		this.log("Session created");
 	}
 
 	getContext(): SessionContext {
@@ -61,7 +62,7 @@ export class AssistantSession {
 
 	setAIMetrics(
 		responseTime: number,
-		tokenUsage: SessionMetrics['tokenUsage']
+		tokenUsage: SessionMetrics["tokenUsage"]
 	): void {
 		this.metrics.aiResponseTime = responseTime;
 		this.metrics.tokenUsage = tokenUsage;

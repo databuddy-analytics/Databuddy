@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from "zod";
 import {
 	authEnvSchema,
 	commonEnvSchema,
 	createEnv,
 	shouldSkipValidation,
-} from './base';
+} from "./base";
 
 /**
  * API-specific environment schema
@@ -13,7 +13,7 @@ const apiEnvSchema = z.object({
 	...commonEnvSchema,
 	...authEnvSchema,
 	AI_API_KEY: z.string(),
-	PORT: z.string().default('3001'),
+	PORT: z.string().default("3001"),
 });
 
 /**

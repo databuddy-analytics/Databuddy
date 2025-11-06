@@ -1,18 +1,19 @@
-import { auth } from '@databuddy/auth';
-import { and, apikeyAccess, db, eq, isNull, websites } from '@databuddy/db';
-import { filterOptions } from '@databuddy/shared';
-import { Elysia, t } from 'elysia';
-import { getApiKeyFromHeader, isApiKeyPresent } from '../lib/api-key';
-import { getCachedWebsiteDomain, getWebsiteDomain } from '../lib/website-utils';
-import { compileQuery, executeQuery } from '../query';
-import { QueryBuilders } from '../query/builders';
-import type { QueryRequest } from '../query/types';
+import { auth } from "@databuddy/auth";
+import { and, apikeyAccess, db, eq, isNull, websites } from "@databuddy/db";
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import { Elysia, t } from "elysia";
+import { getApiKeyFromHeader, isApiKeyPresent } from "../lib/api-key";
+import { getCachedWebsiteDomain, getWebsiteDomain } from "../lib/website-utils";
+import { compileQuery, executeQuery } from "../query";
+import { QueryBuilders } from "../query/builders";
+import type { QueryRequest } from "../query/types";
 import {
 	CompileRequestSchema,
 	type CompileRequestType,
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
-} from '../schemas';
+} from "../schemas";
+
 // import { databuddy } from '../lib/databuddy';
 
 interface QueryParams {
@@ -39,12 +40,12 @@ async function checkAuth(request: Request): Promise<Response | null> {
 	return new Response(
 		JSON.stringify({
 			success: false,
-			error: 'Authentication required',
-			code: 'AUTH_REQUIRED',
+			error: "Authentication required",
+			code: "AUTH_REQUIRED",
 		}),
 		{
 			status: 401,
-			headers: { 'Content-Type': 'application/json' },
+			headers: { "Content-Type": "application/json" },
 		}
 	);
 }
@@ -86,7 +87,7 @@ async function getAccessibleWebsites(request: Request) {
 			.where(
 				and(
 					eq(apikeyAccess.apikeyId, apiKey.id),
-					eq(apikeyAccess.resourceType, 'global')
+					eq(apikeyAccess.resourceType, "global")
 				)
 			)
 			.limit(1);
@@ -100,7 +101,7 @@ async function getAccessibleWebsites(request: Request) {
 							eq(websites.userId, apiKey.userId),
 							isNull(websites.organizationId)
 						)
-					: eq(websites.id, ''); // No matches if no user/org
+					: eq(websites.id, ""); // No matches if no user/org
 
 			return db
 				.select(baseSelect)
@@ -117,7 +118,7 @@ async function getAccessibleWebsites(request: Request) {
 				apikeyAccess,
 				and(
 					eq(apikeyAccess.resourceId, websites.id),
-					eq(apikeyAccess.resourceType, 'website'),
+					eq(apikeyAccess.resourceType, "website"),
 					eq(apikeyAccess.apikeyId, apiKey.id)
 				)
 			)
@@ -127,8 +128,8 @@ async function getAccessibleWebsites(request: Request) {
 	return [];
 }
 
-export const query = new Elysia({ prefix: '/v1/query' })
-	.get('/websites', async ({ request }: { request: Request }) => {
+export const query = new Elysia({ prefix: "/v1/query" })
+	.get("/websites", async ({ request }: { request: Request }) => {
 		const authResult = await checkAuth(request);
 		if (authResult) {
 			return authResult;
@@ -146,18 +147,18 @@ export const query = new Elysia({ prefix: '/v1/query' })
 				JSON.stringify({
 					success: false,
 					error:
-						error instanceof Error ? error.message : 'Failed to fetch websites',
-					code: 'INTERNAL_SERVER_ERROR',
+						error instanceof Error ? error.message : "Failed to fetch websites",
+					code: "INTERNAL_SERVER_ERROR",
 				}),
 				{
 					status: 500,
-					headers: { 'Content-Type': 'application/json' },
+					headers: { "Content-Type": "application/json" },
 				}
 			);
 		}
 	})
 	.get(
-		'/types',
+		"/types",
 		async ({
 			query: params,
 			request,
@@ -170,7 +171,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 				return authResult;
 			}
 
-			const includeMeta = params.include_meta === 'true';
+			const includeMeta = params.include_meta === "true";
 
 			const configs = Object.fromEntries(
 				Object.entries(QueryBuilders).map(([key, config]) => {
@@ -199,7 +200,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 	)
 
 	.post(
-		'/compile',
+		"/compile",
 		async ({
 			body,
 			query: queryParams,
@@ -209,12 +210,16 @@ export const query = new Elysia({ prefix: '/v1/query' })
 		}) => {
 			try {
 				const { website_id } = queryParams;
-				const timezone = queryParams.timezone || 'UTC';
+				const timezone = queryParams.timezone || "UTC";
 				const websiteDomain = website_id
 					? await getWebsiteDomain(website_id)
 					: null;
 
-				const result = compileQuery(body as QueryRequest, websiteDomain, timezone);
+				const result = compileQuery(
+					body as QueryRequest,
+					websiteDomain,
+					timezone
+				);
 				return {
 					success: true,
 					...result,
@@ -222,7 +227,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			} catch (error) {
 				return {
 					success: false,
-					error: error instanceof Error ? error.message : 'Compilation failed',
+					error: error instanceof Error ? error.message : "Compilation failed",
 				};
 			}
 		},
@@ -232,7 +237,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 	)
 
 	.post(
-		'/',
+		"/",
 		async ({
 			body,
 			query: queryParams,
@@ -240,15 +245,15 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			body: DynamicQueryRequestType | DynamicQueryRequestType[];
 			query: { website_id?: string; timezone?: string };
 		}) => {
-			const timezone = queryParams.timezone || 'UTC';
-			
+			const timezone = queryParams.timezone || "UTC";
+
 			try {
 				if (Array.isArray(body)) {
 					const uniqueWebsiteIds = [
 						...new Set(
 							body.flatMap((req) =>
 								req.parameters.map((param) =>
-									typeof param === 'string' ? param : param.name
+									typeof param === "string" ? param : param.name
 								)
 							)
 						),
@@ -270,7 +275,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 								return {
 									success: false,
 									error:
-										error instanceof Error ? error.message : 'Query failed',
+										error instanceof Error ? error.message : "Query failed",
 								};
 							}
 						})
@@ -294,7 +299,7 @@ export const query = new Elysia({ prefix: '/v1/query' })
 			} catch (error) {
 				return {
 					success: false,
-					error: error instanceof Error ? error.message : 'Query failed',
+					error: error instanceof Error ? error.message : "Query failed",
 				};
 			}
 		},
@@ -326,7 +331,7 @@ async function executeDynamicQuery(
 		const rangeDays = Math.ceil(
 			(new Date(end).getTime() - new Date(start).getTime()) / MS_PER_DAY
 		);
-		
+
 		if (rangeDays > MAX_HOURLY_DAYS) {
 			throw new Error(
 				`Hourly granularity only supports ranges up to ${MAX_HOURLY_DAYS} days. Use daily granularity for longer periods.`
@@ -338,17 +343,17 @@ async function executeDynamicQuery(
 		granularity?: string,
 		startDate?: string,
 		endDate?: string
-	): 'hour' | 'day' => {
-		const isHourly = ['hourly', 'hour'].includes(granularity || '');
-		
+	): "hour" | "day" => {
+		const isHourly = ["hourly", "hour"].includes(granularity || "");
+
 		if (isHourly) {
 			if (startDate && endDate) {
 				validateHourlyDateRange(startDate, endDate);
 			}
-			return 'hour';
+			return "hour";
 		}
-		
-		return 'day';
+
+		return "day";
 	};
 
 	function validateParameterRequest(
@@ -370,7 +375,7 @@ async function executeDynamicQuery(
 			return {
 				success: false,
 				error:
-					'Missing required parameters: website_id, start_date, or end_date',
+					"Missing required parameters: website_id, start_date, or end_date",
 			};
 		}
 
@@ -394,7 +399,7 @@ async function executeDynamicQuery(
 		defaultEnd: string | undefined,
 		domain: string | null
 	) {
-		const isObject = typeof parameterInput === 'object';
+		const isObject = typeof parameterInput === "object";
 		const parameterName = isObject ? parameterInput.name : parameterInput;
 		const customId =
 			isObject && parameterInput.id ? parameterInput.id : parameterName;
@@ -456,15 +461,15 @@ async function executeDynamicQuery(
 			return {
 				parameter: customId,
 				success: false,
-				error: error instanceof Error ? error.message : 'Query failed',
+				error: error instanceof Error ? error.message : "Query failed",
 				data: [],
 			};
 		}
 	}
 
 	const parameterResults = await Promise.all(
-		request.parameters.map((param) => {
-			return processParameter(
+		request.parameters.map((param) =>
+			processParameter(
 				param,
 				request,
 				queryParams,
@@ -472,8 +477,8 @@ async function executeDynamicQuery(
 				startDate,
 				endDate,
 				websiteDomain
-			);
-		})
+			)
+		)
 	);
 
 	return {

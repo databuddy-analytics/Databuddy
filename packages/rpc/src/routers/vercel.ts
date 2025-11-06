@@ -1,18 +1,18 @@
-import { websitesApi } from '@databuddy/auth';
-import { account, websites } from '@databuddy/db';
-import { TRPCError } from '@trpc/server';
-import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { VercelSDK } from '../lib/vercel-sdk';
+import { websitesApi } from "@databuddy/auth";
+import { account, websites } from "@databuddy/db";
+import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { VercelSDK } from "../lib/vercel-sdk";
 import {
 	buildWebsiteFilter,
 	domainSchema,
 	WebsiteService,
 	websiteNameSchema,
-} from '../services/website-service';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+} from "../services/website-service";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
-const ENV_KEY = 'NEXT_PUBLIC_DATABUDDY_CLIENT_ID';
+const ENV_KEY = "NEXT_PUBLIC_DATABUDDY_CLIENT_ID";
 const WWW_REGEX = /^www\./;
 
 const buildDomainIntegrationStatus = (
@@ -28,7 +28,7 @@ const buildDomainIntegrationStatus = (
 			return domainMap.get(targetDomain);
 		}
 
-		const withoutWww = targetDomain.replace(WWW_REGEX, '');
+		const withoutWww = targetDomain.replace(WWW_REGEX, "");
 		if (domainMap.has(withoutWww)) {
 			return domainMap.get(withoutWww);
 		}
@@ -47,11 +47,11 @@ const buildDomainIntegrationStatus = (
 		websiteName: null as string | null,
 		environments: [] as string[],
 		envVarId: null as string | null,
-		status: 'not_integrated' as
-			| 'integrated'
-			| 'not_integrated'
-			| 'orphaned'
-			| 'invalid',
+		status: "not_integrated" as
+			| "integrated"
+			| "not_integrated"
+			| "orphaned"
+			| "invalid",
 		issues: [] as string[],
 	};
 
@@ -62,7 +62,7 @@ const buildDomainIntegrationStatus = (
 		}
 		return (
 			websiteForEnv.domain === domainName ||
-			websiteForEnv.domain === domainName.replace(WWW_REGEX, '') ||
+			websiteForEnv.domain === domainName.replace(WWW_REGEX, "") ||
 			websiteForEnv.domain === `www.${domainName}` ||
 			domainName === `www.${websiteForEnv.domain}`
 		);
@@ -75,8 +75,8 @@ const buildDomainIntegrationStatus = (
 					return true;
 				}
 
-				const hasProductionTarget = envVar.target.includes('production');
-				const hasPreviewTarget = envVar.target.includes('preview');
+				const hasProductionTarget = envVar.target.includes("production");
+				const hasPreviewTarget = envVar.target.includes("preview");
 
 				return hasPreviewTarget || hasProductionTarget;
 			});
@@ -97,7 +97,7 @@ const buildDomainIntegrationStatus = (
 			Object.assign(domainStatus, {
 				isIntegrated: true,
 				websiteName: website.name,
-				status: 'integrated',
+				status: "integrated",
 			});
 
 			const integrations = website.integrations as any;
@@ -112,7 +112,7 @@ const buildDomainIntegrationStatus = (
 
 			const websiteDomainMatches =
 				website.domain === domainName ||
-				website.domain === domainName.replace(WWW_REGEX, '') ||
+				website.domain === domainName.replace(WWW_REGEX, "") ||
 				website.domain === `www.${domainName}` ||
 				domainName === `www.${website.domain}`;
 
@@ -120,14 +120,14 @@ const buildDomainIntegrationStatus = (
 				domainStatus.issues.push(
 					`Domain mismatch: integration points to "${website.domain}"`
 				);
-				domainStatus.status = 'invalid';
+				domainStatus.status = "invalid";
 			}
 
 			if (domainWebsite && domainWebsite.id !== websiteId) {
 				domainStatus.issues.push(
 					`Conflicting integrations: domain has website "${domainWebsite.name}" but integration points to "${website.name}"`
 				);
-				domainStatus.status = 'invalid';
+				domainStatus.status = "invalid";
 			}
 
 			const otherDomainsUsingThisWebsite = databeddyEnvVars.filter(
@@ -142,14 +142,14 @@ const buildDomainIntegrationStatus = (
 				domainStatus.issues.push(
 					`Shared website: multiple domains are using the same website "${website.name}"`
 				);
-				if (domainStatus.status === 'integrated') {
-					domainStatus.status = 'invalid';
+				if (domainStatus.status === "integrated") {
+					domainStatus.status = "invalid";
 				}
 			}
 		} else {
-			domainStatus.status = 'orphaned';
+			domainStatus.status = "orphaned";
 			domainStatus.issues.push(
-				'Integration points to a website that no longer exists'
+				"Integration points to a website that no longer exists"
 			);
 		}
 
@@ -157,14 +157,14 @@ const buildDomainIntegrationStatus = (
 			domainStatus.issues.push(
 				`Multiple integrations found (${relevantEnvVars.length} environment variables)`
 			);
-			domainStatus.status = 'invalid';
+			domainStatus.status = "invalid";
 		}
 
 		if (!envVar.target?.length) {
 			domainStatus.issues.push(
-				'Integration is missing deployment environments'
+				"Integration is missing deployment environments"
 			);
-			domainStatus.status = 'invalid';
+			domainStatus.status = "invalid";
 		}
 	} else {
 		const domainWebsite = findMatchingWebsite(domainName);
@@ -173,7 +173,7 @@ const buildDomainIntegrationStatus = (
 				websiteId: domainWebsite.id,
 				websiteName: domainWebsite.name,
 				isIntegrated: false,
-				status: 'invalid',
+				status: "invalid",
 			});
 			domainStatus.issues.push(
 				"Website exists, but isn't integrated with Vercel yet"
@@ -186,28 +186,28 @@ const buildDomainIntegrationStatus = (
 
 const buildIntegrationSummary = (integrationStatus: any[]) => ({
 	totalDomains: integrationStatus.length,
-	integratedCount: integrationStatus.filter((d) => d.status === 'integrated')
+	integratedCount: integrationStatus.filter((d) => d.status === "integrated")
 		.length,
 	notIntegratedCount: integrationStatus.filter(
-		(d) => d.status === 'not_integrated'
+		(d) => d.status === "not_integrated"
 	).length,
-	orphanedCount: integrationStatus.filter((d) => d.status === 'orphaned')
+	orphanedCount: integrationStatus.filter((d) => d.status === "orphaned")
 		.length,
-	invalidCount: integrationStatus.filter((d) => d.status === 'invalid').length,
+	invalidCount: integrationStatus.filter((d) => d.status === "invalid").length,
 	issuesCount: integrationStatus.reduce((sum, d) => sum + d.issues.length, 0),
 });
 
 const getVercelToken = async (userId: string, db: any): Promise<string> => {
 	const vercelAccount = await db.query.account.findFirst({
-		where: and(eq(account.providerId, 'vercel'), eq(account.userId, userId)),
+		where: and(eq(account.providerId, "vercel"), eq(account.userId, userId)),
 		columns: { accessToken: true },
 	});
 
 	if (!vercelAccount?.accessToken) {
 		throw new TRPCError({
-			code: 'UNAUTHORIZED',
+			code: "UNAUTHORIZED",
 			message:
-				'No Vercel account found. Please connect your Vercel account first.',
+				"No Vercel account found. Please connect your Vercel account first.",
 		});
 	}
 
@@ -233,9 +233,9 @@ const createProjectEnvSchema = z.object({
 	key: z.string(),
 	value: z.string(),
 	type: z
-		.enum(['system', 'secret', 'encrypted', 'plain', 'sensitive'])
-		.default('plain'),
-	target: z.array(z.enum(['production', 'preview', 'development'])).optional(),
+		.enum(["system", "secret", "encrypted", "plain", "sensitive"])
+		.default("plain"),
+	target: z.array(z.enum(["production", "preview", "development"])).optional(),
 	gitBranch: z.string().nullable().optional(),
 	comment: z.string().optional(),
 	customEnvironmentIds: z.array(z.string()).optional(),
@@ -251,10 +251,10 @@ const createProjectEnvBatchSchema = z.object({
 			key: z.string(),
 			value: z.string(),
 			type: z
-				.enum(['system', 'secret', 'encrypted', 'plain', 'sensitive'])
-				.default('plain'),
+				.enum(["system", "secret", "encrypted", "plain", "sensitive"])
+				.default("plain"),
 			target: z
-				.array(z.enum(['production', 'preview', 'development']))
+				.array(z.enum(["production", "preview", "development"]))
 				.optional(),
 			gitBranch: z.string().nullable().optional(),
 			comment: z.string().optional(),
@@ -293,9 +293,9 @@ const setProjectEnvSchema = z.object({
 	key: z.string(),
 	value: z.string(),
 	type: z
-		.enum(['system', 'secret', 'encrypted', 'plain', 'sensitive'])
+		.enum(["system", "secret", "encrypted", "plain", "sensitive"])
 		.optional(),
-	target: z.array(z.enum(['production', 'preview', 'development'])).optional(),
+	target: z.array(z.enum(["production", "preview", "development"])).optional(),
 	gitBranch: z.string().nullable().optional(),
 	comment: z.string().optional(),
 	upsert: z.boolean().optional(),
@@ -316,9 +316,9 @@ const editProjectEnvSchema = z.object({
 	key: z.string().optional(),
 	value: z.string().optional(),
 	type: z
-		.enum(['system', 'secret', 'encrypted', 'plain', 'sensitive'])
+		.enum(["system", "secret", "encrypted", "plain", "sensitive"])
 		.optional(),
-	target: z.array(z.enum(['production', 'preview', 'development'])).optional(),
+	target: z.array(z.enum(["production", "preview", "development"])).optional(),
 	gitBranch: z.string().nullable().optional(),
 	comment: z.string().optional(),
 	customEnvironmentIds: z.array(z.string()).optional(),
@@ -340,7 +340,7 @@ const integrateWebsitesSchema = z.object({
 		z.object({
 			domainName: domainSchema,
 			websiteName: websiteNameSchema,
-			target: z.array(z.enum(['production', 'preview', 'development'])),
+			target: z.array(z.enum(["production", "preview", "development"])),
 			// Optional domain metadata for reference
 			domainId: z.string().optional(),
 			verified: z.boolean().optional(),
@@ -362,7 +362,7 @@ const checkIntegrationStatusSchema = z.object({
 
 const triageIssueSchema = z.object({
 	projectId: z.string(),
-	action: z.enum(['remove_orphaned', 'remove_duplicates']),
+	action: z.enum(["remove_orphaned", "remove_duplicates"]),
 	domainName: z.string(),
 	envVarId: z.string().optional().nullable(),
 	websiteId: z.string().optional().nullable(),
@@ -402,12 +402,12 @@ export const vercelRouter = createTRPCRouter({
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['read'] } },
+					body: { permissions: { website: ["read"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -651,20 +651,20 @@ export const vercelRouter = createTRPCRouter({
 			if (organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['create'] } },
+					body: { permissions: { website: ["create"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
 			for (const cfg of websiteConfigs) {
 				if (cfg.target.length !== 1) {
 					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'Each domain must specify exactly one target environment',
+						code: "BAD_REQUEST",
+						message: "Each domain must specify exactly one target environment",
 					});
 				}
 			}
@@ -714,7 +714,7 @@ export const vercelRouter = createTRPCRouter({
 							},
 							{
 								logContext: {
-									source: 'vercel-integration',
+									source: "vercel-integration",
 									vercelProjectId: projectId,
 								},
 							}
@@ -748,7 +748,7 @@ export const vercelRouter = createTRPCRouter({
 								{
 									key: ENV_KEY,
 									value: websiteToUse.id,
-									type: 'plain',
+									type: "plain",
 									target: websiteConfig.target,
 									comment: `Databuddy website ID for ${domainName}`,
 								},
@@ -821,12 +821,12 @@ export const vercelRouter = createTRPCRouter({
 						createdWebsite: isNewWebsite ? websiteToUse : null,
 						existingWebsite: isNewWebsite ? null : websiteToUse,
 						success: true,
-						action: isNewWebsite ? 'created' : 'reused',
+						action: isNewWebsite ? "created" : "reused",
 					});
 				} catch (error: any) {
 					errors.push({
 						domain: websiteConfig.domainName,
-						error: error.message || 'Unknown error occurred',
+						error: error.message || "Unknown error occurred",
 						success: false,
 					});
 				}
@@ -895,7 +895,7 @@ export const vercelRouter = createTRPCRouter({
 				};
 			} catch (error: any) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
+					code: "INTERNAL_SERVER_ERROR",
 					message: `Failed to check integration status: ${error.message}`,
 				});
 			}
@@ -921,23 +921,23 @@ export const vercelRouter = createTRPCRouter({
 			if (organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['update'] } },
+					body: { permissions: { website: ["update"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
 
 			try {
 				switch (action) {
-					case 'remove_orphaned': {
+					case "remove_orphaned": {
 						if (!envVarId) {
 							throw new TRPCError({
-								code: 'BAD_REQUEST',
-								message: 'envVarId is required for remove_orphaned action',
+								code: "BAD_REQUEST",
+								message: "envVarId is required for remove_orphaned action",
 							});
 						}
 
@@ -949,11 +949,11 @@ export const vercelRouter = createTRPCRouter({
 						return {
 							success: true,
 							message: `Removed orphaned environment variable for ${domainName}`,
-							action: 'remove_orphaned',
+							action: "remove_orphaned",
 						};
 					}
 
-					case 'remove_duplicates': {
+					case "remove_duplicates": {
 						const databeddyEnvVars = await vercel.getProjectEnvsByKey(
 							projectId,
 							ENV_KEY,
@@ -963,9 +963,9 @@ export const vercelRouter = createTRPCRouter({
 							}
 						);
 
-						const duplicates = databeddyEnvVars.filter((_envVar, index) => {
-							return index > 0;
-						});
+						const duplicates = databeddyEnvVars.filter(
+							(_envVar, index) => index > 0
+						);
 
 						for (const duplicate of duplicates) {
 							await vercel.removeProjectEnv(projectId, duplicate.id, {
@@ -977,14 +977,14 @@ export const vercelRouter = createTRPCRouter({
 						return {
 							success: true,
 							message: `Removed ${duplicates.length} duplicate environment variables for ${domainName}`,
-							action: 'remove_duplicates',
+							action: "remove_duplicates",
 							removedCount: duplicates.length,
 						};
 					}
 
 					default:
 						throw new TRPCError({
-							code: 'BAD_REQUEST',
+							code: "BAD_REQUEST",
 							message: `Unknown triage action: ${action}`,
 						});
 				}
@@ -994,7 +994,7 @@ export const vercelRouter = createTRPCRouter({
 				}
 
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
+					code: "INTERNAL_SERVER_ERROR",
 					message: `Failed to execute triage action: ${error.message}`,
 				});
 			}
@@ -1006,12 +1006,12 @@ export const vercelRouter = createTRPCRouter({
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['read'] } },
+					body: { permissions: { website: ["read"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -1066,12 +1066,12 @@ export const vercelRouter = createTRPCRouter({
 			if (organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: ctx.headers,
-					body: { permissions: { website: ['update'] } },
+					body: { permissions: { website: ["update"] } },
 				});
 				if (!success) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'Missing organization permissions.',
+						code: "FORBIDDEN",
+						message: "Missing organization permissions.",
 					});
 				}
 			}
@@ -1120,7 +1120,7 @@ export const vercelRouter = createTRPCRouter({
 									: Object.keys(existingIntegrations).length > 1
 										? Object.fromEntries(
 												Object.entries(existingIntegrations).filter(
-													([key]) => key !== 'vercel'
+													([key]) => key !== "vercel"
 												)
 											)
 										: null;
@@ -1151,7 +1151,7 @@ export const vercelRouter = createTRPCRouter({
 				};
 			} catch (error: any) {
 				throw new TRPCError({
-					code: 'INTERNAL_SERVER_ERROR',
+					code: "INTERNAL_SERVER_ERROR",
 					message: `Failed to unintegrate ${domainName}: ${error.message}`,
 				});
 			}

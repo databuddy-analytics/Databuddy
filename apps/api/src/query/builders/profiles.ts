@@ -1,5 +1,4 @@
-import { Analytics } from '../../types/tables';
-import type { Filter, SimpleQueryConfig, TimeUnit } from '../types';
+import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 	profile_list: {
@@ -7,17 +6,17 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			websiteId: string,
 			startDate: string,
 			endDate: string,
-		_filters?: Filter[],
-		_granularity?: TimeUnit,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
 			limit?: number,
 			offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
 			const combinedWhereClause = filterConditions?.length
-			? `AND ${filterConditions.join(' AND ')}`
-			: '';
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
 
 			return {
 				sql: `
@@ -139,13 +138,13 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			_offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter['value']>
+			filterParams?: Record<string, Filter["value"]>
 		) => {
-			const visitorId = filters?.find((f) => f.field === 'anonymous_id')?.value;
+			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
 
-			if (!visitorId || typeof visitorId !== 'string') {
+			if (!visitorId || typeof visitorId !== "string") {
 				throw new Error(
-					'anonymous_id filter is required for profile_detail query'
+					"anonymous_id filter is required for profile_detail query"
 				);
 			}
 
@@ -192,11 +191,11 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			limit = 100,
 			offset = 0
 		) => {
-			const visitorId = filters?.find((f) => f.field === 'anonymous_id')?.value;
+			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
 
-			if (!visitorId || typeof visitorId !== 'string') {
+			if (!visitorId || typeof visitorId !== "string") {
 				throw new Error(
-					'anonymous_id filter is required for profile_sessions query'
+					"anonymous_id filter is required for profile_sessions query"
 				);
 			}
 

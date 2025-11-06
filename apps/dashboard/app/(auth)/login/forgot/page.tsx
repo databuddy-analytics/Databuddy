@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { authClient } from '@databuddy/auth/client';
-import { ChevronLeft, Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { authClient } from "@databuddy/auth/client";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function ForgotPasswordPage() {
-	const [email, setEmail] = useState('');
+	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleForgotPassword = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!email) {
-			toast.error('Please enter your email address');
+			toast.error("Please enter your email address");
 			return;
 		}
 		setIsLoading(true);
@@ -26,11 +26,11 @@ export default function ForgotPasswordPage() {
 			fetchOptions: {
 				onSuccess: () => {
 					setIsLoading(false);
-					toast.success('Password reset instructions sent to your email.');
+					toast.success("Password reset instructions sent to your email.");
 				},
 				onError: () => {
 					setIsLoading(false);
-					toast.error('Failed to send reset instructions. Please try again.');
+					toast.error("Failed to send reset instructions. Please try again.");
 				},
 			},
 		});
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
 							Sending reset link...
 						</>
 					) : (
-						'Send reset link'
+						"Send reset link"
 					)}
 				</Button>
 				<Link className="mt-4 block" href="/login">
