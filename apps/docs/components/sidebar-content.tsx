@@ -9,6 +9,7 @@ import {
 	FlagIcon,
 	GlobeIcon,
 	GoogleLogoIcon,
+	CalendarIcon,
 	type IconWeight,
 	KeyIcon,
 	LightningAIcon,
@@ -135,6 +136,11 @@ export const contents: SidebarSection[] = [
 				title: "Framer",
 				href: "/docs/Integrations/framer",
 				icon: PaletteIcon,
+			},
+			{
+				title: "Cal.com",
+				href: "/docs/Integrations/cal",
+				icon: CalendarIcon,
 			},
 			{
 				title: "Google Tag Manager",
