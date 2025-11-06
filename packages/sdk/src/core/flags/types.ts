@@ -1,10 +1,17 @@
+export type FlagVariantValue = boolean | string | number | object;
+
 export interface FlagResult {
 	enabled: boolean;
-	value: boolean;
+	/** Variant value - can be boolean, string, number, or object */
+	value: FlagVariantValue;
 	payload: any;
 	reason: string;
 	flagId?: string;
-	flagType?: "boolean" | "rollout";
+	flagType?: "boolean" | "multivariant" | "rollout";
+	/** Selected variant name (for multivariant flags) */
+	variantName?: string;
+	/** Dependencies that affected this evaluation */
+	dependencies?: string[];
 }
 
 export interface FlagsConfig {
@@ -16,6 +23,8 @@ export interface FlagsConfig {
 		email?: string;
 		properties?: Record<string, any>;
 	};
+	/** Environment context (dev, staging, production, etc.) */
+	environment?: string;
 	disabled?: boolean;
 	/** Enable debug logging */
 	debug?: boolean;
@@ -59,6 +68,8 @@ export interface FlagsManagerOptions {
 export interface FlagsManager {
 	getFlag: (key: string) => Promise<FlagResult>;
 	isEnabled: (key: string) => FlagState;
+	/** Get variant value for a flag */
+	getVariant: <T = FlagVariantValue>(key: string) => Promise<T | null>;
 	fetchAllFlags: () => Promise<void>;
 	updateUser: (user: FlagsConfig["user"]) => void;
 	refresh: (forceClear?: boolean) => void;

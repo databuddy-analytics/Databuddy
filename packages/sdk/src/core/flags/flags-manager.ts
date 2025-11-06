@@ -82,6 +82,9 @@ export class CoreFlagsManager implements FlagsManager {
 
 		const params = new URLSearchParams();
 		params.set("clientId", this.config.clientId);
+		if (this.config.environment) {
+			params.set("environment", this.config.environment);
+		}
 		if (this.config.user?.userId) {
 			params.set("userId", this.config.user.userId);
 		}
@@ -173,6 +176,9 @@ export class CoreFlagsManager implements FlagsManager {
 		const params = new URLSearchParams();
 		params.set("key", key);
 		params.set("clientId", this.config.clientId);
+		if (this.config.environment) {
+			params.set("environment", this.config.environment);
+		}
 		if (this.config.user?.userId) {
 			params.set("userId", this.config.user.userId);
 		}
@@ -249,6 +255,11 @@ export class CoreFlagsManager implements FlagsManager {
 			isLoading: true,
 			isReady: false,
 		};
+	}
+
+	async getVariant<T = any>(key: string): Promise<T | null> {
+		const flag = await this.getFlag(key);
+		return flag.enabled ? (flag.value as T) : null;
 	}
 
 	refresh(forceClear = false): void {
