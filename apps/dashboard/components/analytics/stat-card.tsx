@@ -206,7 +206,7 @@ export function StatCard({
 	const getVariantClasses = () => {
 		switch (variant) {
 			case "success":
-				return "bg-accent/10 border-accent/20";
+				return "bg-accent/10 border-border/50";
 			case "info":
 				return "bg-accent/10 border-accent/20";
 			case "warning":
