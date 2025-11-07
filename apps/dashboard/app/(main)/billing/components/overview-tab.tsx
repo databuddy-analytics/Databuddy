@@ -528,7 +528,7 @@ export const OverviewTab = memo(function OverviewTabComponent({
 						</div>
 					</div>
 
-					<div className="space-x-6 py-2 h-full">
+					<div className="py-2 h-full">
 						{usageStats.length === 0 ? (
 							<Card className="h-full">
 								<CardContent className="flex h-full flex-col items-center justify-center">
