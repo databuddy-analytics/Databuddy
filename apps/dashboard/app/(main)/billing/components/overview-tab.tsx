@@ -243,7 +243,7 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 			<CardHeader>
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0 flex-1 space-y-3">
-						{/* <p className="text-muted-foreground text-sm">Current Subscription:</p> */}
+						<div className="flex items-center justify-center gap-3">
 						<div className="flex items-center justify-center gap-3">
 							<div className="flex h-12 w-12 items-center justify-center text-center rounded border">
 								<CrownIcon
