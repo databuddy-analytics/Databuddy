@@ -243,39 +243,36 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 			<CardHeader>
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0 flex-1 space-y-3">
-						<div className="flex items-center gap-3">
-							<div className="flex h-12 w-12 items-center justify-center rounded border bg-muted">
+						{/* <p className="text-muted-foreground text-sm">Current Subscription:</p> */}
+						<div className="flex items-center justify-center gap-3">
+							<div className="flex h-12 w-12 items-center justify-center text-center rounded border">
 								<CrownIcon
-									className="not-dark:text-primary text-muted-foreground"
-									size={24}
+									className="not-dark:text-primary mx-auto h-8 w-8 text-muted-foreground"
 									weight="duotone"
 								/>
 							</div>
 							<div className="min-w-0 flex-1">
-								<CardTitle className="truncate font-semibold text-lg">
-									{plan?.display?.name || plan?.name || "Free Plan"}
-								</CardTitle>
-								<p className="text-muted-foreground text-sm">
-									Current subscription
-								</p>
+								<div className="flex flex-wrap items-center justify-between gap-2">
+									<CardTitle className="truncate font-semibold text-lg">
+										{plan?.display?.name || plan?.name || "Free Plan"}
+									</CardTitle>
+									{getStatusBadge()}
+									{statusDetails && (
+										<span className="rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
+											{statusDetails}
+										</span>
+									)}
+								</div>
 							</div>
 						</div>
 
-						<div className="flex flex-wrap items-center gap-2">
-							{getStatusBadge()}
-							{statusDetails && (
-								<span className="rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
-									{statusDetails}
-								</span>
-							)}
-						</div>
 					</div>
 
 					<div className="flex-shrink-0 text-right">
 						<div className="font-bold text-2xl sm:text-3xl">
 							{isFree
-								? "Free"
-								: plan?.items[0]?.display?.primary_text || "Free"}
+								? ""
+								: plan?.items[0]?.display?.primary_text}
 						</div>
 						<div className="text-muted-foreground text-sm">
 							{!isFree && plan?.items[0]?.display?.secondary_text}
@@ -309,8 +306,8 @@ const PlanStatusCard = memo(function PlanStatusCardComponent({
 				</div>
 
 				<Separator />
-
-				<div className="mt-auto space-y-3">
+				
+				<div className="mt-0 space-y-3">
 					{isCanceled ? (
 						<Button
 							aria-label="Reactivate subscription"
@@ -512,15 +509,15 @@ export const OverviewTab = memo(function OverviewTabComponent({
 				planName={cancellingPlan?.name || ""}
 			/>
 
-			<div className="space-y-8">
-				<div className="grid gap-8 lg:grid-cols-3">
-					<div className="lg:col-span-2">
+			<div className="grid lg:grid-cols-3 border-b">
+				<div className="flex lg:col-span-2 flex-col">
+					<div className="border-b bg-muted/20 px-6 py-4">
 						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 							<div>
-								<h1 className="font-bold text-2xl tracking-tight">
+								<h1 className="font-semibold text-lg tracking-tight">
 									Usage Overview
 								</h1>
-								<p className="mt-1 text-muted-foreground">
+								<p className="text-sm mt-1 text-muted-foreground">
 									Monitor your current usage and limits
 								</p>
 							</div>
@@ -531,31 +528,17 @@ export const OverviewTab = memo(function OverviewTabComponent({
 						</div>
 					</div>
 
-					<div className="lg:col-span-1">
-						<div>
-							<h2 className="font-bold text-2xl tracking-tight">
-								Current Plan
-							</h2>
-							<p className="mt-1 text-muted-foreground">
-								Manage your subscription
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<div className="grid gap-8 lg:grid-cols-3">
-					<div className="space-y-6 lg:col-span-2">
+					<div className="space-x-6 py-2 h-full">
 						{usageStats.length === 0 ? (
 							<Card className="h-full">
-								<CardContent className="flex h-full flex-col items-center justify-center py-16">
-									<div className="mb-6 flex h-16 w-16 items-center justify-center rounded border bg-muted">
+								<CardContent className="flex h-full flex-col items-center justify-center">
+									<div className="flex h-16 w-16 items-center justify-center">
 										<TrendUpIcon
-											className="not-dark:text-primary text-muted-foreground"
-											size={32}
+											className="not-dark:text-primary mx-auto mb-4 h-12 w-12 text-muted-foreground"
 											weight="duotone"
 										/>
 									</div>
-									<h3 className="mb-2 font-semibold text-xl">No Usage Data</h3>
+									<h3 className="mb-2 font-semibold text-lg">No Usage Data</h3>
 									<p className="max-w-sm text-center text-muted-foreground">
 										Start using our features to see your usage statistics here.
 									</p>
@@ -573,17 +556,26 @@ export const OverviewTab = memo(function OverviewTabComponent({
 							</div>
 						)}
 					</div>
+				</div>
 
-					<div className="space-y-6 lg:col-span-1">
-						<div className="h-full">
-							<PlanStatusCard
-								onCancelClick={onCancelClick}
-								onManageBilling={onManageBilling}
-								onUpgrade={onNavigateToPlans}
-								plan={currentPlan}
-								statusDetails={statusDetails}
-							/>
-						</div>
+				<div className="flex flex-col lg:col-span-1 border-l">
+					<div className="border-b bg-muted/20 px-6 py-4">
+						<h2 className="font-semibold text-lg tracking-tight">
+							Current Plan
+						</h2>
+						<p className="text-sm mt-1 text-muted-foreground">
+							Manage your subscription
+						</p>
+					</div>
+
+					<div className="h-full py-2">
+						<PlanStatusCard
+							onCancelClick={onCancelClick}
+							onManageBilling={onManageBilling}
+							onUpgrade={onNavigateToPlans}
+							plan={currentPlan}
+							statusDetails={statusDetails}
+						/>
 					</div>
 				</div>
 			</div>

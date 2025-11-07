@@ -93,10 +93,10 @@ export default function BillingPage() {
 								/>
 							</div>
 							<div>
-								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
+								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight">
 									{title}
 								</h1>
-								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
+								<p className="text-muted-foreground text-sm">
 									{description}
 								</p>
 							</div>
@@ -105,7 +105,7 @@ export default function BillingPage() {
 				</div>
 			</div>
 
-			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+			<main className="flex-1 overflow-y-auto">
 				{activeTab === "overview" && (
 					<Suspense fallback={<ComponentSkeleton />}>
 						<OverviewTab onNavigateToPlans={navigateToPlans} />

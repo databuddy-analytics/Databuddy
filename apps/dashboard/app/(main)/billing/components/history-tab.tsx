@@ -69,8 +69,8 @@ const InvoiceCard = memo(function InvoiceCardComponent({
 	};
 
 	return (
-		<Card className="transition-shadow hover:shadow-sm">
-			<CardContent className="p-4">
+		<Card className="transition-shadow hover:shadow-sm p-0">
+			<CardContent className="px-6 py-4 border-t">
 				<div className="flex items-center justify-between">
 					<div className="flex min-w-0 flex-1 items-center gap-3">
 						<div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border bg-muted">
@@ -139,8 +139,8 @@ const SubscriptionHistoryCard = memo(function SubscriptionHistoryCardComponent({
 
 	return (
 		<Card>
-			<CardContent className="p-4">
-				<div className="space-y-2">
+			<CardContent>
+				<div className="space-y-2 w-full">
 					{customerData.products.map((product) => (
 						<div
 							className="flex items-start gap-2 rounded border p-2 text-sm"
@@ -150,7 +150,7 @@ const SubscriptionHistoryCard = memo(function SubscriptionHistoryCardComponent({
 								<CheckIcon
 									className="not-dark:text-primary text-primary"
 									size={10}
-									weight="duotone"
+									weight="regular"
 								/>
 							</div>
 							<div className="min-w-0 flex-1">
@@ -219,10 +219,10 @@ export const HistoryTab = memo(function HistoryTabComponent({
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+			<div className="px-6 pt-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 				<div>
-					<h1 className="font-bold text-2xl tracking-tight">Billing History</h1>
-					<p className="mt-1 text-muted-foreground">
+					<h1 className="font-semibold text-lg tracking-tight">Billing History</h1>
+					<p className="text-sm mt-1 text-muted-foreground">
 						View your invoices and subscription changes
 					</p>
 				</div>
@@ -249,11 +249,12 @@ export const HistoryTab = memo(function HistoryTabComponent({
 			</div>
 
 			{/* Content Grid */}
-			<div className="grid gap-6 lg:grid-cols-3">
+			<div className="grid lg:grid-cols-3 border-y">
 				{/* Invoices */}
-				<div className="lg:col-span-2">
+				<div className="lg:col-span-2 border-r">
 					{invoices.length ? (
-						<div className="space-y-3">
+						<div className="">
+							<p className="px-6 py-4 text-sm font-medium">Invoices</p>
 							{invoices
 								.sort((a, b) => b.created_at - a.created_at)
 								.map((invoice) => (
@@ -283,7 +284,10 @@ export const HistoryTab = memo(function HistoryTabComponent({
 				{/* Subscription History */}
 				<div className="lg:col-span-1">
 					{customerData ? (
-						<SubscriptionHistoryCard customerData={customerData} />
+						<div className="pt-4">
+							<p className="px-6 text-sm font-medium">Subscription History</p>
+							<SubscriptionHistoryCard customerData={customerData} />
+						</div>
 					) : (
 						<Card>
 							<CardContent className="flex flex-col items-center justify-center py-12">

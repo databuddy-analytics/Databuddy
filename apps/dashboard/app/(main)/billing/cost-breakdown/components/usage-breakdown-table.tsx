@@ -116,7 +116,7 @@ export function UsageBreakdownTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Event Type</TableHead>
+						<TableHead className="px-6">Event Type</TableHead>
 						<TableHead>Usage</TableHead>
 						<TableHead>Cost</TableHead>
 					</TableRow>
@@ -144,7 +144,7 @@ export function UsageBreakdownTable({
 
 						return (
 							<TableRow key={item.event_category}>
-								<TableCell>
+								<TableCell className="px-6">
 									<div className="flex items-center gap-3">
 										<div className="flex h-10 w-10 items-center justify-center rounded border bg-muted">
 											<IconComponent

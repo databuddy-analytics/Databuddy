@@ -115,9 +115,9 @@ export default function PricingTable({
 
 	return (
 		<section aria-labelledby="pricing-table-title" className={cn("root")}>
-			<div className="mx-auto mb-4 flex w-full max-w-2xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+			<div className="py-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-secondary/60">
 				<div
-					className="flex-1 rounded border bg-secondary/60 p-4 text-center font-medium text-base text-foreground shadow-sm sm:text-left"
+					className="flex-1 w-full text-center font-medium text-base text-foregroundsm:text-left"
 					id="pricing-table-title"
 				>
 					{summary}
@@ -149,7 +149,7 @@ export default function PricingTable({
 								onClick={() => setIsAnnual(true)}
 								type="button"
 							>
-								Annual
+								Annually
 							</button>
 						</div>
 					</div>
@@ -162,6 +162,7 @@ export default function PricingTable({
 					products={products}
 					selectedPlan={selectedPlan}
 					setIsAnnualToggle={setIsAnnual}
+					className="border-y"
 				>
 					{products
 						.filter((p) => p.id !== "free" && intervalFilter(p))
@@ -272,7 +273,7 @@ export const PricingTableContainer = ({
 				)}
 				<div
 					className={cn(
-						"grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+						"grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
 						className
 					)}
 				>
@@ -367,7 +368,7 @@ export const PricingCard = ({
 	return (
 		<div
 			className={cn(
-				"relative h-full w-full max-w-xl rounded-lg border py-6 text-foreground shadow-sm transition-all duration-300",
+				"relative h-full w-full max-w-xl py-6 text-foreground shadow-sm transition-all duration-300 border-r",
 				isRecommended &&
 					"lg:-translate-y-6 animate-recommended-glow border-primary bg-secondary/40 lg:h-[calc(100%+48px)] lg:shadow-lg dark:shadow-zinc-800/80",
 				isSelected && "border-primary bg-primary/5 ring-2 ring-primary/20",
@@ -404,20 +405,20 @@ export const PricingCard = ({
 						</div>
 						<div className="mb-2">
 							<h3 className="mb-4 flex h-16 items-center border-y bg-secondary/40 px-6 font-semibold">
-								<div className="line-clamp-2">
+								<div className="">
 									{product.id === "hobby" ? (
-										<div className="flex flex-col gap-1">
-											<div className="flex items-center gap-2">
+										<div className="flex flex-col gap-1 w-full">
+											<div className="flex items-center gap-2 w-full">
 												<span className="text-muted-foreground text-xs line-through">
 													$9.99
 												</span>
 												<span className="font-medium text-green-600">
 													$2.00
 												</span>
+												<span className="font-medium text-green-600 text-sm">
+													Limited time!
+												</span>
 											</div>
-											<span className="font-medium text-green-600 text-xs">
-												Limited time!
-											</span>
 										</div>
 									) : (
 										<>
