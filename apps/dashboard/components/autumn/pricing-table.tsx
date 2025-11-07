@@ -117,7 +117,7 @@ export default function PricingTable({
 		<section aria-labelledby="pricing-table-title" className={cn("root")}>
 			<div className="py-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-secondary/60">
 				<div
-					className="flex-1 w-full text-center font-medium text-base text-foregroundsm:text-left"
+					className="flex-1 w-full text-center font-medium text-base text-foreground sm:text-left"
 					id="pricing-table-title"
 				>
 					{summary}
