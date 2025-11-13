@@ -30,11 +30,13 @@
     "./types/website": "./src/types/website.ts",
     "./utils/date-utils": "./src/utils/date-utils.ts",
     "./utils/discord-webhook": "./src/utils/discord-webhook.ts",
-    "./utils/ids": "./src/utils/ids.ts"
+    "./utils/ids": "./src/utils/ids.ts",
+    "./utils/openrouter": "./src/utils/openrouter.ts"
   },
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@logtail/edge": "catalog:",
+    "@openrouter/ai-sdk-provider": "^1.2.2",
     "dayjs": "catalog:",
     "drizzle-orm": "catalog:",
     "nanoid": "catalog:"

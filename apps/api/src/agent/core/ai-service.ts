@@ -1,4 +1,3 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateObject } from "ai";
 import type { z } from "zod";
 import {
@@ -6,10 +5,7 @@ import {
 	comprehensiveSystemPrompt,
 } from "../prompts/agent";
 import type { AssistantSession } from "./assistant-session";
-
-const openrouter = createOpenRouter({
-	apiKey: process.env.AI_API_KEY,
-});
+import { openrouter } from "@databuddy/shared/utils/openrouter";
 
 const AI_MODEL = "google/gemini-2.5-flash-lite-preview-06-17";
 

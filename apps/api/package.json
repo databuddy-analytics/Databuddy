@@ -23,7 +23,6 @@
     "@databuddy/shared": "workspace:*",
     "@elysiajs/cors": "^1.4.0",
     "@logtail/edge": "^0.5.6",
-    "@openrouter/ai-sdk-provider": "^1.2.0",
     "@upstash/ratelimit": "^2.0.6",
     "@upstash/redis": "^1.35.6",
     "ai": "^5.0.81",

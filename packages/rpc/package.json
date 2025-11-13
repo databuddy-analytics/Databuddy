@@ -12,7 +12,6 @@
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
     "@logtail/edge": "catalog:",
-    "@openrouter/ai-sdk-provider": "^1.2.0",
     "@orpc/server": "^1.10.4",
     "ai": "^5.0.81",
     "autumn-js": "catalog:",

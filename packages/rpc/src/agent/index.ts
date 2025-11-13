@@ -1,11 +1,7 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { type ModelMessage, smoothStream, stepCountIs, streamText } from "ai";
 import { chatPrompt } from "./prompts/chat-prompt";
 import { tools } from "./tools";
-
-const openrouter = createOpenRouter({
-    apiKey: process.env.AI_API_KEY,
-});
+import { openrouter } from "@databuddy/shared/utils/openrouter";
 
 export const modes = ["chat", "agent", "agent_max"] as const;
 export type Mode = (typeof modes)[number];
