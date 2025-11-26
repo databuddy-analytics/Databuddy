@@ -46,19 +46,26 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 - 🔐 Data encryption
 - 📊 API access
 
-## 📚 Table of Contents
+## 📚 Documentation
 
-1. **How do I get started?**
-   Follow the [Getting Started](https://www.databuddy.cc/docs/getting-started) guide.
-- [Contributing](#-contributing)
-- [Security](#-security)
-- [FAQ](#-faq)
-- [Support](#-support)
-- [License](#-license)
+### Getting Started
+- 🚀 [Quick Start Guide](https://www.databuddy.cc/docs/getting-started) - Get up and running in minutes
+- ❓ [FAQ](FAQ.md) - Frequently asked questions
+- 💻 [Contributing Guide](CONTRIBUTING.md) - Learn how to contribute to the project
+- 🚢 [Deployment Guide](DEPLOYMENT.md) - Deploy Databuddy to production
+- 🔧 [Troubleshooting Guide](TROUBLESHOOTING.md) - Resolve common issues
+- 🔒 [Security Policy](SECURITY.md) - Report security vulnerabilities
+- 🙏 [Acknowledgments](ACKNOWLEDGMENTS.md) - Credits and thanks
+
+### Developer Resources
+- [Architecture Overview](WARP.md) - System architecture and WARP CLI
+- [API Documentation](https://www.databuddy.cc/docs/api) - Complete API reference
+- [SDK Documentation](https://www.databuddy.cc/docs/sdk) - Client-side SDK guide
+- [Dashboard Guide](https://www.databuddy.cc/docs/dashboard) - Analytics dashboard features
 
 ### Prerequisites
 
-- Bun
+- Bun 1.2+
 
 ## 🤝 Contributing
 
@@ -87,10 +94,13 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
    See [Prerequisites](#prerequisites).
 
 2. **How do I deploy?**
-   See the deployment documentation in our [docs](https://databuddy.cc/docs).
+   See the [Deployment Guide](DEPLOYMENT.md).
 
 3. **How do I contribute?**
-   See [Contributing](#contributing).
+   See [Contributing Guide](CONTRIBUTING.md).
+
+4. **I'm having issues, where do I get help?**
+   Check the [Troubleshooting Guide](TROUBLESHOOTING.md) for common issues and solutions.
 
 ## 💬 Support
 
