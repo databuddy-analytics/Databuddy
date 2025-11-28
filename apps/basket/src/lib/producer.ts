@@ -1,14 +1,11 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db";
-import { Semaphore } from "async-mutex";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, record, setAttributes } from "./tracing";
 
 type BufferedEvent = {
 	table: string;
 	event: unknown;
-	retries: number;
-	timestamp: number;
 };
 
 type ProducerStats = {
@@ -26,7 +23,6 @@ type ProducerConfig = {
 	username?: string;
 	password?: string;
 	selfHost?: boolean;
-	semaphoreLimit?: number;
 	reconnectCooldown?: number;
 	kafkaTimeout?: number;
 	maxProducerRetries?: number;
@@ -34,7 +30,6 @@ type ProducerConfig = {
 	bufferInterval?: number;
 	bufferMax?: number;
 	bufferHardMax?: number;
-	maxRetries?: number;
 	chunkSize?: number;
 	flushTimeout?: number;
 };
@@ -44,7 +39,6 @@ type RequiredProducerConfig = {
 	username?: string;
 	password?: string;
 	selfHost: boolean;
-	semaphoreLimit: number;
 	reconnectCooldown: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
@@ -52,7 +46,6 @@ type RequiredProducerConfig = {
 	bufferInterval: number;
 	bufferMax: number;
 	bufferHardMax: number;
-	maxRetries: number;
 	chunkSize: number;
 	flushTimeout: number;
 };
@@ -66,7 +59,6 @@ type ProducerDependencies = {
 export class EventProducer {
 	private readonly config: RequiredProducerConfig;
 	private readonly dependencies: ProducerDependencies;
-	private readonly semaphore: Semaphore;
 	private readonly stats: ProducerStats;
 	private readonly buffer: BufferedEvent[] = [];
 
@@ -83,7 +75,6 @@ export class EventProducer {
 	constructor(config: ProducerConfig, dependencies: ProducerDependencies) {
 		this.config = {
 			selfHost: false,
-			semaphoreLimit: 15,
 			reconnectCooldown: 60_000,
 			kafkaTimeout: 10_000,
 			maxProducerRetries: 3,
@@ -91,13 +82,11 @@ export class EventProducer {
 			bufferInterval: 5000,
 			bufferMax: 1000,
 			bufferHardMax: 10_000,
-			maxRetries: 3,
 			chunkSize: 5000,
 			flushTimeout: 30_000,
 			...config,
 		};
 		this.dependencies = dependencies;
-		this.semaphore = new Semaphore(this.config.semaphoreLimit);
 		this.stats = {
 			sent: 0,
 			failed: 0,
@@ -150,7 +139,7 @@ export class EventProducer {
 				maxRetryTime: 3000,
 			},
 			idempotent: true,
-			maxInFlightRequests: 5,
+			maxInFlightRequests: 15,
 		});
 	}
 
@@ -198,21 +187,18 @@ export class EventProducer {
 
 		try {
 			const grouped = items.reduce(
-				(acc, { table, event, retries, timestamp }) => {
+				(acc, { table, event }) => {
 					if (!acc[table]) {
 						acc[table] = [];
 					}
-					acc[table].push({ event, retries, timestamp });
+					acc[table].push(event);
 					return acc;
 				},
-				{} as Record<
-					string,
-					Array<{ event: unknown; retries: number; timestamp: number }>
-				>
+				{} as Record<string, unknown[]>
 			);
 
 			const results = await Promise.allSettled(
-				Object.entries(grouped).map(async ([table, items]) => {
+				Object.entries(grouped).map(async ([table, events]) => {
 					const controller = new AbortController();
 					const timeout = setTimeout(
 						() => controller.abort(),
@@ -220,8 +206,6 @@ export class EventProducer {
 					);
 
 					try {
-						const events = items.map((i) => i.event);
-
 						for (let i = 0; i < events.length; i += this.config.chunkSize) {
 							const chunk = events.slice(i, i + this.config.chunkSize);
 							await this.dependencies.clickHouse.insert({
@@ -237,27 +221,17 @@ export class EventProducer {
 						this.stats.errors += 1;
 						captureError(error, { message: `Flush failed for ${table}` });
 
-						for (const { event, retries, timestamp } of items) {
-							const age = Date.now() - timestamp;
-							if (
-								retries < this.config.maxRetries &&
-								age < 300_000 &&
-								this.buffer.length < this.config.bufferHardMax
-							) {
-								this.buffer.push({
-									table,
-									event,
-									retries: retries + 1,
-									timestamp,
-								});
-							} else {
-								this.stats.dropped += 1;
-								captureError(error, {
-									message: `Dropped event (retries: ${retries}, age: ${age}ms, buffer: ${this.buffer.length})`,
-									table,
-									eventId: (event as { event_id?: string }).event_id || "unknown",
-								});
+						if (this.buffer.length + events.length <= this.config.bufferHardMax) {
+							for (const event of events) {
+								this.buffer.push({ table, event });
 							}
+						} else {
+							this.stats.dropped += events.length;
+							captureError(error, {
+								message: `Dropped ${events.length} events - buffer full`,
+								table,
+								bufferSize: this.buffer.length,
+							});
 						}
 					} finally {
 						clearTimeout(timeout);
@@ -319,7 +293,7 @@ export class EventProducer {
 			return;
 		}
 
-		this.buffer.push({ table, event, retries: 0, timestamp: Date.now() });
+		this.buffer.push({ table, event });
 		this.stats.buffered += 1;
 
 		if (!this.timer) {
@@ -348,8 +322,6 @@ export class EventProducer {
 				});
 				return;
 			}
-
-			const [, release] = await this.semaphore.acquire();
 
 			try {
 				if (
@@ -402,8 +374,6 @@ export class EventProducer {
 					"kafka.error": true,
 					"kafka.buffered": true,
 				});
-			} finally {
-				release();
 			}
 		});
 	}
@@ -444,8 +414,6 @@ export class EventProducer {
 				});
 				return;
 			}
-
-			const [, release] = await this.semaphore.acquire();
 
 			try {
 				if (
@@ -501,8 +469,6 @@ export class EventProducer {
 					"kafka.error": true,
 					"kafka.buffered": true,
 				});
-			} finally {
-				release();
 			}
 		});
 	}
@@ -513,22 +479,15 @@ export class EventProducer {
 		}
 		this.shuttingDown = true;
 
-		let checks = 0;
-		while (
-			this.semaphore.getValue() < this.config.semaphoreLimit &&
-			checks < 50
-		) {
-			checks += 1;
-			await new Promise((r) => setTimeout(r, 100));
-		}
+		// Wait a bit for in-flight requests to complete
+		await new Promise((r) => setTimeout(r, 1000));
 
+		// Flush remaining buffer
 		await this.flush();
 
-		let finalFlushAttempts = 0;
-		while (this.buffer.length > 0 && finalFlushAttempts < 3 && !this.flushing) {
-			finalFlushAttempts += 1;
+		// Try one more time if there's still items
+		if (this.buffer.length > 0 && !this.flushing) {
 			await this.flush();
-			await new Promise((r) => setTimeout(r, 1000));
 		}
 
 		if (this.timer) {
@@ -541,7 +500,9 @@ export class EventProducer {
 			try {
 				await this.producer.disconnect();
 			} catch (error) {
-				captureError(error, { message: "Error disconnecting Redpanda producer" });
+				captureError(error, {
+					message: "Error disconnecting Redpanda producer",
+				});
 			} finally {
 				this.connected = false;
 			}

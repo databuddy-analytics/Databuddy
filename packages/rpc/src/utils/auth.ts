@@ -1,5 +1,5 @@
 import { websitesApi } from "@databuddy/auth";
-import { db, dbConnections, eq, websites } from "@databuddy/db";
+import { db, eq, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
 import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
@@ -34,26 +34,6 @@ const getWebsiteById = cacheable(
 		staleTime: 60,
 	}
 );
-
-const getDbConnectionById = async (id: string) => {
-	try {
-		if (!id) {
-			return null;
-		}
-		return await db.query.dbConnections.findFirst({
-			where: eq(dbConnections.id, id),
-		});
-	} catch (error) {
-		logger.error(
-			{
-				error,
-				id,
-			},
-			"Error fetching database connection by ID"
-		);
-		return null;
-	}
-};
 
 /**
  * A utility to centralize authorization checks for websites.
@@ -113,44 +93,3 @@ export async function authorizeWebsiteAccess(
  *
  * @throws {ORPCError} if the user is not authorized.
  */
-export async function authorizeDbConnectionAccess(
-	ctx: Context,
-	connectionId: string,
-	permission: Permission
-) {
-	const connection = await getDbConnectionById(connectionId);
-
-	if (!connection) {
-		throw new ORPCError("NOT_FOUND", {
-			message: "Database connection not found.",
-		});
-	}
-
-	if (!ctx.user) {
-		throw new ORPCError("UNAUTHORIZED", {
-			message: "Authentication is required for this action.",
-		});
-	}
-
-	if (ctx.user.role === "ADMIN") {
-		return connection;
-	}
-
-	if (connection.organizationId) {
-		const { success } = await websitesApi.hasPermission({
-			headers: ctx.headers,
-			body: { permissions: { website: [permission] } },
-		});
-		if (!success) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You do not have permission to perform this action.",
-			});
-		}
-	} else if (connection.userId !== ctx.user.id) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "You are not the owner of this database connection.",
-		});
-	}
-
-	return connection;
-}

@@ -14,6 +14,14 @@ const apiEnvSchema = z.object({
 	...authEnvSchema,
 	AI_API_KEY: z.string(),
 	PORT: z.string().default("3001"),
+	CLICKHOUSE_URL: z.string(),
+	CLICKHOUSE_USER: z.string().default("default"),
+	CLICKHOUSE_PASSWORD: z.string().optional(),
+	R2_BUCKET: z.string().optional(),
+	R2_ACCESS_KEY_ID: z.string().optional(),
+	R2_SECRET_ACCESS_KEY: z.string().optional(),
+	R2_ENDPOINT: z.string().optional(),
+	BACKUP_SCHEDULE: z.string().default("0 0 * * *"),
 });
 
 /**

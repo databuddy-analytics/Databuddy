@@ -14,11 +14,6 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const funnelGoalType = pgEnum("FunnelGoalType", [
-	"COMPLETION",
-	"STEP_CONVERSION",
-	"TIME_TO_CONVERT",
-]);
 export const funnelStepType = pgEnum("FunnelStepType", [
 	"PAGE_VIEW",
 	"EVENT",
@@ -343,64 +338,6 @@ export const user = pgTable(
 	]
 );
 
-export const userStripeConfig = pgTable(
-	"user_stripe_config",
-	{
-		id: text().primaryKey().notNull(),
-		userId: text("user_id").notNull(),
-		webhookToken: text("webhook_token").notNull(),
-		stripeSecretKey: text("stripe_secret_key").notNull(),
-		stripePublishableKey: text("stripe_publishable_key"),
-		webhookSecret: text("webhook_secret").notNull(),
-		isLiveMode: boolean("is_live_mode").default(false).notNull(),
-		isActive: boolean("is_active").default(true).notNull(),
-		lastWebhookAt: timestamp("last_webhook_at"),
-		webhookFailureCount: integer("webhook_failure_count").default(0).notNull(),
-		createdAt: timestamp("created_at").notNull(),
-		updatedAt: timestamp("updated_at").notNull(),
-	},
-	(table) => [
-		uniqueIndex("user_stripe_config_userId_key").using(
-			"btree",
-			table.userId.asc().nullsLast().op("text_ops")
-		),
-		uniqueIndex("user_stripe_config_webhookToken_key").using(
-			"btree",
-			table.webhookToken.asc().nullsLast().op("text_ops")
-		),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "user_stripe_config_userId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-	]
-);
-
-export const funnelGoals = pgTable(
-	"funnel_goals",
-	{
-		id: text().primaryKey().notNull(),
-		funnelId: text().notNull(),
-		goalType: funnelGoalType().notNull(),
-		targetValue: text(),
-		description: text(),
-		isActive: boolean().default(true).notNull(),
-		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.funnelId],
-			foreignColumns: [funnelDefinitions.id],
-			name: "funnel_goals_funnelId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-	]
-);
-
 export const funnelDefinitions = pgTable(
 	"funnel_definitions",
 	{
@@ -543,25 +480,16 @@ export const apikey = pgTable(
 		name: text().notNull(),
 		prefix: text().notNull(),
 		start: text().notNull(),
-		key: text().notNull(),
-		// New: store hash of the secret at rest; keep plaintext `key` during migration/backfill
-		keyHash: text("key_hash"),
+		keyHash: text("key_hash").notNull(),
 		userId: text("user_id"),
 		organizationId: text("organization_id"),
 		type: apiKeyType("type").notNull().default("user"),
 		scopes: apiScope("scopes").array().notNull().default([]),
 		enabled: boolean("enabled").notNull().default(true),
-		// Optional lifecycle field to complement `enabled`
 		revokedAt: timestamp("revoked_at"),
 		rateLimitEnabled: boolean("rate_limit_enabled").notNull().default(true),
 		rateLimitTimeWindow: integer("rate_limit_time_window"),
 		rateLimitMax: integer("rate_limit_max"),
-		requestCount: integer("request_count").notNull().default(0),
-		remaining: integer("remaining"),
-		lastRequest: timestamp("last_request", { mode: "string" }),
-		lastRefillAt: timestamp("last_refill_at", { mode: "string" }),
-		refillInterval: integer("refill_interval"),
-		refillAmount: integer("refill_amount"),
 		expiresAt: timestamp("expires_at", { mode: "string" }),
 		metadata: jsonb("metadata").default({}),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -578,9 +506,9 @@ export const apikey = pgTable(
 			foreignColumns: [organization.id],
 			name: "apikey_organization_id_organization_id_fk",
 		}).onDelete("cascade"),
-		uniqueIndex("apikey_key_unique").using(
+		uniqueIndex("apikey_key_hash_unique").using(
 			"btree",
-			table.key.asc().nullsLast().op("text_ops")
+			table.keyHash.asc().nullsLast().op("text_ops")
 		),
 		index("apikey_user_id_idx").using(
 			"btree",
@@ -598,42 +526,6 @@ export const apikey = pgTable(
 	]
 );
 
-// Mapping table for per-resource access and granular scopes
-export const apikeyAccess = pgTable(
-	"apikey_access",
-	{
-		id: text().primaryKey().notNull(),
-		apikeyId: text("apikey_id").notNull(),
-		resourceType: apiResourceType("resource_type").notNull().default("global"),
-		// Nullable when resourceType = 'global'
-		resourceId: text("resource_id"),
-		scopes: apiScope("scopes").array().notNull().default([]),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.apikeyId],
-			foreignColumns: [apikey.id],
-			name: "apikey_access_apikey_id_fkey",
-		}).onDelete("cascade"),
-		index("apikey_access_apikey_id_idx").using(
-			"btree",
-			table.apikeyId.asc().nullsLast().op("text_ops")
-		),
-		index("apikey_access_resource_idx").using(
-			"btree",
-			table.resourceType.asc().nullsLast(),
-			table.resourceId.asc().nullsLast().op("text_ops")
-		),
-		uniqueIndex("apikey_access_unique").using(
-			"btree",
-			table.apikeyId.asc().nullsLast().op("text_ops"),
-			table.resourceType.asc().nullsLast(),
-			table.resourceId.asc().nullsLast().op("text_ops")
-		),
-	]
-);
 export const organization = pgTable(
 	"organization",
 	{
@@ -645,121 +537,6 @@ export const organization = pgTable(
 		metadata: text(),
 	},
 	(table) => [unique("organizations_slug_unique").on(table.slug)]
-);
-
-export const abTestStatus = pgEnum("ab_test_status", [
-	"draft",
-	"running",
-	"paused",
-	"completed",
-]);
-
-export const abVariantType = pgEnum("ab_variant_type", [
-	"visual",
-	"redirect",
-	"code",
-]);
-
-export const abExperiments = pgTable(
-	"ab_experiments",
-	{
-		id: text().primaryKey().notNull(),
-		websiteId: text().notNull(),
-		name: text().notNull(),
-		description: text(),
-		status: abTestStatus().default("draft").notNull(),
-		trafficAllocation: integer().default(100).notNull(),
-		startDate: timestamp({ precision: 3 }),
-		endDate: timestamp({ precision: 3 }),
-		primaryGoal: text(),
-		createdBy: text().notNull(),
-		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-		deletedAt: timestamp({ precision: 3 }),
-	},
-	(table) => [
-		index("ab_experiments_websiteId_idx").using(
-			"btree",
-			table.websiteId.asc().nullsLast()
-		),
-		index("ab_experiments_status_idx").using(
-			"btree",
-			table.status.asc().nullsLast()
-		),
-		foreignKey({
-			columns: [table.websiteId],
-			foreignColumns: [websites.id],
-			name: "ab_experiments_websiteId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-		foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [user.id],
-			name: "ab_experiments_createdBy_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("restrict"),
-	]
-);
-
-export const abVariants = pgTable(
-	"ab_variants",
-	{
-		id: text().primaryKey().notNull(),
-		experimentId: text().notNull(),
-		name: text().notNull(),
-		type: abVariantType().default("visual").notNull(),
-		content: jsonb().notNull(),
-		trafficWeight: integer().default(50).notNull(),
-		isControl: boolean().default(false).notNull(),
-		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-	},
-	(table) => [
-		index("ab_variants_experimentId_idx").using(
-			"btree",
-			table.experimentId.asc().nullsLast()
-		),
-		foreignKey({
-			columns: [table.experimentId],
-			foreignColumns: [abExperiments.id],
-			name: "ab_variants_experimentId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-	]
-);
-
-export const abGoals = pgTable(
-	"ab_goals",
-	{
-		id: text().primaryKey().notNull(),
-		experimentId: text().notNull(),
-		name: text().notNull(),
-		type: text().notNull(),
-		target: text().notNull(),
-		description: text(),
-		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
-	},
-	(table) => [
-		index("ab_goals_experimentId_idx").using(
-			"btree",
-			table.experimentId.asc().nullsLast()
-		),
-		index("ab_goals_type_idx").using(
-			"btree",
-			table.type.asc().nullsLast().op("text_ops")
-		),
-		foreignKey({
-			columns: [table.experimentId],
-			foreignColumns: [abExperiments.id],
-			name: "ab_goals_experimentId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-	]
 );
 
 export const assistantConversations = pgTable(
@@ -860,56 +637,6 @@ export const annotationType = pgEnum("annotation_type", [
 ]);
 
 export const chartType = pgEnum("chart_type", ["metrics"]);
-
-export const widgetType = pgEnum("widget_type", [
-	"chart",
-	"metric",
-	"table",
-	"text",
-]);
-
-export const dbConnections = pgTable(
-	"db_connections",
-	{
-		id: text().primaryKey().notNull(),
-		userId: text("user_id").notNull(),
-		name: text().notNull(),
-		type: text().notNull().default("postgres"),
-		url: text("url").notNull(),
-		permissionLevel: dbPermissionLevel("permission_level")
-			.notNull()
-			.default("admin"),
-		organizationId: text("organization_id"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	},
-	(table) => [
-		index("db_connections_user_id_idx").using(
-			"btree",
-			table.userId.asc().nullsLast().op("text_ops")
-		),
-		index("db_connections_type_idx").using(
-			"btree",
-			table.type.asc().nullsLast().op("text_ops")
-		),
-		index("db_connections_organization_id_idx").using(
-			"btree",
-			table.organizationId.asc().nullsLast().op("text_ops")
-		),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "db_connections_user_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-		foreignKey({
-			columns: [table.organizationId],
-			foreignColumns: [organization.id],
-			name: "db_connections_organization_id_fkey",
-		}).onDelete("cascade"),
-	]
-);
 
 export const flags = pgTable(
 	"flags",
@@ -1048,3 +775,4 @@ export const annotations = pgTable(
 			.onDelete("restrict"),
 	]
 );
+

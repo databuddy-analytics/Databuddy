@@ -13,7 +13,7 @@ export default function NotFound() {
 	return (
 		<div className="flex min-h-screen flex-col bg-neutral-950">
 			<Navbar />
-			<div className="relative flex h-full w-full flex-grow flex-col items-center justify-center overflow-hidden p-4">
+			<div className="relative flex h-full w-full grow flex-col items-center justify-center overflow-hidden p-4">
 				{/* Liquid Chrome Background */}
 				<div className="absolute inset-0 opacity-40">
 					<LiquidChrome
@@ -26,8 +26,8 @@ export default function NotFound() {
 				</div>
 
 				{/* Gradient overlays for edge fading */}
-				<div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent" />
-				<div className="absolute inset-0 bg-gradient-to-b from-neutral-950/50 via-transparent" />
+				<div className="absolute inset-0 bg-linear-to-t from-neutral-950 via-transparent" />
+				<div className="absolute inset-0 bg-linear-to-b from-neutral-950/50 via-transparent" />
 
 				{/* Main Content */}
 				<div className="relative z-10 flex flex-col items-center text-center">

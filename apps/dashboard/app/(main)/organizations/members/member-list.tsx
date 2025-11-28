@@ -1,11 +1,8 @@
 "use client";
 
 import {
-	ClockIcon,
 	CrownIcon,
 	TrashIcon,
-	UserIcon,
-	UsersIcon,
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -52,10 +49,10 @@ interface MemberListProps {
 }
 
 interface RoleSelectorProps {
-	member: MemberListProps["members"][number];
+	member: OrganizationMember;
 	onUpdateRole: MemberListProps["onUpdateRole"];
-	isUpdatingMember: MemberListProps["isUpdatingMember"];
-	organizationId: MemberListProps["organizationId"];
+	isUpdatingMember: boolean;
+	organizationId: string;
 }
 
 function RoleSelector({
@@ -66,10 +63,8 @@ function RoleSelector({
 }: RoleSelectorProps) {
 	if (member.role === "owner") {
 		return (
-			<Badge
-				className="border-amber-200 bg-amber-100 px-2 py-1 text-amber-800"
-				variant="default"
-			>
+			<Badge className="border-amber-500/20 bg-amber-500/10 text-amber-600" variant="secondary">
+				<CrownIcon className="mr-1" size={12} weight="fill" />
 				Owner
 			</Badge>
 		);
@@ -87,7 +82,7 @@ function RoleSelector({
 			}
 			value={member.role}
 		>
-			<SelectTrigger className="h-7 w-24 rounded text-xs">
+			<SelectTrigger className="h-7 w-24 text-xs">
 				<SelectValue placeholder="Role" />
 			</SelectTrigger>
 			<SelectContent>
@@ -95,6 +90,71 @@ function RoleSelector({
 				<SelectItem value="member">Member</SelectItem>
 			</SelectContent>
 		</Select>
+	);
+}
+
+interface MemberRowProps {
+	member: OrganizationMember;
+	onRemoveMember: MemberListProps["onRemoveMember"];
+	isRemovingMember: boolean;
+	onUpdateRole: MemberListProps["onUpdateRole"];
+	isUpdatingMember: boolean;
+	organizationId: string;
+	onConfirmRemove: (member: MemberToRemove) => void;
+}
+
+function MemberRow({
+	member,
+	isRemovingMember,
+	onUpdateRole,
+	isUpdatingMember,
+	organizationId,
+	onConfirmRemove,
+}: MemberRowProps) {
+	return (
+		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
+			<Avatar className="h-10 w-10 border">
+				<AvatarImage alt={member.user.name} src={member.user.image ?? undefined} />
+				<AvatarFallback className="bg-accent text-sm">
+					{member.user.name.charAt(0).toUpperCase()}
+				</AvatarFallback>
+			</Avatar>
+
+			<div className="min-w-0">
+				<div className="flex items-center gap-2">
+					<p className="truncate font-medium">{member.user.name}</p>
+					{member.role === "owner" && (
+						<CrownIcon className="shrink-0 text-amber-500" size={14} weight="fill" />
+					)}
+				</div>
+				<p className="truncate text-muted-foreground text-sm">
+					{member.user.email} · Joined {dayjs(member.createdAt).fromNow()}
+				</p>
+			</div>
+
+			<RoleSelector
+				isUpdatingMember={isUpdatingMember}
+				member={member}
+				onUpdateRole={onUpdateRole}
+				organizationId={organizationId}
+			/>
+
+			{member.role !== "owner" ? (
+				<Button
+					className="h-7 w-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+					disabled={isRemovingMember}
+					onClick={() =>
+						onConfirmRemove({ id: member.id, name: member.user.name })
+					}
+					size="sm"
+					variant="outline"
+				>
+					<TrashIcon size={14} />
+				</Button>
+			) : (
+				<div className="h-7 w-7" />
+			)}
+		</div>
 	);
 }
 
@@ -106,105 +166,28 @@ export function MemberList({
 	isUpdatingMember,
 	organizationId,
 }: MemberListProps) {
-	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(
-		null
-	);
+	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(null);
 
 	const handleRemove = async () => {
-		if (!memberToRemove) {
-			return;
-		}
+		if (!memberToRemove) return;
 		await onRemoveMember(memberToRemove.id);
 		setMemberToRemove(null);
 	};
 
 	return (
-		<div className="space-y-3">
-			<div className="flex items-center justify-between">
-				<h3 className="flex items-center gap-2 font-medium text-sm">
-					<UsersIcon className="h-4 w-4" size={16} weight="duotone" />
-					Team Members
-				</h3>
-				<Badge className="px-2 py-1 text-xs" variant="outline">
-					{members?.length || 0} active
-				</Badge>
-			</div>
-
-			{members && members.length > 0 ? (
-				<div className="space-y-2">
-					{members.map((member) => (
-						<div
-							className="flex items-center justify-between rounded border border-border/30 bg-muted/20 p-3"
-							key={member.id}
-						>
-							<div className="flex items-center gap-3">
-								<Avatar className="h-8 w-8 shrink-0 border border-border/30">
-									<AvatarImage
-										alt={member.user.name}
-										src={member.user.image || undefined}
-									/>
-									<AvatarFallback className="bg-accent font-medium text-xs">
-										{member.user.name.charAt(0).toUpperCase()}
-									</AvatarFallback>
-								</Avatar>
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<p className="truncate font-medium text-sm">
-											{member.user.name}
-										</p>
-										{member.role === "owner" && (
-											<CrownIcon
-												className="h-3 w-3 shrink-0 text-amber-500"
-												size={12}
-											/>
-										)}
-									</div>
-									<p className="truncate text-muted-foreground text-xs">
-										{member.user.email}
-									</p>
-									<p className="mt-1 flex items-center gap-1 text-muted-foreground text-xs">
-										<ClockIcon className="h-3 w-3 shrink-0" size={12} />
-										Joined {dayjs(member.createdAt).fromNow()}
-									</p>
-								</div>
-							</div>
-							<div className="flex shrink-0 items-center gap-2">
-								<RoleSelector
-									isUpdatingMember={isUpdatingMember}
-									member={member}
-									onUpdateRole={onUpdateRole}
-									organizationId={organizationId}
-								/>
-								{member.role !== "owner" && (
-									<Button
-										className="h-7 w-7 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-										disabled={isRemovingMember}
-										onClick={() =>
-											setMemberToRemove({
-												id: member.id,
-												name: member.user.name,
-											})
-										}
-										size="sm"
-										variant="outline"
-									>
-										<TrashIcon className="h-3 w-3" size={12} />
-									</Button>
-								)}
-							</div>
-						</div>
-					))}
-				</div>
-			) : (
-				<div className="rounded border border-border/30 bg-muted/20 py-6 text-center">
-					<UserIcon
-						className="mx-auto mb-2 h-6 w-6 text-muted-foreground"
-						size={24}
-						weight="duotone"
-					/>
-					<p className="text-muted-foreground text-sm">No team members yet</p>
-				</div>
-			)}
+		<>
+			{members.map((member) => (
+				<MemberRow
+					isRemovingMember={isRemovingMember}
+					isUpdatingMember={isUpdatingMember}
+					key={member.id}
+					member={member}
+					onConfirmRemove={setMemberToRemove}
+					onRemoveMember={onRemoveMember}
+					onUpdateRole={onUpdateRole}
+					organizationId={organizationId}
+				/>
+			))}
 
 			<AlertDialog
 				onOpenChange={(open) => !open && setMemberToRemove(null)}
@@ -220,10 +203,15 @@ export function MemberList({
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction onClick={handleRemove}>Remove</AlertDialogAction>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={handleRemove}
+						>
+							Remove
+						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+		</>
 	);
 }

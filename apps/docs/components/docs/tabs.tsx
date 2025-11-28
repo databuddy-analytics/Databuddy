@@ -1,4 +1,5 @@
 import React from "react";
+import { SciFiCard } from "@/components/scifi-card";
 import {
 	Tabs as BaseTabs,
 	TabsList as BaseTabsList,
@@ -6,8 +7,6 @@ import {
 	TabsContent,
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-
-export { TabsContent } from "@/components/ui/tabs";
 
 interface TabsProps extends React.ComponentProps<typeof BaseTabs> {
 	items?: string[];
@@ -71,13 +70,19 @@ function TabsList({
 	...props
 }: React.ComponentProps<typeof BaseTabsList>) {
 	return (
-		<BaseTabsList
+		<SciFiCard
 			className={cn(
-				"inline-flex h-10 w-fit items-center justify-center rounded border border-border bg-card/50 p-1 backdrop-blur-sm",
+				"inline-flex h-12 w-fit items-center justify-center rounded-none border border-border bg-card/50 p-1.5 backdrop-blur-sm",
 				className
 			)}
-			{...props}
-		/>
+			opacity="reduced"
+			size="sm"
+		>
+			<BaseTabsList
+				className="inline-flex h-full w-full items-center justify-center gap-1"
+				{...props}
+			/>
+		</SciFiCard>
 	);
 }
 
@@ -88,7 +93,13 @@ function TabsTrigger({
 	return (
 		<BaseTabsTrigger
 			className={cn(
-				"relative inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded px-3 py-1 font-medium text-muted-foreground text-sm transition-all duration-200 hover:bg-background/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+				"relative inline-flex h-full flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-4 py-1 font-medium text-muted-foreground text-sm transition-all duration-200",
+				"hover:bg-foreground/5 hover:text-foreground",
+				"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+				"disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+				"data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
+				"data-[state=active]:border data-[state=active]:border-primary/20",
+				"border border-transparent",
 				className
 			)}
 			{...props}
@@ -96,13 +107,13 @@ function TabsTrigger({
 	);
 }
 
-interface TabProps {
+type TabProps = {
 	value?: string;
 	children: React.ReactNode;
-}
+};
 
 function Tab({ children }: TabProps) {
 	return <>{children}</>;
 }
 
-export { Tabs, Tab, TabsList, TabsTrigger };
+export { Tabs, Tab, TabsList, TabsTrigger, TabsContent };

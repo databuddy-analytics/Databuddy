@@ -127,15 +127,15 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 						SELECT uniq(session_id) as total 
 						FROM analytics.events 
 						WHERE client_id = {websiteId:String} 
-						AND time >= parseDateTimeBestEffort({startDate:String})
-						AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 					),
 					error_sessions AS (
 						SELECT uniq(session_id) as error_count 
 						FROM analytics.errors 
 						WHERE client_id = {websiteId:String} 
-						AND timestamp >= parseDateTimeBestEffort({startDate:String})
-						AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND message != ''
 						${combinedWhereClause}
 					),
@@ -147,8 +147,8 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 							uniq(session_id) as affectedSessions
 						FROM analytics.errors 
 						WHERE client_id = {websiteId:String} 
-						AND timestamp >= parseDateTimeBestEffort({startDate:String})
-						AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND message != ''
 						${combinedWhereClause}
 					)

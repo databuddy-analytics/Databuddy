@@ -1,17 +1,67 @@
+import { estimateTieredOverageCostFromTiers } from "./estimator-utils";
 import type { NormalizedPlan } from "./types";
+
+function calculateTotalCost(
+	plan: NormalizedPlan,
+	monthlyEvents: number
+): number | null {
+	const basePrice = plan.priceMonthly;
+	const included = plan.includedEventsMonthly;
+	const overage = Math.max(monthlyEvents - included, 0);
+
+	if (overage > 0 && !plan.eventTiers) {
+		return null;
+	}
+
+	if (overage <= 0) {
+		return basePrice;
+	}
+
+	const overageCost = estimateTieredOverageCostFromTiers(
+		overage,
+		plan.eventTiers ?? []
+	);
+	return basePrice + overageCost;
+}
+
+function findHighestTierPlan(plans: NormalizedPlan[]): NormalizedPlan | null {
+	const paidPlansWithOverage = plans.filter((p) => p.eventTiers !== null);
+	if (paidPlansWithOverage.length === 0) {
+		return null;
+	}
+	return paidPlansWithOverage.reduce((max, plan) =>
+		plan.includedEventsMonthly > max.includedEventsMonthly ? plan : max
+	);
+}
 
 export function selectBestPlan(
 	monthlyEvents: number,
 	plans: NormalizedPlan[]
 ): NormalizedPlan | null {
-	const sorted = [...plans].sort(
-		(a, b) => a.includedEventsMonthly - b.includedEventsMonthly
-	);
-	const cover = sorted.find((p) => monthlyEvents <= p.includedEventsMonthly);
-	if (cover) {
-		return cover;
+	if (plans.length === 0) {
+		return null;
 	}
-	return sorted.at(-1) ?? null;
+
+	const highestTier = findHighestTierPlan(plans);
+
+	if (highestTier && monthlyEvents > highestTier.includedEventsMonthly) {
+		return highestTier;
+	}
+	let bestPlan: NormalizedPlan | null = null;
+	let bestCost = Number.POSITIVE_INFINITY;
+
+	for (const plan of plans) {
+		const totalCost = calculateTotalCost(plan, monthlyEvents);
+		if (totalCost === null) {
+			continue;
+		}
+		if (totalCost < bestCost) {
+			bestCost = totalCost;
+			bestPlan = plan;
+		}
+	}
+
+	return bestPlan;
 }
 
 export function computeEnterpriseThreshold(plans: NormalizedPlan[]): number {

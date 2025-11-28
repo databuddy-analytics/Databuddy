@@ -176,9 +176,9 @@ export const organizationNavigation: NavigationSection[] = [
 
 export const billingNavigation: NavigationSection[] = [
 	createNavSection("Billing & Usage", CreditCardIcon, [
-		createNavItem("Usage Overview", ActivityIcon, "/billing?tab=overview"),
-		createNavItem("Plans & Pricing", CurrencyDollarIcon, "/billing?tab=plans"),
-		createNavItem("Payment History", ReceiptIcon, "/billing?tab=history"),
+		createNavItem("Usage Overview", ActivityIcon, "/billing"),
+		createNavItem("Plans & Pricing", CurrencyDollarIcon, "/billing/plans"),
+		createNavItem("Payment History", ReceiptIcon, "/billing/history"),
 		createNavItem(
 			"Cost Breakdown",
 			ChartLineUpIcon,

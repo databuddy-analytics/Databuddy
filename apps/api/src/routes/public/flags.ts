@@ -1,4 +1,5 @@
 import { and, db, eq, flags, isNull, or } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
 import { Elysia, t } from "elysia";
 import { logger } from "@/lib/logger";
 import { record, setAttributes } from "@/lib/tracing";
@@ -42,6 +43,53 @@ type FlagResult = {
 	reason: string;
 	variant?: string;
 };
+
+const getCachedFlag = cacheable(
+	(key: string, clientId: string) => {
+		const scopeCondition = or(
+			eq(flags.websiteId, clientId),
+			eq(flags.organizationId, clientId)
+		);
+
+		return db.query.flags.findFirst({
+			where: and(
+				eq(flags.key, key),
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				scopeCondition
+			),
+		});
+	},
+	{
+		expireInSec: 30,
+		prefix: "flag",
+		staleWhileRevalidate: true,
+		staleTime: 15,
+	}
+);
+
+const getCachedFlagsForClient = cacheable(
+	(clientId: string) => {
+		const scopeCondition = or(
+			eq(flags.websiteId, clientId),
+			eq(flags.organizationId, clientId)
+		);
+
+		return db.query.flags.findMany({
+			where: and(
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				scopeCondition
+			),
+		});
+	},
+	{
+		expireInSec: 30,
+		prefix: "flags-client",
+		staleWhileRevalidate: true,
+		staleTime: 15,
+	}
+);
 
 export function hashString(str: string): number {
 	let hash = 0;
@@ -303,12 +351,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						properties: parseProperties(query.properties),
 					};
 
-					const scopeCondition = or(
-						eq(flags.websiteId, query.clientId),
-						eq(flags.organizationId, query.clientId)
-					);
-
-					logger.info(
+					logger.debug(
 						{
 							key: query.key,
 							clientId: query.clientId,
@@ -318,38 +361,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						"Flag evaluation request"
 					);
 
-					const flag = await db.query.flags.findFirst({
-						where: and(
-							eq(flags.key, query.key),
-							isNull(flags.deletedAt),
-							eq(flags.status, "active"),
-							scopeCondition
-						),
-					});
-
-					if (!flag) {
-						// Debug: Let's check if the flag exists with any websiteId
-						const allFlags = await db.query.flags.findMany({
-							where: and(
-								eq(flags.key, query.key),
-								isNull(flags.deletedAt),
-								eq(flags.status, "active")
-							),
-						});
-
-						logger.info(
-							{
-								key: query.key,
-								clientId: query.clientId,
-								foundFlags: allFlags.map((f) => ({
-									id: f.id,
-									websiteId: f.websiteId,
-									organizationId: f.organizationId,
-								})),
-							},
-							"Flag debug info"
-						);
-					}
+					const flag = await getCachedFlag(query.key, query.clientId);
 
 					if (!flag) {
 						setAttributes({ "flag.found": false });
@@ -417,18 +429,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						properties: parseProperties(query.properties),
 					};
 
-					const scopeCondition = or(
-						eq(flags.websiteId, query.clientId),
-						eq(flags.organizationId, query.clientId)
-					);
-
-					const allFlags = await db.query.flags.findMany({
-						where: and(
-							isNull(flags.deletedAt),
-							eq(flags.status, "active"),
-							scopeCondition
-						),
-					});
+					const allFlags = await getCachedFlagsForClient(query.clientId);
 
 					setAttributes({
 						"flag.total_flags": allFlags.length,

@@ -22,7 +22,7 @@ export const SciFiGridCard = ({
 }: SciFiGridCardProps) => (
 	<div
 		className={cn(
-			"group relative min-h-[340px] w-full overflow-hidden rounded-lg transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 sm:min-h-[380px] lg:min-h-[420px]",
+			"group relative min-h-[340px] w-full overflow-hidden rounded-none transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 sm:min-h-[380px] lg:min-h-[420px]",
 			className
 		)}
 	>

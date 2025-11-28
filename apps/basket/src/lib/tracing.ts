@@ -105,7 +105,9 @@ export function captureError(
 		return;
 	}
 
-	span.recordException(error instanceof Error ? error : new Error(String(error)));
+	span.recordException(
+		error instanceof Error ? error : new Error(String(error))
+	);
 	span.setStatus({ code: SpanStatusCode.ERROR });
 
 	if (attributes) {

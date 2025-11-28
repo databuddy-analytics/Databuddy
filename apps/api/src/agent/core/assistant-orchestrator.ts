@@ -1,4 +1,5 @@
 import type { User } from "@databuddy/auth";
+import { logger } from "@databuddy/shared/logger";
 import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
 import type { Website } from "@databuddy/shared/types/website";
 import { createId } from "@databuddy/shared/utils/ids";
@@ -112,9 +113,9 @@ export class AssistantOrchestrator {
 				finalResult,
 				metrics
 			);
-			console.log("✅ Conversation saved successfully");
+			logger.debug({ messageId }, "Conversation saved successfully");
 		} catch (error) {
-			console.error("❌ Failed to save conversation:", error);
+			logger.error({ error, messageId }, "Failed to save conversation");
 		}
 	}
 
@@ -145,9 +146,9 @@ export class AssistantOrchestrator {
 				errorResponse,
 				metrics
 			);
-			console.log("✅ Error conversation saved successfully");
+			logger.debug({ messageId }, "Error conversation saved successfully");
 		} catch (error) {
-			console.error("❌ Failed to save error conversation:", error);
+			logger.error({ error }, "Failed to save error conversation");
 		}
 	}
 }

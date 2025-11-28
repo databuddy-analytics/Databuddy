@@ -2,7 +2,7 @@
  * Configuration options for the Databuddy SDK and <Databuddy /> component.
  * All options are passed as data attributes to the injected script.
  */
-export interface DatabuddyConfig {
+export type DatabuddyConfig = {
 	/**
 	 * Your Databuddy project client ID.
 	 * If not provided, will automatically detect from NEXT_PUBLIC_DATABUDDY_CLIENT_ID environment variable.
@@ -52,27 +52,12 @@ export interface DatabuddyConfig {
 	 */
 	debug?: boolean;
 
-	/**
-	 * Wait for user profile before sending events (advanced, default: false).
-	 */
-	waitForProfile?: boolean;
-
 	// --- Core Tracking Features ---
-
-	/**
-	 * Automatically track screen/page views (default: true).
-	 */
-	trackScreenViews?: boolean;
 
 	/**
 	 * Track hash changes in the URL (default: false).
 	 */
 	trackHashChanges?: boolean;
-
-	/**
-	 * Track user sessions (default: true).
-	 */
-	trackSessions?: boolean;
 
 	// --- Interaction Tracking ---
 
@@ -94,24 +79,9 @@ export interface DatabuddyConfig {
 	// --- Engagement Tracking ---
 
 	/**
-	 * Track user engagement metrics (default: false).
-	 */
-	trackEngagement?: boolean;
-
-	/**
 	 * Track scroll depth (default: false).
 	 */
 	trackScrollDepth?: boolean;
-
-	/**
-	 * Track exit intent (default: false).
-	 */
-	trackExitIntent?: boolean;
-
-	/**
-	 * Track bounce rate (default: false).
-	 */
-	trackBounceRate?: boolean;
 
 	// --- Performance Tracking ---
 
@@ -129,43 +99,6 @@ export interface DatabuddyConfig {
 	 * Track JavaScript errors (default: false).
 	 */
 	trackErrors?: boolean;
-
-	// --- Observability ---
-
-	/**
-	 * Enable observability features (logging, error tracking, tracing) (default: false).
-	 */
-	enableObservability?: boolean;
-
-	/**
-	 * Service name for observability events.
-	 */
-	observabilityService?: string;
-
-	/**
-	 * Environment for observability events.
-	 */
-	observabilityEnvironment?: string;
-
-	/**
-	 * Service version for observability events.
-	 */
-	observabilityVersion?: string;
-
-	/**
-	 * Enable structured logging (default: false).
-	 */
-	enableLogging?: boolean;
-
-	/**
-	 * Enable distributed tracing (default: false).
-	 */
-	enableTracing?: boolean;
-
-	/**
-	 * Enable error tracking (default: false).
-	 */
-	enableErrorTracking?: boolean;
 
 	// --- Optimization ---
 
@@ -222,7 +155,7 @@ export interface DatabuddyConfig {
 /**
  * Base event properties that can be attached to any event
  */
-export interface BaseEventProperties {
+export type BaseEventProperties = {
 	/** Page URL */
 	__path?: string;
 	/** Page title */
@@ -237,8 +170,6 @@ export interface BaseEventProperties {
 	sessionStartTime?: number;
 	/** Page count in session */
 	page_count?: number;
-	/** Screen resolution */
-	screen_resolution?: string;
 	/** Viewport size */
 	viewport_size?: string;
 	/** User timezone */
@@ -264,7 +195,7 @@ export interface EventProperties extends BaseEventProperties {
 /**
  * Pre-defined event types with their specific properties
  */
-export interface EventTypeMap {
+export type EventTypeMap = {
 	// Core events
 	screen_view: {
 		time_on_page?: number;
@@ -347,7 +278,7 @@ export type PropertiesForEvent<T extends EventName> =
 /**
  * Databuddy tracker instance interface
  */
-export interface DatabuddyTracker {
+export type DatabuddyTracker = {
 	/**
 	 * Current anonymous user ID
 	 */
@@ -396,6 +327,7 @@ export interface DatabuddyTracker {
  * Global window interface extensions
  */
 declare global {
+	// biome-ignore lint/style/useConsistentTypeDefinitions: It's needed here
 	interface Window {
 		databuddy?: DatabuddyTracker;
 		db?: {
@@ -412,7 +344,7 @@ declare global {
 /**
  * Helper type for HTML data attributes for automatic tracking
  */
-export interface DataAttributes {
+export type DataAttributes = {
 	/** Event name to track when element is clicked */
 	"data-track": string;
 	/** Additional data attributes (converted to camelCase) */

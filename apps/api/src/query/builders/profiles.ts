@@ -1,25 +1,25 @@
 import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
-	profile_list: {
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			limit?: number,
-			offset?: number,
-			_timezone?: string,
-			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
-		) => {
-			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(" AND ")}`
-				: "";
+  profile_list: {
+    customSql: (
+      websiteId: string,
+      startDate: string,
+      endDate: string,
+      _filters?: Filter[],
+      _granularity?: TimeUnit,
+      limit?: number,
+      offset?: number,
+      _timezone?: string,
+      filterConditions?: string[],
+      filterParams?: Record<string, Filter["value"]>
+    ) => {
+      const combinedWhereClause = filterConditions?.length
+        ? `AND ${filterConditions.join(" AND ")}`
+        : "";
 
-			return {
-				sql: `
+      return {
+        sql: `
     WITH visitor_profiles AS (
       SELECT
         anonymous_id as visitor_id,
@@ -38,8 +38,8 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events
       WHERE 
         client_id = {websiteId:String}
-        AND time >= parseDateTimeBestEffort({startDate:String})
-        AND time <= parseDateTimeBestEffort({endDate:String})
+        AND time >= toDateTime({startDate:String})
+        AND time <= toDateTime({endDate:String})
 	${combinedWhereClause}
       GROUP BY anonymous_id
       ORDER BY last_visit DESC
@@ -115,41 +115,41 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     LEFT JOIN visitor_sessions vs ON vp.visitor_id = vs.visitor_id
     ORDER BY vp.last_visit DESC, vs.session_start DESC
   `,
-				params: {
-					websiteId,
-					startDate,
-					endDate: `${endDate} 23:59:59`,
-					limit: limit || 25,
-					offset: offset || 0,
-					...filterParams,
-				},
-			};
-		},
-	},
+        params: {
+          websiteId,
+          startDate,
+          endDate: `${endDate} 23:59:59`,
+          limit: limit || 25,
+          offset: offset || 0,
+          ...filterParams,
+        },
+      };
+    },
+  },
 
-	profile_detail: {
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-			_offset?: number,
-			_timezone?: string,
-			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
-		) => {
-			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
+  profile_detail: {
+    customSql: (
+      websiteId: string,
+      startDate: string,
+      endDate: string,
+      filters?: Filter[],
+      _granularity?: TimeUnit,
+      _limit?: number,
+      _offset?: number,
+      _timezone?: string,
+      _filterConditions?: string[],
+      _filterParams?: Record<string, Filter["value"]>
+    ) => {
+      const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
 
-			if (!visitorId || typeof visitorId !== "string") {
-				throw new Error(
-					"anonymous_id filter is required for profile_detail query"
-				);
-			}
+      if (!visitorId || typeof visitorId !== "string") {
+        throw new Error(
+          "anonymous_id filter is required for profile_detail query"
+        );
+      }
 
-			return {
-				sql: `
+      return {
+        sql: `
     SELECT
       anonymous_id as visitor_id,
       MIN(time) as first_visit,
@@ -167,40 +167,40 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     WHERE 
       client_id = {websiteId:String}
       AND anonymous_id = {visitorId:String}
-      AND time >= parseDateTimeBestEffort({startDate:String})
-      AND time <= parseDateTimeBestEffort({endDate:String})
+      AND time >= toDateTime({startDate:String})
+      AND time <= toDateTime({endDate:String})
     GROUP BY anonymous_id
   `,
-				params: {
-					websiteId,
-					visitorId,
-					startDate,
-					endDate: `${endDate} 23:59:59`,
-				},
-			};
-		},
-	},
+        params: {
+          websiteId,
+          visitorId,
+          startDate,
+          endDate: `${endDate} 23:59:59`,
+        },
+      };
+    },
+  },
 
-	profile_sessions: {
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			filters?: Filter[],
-			_granularity?: TimeUnit,
-			limit = 100,
-			offset = 0
-		) => {
-			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
+  profile_sessions: {
+    customSql: (
+      websiteId: string,
+      startDate: string,
+      endDate: string,
+      filters?: Filter[],
+      _granularity?: TimeUnit,
+      limit = 100,
+      offset = 0
+    ) => {
+      const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
 
-			if (!visitorId || typeof visitorId !== "string") {
-				throw new Error(
-					"anonymous_id filter is required for profile_sessions query"
-				);
-			}
+      if (!visitorId || typeof visitorId !== "string") {
+        throw new Error(
+          "anonymous_id filter is required for profile_sessions query"
+        );
+      }
 
-			return {
-				sql: `
+      return {
+        sql: `
     WITH user_sessions AS (
       SELECT
         session_id,
@@ -221,8 +221,8 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       WHERE 
         client_id = {websiteId:String}
         AND anonymous_id = {visitorId:String}
-        AND time >= parseDateTimeBestEffort({startDate:String})
-        AND time <= parseDateTimeBestEffort({endDate:String})
+        AND time >= toDateTime({startDate:String})
+        AND time <= toDateTime({endDate:String})
       GROUP BY session_id
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}
@@ -272,18 +272,18 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     LEFT JOIN session_events se ON us.session_id = se.session_id
     ORDER BY us.first_visit DESC
   `,
-				params: {
-					websiteId,
-					visitorId,
-					startDate,
-					endDate: `${endDate} 23:59:59`,
-					limit,
-					offset,
-				},
-			};
-		},
-		plugins: {
-			normalizeGeo: true,
-		},
-	},
+        params: {
+          websiteId,
+          visitorId,
+          startDate,
+          endDate: `${endDate} 23:59:59`,
+          limit,
+          offset,
+        },
+      };
+    },
+    plugins: {
+      normalizeGeo: true,
+    },
+  },
 };

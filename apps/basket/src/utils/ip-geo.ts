@@ -97,7 +97,9 @@ function lookupGeoLocation(ip: string): Promise<{
 			try {
 				await loadDatabase();
 			} catch (error) {
-				captureError(error, { message: "Failed to load database for IP lookup" });
+				captureError(error, {
+					message: "Failed to load database for IP lookup",
+				});
 				setAttributes({
 					"geo.lookup_failed": true,
 					"geo.error": "database_load_failed",

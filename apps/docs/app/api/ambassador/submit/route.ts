@@ -1,7 +1,7 @@
-import { createLogger } from "@databuddy/shared/logger";
+// import { createLogger } from "@databuddy/shared/logger";
 import { type NextRequest, NextResponse } from "next/server";
 
-const logger = createLogger("ambassador-form");
+// const logger = createLogger("ambassador-form");
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
 const SLACK_TIMEOUT_MS = 10_000;
 
@@ -207,7 +207,7 @@ async function sendToSlack(
 	ip: string
 ): Promise<void> {
 	if (!SLACK_WEBHOOK_URL) {
-		logger.warn(
+		console.warn(
 			{},
 			"SLACK_WEBHOOK_URL not configured, skipping Slack notification"
 		);
@@ -235,7 +235,7 @@ async function sendToSlack(
 				const responseText = await response
 					.text()
 					.catch(() => "Unable to read response");
-				logger.error(
+				console.error(
 					{
 						status: response.status,
 						statusText: response.statusText,
@@ -247,13 +247,13 @@ async function sendToSlack(
 		} catch (fetchError) {
 			clearTimeout(timeoutId);
 			if (fetchError instanceof Error && fetchError.name === "AbortError") {
-				logger.error({}, "Slack webhook request timed out after 10 seconds");
+				console.error({}, "Slack webhook request timed out after 10 seconds");
 			} else {
 				throw fetchError;
 			}
 		}
 	} catch (error) {
-		logger.error(
+		console.error(
 			{
 				error: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
 		try {
 			formData = await request.json();
 		} catch (jsonError) {
-			logger.warn(
+			console.warn(
 				{
 					ip: clientIP,
 					userAgent,
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
 		const validation = validateFormData(formData);
 
 		if (!validation.valid) {
-			logger.info(
+			console.info(
 				{ errors: validation.errors, ip: clientIP },
 				"Form submission failed validation"
 			);
@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
 
 		const ambassadorData = validation.data;
 
-		logger.info(
+		console.info(
 			{
 				name: ambassadorData.name,
 				email: ambassadorData.email,
@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
 			message: "Ambassador application submitted successfully",
 		});
 	} catch (error) {
-		logger.error(
+		console.error(
 			{
 				ip: clientIP,
 				userAgent,

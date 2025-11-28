@@ -18,7 +18,6 @@ type CacheOptions = {
 	staleWhileRevalidate?: boolean;
 	staleTime?: number;
 	maxRetries?: number;
-	timeout?: number;
 };
 
 const defaultSerialize = (data: unknown): string => JSON.stringify(data);
@@ -29,18 +28,6 @@ const defaultDeserialize = (data: string): unknown =>
 		}
 		return value;
 	});
-
-function withTimeout<T>(
-	promise: Promise<T>,
-	timeoutMs: number
-): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<T>((_, reject) =>
-			setTimeout(() => reject(new Error("Redis timeout")), timeoutMs)
-		),
-	]);
-}
 
 function shouldSkipRedis(): boolean {
 	const now = Date.now();
@@ -66,7 +53,6 @@ export async function getCache<T>(
 		staleWhileRevalidate = false,
 		staleTime = 0,
 		maxRetries = 1,
-		timeout = 300,
 	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	if (shouldSkipRedis()) {
@@ -77,7 +63,7 @@ export async function getCache<T>(
 	while (retries < maxRetries) {
 		try {
 			const redis = getRedisCache();
-			const hit = await withTimeout(redis.get(key), timeout);
+			const hit = await redis.get(key);
 			redisAvailable = true;
 			lastRedisCheck = Date.now();
 
@@ -86,7 +72,7 @@ export async function getCache<T>(
 
 				if (staleWhileRevalidate) {
 					try {
-						const ttl = await withTimeout(redis.ttl(key), timeout);
+						const ttl = await redis.ttl(key);
 						if (ttl < staleTime && !activeRevalidations.has(key)) {
 							const revalidationPromise = fn()
 								.then(async (freshData: T) => {
@@ -97,10 +83,7 @@ export async function getCache<T>(
 									) {
 										try {
 											const redis = getRedisCache();
-											await withTimeout(
-												redis.setex(key, expireInSec, serialize(freshData)),
-												timeout
-											);
+											await redis.setex(key, expireInSec, serialize(freshData));
 										} catch {
 											// Ignore SET failure
 										}
@@ -133,10 +116,7 @@ export async function getCache<T>(
 				!shouldSkipRedis()
 			) {
 				try {
-					await withTimeout(
-						redis.setex(key, expireInSec, serialize(data)),
-						timeout
-					);
+					await redis.setex(key, expireInSec, serialize(data));
 				} catch {
 					redisAvailable = false;
 					lastRedisCheck = Date.now();
@@ -213,8 +193,7 @@ export function cacheable<T extends (...args: any) => any>(
 		...args: Parameters<T>
 	): Promise<Awaited<ReturnType<T>>> => {
 		const key = getKey(...args);
-		const timeout = typeof options === "number" ? 50 : options.timeout ?? 50;
-		const retries = typeof options === "number" ? 1 : options.maxRetries ?? 1;
+		const retries = typeof options === "number" ? 1 : (options.maxRetries ?? 1);
 
 		if (shouldSkipRedis()) {
 			return fn(...args);
@@ -224,7 +203,7 @@ export function cacheable<T extends (...args: any) => any>(
 		while (attempt < retries) {
 			try {
 				const redis = getRedisCache();
-				const cached = await withTimeout(redis.get(key), timeout);
+				const cached = await redis.get(key);
 				redisAvailable = true;
 				lastRedisCheck = Date.now();
 
@@ -233,7 +212,7 @@ export function cacheable<T extends (...args: any) => any>(
 
 					if (staleWhileRevalidate) {
 						try {
-							const ttl = await withTimeout(redis.ttl(key), timeout);
+							const ttl = await redis.ttl(key);
 							if (ttl < staleTime && !activeRevalidations.has(key)) {
 								const revalidationPromise = fn(...args)
 									.then(async (freshData: Awaited<ReturnType<T>>) => {
@@ -244,10 +223,7 @@ export function cacheable<T extends (...args: any) => any>(
 										) {
 											try {
 												const redis = getRedisCache();
-												await withTimeout(
-													redis.setex(key, expireInSec, serialize(freshData)),
-													timeout
-												);
+												await redis.setex(key, expireInSec, serialize(freshData));
 											} catch {
 												// Ignore SET failure
 											}
@@ -280,10 +256,7 @@ export function cacheable<T extends (...args: any) => any>(
 					!shouldSkipRedis()
 				) {
 					try {
-						await withTimeout(
-							redis.setex(key, expireInSec, serialize(result)),
-							timeout
-						);
+						await redis.setex(key, expireInSec, serialize(result));
 					} catch {
 						redisAvailable = false;
 						lastRedisCheck = Date.now();

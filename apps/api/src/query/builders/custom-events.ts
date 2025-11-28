@@ -46,8 +46,8 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						)
 						WHERE 
 							ce.client_id = {websiteId:String}
-							AND ce.timestamp >= parseDateTimeBestEffort({startDate:String})
-							AND ce.timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+							AND ce.timestamp >= toDateTime({startDate:String})
+							AND ce.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 							AND ce.event_name != ''
 							${combinedWhereClause}
 						GROUP BY 
@@ -144,8 +144,8 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						)
 						WHERE 
 							ce.client_id = {websiteId:String}
-							AND ce.timestamp >= parseDateTimeBestEffort({startDate:String})
-							AND ce.timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+							AND ce.timestamp >= toDateTime({startDate:String})
+							AND ce.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 							AND ce.event_name != ''
 							AND ce.properties != '{}'
 							AND isValidJSON(ce.properties)

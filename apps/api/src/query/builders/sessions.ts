@@ -19,13 +19,13 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"CASE " +
-				"WHEN time_on_page < 30 THEN '0-30s' " +
-				"WHEN time_on_page < 60 THEN '30s-1m' " +
-				"WHEN time_on_page < 300 THEN '1m-5m' " +
-				"WHEN time_on_page < 900 THEN '5m-15m' " +
-				"WHEN time_on_page < 3600 THEN '15m-1h' " +
-				"ELSE '1h+' " +
-				"END as duration_range",
+			"WHEN time_on_page < 30 THEN '0-30s' " +
+			"WHEN time_on_page < 60 THEN '30s-1m' " +
+			"WHEN time_on_page < 300 THEN '1m-5m' " +
+			"WHEN time_on_page < 900 THEN '5m-15m' " +
+			"WHEN time_on_page < 3600 THEN '15m-1h' " +
+			"ELSE '1h+' " +
+			"END as duration_range",
 			"COUNT(DISTINCT session_id) as sessions",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
@@ -131,8 +131,8 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
       FROM analytics.events
       WHERE 
         client_id = {websiteId:String}
-        AND time >= parseDateTimeBestEffort({startDate:String})
-        AND time <= parseDateTimeBestEffort({endDate:String})
+        AND time >= toDateTime({startDate:String})
+        AND time <= toDateTime({endDate:String})
       GROUP BY session_id
       ORDER BY first_visit DESC
       LIMIT {limit:Int32} OFFSET {offset:Int32}

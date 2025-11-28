@@ -1,109 +1,142 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Error Tracking", () => {
-    test.beforeEach(async ({ page }) => {
-        await page.route("**/basket.databuddy.cc/errors", async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                body: JSON.stringify({ success: true }),
-                headers: { "Access-Control-Allow-Origin": "*" },
-            });
-        });
-    });
+	test.beforeEach(async ({ page }) => {
+		// Disable sendBeacon for reliable route interception (WebKit issue)
+		await page.addInitScript(() => {
+			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
+		});
 
-    test("captures unhandled errors", async ({ page }) => {
-        const requestPromise = page.waitForRequest(
-            (req) => req.url().includes("/basket.databuddy.cc/errors") && req.method() === "POST"
-        );
+		await page.route("**/basket.databuddy.cc/errors", async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ success: true }),
+				headers: { "Access-Control-Allow-Origin": "*" },
+			});
+		});
+	});
 
-        await page.goto("/");
+	test("captures unhandled errors", async ({ page }) => {
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("/basket.databuddy.cc/errors") &&
+				req.method() === "POST"
+		);
 
-        // Load dedicated errors script
-        await page.evaluate(() => {
-            (window as any).databuddyConfig = { clientId: "test-client-id", trackErrors: true, ignoreBotDetection: true };
-        });
-        await page.addScriptTag({ url: "/dist/errors.js" });
+		await page.goto("/test");
 
-        // Trigger error
-        await page.evaluate(() => {
-            setTimeout(() => {
-                throw new Error("Test Error Capture");
-            }, 10);
-        });
+		// Load dedicated errors script
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-client-id",
+				trackErrors: true,
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/errors.js" });
 
-        const request = await requestPromise;
-        const payload = request.postDataJSON();
+		// Trigger error
+		await page.evaluate(() => {
+			setTimeout(() => {
+				throw new Error("Test Error Capture");
+			}, 10);
+		});
 
-        console.log('Error payload:', payload);
-        expect(payload.message).toContain("Test Error Capture");
-        expect(payload.errorType).toBe("Error");
-    });
+		const request = await requestPromise;
+		const payload = request.postDataJSON();
 
-    test("captures unhandled promise rejections (Error object)", async ({ page }) => {
-        const requestPromise = page.waitForRequest(
-            (req) => req.url().includes("/basket.databuddy.cc/errors") && req.method() === "POST"
-        );
+		console.log("Error payload:", payload);
+		expect(payload.message).toContain("Test Error Capture");
+		expect(payload.errorType).toBe("Error");
+	});
 
-        await page.goto("/");
-        await page.evaluate(() => {
-            (window as any).databuddyConfig = { clientId: "test-client-id", trackErrors: true, ignoreBotDetection: true };
-        });
-        await page.addScriptTag({ url: "/dist/errors.js" });
+	test("captures unhandled promise rejections (Error object)", async ({
+		page,
+	}) => {
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("/basket.databuddy.cc/errors") &&
+				req.method() === "POST"
+		);
 
-        await page.evaluate(() => {
-            Promise.reject(new Error("Async Failure"));
-        });
+		await page.goto("/test");
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-client-id",
+				trackErrors: true,
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/errors.js" });
 
-        const request = await requestPromise;
-        const payload = request.postDataJSON();
+		await page.evaluate(() => {
+			Promise.reject(new Error("Async Failure"));
+		});
 
-        expect(payload.message).toContain("Async Failure");
-        expect(payload.errorType).toBe("Error");
-    });
+		const request = await requestPromise;
+		const payload = request.postDataJSON();
 
-    test("captures unhandled promise rejections (String)", async ({ page }) => {
-        const requestPromise = page.waitForRequest(
-            (req) => req.url().includes("/basket.databuddy.cc/errors") && req.method() === "POST"
-        );
+		expect(payload.message).toContain("Async Failure");
+		expect(payload.errorType).toBe("Error");
+	});
 
-        await page.goto("/");
-        await page.evaluate(() => {
-            (window as any).databuddyConfig = { clientId: "test-client-id", trackErrors: true, ignoreBotDetection: true };
-        });
-        await page.addScriptTag({ url: "/dist/errors.js" });
+	test("captures unhandled promise rejections (String)", async ({ page }) => {
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("/basket.databuddy.cc/errors") &&
+				req.method() === "POST"
+		);
 
-        await page.evaluate(() => {
-            Promise.reject("String Rejection");
-        });
+		await page.goto("/test");
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-client-id",
+				trackErrors: true,
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/errors.js" });
 
-        const request = await requestPromise;
-        const payload = request.postDataJSON();
+		await page.evaluate(() => {
+			Promise.reject("String Rejection");
+		});
 
-        expect(payload.message).toContain("String Rejection");
-        expect(payload.errorType).toBe("UnhandledRejection");
-    });
+		const request = await requestPromise;
+		const payload = request.postDataJSON();
 
-    test("captures unhandled promise rejections (Object)", async ({ page }) => {
-        const requestPromise = page.waitForRequest(
-            (req) => req.url().includes("/basket.databuddy.cc/errors") && req.method() === "POST"
-        );
+		expect(payload.message).toContain("String Rejection");
+		expect(payload.errorType).toBe("UnhandledRejection");
+	});
 
-        await page.goto("/");
-        await page.evaluate(() => {
-            (window as any).databuddyConfig = { clientId: "test-client-id", trackErrors: true, ignoreBotDetection: true };
-        });
-        await page.addScriptTag({ url: "/dist/errors.js" });
+	test("captures unhandled promise rejections (Object)", async ({ page }) => {
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("/basket.databuddy.cc/errors") &&
+				req.method() === "POST"
+		);
 
-        await page.evaluate(() => {
-            Promise.reject({ reason: "Object Rejection", code: 500 });
-        });
+		await page.goto("/test");
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-client-id",
+				trackErrors: true,
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/errors.js" });
 
-        const request = await requestPromise;
-        const payload = request.postDataJSON();
+		await page.evaluate(() => {
+			Promise.reject({ reason: "Object Rejection", code: 500 });
+		});
 
-        // Should be JSON stringified
-        expect(payload.message).toContain('{"reason":"Object Rejection","code":500}');
-        expect(payload.errorType).toBe("UnhandledRejection");
-    });
+		const request = await requestPromise;
+		const payload = request.postDataJSON();
+
+		// Should be JSON stringified
+		expect(payload.message).toContain(
+			'{"reason":"Object Rejection","code":500}'
+		);
+		expect(payload.errorType).toBe("UnhandledRejection");
+	});
 });

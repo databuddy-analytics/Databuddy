@@ -296,7 +296,7 @@ Discover your global audience and optimize for different regions:
   derived from the user's IP address at the beginning of a session. This
   functionality is an integral part of session tracking. Ensure `trackSessions=
   {true}` (which is enabled by default) in your [SDK
-  configuration](/docs/sdk#-configuration-options) to collect this data.
+  configuration](/docs/sdk#configuration-options) to collect this data.
 </Callout>
 
 ## Technology Stack Analysis
@@ -358,9 +358,9 @@ Track and analyze your business-specific events with detailed property breakdown
   `db.track('your_event_name', {your_properties})` method. The more relevant and
   well-structured custom events you track, the more insightful this section will
   become. For detailed guidance on how to implement custom event tracking,
-  please refer to the [SDK Methods Reference](/docs/sdk#-sdk-methods-reference)
+  please refer to the [SDK Methods Reference](/docs/sdk#sdk-methods)
   and strategies in the [Custom Event
-  Tracking](/docs/sdk#-custom-event-tracking) section of the SDK documentation.
+  Tracking](/docs/sdk#custom-event-tracking) section of the SDK documentation.
 </Callout>
 
 ### Enhanced Event Interface
@@ -557,7 +557,7 @@ Monitor your website's technical health and user experience:
   The performance metrics, including Core Web Vitals, are populated when you
   enable `trackPerformance={true}` (enabled by default) and `trackWebVitals=
   {true}` (disabled by default, but recommended) in your [SDK
-  configuration](/docs/sdk#-optional-tracking-features). Enabling these options
+  configuration](/docs/sdk#optional-features). Enabling these options
   allows the SDK to collect detailed timing and performance data from the user's
   browser.
 </Callout>
@@ -641,11 +641,11 @@ Monitor and resolve issues affecting your users:
 <Callout type="tip" title="Enabling Error Data Collection">
   To populate the error tracking sections of the dashboard, ensure you have
   `trackErrors={true}` enabled in your [SDK
-  configuration](/docs/sdk#-optional-tracking-features). This will automatically
+  configuration](/docs/sdk#optional-features). This will automatically
   capture unhandled JavaScript errors and promise rejections. For more detailed
   context on specific handled errors, you can manually send error events using
   `db.track('error', {/* custom properties */})` as described in the [SDK
-  Methods Reference](/docs/sdk#-sdk-methods-reference).
+  Methods Reference](/docs/sdk#sdk-methods).
 </Callout>
 
 ### JavaScript Error Analytics
@@ -862,7 +862,7 @@ To populate funnel data, you need to:
 1. Define the steps of your funnel within the Databuddy dashboard settings.
 2. Ensure each step corresponds to a custom event (or page view) that you are tracking with the SDK. For example, a signup funnel might be defined by a sequence of events like `viewed_signup_page` (a screen view), `started_signup_form` (custom event), and `completed_signup` (custom event).
 
-The sequence of these events for users will then build the funnel visualization. For more details on sending custom events, see the [SDK Methods Reference](/docs/sdk#-sdk-methods-reference) in the SDK documentation.
+The sequence of these events for users will then build the funnel visualization. For more details on sending custom events, see the [SDK Methods Reference](/docs/sdk#sdk-methods) in the SDK documentation.
 
 </Callout>
 
@@ -876,8 +876,8 @@ User journey visualization allows you to see the paths users take through your w
 
 <Callout type="tip" title="Data for User Journeys">
 This feature relies on the comprehensive event data tracked by the SDK. The richness of the user journeys depends on:
-- Thorough `screen_view` tracking (often automatic via `trackScreenViews={true}` in the [SDK configuration](/docs/sdk#-configuration-options)).
-- Detailed custom event tracking (`db.track()`) for significant interactions as described in the [SDK Methods Reference](/docs/sdk#-sdk-methods-reference).
+- Thorough `screen_view` tracking (often automatic via `trackScreenViews={true}` in the [SDK configuration](/docs/sdk#configuration-options)).
+- Detailed custom event tracking (`db.track()`) for significant interactions as described in the [SDK Methods Reference](/docs/sdk#sdk-methods).
 
 Each event is tied to a user's session, allowing the dashboard to reconstruct their path.
 
@@ -896,9 +896,9 @@ Richer user profiles are developed when you consistently track custom events tha
 
 Refer to these SDK documentation sections for more:
 
-- [Custom Event Tracking](/docs/sdk#-custom-event-tracking) for strategy.
-- [Standard Event Reference](/docs/sdk#-standard-event-reference) for common event types.
-- [SDK Methods Reference](/docs/sdk#-sdk-methods-reference) for `db.track()` and `db.setGlobalProperties()`.
+- [Custom Event Tracking](/docs/sdk#custom-event-tracking) for strategy.
+- [Standard Event Reference](/docs/sdk#standard-events) for common event types.
+- [SDK Methods Reference](/docs/sdk#sdk-methods) for `db.track()` and `db.setGlobalProperties()`.
 - The `db.setGlobalProperties()` method can be particularly useful for adding persistent attributes to a user's profile.
 </Callout>
 

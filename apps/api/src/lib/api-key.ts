@@ -1,168 +1,177 @@
 import type { InferSelectModel } from "@databuddy/db";
-import { and, apikey, apikeyAccess, db, eq, isNull } from "@databuddy/db";
+import { apikey, db, eq } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "./logger";
+import { keys } from "@databuddy/rpc/src/routers/apikeys";
+import { hasAllScopes, hasAnyScope, hasScope, isExpired } from "keypal";
 
 export type ApiKeyRow = InferSelectModel<typeof apikey>;
-export type ApiScope = InferSelectModel<typeof apikey>["scopes"][number];
+export type ApiScope = ApiKeyRow["scopes"][number];
+type Metadata = { resources?: Record<string, string[]> };
 
-const getCachedApiKeyBySecret = cacheable(
-	async (secret: string): Promise<ApiKeyRow | null> => {
-		try {
-			const key = await db.query.apikey.findFirst({
-				where: and(
-					eq(apikey.key, secret),
-					eq(apikey.enabled, true),
-					isNull(apikey.revokedAt)
-				),
-			});
-			return key ?? null;
-		} catch (error) {
-			logger.error({ error }, "Failed to get API key by secret from cache");
-			return null;
-		}
+const getMeta = (key: ApiKeyRow): Metadata => (key.metadata as Metadata) ?? {};
+
+const getCachedApiKeyByHash = cacheable(
+	async (keyHash: string): Promise<ApiKeyRow | null> => {
+		const key = await db.query.apikey.findFirst({
+			where: eq(apikey.keyHash, keyHash),
+		});
+		return key ?? null;
 	},
 	{
 		expireInSec: 60,
-		prefix: "api-key-by-secret",
+		prefix: "api-key-by-hash",
 		staleWhileRevalidate: true,
 		staleTime: 30,
 	}
 );
 
-const getCachedAccessEntries = cacheable(
-	async (keyId: string) => {
-		try {
-			return await db
-				.select()
-				.from(apikeyAccess)
-				.where(eq(apikeyAccess.apikeyId, keyId));
-		} catch (error) {
-			logger.error(
-				{ error, keyId },
-				"Failed to get API key access entries from cache"
-			);
-			return [] as InferSelectModel<typeof apikeyAccess>[];
-		}
-	},
-	{
-		expireInSec: 60,
-		prefix: "api-key-access-entries",
-		staleWhileRevalidate: true,
-		staleTime: 30,
+export function isApiKeyPresent(headers: Headers): boolean {
+	const xApiKey = headers.get("x-api-key");
+	const auth = headers.get("authorization");
+	return Boolean(xApiKey || auth?.toLowerCase().startsWith("bearer "));
+}
+
+export function extractSecret(headers: Headers): string | null {
+	const xApiKey = headers.get("x-api-key")?.trim();
+	if (xApiKey) {
+		return xApiKey || null;
 	}
-);
+
+	const auth = headers.get("authorization");
+	if (auth?.toLowerCase().startsWith("bearer ")) {
+		return auth.slice(7).trim() || null;
+	}
+
+	return null;
+}
 
 export async function getApiKeyFromHeader(
 	headers: Headers
 ): Promise<ApiKeyRow | null> {
-	const xApiKey = headers.get("x-api-key")?.trim();
-	const auth = headers.get("authorization");
-	const bearer = auth?.toLowerCase()?.startsWith("bearer ")
-		? auth.slice(7).trim()
-		: null;
-	const secret =
-		xApiKey && xApiKey.length > 0
-			? xApiKey
-			: bearer && bearer.length > 0
-				? bearer
-				: null;
+	const secret = extractSecret(headers);
 	if (!secret) {
 		return null;
 	}
-	const key = await getCachedApiKeyBySecret(secret);
-	if (!key) {
-		logger.warn(
-			{
-				userAgent: headers.get("user-agent"),
-				ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
-				method: "getApiKeyFromHeader",
-			},
-			"API key authentication failed: invalid key"
-		);
-		return null;
-	}
-	if (key.expiresAt && new Date(key.expiresAt) <= new Date()) {
-		logger.warn(
-			{
-				apikeyId: key.id,
-				expiresAt: key.expiresAt,
-				userAgent: headers.get("user-agent"),
-				ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
-			},
-			"API key authentication failed: expired key"
-		);
-		return null;
-	}
 
-	// Audit log successful API key usage
-	logger.info(
-		{
-			apikeyId: key.id,
-			userId: key.userId,
-			organizationId: key.organizationId,
-			scopes: key.scopes,
-			userAgent: headers.get("user-agent"),
-			ip: headers.get("x-forwarded-for") || headers.get("x-real-ip"),
-			keyPrefix: key.prefix,
-		},
-		"API key used successfully"
-	);
+	const keyHash = keys.hashKey(secret);
+	const key = await getCachedApiKeyByHash(keyHash);
+
+	if (!key?.enabled || key.revokedAt || isExpired(key.expiresAt)) {
+		return null;
+	}
 
 	return key;
 }
 
-export function isApiKeyPresent(headers: Headers): boolean {
-	const xApiKey = headers.get("x-api-key");
-	if (xApiKey) {
-		return true;
-	}
-	const auth = headers.get("authorization");
-	return auth?.toLowerCase().startsWith("bearer ") ?? false;
-}
+function collectScopes(key: ApiKeyRow, resource?: string): ApiScope[] {
+	const scopes = new Set<ApiScope>(key.scopes);
+	const resources = getMeta(key).resources;
 
-export async function resolveEffectiveScopesForWebsite(
-	key: ApiKeyRow | null,
-	websiteId: string
-): Promise<Set<ApiScope>> {
-	if (!key) {
-		return new Set();
-	}
-
-	const effective = new Set<ApiScope>();
-	for (const s of key.scopes || []) {
-		effective.add(s as ApiScope);
-	}
-
-	const entries = await getCachedAccessEntries(key.id);
-	for (const entry of entries) {
-		const isGlobal = entry.resourceType === "global";
-		const isWebsiteMatch =
-			entry.resourceType === "website" && entry.resourceId === websiteId;
-		if (isGlobal || isWebsiteMatch) {
-			for (const s of entry.scopes) {
-				effective.add(s as ApiScope);
+	if (resources) {
+		for (const s of resources.global ?? []) {
+			scopes.add(s as ApiScope);
+		}
+		if (resource && resources[resource]) {
+			for (const s of resources[resource]) {
+				scopes.add(s as ApiScope);
 			}
 		}
 	}
 
-	return effective;
+	return [...scopes];
 }
 
-export async function hasWebsiteScope(
+export function getEffectiveScopes(
 	key: ApiKeyRow | null,
-	websiteId: string,
-	required: ApiScope
-): Promise<boolean> {
+	resource?: string
+): ApiScope[] {
+	if (!key) {
+		return [];
+	}
+	return collectScopes(key, resource);
+}
+
+export function hasKeyScope(
+	key: ApiKeyRow | null,
+	scope: ApiScope,
+	resource?: string
+): boolean {
 	if (!key) {
 		return false;
 	}
+	return hasScope(collectScopes(key, resource), scope);
+}
 
-	if ((key.scopes || []).includes(required)) {
-		return true;
+export function hasKeyAnyScope(
+	key: ApiKeyRow | null,
+	scopes: ApiScope[],
+	resource?: string
+): boolean {
+	if (!key) {
+		return false;
 	}
-	const effective = await resolveEffectiveScopesForWebsite(key, websiteId);
-	const hasScope = effective.has(required);
+	return hasAnyScope(collectScopes(key, resource), scopes);
+}
 
-	return hasScope;
+export function hasKeyAllScopes(
+	key: ApiKeyRow | null,
+	scopes: ApiScope[],
+	resource?: string
+): boolean {
+	if (!key) {
+		return false;
+	}
+	return hasAllScopes(collectScopes(key, resource), scopes);
+}
+
+export function resolveEffectiveScopesForWebsite(
+	key: ApiKeyRow | null,
+	websiteId: string
+): Set<ApiScope> {
+	return new Set(getEffectiveScopes(key, `website:${websiteId}`));
+}
+
+export function hasWebsiteScope(
+	key: ApiKeyRow | null,
+	websiteId: string,
+	required: ApiScope
+): boolean {
+	return hasKeyScope(key, required, `website:${websiteId}`);
+}
+
+export function hasWebsiteAnyScope(
+	key: ApiKeyRow | null,
+	websiteId: string,
+	scopes: ApiScope[]
+): boolean {
+	return hasKeyAnyScope(key, scopes, `website:${websiteId}`);
+}
+
+export function hasWebsiteAllScopes(
+	key: ApiKeyRow | null,
+	websiteId: string,
+	scopes: ApiScope[]
+): boolean {
+	return hasKeyAllScopes(key, scopes, `website:${websiteId}`);
+}
+
+export function hasGlobalAccess(key: ApiKeyRow | null): boolean {
+	if (!key) {
+		return false;
+	}
+	const resources = getMeta(key).resources;
+	return Boolean(resources?.global?.length);
+}
+
+export function getAccessibleWebsiteIds(key: ApiKeyRow | null): string[] {
+	if (!key) {
+		return [];
+	}
+	const resources = getMeta(key).resources;
+	if (!resources) {
+		return [];
+	}
+	return Object.keys(resources)
+		.filter((k) => k.startsWith("website:"))
+		.map((k) => k.slice(8));
 }

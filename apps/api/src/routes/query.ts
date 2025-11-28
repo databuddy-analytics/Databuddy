@@ -1,13 +1,19 @@
 import { auth } from "@databuddy/auth";
-import { and, apikeyAccess, db, eq, isNull, websites } from "@databuddy/db";
+import { and, db, eq, inArray, isNull, websites } from "@databuddy/db";
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import { Elysia, t } from "elysia";
-import { getApiKeyFromHeader, isApiKeyPresent } from "../lib/api-key";
+import {
+	type ApiKeyRow,
+	getAccessibleWebsiteIds,
+	getApiKeyFromHeader,
+	hasGlobalAccess,
+	isApiKeyPresent,
+} from "../lib/api-key";
 import { record, setAttributes } from "../lib/tracing";
 import { getCachedWebsiteDomain, getWebsiteDomain } from "../lib/website-utils";
-import { compileQuery, executeQuery } from "../query";
+import { compileQuery, executeBatch } from "../query";
 import { QueryBuilders } from "../query/builders";
-import type { QueryRequest } from "../query/types";
+import type { Filter, QueryRequest } from "../query/types";
 import {
 	CompileRequestSchema,
 	type CompileRequestType,
@@ -15,51 +21,22 @@ import {
 	type DynamicQueryRequestType,
 } from "../schemas";
 
-// import { databuddy } from '../lib/databuddy';
+const MAX_HOURLY_DAYS = 7;
 
-type QueryParams = {
-	start_date?: string;
-	startDate?: string;
-	end_date?: string;
-	endDate?: string;
-	website_id?: string;
-	timezone?: string;
+type AuthContext = {
+	apiKey: ApiKeyRow | null;
+	user: { id: string; name: string; email: string } | null;
+	isAuthenticated: boolean;
+	authMethod: "api_key" | "session" | "none";
 };
 
-async function checkAuth(request: Request): Promise<Response | null> {
-	const apiKeyPresent = isApiKeyPresent(request.headers);
-	const apiKey = apiKeyPresent
-		? await getApiKeyFromHeader(request.headers)
-		: null;
-	const session = await auth.api.getSession({ headers: request.headers });
-	const sessionUser = session?.user ?? null;
+const AUTH_FAILED = new Response(
+	JSON.stringify({ success: false, error: "Authentication required", code: "AUTH_REQUIRED" }),
+	{ status: 401, headers: { "Content-Type": "application/json" } }
+);
 
-	if (sessionUser || apiKey) {
-		return null; // Auth passed
-	}
-
-	return new Response(
-		JSON.stringify({
-			success: false,
-			error: "Authentication required",
-			code: "AUTH_REQUIRED",
-		}),
-		{
-			status: 401,
-			headers: { "Content-Type": "application/json" },
-		}
-	);
-}
-
-async function getAccessibleWebsites(request: Request) {
-	const apiKeyPresent = isApiKeyPresent(request.headers);
-	const apiKey = apiKeyPresent
-		? await getApiKeyFromHeader(request.headers)
-		: null;
-	const session = await auth.api.getSession({ headers: request.headers });
-	const sessionUser = session?.user ?? null;
-
-	const baseSelect = {
+function getAccessibleWebsites(authCtx: AuthContext) {
+	const select = {
 		id: websites.id,
 		name: websites.name,
 		domain: websites.domain,
@@ -67,476 +44,218 @@ async function getAccessibleWebsites(request: Request) {
 		createdAt: websites.createdAt,
 	};
 
-	if (sessionUser) {
+	if (authCtx.user) {
 		return db
-			.select(baseSelect)
+			.select(select)
 			.from(websites)
-			.where(
-				and(
-					eq(websites.userId, sessionUser.id),
-					isNull(websites.organizationId)
-				)
-			)
-			.orderBy((table) => table.createdAt);
+			.where(and(eq(websites.userId, authCtx.user.id), isNull(websites.organizationId)))
+			.orderBy((t) => t.createdAt);
 	}
 
-	if (apiKey) {
-		// Check for global access first
-		const hasGlobalAccess = await db
-			.select({ count: apikeyAccess.apikeyId })
-			.from(apikeyAccess)
-			.where(
-				and(
-					eq(apikeyAccess.apikeyId, apiKey.id),
-					eq(apikeyAccess.resourceType, "global")
-				)
-			)
-			.limit(1);
-
-		if (hasGlobalAccess.length > 0) {
-			// Global access - return all websites for the API key's scope
-			const filter = apiKey.organizationId
-				? eq(websites.organizationId, apiKey.organizationId)
-				: apiKey.userId
-					? and(
-						eq(websites.userId, apiKey.userId),
-						isNull(websites.organizationId)
-					)
-					: eq(websites.id, ""); // No matches if no user/org
-
-			return db
-				.select(baseSelect)
-				.from(websites)
-				.where(filter)
-				.orderBy((table) => table.createdAt);
+	if (authCtx.apiKey) {
+		if (hasGlobalAccess(authCtx.apiKey)) {
+			const filter = authCtx.apiKey.organizationId
+				? eq(websites.organizationId, authCtx.apiKey.organizationId)
+				: authCtx.apiKey.userId
+					? and(eq(websites.userId, authCtx.apiKey.userId), isNull(websites.organizationId))
+					: eq(websites.id, "");
+			return db.select(select).from(websites).where(filter).orderBy((t) => t.createdAt);
 		}
 
-		// Specific website access - join with access table
-		return db
-			.select(baseSelect)
-			.from(websites)
-			.innerJoin(
-				apikeyAccess,
-				and(
-					eq(apikeyAccess.resourceId, websites.id),
-					eq(apikeyAccess.resourceType, "website"),
-					eq(apikeyAccess.apikeyId, apiKey.id)
-				)
-			)
-			.orderBy((table) => table.createdAt);
+		const ids = getAccessibleWebsiteIds(authCtx.apiKey);
+		if (ids.length === 0) {
+			return [];
+		}
+		return db.select(select).from(websites).where(inArray(websites.id, ids)).orderBy((t) => t.createdAt);
 	}
 
 	return [];
 }
 
-export const query = new Elysia({ prefix: "/v1/query" })
-	.get("/websites", function getWebsites({ request }: { request: Request }) {
-		return record("getWebsites", async () => {
-			const authResult = await checkAuth(request);
-			if (authResult) {
-				setAttributes({ "auth.failed": true });
-				return authResult;
-			}
+const MS_PER_DAY = 86_400_000;
 
-			try {
-				const websites = await getAccessibleWebsites(request);
-				setAttributes({
-					"websites.count": websites.length,
-					"auth.method": isApiKeyPresent(request.headers)
-						? "api_key"
-						: "session",
-				});
-				return {
-					success: true,
-					websites,
-					total: websites.length,
-				};
-			} catch (error) {
-				setAttributes({ error: true });
-				return new Response(
-					JSON.stringify({
-						success: false,
-						error:
-							error instanceof Error
-								? error.message
-								: "Failed to fetch websites",
-					}),
-					{ status: 500, headers: { "Content-Type": "application/json" } }
-				);
-			}
-		});
-	})
-	.get(
-		"/types",
-		async ({
-			query: params,
-			request,
-		}: {
-			query: { include_meta?: string };
-			request: Request;
-		}) => {
-			const authResult = await checkAuth(request);
-			if (authResult) {
-				return authResult;
-			}
-
-			const includeMeta = params.include_meta === "true";
-
-			const configs = Object.fromEntries(
-				Object.entries(QueryBuilders).map(([key, config]) => {
-					const baseConfig = {
-						allowedFilters:
-							config.allowedFilters ??
-							filterOptions.map((filter) => filter.value),
-						customizable: config.customizable,
-						defaultLimit: config.limit,
-					};
-
-					if (includeMeta) {
-						return [key, { ...baseConfig, meta: config.meta }];
-					}
-
-					return [key, baseConfig];
-				})
-			);
-
-			return {
-				success: true,
-				types: Object.keys(QueryBuilders),
-				configs,
-			};
+function getTimeUnit(granularity?: string, from?: string, to?: string): "hour" | "day" {
+	const isHourly = granularity === "hourly" || granularity === "hour";
+	if (isHourly && from && to) {
+		const days = Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / MS_PER_DAY);
+		if (days > MAX_HOURLY_DAYS) {
+			throw new Error(`Hourly granularity only supports up to ${MAX_HOURLY_DAYS} days`);
 		}
+	}
+	return isHourly ? "hour" : "day";
+}
+
+type ParamInput = string | { name: string; start_date?: string; end_date?: string; granularity?: string; id?: string };
+
+function parseParam(p: ParamInput) {
+	if (typeof p === "string") {
+		return { name: p, id: p };
+	}
+	return { name: p.name, id: p.id || p.name, start: p.start_date, end: p.end_date, granularity: p.granularity };
+}
+
+export const query = new Elysia({ prefix: "/v1/query" })
+	.derive(async ({ request }): Promise<{ auth: AuthContext }> => {
+		const hasApiKey = isApiKeyPresent(request.headers);
+		const [apiKey, session] = await Promise.all([
+			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
+			auth.api.getSession({ headers: request.headers }),
+		]);
+		const user = session?.user ?? null;
+		return {
+			auth: {
+				apiKey,
+				user,
+				isAuthenticated: Boolean(user ?? apiKey),
+				authMethod: apiKey ? "api_key" : user ? "session" : "none",
+			},
+		};
+	})
+
+	.get("/websites", ({ auth: ctx }) =>
+		record("getWebsites", async () => {
+			if (!ctx.isAuthenticated) {
+				return AUTH_FAILED;
+			}
+			const list = await getAccessibleWebsites(ctx);
+			const count = Array.isArray(list) ? list.length : 0;
+			setAttributes({ "websites.count": count, "auth.method": ctx.authMethod });
+			return { success: true, websites: list, total: count };
+		})
 	)
+
+	.get("/types", ({ query: params, auth: ctx }: { query: { include_meta?: string }; auth: AuthContext }) => {
+		if (!ctx.isAuthenticated) {
+			return AUTH_FAILED;
+		}
+		const includeMeta = params.include_meta === "true";
+		const configs = Object.fromEntries(
+			Object.entries(QueryBuilders).map(([key, cfg]) => [
+				key,
+				{
+					allowedFilters: cfg.allowedFilters ?? filterOptions.map((f) => f.value),
+					customizable: cfg.customizable,
+					defaultLimit: cfg.limit,
+					...(includeMeta && { meta: cfg.meta }),
+				},
+			])
+		);
+		return { success: true, types: Object.keys(QueryBuilders), configs };
+	})
 
 	.post(
 		"/compile",
-		async ({
-			body,
-			query: queryParams,
-		}: {
-			body: CompileRequestType;
-			query: { website_id?: string; timezone?: string };
-		}) => {
+		async ({ body, query: q }: { body: CompileRequestType; query: { website_id?: string; timezone?: string } }) => {
 			try {
-				const { website_id } = queryParams;
-				const timezone = queryParams.timezone || "UTC";
-				const websiteDomain = website_id
-					? await getWebsiteDomain(website_id)
-					: null;
-
-				const result = compileQuery(
-					body as QueryRequest,
-					websiteDomain,
-					timezone
-				);
-				return {
-					success: true,
-					...result,
-				};
-			} catch (error) {
-				return {
-					success: false,
-					error: error instanceof Error ? error.message : "Compilation failed",
-				};
+				const domain = q.website_id ? await getWebsiteDomain(q.website_id) : null;
+				return { success: true, ...compileQuery(body as QueryRequest, domain, q.timezone || "UTC") };
+			} catch (e) {
+				return { success: false, error: e instanceof Error ? e.message : "Compilation failed" };
 			}
 		},
-		{
-			body: CompileRequestSchema,
-		}
+		{ body: CompileRequestSchema }
 	)
 
 	.post(
 		"/",
-		function executeQuery({
-			body,
-			query: queryParams,
-		}: {
-			body: DynamicQueryRequestType | DynamicQueryRequestType[];
-			query: { website_id?: string; timezone?: string };
-		}) {
-			return record("executeQuery", async () => {
-				const timezone = queryParams.timezone || "UTC";
+		({ body, query: q }: { body: DynamicQueryRequestType | DynamicQueryRequestType[]; query: { website_id?: string; timezone?: string } }) =>
+			record("executeQuery", async () => {
+				const tz = q.timezone || "UTC";
 				const isBatch = Array.isArray(body);
+				setAttributes({ "query.is_batch": isBatch, "query.count": isBatch ? body.length : 1 });
 
-				setAttributes({
-					"query.is_batch": isBatch,
-					"query.count": isBatch ? body.length : 1,
-					"query.website_id": queryParams.website_id || "missing",
-					"query.timezone": timezone,
-				});
-
-				try {
-					if (isBatch) {
-						const uniqueWebsiteIds = [
-							...new Set(
-								body.flatMap((req) =>
-									req.parameters.map((param) =>
-										typeof param === "string" ? param : param.name
-									)
-								)
-							),
-						];
-						const domainCache = await getCachedWebsiteDomain(uniqueWebsiteIds);
-
-						setAttributes({
-							"query.batch.websites": uniqueWebsiteIds.length,
-						});
-
-						const results = await Promise.all(
-							body.map(async (queryRequest) => {
-								try {
-									return await executeDynamicQuery(
-										queryRequest,
-										{
-											...queryParams,
-											timezone,
-										},
-										domainCache
-									);
-								} catch (error) {
-									return {
-										success: false,
-										error:
-											error instanceof Error ? error.message : "Query failed",
-									};
-								}
-							})
-						);
-
-						return {
-							success: true,
-							batch: true,
-							results,
-						};
-					}
-
-					const result = await executeDynamicQuery(body, {
-						...queryParams,
-						timezone,
-					});
-					return {
-						success: true,
-						...result,
-					};
-				} catch (error) {
-					setAttributes({ error: true });
-					return {
-						success: false,
-						error: error instanceof Error ? error.message : "Query failed",
-					};
+				if (isBatch) {
+					const cache = await getCachedWebsiteDomain([]);
+					const results = await Promise.all(
+						body.map((req) => runDynamicQuery(req, q.website_id, tz, cache).catch((e) => ({
+							success: false,
+							error: e instanceof Error ? e.message : "Query failed",
+						})))
+					);
+					return { success: true, batch: true, results };
 				}
-			});
-		},
-		{
-			body: t.Union([
-				DynamicQueryRequestSchema,
-				t.Array(DynamicQueryRequestSchema),
-			]),
-		}
+
+				return { success: true, ...(await runDynamicQuery(body, q.website_id, tz)) };
+			}),
+		{ body: t.Union([DynamicQueryRequestSchema, t.Array(DynamicQueryRequestSchema)]) }
 	);
 
-function executeDynamicQuery(
-	request: DynamicQueryRequestType,
-	queryParams: QueryParams,
+type QueryResult = { parameter: string; success: boolean; data: Record<string, unknown>[]; error?: string };
+
+async function runDynamicQuery(
+	req: DynamicQueryRequestType,
+	websiteId?: string,
+	timezone?: string,
 	domainCache?: Record<string, string | null>
 ) {
-	return record("query.execute_dynamic", async () => {
-		const startDate = queryParams.start_date || queryParams.startDate;
-		const endDate = queryParams.end_date || queryParams.endDate;
-		const websiteId = queryParams.website_id;
+	const from = req.startDate;
+	const to = req.endDate;
+	const domain = websiteId ? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId))) : null;
 
-		setAttributes({
-			"query.id": request.id || "anonymous",
-			"query.website_id": websiteId || "unknown",
-			"query.parameters": JSON.stringify(
-				request.parameters.map((p) => (typeof p === "string" ? p : p.name))
-			),
-			"query.granularity": request.granularity || "day",
-			"query.time_range.start": startDate || "unknown",
-			"query.time_range.end": endDate || "unknown",
-			"query.filters.count": request.filters?.length || 0,
-		});
+	type PreparedItem =
+		| { id: string; error: string }
+		| { id: string; request: QueryRequest & { type: string } };
 
-		const websiteDomain = websiteId
-			? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
-			: null;
+	const prepared: PreparedItem[] = req.parameters.map((p) => {
+		const { name, id, start, end, granularity } = parseParam(p);
+		const paramFrom = start || from;
+		const paramTo = end || to;
 
-		const MAX_HOURLY_DAYS = 7;
-		const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-		const validateHourlyDateRange = (start: string, end: string) => {
-			const rangeDays = Math.ceil(
-				(new Date(end).getTime() - new Date(start).getTime()) / MS_PER_DAY
-			);
-
-			if (rangeDays > MAX_HOURLY_DAYS) {
-				throw new Error(
-					`Hourly granularity only supports ranges up to ${MAX_HOURLY_DAYS} days. Use daily granularity for longer periods.`
-				);
-			}
-		};
-
-		const getTimeUnit = (
-			granularity?: string,
-			startDate?: string,
-			endDate?: string
-		): "hour" | "day" => {
-			const isHourly = ["hourly", "hour"].includes(granularity || "");
-
-			if (isHourly) {
-				if (startDate && endDate) {
-					validateHourlyDateRange(startDate, endDate);
-				}
-				return "hour";
-			}
-
-			return "day";
-		};
-
-		function validateParameterRequest(
-			parameter: string,
-			siteId: string | undefined,
-			start: string | undefined,
-			end: string | undefined
-		):
-			| { success: true; siteId: string; start: string; end: string }
-			| { success: false; error: string } {
-			if (!QueryBuilders[parameter]) {
-				return {
-					success: false,
-					error: `Unknown query type: ${parameter}`,
-				};
-			}
-
-			if (!(siteId && start && end)) {
-				return {
-					success: false,
-					error:
-						"Missing required parameters: website_id, start_date, or end_date",
-				};
-			}
-
-			return { success: true, siteId, start, end };
+		if (!QueryBuilders[name]) {
+			return { id, error: `Unknown query type: ${name}` };
 		}
-
-		async function processParameter(
-			parameterInput:
-				| string
-				| {
-					name: string;
-					start_date?: string;
-					end_date?: string;
-					granularity?: string;
-					id?: string;
-				},
-			dynamicRequest: DynamicQueryRequestType,
-			params: QueryParams,
-			siteId: string | undefined,
-			defaultStart: string | undefined,
-			defaultEnd: string | undefined,
-			domain: string | null
-		) {
-			const isObject = typeof parameterInput === "object";
-			const parameterName = isObject ? parameterInput.name : parameterInput;
-			const customId =
-				isObject && parameterInput.id ? parameterInput.id : parameterName;
-			const paramStart =
-				isObject && parameterInput.start_date
-					? parameterInput.start_date
-					: defaultStart;
-			const paramEnd =
-				isObject && parameterInput.end_date
-					? parameterInput.end_date
-					: defaultEnd;
-			const paramGranularity =
-				isObject && parameterInput.granularity
-					? parameterInput.granularity
-					: dynamicRequest.granularity;
-
-			const validation = validateParameterRequest(
-				parameterName,
-				siteId,
-				paramStart,
-				paramEnd
-			);
-			if (!validation.success) {
-				return {
-					parameter: customId,
-					success: false,
-					error: validation.error,
-					data: [],
-				};
-			}
-
-			try {
-				const queryRequest = {
-					projectId: validation.siteId,
-					type: parameterName,
-					from: validation.start,
-					to: validation.end,
-					timeUnit: getTimeUnit(
-						paramGranularity,
-						validation.start,
-						validation.end
-					),
-					filters: dynamicRequest.filters || [],
-					limit: dynamicRequest.limit || 100,
-					offset: dynamicRequest.page
-						? (dynamicRequest.page - 1) * (dynamicRequest.limit || 100)
-						: 0,
-					timezone: params.timezone,
-				};
-
-				const data = await record("query.execute_metric", () => {
-					setAttributes({
-						"query.metric": parameterName,
-						"query.metric.site_id": validation.siteId,
-						"query.metric.custom_id": customId,
-						"query.metric.time_range.start": validation.start,
-						"query.metric.time_range.end": validation.end,
-					});
-					return executeQuery(queryRequest, domain, params.timezone);
-				});
-
-				return {
-					parameter: customId,
-					success: true,
-					data: data || [],
-				};
-			} catch (error) {
-				return {
-					parameter: customId,
-					success: false,
-					error: error instanceof Error ? error.message : "Query failed",
-					data: [],
-				};
-			}
+		if (!(websiteId && paramFrom && paramTo)) {
+			return { id, error: "Missing website_id, start_date, or end_date" };
 		}
-
-		const parameterResults = await Promise.all(
-			request.parameters.map((param) =>
-				processParameter(
-					param,
-					request,
-					queryParams,
-					websiteId,
-					startDate,
-					endDate,
-					websiteDomain
-				)
-			)
-		);
 
 		return {
-			queryId: request.id,
-			data: parameterResults,
-			meta: {
-				parameters: request.parameters,
-				total_parameters: request.parameters.length,
-				page: request.page || 1,
-				limit: request.limit || 100,
-				filters_applied: request.filters?.length || 0,
+			id,
+			request: {
+				projectId: websiteId,
+				type: name,
+				from: paramFrom,
+				to: paramTo,
+				timeUnit: getTimeUnit(granularity || req.granularity, paramFrom, paramTo),
+				filters: (req.filters || []) as Filter[],
+				limit: req.limit || 100,
+				offset: req.page ? (req.page - 1) * (req.limit || 100) : 0,
+				timezone,
 			},
 		};
 	});
+
+	const valid = prepared.filter((p): p is { id: string; request: QueryRequest & { type: string } } => "request" in p);
+	const errors = prepared.filter((p): p is { id: string; error: string } => "error" in p);
+
+	const resultMap = new Map<string, QueryResult>();
+
+	for (const e of errors) {
+		resultMap.set(e.id, { parameter: e.id, success: false, error: e.error, data: [] });
+	}
+
+	if (valid.length > 0) {
+		const results = await executeBatch(
+			valid.map((v) => v.request),
+			{ websiteDomain: domain, timezone }
+		);
+		for (let i = 0; i < valid.length; i++) {
+			const v = valid[i];
+			const r = results[i];
+			if (v) {
+				resultMap.set(v.id, { parameter: v.id, success: !r?.error, data: r?.data || [], error: r?.error });
+			}
+		}
+	}
+
+	return {
+		queryId: req.id,
+		data: prepared.map((p) => resultMap.get(p.id) || { parameter: p.id, success: false, error: "Unknown", data: [] }),
+		meta: {
+			parameters: req.parameters,
+			total_parameters: req.parameters.length,
+			page: req.page || 1,
+			limit: req.limit || 100,
+			filters_applied: req.filters?.length || 0,
+		},
+	};
 }

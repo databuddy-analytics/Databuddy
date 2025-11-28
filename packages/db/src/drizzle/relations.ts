@@ -1,13 +1,8 @@
 import { relations } from "drizzle-orm/relations";
 import {
-	abExperiments,
-	abGoals,
-	abVariants,
 	account,
 	apikey,
-	apikeyAccess,
 	funnelDefinitions,
-	funnelGoals,
 	invitation,
 	member,
 	organization,
@@ -29,7 +24,6 @@ export const userRelations = relations(user, ({ many }) => ({
 	websites: many(websites),
 	funnelDefinitions: many(funnelDefinitions),
 	apikeys: many(apikey),
-	abExperiments: many(abExperiments),
 }));
 
 export const organizationRelations = relations(organization, ({ many }) => ({
@@ -105,20 +99,11 @@ export const websitesRelations = relations(websites, ({ one, many }) => ({
 		relationName: "websites_organizationId_organization_id",
 	}),
 	funnelDefinitions: many(funnelDefinitions),
-	abExperiments: many(abExperiments),
-}));
-
-export const funnelGoalsRelations = relations(funnelGoals, ({ one }) => ({
-	funnelDefinition: one(funnelDefinitions, {
-		fields: [funnelGoals.funnelId],
-		references: [funnelDefinitions.id],
-	}),
 }));
 
 export const funnelDefinitionsRelations = relations(
 	funnelDefinitions,
-	({ one, many }) => ({
-		funnelGoals: many(funnelGoals),
+	({ one }) => ({
 		website: one(websites, {
 			fields: [funnelDefinitions.websiteId],
 			references: [websites.id],
@@ -137,7 +122,7 @@ export const teamRelations = relations(team, ({ one }) => ({
 	}),
 }));
 
-export const apikeyRelations = relations(apikey, ({ one, many }) => ({
+export const apikeyRelations = relations(apikey, ({ one }) => ({
 	user: one(user, {
 		fields: [apikey.userId],
 		references: [user.id],
@@ -145,43 +130,5 @@ export const apikeyRelations = relations(apikey, ({ one, many }) => ({
 	organization: one(organization, {
 		fields: [apikey.organizationId],
 		references: [organization.id],
-	}),
-	access: many(apikeyAccess),
-}));
-
-export const apikeyAccessRelations = relations(apikeyAccess, ({ one }) => ({
-	apikey: one(apikey, {
-		fields: [apikeyAccess.apikeyId],
-		references: [apikey.id],
-	}),
-}));
-
-export const abExperimentsRelations = relations(
-	abExperiments,
-	({ one, many }) => ({
-		website: one(websites, {
-			fields: [abExperiments.websiteId],
-			references: [websites.id],
-		}),
-		user: one(user, {
-			fields: [abExperiments.createdBy],
-			references: [user.id],
-		}),
-		variants: many(abVariants),
-		goals: many(abGoals),
-	})
-);
-
-export const abVariantsRelations = relations(abVariants, ({ one }) => ({
-	experiment: one(abExperiments, {
-		fields: [abVariants.experimentId],
-		references: [abExperiments.id],
-	}),
-}));
-
-export const abGoalsRelations = relations(abGoals, ({ one }) => ({
-	experiment: one(abExperiments, {
-		fields: [abGoals.experimentId],
-		references: [abExperiments.id],
 	}),
 }));

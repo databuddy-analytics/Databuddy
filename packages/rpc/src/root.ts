@@ -28,6 +28,7 @@ export const appRouter = {
 	chat: chatRouter,
 	organizations: organizationsRouter,
 	billing: billingRouter,
+	export: exportRouter,
 };
 
 export type AppRouter = typeof appRouter;

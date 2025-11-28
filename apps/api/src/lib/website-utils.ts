@@ -19,7 +19,7 @@ export type WebsiteValidationResult = {
 	success: boolean;
 	website?: Website;
 	error?: string;
-}
+};
 
 const getCachedWebsite = cacheable(
 	async (websiteId: string) => {

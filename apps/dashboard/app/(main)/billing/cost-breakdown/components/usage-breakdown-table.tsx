@@ -53,11 +53,11 @@ const EVENT_TYPE_CONFIG = {
 	},
 } as const;
 
-interface UsageBreakdownTableProps {
+type UsageBreakdownTableProps = {
 	usageData?: UsageResponse;
 	isLoading: boolean;
 	overageInfo: OverageInfo | null;
-}
+};
 
 export function UsageBreakdownTable({
 	usageData,
@@ -88,10 +88,7 @@ export function UsageBreakdownTable({
 		);
 	}
 
-	if (
-		!(usageData && usageData.eventTypeBreakdown) ||
-		usageData.eventTypeBreakdown.length === 0
-	) {
+	if (!usageData?.eventTypeBreakdown?.length) {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="text-center">
@@ -167,8 +164,8 @@ export function UsageBreakdownTable({
 									<div className="text-muted-foreground text-sm">events</div>
 								</TableCell>
 								<TableCell>
-									<div className="font-medium">
-										${overageCost.toPrecision(3)}
+									<div className="font-medium text-muted-foreground">
+										{overageCost > 0 ? `$${overageCost.toFixed(2)}` : "—"}
 									</div>
 								</TableCell>
 							</TableRow>

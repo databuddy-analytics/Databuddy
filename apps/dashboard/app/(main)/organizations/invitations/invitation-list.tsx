@@ -1,6 +1,6 @@
 "use client";
 
-import { ClockIcon, EnvelopeIcon, TrashIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon, TrashIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useState } from "react";
@@ -14,6 +14,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CancelInvitation, Invitation } from "@/hooks/use-organizations";
 
@@ -22,6 +23,67 @@ dayjs.extend(relativeTime);
 interface InvitationToCancel {
 	id: string;
 	email: string;
+}
+
+interface InvitationRowProps {
+	invitation: Invitation;
+	isCancellingInvitation: boolean;
+	onConfirmCancel: (inv: InvitationToCancel) => void;
+}
+
+function InvitationRow({
+	invitation,
+	isCancellingInvitation,
+	onConfirmCancel,
+}: InvitationRowProps) {
+	const isPending =
+		invitation.status === "pending" &&
+		dayjs(invitation.expiresAt).isAfter(dayjs());
+
+	const statusConfig = {
+		pending: { label: "Pending", className: "border-amber-500/20 bg-amber-500/10 text-amber-600" },
+		accepted: { label: "Accepted", className: "border-green-500/20 bg-green-500/10 text-green-600" },
+		expired: { label: "Expired", className: "border-muted bg-muted text-muted-foreground" },
+	};
+
+	const status = statusConfig[invitation.status as keyof typeof statusConfig] ?? statusConfig.expired;
+
+	return (
+		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
+			<div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+				<EnvelopeIcon className="text-muted-foreground" size={14} />
+			</div>
+
+			<div className="min-w-0">
+				<p className="truncate font-medium">{invitation.email}</p>
+				<p className="truncate text-muted-foreground text-sm">
+					{invitation.role ?? "member"} ·{" "}
+					{invitation.status === "pending" ? "Expires" : "Expired"}{" "}
+					{dayjs(invitation.expiresAt).fromNow()}
+				</p>
+			</div>
+
+			<Badge className={status.className} variant="secondary">
+				{status.label}
+			</Badge>
+
+			{isPending ? (
+				<Button
+					className="h-7 w-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+					disabled={isCancellingInvitation}
+					onClick={() =>
+						onConfirmCancel({ id: invitation.id, email: invitation.email })
+					}
+					size="sm"
+					variant="outline"
+				>
+					<TrashIcon size={14} />
+				</Button>
+			) : (
+				<div className="h-7 w-7" />
+			)}
+		</div>
+	);
 }
 
 export function InvitationList({
@@ -37,79 +99,23 @@ export function InvitationList({
 		useState<InvitationToCancel | null>(null);
 
 	const handleCancel = async () => {
-		if (!invitationToCancel) {
-			return;
-		}
+		if (!invitationToCancel) return;
 		await onCancelInvitationAction(invitationToCancel.id);
 		setInvitationToCancel(null);
 	};
 
-	if (invitations.length === 0) {
-		return null;
-	}
+	if (invitations.length === 0) return null;
 
 	return (
 		<>
-			<div className="space-y-2">
+			<div className="divide-y">
 				{invitations.map((invitation) => (
-					<div
-						className="flex items-center justify-between rounded border border-border/30 bg-muted/20 p-3"
+					<InvitationRow
+						invitation={invitation}
+						isCancellingInvitation={isCancellingInvitation}
 						key={invitation.id}
-					>
-						<div className="flex items-center gap-3">
-							<div className="shrink-0 rounded-full border border-border/30 bg-accent p-2">
-								<EnvelopeIcon
-									className="h-3 w-3 text-muted-foreground"
-									size={12}
-								/>
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="truncate font-medium text-sm">
-									{invitation.email}
-								</p>
-								<div className="flex items-center gap-2">
-									<p className="text-muted-foreground text-xs">
-										Invited as {invitation.role || "member"}
-									</p>
-									<span
-										className={`inline-flex rounded-full px-2 py-0.5 font-medium text-xs ${
-											invitation.status === "pending"
-												? "bg-yellow-100 text-yellow-800"
-												: invitation.status === "accepted"
-													? "bg-green-100 text-green-800"
-													: "bg-gray-100 text-gray-800"
-										}`}
-									>
-										{invitation.status}
-									</span>
-								</div>
-								<p className="mt-1 flex items-center gap-1 text-muted-foreground text-xs">
-									<ClockIcon className="h-3 w-3 shrink-0" size={12} />
-									{invitation.status === "pending" ? "Expires" : "Expired"}{" "}
-									{dayjs(invitation.expiresAt).fromNow()}
-								</p>
-							</div>
-						</div>
-						<div className="flex shrink-0 items-center gap-2">
-							{invitation.status === "pending" &&
-								dayjs(invitation.expiresAt).isAfter(dayjs()) && (
-									<Button
-										className="h-7 w-7 rounded p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-										disabled={isCancellingInvitation}
-										onClick={() =>
-											setInvitationToCancel({
-												id: invitation.id,
-												email: invitation.email,
-											})
-										}
-										size="sm"
-										variant="outline"
-									>
-										<TrashIcon className="h-3 w-3" size={12} />
-									</Button>
-								)}
-						</div>
-					</div>
+						onConfirmCancel={setInvitationToCancel}
+					/>
 				))}
 			</div>
 
@@ -127,9 +133,12 @@ export function InvitationList({
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction onClick={handleCancel}>
-							Confirm
+						<AlertDialogCancel>Keep</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={handleCancel}
+						>
+							Cancel Invitation
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

@@ -4,7 +4,7 @@
   "description": "Redis caching and pub/sub utilities for Databuddy",
   "main": "index.ts",
   "dependencies": {
-    "ioredis": "^5.4.3",
+    "ioredis": "^5.8.2",
     "superjson": "catalog:",
     "zod": "catalog:"
   },

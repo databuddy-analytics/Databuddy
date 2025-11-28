@@ -112,9 +112,7 @@ export class WebsiteService {
 		this.db = db;
 	}
 
-	private async performDBOperation<T>(
-		operation: () => Promise<T>
-	): Promise<T> {
+	private async performDBOperation<T>(operation: () => Promise<T>): Promise<T> {
 		try {
 			return await operation();
 		} catch (error) {
@@ -122,9 +120,7 @@ export class WebsiteService {
 		}
 	}
 
-	private async performTransaction<T>(
-		fn: (tx: any) => Promise<T>
-	): Promise<T> {
+	private async performTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
 		try {
 			return await this.db.transaction(fn);
 		} catch (error) {
@@ -139,9 +135,7 @@ export class WebsiteService {
 		try {
 			await invalidateWebsiteCaches(websiteId, userId);
 		} catch (error) {
-			throw new Error(
-				`Cache invalidation failed: ${String(error)}`
-			);
+			throw new Error(`Cache invalidation failed: ${String(error)}`);
 		}
 	}
 

@@ -8,7 +8,6 @@ import {
 } from "./lib/otel";
 
 export const createRPCContext = async (opts: { headers: Headers }) => {
-
 	const session = await auth.api.getSession({
 		headers: opts.headers,
 	});

@@ -99,7 +99,10 @@ function processTrackEventData(
 			),
 			url: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 			path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			title: sanitizeString(
+				trackData.title,
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			),
 			ip: anonymizedIP || "",
 			user_agent: "",
 			browser_name: browserName || "",
@@ -153,7 +156,10 @@ function processErrorEventData(
 	return record("processErrorEventData", async () => {
 		// Support both envelope format (payload) and direct format
 		const payload = errorData.payload || errorData;
-		const eventId = parseEventId(payload.eventId || errorData.eventId, randomUUID);
+		const eventId = parseEventId(
+			payload.eventId || errorData.eventId,
+			randomUUID
+		);
 		const now = Date.now();
 		const timestamp = parseTimestamp(payload.timestamp || errorData.timestamp);
 
@@ -176,7 +182,10 @@ function processErrorEventData(
 			),
 			session_id: validateSessionId(payload.sessionId || errorData.sessionId),
 			timestamp,
-			path: sanitizeString(payload.path || errorData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			path: sanitizeString(
+				payload.path || errorData.path,
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			),
 			message: sanitizeString(
 				payload.message || errorData.message,
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
@@ -187,7 +196,10 @@ function processErrorEventData(
 			),
 			lineno: payload.lineno || errorData.lineno,
 			colno: payload.colno || errorData.colno,
-			stack: sanitizeString(payload.stack || errorData.stack, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			stack: sanitizeString(
+				payload.stack || errorData.stack,
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			),
 			error_type: sanitizeString(
 				payload.errorType || errorData.errorType,
 				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
@@ -215,7 +227,10 @@ function processWebVitalsEventData(
 	return record("processWebVitalsEventData", async () => {
 		// Support both envelope format (payload) and direct format
 		const payload = vitalsData.payload || vitalsData;
-		const eventId = parseEventId(payload.eventId || vitalsData.eventId, randomUUID);
+		const eventId = parseEventId(
+			payload.eventId || vitalsData.eventId,
+			randomUUID
+		);
 		const now = Date.now();
 		const timestamp = parseTimestamp(payload.timestamp || vitalsData.timestamp);
 
@@ -238,7 +253,10 @@ function processWebVitalsEventData(
 			),
 			session_id: validateSessionId(payload.sessionId || vitalsData.sessionId),
 			timestamp,
-			path: sanitizeString(payload.path || vitalsData.path || vitalsData.url, VALIDATION_LIMITS.STRING_MAX_LENGTH), // Support both path and url
+			path: sanitizeString(
+				payload.path || vitalsData.path || vitalsData.url,
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			), // Support both path and url
 			fcp: validatePerformanceMetric(payload.fcp || vitalsData.fcp),
 			lcp: validatePerformanceMetric(payload.lcp || vitalsData.lcp),
 			cls: validatePerformanceMetric(payload.cls || vitalsData.cls),
@@ -344,7 +362,6 @@ const app = new Elysia()
 
 			await insertWebVitals(vitalsEvent, clientId, userAgent, ip);
 			return { status: "success", type: "web_vitals" };
-
 		} catch (error) {
 			captureError(error, { message: "Error processing vitals" });
 			return { status: "error", message: "Internal server error" };
@@ -375,13 +392,7 @@ const app = new Elysia()
 
 			const [botError, parseResult] = await Promise.all([
 				checkForBot(request, body, query, clientId, userAgent),
-				validateEventSchema(
-					errorEventSchema,
-					body,
-					request,
-					query,
-					clientId
-				),
+				validateEventSchema(errorEventSchema, body, request, query, clientId),
 			]);
 
 			if (botError) {
@@ -401,7 +412,6 @@ const app = new Elysia()
 
 			await insertError(errorEvent, clientId, userAgent, ip);
 			return { status: "success", type: "error" };
-
 		} catch (error) {
 			captureError(error, { message: "Error processing error" });
 			return { status: "error", message: "Internal server error" };
@@ -470,7 +480,12 @@ const app = new Elysia()
 					return createSchemaErrorResponse(parseResult.error.issues);
 				}
 
-				const errorEvent = await processErrorEventData(body, clientId, userAgent, ip);
+				const errorEvent = await processErrorEventData(
+					body,
+					clientId,
+					userAgent,
+					ip
+				);
 				insertError(errorEvent, clientId, userAgent, ip);
 				return { status: "success", type: "error" };
 			}
@@ -495,7 +510,12 @@ const app = new Elysia()
 					return createSchemaErrorResponse(parseResult.error.issues);
 				}
 
-				const vitalsEvent = await processWebVitalsEventData(body, clientId, userAgent, ip);
+				const vitalsEvent = await processWebVitalsEventData(
+					body,
+					clientId,
+					userAgent,
+					ip
+				);
 				insertWebVitals(vitalsEvent, clientId, userAgent, ip);
 				return { status: "success", type: "web_vitals" };
 			}

@@ -1,6 +1,7 @@
 import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
 export type OrganizationRole = "owner" | "admin" | "member";
@@ -62,18 +63,8 @@ const createMutation = <TData, TVariables>(
 });
 
 export function useOrganizations() {
-	const {
-		data: organizationsData,
-		error: organizationsError,
-		isPending: isOrganizationsPending,
-	} = authClient.useListOrganizations();
-	const {
-		data: activeOrganization,
-		error: activeOrganizationError,
-		isPending: isActiveOrganizationPending,
-	} = authClient.useActiveOrganization();
-
-	const organizations = organizationsData || [];
+	const { organizations, activeOrganization, isLoading } =
+		useOrganizationsContext();
 
 	const createOrganizationMutation = useMutation(
 		createMutation(
@@ -230,12 +221,7 @@ export function useOrganizations() {
 	return {
 		organizations,
 		activeOrganization,
-
-		isLoading: isOrganizationsPending || isActiveOrganizationPending,
-
-		organizationsError,
-		activeOrganizationError,
-		hasError: !!organizationsError || !!activeOrganizationError,
+		isLoading,
 
 		createOrganization: createOrganizationMutation.mutate,
 		createOrganizationAsync: createOrganizationMutation.mutateAsync,
@@ -457,10 +443,6 @@ export type Organization = ReturnType<
 export type ActiveOrganization = ReturnType<
 	typeof useOrganizations
 >["activeOrganization"];
-
-export type OrganizationsError = ReturnType<
-	typeof useOrganizations
->["organizationsError"];
 
 export type OrganizationMember = ReturnType<
 	typeof useOrganizationMembers

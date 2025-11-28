@@ -80,12 +80,12 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"CASE " +
-				'WHEN scroll_depth < 0.25 THEN "0-25%" ' +
-				'WHEN scroll_depth < 0.5 THEN "25-50%" ' +
-				'WHEN scroll_depth < 0.75 THEN "50-75%" ' +
-				'WHEN scroll_depth < 1.0 THEN "75-100%" ' +
-				'ELSE "100%" ' +
-				"END as depth_range",
+			'WHEN scroll_depth < 0.25 THEN "0-25%" ' +
+			'WHEN scroll_depth < 0.5 THEN "25-50%" ' +
+			'WHEN scroll_depth < 0.75 THEN "50-75%" ' +
+			'WHEN scroll_depth < 1.0 THEN "75-100%" ' +
+			'ELSE "100%" ' +
+			"END as depth_range",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"COUNT(DISTINCT session_id) as sessions",
 			"ROUND((COUNT(DISTINCT session_id) / SUM(COUNT(DISTINCT session_id)) OVER()) * 100, 2) as percentage",
@@ -296,8 +296,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events
                   WHERE
                     client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort({endDate:String})
+                    AND time >= toDateTime({startDate:String})
+                    AND time <= toDateTime({endDate:String})
                     AND anonymous_id != ''
                     AND event_name = 'screen_view'
                     ${combinedWhereClause}
@@ -317,8 +317,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events e
                   WHERE
                     e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.anonymous_id != ''
                     AND e.event_name = 'screen_view'
                     ${combinedWhereClause}
@@ -488,8 +488,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events e
                   WHERE
                     e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.anonymous_id != ''
                     AND e.event_name = 'screen_view'
                     ${combinedWhereClause}

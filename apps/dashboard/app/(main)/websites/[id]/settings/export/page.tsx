@@ -1,5 +1,6 @@
 "use client";
 
+import type { ExportFormat } from "@databuddy/rpc";
 import {
 	CheckIcon,
 	DownloadIcon,
@@ -7,34 +8,92 @@ import {
 	FileTextIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
+import { toast } from "sonner";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useDataExport } from "@/hooks/use-data-export";
 import { useWebsite } from "@/hooks/use-websites";
+import { orpc } from "@/lib/orpc";
+
+function downloadFile(blob: Blob, filename: string) {
+	const url = window.URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.style.display = "none";
+	document.body.appendChild(a);
+	a.click();
+
+	window.URL.revokeObjectURL(url);
+	document.body.removeChild(a);
+}
 
 export default function ExportPage() {
 	const params = useParams();
 	const websiteId = params.id as string;
 	const { data: websiteData } = useWebsite(websiteId);
 
-	type ExportFormat = "json" | "csv" | "txt";
 	const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("csv");
 	const [dateRange, setDateRange] = useState<DayPickerRange | undefined>(
 		undefined
 	);
 	const [useCustomRange, setUseCustomRange] = useState(false);
 
-	const { mutate: exportData, isPending: isExporting } = useDataExport({
-		websiteId,
-		websiteName: websiteData?.name || undefined,
+	const exportMutation = useMutation({
+		...orpc.export.download.mutationOptions(),
 	});
+
+	const handleExport = useCallback(() => {
+		if (!websiteData) {
+			return;
+		}
+		if (useCustomRange && !(dateRange?.from && dateRange?.to)) {
+			return;
+		}
+
+		const exportParams =
+			useCustomRange && dateRange?.from && dateRange?.to
+				? {
+						websiteId,
+						format: selectedFormat,
+						startDate: dayjs(dateRange.from).format("YYYY-MM-DD"),
+						endDate: dayjs(dateRange.to).format("YYYY-MM-DD"),
+					}
+				: {
+						websiteId,
+						format: selectedFormat,
+					};
+
+		exportMutation.mutate(exportParams, {
+			onSuccess: (result) => {
+				const buffer = Uint8Array.from(atob(result.data), (c) =>
+					c.charCodeAt(0)
+				);
+				const blob = new Blob([buffer], { type: "application/zip" });
+				downloadFile(blob, result.filename);
+				toast.success("Data exported successfully!");
+			},
+			onError: (error) => {
+				toast.error(error.message || "Export failed");
+			},
+		});
+	}, [
+		websiteData,
+		useCustomRange,
+		dateRange,
+		selectedFormat,
+		exportMutation,
+		websiteId,
+	]);
+
+	const isExporting = exportMutation.isPending;
 
 	const formatOptions = useMemo(
 		() => [
@@ -62,23 +121,6 @@ export default function ExportPage() {
 
 	const isExportDisabled =
 		isExporting || (useCustomRange && !(dateRange?.from && dateRange?.to));
-
-	const handleExport = useCallback(() => {
-		if (!websiteData) {
-			return;
-		}
-		if (useCustomRange && !(dateRange?.from && dateRange?.to)) {
-			return;
-		}
-
-		if (useCustomRange && dateRange?.from && dateRange?.to) {
-			const startDate = dayjs(dateRange.from).format("YYYY-MM-DD");
-			const endDate = dayjs(dateRange.to).format("YYYY-MM-DD");
-			exportData({ format: selectedFormat, startDate, endDate });
-		} else {
-			exportData({ format: selectedFormat });
-		}
-	}, [websiteData, useCustomRange, dateRange, selectedFormat, exportData]);
 
 	if (!websiteData) {
 		return (

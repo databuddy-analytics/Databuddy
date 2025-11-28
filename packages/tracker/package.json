@@ -6,7 +6,7 @@
   "scripts": {
     "build": "bun build.ts",
     "deploy": "bun deploy.ts",
-    "release": "bun run build && bun run deploy",
+    "release": "bun run deploy",
     "diff": "bun compare-release.ts",
     "dev": "bun build.ts --watch",
     "typecheck": "tsc --noEmit",

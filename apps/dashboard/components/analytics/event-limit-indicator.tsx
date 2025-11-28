@@ -12,16 +12,56 @@ export function EventLimitIndicator() {
 		...orpc.organizations.getUsage.queryOptions(),
 	});
 
-	if (!data || data.unlimited || !data.used) {
+	if (!data || data.unlimited) {
 		return null;
 	}
 
-	const actualLimit =
-		data.limit && data.limit > 0 ? data.limit : data.includedUsage;
-	const percentage = actualLimit > 0 ? (data.used / actualLimit) * 100 : 100;
-	const showWarning = percentage >= 80;
+	const balance = data.balance ?? 0;
+	const planLimit = data.includedUsage ?? 0;
 
-	if (!showWarning) {
+	// Balance > Plan limit = Bonus credits, show remaining
+	// Balance < Plan limit = Normal usage, balance is remaining
+	// Balance < 0 = Overage
+
+	if (balance < 0) {
+		// Overage state
+		const overage = Math.abs(balance);
+		return (
+			<div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/20">
+				<div className="flex items-center gap-2">
+					<WarningIcon
+						className="h-4 w-4 text-red-600 dark:text-red-400"
+						weight="fill"
+					/>
+					<div>
+						<span className="font-medium text-red-600 dark:text-red-400">
+							{overage.toLocaleString()} events over limit
+						</span>
+					</div>
+				</div>
+				{data.canUserUpgrade ? (
+					<Button
+						className="h-6 px-2 text-xs"
+						onClick={() => router.push("/billing?tab=plans")}
+						size="sm"
+						variant="ghost"
+					>
+						Upgrade
+					</Button>
+				) : (
+					<span className="text-muted-foreground text-xs">Contact owner</span>
+				)}
+			</div>
+		);
+	}
+
+	// Calculate percentage of limit used
+	const remaining = balance;
+	const used = planLimit > 0 ? planLimit - balance : 0;
+	const percentage = planLimit > 0 ? (used / planLimit) * 100 : 0;
+
+	// Only show warning at 80%+ usage
+	if (percentage < 80) {
 		return null;
 	}
 
@@ -35,35 +75,14 @@ export function EventLimitIndicator() {
 					weight="fill"
 				/>
 				<div className="text-muted-foreground">
-					<div className="text-sm">
-						{data.used}
-						{data.limit && data.limit > 0
-							? `/${data.limit}`
-							: data.includedUsage > 0
-								? `/${data.includedUsage}`
-								: ""}{" "}
-						events
+					<span>
+						{remaining.toLocaleString()} events remaining
 						<span
 							className={`ml-2 font-medium ${isDestructive ? "text-red-600" : "text-amber-600"}`}
 						>
-							({percentage.toFixed(1)}%)
+							({percentage.toFixed(0)}% used)
 						</span>
-					</div>
-					{((data.remaining !== null && data.remaining > 0) ||
-						data.balance > 0) && (
-						<div className="mt-1 text-xs">
-							{data.remaining !== null && data.remaining > 0 && (
-								<span className="text-green-600">
-									{data.remaining} remaining
-								</span>
-							)}
-							{data.balance > 0 && (
-								<span className="ml-2 text-muted-foreground">
-									{data.balance} balance
-								</span>
-							)}
-						</div>
-					)}
+					</span>
 				</div>
 			</div>
 			{data.canUserUpgrade ? (

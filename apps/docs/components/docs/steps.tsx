@@ -1,5 +1,6 @@
 import { CheckIcon } from "@phosphor-icons/react/ssr";
 import React from "react";
+import { SciFiCard } from "@/components/scifi-card";
 
 import { cn } from "@/lib/utils";
 
@@ -50,9 +51,13 @@ function Step({
 			)}
 
 			<div className="flex items-start gap-4">
-				<div className="flex size-12 shrink-0 items-center justify-center rounded border border-border bg-card/50 font-semibold text-foreground backdrop-blur-sm transition-all duration-300 hover:bg-card/70">
+				<SciFiCard
+					className="flex size-12 shrink-0 items-center justify-center rounded border border-border bg-card/50 font-semibold text-foreground backdrop-blur-sm transition-all duration-300 hover:bg-card/70"
+					opacity="reduced"
+					size="sm"
+				>
 					{stepNumber}
-				</div>
+				</SciFiCard>
 
 				<div className="min-w-0 flex-1 space-y-3">
 					{title && (
@@ -93,9 +98,13 @@ function CompletedStep({
 			)}
 
 			<div className="flex items-start gap-4">
-				<div className="flex size-12 shrink-0 items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70">
+				<SciFiCard
+					className="flex size-12 shrink-0 items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70"
+					opacity="reduced"
+					size="sm"
+				>
 					<CheckIcon className="size-4 text-muted-foreground" />
-				</div>
+				</SciFiCard>
 
 				<div className="min-w-0 flex-1 space-y-3">
 					{title && (

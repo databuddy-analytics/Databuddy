@@ -2590,6 +2590,7 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"org.telegram.biftogram": { type: "social", name: "Telegram" },
 	"org.telegram.plus": { type: "social", name: "Telegram" },
 	"twitter.com": { type: "social", name: "Twitter" },
+	"x.com": { type: "social", name: "Twitter" },
 	"t.co": { type: "social", name: "Twitter" },
 	"com.twitter.android": { type: "social", name: "Twitter" },
 	"com.snapchat.android": { type: "social", name: "Snapchat" },

@@ -28,6 +28,8 @@ export function insertError(
 	ip: string
 ): Promise<void> {
 	return record("insertError", async () => {
+		const payload = errorData.payload || errorData;
+
 		let eventId = sanitizeString(
 			errorData.payload.eventId,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
@@ -53,7 +55,6 @@ export function insertError(
 			return;
 		}
 
-		const payload = errorData.payload;
 		const now = Date.now();
 
 		const { anonymizedIP, country, region } = geoData;
@@ -122,8 +123,10 @@ export async function insertWebVitals(
 	userAgent: string,
 	ip: string
 ): Promise<void> {
+	const payload = vitalsData.payload || vitalsData;
+
 	let eventId = sanitizeString(
-		vitalsData.payload.eventId,
+		payload.eventId || payload.event_id,
 		VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 	);
 
@@ -135,7 +138,6 @@ export async function insertWebVitals(
 		return;
 	}
 
-	const payload = vitalsData.payload;
 	const now = Date.now();
 
 	const { country, region } = await getGeo(ip);

@@ -21,7 +21,6 @@ import {
 	startRequestSpan,
 } from "./lib/tracing";
 import { assistant } from "./routes/assistant";
-import { exportRoute } from "./routes/export";
 import { health } from "./routes/health";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
@@ -56,7 +55,7 @@ const app = new Elysia()
 					? ["http://localhost:3000"]
 					: []),
 			],
-		})
+		}),
 	)
 	.use(publicApi)
 	.use(health)
@@ -91,11 +90,15 @@ const app = new Elysia()
 						headers: request.headers,
 					});
 
+					if (!session?.user) {
+						return null;
+					}
+
 					return {
-						customerId: session?.user.id ?? undefined,
+						customerId: session.user.id,
 						customerData: {
-							name: session?.user.name ?? undefined,
-							email: session?.user.email ?? undefined,
+							name: session.user.name,
+							email: session.user.email,
 						},
 					};
 				} catch (error) {
@@ -107,7 +110,6 @@ const app = new Elysia()
 	)
 	.use(query)
 	.use(assistant)
-	.use(exportRoute)
 	.all(
 		"/rpc/*",
 		async ({ request, store }) => {
