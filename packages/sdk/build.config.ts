@@ -10,6 +10,7 @@ export default defineBuildConfig({
 		"./src/vue/index.ts",
 		"./src/node/index.ts",
 		"./src/ai/vercel/index.ts",
+		"./src/node/flags/index.ts",
 	],
 	externals: [
 		"react",
