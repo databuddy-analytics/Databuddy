@@ -26,8 +26,11 @@ import { health } from "./routes/health";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
 
+import { startFlagScheduler } from "./services/flag-scheduler";
+
 initTracing();
 setupUncaughtErrorHandlers();
+startFlagScheduler();
 
 const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [

@@ -4,6 +4,7 @@ import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { chatRouter } from "./routers/chat";
+import { flagSchedulesRouter } from "./routers/flag-schedules";
 import { flagsRouter } from "./routers/flags";
 import { funnelsRouter } from "./routers/funnels";
 import { goalsRouter } from "./routers/goals";
@@ -22,6 +23,7 @@ export const appRouter = {
 	autocomplete: autocompleteRouter,
 	apikeys: apikeysRouter,
 	flags: flagsRouter,
+	flagSchedules: flagSchedulesRouter,
 	assistant: assistantRouter,
 	chat: chatRouter,
 	organizations: organizationsRouter,

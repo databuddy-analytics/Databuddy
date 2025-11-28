@@ -28,6 +28,7 @@
     "./types/sessions": "./src/types/sessions.ts",
     "./types/vercel": "./src/types/vercel.ts",
     "./types/website": "./src/types/website.ts",
+    "./flags": "./src/flags/index.ts",
     "./utils/date-utils": "./src/utils/date-utils.ts",
     "./utils/ids": "./src/utils/ids.ts",
     "./utils/openrouter": "./src/utils/openrouter.ts",

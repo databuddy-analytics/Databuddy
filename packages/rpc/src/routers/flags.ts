@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { websitesApi } from "@databuddy/auth";
-import { and, desc, eq, flags, isNull } from "@databuddy/db";
+import { and, desc, eq, flags, inArray, isNull } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
-
+import { flagFormSchema, variantSchema } from "@databuddy/shared/flags";
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 const CACHE_DURATION = 60;
 
@@ -89,26 +89,6 @@ const userRuleSchema = z.object({
 	batchValues: z.array(z.string()).optional(),
 });
 
-const flagSchema = z.object({
-	key: z
-		.string()
-		.min(1)
-		.max(100)
-		.regex(
-			/^[a-zA-Z0-9_-]+$/,
-			"Key must contain only letters, numbers, underscores, and hyphens"
-		),
-	name: z.string().min(1).max(100).optional(),
-	description: z.string().optional(),
-	type: z.enum(["boolean", "rollout"]).default("boolean"),
-	status: z.enum(["active", "inactive", "archived"]).default("active"),
-	defaultValue: z.boolean().default(false),
-	payload: z.any().optional(),
-	rules: z.array(userRuleSchema).default([]),
-	persistAcrossAuth: z.boolean().default(false),
-	rolloutPercentage: z.number().min(0).max(100).default(0),
-});
-
 const listFlagsSchema = z
 	.object({
 		websiteId: z.string().optional(),
@@ -146,7 +126,9 @@ const createFlagSchema = z
 	.object({
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
-		...flagSchema.shape,
+		payload: z.any().optional(),
+		persistAcrossAuth: z.boolean().optional(),
+		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -157,14 +139,17 @@ const updateFlagSchema = z.object({
 	id: z.string(),
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().optional(),
-	type: z.enum(["boolean", "rollout"]).optional(),
+	type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
 	status: z.enum(["active", "inactive", "archived"]).optional(),
 	defaultValue: z.boolean().optional(),
 	payload: z.any().optional(),
 	rules: z.array(userRuleSchema).optional(),
 	persistAcrossAuth: z.boolean().optional(),
 	rolloutPercentage: z.number().min(0).max(100).optional(),
-});
+	variants: z.array(variantSchema).optional(),
+	dependencies: z.array(z.string()).optional(),
+	forceCancelScheduledRollout: z.boolean().optional(),
+}).passthrough();
 
 export const flagsRouter = {
 	list: publicProcedure.input(listFlagsSchema).handler(({ context, input }) => {
@@ -294,6 +279,31 @@ export const flagsRouter = {
 				"update"
 			);
 
+			const dependencyFlags = await context.db
+				.select()
+				.from(flags)
+				.where(
+					and(
+						inArray(flags.key, input.dependencies || []),
+						getScopeCondition(
+							input.websiteId,
+							input.organizationId,
+							context.user.id
+						),
+						isNull(flags.deletedAt)
+					)
+				);
+
+			for (const depFlag of dependencyFlags) {
+				const depList = (depFlag.dependencies ?? []) as string[];
+
+				if (depList.includes(input.key)) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Circular dependency detected: "${input.key}" cannot depend on "${depFlag.key}" because "${depFlag.key}" already depends on "${input.key}".`,
+					});
+				}
+			}
+
 			const existingFlag = await context.db
 				.select()
 				.from(flags)
@@ -309,6 +319,12 @@ export const flagsRouter = {
 				)
 				.limit(1);
 
+			// Check if any dependency is inactive - if so, force this flag to be inactive
+			const hasInactiveDependency = dependencyFlags.some(
+				(depFlag) => depFlag.status !== "active"
+			);
+
+			const finalStatus = hasInactiveDependency ? "inactive" : input.status;
 			if (existingFlag.length > 0) {
 				if (!existingFlag[0].deletedAt) {
 					throw new ORPCError("CONFLICT", {
@@ -322,9 +338,8 @@ export const flagsRouter = {
 						name: input.name || existingFlag[0].name,
 						description: input.description ?? existingFlag[0].description,
 						type: input.type,
-						status: input.status,
+						status: finalStatus,
 						defaultValue: input.defaultValue,
-						payload: input.payload ?? existingFlag[0].payload,
 						rules: input.rules || existingFlag[0].rules || [],
 						persistAcrossAuth:
 							input.persistAcrossAuth ??
@@ -332,6 +347,8 @@ export const flagsRouter = {
 							false,
 						rolloutPercentage:
 							input.rolloutPercentage || existingFlag[0].rolloutPercentage || 0,
+						variants: input.variants || existingFlag[0].variants || [],
+						dependencies: input.dependencies || existingFlag[0].dependencies || [],
 						deletedAt: null,
 						updatedAt: new Date(),
 					})
@@ -343,6 +360,7 @@ export const flagsRouter = {
 				return restoredFlag;
 			}
 
+
 			const [newFlag] = await context.db
 				.insert(flags)
 				.values({
@@ -351,12 +369,14 @@ export const flagsRouter = {
 					name: input.name || null,
 					description: input.description || null,
 					type: input.type,
-					status: input.status,
+					status: finalStatus,
 					defaultValue: input.defaultValue,
 					payload: input.payload || null,
 					rules: input.rules || [],
 					persistAcrossAuth: input.persistAcrossAuth ?? false,
 					rolloutPercentage: input.rolloutPercentage || 0,
+					variants: input.variants || [],
+					dependencies: input.dependencies || [],
 					websiteId: input.websiteId || null,
 					organizationId: input.organizationId || null,
 					userId: input.websiteId ? null : context.user.id,
@@ -373,11 +393,7 @@ export const flagsRouter = {
 		.input(updateFlagSchema)
 		.handler(async ({ context, input }) => {
 			const existingFlag = await context.db
-				.select({
-					websiteId: flags.websiteId,
-					organizationId: flags.organizationId,
-					userId: flags.userId,
-				})
+				.select()
 				.from(flags)
 				.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)))
 				.limit(1);
@@ -402,6 +418,83 @@ export const flagsRouter = {
 				});
 			}
 
+			// If client is attempting to change rolloutPercentage, ensure there's no pending scheduled rollout
+			// if (typeof input.rolloutPercentage !== "undefined") {
+			// 	const pendingRollout = await context.db.query.flagSchedules.findFirst({
+			// 		where: and(
+			// 			eq(flagSchedules.flagId, flag.id),
+			// 			eq(flagSchedules.action, "update_rollout"),
+			// 			isNull(flagSchedules.executedAt),
+			// 			isNull(flagSchedules.cancelledAt)
+			// 		),
+			// 	});
+
+			// 	if (pendingRollout) {
+			// 		if (!input.forceCancelScheduledRollout) {
+			// 			throw new ORPCError("CONFLICT", {
+			// 				message: `A rollout update of ${pendingRollout.value} is scheduled at ${pendingRollout.scheduledAt}. Cancel it to update now.`,
+			// 			});
+			// 		} else {
+			// 			// Cancel pending rollout schedules for this flag
+			// 			await context.db
+			// 				.update(flagSchedules)
+			// 				.set({ cancelledAt: new Date(), updatedAt: new Date() })
+			// 				.where(
+			// 					and(
+			// 						eq(flagSchedules.flagId, flag.id),
+			// 						eq(flagSchedules.action, "update_rollout"),
+			// 						isNull(flagSchedules.executedAt),
+			// 						isNull(flagSchedules.cancelledAt)
+			// 					)
+			// 				);
+			// 		}
+			// 	}
+			// }
+
+			const dependencyFlags = await context.db
+				.select()
+				.from(flags)
+				.where(
+					and(
+						inArray(flags.key, input.dependencies || []),
+						getScopeCondition(
+							flag.websiteId || undefined,
+							flag.organizationId || undefined,
+							context.user.id
+						),
+						isNull(flags.deletedAt)
+					)
+				);
+
+			for (const depFlag of dependencyFlags) {
+				const depList = (depFlag.dependencies ?? []) as string[];
+
+				if (depList.includes(flag.key)) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Circular dependency detected: "${flag.key}" cannot depend on "${depFlag.key}" because "${depFlag.key}" already depends on "${flag.key}".`,
+					});
+				}
+			}
+
+			const nextDependencies = input.dependencies ?? (flag.dependencies as string[]) ?? [];
+
+			if (nextDependencies.length > 0 && input.status === "active") {
+				const hasInactiveDependency = dependencyFlags.some(
+					(depFlag) => depFlag.status !== "active"
+				);
+
+				if (hasInactiveDependency) {
+					input.status = "inactive";
+					console.log({
+						message: "Flag forced to inactive due to inactive dependencies",
+						flagKey: flag.key,
+						inactiveDependencies: dependencyFlags
+							.filter((d) => d.status !== "active")
+							.map((d) => d.key),
+					});
+				}
+			}
+
 			const { id, ...updates } = input;
 			const [updatedFlag] = await context.db
 				.update(flags)
@@ -413,6 +506,116 @@ export const flagsRouter = {
 				.returning();
 
 			await invalidateFlagCache(id, flag.websiteId, flag.organizationId);
+
+			// Handle cascading status changes for dependent flags
+			if (updatedFlag.status !== "archived") {
+				const dependentFlags = await context.db
+					.select()
+					.from(flags)
+					.where(
+						and(
+							getScopeCondition(
+								flag.websiteId || undefined,
+								flag.organizationId || undefined,
+								context.user.id
+							),
+							isNull(flags.deletedAt)
+						)
+					);
+
+				const relevantDependents = dependentFlags.filter((depFlag) => {
+					const deps = (depFlag.dependencies as string[]) ?? [];
+					return deps.includes(flag.key);
+				});
+
+				if (relevantDependents.length > 0) {
+					const flagsToUpdate: Array<{ id: string; key: string; newStatus: "active" | "inactive" }> = [];
+
+					if (updatedFlag.status === "inactive") {
+						const flagsToDeactivate = relevantDependents.filter(
+							(depFlag) => depFlag.status === "active"
+						);
+
+						flagsToUpdate.push(
+							...flagsToDeactivate.map((f) => ({
+								id: f.id,
+								key: f.key,
+								newStatus: "inactive" as const,
+							}))
+						);
+					} else if (updatedFlag.status === "active") {
+						const potentialActivations = relevantDependents.filter(
+							(depFlag) => depFlag.status === "inactive"
+						);
+
+						for (const depFlag of potentialActivations) {
+							const deps = (depFlag.dependencies as string[]) ?? [];
+
+							const depFlagDependencies = await context.db
+								.select()
+								.from(flags)
+								.where(
+									and(
+										inArray(flags.key, deps),
+										getScopeCondition(
+											flag.websiteId || undefined,
+											flag.organizationId || undefined,
+											context.user.id
+										),
+										isNull(flags.deletedAt)
+									)
+								);
+
+							const allDependenciesActive = depFlagDependencies.every(
+								(df) => df.status === "active"
+							);
+
+							if (allDependenciesActive) {
+								flagsToUpdate.push({
+									id: depFlag.id,
+									key: depFlag.key,
+									newStatus: "active",
+								});
+							}
+						}
+					}
+
+					if (flagsToUpdate.length > 0) {
+						console.log({
+							message: `Cascading ${updatedFlag.status} status to dependent flags`,
+							changedFlag: flag.key,
+							newStatus: updatedFlag.status,
+							affectedFlags: flagsToUpdate.map((f) => ({
+								key: f.key,
+								newStatus: f.newStatus,
+							})),
+						});
+
+						await Promise.all(
+							flagsToUpdate.map((flagUpdate) =>
+								context.db
+									.update(flags)
+									.set({
+										status: flagUpdate.newStatus,
+										updatedAt: new Date(),
+									})
+									.where(eq(flags.id, flagUpdate.id))
+							)
+						);
+
+						await Promise.all(
+							flagsToUpdate.map((flagUpdate) => {
+								const affectedFlag = relevantDependents.find((f) => f.id === flagUpdate.id);
+								return invalidateFlagCache(
+									flagUpdate.id,
+									affectedFlag?.websiteId,
+									affectedFlag?.organizationId
+								);
+							})
+						);
+					}
+				}
+			}
 
 			return updatedFlag;
 		}),
@@ -462,4 +665,4 @@ export const flagsRouter = {
 
 			return { success: true };
 		}),
-};
+}

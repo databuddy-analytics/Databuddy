@@ -1,4 +1,5 @@
 import { isNotNull, isNull } from "drizzle-orm";
+import { check } from "drizzle-orm/gel-core";
 import {
 	boolean,
 	foreignKey,
@@ -839,12 +840,17 @@ export const dbPermissionLevel = pgEnum("db_permission_level", [
 	"admin",
 ]);
 
-export const flagType = pgEnum("flag_type", ["boolean", "rollout"]);
+export const flagType = pgEnum("flag_type", ["boolean", "rollout", "multivariant"]);
 
 export const flagStatus = pgEnum("flag_status", [
 	"active",
 	"inactive",
 	"archived",
+]);
+export const flagScheduleActionType = pgEnum("flag_schedule_type", [
+	"enable",
+	"disable",
+	"update_rollout",
 ]);
 
 export const annotationType = pgEnum("annotation_type", [
@@ -923,6 +929,9 @@ export const flags = pgTable(
 		organizationId: text("organization_id"),
 		userId: text("user_id"),
 		createdBy: text("created_by").notNull(),
+		variants: jsonb("variants").default([]),
+		dependencies: jsonb("dependencies").default([]),
+		environment: text("environment").default("production").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
@@ -969,6 +978,32 @@ export const flags = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("restrict"),
+	]
+);
+
+export const flagSchedules = pgTable(
+	"flag_schedules",
+	{
+		id: text().primaryKey().notNull(),
+		flagId: text("flag_id").notNull(),
+		scheduledAt: timestamp("scheduled_at"),
+		rolloutSteps: jsonb("rollout_steps").$type<
+			{ scheduledAt: string; value: number | "enable" | "disable" }[]
+		>(),
+		type: flagScheduleActionType().notNull(),
+		isEnabled: boolean("is_enabled").default(false).notNull(),
+		executedAt: timestamp("executed_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("idx_flag_schedules_flag_id").on(table.flagId),
+		index("idx_flag_schedules_scheduled_at").on(table.scheduledAt),
+		foreignKey({
+			columns: [table.flagId],
+			foreignColumns: [flags.id],
+			name: "flag_schedules_flag_id_fkey",
+		}).onDelete("cascade"),
 	]
 );
 

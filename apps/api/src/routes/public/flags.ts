@@ -40,6 +40,7 @@ type FlagResult = {
 	value: boolean;
 	payload: unknown;
 	reason: string;
+	variant?: string;
 };
 
 export function hashString(str: string): number {
@@ -168,6 +169,58 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	}
 }
 
+export function selectVariant(
+	flag: any,
+	context: UserContext
+): { value: any; variant: string } {
+	if (!flag.variants || flag.variants.length === 0) {
+		return { value: flag.defaultValue, variant: "default" };
+	}
+
+	const identifier = context.userId || context.email || "anonymous";
+	const hash = hashString(`${flag.key}:variant:${identifier}`);
+	const percentage = hash % 100;
+
+	// 🔍 DEBUG: Log the variants with their weights
+	console.log("🎲 Variant Selection Debug:");
+	console.log("  - User identifier:", identifier);
+	console.log("  - Hash:", hash);
+	console.log("  - Percentage:", percentage);
+	console.log("  - Variants:", flag.variants.map((v: any) => ({
+		key: v.key,
+		value: v.value,
+		weight: v.weight,
+		description: v.description
+	})));
+
+	// If no variants have explicit weights, use deterministic index-based selection
+	const hasAnyWeight = flag.variants.some((v: any) => typeof v.weight === "number");
+
+	if (!hasAnyWeight) {
+		const idx = hash % flag.variants.length;
+		const selected = flag.variants[idx];
+		console.log(`  ℹ️  No weights provided, selected by index: ${selected.key}`);
+		return { value: selected.value, variant: selected.key };
+	}
+
+	// Otherwise use weighted selection (weights may be 0 for some variants)
+	let cumulative = 0;
+	for (const variant of flag.variants) {
+		cumulative += typeof variant.weight === "number" ? variant.weight : 0;
+		console.log(`  - Checking variant "${variant.key}": cumulative=${cumulative}, percentage=${percentage}, match=${percentage < cumulative}`);
+		if (percentage < cumulative) {
+			console.log(`  ✅ Selected variant: ${variant.key} (value: ${variant.value})`);
+			return { value: variant.value, variant: variant.key };
+		}
+	}
+
+	// If no weighted match, fall back to last variant
+	console.log('  ⚠️  No variant matched based on weights, falling back to last variant');
+	const lastVariant = flag.variants[flag.variants.length - 1];
+	console.log(`  ✅ Last variant: ${lastVariant.key} (value: ${lastVariant.value})`);
+	return { value: lastVariant.value, variant: lastVariant.key };
+}
+
 export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 	if (flag.rules && Array.isArray(flag.rules) && flag.rules.length > 0) {
 		for (const rule of flag.rules as FlagRule[]) {
@@ -180,6 +233,17 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 				};
 			}
 		}
+	}
+
+	if (flag.type === "multivariant" && flag.variants?.length > 0) {
+		const { value, variant } = selectVariant(flag, context);
+		return {
+			enabled: true, // Variants are always "enabled"
+			value,
+			variant,
+			payload: flag.payload,
+			reason: "VARIANT_SELECTED",
+		};
 	}
 
 	let enabled = Boolean(flag.defaultValue);
