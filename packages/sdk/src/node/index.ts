@@ -535,3 +535,4 @@ export class Databuddy {
  * Shorthand alias for Databuddy
  */
 export { Databuddy as db };
+export * from "./flags";
