@@ -1,45 +1,31 @@
 import type { BaseTracker } from "../core/tracker";
-import { generateUUIDv4, logger } from "../core/utils";
-
-type ErrorPayload = {
-	timestamp: number;
-	message: string;
-	filename?: string;
-	lineno?: number;
-	colno?: number;
-	stack?: string;
-	errorType: string;
-};
+import type { ErrorSpan } from "../core/types";
+import { logger } from "../core/utils";
 
 export function initErrorTracking(tracker: BaseTracker) {
 	if (tracker.isServer()) {
 		return;
 	}
 
-	const trackError = (errorData: ErrorPayload) => {
+	const trackError = (error: Omit<ErrorSpan, "timestamp" | "path" | "anonymousId" | "sessionId">) => {
 		if (tracker.options.disabled || tracker.isLikelyBot || tracker.isServer()) {
-			logger.log("Error tracking skipped (disabled/bot/server)");
 			return;
 		}
 
-		const payload = {
-			eventId: generateUUIDv4(),
+		const errorSpan: ErrorSpan = {
+			timestamp: Date.now(),
+			path: window.location.pathname,
 			anonymousId: tracker.anonymousId,
 			sessionId: tracker.sessionId,
-			...errorData,
-			...tracker.getBaseContext(),
+			...error,
 		};
 
-		logger.log("Tracking error", payload);
-
-		tracker.api.fetch("/errors", payload, { keepalive: true }).catch(() => {
-			tracker.sendBeacon(payload);
-		});
+		logger.log("Queueing error", errorSpan);
+		tracker.sendError(errorSpan);
 	};
 
 	const errorHandler = (event: ErrorEvent) => {
 		trackError({
-			timestamp: Date.now(),
 			message: event.message || "Unknown Error",
 			filename: event.filename,
 			lineno: event.lineno,
@@ -54,7 +40,6 @@ export function initErrorTracking(tracker: BaseTracker) {
 
 		if (reason instanceof Error) {
 			trackError({
-				timestamp: Date.now(),
 				message: reason.message,
 				stack: reason.stack,
 				errorType: reason.name || "Error",
@@ -66,11 +51,10 @@ export function initErrorTracking(tracker: BaseTracker) {
 		if (typeof reason === "object" && reason !== null) {
 			try {
 				message = JSON.stringify(reason);
-			} catch {}
+			} catch { }
 		}
 
 		trackError({
-			timestamp: Date.now(),
 			message,
 			stack: reason?.stack,
 			errorType: "UnhandledRejection",

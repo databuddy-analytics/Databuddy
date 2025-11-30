@@ -92,7 +92,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		<div className="flex h-full flex-col overflow-hidden">
 			{!isAssistantPage && (
 				<div
-					className="fixed top-12 right-0 left-0 z-50 shrink-0 space-y-0 bg-background md:top-0 md:left-76 lg:left-84"
+					className="sticky top-0 right-0 left-0 z-50 shrink-0 space-y-0 bg-background md:top-0 md:left-84"
 					ref={toolbarRef}
 				>
 					<AnalyticsToolbar
@@ -108,9 +108,6 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 
 			<div
 				className={`${isAssistantPage ? "min-h-0 flex-1" : "min-h-0 flex-1 overflow-y-auto"}`}
-				style={
-					isAssistantPage ? undefined : { paddingTop: `${toolbarHeight}px` }
-				}
 			>
 				{children}
 			</div>

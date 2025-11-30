@@ -1,6 +1,12 @@
 "use client";
 
-import { BellIcon, GearSixIcon } from "@phosphor-icons/react";
+import {
+	BellIcon,
+	GearIcon,
+	IdentificationCardIcon,
+	KeyIcon,
+	ShieldCheckIcon,
+} from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -13,6 +19,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "../websites/_components/page-header";
 import { ApiKeyCreateDialog, ApiKeyList } from "./_components";
 
 const EmailForm = dynamic(
@@ -102,69 +109,52 @@ export default function SettingsPage() {
 				return {
 					title: "Profile",
 					description: "Manage your personal information and preferences",
+					icon: <IdentificationCardIcon />,
 				};
 			case "account":
 				return {
 					title: "Account",
 					description: "Update your email, password, and account settings",
+					icon: <GearIcon />,
 				};
 			case "security":
 				return {
 					title: "Security",
 					description:
 						"Manage your security settings and two-factor authentication",
+					icon: <ShieldCheckIcon />,
 				};
 			case "api-keys":
 				return {
 					title: "API Keys",
 					description: "Create and manage API keys for your applications",
+					icon: <KeyIcon />,
 				};
 			default:
 				return {
 					title: "Settings",
 					description: "Manage your account and preferences",
+					icon: <GearIcon />,
 				};
 		}
 	};
 
-	const { title, description } = getPageTitle();
+	const { title, description, icon } = getPageTitle();
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="border-b bg-linear-to-r from-background via-background to-muted/20">
-				<div className="flex h-24 items-center px-4 sm:px-6">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-4">
-							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-								<GearSixIcon
-									className="h-6 w-6 text-primary"
-									size={24}
-									weight="duotone"
-								/>
-							</div>
-							<div>
-								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
-									{title}
-								</h1>
-								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
-									{description}
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+			<PageHeader description={description} icon={icon} title={title} />
+			<main className="flex-1 overflow-y-auto p-4">
 				{activeTab === "profile" && (
-					<Card className="shadow-sm">
-						<CardContent className="pt-6">
+					<Card>
+						<CardContent>
 							<ProfileForm />
 						</CardContent>
 					</Card>
 				)}
 				{activeTab === "account" && (
 					<div className="space-y-6">
-						<Card className="shadow-sm">
+						<Card>
 							<CardHeader>
 								<CardTitle>Email Address</CardTitle>
 								<CardDescription>
@@ -176,7 +166,7 @@ export default function SettingsPage() {
 							</CardContent>
 						</Card>
 
-						<Card className="shadow-sm">
+						<Card>
 							<CardHeader>
 								<CardTitle>Password</CardTitle>
 								<CardDescription>
@@ -188,7 +178,7 @@ export default function SettingsPage() {
 							</CardContent>
 						</Card>
 
-						<Card className="shadow-sm">
+						<Card>
 							<CardHeader>
 								<CardTitle>Timezone</CardTitle>
 								<CardDescription>
@@ -200,11 +190,9 @@ export default function SettingsPage() {
 							</CardContent>
 						</Card>
 
-						<Card className="border-destructive/20 shadow-sm">
+						<Card>
 							<CardHeader>
-								<CardTitle className="text-destructive">
-									Delete Account
-								</CardTitle>
+								<CardTitle>Delete Account</CardTitle>
 								<CardDescription>
 									Permanently delete your account and all associated data. This
 									action cannot be undone.
@@ -218,7 +206,7 @@ export default function SettingsPage() {
 				)}
 				{activeTab === "security" && (
 					<div className="space-y-6">
-						<Card className="shadow-sm">
+						<Card>
 							<CardHeader>
 								<CardTitle>Two-Factor Authentication</CardTitle>
 								<CardDescription>
@@ -231,7 +219,7 @@ export default function SettingsPage() {
 							</CardContent>
 						</Card>
 
-						<Card className="shadow-sm">
+						<Card>
 							<CardHeader>
 								<CardTitle>Active Sessions</CardTitle>
 								<CardDescription>
@@ -244,13 +232,7 @@ export default function SettingsPage() {
 						</Card>
 					</div>
 				)}
-				{activeTab === "api-keys" && (
-					<Card className="shadow-sm">
-						<CardContent className="pt-6">
-							<ApiKeysSection />
-						</CardContent>
-					</Card>
-				)}
+				{activeTab === "api-keys" && <ApiKeysSection />}
 				{activeTab === "notifications" && (
 					<div className="flex h-full items-center justify-center">
 						<div className="text-center">
@@ -279,7 +261,7 @@ function ApiKeysSection() {
 	}>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	return (
-		<div className="space-y-4">
+		<div className="h-full space-y-4">
 			<ApiKeyList
 				onCreateNew={() => setOpen(true)}
 				onSelect={(id) => setSelectedId(id)}

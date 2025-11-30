@@ -35,6 +35,7 @@ export function useOrganizationInvitations(organizationId: string) {
 		data,
 		isLoading: queryLoading,
 		refetch,
+		error
 	} = useQuery({
 		...orpc.organizations.getPendingInvitations.queryOptions({
 			input: { organizationId, includeExpired: true },
@@ -126,6 +127,7 @@ export function useOrganizationInvitations(organizationId: string) {
 		invitations,
 		filteredInvitations,
 		isLoading,
+		error,
 		selectedTab,
 		isInviting,
 		isCancelling,

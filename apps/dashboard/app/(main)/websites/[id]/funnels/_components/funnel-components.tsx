@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { FunnelStep } from "@/hooks/use-funnels";
+import { cn } from "@/lib/utils";
 
 // Optimized Autocomplete Component
 export const AutocompleteInput = memo(
@@ -140,11 +141,12 @@ export const DraggableStep = memo(
 	}) => {
 		return (
 			<div
-				className={`flex items-center gap-4 rounded-xl border p-4 transition-all duration-150 ${
+				className={cn(
+					"flex items-center gap-4 rounded-xl border border-secondary p-4 ring-0 ring-transparent transition-all duration-150",
 					isDragging
-						? "scale-[0.98] border-primary/30 bg-background/95 opacity-60 shadow-xl"
-						: "hover:border-border hover:shadow-sm"
-				}`}
+						? "scale-[0.98] border-accent-foreground bg-accent-brighter opacity-60 shadow-xl"
+						: "bg-background hover:shadow-sm hover:ring-1 hover:ring-accent-foreground/20"
+				)}
 			>
 				{/* Drag Handle */}
 				<div className="shrink-0 cursor-grab active:cursor-grabbing">
@@ -155,7 +157,7 @@ export const DraggableStep = memo(
 				</div>
 
 				{/* Step Number */}
-				<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary/20 bg-gradient-to-br from-primary to-primary/80 font-semibold text-primary-foreground text-sm shadow-sm">
+				<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary-brighter font-medium text-accent-foreground text-sm">
 					{index + 1}
 				</div>
 
@@ -165,10 +167,10 @@ export const DraggableStep = memo(
 						onValueChange={(value) => updateStep(index, "type", value)}
 						value={step.type}
 					>
-						<SelectTrigger className="rounded-lg border-border/50 focus:border-primary/50">
+						<SelectTrigger className="rounded-lg border-border bg-card shadow-none">
 							<SelectValue />
 						</SelectTrigger>
-						<SelectContent className="rounded-lg">
+						<SelectContent className="rounded-lg bg-card">
 							<SelectItem value="PAGE_VIEW">Page View</SelectItem>
 							<SelectItem value="EVENT">Event</SelectItem>
 						</SelectContent>

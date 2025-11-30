@@ -23,7 +23,7 @@ export function OverviewSkeleton() {
 					))}
 				</div>
 			</div>
-			<div className="flex w-full shrink-0 flex-col border-t bg-muted/30 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
+			<div className="flex w-full shrink-0 flex-col border-t bg-card lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
 				<div className="border-b p-5">
 					<Skeleton className="mb-3 h-5 w-28" />
 					<div className="flex items-center gap-3">

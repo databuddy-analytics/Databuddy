@@ -13,7 +13,8 @@ import {
 import { useAtomValue } from "jotai";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-
+import { PageHeader } from "@/app/(main)/websites/_components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
 import { Button } from "@/components/ui/button";
@@ -23,11 +24,19 @@ import {
 	isLoadingOrganizationsAtom,
 } from "@/stores/jotai/organizationsAtoms";
 
+type HeaderActionButton = {
+	text: string;
+	icon: PhosphorIcon;
+	action: () => void;
+	disabled?: boolean;
+};
+
 type PageInfo = {
 	title: string;
 	description: string;
 	icon: PhosphorIcon;
 	requiresOrg?: boolean;
+	actionButton?: HeaderActionButton;
 };
 
 const PAGE_INFO_MAP: Record<string, PageInfo> = {
@@ -98,16 +107,17 @@ export function OrganizationProvider({
 		description,
 		icon: Icon,
 		requiresOrg,
+		actionButton,
 	} = useMemo(() => PAGE_INFO_MAP[pathname] ?? DEFAULT_PAGE_INFO, [pathname]);
 
 	if (isLoading) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="border-b bg-linear-to-r from-background via-background to-muted/20">
+				<div className="border-b">
 					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-3 sm:gap-4">
-								<div className="rounded border border-primary/20 bg-primary/10 p-2 sm:p-3">
+								<div className="rounded border border-accent bg-accent/50 p-2 sm:p-3">
 									<Skeleton className="h-5 w-5 sm:h-6 sm:w-6" />
 								</div>
 								<div>
@@ -130,87 +140,64 @@ export function OrganizationProvider({
 	if (requiresOrg && !activeOrganization) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="border-b bg-linear-to-r from-background via-background to-muted/20">
-					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3 sm:gap-4">
-								<div className="rounded border border-primary/20 bg-primary/10 p-2 sm:p-3">
-									<Icon
-										className="h-5 w-5 text-primary sm:h-6 sm:w-6"
-										size={20}
-										weight="duotone"
-									/>
-								</div>
-								<div>
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl lg:text-3xl">
-										{title}
-									</h1>
-									<p className="mt-1 text-muted-foreground text-xs sm:text-sm lg:text-base">
-										{description}
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<main className="flex flex-1 items-center justify-center p-4 sm:p-6">
-					<div className="w-full max-w-md rounded-lg border bg-card p-6 text-center sm:p-8">
-						<Icon
-							className="mx-auto mb-3 h-10 w-10 text-muted-foreground sm:mb-4 sm:h-12 sm:w-12"
-							size={40}
-							weight="duotone"
-						/>
-						<h3 className="mb-2 font-semibold text-base sm:text-lg">
-							Select an Organization
-						</h3>
-						<p className="text-muted-foreground text-xs sm:text-sm">
-							This feature requires an active organization.
-						</p>
-						<div className="mt-4 sm:mt-6">
+				<PageHeader
+					description={description}
+					icon={<Icon />}
+					right={
+						actionButton && (
 							<Button
-								className="rounded text-xs sm:text-sm"
-								onClick={() => setShowCreateDialog(true)}
-								size="default"
+								className="w-full rounded text-xs sm:w-auto sm:text-sm"
+								disabled={actionButton.disabled}
+								onClick={actionButton.action}
+								size="sm"
 							>
-								<BuildingsIcon
-									className="mr-2 h-4 w-4 sm:h-5 sm:w-5"
-									size={16}
-								/>
-								Create organization
+								<actionButton.icon className="size-4" />
+								{actionButton.text}
 							</Button>
-						</div>
-					</div>
-				</main>
+						)
+					}
+					title={title}
+				/>
+
+				<CreateOrganizationDialog
+					isOpen={showCreateDialog}
+					onClose={() => setShowCreateDialog(false)}
+				/>
+
+				<EmptyState
+					action={{
+						label: "Create Organization",
+						onClick: () => setShowCreateDialog(true),
+					}}
+					description="This feature requires an active organization."
+					icon={<BuildingsIcon size={16} weight="duotone" />}
+					title="No organization selected"
+					variant="minimal"
+				/>
 			</div>
 		);
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="h-22 border-b bg-linear-to-r from-background via-background to-muted/20">
-				<div className="flex flex-col justify-between gap-2.5 p-3 sm:flex-row sm:items-center sm:gap-0 sm:px-5 sm:py-4">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-2.5">
-							<div className="rounded border border-primary/20 bg-primary/10 p-2">
-								<Icon
-									className="h-5 w-5 text-primary"
-									size={20}
-									weight="duotone"
-								/>
-							</div>
-							<div>
-								<h1 className="truncate font-bold text-foreground text-lg tracking-tight sm:text-xl">
-									{title}
-								</h1>
-								<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-									{description}
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+			<PageHeader
+				description={description}
+				icon={<Icon />}
+				right={
+					actionButton && (
+						<Button
+							className="w-full rounded text-xs sm:w-auto sm:text-sm"
+							disabled={actionButton.disabled}
+							onClick={actionButton.action}
+							size="sm"
+						>
+							<actionButton.icon className="size-4" />
+							{actionButton.text}
+						</Button>
+					)
+				}
+				title={title}
+			/>
 
 			<main className="flex-1 overflow-y-auto">{children}</main>
 

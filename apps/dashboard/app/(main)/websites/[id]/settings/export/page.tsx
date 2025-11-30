@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { PageHeader } from "../../../_components/page-header";
 
 function downloadFile(blob: Blob, filename: string) {
 	const url = window.URL.createObjectURL(blob);
@@ -132,153 +133,132 @@ export default function ExportPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Header - align with websites header */}
-			<div className="h-[89px] border-b">
-				<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-3">
-							<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-								<DownloadIcon className="h-5 w-5 text-primary" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-2">
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-										Data Export
-									</h1>
-									<Badge className="h-5 px-2" variant="secondary">
-										Tools
-									</Badge>
-								</div>
-								<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-									Download your analytics data for backup and analysis
-								</p>
-							</div>
-						</div>
+			<PageHeader
+				badgeContent="Tools"
+				description="Download your analytics data for backup and analysis"
+				icon={<DownloadIcon />}
+				title="Data Export"
+			/>
+
+			{/* Content */}
+			<div className="flex min-h-0 flex-1 flex-col">
+				{/* Format selection */}
+				<section className="border-b px-4 py-5 sm:px-6">
+					<div className="mb-3">
+						<Label className="font-medium text-sm">Export format</Label>
 					</div>
-					{/* Right-side actions (optional) */}
-				</div>
-
-				{/* Content */}
-				<div className="flex min-h-0 flex-1 flex-col">
-					{/* Format selection */}
-					<section className="border-b px-4 py-5 sm:px-6">
-						<div className="mb-3">
-							<Label className="font-medium text-sm">Export format</Label>
-						</div>
-						<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-							{formatOptions.map((format) => {
-								const IconComponent = format.icon;
-								return (
-									<button
-										className={`flex items-start gap-3 rounded-md border p-4 text-left transition-colors hover:border-primary/50 ${
-											selectedFormat === format.value
-												? "border-primary bg-primary/5"
-												: "border-border"
-										}`}
-										key={format.value}
-										onClick={() => setSelectedFormat(format.value)}
-										type="button"
-									>
-										<div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
-											<IconComponent className="h-5 w-5" />
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						{formatOptions.map((format) => {
+							const IconComponent = format.icon;
+							return (
+								<button
+									className={`flex items-start gap-3 rounded-md border p-4 text-left transition-colors hover:border-primary/50 ${
+										selectedFormat === format.value
+											? "bg-secondary"
+											: "border-border"
+									}`}
+									key={format.value}
+									onClick={() => setSelectedFormat(format.value)}
+									type="button"
+								>
+									<div className="flex h-8 w-8 items-center justify-center rounded-md border bg-secondary-brighter">
+										<IconComponent className="h-5 w-5" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="mb-1 flex items-center gap-2">
+											<span className="font-medium text-sm">
+												{format.label}
+											</span>
+											{selectedFormat === format.value && (
+												<CheckIcon className="h-4 w-4 text-primary" />
+											)}
 										</div>
-										<div className="min-w-0 flex-1">
-											<div className="mb-1 flex items-center gap-2">
-												<span className="font-medium text-sm">
-													{format.label}
-												</span>
-												{selectedFormat === format.value && (
-													<CheckIcon className="h-4 w-4 text-primary" />
-												)}
-											</div>
-											<p className="text-muted-foreground text-xs">
-												{format.description}
-											</p>
-										</div>
-									</button>
-								);
-							})}
-						</div>
-					</section>
+										<p className="text-muted-foreground text-xs">
+											{format.description}
+										</p>
+									</div>
+								</button>
+							);
+						})}
+					</div>
+				</section>
 
-					{/* Date range */}
-					<section className="border-b px-4 py-5 sm:px-6">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div>
-								<h2 className="font-medium text-sm">Date range</h2>
-								<p className="text-muted-foreground text-xs">
-									{useCustomRange
-										? "Export a specific range"
-										: "Export all available data"}
-								</p>
-							</div>
-							<Switch
-								aria-label="Use custom date range"
-								checked={useCustomRange}
-								id="custom-range"
-								onCheckedChange={setUseCustomRange}
-							/>
+				{/* Date range */}
+				<section className="border-b px-4 py-5 sm:px-6">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<h2 className="font-medium text-sm">Date range</h2>
+							<p className="text-muted-foreground text-xs">
+								{useCustomRange
+									? "Export a specific range"
+									: "Export all available data"}
+							</p>
 						</div>
-						{useCustomRange && (
-							<div className="mt-3 border-t pt-3">
-								<div className="flex items-center gap-3">
-									<Label className="shrink-0 font-medium text-sm">
-										From - To:
-									</Label>
-									<DateRangePicker
-										className="flex-1"
-										maxDate={new Date()}
-										minDate={new Date(2020, 0, 1)}
-										onChange={setDateRange}
-										value={dateRange}
-									/>
-								</div>
+						<Switch
+							aria-label="Use custom date range"
+							checked={useCustomRange}
+							id="custom-range"
+							onCheckedChange={setUseCustomRange}
+						/>
+					</div>
+					{useCustomRange && (
+						<div className="mt-3 border-t pt-3">
+							<div className="flex items-center gap-3">
+								<Label className="shrink-0 font-medium text-sm">
+									From - To:
+								</Label>
+								<DateRangePicker
+									className="flex-1"
+									maxDate={new Date()}
+									minDate={new Date(2020, 0, 1)}
+									onChange={setDateRange}
+									value={dateRange}
+								/>
 							</div>
-						)}
-					</section>
+						</div>
+					)}
+				</section>
 
-					{/* Export action */}
-					<section className="px-4 py-5 sm:px-6">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div>
-								<h3 className="font-medium text-sm">
-									Ready to export {websiteData.name || "your website"} data
-								</h3>
-								<p className="text-muted-foreground text-xs">
-									Format:{" "}
-									<Badge className="font-mono" variant="secondary">
-										{selectedFormat.toUpperCase()}
-									</Badge>
-									{useCustomRange && dateRange?.from && dateRange?.to && (
-										<span className="ml-2">
-											• {dayjs(dateRange.from).format("MMM D, YYYY")} -{" "}
-											{dayjs(dateRange.to).format("MMM D, YYYY")}
-										</span>
-									)}
-								</p>
-							</div>
-							<Button
-								aria-label="Start data export"
-								className="min-w-[140px]"
-								disabled={isExportDisabled}
-								onClick={handleExport}
-								size="lg"
-							>
-								{isExporting ? (
-									<>
-										<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
-										Exporting...
-									</>
-								) : (
-									<>
-										<DownloadIcon className="mr-2 h-4 w-4" />
-										Export Data
-									</>
+				{/* Export action */}
+				<section className="px-4 py-5 sm:px-6">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<h3 className="font-medium text-sm">
+								Ready to export {websiteData.name || "your website"} data
+							</h3>
+							<p className="mt-2 text-muted-foreground text-xs">
+								Format:{" "}
+								<Badge className="font-mono" variant="secondary">
+									{selectedFormat.toUpperCase()}
+								</Badge>
+								{useCustomRange && dateRange?.from && dateRange?.to && (
+									<span className="ml-2">
+										• {dayjs(dateRange.from).format("MMM D, YYYY")} -{" "}
+										{dayjs(dateRange.to).format("MMM D, YYYY")}
+									</span>
 								)}
-							</Button>
+							</p>
 						</div>
-					</section>
-				</div>
+						<Button
+							aria-label="Start data export"
+							disabled={isExportDisabled}
+							onClick={handleExport}
+							size="lg"
+						>
+							{isExporting ? (
+								<>
+									<div className="size-4 animate-spin rounded-full border border-current border-t-transparent" />
+									Exporting...
+								</>
+							) : (
+								<>
+									<DownloadIcon className="size-4" />
+									Export Data
+								</>
+							)}
+						</Button>
+					</div>
+				</section>
 			</div>
 		</div>
 	);

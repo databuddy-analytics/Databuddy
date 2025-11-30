@@ -2,6 +2,7 @@
 
 import { CreditCardIcon } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
+import { PageHeader } from "../../websites/_components/page-header";
 
 const PAGE_TITLES: Record<string, { title: string; description: string }> = {
 	"/billing": {
@@ -28,28 +29,10 @@ export function BillingHeader() {
 	const { title, description } = PAGE_TITLES[pathname] ?? DEFAULT_TITLE;
 
 	return (
-		<div className="border-b bg-linear-to-r from-background via-background to-muted/20">
-			<div className="flex h-24 items-center px-4 sm:px-6">
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-4">
-						<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-							<CreditCardIcon
-								className="h-6 w-6 text-primary"
-								size={24}
-								weight="duotone"
-							/>
-						</div>
-						<div>
-							<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
-								{title}
-							</h1>
-							<p className="mt-1 text-muted-foreground text-sm sm:text-base">
-								{description}
-							</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
+		<PageHeader
+			description={description}
+			icon={<CreditCardIcon weight="duotone" />}
+			title={title}
+		/>
 	);
 }

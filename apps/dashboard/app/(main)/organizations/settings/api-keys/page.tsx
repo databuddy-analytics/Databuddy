@@ -22,12 +22,12 @@ function SkeletonRow() {
 function PageSkeleton() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="divide-y border-b lg:border-b-0 lg:border-r">
+			<div className="divide-y border-b lg:border-b-0">
 				<SkeletonRow />
 				<SkeletonRow />
 				<SkeletonRow />
 			</div>
-			<div className="space-y-4 bg-muted/30 p-5">
+			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
 				<Skeleton className="h-18 w-full rounded" />
 				<Skeleton className="h-10 w-full" />

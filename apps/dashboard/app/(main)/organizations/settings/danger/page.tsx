@@ -8,7 +8,7 @@ import { DangerZoneSettings } from "./danger-zone-settings";
 function PageSkeleton() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="space-y-6 border-b p-5 lg:border-b-0 lg:border-r">
+			<div className="space-y-6 border-b p-5 lg:border-b-0">
 				{/* Transfer section */}
 				<div>
 					<Skeleton className="mb-1 h-5 w-32" />
@@ -40,7 +40,7 @@ function PageSkeleton() {
 				</div>
 			</div>
 
-			<div className="space-y-4 bg-muted/30 p-5">
+			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-20 w-full rounded" />
 				<Skeleton className="h-10 w-full" />
 				<Skeleton className="mt-auto h-20 w-full rounded" />

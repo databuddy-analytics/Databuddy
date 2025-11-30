@@ -166,7 +166,7 @@ export function WebsiteDialog({
 					<DialogDescription>
 						{isEditing
 							? "Update the details of your existing website."
-							: "Create a new website to start tracking analytics."}
+							: "A new website to start tracking analytics."}
 					</DialogDescription>
 				</DialogHeader>
 				<Form {...form}>
@@ -199,7 +199,7 @@ export function WebsiteDialog({
 										<FormLabel>Domain</FormLabel>
 										<FormControl>
 											<div className="flex items-center">
-												<span className="inline-flex h-10 items-center rounded-l-md border border-input border-r-0 bg-muted px-3 text-muted-foreground text-sm">
+												<span className="inline-flex h-9 items-center rounded-l-md border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
 													https://
 												</span>
 												<Input
@@ -232,9 +232,11 @@ export function WebsiteDialog({
 				</Form>
 				<DialogFooter>
 					<Button
-						className="w-full sm:w-auto"
+						className="w-full"
 						disabled={
-							createWebsiteMutation.isPending || updateWebsiteMutation.isPending
+							createWebsiteMutation.isPending ||
+							updateWebsiteMutation.isPending ||
+							!form.formState.isValid
 						}
 						form="form"
 						onClick={handleSubmit}

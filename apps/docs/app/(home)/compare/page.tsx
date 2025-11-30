@@ -76,7 +76,7 @@ function CompetitorCard({
 								Databuddy advantages
 							</span>
 							<Badge
-								className="border-primary/20 bg-primary/10 text-primary"
+								className="border-accent bg-accent/50 text-primary"
 								variant="outline"
 							>
 								{featuresWin}/{totalFeatures} features

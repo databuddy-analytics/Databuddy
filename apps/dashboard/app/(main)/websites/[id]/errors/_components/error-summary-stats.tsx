@@ -18,28 +18,24 @@ export const ErrorSummaryStats = ({ errorSummary }: ErrorSummaryStatsProps) => (
 			icon={WarningCircleIcon}
 			title="Total Errors"
 			value={(errorSummary.totalErrors || 0).toLocaleString()}
-			variant="info"
 		/>
 		<StatCard
 			description="Error sessions"
 			icon={TrendUpIcon}
 			title="Error Rate"
 			value={`${(errorSummary.errorRate || 0).toFixed(2)}%`}
-			variant="info"
 		/>
 		<StatCard
 			description="Unique users with errors"
 			icon={UsersIcon}
 			title="Affected Users"
 			value={(errorSummary.affectedUsers || 0).toLocaleString()}
-			variant="default"
 		/>
 		<StatCard
 			description="Unique sessions with errors"
 			icon={ActivityIcon}
 			title="Affected Sessions"
 			value={(errorSummary.affectedSessions || 0).toLocaleString()}
-			variant="default"
 		/>
 	</div>
 );

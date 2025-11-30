@@ -1,7 +1,10 @@
 import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import {
+	AUTH_QUERY_KEYS,
+	useOrganizationsContext,
+} from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
 export type OrganizationRole = "owner" | "admin" | "member";
@@ -65,6 +68,14 @@ const createMutation = <TData, TVariables>(
 export function useOrganizations() {
 	const { organizations, activeOrganization, isLoading } =
 		useOrganizationsContext();
+	const queryClient = useQueryClient();
+
+	const invalidateOrganizationQueries = () => {
+		queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEYS.organizations });
+		queryClient.invalidateQueries({
+			queryKey: AUTH_QUERY_KEYS.activeOrganization,
+		});
+	};
 
 	const createOrganizationMutation = useMutation(
 		createMutation(
@@ -83,7 +94,8 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization created successfully",
-			"Failed to create organization"
+			"Failed to create organization",
+			invalidateOrganizationQueries
 		)
 	);
 
@@ -115,13 +127,15 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization updated successfully",
-			"Failed to update organization"
+			"Failed to update organization",
+			invalidateOrganizationQueries
 		)
 	);
 
 	const uploadOrganizationLogoMutation = useMutation({
 		...orpc.organizations.uploadLogo.mutationOptions(),
 		onSuccess: () => {
+			invalidateOrganizationQueries();
 			toast.success("Logo uploaded successfully");
 		},
 		onError: (error) => {
@@ -134,6 +148,7 @@ export function useOrganizations() {
 	const deleteOrganizationLogoMutation = useMutation({
 		...orpc.organizations.deleteLogo.mutationOptions(),
 		onSuccess: () => {
+			invalidateOrganizationQueries();
 			toast.success("Logo deleted successfully");
 		},
 		onError: (error) => {
@@ -156,7 +171,8 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization deleted successfully",
-			"Failed to delete organization"
+			"Failed to delete organization",
+			invalidateOrganizationQueries
 		)
 	);
 
@@ -186,6 +202,7 @@ export function useOrganizations() {
 			return setActiveData2;
 		},
 		onSuccess: () => {
+			invalidateOrganizationQueries();
 			toast.success("Workspace updated");
 		},
 		onError: (error: Error) => {
@@ -214,7 +231,8 @@ export function useOrganizations() {
 				return result;
 			},
 			"Left organization successfully",
-			"Failed to leave organization"
+			"Failed to leave organization",
+			invalidateOrganizationQueries
 		)
 	);
 

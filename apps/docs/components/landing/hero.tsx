@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { CHATGPT_PROMPT_URL } from "@/app/util/constants";
 import { YCLogo } from "@/components/icons/yc-logo";
 import DemoContainer from "./demo";
 import { SciFiButton } from "./scifi-btn";
@@ -71,6 +72,18 @@ export default function Hero() {
 			{/* Demo Container */}
 			<div className="fade-in slide-in-from-bottom-8 mx-auto w-full max-w-7xl animate-in px-4 pb-12 delay-500 duration-1000 sm:px-6 lg:px-8 lg:pb-20">
 				<DemoContainer />
+			</div>
+			<div className="mx-auto w-full border-t bg-secondary/30 px-4 py-4 sm:px-6 lg:px-8">
+				<div className="flex justify-center">
+					<a
+						className="text-muted-foreground text-sm underline underline-offset-4 transition-colors hover:text-foreground"
+						href={CHATGPT_PROMPT_URL}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Don't understand what this does? Ask ChatGPT
+					</a>
+				</div>
 			</div>
 		</section>
 	);

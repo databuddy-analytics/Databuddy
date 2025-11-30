@@ -8,11 +8,12 @@ import { initScrollDepthTracking } from "./plugins/scroll-depth";
 import { initWebVitalsTracking } from "./plugins/vitals";
 
 export class Databuddy extends BaseTracker {
-	// Store references for cleanup
 	private cleanupFns: Array<() => void> = [];
 	private originalPushState: typeof history.pushState | null = null;
 	private originalReplaceState: typeof history.replaceState | null = null;
 	private globalProperties: Record<string, unknown> = {};
+	private hasInitialized = false;
+	private hasSentExitBeacon = false;
 
 	constructor(options: TrackerOptions) {
 		super(options);
@@ -20,44 +21,67 @@ export class Databuddy extends BaseTracker {
 		if (this.options.trackWebVitals) {
 			initWebVitalsTracking(this);
 		}
-
 		if (this.options.trackErrors) {
 			initErrorTracking(this);
 		}
 
 		if (!this.isServer()) {
-			if (this.options.usePixel) {
-				initPixelTracking(this);
-			}
-
-			this.trackScreenViews();
-			setTimeout(() => this.screenView(), 0);
-
-			if (this.options.trackOutgoingLinks) {
-				this.trackOutgoingLinks();
-			}
-			if (this.options.trackAttributes) {
-				this.trackAttributes();
-			}
-			if (this.options.trackScrollDepth) {
-				initScrollDepthTracking(this);
-			}
-			if (this.options.trackInteractions) {
-				initInteractionTracking(this);
+			if (document.prerendering) {
+				document.addEventListener(
+					"prerenderingchange",
+					() => this.initializeTracking(),
+					{ once: true }
+				);
+			} else {
+				this.initializeTracking();
 			}
 		}
 
 		if (typeof window !== "undefined") {
 			window.databuddy = {
-				track: (name: string, props?: Record<string, unknown>) => this.track(name, props),
+				track: (name: string, props?: Record<string, unknown>) =>
+					this.track(name, props),
 				screenView: (props?: Record<string, unknown>) => this.screenView(props),
 				flush: () => this.flushBatch(),
 				clear: () => this.clear(),
-				setGlobalProperties: (props: Record<string, unknown>) => this.setGlobalProperties(props),
-				trackCustomEvent: (name: string, props?: Record<string, unknown>) => this.trackCustomEvent(name, props),
+				setGlobalProperties: (props: Record<string, unknown>) =>
+					this.setGlobalProperties(props),
 				options: this.options,
 			};
 			window.db = window.databuddy;
+		}
+	}
+
+	private initializeTracking(): void {
+		if (this.hasInitialized) {
+			return;
+		}
+		this.hasInitialized = true;
+
+		if (this.options.usePixel) {
+			initPixelTracking(this);
+		}
+
+		this.trackScreenViews();
+		this.setupPageLifecycle();
+
+		if (document.visibilityState === "visible") {
+			this.startEngagement();
+		}
+
+		setTimeout(() => this.screenView(), 0);
+
+		if (this.options.trackOutgoingLinks) {
+			this.trackOutgoingLinks();
+		}
+		if (this.options.trackAttributes) {
+			this.trackAttributes();
+		}
+		if (this.options.trackScrollDepth) {
+			initScrollDepthTracking(this);
+		}
+		if (this.options.trackInteractions) {
+			initInteractionTracking(this);
 		}
 	}
 
@@ -66,7 +90,6 @@ export class Databuddy extends BaseTracker {
 			return;
 		}
 
-		// Store original methods for cleanup
 		this.originalPushState = history.pushState;
 		this.originalReplaceState = history.replaceState;
 
@@ -86,26 +109,29 @@ export class Databuddy extends BaseTracker {
 			return ret;
 		};
 
-		const popstateHandler = () => {
+		const popstateHandler = () =>
 			window.dispatchEvent(new Event("locationchange"));
-		};
 		window.addEventListener("popstate", popstateHandler);
-		this.cleanupFns.push(() => window.removeEventListener("popstate", popstateHandler));
+		this.cleanupFns.push(() =>
+			window.removeEventListener("popstate", popstateHandler)
+		);
 
 		let debounceTimer: ReturnType<typeof setTimeout>;
 		const debouncedScreenView = () => {
 			clearTimeout(debounceTimer);
-			debounceTimer = setTimeout(() => {
-				this.screenView();
-			}, 50);
+			debounceTimer = setTimeout(() => this.screenView(), 50);
 		};
 
 		window.addEventListener("locationchange", debouncedScreenView);
-		this.cleanupFns.push(() => window.removeEventListener("locationchange", debouncedScreenView));
+		this.cleanupFns.push(() =>
+			window.removeEventListener("locationchange", debouncedScreenView)
+		);
 
 		if (this.options.trackHashChanges) {
 			window.addEventListener("hashchange", debouncedScreenView);
-			this.cleanupFns.push(() => window.removeEventListener("hashchange", debouncedScreenView));
+			this.cleanupFns.push(() =>
+				window.removeEventListener("hashchange", debouncedScreenView)
+			);
 		}
 	}
 
@@ -113,49 +139,155 @@ export class Databuddy extends BaseTracker {
 		if (this.isServer()) {
 			return;
 		}
+
 		const url = window.location.href;
-		if (this.lastPath !== url) {
-			if (!this.options.trackHashChanges && this.lastPath) {
-				const lastUrl = new URL(this.lastPath);
-				const currentUrl = new URL(url);
-				const isHashOnlyChange =
-					lastUrl.origin === currentUrl.origin &&
-					lastUrl.pathname === currentUrl.pathname &&
-					lastUrl.search === currentUrl.search &&
-					lastUrl.hash !== currentUrl.hash;
-				if (isHashOnlyChange) {
-					return;
-				}
+		if (this.lastPath === url) {
+			return;
+		}
+
+		if (!this.options.trackHashChanges && this.lastPath) {
+			const lastUrl = new URL(this.lastPath);
+			const currentUrl = new URL(url);
+			if (
+				lastUrl.origin === currentUrl.origin &&
+				lastUrl.pathname === currentUrl.pathname &&
+				lastUrl.search === currentUrl.search &&
+				lastUrl.hash !== currentUrl.hash
+			) {
+				return;
 			}
-			this.lastPath = url;
-			this.pageCount += 1;
-			this.track("screen_view", {
+		}
+
+		if (this.lastPath) {
+			this.trackPageExit(this.lastPath);
+			this.notifyRouteChange(window.location.pathname);
+		}
+
+		this.hasSentExitBeacon = false;
+		this.lastPath = url;
+		this.pageCount += 1;
+		this.resetPageEngagement();
+		this._trackInternal("screen_view", {
+			page_count: this.pageCount,
+			...props,
+		});
+	}
+
+	private setupPageLifecycle() {
+		const handleHide = () => this.handlePageHide();
+		const handleResume = () => this.handlePageResume();
+
+		window.addEventListener("beforeunload", handleHide);
+		window.addEventListener("pagehide", handleHide);
+
+		const visibilityHandler = () => {
+			if (document.visibilityState === "hidden") {
+				handleHide();
+			} else {
+				handleResume();
+			}
+		};
+		document.addEventListener("visibilitychange", visibilityHandler);
+
+		const pageshowHandler = (event: PageTransitionEvent) => {
+			if (!event.persisted) { return; }
+			this.handleBfCacheRestore();
+		};
+		window.addEventListener("pageshow", pageshowHandler);
+
+		this.cleanupFns.push(() => {
+			window.removeEventListener("beforeunload", handleHide);
+			window.removeEventListener("pagehide", handleHide);
+			document.removeEventListener("visibilitychange", visibilityHandler);
+			window.removeEventListener("pageshow", pageshowHandler);
+		});
+	}
+
+	private handlePageHide() {
+		this.pauseEngagement();
+		if (this.hasSentExitBeacon) { return; }
+		this.hasSentExitBeacon = true;
+
+		const now = Date.now();
+		this.sendBatchBeacon([
+			{
+				eventId: generateUUIDv4(),
+				name: "page_exit",
+				anonymousId: this.anonymousId,
+				sessionId: this.sessionId,
+				timestamp: now,
+				...this.getBaseContext(),
+				...this.globalProperties,
+				time_on_page: Math.round((now - this.pageStartTime) / 1000),
+				scroll_depth: this.maxScrollDepth,
+				interaction_count: this.interactionCount,
 				page_count: this.pageCount,
-				...props,
-			});
+			},
+		]);
+	}
+
+	private handlePageResume() {
+		this.hasSentExitBeacon = false;
+		this.startEngagement();
+	}
+
+	private handleBfCacheRestore() {
+		this.hasSentExitBeacon = false;
+		this.resetEngagement();
+		this.startEngagement();
+
+		const sessionTimestamp = sessionStorage.getItem("did_session_timestamp");
+		if (sessionTimestamp) {
+			const sessionAge = Date.now() - Number.parseInt(sessionTimestamp, 10);
+			if (sessionAge >= 30 * 60 * 1000) {
+				this.sessionId = this.generateSessionId();
+				sessionStorage.setItem("did_session", this.sessionId);
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
+			}
+		}
+
+		this.notifyRouteChange(window.location.pathname);
+		this.lastPath = "";
+		this.screenView({ navigation_type: "back_forward_cache" });
+	}
+
+	private trackPageExit(exitPath?: string) {
+		const now = Date.now();
+		this._trackInternal("page_exit", {
+			path: exitPath,
+			timestamp: now,
+			time_on_page: Math.round((now - this.pageStartTime) / 1000),
+			scroll_depth: this.maxScrollDepth,
+			interaction_count: this.interactionCount,
+			page_count: this.pageCount,
+		});
+	}
+
+	private resetPageEngagement() {
+		this.pageStartTime = Date.now();
+		this.interactionCount = 0;
+		this.maxScrollDepth = 0;
+		this.resetEngagement();
+		if (document.visibilityState === "visible") {
+			this.startEngagement();
 		}
 	}
 
 	trackOutgoingLinks() {
 		const handler = (e: MouseEvent) => {
-			const target = e.target as HTMLElement;
-			const link = target.closest("a");
-			if (link && link.hostname !== window.location.hostname) {
-				if (!link.href) {
-					return;
-				}
+			const link = (e.target as HTMLElement).closest("a");
+			if (!link?.href || link.hostname === window.location.hostname) { return; }
 
-				this.api.fetch(
-					"/outgoing",
-					{
-						eventId: generateUUIDv4(),
-						href: link.href,
-						text: link.innerText || link.title || "",
-						...this.getBaseContext(),
-					},
-					{ keepalive: true }
-				);
-			}
+			this.api.fetch(
+				"/outgoing",
+				{
+					eventId: generateUUIDv4(),
+					href: link.href,
+					text: link.innerText || link.title || "",
+					...this.getBaseContext(),
+				},
+				{ keepalive: true }
+			);
 		};
 		document.addEventListener("click", handler);
 		this.cleanupFns.push(() => document.removeEventListener("click", handler));
@@ -163,30 +295,30 @@ export class Databuddy extends BaseTracker {
 
 	trackAttributes() {
 		const handler = (e: MouseEvent) => {
-			const target = e.target as HTMLElement;
-			const trackable = target.closest("[data-track]");
-			if (trackable) {
-				const eventName = trackable.getAttribute("data-track");
-				if (eventName) {
-					const properties: Record<string, string> = {};
-					for (const attr of trackable.attributes) {
-						if (attr.name.startsWith("data-") && attr.name !== "data-track") {
-							const key = attr.name
-								.slice(5)
-								.replace(/-./g, (x: string) => x[1].toUpperCase());
-							properties[key] = attr.value;
-						}
-					}
-					this.track(eventName, properties);
+			const trackable = (e.target as HTMLElement).closest("[data-track]");
+			if (!trackable) { return; }
+
+			const eventName = trackable.getAttribute("data-track");
+			if (!eventName) { return; }
+
+			const properties: Record<string, string> = {};
+			for (const attr of trackable.attributes) {
+				if (attr.name.startsWith("data-") && attr.name !== "data-track") {
+					properties[
+						attr.name.slice(5).replace(/-./g, (x) => x[1].toUpperCase())
+					] = attr.value;
 				}
 			}
+			this.track(eventName, properties);
 		};
 		document.addEventListener("click", handler);
 		this.cleanupFns.push(() => document.removeEventListener("click", handler));
 	}
 
-	track(name: string, props?: Record<string, unknown>) {
-		const payload = {
+	_trackInternal(name: string, props?: Record<string, unknown>) {
+		if (this.shouldSkipTracking()) { return; }
+
+		this.addToBatch({
 			eventId: generateUUIDv4(),
 			name,
 			anonymousId: this.anonymousId,
@@ -195,14 +327,19 @@ export class Databuddy extends BaseTracker {
 			...this.getBaseContext(),
 			...this.globalProperties,
 			...props,
-		};
-		this.send(payload);
+		});
 	}
 
-	trackCustomEvent(name: string, props?: Record<string, unknown>) {
-		this.track(name, {
-			event_type: "custom",
-			...props,
+	track(name: string, props?: Record<string, unknown>) {
+		if (this.shouldSkipTracking()) { return; }
+
+		this.sendCustomEvent({
+			timestamp: Date.now(),
+			path: this.isServer() ? "" : window.location.pathname,
+			eventName: name,
+			anonymousId: this.anonymousId,
+			sessionId: this.sessionId,
+			properties: props,
 		});
 	}
 
@@ -212,17 +349,14 @@ export class Databuddy extends BaseTracker {
 
 	clear() {
 		this.globalProperties = {};
-
 		if (!this.isServer()) {
 			try {
 				localStorage.removeItem("did");
 				sessionStorage.removeItem("did_session");
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
-			} catch {
-			}
+			} catch { }
 		}
-
 		this.anonymousId = this.generateAnonymousId();
 		this.sessionId = this.generateSessionId();
 		this.sessionStartTime = Date.now();
@@ -233,13 +367,9 @@ export class Databuddy extends BaseTracker {
 	}
 
 	destroy() {
-		// Run all cleanup functions
-		for (const cleanup of this.cleanupFns) {
-			cleanup();
-		}
+		for (const cleanup of this.cleanupFns) { cleanup(); }
 		this.cleanupFns = [];
 
-		// Restore original history methods
 		if (this.originalPushState) {
 			history.pushState = this.originalPushState;
 			this.originalPushState = null;
@@ -248,15 +378,12 @@ export class Databuddy extends BaseTracker {
 			history.replaceState = this.originalReplaceState;
 			this.originalReplaceState = null;
 		}
-
-		// Clear batch queue and timer
 		if (this.batchTimer) {
 			clearTimeout(this.batchTimer);
 			this.batchTimer = null;
 		}
 		this.batchQueue = [];
 
-		// Remove global references
 		if (typeof window !== "undefined") {
 			window.databuddy = undefined;
 			window.db = undefined;
@@ -265,12 +392,7 @@ export class Databuddy extends BaseTracker {
 }
 
 function initializeDatabuddy() {
-	if (typeof window === "undefined") {
-		return;
-	}
-	if (window.databuddy) {
-		return;
-	}
+	if (typeof window === "undefined" || window.databuddy) { return; }
 
 	if (isOptedOut()) {
 		window.databuddy = {
@@ -279,8 +401,7 @@ function initializeDatabuddy() {
 			clear: () => { },
 			flush: () => { },
 			setGlobalProperties: () => { },
-			trackCustomEvent: () => { },
-			options: { disabled: true },
+			options: { clientId: "", disabled: true },
 		};
 		window.db = window.databuddy;
 		return;
@@ -299,7 +420,7 @@ if (typeof window !== "undefined") {
 		try {
 			localStorage.setItem("databuddy_opt_out", "true");
 			localStorage.setItem("databuddy_disabled", "true");
-		} catch (_e) { }
+		} catch { }
 		window.databuddyOptedOut = true;
 		window.databuddyDisabled = true;
 		if (window.databuddy) {
@@ -311,7 +432,7 @@ if (typeof window !== "undefined") {
 		try {
 			localStorage.removeItem("databuddy_opt_out");
 			localStorage.removeItem("databuddy_disabled");
-		} catch (_e) { }
+		} catch { }
 		window.databuddyOptedOut = false;
 		window.databuddyDisabled = false;
 	};

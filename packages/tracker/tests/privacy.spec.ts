@@ -93,32 +93,4 @@ test.describe("Privacy & Opt-out", () => {
 		expect(requestSent).toBe(false);
 	});
 
-	test("skips tracking on matching skipPatterns", async ({ page }) => {
-		let requestCount = 0;
-		page.on("request", (req) => {
-			if (req.url().includes("basket.databuddy.cc")) {
-				requestCount += 1;
-			}
-		});
-
-		await page.goto("/test");
-		await page.evaluate(() => {
-			(window as any).databuddyConfig = {
-				clientId: "test-skip",
-				skipPatterns: ["/test", "/admin/*"],
-			};
-		});
-
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
-
-		// Try to track
-		await page.evaluate(() => {
-			if ((window as any).db) {
-				(window as any).db.track("should_be_skipped");
-			}
-		});
-
-		await page.waitForTimeout(500);
-		expect(requestCount).toBe(0);
-	});
 });

@@ -100,7 +100,7 @@ export const Description = () => {
 
 				{/* Mobile Content */}
 				<div className="flex min-h-[100px] items-center justify-center">
-					<AnimatePresence mode="popLayout">
+					<AnimatePresence mode="wait">
 						<motion.div
 							animate="center"
 							className="max-w-md text-center text-muted-foreground text-sm leading-relaxed sm:text-base"
@@ -145,7 +145,7 @@ export const Description = () => {
 					{/* Right Column - Content */}
 					<div className="flex flex-1 flex-col justify-center py-12 pl-12 xl:py-16">
 						<div className="flex items-center">
-							<AnimatePresence mode="popLayout">
+							<AnimatePresence mode="wait">
 								<motion.div
 									animate="center"
 									className="max-w-md text-muted-foreground text-sm leading-relaxed xl:text-base"

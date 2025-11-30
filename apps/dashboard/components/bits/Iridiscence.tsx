@@ -42,8 +42,9 @@ void main() {
   }
   d += uTime * 0.5 * uSpeed;
   vec3 col = vec3(cos(uv * vec2(d, a)) * 0.6 + 0.4, cos(a + d) * 0.5 + 0.5);
-  col = cos(col * cos(vec3(d, a, 2.5)) * 0.5 + 0.5) * uColor;
-  gl_FragColor = vec4(col, 1.0);
+  vec3 spectrum = cos(col * cos(vec3(d, a, 2.5)) * 0.5 + 0.5);
+  float gray = dot(spectrum, vec3(0.299, 0.587, 0.114));
+  gl_FragColor = vec4(vec3(gray) * uColor, 1.0);
 }
 `;
 
@@ -78,7 +79,7 @@ export default function Iridescence({
 			return;
 		}
 
-		gl.clearColor(1, 1, 1, 1);
+		gl.clearColor(0, 0, 0, 1);
 
 		let program: Program | null = null;
 

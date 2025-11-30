@@ -113,7 +113,7 @@ export function SavedFiltersMenu({
 		return (
 			<DropdownMenu onOpenChange={setIsOpen} open={isOpen}>
 				<DropdownMenuTrigger asChild>
-					<Button className="h-8 gap-2" disabled variant="outline">
+					<Button className="h-8 gap-2" disabled variant="secondary">
 						<BookmarkIcon className="h-4 w-4" weight="duotone" />
 						<span>No saved filters</span>
 					</Button>

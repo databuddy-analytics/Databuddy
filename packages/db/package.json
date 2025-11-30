@@ -13,7 +13,6 @@
     "@faker-js/faker": "^9.9.0",
     "@neondatabase/serverless": "^1.0.1",
     "@types/sqlstring": "^2.3.2",
-    "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.7",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"
@@ -24,10 +23,8 @@
     "tsx": "^4.20.3"
   },
   "scripts": {
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "db:migrate": "tsx src/migrate.ts",
-    "db:deploy": "tsx src/migrate.ts",
+    "db:push": "dotenv -- drizzle-kit push",
+    "db:studio": "dotenv -- drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts"
   }

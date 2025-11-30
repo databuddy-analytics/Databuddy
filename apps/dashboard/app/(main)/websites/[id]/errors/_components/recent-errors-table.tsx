@@ -167,7 +167,6 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				initialPageSize={10}
 				minHeight={400}
 				onRowAction={(row) => handleViewError(row)}
-				showSearch={true}
 				title="Recent Errors"
 			/>
 

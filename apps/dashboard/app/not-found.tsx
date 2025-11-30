@@ -50,7 +50,7 @@ export default function NotFound() {
 						variant="default"
 					>
 						<Link href="/websites">
-							<HouseIcon className="mr-2 h-4 w-4" size={16} weight="duotone" />
+							<HouseIcon className="size-4" size={16} weight="duotone" />
 							Home
 						</Link>
 					</Button>

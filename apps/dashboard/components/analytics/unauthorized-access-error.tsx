@@ -40,7 +40,6 @@ export function UnauthorizedAccessError() {
 				<Button
 					className="w-full sm:w-auto"
 					onClick={() => router.push("/websites")}
-					variant="destructive"
 				>
 					Back to Websites
 				</Button>

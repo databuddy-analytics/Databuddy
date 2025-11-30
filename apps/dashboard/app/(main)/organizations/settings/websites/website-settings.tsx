@@ -2,7 +2,6 @@
 
 import {
 	ArrowClockwiseIcon,
-	BookOpenIcon,
 	CaretRightIcon,
 	GlobeIcon,
 	PlusIcon,
@@ -10,14 +9,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { FaviconImage } from "@/components/analytics/favicon-image";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Organization } from "@/hooks/use-organizations";
-import { orpc } from "@/lib/orpc";
 import type { Website } from "@/hooks/use-websites";
-interface WebsiteSettingsProps {
-	organization: Organization;
-}
+import { orpc } from "@/lib/orpc";
+import { EmptyState } from "../../components/empty-state";
 
 function SkeletonRow() {
 	return (
@@ -35,36 +33,16 @@ function SkeletonRow() {
 function WebsitesSkeleton() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="divide-y border-b lg:border-b-0 lg:border-r">
+			<div className="divide-y border-b lg:border-b-0">
 				<SkeletonRow />
 				<SkeletonRow />
 				<SkeletonRow />
 			</div>
-			<div className="space-y-4 bg-muted/30 p-5">
+			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
 				<Skeleton className="h-18 w-full rounded" />
 				<Skeleton className="h-10 w-full" />
 			</div>
-		</div>
-	);
-}
-
-function EmptyState() {
-	return (
-		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-				<GlobeIcon className="text-primary" size={28} weight="duotone" />
-			</div>
-			<h3 className="mb-1 font-semibold text-lg">No websites yet</h3>
-			<p className="mb-6 max-w-sm text-muted-foreground text-sm">
-				Add your first website to start tracking analytics and performance
-			</p>
-			<Button asChild>
-				<Link href="/websites">
-					<PlusIcon className="mr-2" size={16} />
-					Add Website
-				</Link>
-			</Button>
 		</div>
 	);
 }
@@ -114,7 +92,9 @@ function WebsiteRow({ website }: WebsiteRowProps) {
 			/>
 			<div className="min-w-0">
 				<p className="truncate font-medium">{website.name}</p>
-				<p className="truncate text-muted-foreground text-sm">{website.domain}</p>
+				<p className="truncate text-muted-foreground text-sm">
+					{website.domain}
+				</p>
 			</div>
 			<CaretRightIcon
 				className="text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary"
@@ -125,7 +105,11 @@ function WebsiteRow({ website }: WebsiteRowProps) {
 	);
 }
 
-export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
+export function WebsiteSettings({
+	organization,
+}: {
+	organization: Organization;
+}) {
 	const { data, isLoading, isError, refetch } = useQuery({
 		...orpc.websites.list.queryOptions({
 			input: { organizationId: organization.id },
@@ -136,14 +120,27 @@ export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
 
 	const websites = data ?? [];
 
-	if (isLoading) return <WebsitesSkeleton />;
-	if (isError) return <ErrorState onRetry={refetch} />;
-	if (websites.length === 0) return <EmptyState />;
+	if (isLoading) {
+		return <WebsitesSkeleton />;
+	}
+	if (isError) {
+		return <ErrorState onRetry={refetch} />;
+	}
+	if (websites.length === 0) {
+		return (
+			<EmptyState
+				description="Start tracking your website analytics by adding your first website. Get insights into visitors, pageviews, and performance."
+				icon={<GlobeIcon weight="duotone" />}
+				title="No websites yet"
+				variant="minimal"
+			/>
+		);
+	}
 
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 			{/* Websites List */}
-			<div className="flex flex-col border-b lg:border-b-0 lg:border-r">
+			<div className="flex flex-col border-b lg:border-b-0">
 				<div className="flex-1 divide-y overflow-y-auto">
 					{websites.map((website) => (
 						<WebsiteRow key={website.id} website={website} />
@@ -152,49 +149,21 @@ export function WebsiteSettings({ organization }: WebsiteSettingsProps) {
 			</div>
 
 			{/* Sidebar */}
-			<aside className="flex flex-col gap-4 bg-muted/30 p-5">
-				{/* Add Website Button */}
+			<RightSidebar className="gap-4 p-5">
 				<Button asChild className="w-full">
 					<Link href="/websites">
 						<PlusIcon className="mr-2" size={16} />
 						Add New Website
 					</Link>
 				</Button>
-
-				{/* Stats Card */}
-				<div className="flex items-center gap-3 rounded border bg-background p-4">
-					<div className="flex h-10 w-10 items-center justify-center rounded bg-primary/10">
-						<GlobeIcon className="text-primary" size={20} weight="duotone" />
-					</div>
-					<div>
-						<p className="font-semibold tabular-nums">{websites.length}</p>
-						<p className="text-muted-foreground text-sm">
-							Website{websites.length !== 1 ? "s" : ""}
-						</p>
-					</div>
-				</div>
-
-				{/* Docs Link */}
-				<Button asChild className="w-full justify-start" variant="outline">
-					<a
-						href="https://www.databuddy.cc/docs/getting-started"
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						<BookOpenIcon className="mr-2" size={16} />
-						Documentation
-					</a>
-				</Button>
-
-				{/* Tip */}
-				<div className="mt-auto rounded border border-dashed bg-background/50 p-4">
-					<p className="mb-2 font-medium text-sm">Quick tip</p>
-					<p className="text-muted-foreground text-xs leading-relaxed">
-						Click on a website to view its settings, manage tracking scripts, and
-						configure analytics.
-					</p>
-				</div>
-			</aside>
+				<RightSidebar.InfoCard
+					description={`Website${websites.length !== 1 ? "s" : ""}`}
+					icon={GlobeIcon}
+					title={String(websites.length)}
+				/>
+				<RightSidebar.DocsLink />
+				<RightSidebar.Tip description="Click on a website to view its settings, manage tracking scripts, and configure analytics." />
+			</RightSidebar>
 		</div>
 	);
 }

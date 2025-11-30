@@ -18,9 +18,9 @@ export const Wordmark = () => {
 					<div className="max-w-full">
 						<MagicSVG
 							className="h-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl"
-							gradientFrom="#5F489D"
+							gradientFrom="white"
 							gradientSize={100}
-							gradientTo="#EAAEC3"
+							gradientTo="#3A44FC"
 							height={149}
 							strokeColor="#2C2C2C"
 							width={1166}

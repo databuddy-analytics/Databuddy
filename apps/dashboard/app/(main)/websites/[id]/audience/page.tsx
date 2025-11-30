@@ -85,7 +85,7 @@ export default function AudiencePage() {
 	}
 
 	return (
-		<div className="p-6">
+		<div className="p-4">
 			<ErrorBoundary>
 				<AudienceContent
 					addFilter={addFilter}

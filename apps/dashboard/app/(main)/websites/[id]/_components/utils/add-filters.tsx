@@ -38,6 +38,7 @@ import {
 	type AutocompleteData,
 	useAutocompleteData,
 } from "@/hooks/use-funnels";
+import { cn } from "@/lib/utils";
 
 type OperatorOption = (typeof operatorOptions)[number];
 type FilterOption = (typeof filterOptions)[number];
@@ -316,12 +317,12 @@ export function AddFilterForm({
 					aria-expanded={isOpen}
 					aria-haspopup="menu"
 					aria-label="Add filter"
-					className={className || "h-8"}
+					className={cn("h-8 text-xs", className)}
 					disabled={disabled}
 					onClick={() => setIsOpen(!isOpen)}
-					variant="outline"
+					variant="secondary"
 				>
-					<FunnelIcon aria-hidden="true" weight="duotone" />
+					<FunnelIcon aria-hidden="true" className="size-3.5" weight="duotone" />
 					{buttonText}
 				</Button>
 			</DropdownMenuTrigger>

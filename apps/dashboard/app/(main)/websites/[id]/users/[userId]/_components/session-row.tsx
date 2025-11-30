@@ -27,6 +27,16 @@ import { getDeviceIcon } from "@/lib/utils";
 import { generateSessionName } from "./generate-session-name";
 import { SessionEventTimeline } from "./session-event-timeline";
 
+function getEventSortPriority(eventName: string): number {
+	if (eventName === "page_exit") {
+		return 0;
+	}
+	if (eventName === "screen_view") {
+		return 1;
+	}
+	return 2;
+}
+
 function transformSessionEvents(
 	events: RawSessionEventTuple[]
 ): SessionEvent[] {
@@ -55,7 +65,17 @@ function transformSessionEvents(
 				properties: propertiesObj,
 			};
 		})
-		.filter((event): event is SessionEvent => event !== null);
+		.filter((event): event is SessionEvent => event !== null)
+		.sort((a, b) => {
+			const timeA = new Date(a.time).getTime();
+			const timeB = new Date(b.time).getTime();
+			if (timeA !== timeB) {
+				return timeA - timeB;
+			}
+			return (
+				getEventSortPriority(a.event_name) - getEventSortPriority(b.event_name)
+			);
+		});
 }
 
 function getReferrerInfo(session: Session): SessionReferrer {

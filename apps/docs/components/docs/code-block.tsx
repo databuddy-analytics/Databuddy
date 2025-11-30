@@ -133,7 +133,7 @@ function InlineCode({ className, ...props }: React.ComponentProps<"code">) {
 	return (
 		<code
 			className={cn(
-				"rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium font-mono text-primary text-sm",
+				"relative rounded border border-accent bg-accent/50 px-1.5 py-0.5 font-medium font-mono text-primary text-sm",
 				className
 			)}
 			{...props}

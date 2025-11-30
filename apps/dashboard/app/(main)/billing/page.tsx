@@ -4,17 +4,19 @@ import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
 	CrownIcon,
+	TrendUpIcon,
 } from "@phosphor-icons/react";
 import type { Product } from "autumn-js";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { useMemo } from "react";
+import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
 import { CreditCardDisplay } from "./components/credit-card-display";
-import { EmptyUsageState, ErrorState } from "./components/empty-states";
+import { ErrorState } from "./components/empty-states";
 import { OverviewSkeleton } from "./components/overview-skeleton";
-import { PlanStatusBadge } from "./components/plan-status-badge";
 import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
 
@@ -106,15 +108,14 @@ export default function BillingPage() {
 
 				{/* Main Content */}
 				<div className="shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">
-					<div className="border-b px-5 py-4">
-						<h2 className="font-semibold">Usage</h2>
-						<p className="text-muted-foreground text-sm">
-							Track your feature consumption
-						</p>
-					</div>
-
 					{usageStats.length === 0 ? (
-						<EmptyUsageState />
+						<EmptyState
+							className="h-full"
+							description="Start using features to see your consumption stats here"
+							icon={<TrendUpIcon />}
+							title="No usage data yet"
+							variant="minimal"
+						/>
 					) : (
 						<div className="divide-y">
 							{usageStats.map((feature) => (
@@ -125,21 +126,28 @@ export default function BillingPage() {
 				</div>
 
 				{/* Sidebar */}
-				<div className="flex w-full shrink-0 flex-col border-t bg-muted/30 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
+				<div className="flex w-full shrink-0 flex-col border-t bg-card lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
 					{/* Plan */}
 					<div className="border-b p-5">
 						<div className="mb-3 flex items-center justify-between">
 							<h3 className="font-semibold">Current Plan</h3>
-							<PlanStatusBadge
-								isCanceled={!!currentProduct?.canceled_at}
-								isScheduled={currentProduct?.status === "scheduled"}
-							/>
+							<Badge
+								variant={
+									currentProduct?.status === "scheduled"
+										? "outline"
+										: "secondary"
+								}
+							>
+								{currentProduct?.status === "scheduled"
+									? "Scheduled"
+									: "Active"}
+							</Badge>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex h-11 w-11 shrink-0 items-center justify-center rounded border bg-background">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
 								<CrownIcon
-									className="text-primary"
-									size={20}
+									className="text-accent-foreground"
+									size={16}
 									weight="duotone"
 								/>
 							</div>
@@ -173,18 +181,15 @@ export default function BillingPage() {
 						{/* Actions */}
 						<div className="flex w-full flex-col gap-2 lg:w-auto lg:p-5">
 							{isCanceled ? (
-								<Button asChild className="w-full">
+								<Button asChild className="w-full" variant="secondary">
 									<Link href="/billing/plans">Reactivate Plan</Link>
 								</Button>
 							) : isFree ? (
-								<Button asChild className="w-full">
+								<Button asChild className="w-full" variant="secondary">
 									<Link href="/billing/plans">Upgrade Plan</Link>
 								</Button>
 							) : (
 								<>
-									<Button asChild className="w-full" variant="outline">
-										<Link href="/billing/plans">Change Plan</Link>
-									</Button>
 									<Button
 										className="w-full"
 										onClick={() =>
@@ -199,15 +204,14 @@ export default function BillingPage() {
 									>
 										Cancel Plan
 									</Button>
+									<Button asChild className="w-full" variant="secondary">
+										<Link href="/billing/plans">Change Plan</Link>
+									</Button>
 								</>
 							)}
-							<Button
-								className="w-full"
-								onClick={onManageBilling}
-								variant="outline"
-							>
+							<Button className="w-full" onClick={onManageBilling}>
 								Billing Portal
-								<ArrowSquareOutIcon className="ml-2" size={14} />
+								<ArrowSquareOutIcon size={14} />
 							</Button>
 						</div>
 					</div>

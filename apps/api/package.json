@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --hot src/index.ts --port 3001",
+    "dev": "dotenv -- bun --hot src/index.ts --port 3001",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },

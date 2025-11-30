@@ -70,33 +70,33 @@ const formatNumber = (value: number | null | undefined): string => {
 const getConnectionIcon = (connection: string): React.ReactNode => {
 	const connectionLower = connection.toLowerCase();
 	if (!connection || connection === "Unknown") {
-		return <InfoIcon className="h-4 w-4 text-muted-foreground" />;
+		return <InfoIcon className="size-5 text-muted-foreground" />;
 	}
 	if (connectionLower.includes("wifi")) {
-		return <WifiHighIcon className="h-4 w-4 text-green-500" />;
+		return <WifiHighIcon className="size-5 text-green-500" />;
 	}
 	if (connectionLower.includes("4g")) {
-		return <DeviceMobileIcon className="h-4 w-4 text-foreground" />;
+		return <DeviceMobileIcon className="size-5 text-foreground" />;
 	}
 	if (connectionLower.includes("5g")) {
-		return <DeviceMobileIcon className="h-4 w-4 text-purple-500" />;
+		return <DeviceMobileIcon className="size-5 text-purple-500" />;
 	}
 	if (connectionLower.includes("3g")) {
-		return <DeviceMobileIcon className="h-4 w-4 text-yellow-500" />;
+		return <DeviceMobileIcon className="size-5 text-yellow-500" />;
 	}
 	if (connectionLower.includes("2g")) {
-		return <DeviceMobileIcon className="h-4 w-4 text-orange-500" />;
+		return <DeviceMobileIcon className="size-5 text-orange-500" />;
 	}
 	if (connectionLower.includes("ethernet")) {
-		return <LaptopIcon className="h-4 w-4 text-foreground" />;
+		return <LaptopIcon className="size-5 text-foreground" />;
 	}
 	if (connectionLower.includes("cellular")) {
-		return <DeviceMobileIcon className="h-4 w-4 text-foreground" />;
+		return <DeviceMobileIcon className="size-5 text-foreground" />;
 	}
 	if (connectionLower.includes("offline")) {
-		return <WifiLowIcon className="h-4 w-4 text-red-500" />;
+		return <WifiLowIcon className="size-5 text-red-500" />;
 	}
-	return <GlobeIcon className="h-4 w-4 text-primary" />;
+	return <GlobeIcon className="size-5 text-primary" />;
 };
 
 export function WebsiteAudienceTab({
@@ -344,7 +344,7 @@ export function WebsiteAudienceTab({
 	);
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 				<DataTable
 					columns={browserColumns}
@@ -467,7 +467,7 @@ export function WebsiteAudienceTab({
 			</div>
 
 			{/* Screen Resolutions */}
-			<Card className="w-full overflow-hidden border bg-card/50 shadow-sm backdrop-blur-sm">
+			<Card className="w-full overflow-hidden">
 				<CardHeader className="px-3 pb-2">
 					<div className="flex items-start justify-between gap-3">
 						<div className="min-w-0 flex-1">
@@ -523,29 +523,29 @@ export function WebsiteAudienceTab({
 
 										let deviceType = "Unknown";
 										let deviceIcon = (
-											<MonitorIcon className="h-4 w-4 text-muted-foreground" />
+											<MonitorIcon className="size-5 text-accent-foreground" />
 										);
 
 										if (isValid) {
 											if (width <= 480) {
 												deviceType = "Mobile";
 												deviceIcon = (
-													<DeviceMobileIcon className="h-4 w-4 text-foreground" />
+													<DeviceMobileIcon className="size-5 text-accent-foreground" />
 												);
 											} else if (width <= 1024) {
 												deviceType = "Tablet";
 												deviceIcon = (
-													<DeviceTabletIcon className="h-4 w-4 text-purple-500" />
+													<DeviceTabletIcon className="size-5 text-accent-foreground" />
 												);
 											} else if (width <= 1440) {
 												deviceType = "Laptop";
 												deviceIcon = (
-													<LaptopIcon className="h-4 w-4 text-green-500" />
+													<LaptopIcon className="size-5 text-accent-foreground" />
 												);
 											} else {
 												deviceType = "Desktop";
 												deviceIcon = (
-													<MonitorIcon className="h-4 w-4 text-primary" />
+													<MonitorIcon className="size-5 text-accent-foreground" />
 												);
 											}
 										}
@@ -555,7 +555,7 @@ export function WebsiteAudienceTab({
 
 										return (
 											<div
-												className="flex flex-col rounded-lg border border-border/50 bg-background/50 p-4 transition-all duration-200 hover:bg-background/80"
+												className="flex flex-col rounded-lg border bg-accent p-4"
 												key={`resolution-${resolution}-${item.visitors}`}
 											>
 												<div className="mb-3 flex items-center justify-between">
@@ -591,7 +591,7 @@ export function WebsiteAudienceTab({
 													>
 														{isValid && (
 															<div
-																className="transform-gpu font-mono font-semibold text-primary text-xs"
+																className="transform-gpu font-mono font-semibold text-accent-foreground text-xs"
 																style={{ transform: "translateZ(5px)" }}
 															>
 																{width} × {height}
@@ -627,7 +627,7 @@ export function WebsiteAudienceTab({
 													{(deviceType === "Desktop" ||
 														deviceType === "Laptop") && (
 														<div
-															className="absolute bottom-0 mx-auto h-3 w-1/4 rounded-b-md bg-muted/60"
+															className="absolute bottom-0 mx-auto h-3 w-1/4 rounded-b-md border bg-accent"
 															style={{
 																left: "50%",
 																transform: "translateX(-50%)",
@@ -643,9 +643,9 @@ export function WebsiteAudienceTab({
 															{formatNumber(item.visitors)} visitors
 														</span>
 													</div>
-													<div className="h-2 w-full overflow-hidden rounded-full bg-muted/40">
+													<div className="h-2 w-full overflow-hidden rounded-full bg-card">
 														<div
-															className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+															className="h-full rounded-full bg-accent-foreground transition-all duration-500 ease-out"
 															style={{ width: `${percentage}%` }}
 														/>
 													</div>
@@ -675,8 +675,8 @@ export function WebsiteAudienceTab({
 							style={{ minHeight: 400 }}
 						>
 							<div className="mb-4">
-								<div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/20">
-									<MonitorIcon className="h-7 w-7 text-muted-foreground/50" />
+								<div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-accent-foreground">
+									<MonitorIcon className="size-6 text-accent" />
 								</div>
 							</div>
 							<h4 className="mb-2 font-medium text-base text-foreground">

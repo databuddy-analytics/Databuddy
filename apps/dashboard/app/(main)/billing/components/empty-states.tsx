@@ -55,8 +55,8 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
 			<p className="mt-1 mb-4 max-w-xs text-center text-muted-foreground text-sm">
 				{errorMessage}
 			</p>
-			<Button onClick={onRetry} size="sm" variant="outline">
-				<ArrowClockwiseIcon className="mr-2" size={14} />
+			<Button className="mt-2" onClick={onRetry} size="sm" variant="outline">
+				<ArrowClockwiseIcon size={14} />
 				Try again
 			</Button>
 		</div>

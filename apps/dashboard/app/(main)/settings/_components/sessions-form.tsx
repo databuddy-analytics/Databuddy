@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 dayjs.extend(relativeTime);
@@ -161,17 +162,16 @@ export function SessionsForm() {
 	};
 
 	return (
-		<div className="space-y-4">
-			<div className="mb-4 flex items-center justify-between">
-				<h3 className="font-medium text-lg">Active Sessions</h3>
+		<div>
+			<div className="flex items-center justify-between">
 				{sessions.length > 1 && (
 					<Button
 						disabled={isLoading}
 						onClick={handleRevokeAll}
 						size="sm"
-						variant="outline"
+						variant="secondary"
 					>
-						<SignOutIcon className="mr-2 h-4 w-4" size={16} weight="duotone" />
+						<SignOutIcon className="size-4" size={16} />
 						Revoke All Other Sessions
 					</Button>
 				)}
@@ -193,27 +193,23 @@ export function SessionsForm() {
 					</AlertDescription>
 				</Alert>
 			) : (
-				<div className="space-y-3">
+				<div className="mt-5 space-y-3">
 					{sessions.map((s) => (
 						<div
-							className={`flex items-start justify-between rounded-md border p-4 ${
-								s.isCurrent ? "border-primary/20 bg-primary/5" : ""
-							}`}
+							className="flex items-start justify-between rounded-md border bg-secondary p-4 text-accent-foreground"
 							key={s.expiresAt.toString()}
 						>
 							<div className="flex items-start gap-3">
-								<div className="rounded-md bg-muted p-2">
+								<div className="rounded-md bg-card p-2">
 									{getDeviceIcon(s.userAgent)}
 								</div>
 								<div>
-									<p className="font-medium">
-										{formatUserAgent(s.userAgent)}
-										{s.isCurrent && (
-											<span className="ml-2 rounded-full bg-primary/20 px-2 py-0.5 text-primary text-xs">
-												Current
-											</span>
-										)}
-									</p>
+									<div className="flex items-center gap-2">
+										<p className="font-medium">
+											{formatUserAgent(s.userAgent)}
+										</p>
+										{s.isCurrent && <Badge variant="secondary">Current</Badge>}
+									</div>
 									<div className="mt-1 text-muted-foreground text-sm">
 										<div className="flex items-center gap-2">
 											<GlobeIcon
@@ -241,7 +237,7 @@ export function SessionsForm() {
 								disabled={revokeLoading === s.id}
 								onClick={() => handleRevoke(s.id)}
 								size="sm"
-								variant="ghost"
+								variant="secondary"
 							>
 								{revokeLoading === s.id ? (
 									<ArrowClockwiseIcon

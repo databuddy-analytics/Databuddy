@@ -1,8 +1,9 @@
 "use client";
 
-import { SpinnerIcon } from "@phosphor-icons/react";
+import { SpinnerIcon, TableIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import { Fragment, useMemo } from "react";
+import { EmptyState } from "@/components/empty-state";
 
 type RetentionCohort = {
 	cohort: string;
@@ -108,11 +109,12 @@ export function RetentionCohortsGrid({
 
 	if (cohorts.length === 0) {
 		return (
-			<div className="flex flex-col items-center justify-center py-12 text-center">
-				<p className="text-muted-foreground text-sm">
-					No retention data available for the selected time period
-				</p>
-			</div>
+			<EmptyState
+				description="No retention data available for the selected time period"
+				icon={<TableIcon />}
+				title="No data"
+				variant="minimal"
+			/>
 		);
 	}
 

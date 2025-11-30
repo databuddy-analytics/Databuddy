@@ -1,9 +1,8 @@
 /** biome-ignore-all lint/style/useConsistentTypeDefinitions: Interfaces are needed for declaration merging */
 export type TrackerOptions = {
-	// Basic Config
+	clientId: string;
 	disabled?: boolean;
 	apiUrl?: string;
-	clientId?: string;
 	sdk?: string;
 	sdkVersion?: string;
 
@@ -66,13 +65,45 @@ export type TrackEvent = BaseEvent & {
 	name: string;
 };
 
+export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
+
+export type WebVitalEvent = {
+	timestamp: number;
+	path: string;
+	metricName: WebVitalMetricName;
+	metricValue: number;
+	anonymousId?: string;
+	sessionId?: string;
+};
+
+export type ErrorSpan = {
+	timestamp: number;
+	path: string;
+	message: string;
+	filename?: string;
+	lineno?: number;
+	colno?: number;
+	stack?: string;
+	errorType: string;
+	anonymousId?: string;
+	sessionId?: string;
+};
+
+export type CustomEventSpan = {
+	timestamp: number;
+	path: string;
+	eventName: string;
+	anonymousId?: string;
+	sessionId?: string;
+	properties?: Record<string, unknown>;
+};
+
 export type DatabuddyGlobal = {
 	track: (name: string, props?: Record<string, unknown>) => void;
 	screenView: (props?: Record<string, unknown>) => void;
 	clear: () => void;
 	flush: () => void;
 	setGlobalProperties: (props: Record<string, unknown>) => void;
-	trackCustomEvent: (name: string, props?: Record<string, unknown>) => void;
 	options: TrackerOptions;
 };
 
@@ -85,16 +116,17 @@ declare global {
 		databuddyConfig?: TrackerOptions;
 		databuddyOptOut?: () => void;
 		databuddyOptIn?: () => void;
-		callPhantom?: any;
-		_phantom?: any;
-		selenium?: any;
-		webdriver?: any;
+		callPhantom?: unknown;
+		_phantom?: unknown;
+		selenium?: unknown;
+		webdriver?: unknown;
+	}
+
+	interface Document {
+		prerendering?: boolean;
 	}
 
 	interface Navigator {
-		connection?: any;
-		mozConnection?: any;
-		webkitConnection?: any;
 		webdriver?: boolean;
 	}
 }

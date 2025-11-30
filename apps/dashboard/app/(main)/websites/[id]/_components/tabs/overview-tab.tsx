@@ -35,7 +35,6 @@ import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
 	calculatePercentChange,
 	formatDateByGranularity,
-	getColorVariant,
 } from "../utils/analytics-helpers";
 import { PercentageBadge } from "../utils/technology-helpers";
 import type { FullTabProps, MetricPoint } from "../utils/types";
@@ -791,7 +790,7 @@ export function WebsiteOverviewTab({
 	return (
 		<div className="space-y-6">
 			<EventLimitIndicator />
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
+			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
 				{[
 					{
 						id: "visitors-chart",
@@ -847,12 +846,6 @@ export function WebsiteOverviewTab({
 						chartData: miniChartData.bounceRate,
 						trend: calculateTrends.bounce_rate,
 						formatValue: (value: number) => `${value.toFixed(1)}%`,
-						invertTrend: true,
-						variant: getColorVariant(
-							analytics.summary?.bounce_rate || 0,
-							70,
-							50
-						),
 					},
 					{
 						id: "session-duration-chart",
@@ -927,8 +920,8 @@ export function WebsiteOverviewTab({
 			</div>
 
 			{/* Chart */}
-			<div className="rounded border border-sidebar-border border-b-0 bg-sidebar shadow-sm">
-				<div className="flex flex-col items-start justify-between gap-3 border-sidebar-border border-b px-4 py-3 sm:flex-row">
+			<div className="rounded border bg-card">
+				<div className="flex flex-col items-start justify-between gap-3 border-b px-4 py-3 sm:flex-row">
 					<div>
 						<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
 							Traffic Trends
@@ -943,10 +936,6 @@ export function WebsiteOverviewTab({
 								<span>Large date ranges may affect performance</span>
 							</div>
 						)}
-					</div>
-
-					<div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-						{/* Live user indicator moved to analytics toolbar */}
 					</div>
 				</div>
 				<div>
@@ -998,7 +987,7 @@ export function WebsiteOverviewTab({
 			/>
 
 			{/* Technology */}
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
 				<DataTable
 					columns={deviceColumns}
 					data={analytics.device_types || []}

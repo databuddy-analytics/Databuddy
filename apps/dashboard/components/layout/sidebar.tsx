@@ -23,7 +23,6 @@ import {
 	getDefaultCategory,
 } from "./navigation/navigation-config";
 import { NavigationSection } from "./navigation/navigation-section";
-import { SandboxHeader } from "./navigation/sandbox-header";
 import type { NavigationSection as NavigationSectionType } from "./navigation/types";
 import { WebsiteHeader } from "./navigation/website-header";
 import { OrganizationSelector } from "./organization-selector";
@@ -46,7 +45,6 @@ export function Sidebar() {
 	const previousFocusRef = useRef<HTMLElement | null>(null);
 
 	const isDemo = pathname.startsWith("/demo");
-	const isSandbox = pathname.startsWith("/sandbox");
 	const isWebsite = pathname.startsWith("/websites/");
 
 	const websiteId = useMemo(
@@ -111,9 +109,6 @@ export function Sidebar() {
 				<WebsiteHeader showBackButton={!isDemo} website={currentWebsite} />
 			);
 			currentId = websiteId;
-		} else if (isSandbox) {
-			headerComponent = <SandboxHeader />;
-			currentId = "sandbox";
 		} else {
 			headerComponent = <OrganizationSelector />;
 			currentId = undefined;
@@ -129,7 +124,6 @@ export function Sidebar() {
 		selectedCategory,
 		isWebsite,
 		isDemo,
-		isSandbox,
 		websiteId,
 		currentWebsite,
 		websites,
@@ -187,7 +181,7 @@ export function Sidebar() {
 							<div className="flex h-8 w-8 items-center justify-center">
 								<Image
 									alt="Databuddy Logo"
-									className="drop-shadow-sm invert dark:invert-0"
+									className="invert dark:invert-0"
 									height={24}
 									priority
 									src="/logo.svg"
@@ -226,7 +220,7 @@ export function Sidebar() {
 				aria-hidden={!isMobileOpen}
 				className={cn(
 					"fixed inset-y-0 z-40 w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
-					"border-sidebar-border border-r transition-transform duration-200 ease-out",
+					"border-r transition-transform duration-200 ease-out",
 					"left-0 md:left-12",
 					"pt-12 md:pt-0",
 					"md:translate-x-0",
@@ -258,9 +252,18 @@ export function Sidebar() {
 						/>
 
 						<nav aria-label="Main navigation" className="flex flex-col">
-							{navigation.map((section) => (
+							{navigation.map((section, idx) => (
 								<NavigationSection
 									accordionStates={accordionStates}
+									className={cn(
+										navigation.length > 1 && idx === navigation.length - 1
+											? "border-t"
+											: idx === 0 && navigation.length < 2
+												? "box-content border-b"
+												: idx !== 0 && navigation.length > 1
+													? "border-t"
+													: "border-transparent"
+									)}
 									currentWebsiteId={currentWebsiteId}
 									icon={section.icon}
 									items={section.items}

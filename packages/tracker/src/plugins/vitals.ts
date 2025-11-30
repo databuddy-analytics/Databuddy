@@ -1,106 +1,97 @@
 import { type Metric, onCLS, onFCP, onINP, onLCP, onTTFB } from "web-vitals";
 import type { BaseTracker } from "../core/tracker";
-import { generateUUIDv4, logger } from "../core/utils";
+import type { WebVitalMetricName } from "../core/types";
+import { logger } from "../core/utils";
+
+type FPSMetric = {
+	name: "FPS";
+	value: number;
+};
+
+const PER_ROUTE_METRICS: WebVitalMetricName[] = ["CLS", "INP", "FPS"];
+
+let activeFPSMeasurement: { cancelled: boolean } | null = null;
+
+const onFPS = (callback: (metric: FPSMetric) => void) => {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	if (activeFPSMeasurement) {
+		activeFPSMeasurement.cancelled = true;
+	}
+
+	const measurement = { cancelled: false };
+	activeFPSMeasurement = measurement;
+
+	let frames = 0;
+	const start = performance.now();
+	const duration = 2000;
+
+	const countFrame = () => {
+		if (measurement.cancelled) {
+			return;
+		}
+		frames += 1;
+		if (performance.now() - start < duration) {
+			requestAnimationFrame(countFrame);
+		} else {
+			activeFPSMeasurement = null;
+			callback({ name: "FPS", value: Math.round((frames / duration) * 1000) });
+		}
+	};
+
+	if (document.readyState === "complete") {
+		requestAnimationFrame(countFrame);
+	} else {
+		window.addEventListener("load", () => requestAnimationFrame(countFrame), { once: true });
+	}
+};
 
 export function initWebVitalsTracking(tracker: BaseTracker) {
 	if (tracker.isServer()) {
 		return;
 	}
 
-	const metrics: {
-		fcp: number | undefined;
-		lcp: number | undefined;
-		cls: number | undefined;
-		inp: number | undefined;
-		ttfb: number | undefined;
-	} = {
-		fcp: undefined,
-		lcp: undefined,
-		cls: undefined,
-		inp: undefined,
-		ttfb: undefined,
-	};
+	const sentMetrics = new Set<WebVitalMetricName>();
 
-	const sendVitals = () => {
-		if (!Object.values(metrics).some((m) => m !== undefined)) {
+	const handleMetric = (metric: Metric | FPSMetric) => {
+		const name = metric.name as WebVitalMetricName;
+		if (sentMetrics.has(name)) {
 			return;
 		}
+		sentMetrics.add(name);
 
-		const clamp = (v: number | undefined) =>
-			typeof v === "number" ? Math.min(60_000, Math.max(0, v)) : v;
+		const value = name === "CLS" ? metric.value : Math.round(metric.value);
+		logger.log(`Web Vital captured: ${name}`, value);
 
-		const payload = {
-			eventId: generateUUIDv4(),
+		tracker.sendVital({
+			timestamp: Date.now(),
+			path: window.location.pathname,
+			metricName: name,
+			metricValue: value,
 			anonymousId: tracker.anonymousId,
 			sessionId: tracker.sessionId,
-			timestamp: Date.now(),
-			fcp: clamp(metrics.fcp),
-			lcp: clamp(metrics.lcp),
-			cls: clamp(metrics.cls),
-			inp: metrics.inp,
-			ttfb: clamp(metrics.ttfb),
-			url: window.location.href,
-		};
-
-		logger.log("Sending web vitals", payload);
-
-		tracker.sendBeacon(payload);
-	};
-
-	const handleMetric = (metric: Metric) => {
-		switch (metric.name) {
-			case "FCP":
-				metrics.fcp = Math.round(metric.value);
-				break;
-			case "LCP":
-				metrics.lcp = Math.round(metric.value);
-				break;
-			case "CLS":
-				metrics.cls = metric.value; // CLS is a score, not ms, so keep decimals if needed, but usually small
-				break;
-			case "INP":
-				metrics.inp = Math.round(metric.value);
-				break;
-			case "TTFB":
-				metrics.ttfb = Math.round(metric.value);
-				break;
-			default:
-				break;
-		}
-		logger.log(`Web Vitals Metric: ${metric.name}`, metric.value);
+		});
 	};
 
 	onFCP(handleMetric);
 	onLCP(handleMetric);
-	onCLS(handleMetric);
-	onINP(handleMetric);
 	onTTFB(handleMetric);
 
-	setTimeout(() => {
-		sendVitals();
-	}, 4000);
+	onCLS(handleMetric);
+	onINP(handleMetric);
+	onFPS(handleMetric);
 
-	const report = () => {
-		sendVitals();
-	};
+	tracker.onRouteChange(() => {
+		tracker.flushVitals();
 
-	let reportTimeout: number | undefined;
-	const debouncedReport = (immediate = false) => {
-		if (reportTimeout) {
-			window.clearTimeout(reportTimeout);
+		for (const metric of PER_ROUTE_METRICS) {
+			sentMetrics.delete(metric);
 		}
-		if (immediate) {
-			report();
-		} else {
-			reportTimeout = window.setTimeout(report, 1000);
-		}
-	};
 
-	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState === "hidden") {
-			debouncedReport(true);
-		}
+		onFPS(handleMetric);
+
+		logger.log("Vitals reset for new route, per-route metrics cleared");
 	});
-
-	window.addEventListener("pagehide", () => debouncedReport(true));
 }

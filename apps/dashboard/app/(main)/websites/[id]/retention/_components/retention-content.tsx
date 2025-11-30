@@ -162,26 +162,25 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				key={card.id}
 			>
 				<CardContent className="p-3 sm:p-4">
-					<div className="flex items-center gap-2 sm:gap-3">
-						<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-10 sm:w-10">
-							<Icon
-								className="h-4 w-4 text-primary sm:h-5 sm:w-5"
-								weight="duotone"
-							/>
-						</div>
-						<div className="min-w-0 flex-1">
-							<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide sm:text-xs">
-								{card.title}
-							</p>
-							<p className="font-bold text-foreground text-lg sm:text-xl">
-								{card.value}
-							</p>
-							{card.subtitle ? (
-								<p className="text-[11px] text-muted-foreground sm:text-xs">
-									{card.subtitle}
+					<div className="flex flex-col items-center justify-center space-y-5">
+						<div className="flex flex-col items-center gap-6 xl:flex-row">
+							<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-secondary sm:h-10 sm:w-10">
+								<Icon className="h-4 w-4 text-accent-foreground sm:h-5 sm:w-5" />
+							</div>
+							<div className="flex flex-col items-center xl:items-start">
+								<p className="text-center font-medium text-[11px] text-muted-foreground uppercase tracking-wide sm:text-xs xl:text-left">
+									{card.title}
 								</p>
-							) : null}
+								<p className="font-bold text-foreground text-lg sm:text-xl">
+									{card.value}
+								</p>
+							</div>
 						</div>
+						{card.subtitle ? (
+							<p className="text-center text-[11px] text-muted-foreground sm:text-xs xl:text-left">
+								{card.subtitle}
+							</p>
+						) : null}
 					</div>
 				</CardContent>
 			</Card>
@@ -235,20 +234,14 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				onValueChange={setActiveTab}
 				value={activeTab}
 			>
-				<div className="shrink-0 border-border border-b">
-					<TabsList className="h-11 w-full justify-start overflow-x-auto bg-transparent p-0">
-						<TabsTrigger
-							className="relative h-11 whitespace-nowrap rounded-none border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-							value="cohorts"
-						>
-							<TableIcon className="mr-2 h-4 w-4" weight="duotone" />
+				<div className="h-auto shrink-0">
+					<TabsList className="h-10 w-full justify-start overflow-x-auto">
+						<TabsTrigger className="p-3" value="cohorts">
+							<TableIcon className="size-4" />
 							Retention Cohorts
 						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-11 whitespace-nowrap rounded-none border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-							value="rate"
-						>
-							<ChartLineIcon className="mr-2 h-4 w-4" weight="duotone" />
+						<TabsTrigger className="p-3" value="rate">
+							<ChartLineIcon className="size-4" />
 							Retention Rate
 						</TabsTrigger>
 					</TabsList>

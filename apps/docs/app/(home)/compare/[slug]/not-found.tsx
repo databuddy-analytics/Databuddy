@@ -32,19 +32,19 @@ export default function NotFound() {
 								</h3>
 								<div className="flex flex-wrap justify-center gap-4">
 									<Link
-										className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
+										className="rounded border border-accent bg-accent/50 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
 										href="/compare/plausible"
 									>
 										vs Plausible
 									</Link>
 									<Link
-										className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
+										className="rounded border border-accent bg-accent/50 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
 										href="/compare/google-analytics"
 									>
 										vs Google Analytics
 									</Link>
 									<Link
-										className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
+										className="rounded border border-accent bg-accent/50 px-3 py-2 text-primary text-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-primary/20 hover:shadow-lg"
 										href="/compare/fathom"
 									>
 										vs Fathom Analytics

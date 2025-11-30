@@ -5,6 +5,7 @@ import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import {
 	type CreateFunnelData,
@@ -44,34 +45,31 @@ const DeleteFunnelDialog = lazy(() =>
 );
 
 const FunnelsListSkeleton = () => (
-	<div className="space-y-3">
+	<div className="space-y-3 px-4">
 		{[...new Array(3)].map((_, i) => (
-			<Card
-				className="animate-pulse rounded-xl"
-				key={`funnel-skeleton-${i + 1}`}
-			>
+			<Card className="rounded" key={`funnel-skeleton-${i + 1}`}>
 				<div className="p-6">
 					<div className="mb-4 flex items-start justify-between">
 						<div className="flex-1 space-y-3">
 							<div className="flex items-center gap-3">
-								<div className="h-6 w-48 rounded-lg bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
+								<Skeleton className="h-6 w-48 rounded" />
+								<Skeleton className="h-4 w-4 rounded" />
 							</div>
 							<div className="flex items-center gap-3">
-								<div className="h-5 w-16 rounded-full bg-muted" />
-								<div className="h-4 w-20 rounded bg-muted" />
+								<Skeleton className="h-5 w-16 rounded-full" />
+								<Skeleton className="h-4 w-20 rounded" />
 							</div>
 						</div>
-						<div className="h-8 w-8 rounded bg-muted" />
+						<Skeleton className="h-8 w-8 rounded" />
 					</div>
 					<div className="space-y-3">
-						<div className="h-4 w-2/3 rounded bg-muted" />
-						<div className="rounded-lg bg-muted/50 p-3">
-							<div className="mb-2 h-3 w-24 rounded bg-muted" />
+						<Skeleton className="h-4 w-2/3 rounded" />
+						<div className="rounded bg-foreground/5 p-3">
+							<Skeleton className="mb-2 h-3 w-24 rounded" />
 							<div className="flex gap-2">
-								<div className="h-8 w-32 rounded-lg bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
-								<div className="h-8 w-28 rounded-lg bg-muted" />
+								<Skeleton className="h-8 w-32 rounded" />
+								<Skeleton className="h-4 w-4 rounded" />
+								<Skeleton className="h-8 w-28 rounded" />
 							</div>
 						</div>
 					</div>
@@ -237,14 +235,14 @@ export default function FunnelsPage() {
 	}
 
 	return (
-		<div className="space-y-4 p-6" ref={pageRef}>
+		<div className="relative flex h-full flex-col space-y-4" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Funnel"
 				description="Track user journeys and optimize conversion drop-off points"
 				hasError={!!funnelsError}
 				icon={
 					<FunnelIcon
-						className="h-6 w-6 text-primary"
+						className="size-6 text-accent-foreground"
 						size={16}
 						weight="duotone"
 					/>

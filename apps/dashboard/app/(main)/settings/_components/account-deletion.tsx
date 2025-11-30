@@ -93,35 +93,31 @@ export function AccountDeletion() {
 
 	return (
 		<div>
-			<div className="flex flex-col justify-between space-y-4 rounded-lg border border-red-900/20 bg-linear-to-r from-red-950/20 to-red-900/10 p-4 md:flex-row md:items-center md:space-x-6 md:space-y-0">
+			<div className="flex flex-col justify-between space-y-4 rounded-lg border border-destructive/20 bg-destructive/10 p-4 md:flex-row md:items-center md:space-x-6 md:space-y-0">
 				<div className="flex-1 space-y-2">
 					<div className="flex items-center">
 						<ShieldCheckIcon
-							className="mr-2 h-5 w-5 text-red-500"
+							className="mr-2 size-5 text-red-700"
 							size={20}
 							weight="fill"
 						/>
-						<h3 className="font-medium text-base text-red-400">
+						<h3 className="font-medium text-base text-red-700">
 							Account Deletion
 						</h3>
 					</div>
-					<p className="text-slate-700 text-sm">
+					<p className="text-muted-foreground text-sm">
 						Deleting your account will remove all your data and cannot be
 						reversed after the grace period.
 					</p>
-					<div className="mt-1 hidden text-slate-600 text-xs italic md:block">
+					<div className="mt-1 hidden text-muted-foreground text-xs italic md:block">
 						A 30-day recovery window will be available before permanent
 						deletion.
 					</div>
 				</div>
 				<AlertDialog onOpenChange={setIsDialogOpen} open={isDialogOpen}>
 					<AlertDialogTrigger asChild>
-						<Button
-							className="border border-red-800/50 bg-red-900/60 px-4 text-white hover:bg-red-800"
-							size="sm"
-							variant="destructive"
-						>
-							<TrashIcon className="mr-2 h-4 w-4" size={16} weight="duotone" />
+						<Button size="sm" variant="destructive">
+							<TrashIcon className="size-4" size={16} weight="duotone" />
 							Delete Account
 						</Button>
 					</AlertDialogTrigger>

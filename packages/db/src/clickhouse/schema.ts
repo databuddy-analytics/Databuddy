@@ -78,6 +78,7 @@ ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192
 `;
 
+// Legacy table - keeping for backwards compatibility during migration
 const CREATE_ERRORS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.errors (
   id UUID,
@@ -114,6 +115,35 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
+/**
+ * Lean error spans table - minimal structure
+ * No geo/UA enrichment, just the error data
+ */
+const CREATE_ERROR_SPANS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.error_spans (
+  client_id String CODEC(ZSTD(1)),
+  anonymous_id String CODEC(ZSTD(1)),
+  session_id String CODEC(ZSTD(1)),
+  
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  
+  message String CODEC(ZSTD(1)),
+  filename Nullable(String) CODEC(ZSTD(1)),
+  lineno Nullable(Int32) CODEC(ZSTD(1)),
+  colno Nullable(Int32) CODEC(ZSTD(1)),
+  stack Nullable(String) CODEC(ZSTD(1)),
+  error_type LowCardinality(String) CODEC(ZSTD(1)),
+  
+  INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_error_type error_type TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (client_id, error_type, path, timestamp)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+`;
+
+// Legacy table - keeping for backwards compatibility during migration
 const CREATE_WEB_VITALS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals (
   id UUID,
@@ -149,80 +179,71 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
-const CREATE_STRIPE_PAYMENT_INTENTS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.stripe_payment_intents (
-  id String,
-  client_id String,
-  webhook_token String,
-  created DateTime64(3, 'UTC'),
-  status LowCardinality(String),
-  currency LowCardinality(String),
-  amount UInt64,
-  amount_received UInt64,
-  amount_capturable UInt64,
-  livemode UInt8,
-  metadata JSON,
-  payment_method_types Array(String),
-  failure_reason Nullable(String),
-  canceled_at Nullable(DateTime64(3, 'UTC')),
-  cancellation_reason Nullable(String),
-  description Nullable(String),
-  application_fee_amount Nullable(UInt64),
-  setup_future_usage Nullable(String),
-  session_id Nullable(String),
-  created_at DateTime64(3, 'UTC') DEFAULT now()
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(created)
-ORDER BY (client_id, webhook_token, created, id)
-SETTINGS index_granularity = 8192
+/**
+ * Optimized Web Vitals table - minimal spans-oriented design
+ * 
+ * Rating computed at query time using standard thresholds:
+ * - LCP: good < 2500, poor > 4000
+ * - FCP: good < 1800, poor > 3000
+ * - CLS: good < 0.1, poor > 0.25
+ * - INP: good < 200, poor > 500
+ * - TTFB: good < 800, poor > 1800
+ * - FPS: good > 55, poor < 30
+ */
+const CREATE_WEB_VITALS_SPANS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_spans (
+  client_id String CODEC(ZSTD(1)),
+  anonymous_id String CODEC(ZSTD(1)),
+  session_id String CODEC(ZSTD(1)),
+  
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  
+  metric_name LowCardinality(String) CODEC(ZSTD(1)),
+  metric_value Float64 CODEC(Gorilla, ZSTD(1)),
+  
+  INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_metric_value metric_value TYPE minmax GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (client_id, metric_name, path, timestamp)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
-const CREATE_STRIPE_CHARGES_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.stripe_charges (
-  id String,
-  client_id String,
-  webhook_token String,
-  created DateTime64(3, 'UTC'),
-  status LowCardinality(String),
-  currency LowCardinality(String),
-  amount UInt64,
-  amount_captured UInt64,
-  amount_refunded UInt64,
-  paid UInt8,
-  refunded UInt8,
-  livemode UInt8,
-  failure_code Nullable(String),
-  failure_message Nullable(String),
-  outcome_type Nullable(String),
-  risk_level LowCardinality(String),
-  card_brand LowCardinality(String),
-  payment_intent_id Nullable(String),
-  session_id Nullable(String),
-  created_at DateTime64(3, 'UTC') DEFAULT now()
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(created)
-ORDER BY (client_id, webhook_token, created, id)
-SETTINGS index_granularity = 8192
+/**
+ * Materialized view for aggregated Web Vitals
+ * Computes ratings at aggregation time using standard thresholds
+ */
+const CREATE_WEB_VITALS_HOURLY_MV = `
+CREATE MATERIALIZED VIEW IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_hourly_mv
+TO ${ANALYTICS_DATABASE}.web_vitals_hourly
+AS SELECT
+  client_id,
+  path,
+  metric_name,
+  toStartOfHour(timestamp) AS hour,
+  count() AS sample_count,
+  quantile(0.75)(metric_value) AS p75,
+  quantile(0.50)(metric_value) AS p50,
+  avg(metric_value) AS avg_value
+FROM ${ANALYTICS_DATABASE}.web_vitals_spans
+GROUP BY client_id, path, metric_name, hour
 `;
 
-const CREATE_STRIPE_REFUNDS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.stripe_refunds (
-  id String,
-  client_id String,
-  webhook_token String,
-  created DateTime64(3, 'UTC'),
-  amount UInt64,
-  status LowCardinality(String),
-  reason LowCardinality(String),
-  currency LowCardinality(String),
-  charge_id String,
-  payment_intent_id Nullable(String),
-  metadata JSON,
-  session_id Nullable(String),
-  created_at DateTime64(3, 'UTC') DEFAULT now()
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(created)
-ORDER BY (client_id, webhook_token, created, id)
+const CREATE_WEB_VITALS_HOURLY_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_hourly (
+  client_id String CODEC(ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  metric_name LowCardinality(String) CODEC(ZSTD(1)),
+  hour DateTime CODEC(Delta(4), ZSTD(1)),
+  sample_count UInt64 CODEC(ZSTD(1)),
+  p75 Float64 CODEC(ZSTD(1)),
+  p50 Float64 CODEC(ZSTD(1)),
+  avg_value Float64 CODEC(ZSTD(1))
+) ENGINE = SummingMergeTree
+PARTITION BY toYYYYMM(hour)
+ORDER BY (client_id, metric_name, path, hour)
+TTL toDateTime(hour) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192
 `;
 
@@ -281,44 +302,6 @@ ORDER BY (domain, event_time)
 SETTINGS index_granularity = 8192
 `;
 
-const CREATE_OBSERVABILITY_EVENTS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.events (
-    id UUID DEFAULT generateUUIDv4(),
-
-    service String,
-    environment LowCardinality(String),
-    version Nullable(String),
-    host Nullable(String),
-    region Nullable(String),
-    instance_id Nullable(String),
-
-    trace_id Nullable(String),
-    span_id Nullable(String),
-    parent_span_id Nullable(String),
-    span_kind LowCardinality(String),
-    status_code LowCardinality(String),
-    status_message Nullable(String),
-
-    start_time DateTime64(3, 'UTC') DEFAULT now(),
-    end_time DateTime64(3, 'UTC') DEFAULT now(),
-    duration_ms Nullable(UInt32) MATERIALIZED (toUInt32(dateDiff('millisecond', start_time, end_time))),
-
-    level LowCardinality(String),
-    category LowCardinality(String),
-    request_id Nullable(String),
-    correlation_id Nullable(String),
-
-    user_id Nullable(String),
-    tenant_id Nullable(String),
-
-    attributes JSON,
-    events JSON
-
-) ENGINE = MergeTree
-PARTITION BY toYYYYMM(start_time)
-ORDER BY (service, environment, category, level, start_time)
-SETTINGS index_granularity = 8192
-`;
 
 const CREATE_OTEL_TRACES_TABLE = `
 CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.otel_traces (
@@ -395,6 +378,7 @@ TTL toDateTime(Timestamp) + toIntervalDay(3)
 SETTINGS ttl_only_drop_parts = 1
 `;
 
+// Legacy table - keeping for backwards compatibility
 const CREATE_CUSTOM_EVENTS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_events (
   id UUID,
@@ -409,6 +393,31 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_events (
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
+`;
+
+/**
+ * Lean custom event spans table
+ * Uses JSON for flexible metadata
+ */
+const CREATE_CUSTOM_EVENT_SPANS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_event_spans (
+  client_id String CODEC(ZSTD(1)),
+  anonymous_id String CODEC(ZSTD(1)),
+  session_id String CODEC(ZSTD(1)),
+  
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  
+  event_name LowCardinality(String) CODEC(ZSTD(1)),
+  properties JSON CODEC(ZSTD(1)),
+  
+  INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_event_name event_name TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (client_id, event_name, path, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 90 DAY
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
 const CREATE_CUSTOM_OUTGOING_LINKS_TABLE = `
@@ -428,7 +437,8 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
-export interface ErrorEvent {
+// Legacy type - keeping for backwards compatibility
+export type ErrorEvent = {
 	id: string;
 	client_id: string;
 	event_id?: string;
@@ -454,7 +464,25 @@ export interface ErrorEvent {
 	created_at: number;
 }
 
-export interface WebVitalsEvent {
+/**
+ * Lean error span - no geo/UA enrichment
+ */
+export type ErrorSpanRow = {
+	client_id: string;
+	anonymous_id: string;
+	session_id: string;
+	timestamp: number;
+	path: string;
+	message: string;
+	filename?: string;
+	lineno?: number;
+	colno?: number;
+	stack?: string;
+	error_type: string;
+}
+
+// Legacy interface - keeping for backwards compatibility
+export type WebVitalsEvent = {
 	id: string;
 	client_id: string;
 	event_id?: string;
@@ -479,67 +507,41 @@ export interface WebVitalsEvent {
 	created_at: number;
 }
 
-// Stripe table interfaces
-export interface StripePaymentIntent {
-	id: string;
-	client_id: string;
-	webhook_token: string;
-	created: number;
-	status: string;
-	currency: string;
-	amount: number;
-	amount_received: number;
-	amount_capturable: number;
-	livemode: number;
-	metadata: JSON;
-	payment_method_types: string[];
-	failure_reason?: string;
-	canceled_at?: number;
-	cancellation_reason?: string;
-	description?: string;
-	application_fee_amount?: number;
-	setup_future_usage?: string;
-	session_id?: string;
-}
+/**
+ * Spans-oriented Web Vitals
+ * Each row = single metric measurement
+ * Rating computed at query time using standard thresholds
+ */
+export type WebVitalMetricName =
+	| "FCP"
+	| "LCP"
+	| "CLS"
+	| "INP"
+	| "TTFB"
+	| "FPS";
 
-export interface StripeCharge {
-	id: string;
+export type WebVitalsSpan = {
 	client_id: string;
-	webhook_token: string;
-	created: number;
-	status: string;
-	currency: string;
-	amount: number;
-	amount_captured: number;
-	amount_refunded: number;
-	paid: number;
-	refunded: number;
-	livemode: number;
-	failure_code?: string;
-	failure_message?: string;
-	outcome_type?: string;
-	risk_level?: string;
-	card_brand?: string;
-	payment_intent_id?: string;
-	session_id?: string;
-}
+	anonymous_id: string;
+	session_id: string;
+	timestamp: number;
+	path: string;
+	metric_name: WebVitalMetricName;
+	metric_value: number;
+};
 
-export interface StripeRefund {
-	id: string;
+export type WebVitalsHourlyAggregate = {
 	client_id: string;
-	webhook_token: string;
-	created: number;
-	amount: number;
-	status: string;
-	reason?: string;
-	currency: string;
-	charge_id: string;
-	payment_intent_id?: string;
-	metadata: JSON;
-	session_id?: string;
-}
+	path: string;
+	metric_name: WebVitalMetricName;
+	hour: number;
+	sample_count: number;
+	p75: number;
+	p50: number;
+	avg_value: number;
+};
 
-export interface BlockedTraffic {
+export type BlockedTraffic = {
 	id: string;
 	client_id?: string;
 	timestamp: number;
@@ -567,7 +569,7 @@ export interface BlockedTraffic {
 	created_at: number;
 }
 
-export interface EmailEvent {
+export type EmailEvent = {
 	event_id: string;
 	email_hash: string;
 	domain: string;
@@ -578,7 +580,7 @@ export interface EmailEvent {
 	metadata_json: string;
 }
 
-export interface ObservabilityEvent {
+export type ObservabilityEvent = {
 	id: string;
 	service: string;
 	environment: string;
@@ -606,7 +608,7 @@ export interface ObservabilityEvent {
 }
 
 // OpenTelemetry trace span interface
-export interface OTelTraces {
+export type OTelTraces = {
 	Timestamp: number;
 	TraceId: string;
 	SpanId: string;
@@ -632,7 +634,7 @@ export interface OTelTraces {
 }
 
 // OpenTelemetry logs interface
-export interface OTelLogs {
+export type OTelLogs = {
 	Timestamp: number;
 	TraceId: string;
 	SpanId: string;
@@ -650,7 +652,8 @@ export interface OTelLogs {
 	LogAttributes: Record<string, string>;
 }
 
-export interface CustomEvent {
+// Legacy type - keeping for backwards compatibility
+export type CustomEvent = {
 	id: string;
 	client_id: string;
 	event_name: string;
@@ -660,7 +663,21 @@ export interface CustomEvent {
 	timestamp: number;
 }
 
-export interface CustomOutgoingLink {
+/**
+ * Lean custom event span
+ * properties is flexible JSON
+ */
+export type CustomEventSpan = {
+	client_id: string;
+	anonymous_id: string;
+	session_id: string;
+	timestamp: number;
+	path: string;
+	event_name: string;
+	properties: Record<string, unknown>;
+}
+
+export type CustomOutgoingLink = {
 	id: string;
 	client_id: string;
 	anonymous_id: string;
@@ -671,7 +688,7 @@ export interface CustomOutgoingLink {
 	timestamp: number;
 }
 
-export interface AnalyticsEvent {
+export type AnalyticsEvent = {
 	id: string;
 	client_id: string;
 	event_name: string;
@@ -759,21 +776,20 @@ export async function initClickHouseSchema() {
 		const tables = [
 			{ name: "events", query: CREATE_EVENTS_TABLE },
 			{ name: "errors", query: CREATE_ERRORS_TABLE },
+			{ name: "error_spans", query: CREATE_ERROR_SPANS_TABLE },
 			{ name: "web_vitals", query: CREATE_WEB_VITALS_TABLE },
-			{
-				name: "stripe_payment_intents",
-				query: CREATE_STRIPE_PAYMENT_INTENTS_TABLE,
-			},
-			{ name: "stripe_charges", query: CREATE_STRIPE_CHARGES_TABLE },
-			{ name: "stripe_refunds", query: CREATE_STRIPE_REFUNDS_TABLE },
+			{ name: "web_vitals_spans", query: CREATE_WEB_VITALS_SPANS_TABLE },
+			{ name: "web_vitals_hourly", query: CREATE_WEB_VITALS_HOURLY_TABLE },
 			{ name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
 			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
 			{ name: "custom_events", query: CREATE_CUSTOM_EVENTS_TABLE },
+			{ name: "custom_event_spans", query: CREATE_CUSTOM_EVENT_SPANS_TABLE },
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
-			{
-				name: "observability_events",
-				query: CREATE_OBSERVABILITY_EVENTS_TABLE,
-			},
+		];
+
+		// Materialized views (must be created after target tables)
+		const materializedViews = [
+			{ name: "web_vitals_hourly_mv", query: CREATE_WEB_VITALS_HOURLY_MV },
 		];
 
 		// Create observability tables separately
@@ -801,6 +817,14 @@ export async function initClickHouseSchema() {
 			})
 		);
 
+		// Create materialized views (after target tables exist)
+		for (const mv of materializedViews) {
+			await clickHouse.command({
+				query: mv.query,
+			});
+			console.info(`Created materialized view: ${ANALYTICS_DATABASE}.${mv.name}`);
+		}
+
 		console.info("ClickHouse schema initialization completed successfully");
 		return {
 			success: true,
@@ -808,6 +832,7 @@ export async function initClickHouseSchema() {
 			details: {
 				database: ANALYTICS_DATABASE,
 				tables: tables.map((t) => t.name),
+				materialized_views: materializedViews.map((mv) => mv.name),
 				observability_database: OBSERVABILITY_DATABASE,
 				observability_tables: observabilityTables.map((t) => t.name),
 			},

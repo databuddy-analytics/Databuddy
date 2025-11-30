@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FlagIcon, Info } from "@phosphor-icons/react";
+import { FlagIcon, Info, InfoIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,12 +37,12 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
+import { cn } from "@/lib/utils";
 import type { Flag } from "./types";
 import { UserRulesBuilder } from "./user-rules-builder";
 import { DependencySelector } from "./dependency-selector";
@@ -289,35 +289,38 @@ export function FlagSheet({
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-  return (
-    <Sheet onOpenChange={onCloseAction} open={isOpen}>
-      <SheetContent
-        className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
-        side="right"
-      >
-        <SheetHeader className="space-y-3 border-border/50 border-b pb-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded border border-primary/20 bg-primary/10 p-3">
-              <FlagIcon className="h-6 w-6 text-primary" weight="duotone" />
-            </div>
-            <div>
-              <SheetTitle className="font-semibold text-foreground text-xl">
-                {isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
-              </SheetTitle>
-              <SheetDescription className="mt-1 text-muted-foreground">
-                {isEditing
-                  ? "Update flag configuration and settings"
-                  : "Set up a new feature flag for controlled rollouts"}
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+	return (
+		<Sheet onOpenChange={onCloseAction} open={isOpen}>
+			<SheetContent
+				className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
+				side="right"
+			>
+				<SheetHeader>
+					<div className="flex items-center gap-3">
+						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+							<FlagIcon
+								className="size-6 text-accent-foreground"
+								weight="fill"
+							/>
+						</div>
+						<div>
+							<SheetTitle className="font-semibold text-foreground text-xl">
+								{isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
+							</SheetTitle>
+							<SheetDescription className="mt-1 text-muted-foreground">
+								{isEditing
+									? "Update flag configuration and settings"
+									: "Set up a new feature flag for controlled rollouts"}
+							</SheetDescription>
+						</div>
+					</div>
+				</SheetHeader>
 
-        <div className="space-y-8 pt-6">
+        <div className="space-y-8">
           <Form {...form}>
             <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
               {/* Basic Information */}
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -336,49 +339,65 @@ export function FlagSheet({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="flag.key"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Key{" "}
-                          {!isEditing && (
-                            <span aria-hidden="true" className="text-red-500">
-                              *
-                            </span>
-                          )}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="new-dashboard"
-                            {...field}
-                            disabled={isEditing}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setKeyManuallyEdited(value.length > 0);
-                              field.onChange(value);
-                            }}
-                          />
-                        </FormControl>
-                        {isEditing && (
-                          <FormDescription>
-                            Flag keys cannot be changed after creation to
-                            maintain data integrity.
-                          </FormDescription>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+									<FormField
+										control={form.control}
+										name="flag.key"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>
+													Key{" "}
+													{isEditing ? (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<InfoIcon
+																	className="h-4 w-4"
+																	weight="duotone"
+																/>
+															</TooltipTrigger>
+															<TooltipContent className="max-w-xs">
+																<div className="space-y-2">
+																	<p className="text-xs leading-relaxed">
+																		Key cannot be changed after creation to
+																		maintain data integrity.
+																	</p>
+																</div>
+															</TooltipContent>
+														</Tooltip>
+													) : (
+														<span aria-hidden="true" className="text-red-500">
+															*
+														</span>
+													)}
+												</FormLabel>
+												<FormControl>
+													<Input
+														placeholder="new-dashboard"
+														{...field}
+														disabled={isEditing}
+														onChange={(e) => {
+															const value = e.target.value;
+															setKeyManuallyEdited(value.length > 0);
+															field.onChange(value);
+														}}
+													/>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
+								</div>
 
                 <FormField
                   control={form.control}
                   name="flag.description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description (Optional)</FormLabel>
+                      <FormLabel>
+												Description{" "}
+												<span className="text-muted-foreground text-xs">
+													(Optional)
+												</span>
+											</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="What does this flag control?"
@@ -394,7 +413,7 @@ export function FlagSheet({
 
               {/* Configuration */}
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex gap-8">
                   <FormField
                     control={form.control}
                     name="flag.type"
@@ -517,93 +536,51 @@ export function FlagSheet({
                   />
 
                   {showDefaultValue && (
-                    <FormField
-                      control={form.control}
-                      name="flag.defaultValue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Default Value</FormLabel>
-                          <FormControl>
-                            <div className="flex h-10 items-center justify-center rounded-md border bg-background px-3">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={
-                                    field.value
-                                      ? "text-muted-foreground"
-                                      : "font-medium"
-                                  }
-                                >
-                                  Off
-                                </span>
-                                <Switch
-                                  aria-label="Toggle default flag value"
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                                <span
-                                  className={
-                                    field.value
-                                      ? "font-medium"
-                                      : "text-muted-foreground"
-                                  }
-                                >
-                                  On
-                                </span>
-                              </div>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+
+									<FormField
+										control={form.control}
+										name="flag.defaultValue"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>Default Value</FormLabel>
+												<FormControl>
+													<div className="flex h-9 w-fit items-center justify-center rounded-md border bg-accent-brighter/80 px-3 will-change-contents">
+														<div className="flex items-center gap-2">
+															<span
+																className={cn(
+																	"text-sm",
+																	field.value === false
+																		? "text-muted-foreground"
+																		: "text-muted-foreground/50"
+																)}
+															>
+																Off
+															</span>
+															<Switch
+																aria-label="Toggle default flag value"
+																checked={field.value}
+																onCheckedChange={field.onChange}
+															/>
+															<span
+																className={cn(
+																	"text-sm",
+																	field.value === true
+																		? "text-muted-foreground"
+																		: "text-muted-foreground/50"
+																)}
+															>
+																On
+															</span>
+														</div>
+													</div>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
                     />
                   )}
-                </div>
-              </div>
-
-              {/* Environment Field (Optional) */}
-              <div className="mt-4 grid gap-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="enable-environment"
-                    checked={!!form.watch("flag.environment")}
-                    onCheckedChange={(checked) => {
-                      if (!checked) {
-                        form.setValue("flag.environment", undefined);
-                      } else {
-                        form.setValue("flag.environment", "production");
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="enable-environment"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Specify Environment (Optional)
-                  </label>
-                </div>
-
-                {form.watch("flag.environment") !== undefined && (
-                  <FormField
-                    control={form.control}
-                    name="flag.environment"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Environment</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g., production, staging, development"
-                            {...field}
-                          />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">
-                          Categorize this flag to a specific environment
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
+								</div>
+							</div>
 
               {/* Rollout Percentage */}
               {showRolloutPercentage && (
@@ -614,47 +591,48 @@ export function FlagSheet({
                     render={({ field }) => {
                       const currentValue = Number(field.value) || 0;
 
-                      return (
-                        <FormItem>
-                          <FormLabel>Rollout Percentage</FormLabel>
-                          <FormControl>
-                            <div className="space-y-4">
-                              <Slider
-                                max={100}
-                                min={0}
-                                onValueChange={field.onChange}
-                                step={5}
-                                value={currentValue}
-                              />
-                              <div className="flex flex-wrap justify-center gap-2">
-                                {[0, 25, 50, 75, 100].map((preset) => (
-                                  <button
-                                    aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
-                                    className={`rounded border px-3 py-2 text-sm transition-colors ${currentValue === preset
-                                      ? "border-primary bg-primary text-primary-foreground"
-                                      : "border-border hover:border-primary/50"
-                                      }`}
-                                    key={preset}
-                                    onClick={() => field.onChange(preset)}
-                                    type="button"
-                                  >
-                                    {preset}%
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </FormControl>
-                          <FormDescription>
-                            Percentage of users who will see this flag enabled.
-                            0% = disabled, 100% = fully enabled.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
-                </div>
-              )}
+											return (
+												<FormItem>
+													<FormLabel>Rollout Percentage</FormLabel>
+													<FormControl>
+														<div className="space-y-4">
+															<Slider
+																max={100}
+																min={0}
+																onValueChange={field.onChange}
+																step={5}
+																value={currentValue}
+															/>
+															<div className="flex flex-wrap justify-center gap-2">
+																{[0, 25, 50, 75, 100].map((preset) => (
+																	<button
+																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
+																		className={`rounded border px-3 py-2 text-sm transition-colors ${
+																			currentValue === preset
+																				? "border-primary bg-primary text-primary-foreground"
+																				: "border-border hover:border-primary/50"
+																		}`}
+																		key={preset}
+																		onClick={() => field.onChange(preset)}
+																		type="button"
+																	>
+																		{preset}%
+																	</button>
+																))}
+															</div>
+														</div>
+													</FormControl>
+													<FormDescription className="mx-auto text-muted-foreground text-xs">
+														Percentage of users who will see this flag enabled.
+														0% = disabled, 100% = fully enabled.
+													</FormDescription>
+													<FormMessage />
+												</FormItem>
+											);
+										}}
+									/>
+								</div>
+							)}
 
               {/* Variants Editor */}
               {showVariants && (
@@ -684,7 +662,12 @@ export function FlagSheet({
                   name="flag.rules"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>User Targeting (Optional)</FormLabel>
+                      <FormLabel>
+												User Targeting{" "}
+												<span className="text-muted-foreground text-xs">
+													(Optional)
+												</span>
+											</FormLabel>
                       <FormControl>
                         <UserRulesBuilder
                           onChange={field.onChange}
@@ -727,18 +710,18 @@ export function FlagSheet({
                 <ScheduleManager form={form} flagType={watchedType} setValue={form.setValue} />
               </div>
 
-              <div className="flex justify-end gap-3 border-t pt-6">
-                <Button onClick={onCloseAction} type="button" variant="outline">
-                  Cancel
-                </Button>
-                <Button disabled={isLoading} type="submit">
-                  {isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
+							<div className="flex justify-end gap-3 border-t pt-6">
+								<Button onClick={onCloseAction} type="button" variant="ghost">
+									Cancel
+								</Button>
+								<Button disabled={isLoading} type="submit">
+									{isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
+								</Button>
+							</div>
+						</form>
+					</Form>
+				</div>
+			</SheetContent>
+		</Sheet>
+	);
 }

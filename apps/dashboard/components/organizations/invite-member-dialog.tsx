@@ -9,6 +9,7 @@ import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -28,11 +29,11 @@ import {
 } from "@/components/ui/select";
 import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
 
-interface InviteMemberDialogProps {
+type InviteMemberDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	organizationId: string;
-}
+};
 
 const formSchema = z.object({
 	email: z.email("Please enter a valid email address"),
@@ -81,8 +82,11 @@ export function InviteMemberDialog({
 		<Dialog onOpenChange={handleClose} open={open}>
 			<DialogContent className="max-w-md p-4">
 				<div className="mb-3 flex items-center gap-3">
-					<div className="rounded border border-primary/20 bg-primary/10 p-2">
-						<UserPlusIcon className="h-4 w-4 text-primary" weight="duotone" />
+					<div className="rounded-full border bg-secondary p-2.5">
+						<UserPlusIcon
+							className="size-4 text-accent-foreground"
+							weight="duotone"
+						/>
 					</div>
 					<div>
 						<DialogTitle className="font-medium text-base">
@@ -138,37 +142,36 @@ export function InviteMemberDialog({
 								)}
 							/>
 						</div>
-
-						<div className="flex justify-end gap-2 pt-2">
-							<Button
-								className="h-8 px-3 text-xs"
-								disabled={isInviting}
-								onClick={handleClose}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								className="h-8 px-3 text-xs"
-								disabled={isInviting}
-								type="submit"
-							>
-								{isInviting ? (
-									<>
-										<div className="mr-1 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
-										Sending...
-									</>
-								) : (
-									<>
-										<UserPlusIcon className="mr-1 h-3 w-3" weight="duotone" />
-										Send Invite
-									</>
-								)}
-							</Button>
-						</div>
 					</form>
 				</Form>
+				<DialogFooter>
+					<Button
+						className="flex-1"
+						disabled={isInviting}
+						onClick={handleClose}
+						type="button"
+						variant="secondary"
+					>
+						Cancel
+					</Button>
+					<Button
+						className="flex-1"
+						disabled={isInviting || !form.formState.isValid}
+						type="submit"
+					>
+						{isInviting ? (
+							<>
+								<div className="mr-1 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+								Sending...
+							</>
+						) : (
+							<>
+								<UserPlusIcon className="mr-1 h-3 w-3" weight="duotone" />
+								Send Invite
+							</>
+						)}
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);

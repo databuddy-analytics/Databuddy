@@ -49,7 +49,7 @@ export function FaviconImage({
 				{fallbackIcon || (
 					<GlobeIcon
 						aria-label={altText || "Website icon"}
-						className="not-dark:text-primary text-muted-foreground"
+						className="text-muted"
 						size={size}
 						weight="duotone"
 					/>

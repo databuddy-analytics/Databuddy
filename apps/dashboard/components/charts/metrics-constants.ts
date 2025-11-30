@@ -25,15 +25,15 @@ const createColorSet = (
 
 export const METRIC_COLORS = {
 	pageviews: createColorSet(
-		"#3b82f6",
-		"#1d4ed8",
+		"#2E27F5",
+		"#3D39E3",
 		"#dbeafe",
 		"from-blue-500/20 to-blue-600/5"
 	),
 	visitors: createColorSet(
-		"#10b981",
-		"#059669",
-		"#d1fae5",
+		"#40BCF7",
+		"#25B0F5",
+		"#ADE6FF",
 		"from-emerald-500/20 to-emerald-600/5"
 	),
 	sessions: createColorSet(

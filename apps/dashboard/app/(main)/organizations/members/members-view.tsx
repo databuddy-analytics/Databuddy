@@ -2,12 +2,12 @@
 
 import {
 	ArrowClockwiseIcon,
-	BookOpenIcon,
 	UserPlusIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -34,13 +34,13 @@ function SkeletonRow() {
 function MembersSkeleton() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="divide-y border-b lg:border-b-0 lg:border-r">
+			<div className="divide-y border-b lg:border-b-0">
 				<SkeletonRow />
 				<SkeletonRow />
 				<SkeletonRow />
 				<SkeletonRow />
 			</div>
-			<div className="space-y-4 bg-muted/30 p-5">
+			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-18 w-full rounded" />
 				<Skeleton className="h-10 w-full" />
 				<Skeleton className="h-20 w-full rounded" />
@@ -98,15 +98,21 @@ export function MembersView({
 		refetch,
 	} = useOrganizationMembers(organization.id);
 
-	if (isLoading) return <MembersSkeleton />;
-	if (error) return <ErrorState onRetry={refetch} />;
-	if (!members || members.length === 0) return <EmptyState />;
+	if (isLoading) {
+		return <MembersSkeleton />;
+	}
+	if (error) {
+		return <ErrorState onRetry={refetch} />;
+	}
+	if (!members || members.length === 0) {
+		return <EmptyState />;
+	}
 
 	return (
 		<>
 			<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 				{/* Members List */}
-				<div className="flex flex-col border-b lg:border-b-0 lg:border-r">
+				<div className="flex flex-col border-b lg:border-b-0">
 					<div className="flex-1 divide-y overflow-y-auto">
 						<MemberList
 							isRemovingMember={isRemovingMember}
@@ -119,48 +125,19 @@ export function MembersView({
 					</div>
 				</div>
 
-				{/* Sidebar */}
-				<aside className="flex flex-col gap-4 bg-muted/30 p-5">
-					{/* Invite Button */}
+				<RightSidebar className="gap-4 p-5">
 					<Button className="w-full" onClick={() => setShowInviteDialog(true)}>
 						<UserPlusIcon className="mr-2" size={16} />
 						Invite Member
 					</Button>
-
-					{/* Stats Card */}
-				<div className="flex items-center gap-3 rounded border bg-background p-4">
-					<div className="flex h-10 w-10 items-center justify-center rounded bg-primary/10">
-						<UsersIcon className="text-primary" size={20} weight="duotone" />
-					</div>
-					<div>
-						<p className="font-semibold tabular-nums">{members.length}</p>
-						<p className="text-muted-foreground text-sm">
-							Team member{members.length !== 1 ? "s" : ""}
-						</p>
-					</div>
-				</div>
-
-				{/* Docs Link */}
-				<Button asChild className="w-full justify-start" variant="outline">
-					<a
-						href="https://www.databuddy.cc/docs/getting-started"
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						<BookOpenIcon className="mr-2" size={16} />
-						Documentation
-					</a>
-				</Button>
-
-				{/* Tip */}
-				<div className="mt-auto rounded border border-dashed bg-background/50 p-4">
-					<p className="mb-2 font-medium text-sm">Quick tip</p>
-					<p className="text-muted-foreground text-xs leading-relaxed">
-						Admins can manage settings and invite members. Members have
-						read-only access to analytics.
-					</p>
-				</div>
-			</aside>
+					<RightSidebar.InfoCard
+						description={`Team member${members.length !== 1 ? "s" : ""}`}
+						icon={UsersIcon}
+						title={String(members.length)}
+					/>
+					<RightSidebar.DocsLink />
+					<RightSidebar.Tip description="Admins can manage settings and invite members. Members have read-only access to analytics." />
+				</RightSidebar>
 			</div>
 
 			<InviteMemberDialog

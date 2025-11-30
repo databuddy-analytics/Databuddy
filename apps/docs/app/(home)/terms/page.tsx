@@ -45,7 +45,7 @@ export default function TermsPage() {
 			<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
 				{/* Header */}
 				<div className="mb-12 text-center">
-					<div className="mb-5 inline-flex items-center justify-center rounded border border-primary/20 bg-primary/10 p-3">
+					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<ScalesIcon className="h-7 w-7 text-primary" weight="duotone" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
@@ -56,7 +56,7 @@ export default function TermsPage() {
 						<span className="font-medium text-foreground">{lastUpdated}</span>
 					</p>
 					{/* TL;DR */}
-					<div className="mx-auto mb-6 max-w-2xl rounded border border-primary/20 bg-primary/10 p-4 text-left">
+					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
 							<strong>TL;DR</strong> — Be fair and lawful, keep your account
 							secure, don’t abuse the service, and you can cancel anytime. We’ll
@@ -70,7 +70,7 @@ export default function TermsPage() {
 				</div>
 
 				{/* Fair terms highlight */}
-				<div className="mb-8 rounded border border-primary/20 bg-primary/10 p-6">
+				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
 						<ShieldIcon className="mr-2 h-5 w-5" weight="duotone" />
 						Fair & Transparent Terms
@@ -117,7 +117,7 @@ export default function TermsPage() {
 							Terms. If you disagree with any part of these terms, then you may
 							not access the Service.
 						</p>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Quick Summary:</strong> These
 								terms cover how you can use our service, your responsibilities,
@@ -318,7 +318,7 @@ export default function TermsPage() {
 							or the Service shall not exceed the amount you paid us in the 12
 							months preceding the claim.
 						</p>
-						<div className="my-4 rounded-lg border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded-lg border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> Some
 								jurisdictions don't allow limitations on liability. These
@@ -393,7 +393,7 @@ export default function TermsPage() {
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
 							<QuestionIcon
-								className="mr-2 h-6 w-6 text-primary"
+								className="mr-2 size-6 text-accent-foreground"
 								weight="duotone"
 							/>
 							13. Contact Information

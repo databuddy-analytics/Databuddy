@@ -107,7 +107,7 @@ function CompetitorStatsCard({
 						<div className="flex items-center justify-between">
 							<span className="text-muted-foreground text-sm">Advantages</span>
 							<Badge
-								className="border-primary/20 bg-primary/10 text-primary"
+								className="border-accent bg-accent/50 text-primary"
 								variant="outline"
 							>
 								{featuresWin}/{totalFeatures}

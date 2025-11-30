@@ -42,7 +42,7 @@ export function LiveUserIndicator({ websiteId }: LiveUserIndicatorProps) {
 	};
 
 	return (
-		<div className="flex h-8 shrink-0 items-center gap-1.5 rounded border bg-background px-2 py-2 font-medium text-xs shadow-sm transition-colors hover:bg-accent/50 sm:gap-2 sm:px-3">
+		<div className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-background px-2 py-2 font-medium text-xs transition-colors hover:bg-accent/50 sm:gap-2 sm:px-3">
 			<span className="relative flex h-2 w-2 shrink-0">
 				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
 				<span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />

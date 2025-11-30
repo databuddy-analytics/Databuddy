@@ -156,7 +156,7 @@ export const resourcesNavigation: NavigationSection[] = [
 
 export const organizationNavigation: NavigationSection[] = [
 	createNavSection("Organizations", BuildingsIcon, [
-		createNavItem("Organization Overview", ChartPieIcon, "/organizations"),
+		createNavItem("Overview", ChartPieIcon, "/organizations"),
 	]),
 	createNavSection("Team Management", UsersThreeIcon, [
 		createNavItem("Members", UserIcon, "/organizations/members"),
@@ -224,10 +224,10 @@ export const websiteNavigation: NavigationSection[] = [
 
 export const websiteSettingsNavigation: NavigationSection[] = [
 	createNavSection("Website Settings", GearIcon, [
-		createNavItem("General Settings", GearIcon, "/settings/general", {
+		createNavItem("General", GearIcon, "/settings/general", {
 			rootLevel: false,
 		}),
-		createNavItem("Privacy Settings", ShieldCheckIcon, "/settings/privacy", {
+		createNavItem("Privacy", ShieldCheckIcon, "/settings/privacy", {
 			rootLevel: false,
 		}),
 		createNavItem(

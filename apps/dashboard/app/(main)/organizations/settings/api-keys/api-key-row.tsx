@@ -11,7 +11,7 @@ import dayjs from "dayjs";
 import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 
-interface ApiKeyRowItem {
+export type ApiKeyRowItem = {
 	id: string;
 	name: string;
 	prefix: string;
@@ -20,12 +20,12 @@ interface ApiKeyRowItem {
 	revokedAt: Date | null;
 	expiresAt: string | null;
 	createdAt: Date;
-}
+};
 
-interface ApiKeyRowProps {
+type ApiKeyRowProps = {
 	apiKey: ApiKeyRowItem;
 	onSelect: (id: string) => void;
-}
+};
 
 export const ApiKeyRow = memo(function ApiKeyRowComponent({
 	apiKey,
@@ -37,7 +37,7 @@ export const ApiKeyRow = memo(function ApiKeyRowComponent({
 
 	return (
 		<button
-			className="group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50"
+			className="group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent"
 			onClick={() => onSelect(apiKey.id)}
 			type="button"
 		>
@@ -55,20 +55,20 @@ export const ApiKeyRow = memo(function ApiKeyRowComponent({
 				<div className="flex items-center gap-2">
 					<span className="truncate font-medium">{apiKey.name}</span>
 					{!isActive && (
-						<Badge className="bg-destructive/10 text-destructive" variant="secondary">
+						<Badge variant="destructive">
 							<LockIcon className="mr-1" size={10} weight="fill" />
 							{apiKey.revokedAt ? "Revoked" : "Disabled"}
 						</Badge>
 					)}
 					{isExpired && (
-						<Badge className="bg-warning/10 text-warning" variant="secondary">
+						<Badge variant="amber">
 							<WarningIcon className="mr-1" size={10} weight="fill" />
 							Expired
 						</Badge>
 					)}
 				</div>
 				<div className="flex items-center gap-3 text-muted-foreground text-sm">
-					<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+					<code className="rounded border bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
 						{apiKey.prefix}_{apiKey.start}…
 					</code>
 					<span className="flex items-center gap-1 text-xs">
@@ -80,19 +80,13 @@ export const ApiKeyRow = memo(function ApiKeyRowComponent({
 
 			{/* Status */}
 			{isActive ? (
-				<Badge
-					className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-					variant="secondary"
-				>
-					<div className="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500" />
+				<Badge variant="green">
+					<div className="mr-1.5 size-1.5 rounded-full bg-green-600 dark:bg-green-400" />
 					Active
 				</Badge>
 			) : (
-				<Badge
-					className="bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400"
-					variant="secondary"
-				>
-					<div className="mr-1.5 h-1.5 w-1.5 rounded-full bg-gray-400" />
+				<Badge variant="gray">
+					<div className="mr-1.5 size-1.5 rounded-full bg-muted-foreground" />
 					Inactive
 				</Badge>
 			)}

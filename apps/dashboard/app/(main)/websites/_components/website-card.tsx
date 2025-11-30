@@ -3,7 +3,7 @@ import type {
 	Website,
 } from "@databuddy/shared/types/website";
 import {
-	ArrowRightIcon,
+	EyeIcon,
 	MinusIcon,
 	TrendDownIcon,
 	TrendUpIcon,
@@ -21,15 +21,15 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface WebsiteCardProps {
+type WebsiteCardProps = {
 	website: Website;
 	chartData?: ProcessedMiniChartData;
 	isLoadingChart?: boolean;
-}
+};
 
 function TrendStat({
 	trend,
-	className = "flex items-center gap-1 font-medium text-xs sm:text-sm",
+	className = "flex items-center gap-1 font-medium text-xs",
 }: {
 	trend: ProcessedMiniChartData["trend"] | undefined;
 	className?: string;
@@ -42,16 +42,10 @@ function TrendStat({
 			<div className={className}>
 				<TrendUpIcon
 					aria-hidden="true"
-					className="!text-success h-4 w-4"
-					style={{ color: "var(--tw-success, #22c55e)" }}
+					className="size-4 text-success"
 					weight="duotone"
 				/>
-				<span
-					className="!text-success"
-					style={{ color: "var(--tw-success, #22c55e)" }}
-				>
-					+{trend.value.toFixed(0)}%
-				</span>
+				<span className="text-success">+{trend.value.toFixed(0)}%</span>
 			</div>
 		);
 	}
@@ -60,26 +54,16 @@ function TrendStat({
 			<div className={className}>
 				<TrendDownIcon
 					aria-hidden
-					className="!text-destructive h-4 w-4"
-					style={{ color: "var(--tw-destructive, #ef4444)" }}
+					className="size-4 text-destructive"
 					weight="duotone"
 				/>
-				<span
-					className="!text-destructive"
-					style={{ color: "var(--tw-destructive, #ef4444)" }}
-				>
-					-{trend.value.toFixed(0)}%
-				</span>
+				<span className="text-destructive">-{trend.value.toFixed(0)}%</span>
 			</div>
 		);
 	}
 	return (
 		<div className={className}>
-			<MinusIcon
-				aria-hidden
-				className="h-4 w-4 text-muted-foreground"
-				weight="fill"
-			/>
+			<MinusIcon aria-hidden className="size-4 text-muted-foreground" />
 			<span className="text-muted-foreground">0%</span>
 		</div>
 	);
@@ -99,7 +83,7 @@ const formatNumber = (num: number) => {
 const MiniChart = dynamic(
 	() => import("./mini-chart").then((mod) => mod.default),
 	{
-		loading: () => <Skeleton className="h-12 w-full rounded" />,
+		loading: () => <Skeleton className="h-28 w-full rounded" />,
 		ssr: false,
 	}
 );
@@ -115,55 +99,19 @@ export const WebsiteCard = memo(
 			data-website-name={website.name}
 			href={`/websites/${website.id}`}
 		>
-			<Card className="flex h-full select-none flex-col overflow-hidden bg-background transition-all duration-300 ease-in-out group-hover:border-primary/60 group-hover:shadow-primary/5 group-hover:shadow-xl motion-reduce:transform-none motion-reduce:transition-none">
-				<CardHeader className="pb-2">
-					<div className="flex items-center justify-between gap-2">
-						<div className="min-w-0 flex-1">
-							<CardTitle className="truncate font-bold text-base leading-tight transition-colors group-hover:text-primary sm:text-lg">
-								{website.name}
-							</CardTitle>
-							<CardDescription className="flex items-center gap-1 pt-0.5">
-								<FaviconImage
-									altText={`${website.name} favicon`}
-									className="shrink-0"
-									domain={website.domain}
-									size={24}
-								/>
-								<span className="truncate text-xs sm:text-sm">
-									{website.domain}
-								</span>
-							</CardDescription>
-						</div>
-						<ArrowRightIcon
-							aria-hidden="true"
-							className="h-4 w-4 shrink-0 text-muted-foreground transition-all duration-200 group-hover:translate-x-1 group-hover:text-primary"
-							weight="fill"
-						/>
-					</div>
-				</CardHeader>
-
-				<CardContent className="pt-0 pb-3">
+			<Card className="flex h-full select-none flex-col gap-0 overflow-hidden bg-background p-0 transition-all duration-300 ease-in-out group-hover:border-primary/60 group-hover:shadow-primary/5 group-hover:shadow-xl motion-reduce:transform-none motion-reduce:transition-none">
+				<CardHeader className="dotted-bg gap-0! border-b bg-accent-brighter/80 px-0 pt-4 pb-0!">
 					{isLoadingChart ? (
-						<div className="space-y-2">
-							<div className="flex justify-between">
-								<Skeleton className="h-3 w-12 rounded" />
-								<Skeleton className="h-3 w-8 rounded" />
-							</div>
-							<Skeleton className="h-12 w-full rounded sm:h-16" />
+						<div className="px-3">
+							<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
 						</div>
 					) : chartData ? (
 						chartData.data.length > 0 ? (
-							<div className="space-y-2">
-								<div className="flex items-center justify-between">
-									<span className="font-medium text-muted-foreground text-xs sm:text-sm">
-										{formatNumber(chartData.totalViews)} views
-									</span>
-									<TrendStat trend={chartData.trend} />
-								</div>
-								<div className="transition-colors duration-300 [--chart-color:theme(colors.primary.DEFAULT)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
+							<div className="h-28 space-y-2">
+								<div className="h-full transition-colors duration-300 [--chart-color:var(--color-primary)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
 									<Suspense
 										fallback={
-											<Skeleton className="h-12 w-full rounded sm:h-16" />
+											<Skeleton className="h-24 w-full rounded sm:h-28" />
 										}
 									>
 										<MiniChart
@@ -175,15 +123,50 @@ export const WebsiteCard = memo(
 								</div>
 							</div>
 						) : (
-							<div className="py-4 text-center text-muted-foreground text-xs">
+							<div className="py-8 text-center text-muted-foreground text-xs">
 								No data yet
 							</div>
 						)
 					) : (
-						<div className="py-4 text-center text-muted-foreground text-xs">
+						<div className="py-8 text-center text-muted-foreground text-xs">
 							Failed to load
 						</div>
 					)}
+				</CardHeader>
+				<CardContent className="space-y-1 px-4 py-3">
+					<div className="flex items-center gap-3">
+						<FaviconImage
+							altText={`${website.name} favicon`}
+							className="shrink-0"
+							domain={website.domain}
+							size={28}
+						/>
+						<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+							<div className="min-w-0 space-y-0.5">
+								<CardTitle className="truncate font-medium text-sm leading-tight">
+									{website.name}
+								</CardTitle>
+								<CardDescription className="truncate text-muted text-xs">
+									{website.domain}
+								</CardDescription>
+							</div>
+							{chartData && (
+								<div className="flex shrink-0 flex-col items-end space-y-0.5">
+									<span className="flex items-center gap-1 font-medium text-muted text-xs">
+										<EyeIcon
+											className="size-3 shrink-0 text-muted"
+											weight="duotone"
+										/>
+										{formatNumber(chartData.totalViews)}
+									</span>
+									<TrendStat
+										className="flex items-center gap-0.5 font-medium text-[10px]"
+										trend={chartData.trend}
+									/>
+								</div>
+							)}
+						</div>
+					</div>
 				</CardContent>
 			</Card>
 		</Link>
@@ -194,13 +177,24 @@ WebsiteCard.displayName = "WebsiteCard";
 
 export function WebsiteCardSkeleton() {
 	return (
-		<Card className="h-full">
-			<CardHeader>
-				<Skeleton className="h-6 w-3/4 rounded" />
-				<Skeleton className="mt-1 h-4 w-1/2 rounded" />
+		<Card className="h-full overflow-hidden pt-0">
+			<CardHeader className="dotted-bg gap-0! border-b bg-accent-brighter/80 px-3 pt-4 pb-0!">
+				<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
 			</CardHeader>
-			<CardContent>
-				<Skeleton className="h-20 w-full rounded sm:h-24" />
+			<CardContent className="px-4 py-3">
+				<div className="flex items-center gap-3">
+					<Skeleton className="size-7 shrink-0 rounded" />
+					<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+						<div className="flex flex-col gap-1">
+							<Skeleton className="h-3.5 w-24 rounded" />
+							<Skeleton className="h-3 w-32 rounded" />
+						</div>
+						<div className="flex flex-col items-end gap-1">
+							<Skeleton className="h-3 w-12 rounded" />
+							<Skeleton className="h-2.5 w-8 rounded" />
+						</div>
+					</div>
+				</div>
 			</CardContent>
 		</Card>
 	);

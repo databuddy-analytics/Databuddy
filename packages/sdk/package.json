@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.2.11",
+  "version": "2.2.12",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",

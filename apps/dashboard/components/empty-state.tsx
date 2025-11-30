@@ -1,30 +1,31 @@
 "use client";
 
-import { PlusIcon } from "@phosphor-icons/react";
-import { memo, type ReactNode } from "react";
+import { type IconProps, PlusIcon } from "@phosphor-icons/react";
+import { cloneElement, memo, type ReactElement, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export interface EmptyStateAction {
+export type EmptyStateAction = {
 	label: string;
 	onClick: () => void;
 	variant?: "default" | "outline" | "secondary";
-}
+	size?: "default" | "sm" | "lg" | "icon";
+};
 
-export interface EmptyStateProps {
+export type EmptyStateProps = {
 	/** Main icon to display */
-	icon: ReactNode;
+	icon: ReactElement<IconProps>;
 	/** Main heading */
 	title: string;
 	/** Description text */
-	description: string | ReactNode;
+	description?: string | ReactNode;
 	/** Primary action button */
 	action?: EmptyStateAction;
 	/** Secondary action button */
 	secondaryAction?: EmptyStateAction;
 	/** Custom styling variants */
-	variant?: "default" | "simple" | "minimal";
+	variant?: "default" | "simple" | "minimal" | "error";
 	/** Custom className */
 	className?: string;
 	/** Whether to show the plus badge on the icon */
@@ -37,7 +38,7 @@ export interface EmptyStateProps {
 	"aria-label"?: string;
 	/** Whether this is the main content area */
 	isMainContent?: boolean;
-}
+};
 
 export const EmptyState = memo(function EmptyState({
 	icon,
@@ -45,7 +46,7 @@ export const EmptyState = memo(function EmptyState({
 	description,
 	action,
 	secondaryAction,
-	variant = "default",
+	variant = "minimal",
 	className,
 	showPlusBadge = true,
 	padding = "lg",
@@ -60,21 +61,34 @@ export const EmptyState = memo(function EmptyState({
 			case "md":
 				return "px-8 py-14";
 			case "lg":
-				return "px-8 py-16";
+				return "px-8";
 			default:
-				return "px-8 py-16";
+				return "px-8";
 		}
 	};
 
 	const renderIcon = () => {
-		if (variant === "simple" || variant === "minimal") {
+		if (variant === "simple" || variant === "minimal" || variant === "error") {
 			return (
 				<div
 					aria-hidden="true"
-					className="mb-4 rounded-full border border-muted bg-muted/10 p-6"
+					className={cn(
+						"flex size-12 items-center justify-center rounded-2xl bg-accent-foreground",
+						variant === "error" && "bg-destructive/10"
+					)}
 					role="img"
 				>
-					{icon}
+					{cloneElement(icon, {
+						...icon.props,
+						className: cn(
+							"size-6 text-accent",
+							variant === "error" && "text-destructive",
+							icon.props.className
+						),
+						"aria-hidden": "true",
+						size: 24,
+						weight: "fill",
+					})}
 				</div>
 			);
 		}
@@ -105,7 +119,7 @@ export const EmptyState = memo(function EmptyState({
 						tabIndex={0}
 						type="button"
 					>
-						<PlusIcon className="h-6 w-6 text-primary" size={16} />
+						<PlusIcon className="size-6 text-accent-foreground" size={16} />
 					</button>
 				)}
 			</div>
@@ -117,13 +131,16 @@ export const EmptyState = memo(function EmptyState({
 			variant === "default" &&
 				"rounded-xl border-2 border-dashed bg-gradient-to-br from-background to-muted/10",
 			variant === "simple" && "rounded border-dashed bg-muted/10",
-			variant === "minimal" && "rounded border-none bg-transparent shadow-none",
+			variant === "minimal" &&
+				"flex flex-1 rounded border-none bg-transparent shadow-none",
+			variant === "error" &&
+				"flex flex-1 rounded border-none bg-transparent shadow-none",
 			"safe-area-inset-4 sm:safe-area-inset-6 lg:safe-area-inset-8",
 			className
 		);
 
 		const contentClasses = cn(
-			"flex flex-col items-center justify-center text-center",
+			"flex flex-1 flex-col items-center justify-center text-center",
 			getPadding(),
 			"px-6 sm:px-8 lg:px-12"
 		);
@@ -147,29 +164,35 @@ export const EmptyState = memo(function EmptyState({
 							<h1
 								className={cn(
 									"font-semibold text-foreground",
-									variant === "minimal" ? "text-lg" : "text-2xl lg:text-3xl"
+									variant === "minimal" || variant === "error"
+										? "text-lg"
+										: "text-2xl lg:text-3xl"
 								)}
 							>
 								{title}
 							</h1>
 						) : (
-							<h2
+							<div
 								className={cn(
-									"font-semibold text-foreground",
-									variant === "minimal" ? "text-lg" : "text-2xl lg:text-3xl"
+									"text-muted-foreground leading-relaxed",
+									variant === "minimal" || variant === "error"
+										? "text-sm"
+										: "text-base lg:text-lg"
 								)}
 							>
-								{title}
-							</h2>
+								<h2
+									className={cn(
+										"mt-5 font-medium text-foreground",
+										variant === "minimal" || variant === "error"
+											? "text-lg"
+											: "text-2xl lg:text-3xl"
+									)}
+								>
+									{title}
+								</h2>
+								<p>{description}</p>
+							</div>
 						)}
-						<div
-							className={cn(
-								"text-muted-foreground leading-relaxed",
-								variant === "minimal" ? "text-sm" : "text-base lg:text-lg"
-							)}
-						>
-							{description}
-						</div>
 						{(action || secondaryAction) && (
 							<div
 								className={cn(
@@ -179,16 +202,8 @@ export const EmptyState = memo(function EmptyState({
 							>
 								{action && (
 									<Button
-										className={cn(
-											variant === "default" &&
-												"group relative min-h-[44px] cursor-pointer touch-manipulation select-none gap-2 overflow-hidden rounded-lg bg-linear-to-r from-primary to-primary/90 px-8 py-4 font-medium text-base transition-all duration-300 hover:from-primary/90 hover:to-primary hover:shadow-lg focus-visible:shadow-md focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[40px]",
-											variant === "simple" &&
-												"min-h-[44px] cursor-pointer touch-manipulation select-none gap-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[40px]",
-											variant === "minimal" &&
-												"min-h-[44px] cursor-pointer touch-manipulation select-none gap-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-[40px]"
-										)}
 										onClick={action.onClick}
-										size="lg"
+										size={action.size || "default"}
 										type="button"
 										variant={action.variant || "default"}
 									>
@@ -241,7 +256,7 @@ export function FeatureEmptyState({
 	actionLabel,
 	onAction,
 }: {
-	icon: ReactNode;
+	icon: ReactElement<IconProps>;
 	title: string;
 	description: string;
 	actionLabel: string;

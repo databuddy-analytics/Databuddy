@@ -26,10 +26,8 @@ function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
 	return (
 		<button
 			className={cn(
-				"flex w-full items-center gap-3 rounded border px-3 py-2 text-left transition-colors",
-				selected
-					? "border-primary bg-primary/5"
-					: "hover:border-primary/30 hover:bg-muted/50"
+				"flex w-full items-center gap-3 rounded border bg-card px-3 py-2 text-left transition-colors",
+				selected ? "bg-accent" : "hover:bg-accent"
 			)}
 			onClick={onClick}
 			type="button"
@@ -39,8 +37,8 @@ function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
 				className="h-6 w-6 shrink-0"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="flex h-6 w-6 items-center justify-center rounded bg-muted">
-						<GlobeIcon className="text-muted-foreground" size={12} />
+					<div className="flex h-6 w-6 items-center justify-center rounded bg-secondary">
+						<GlobeIcon className="text-accent-foreground" size={12} />
 					</div>
 				}
 				size={24}
@@ -61,7 +59,7 @@ type EmptyListProps = {
 
 function EmptyList({ label }: EmptyListProps) {
 	return (
-		<div className="flex flex-col items-center justify-center py-8 text-center">
+		<div className="flex flex-col items-center justify-center rounded border border-dashed py-8 text-center">
 			<GlobeIcon className="mb-2 text-muted-foreground/50" size={24} />
 			<p className="text-muted-foreground text-xs">{label}</p>
 		</div>
@@ -159,14 +157,18 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 		<div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
 			{/* Personal Websites */}
 			<div className="flex flex-1 flex-col">
-				<div className="mb-2 flex items-center gap-2">
-					<UserIcon className="text-primary" size={14} weight="duotone" />
+				<div className="mb-3 flex items-center gap-2">
+					<UserIcon
+						className="text-accent-foreground"
+						size={14}
+						weight="duotone"
+					/>
 					<span className="font-medium text-sm">Personal</span>
 					<span className="text-muted-foreground text-xs">
 						({personalWebsites.length})
 					</span>
 				</div>
-				<div className="flex-1 space-y-1 overflow-y-auto">
+				<div className="flex-1 space-y-2 overflow-y-auto">
 					{personalWebsites.length > 0 ? (
 						personalWebsites.map((website) => (
 							<WebsiteItem
@@ -193,7 +195,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 					disabled={!selectedSide || isTransferring}
 					onClick={handleTransfer}
 					size="icon"
-					variant="outline"
+					variant={selectedWebsite && selectedSide ? "default" : "outline"}
 				>
 					{isTransferring ? (
 						<div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
@@ -211,8 +213,12 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 
 			{/* Organization Websites */}
 			<div className="flex flex-1 flex-col">
-				<div className="mb-2 flex items-center gap-2">
-					<BuildingsIcon className="text-primary" size={14} weight="duotone" />
+				<div className="mb-3 flex items-center gap-2">
+					<BuildingsIcon
+						className="text-accent-foreground"
+						size={14}
+						weight="duotone"
+					/>
 					<span className="font-medium text-sm">Organization</span>
 					<span className="text-muted-foreground text-xs">
 						({organizationWebsites.length})

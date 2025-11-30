@@ -288,38 +288,20 @@ export function MetricsChart({
 		return (
 			<div
 				className={cn(
-					"w-full rounded border border-sidebar-border bg-sidebar",
+					"w-full rounded border border-sidebar-border bg-card",
 					className
 				)}
 			>
-				<div className="border-sidebar-border border-b px-6 py-6">
-					<h2 className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground tracking-tight">
-						<ChartLineIcon
-							className="h-5 w-5 text-sidebar-ring"
-							weight="duotone"
-						/>
-						{title}
-					</h2>
-					{description && (
-						<p className="mt-1 text-sidebar-foreground/70 text-sm">
-							{description}
-						</p>
-					)}
-				</div>
 				<div className="flex items-center justify-center p-8">
-					<div className="py-12 text-center">
-						<div className="relative">
-							<ChartLineIcon
-								className="mx-auto h-16 w-16 text-sidebar-foreground/20"
-								strokeWidth={1.5}
-								weight="duotone"
-							/>
+					<div className="flex flex-col items-center py-12 text-center">
+						<div className="relative flex size-12 items-center justify-center rounded-2xl bg-accent-foreground">
+							<ChartLineIcon className="size-6 text-accent" />
 							<div className="absolute inset-0 rounded-full bg-linear-to-br from-sidebar-ring/10 to-transparent blur-xl" />
 						</div>
-						<p className="mt-6 font-semibold text-lg text-sidebar-foreground">
+						<p className="mt-6 font-medium text-lg text-sidebar-foreground">
 							No data available
 						</p>
-						<p className="mx-auto mt-2 max-w-sm text-sidebar-foreground/70 text-sm">
+						<p className="mx-auto max-w-sm text-sidebar-foreground/70 text-sm">
 							Your analytics data will appear here as visitors interact with
 							your website
 						</p>

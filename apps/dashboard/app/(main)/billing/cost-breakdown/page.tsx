@@ -71,29 +71,25 @@ export default function CostBreakdownPage() {
 	}, [orgUsage]);
 
 	return (
-		<main className="min-h-0 flex-1 overflow-y-auto">
+		<main className="flex h-full flex-col">
 			<div className="flex min-h-0 flex-1 flex-col">
-				<div className="flex-3">
-					<Suspense fallback={<Skeleton className="h-full w-full" />}>
-						<ConsumptionChart
-							isLoading={isUsageLoading}
-							onDateRangeChange={(start, end) =>
-								setDateRange({ startDate: start, endDate: end })
-							}
-							overageInfo={overageInfo}
-							usageData={usageData}
-						/>
-					</Suspense>
-				</div>
-				<div className="flex-2">
-					<Suspense fallback={<Skeleton className="h-full w-full" />}>
-						<UsageBreakdownTable
-							isLoading={isUsageLoading}
-							overageInfo={overageInfo}
-							usageData={usageData}
-						/>
-					</Suspense>
-				</div>
+				<Suspense fallback={<Skeleton className="h-full w-full" />}>
+					<ConsumptionChart
+						isLoading={isUsageLoading}
+						onDateRangeChange={(start, end) =>
+							setDateRange({ startDate: start, endDate: end })
+						}
+						overageInfo={overageInfo}
+						usageData={usageData}
+					/>
+				</Suspense>
+				<Suspense fallback={<Skeleton className="h-full w-full" />}>
+					<UsageBreakdownTable
+						isLoading={isUsageLoading}
+						overageInfo={overageInfo}
+						usageData={usageData}
+					/>
+				</Suspense>
 			</div>
 		</main>
 	);

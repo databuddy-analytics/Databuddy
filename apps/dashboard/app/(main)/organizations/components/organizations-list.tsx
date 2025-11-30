@@ -2,7 +2,6 @@
 
 import { authClient } from "@databuddy/auth/client";
 import {
-	BookOpenIcon,
 	BuildingsIcon,
 	CaretRightIcon,
 	CheckCircleIcon,
@@ -14,7 +13,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import type { Organization } from "@/components/providers/organizations-provider";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,10 @@ import { cn, getOrganizationInitials } from "@/lib/utils";
 
 dayjs.extend(relativeTime);
 
-interface OrganizationsListProps {
+type OrganizationsListProps = {
 	organizations: Organization[] | null | undefined;
 	activeOrganization: Organization | null | undefined;
-}
+};
 
 function EmptyState() {
 	return (
@@ -47,12 +48,12 @@ function EmptyState() {
 	);
 }
 
-interface OrganizationRowProps {
+type OrganizationRowProps = {
 	organization: Organization;
 	isActive: boolean;
 	isProcessing: boolean;
 	onClick: () => void;
-}
+};
 
 function OrganizationRow({
 	organization,
@@ -63,8 +64,7 @@ function OrganizationRow({
 	return (
 		<button
 			className={cn(
-				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left transition-colors",
-				isActive ? "bg-primary/5" : "hover:bg-muted/50",
+				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent",
 				isProcessing && "pointer-events-none opacity-60"
 			)}
 			onClick={onClick}
@@ -76,9 +76,12 @@ function OrganizationRow({
 				</div>
 			)}
 
-			<Avatar className="h-10 w-10 border transition-colors group-hover:border-primary/30">
-				<AvatarImage alt={organization.name} src={organization.logo ?? undefined} />
-				<AvatarFallback className="bg-accent text-xs">
+			<Avatar className="size-10 transition-colors">
+				<AvatarImage
+					alt={organization.name}
+					src={organization.logo ?? undefined}
+				/>
+				<AvatarFallback className="bg-accent text-sm">
 					{getOrganizationInitials(organization.name)}
 				</AvatarFallback>
 			</Avatar>
@@ -91,14 +94,14 @@ function OrganizationRow({
 			</div>
 
 			{isActive && (
-				<Badge className="border-primary/20 bg-primary/10 text-primary" variant="secondary">
+				<Badge variant="secondary">
 					<CheckCircleIcon className="mr-1" size={12} weight="fill" />
 					Active
 				</Badge>
 			)}
 
 			<CaretRightIcon
-				className="text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary"
+				className="text-accent-foreground transition-all group-hover:translate-x-0.5"
 				size={16}
 				weight="bold"
 			/>
@@ -112,7 +115,8 @@ export function OrganizationsList({
 }: OrganizationsListProps) {
 	const router = useRouter();
 	const [processingId, setProcessingId] = useState<string | null>(null);
-
+	const [showCreateOrganizationDialog, setShowCreateOrganizationDialog] =
+		useState(false);
 	const handleOrgClick = async (orgId: string) => {
 		const isCurrentlyActive = activeOrganization?.id === orgId;
 
@@ -147,7 +151,7 @@ export function OrganizationsList({
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 			{/* Organizations List */}
-			<div className="flex flex-col border-b lg:border-b-0 lg:border-r">
+			<div className="flex flex-col border-b lg:border-b-0">
 				<div className="flex-1 divide-y overflow-y-auto">
 					{organizations.map((org) => (
 						<OrganizationRow
@@ -162,49 +166,21 @@ export function OrganizationsList({
 			</div>
 
 			{/* Sidebar */}
-			<aside className="flex flex-col gap-4 bg-muted/30 p-5">
-				{/* Create Button */}
-				<Button asChild className="w-full">
-					<Link href="/organizations/new">
-						<PlusIcon className="mr-2" size={16} />
-						New Organization
-					</Link>
+			<RightSidebar className="gap-4 p-5">
+				<Button
+					className="w-full"
+					onClick={() => setShowCreateOrganizationDialog(true)}
+				>
+					<PlusIcon size={16} />
+					New Organization
 				</Button>
-
-				{/* Stats Card */}
-				<div className="flex items-center gap-3 rounded border bg-background p-4">
-					<div className="flex h-10 w-10 items-center justify-center rounded bg-primary/10">
-						<BuildingsIcon className="text-primary" size={20} weight="duotone" />
-					</div>
-					<div>
-						<p className="font-semibold tabular-nums">{organizations.length}</p>
-						<p className="text-muted-foreground text-sm">
-							Organization{organizations.length !== 1 ? "s" : ""}
-						</p>
-					</div>
-				</div>
-
-				{/* Docs Link */}
-				<Button asChild className="w-full justify-start" variant="outline">
-					<a
-						href="https://www.databuddy.cc/docs/getting-started"
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						<BookOpenIcon className="mr-2" size={16} />
-						Documentation
-					</a>
-				</Button>
-
-				{/* Tip */}
-				<div className="mt-auto rounded border border-dashed bg-background/50 p-4">
-					<p className="mb-2 font-medium text-sm">Quick tip</p>
-					<p className="text-muted-foreground text-xs leading-relaxed">
-						Click on an organization to switch to it. The active organization is
-						used across the dashboard.
-					</p>
-				</div>
-			</aside>
+				<CreateOrganizationDialog
+					isOpen={showCreateOrganizationDialog}
+					onClose={() => setShowCreateOrganizationDialog(false)}
+				/>
+				<RightSidebar.DocsLink />
+				<RightSidebar.Tip description="Click on an organization to switch to it. The active organization is used across the dashboard." />
+			</RightSidebar>
 		</div>
 	);
 }

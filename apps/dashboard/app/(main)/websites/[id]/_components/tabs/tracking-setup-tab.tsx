@@ -73,7 +73,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: WebsiteDataTabProps) {
 		<div className="space-y-4">
 			{/* Tracking Status */}
 			<TrackingStatusCard
-				integrationType={trackingSetupData?.integration_type ?? undefined}
 				isSetup={trackingSetupData?.tracking_setup ?? false}
 				onRefresh={handleRefresh}
 			/>

@@ -372,7 +372,7 @@ test.describe("API Methods", () => {
                     ignoreBotDetection: true,
                     enableBatching: true,
                     batchSize: 100, // Large size so it won't auto-flush
-                    batchTimeout: 60000, // Long timeout
+                    batchTimeout: 60_000, // Long timeout
                 };
             });
             await page.addScriptTag({ url: "/dist/databuddy.js" });
@@ -418,7 +418,7 @@ test.describe("API Methods", () => {
                     ignoreBotDetection: true,
                     enableBatching: true,
                     batchSize: 100,
-                    batchTimeout: 60000,
+                    batchTimeout: 60_000,
                 };
             });
             await page.addScriptTag({ url: "/dist/databuddy.js" });
@@ -505,4 +505,3 @@ test.describe("API Methods", () => {
         });
     });
 });
-

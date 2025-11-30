@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	CrownIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CrownIcon, TrashIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useState } from "react";
@@ -62,12 +59,7 @@ function RoleSelector({
 	organizationId,
 }: RoleSelectorProps) {
 	if (member.role === "owner") {
-		return (
-			<Badge className="border-amber-500/20 bg-amber-500/10 text-amber-600" variant="secondary">
-				<CrownIcon className="mr-1" size={12} weight="fill" />
-				Owner
-			</Badge>
-		);
+		return <Badge variant="amber">Owner</Badge>;
 	}
 
 	return (
@@ -113,8 +105,11 @@ function MemberRow({
 }: MemberRowProps) {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<Avatar className="h-10 w-10 border">
-				<AvatarImage alt={member.user.name} src={member.user.image ?? undefined} />
+			<Avatar className="size-10">
+				<AvatarImage
+					alt={member.user.name}
+					src={member.user.image ?? undefined}
+				/>
 				<AvatarFallback className="bg-accent text-sm">
 					{member.user.name.charAt(0).toUpperCase()}
 				</AvatarFallback>
@@ -124,7 +119,11 @@ function MemberRow({
 				<div className="flex items-center gap-2">
 					<p className="truncate font-medium">{member.user.name}</p>
 					{member.role === "owner" && (
-						<CrownIcon className="shrink-0 text-amber-500" size={14} weight="fill" />
+						<CrownIcon
+							className="shrink-0 text-amber-500"
+							size={14}
+							weight="fill"
+						/>
 					)}
 				</div>
 				<p className="truncate text-muted-foreground text-sm">
@@ -166,7 +165,9 @@ export function MemberList({
 	isUpdatingMember,
 	organizationId,
 }: MemberListProps) {
-	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(null);
+	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(
+		null
+	);
 
 	const handleRemove = async () => {
 		if (!memberToRemove) return;

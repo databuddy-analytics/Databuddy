@@ -46,26 +46,25 @@ export default function MagicLinkPage() {
 		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden p-6">
 			<div className="mb-12 text-center">
 				<div className="relative mb-10 inline-flex h-16 w-16 items-center justify-center">
-					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-blue-200 to-blue-100 opacity-20 blur-md" />
+					<div className="-inset-1 absolute animate-pulse rounded-full bg-radial from-accent-foreground to-transparent opacity-20 blur-md" />
 					<div className="relative">
 						<Sparkles className="h-8 w-8 animate-pulse text-foreground" />
 					</div>
 				</div>
-				<h1 className="font-bold text-2xl text-foreground">
+				<h1 className="font-medium text-2xl text-foreground">
 					Sign in with magic link
 				</h1>
-				<p className="mt-2 text-muted-foreground">
+				<p className="mt-1 text-muted-foreground text-sm">
 					No password needed — just use your email
 				</p>
 			</div>
 			<form className="space-y-4" onSubmit={handleMagicLinkLogin}>
-				<div className="space-y-2">
+				<div className="space-y-3">
 					<Label className="font-medium text-foreground" htmlFor="magic-email">
 						Email address
 					</Label>
 					<Input
 						autoComplete="email"
-						className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
 						id="magic-email"
 						name="email"
 						onChange={(e) => setEmail(e.target.value)}
@@ -76,36 +75,28 @@ export default function MagicLinkPage() {
 					/>
 				</div>
 				<div className="flex items-center gap-3 p-3 text-info-foreground text-sm">
-					<Sparkles className="h-5 w-5 shrink-0 text-foreground" />
+					<Sparkles className="size-4 shrink-0 text-foreground" />
 					<p className="text-muted-foreground">
 						We'll send a secure link to your email that will sign you in
 						instantly — no password needed.
 					</p>
 				</div>
-				<Button
-					className="h-11 w-full bg-info text-info-foreground hover:bg-info/90"
-					disabled={isLoading}
-					type="submit"
-				>
+				<Button className="w-full" disabled={isLoading} size="lg" type="submit">
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							<Loader2 className="size-4 animate-spin" />
 							Sending magic link...
 						</>
 					) : (
 						<>
-							<Sparkles className="mr-2 h-4 w-4" />
+							<Sparkles className="size-4" />
 							Send magic link
 						</>
 					)}
 				</Button>
 				<Link className="block" href="/login">
-					<Button
-						className="h-11 w-full border-info/20 hover:cursor-pointer hover:bg-info/5"
-						type="button"
-						variant="outline"
-					>
-						<ChevronLeft className="mr-2 h-4 w-4" />
+					<Button className="w-full" size="lg" type="button" variant="ghost">
+						<ChevronLeft className="size-4" />
 						Back to login
 					</Button>
 				</Link>

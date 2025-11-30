@@ -13,7 +13,7 @@
     "@databuddy/email": "*",
     "@databuddy/redis": "*",
     "@databuddy/shared": "*",
-    "better-auth": "^1.4.0",
+    "better-auth": "^1.4.3",
     "drizzle-kit": "^0.31.5",
     "pg": "^8.16.3",
     "prettier": "^3.6.2",

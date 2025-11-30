@@ -112,22 +112,22 @@ export function DateRangePicker({
 				<PopoverTrigger asChild>
 					<Button
 						className={cn(
-							"h-8 justify-start gap-2 whitespace-nowrap rounded border px-3 text-left font-medium text-xs shadow-sm transition-colors hover:bg-accent/50",
+							"h-8 justify-start gap-2 whitespace-nowrap rounded px-3 text-left font-medium text-xs transition-colors",
 							!hasSelection && "text-muted-foreground"
 						)}
 						disabled={disabled}
-						variant="outline"
+						variant="secondary"
 					>
-						<CalendarDotsIcon className="h-4 w-4" weight="duotone" />
+						<CalendarDotsIcon className="size-4" weight="duotone" />
 						<span className="truncate">{getDisplayText()}</span>
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
 					align="end"
-					className="w-auto rounded border p-0 shadow-md sm:max-w-none"
+					className="w-auto rounded border p-0 sm:max-w-none"
 					sideOffset={4}
 				>
-					<div className="border-b bg-muted/20 p-4">
+					<div className="rounded-t-md border-b bg-accent-brighter p-4">
 						<div className="text-muted-foreground text-sm">
 							{tempRange?.from && tempRange?.to ? (
 								<span className="font-medium text-foreground">
@@ -183,7 +183,7 @@ export function DateRangePicker({
 						/>
 					</div>
 
-					<div className="flex items-center justify-between border-t bg-muted/20 p-4">
+					<div className="flex items-center justify-between rounded-b-md border-t bg-accent-brighter p-4">
 						<Button
 							className="h-8 text-muted-foreground transition-[color,box-shadow] hover:text-foreground"
 							onClick={handleClear}
@@ -203,7 +203,7 @@ export function DateRangePicker({
 								Cancel
 							</Button>
 							<Button
-								className="h-8 shadow-xs transition-[color,box-shadow]"
+								className="h-8 transition-[color,box-shadow]"
 								disabled={!hasValidTempSelection}
 								onClick={handleApply}
 								size="sm"

@@ -109,8 +109,8 @@ test.describe("Event Context", () => {
             const payload = request.postDataJSON();
 
             expect(payload.timezone).toBeTruthy();
-            // Timezone should be a valid IANA timezone string
-            expect(payload.timezone).toMatch(/^[A-Za-z_]+\/[A-Za-z_]+$/);
+            // Timezone should be a valid IANA timezone string (UTC, GMT, or Area/Location format)
+            expect(payload.timezone).toMatch(/^([A-Za-z_]+\/[A-Za-z_]+|UTC|GMT)$/);
         });
     });
 

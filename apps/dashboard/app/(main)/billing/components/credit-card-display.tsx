@@ -20,7 +20,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 
 	if (!card) {
 		return (
-			<div className="flex aspect-[1.586/1] w-full flex-col items-center justify-center rounded border border-dashed bg-muted/30">
+			<div className="flex aspect-[1.586/1] w-full flex-col items-center justify-center rounded border border-dashed bg-background">
 				<CreditCardIcon
 					className="mb-2 text-muted-foreground"
 					size={28}

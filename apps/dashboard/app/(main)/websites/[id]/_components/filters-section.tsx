@@ -280,7 +280,7 @@ export function FiltersSection() {
 					</div>
 				</div>
 			)}
-			<div className="flex min-h-[52px] flex-wrap items-center gap-2 p-2 sm:p-4">
+			<div className="flex min-h-[52px] flex-wrap items-center gap-2 p-4">
 				<div className="flex flex-wrap items-center gap-2">
 					{selectedFilters.map((filter, index) => {
 						const fieldLabel = filterOptions.find(
@@ -293,7 +293,7 @@ export function FiltersSection() {
 
 						return (
 							<div
-								className="group inline-flex min-h-[44px] items-center gap-1.5 rounded-md border bg-muted/30 px-2 py-1.5 text-xs transition-all hover:bg-muted/50 hover:shadow-sm sm:gap-2 sm:px-3 sm:text-sm"
+								className="group inline-flex items-center gap-1.5 rounded-md border bg-secondary px-2 py-1 text-xs transition-all hover:bg-secondary-brighter"
 								key={`filter-${filter.field}-${filter.operator}-${Array.isArray(filter.value) ? filter.value.join("-") : filter.value}-${index}`}
 							>
 								<div className="flex items-center gap-1.5 sm:gap-2">
@@ -309,11 +309,11 @@ export function FiltersSection() {
 								</div>
 								<button
 									aria-label={`Remove filter ${fieldLabel} ${operatorSymbol} ${valueLabel}`}
-									className="h-6 w-6 shrink-0 touch-manipulation rounded-full p-0.5 text-muted-foreground opacity-60 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-80"
+									className="flex size-6 shrink-0 touch-manipulation items-center justify-center rounded-full p-0.5 text-muted-foreground transition-colors duration-200 group-hover:text-accent-foreground"
 									onClick={() => handleRemoveFilter(index)}
 									type="button"
 								>
-									<XIcon className="h-3 w-3" weight="bold" />
+									<XIcon className="size-3" weight="bold" />
 								</button>
 							</div>
 						);
@@ -341,10 +341,10 @@ export function FiltersSection() {
 									setIsSaveDialogOpen(true);
 								}}
 								size="sm"
-								variant="outline"
+								variant="secondary"
 							>
 								<FloppyDiskIcon
-									className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+									className="size-3.5 sm:size-4"
 									weight="duotone"
 								/>
 								<span className="hidden sm:inline">Save as New</span>

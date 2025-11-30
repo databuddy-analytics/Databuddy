@@ -12,6 +12,8 @@ import type { CustomerInvoice } from "autumn-js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { memo, useMemo } from "react";
+import { EmptyState } from "@/components/empty-state";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,15 +61,14 @@ export default function HistoryPage() {
 			<div className="flex h-full flex-col overflow-y-auto lg:grid lg:h-full lg:grid-cols-[1fr_20rem] lg:overflow-hidden">
 				{/* Main Content - Invoices */}
 				<div className="shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">
-					<div className="border-b px-5 py-4">
-						<h2 className="font-semibold">Invoices</h2>
-						<p className="text-muted-foreground text-sm">
-							View and download your billing history
-						</p>
-					</div>
-
 					{sortedInvoices.length === 0 ? (
-						<EmptyInvoices />
+						<EmptyState
+							className="h-full"
+							description="Invoices will appear here after your first payment"
+							icon={<ReceiptIcon />}
+							title="No invoices yet"
+							variant="minimal"
+						/>
 					) : (
 						<div className="divide-y">
 							{sortedInvoices.map((invoice) => (
@@ -78,10 +79,10 @@ export default function HistoryPage() {
 				</div>
 
 				{/* Sidebar - Subscription History + Actions */}
-				<div className="flex w-full shrink-0 flex-col border-t bg-muted/30 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
+				<RightSidebar>
 					{/* Subscription Changes */}
 					<div className="border-b p-5">
-						<h3 className="mb-3 font-semibold">Subscription History</h3>
+						<h3 className="font-semibold">Subscription History</h3>
 						{subscriptionHistory.length === 0 ? (
 							<p className="text-muted-foreground text-sm">
 								No subscription history yet
@@ -104,17 +105,13 @@ export default function HistoryPage() {
 
 						{/* Actions */}
 						<div className="flex w-full flex-col gap-2 lg:w-auto lg:p-5">
-							<Button
-								className="w-full"
-								onClick={onManageBilling}
-								variant="outline"
-							>
+							<Button className="w-full" onClick={onManageBilling}>
 								Billing Portal
-								<ArrowSquareOutIcon className="ml-2" size={14} />
+								<ArrowSquareOutIcon size={14} />
 							</Button>
 						</div>
 					</div>
-				</div>
+				</RightSidebar>
 			</div>
 		</main>
 	);
@@ -136,11 +133,25 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 					<div
 						className={cn(
 							"flex h-10 w-10 shrink-0 items-center justify-center rounded border",
-							status.bgClass
+							status.variant === "green"
+								? "border-green-600 bg-green-100 dark:border-green-800 dark:bg-green-900/30"
+								: status.variant === "amber"
+									? "border-amber-600 bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30"
+									: status.variant === "destructive"
+										? "border-destructive bg-destructive-100 dark:border-destructive-800 dark:bg-destructive-900/30"
+										: "border-muted-foreground bg-muted dark:border-muted-foreground dark:bg-muted/30"
 						)}
 					>
 						<status.icon
-							className={status.iconClass}
+							className={cn(
+								status.variant === "green"
+									? "text-green-600 dark:text-green-600"
+									: status.variant === "amber"
+										? "text-amber-600 dark:text-amber-400"
+										: status.variant === "destructive"
+											? "text-destructive dark:text-destructive-400"
+											: "text-muted-foreground dark:text-muted-foreground/80"
+							)}
 							size={18}
 							weight="duotone"
 						/>
@@ -150,9 +161,7 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 							<span className="font-medium">
 								Invoice #{invoice.stripe_id.slice(-8)}
 							</span>
-							<Badge className={status.badgeClass} variant="secondary">
-								{status.label}
-							</Badge>
+							<Badge variant={status.variant}>{status.label}</Badge>
 						</div>
 						<div className="flex items-center gap-2 text-muted-foreground text-sm">
 							<span>{formattedDate}</span>
@@ -168,9 +177,9 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 						className="shrink-0"
 						onClick={() => window.open(invoice.hosted_invoice_url, "_blank")}
 						size="sm"
-						variant="ghost"
+						variant="secondary"
 					>
-						<FileTextIcon className="mr-2" size={14} weight="duotone" />
+						<FileTextIcon size={14} weight="duotone" />
 						View
 					</Button>
 				)}
@@ -286,24 +295,6 @@ function BillingSummary({ invoices }: { invoices: CustomerInvoice[] }) {
 	);
 }
 
-function EmptyInvoices() {
-	return (
-		<div className="flex flex-col items-center justify-center py-16 text-center">
-			<div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-				<ReceiptIcon
-					className="text-muted-foreground"
-					size={24}
-					weight="duotone"
-				/>
-			</div>
-			<p className="font-semibold">No invoices yet</p>
-			<p className="mt-1 max-w-xs text-muted-foreground text-sm">
-				Invoices will appear here after your first payment
-			</p>
-		</div>
-	);
-}
-
 function HistorySkeleton() {
 	return (
 		<div className="flex h-full flex-col overflow-y-auto lg:grid lg:grid-cols-[1fr_20rem] lg:overflow-hidden">
@@ -326,7 +317,7 @@ function HistorySkeleton() {
 					))}
 				</div>
 			</div>
-			<div className="flex w-full shrink-0 flex-col border-t bg-muted/30 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
+			<div className="flex w-full shrink-0 flex-col border-t bg-card lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
 				<div className="border-b p-5">
 					<Skeleton className="mb-3 h-5 w-36" />
 					<div className="space-y-3">
@@ -353,34 +344,22 @@ function getInvoiceStatus(status: string) {
 			return {
 				label: "Paid",
 				icon: CheckCircleIcon,
-				bgClass: "bg-emerald-500/10",
-				iconClass: "text-emerald-500",
-				badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+				variant: "green" as const,
 			};
 		case "open":
 		case "pending":
-			return {
-				label: "Pending",
-				icon: ClockIcon,
-				bgClass: "bg-amber-500/10",
-				iconClass: "text-amber-500",
-				badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-			};
+			return { label: "Pending", icon: ClockIcon, variant: "amber" as const };
 		case "failed":
 			return {
 				label: "Failed",
 				icon: XCircleIcon,
-				bgClass: "bg-destructive/10",
-				iconClass: "text-destructive",
-				badgeClass: "bg-destructive/10 text-destructive",
+				variant: "destructive" as const,
 			};
 		default:
 			return {
 				label: status,
 				icon: FileTextIcon,
-				bgClass: "bg-muted",
-				iconClass: "text-muted-foreground",
-				badgeClass: "",
+				variant: "secondary" as const,
 			};
 	}
 }

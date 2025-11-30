@@ -134,7 +134,7 @@ export function TagsChat({
 						onClick={() => addTag(draft)}
 						type="button"
 					>
-						<PlusIcon className="mr-2 h-4 w-4" /> Add
+						<PlusIcon className="size-4" /> Add
 					</Button>
 				</div>
 

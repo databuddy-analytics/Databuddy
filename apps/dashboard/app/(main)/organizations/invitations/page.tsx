@@ -21,7 +21,7 @@ function SkeletonRow() {
 function PageSkeleton() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="border-b lg:border-b-0 lg:border-r">
+			<div className="border-b lg:border-b-0">
 				<div className="flex gap-4 border-b px-5 py-3">
 					<Skeleton className="h-8 w-24" />
 					<Skeleton className="h-8 w-24" />
@@ -33,7 +33,7 @@ function PageSkeleton() {
 					<SkeletonRow />
 				</div>
 			</div>
-			<div className="space-y-4 bg-muted/30 p-5">
+			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
 				<Skeleton className="h-18 w-full rounded" />
 				<Skeleton className="h-10 w-full" />

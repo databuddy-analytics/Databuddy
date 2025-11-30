@@ -225,16 +225,16 @@ export function EditGoalDialog({
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">
-						<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<div className="rounded-xl border border-accent bg-accent/50 p-3">
 							{isCreateMode ? (
 								<Target
-									className="h-6 w-6 text-primary"
+									className="size-6 text-accent-foreground"
 									size={16}
 									weight="duotone"
 								/>
 							) : (
 								<PencilIcon
-									className="h-6 w-6 text-primary"
+									className="size-6 text-accent-foreground"
 									size={16}
 									weight="duotone"
 								/>

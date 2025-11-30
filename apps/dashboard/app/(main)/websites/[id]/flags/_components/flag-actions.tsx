@@ -84,12 +84,11 @@ export function FlagActions({
 				<DropdownMenuTrigger asChild>
 					<Button
 						aria-label="Open flag actions"
-						className="focus-visible:ring-(--color-primary) focus-visible:ring-2"
-						size="icon"
+						className="h-5.5 focus-visible:ring-(--color-primary) focus-visible:ring-2"
 						type="button"
 						variant="ghost"
 					>
-						<DotsThreeIcon className="h-5 w-5" weight="bold" />
+						<DotsThreeIcon className="size-5" weight="bold" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-40">

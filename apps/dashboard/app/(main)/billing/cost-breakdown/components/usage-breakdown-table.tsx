@@ -9,6 +9,7 @@ import {
 	SparkleIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -90,15 +91,11 @@ export function UsageBreakdownTable({
 
 	if (!usageData?.eventTypeBreakdown?.length) {
 		return (
-			<div className="flex h-full items-center justify-center">
-				<div className="text-center">
-					<TableIcon
-						className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
-						weight="duotone"
-					/>
-					<p className="text-muted-foreground">No usage data available</p>
-				</div>
-			</div>
+			<EmptyState
+				icon={<TableIcon />}
+				title="No Data Available"
+				variant="minimal"
+			/>
 		);
 	}
 
@@ -112,7 +109,7 @@ export function UsageBreakdownTable({
 		<div className="h-full">
 			<Table>
 				<TableHeader>
-					<TableRow>
+					<TableRow className="hover:bg-card">
 						<TableHead>Event Type</TableHead>
 						<TableHead>Usage</TableHead>
 						<TableHead>Cost</TableHead>
@@ -141,11 +138,11 @@ export function UsageBreakdownTable({
 
 						return (
 							<TableRow key={item.event_category}>
-								<TableCell>
+								<TableCell className="p-3">
 									<div className="flex items-center gap-3">
-										<div className="flex h-10 w-10 items-center justify-center rounded border bg-muted">
+										<div className="flex size-10 items-center justify-center rounded border bg-secondary">
 											<IconComponent
-												className="h-5 w-5 text-muted-foreground"
+												className="size-5 text-muted-foreground"
 												weight="duotone"
 											/>
 										</div>

@@ -6,8 +6,11 @@ sources:
     topics:
       - analytics-events
       - analytics-errors
+      - analytics-error-spans
       - analytics-web-vitals
+      - analytics-vitals-spans
       - analytics-custom-events
+      - analytics-custom-event-spans
       - analytics-outgoing-links
       - analytics-email-events
       - analytics-blocked-traffic
@@ -20,6 +23,13 @@ sources:
     decoding:
       codec: json
 
+  redpanda_metrics:
+    type: prometheus_scrape
+    endpoints:
+      - "${REDPANDA_METRICS_ENDPOINT}"
+    scrape_interval_secs: 15
+    scrape_timeout_secs: 5
+
 transforms:
   route_analytics:
     type: route
@@ -28,11 +38,22 @@ transforms:
     route:
       events: '.topic == "analytics-events"'
       errors: '.topic == "analytics-errors"'
+      error_spans: '.topic == "analytics-error-spans"'
       web_vitals: '.topic == "analytics-web-vitals"'
+      vitals_spans: '.topic == "analytics-vitals-spans"'
       custom_events: '.topic == "analytics-custom-events"'
+      custom_event_spans: '.topic == "analytics-custom-event-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
       email_events: '.topic == "analytics-email-events"'
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
+
+  redpanda_metrics_transform:
+    type: remap
+    inputs:
+      - redpanda_metrics
+    source: |
+      .tags.cluster = "${REDPANDA_CLUSTER_NAME}"
+      .tags.env = "${ENVIRONMENT}"
 
 sinks:
   clickhouse_events:
@@ -75,6 +96,26 @@ sinks:
     encoding:
       timestamp_format: unix_ms
 
+  clickhouse_error_spans:
+    type: clickhouse
+    inputs:
+      - route_analytics.error_spans
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: error_spans
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
   clickhouse_web_vitals:
     type: clickhouse
     inputs:
@@ -95,6 +136,26 @@ sinks:
     encoding:
       timestamp_format: unix_ms
 
+  clickhouse_vitals_spans:
+    type: clickhouse
+    inputs:
+      - route_analytics.vitals_spans
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: web_vitals_spans
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
   clickhouse_custom_events:
     type: clickhouse
     inputs:
@@ -102,6 +163,26 @@ sinks:
     endpoint: "${CLICKHOUSE_URL}"
     database: analytics
     table: custom_events
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_custom_event_spans:
+    type: clickhouse
+    inputs:
+      - route_analytics.custom_event_spans
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: custom_event_spans
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
@@ -182,3 +263,11 @@ sinks:
     path: /var/log/vector/dead_letters.log
     encoding:
       codec: json
+
+  axiom_redpanda_metrics:
+    type: axiom
+    inputs:
+      - redpanda_metrics_transform
+    dataset: "${AXIOM_DATASET}"
+    token: "${AXIOM_TOKEN}"
+    compression: gzip

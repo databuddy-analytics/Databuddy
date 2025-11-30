@@ -110,29 +110,29 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 
 	screen_resolution: {
 		meta: {
-			title: "Screen Resolutions",
+			title: "Viewport Sizes",
 			description:
-				"Distribution of visitor screen resolutions to optimize design for the most common display sizes.",
+				"Distribution of visitor viewport sizes to optimize design for the most common browser dimensions.",
 			category: "Technology",
-			tags: ["screen resolution", "display", "design", "responsive"],
+			tags: ["viewport", "display", "design", "responsive"],
 			output_fields: [
 				{
 					name: "name",
 					type: "string",
-					label: "Screen Resolution",
-					description: "Screen resolution (width x height)",
+					label: "Viewport Size",
+					description: "Viewport size (width x height)",
 				},
 				{
 					name: "pageviews",
 					type: "number",
 					label: "Pageviews",
-					description: "Total pageviews from this resolution",
+					description: "Total pageviews from this viewport",
 				},
 				{
 					name: "visitors",
 					type: "number",
 					label: "Visitors",
-					description: "Unique visitors with this resolution",
+					description: "Unique visitors with this viewport",
 				},
 				{
 					name: "percentage",
@@ -148,13 +148,13 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"screen_resolution as name",
+			"viewport_size as name",
 			"COUNT(*) as pageviews",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
 		],
-		where: ["screen_resolution != ''", "event_name = 'screen_view'"],
-		groupBy: ["screen_resolution"],
+		where: ["viewport_size != ''", "event_name = 'screen_view'"],
+		groupBy: ["viewport_size"],
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
@@ -289,27 +289,27 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Device Categories",
 			description:
-				"Traffic breakdown by device category (Desktop, Mobile, Tablet) based on screen resolution analysis.",
+				"Traffic breakdown by device category (Desktop, Mobile, Tablet) based on viewport size analysis.",
 			category: "Technology",
 			tags: ["device types", "mobile", "desktop", "tablet", "responsive"],
 			output_fields: [
 				{
 					name: "name",
 					type: "string",
-					label: "Screen Resolution",
-					description: "The actual screen resolution",
+					label: "Viewport Size",
+					description: "The actual viewport size",
 				},
 				{
 					name: "pageviews",
 					type: "number",
 					label: "Pageviews",
-					description: "Total pageviews from this resolution",
+					description: "Total pageviews from this viewport",
 				},
 				{
 					name: "visitors",
 					type: "number",
 					label: "Visitors",
-					description: "Unique visitors with this resolution",
+					description: "Unique visitors with this viewport",
 				},
 				{
 					name: "device_type",
@@ -324,13 +324,13 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"screen_resolution as name",
+			"viewport_size as name",
 			"COUNT(*) as pageviews",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
 		],
-		where: ["screen_resolution != ''", "event_name = 'screen_view'"],
-		groupBy: ["screen_resolution", "device_type"],
+		where: ["viewport_size != ''", "event_name = 'screen_view'"],
+		groupBy: ["viewport_size", "device_type"],
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
@@ -409,12 +409,12 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	screen_resolutions: {
 		table: Analytics.events,
 		fields: [
-			"screen_resolution as name",
+			"viewport_size as name",
 			"COUNT(*) as pageviews",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
-		where: ["screen_resolution != ''", "event_name = 'screen_view'"],
-		groupBy: ["screen_resolution"],
+		where: ["viewport_size != ''", "event_name = 'screen_view'"],
+		groupBy: ["viewport_size"],
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
@@ -423,18 +423,12 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 
 	viewport_vs_resolution: {
 		meta: {
-			title: "Viewport vs Screen Resolution",
+			title: "Viewport Sizes by Device",
 			description:
-				"Comparison between actual screen resolution and browser viewport size, showing how users browse your site.",
+				"Distribution of browser viewport sizes across different device types.",
 			category: "Technology",
-			tags: ["viewport", "resolution", "browser", "responsive"],
+			tags: ["viewport", "browser", "responsive", "devices"],
 			output_fields: [
-				{
-					name: "screen_resolution",
-					type: "string",
-					label: "Screen Resolution",
-					description: "Physical screen resolution",
-				},
 				{
 					name: "viewport_size",
 					type: "string",
@@ -445,19 +439,19 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 					name: "visitors",
 					type: "number",
 					label: "Visitors",
-					description: "Unique visitors with this combination",
+					description: "Unique visitors with this viewport",
+				},
+				{
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews",
+					description: "Total pageviews from this viewport",
 				},
 				{
 					name: "device_type",
 					type: "string",
 					label: "Device Type",
 					description: "Device category",
-				},
-				{
-					name: "usage_pattern",
-					type: "string",
-					label: "Usage Pattern",
-					description: "Browsing behavior pattern",
 				},
 			],
 			default_visualization: "table",
@@ -466,25 +460,17 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"screen_resolution",
 			"viewport_size",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"COUNT(*) as pageviews",
 			"any(device_type) as device_type",
-			"CASE " +
-				'WHEN screen_resolution = viewport_size THEN "Full Screen" ' +
-				'WHEN screen_resolution != viewport_size THEN "Windowed" ' +
-				'ELSE "Unknown" ' +
-				"END as usage_pattern",
 		],
 		where: [
 			"event_name = 'screen_view'",
-			"screen_resolution != ''",
 			"viewport_size != ''",
-			"screen_resolution IS NOT NULL",
 			"viewport_size IS NOT NULL",
 		],
-		groupBy: ["screen_resolution", "viewport_size", "device_type"],
+		groupBy: ["viewport_size", "device_type"],
 		orderBy: "visitors DESC",
 		limit: 200,
 		timeField: "time",
@@ -494,23 +480,29 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 
 	viewport_patterns: {
 		meta: {
-			title: "Viewport Usage Patterns",
+			title: "Common Viewport Sizes",
 			description:
-				"Analysis of how users browse - full screen vs windowed, and common viewport sizes.",
+				"Analysis of the most common viewport sizes used by visitors.",
 			category: "Technology",
 			tags: ["viewport", "browsing patterns", "user behavior"],
 			output_fields: [
 				{
-					name: "usage_pattern",
+					name: "viewport_size",
 					type: "string",
-					label: "Usage Pattern",
-					description: "How users browse (full screen vs windowed)",
+					label: "Viewport Size",
+					description: "Browser viewport dimensions",
 				},
 				{
 					name: "visitors",
 					type: "number",
 					label: "Visitors",
-					description: "Unique visitors using this pattern",
+					description: "Unique visitors with this viewport",
+				},
+				{
+					name: "sessions",
+					type: "number",
+					label: "Sessions",
+					description: "Total sessions with this viewport",
 				},
 				{
 					name: "percentage",
@@ -526,24 +518,19 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"CASE " +
-				'WHEN screen_resolution = viewport_size THEN "Full Screen Browsing" ' +
-				'WHEN screen_resolution != viewport_size THEN "Windowed Browsing" ' +
-				'ELSE "Unknown Pattern" ' +
-				"END as usage_pattern",
+			"viewport_size",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"COUNT(DISTINCT session_id) as sessions",
 			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
 		],
 		where: [
 			"event_name = 'screen_view'",
-			"screen_resolution != ''",
 			"viewport_size != ''",
-			"screen_resolution IS NOT NULL",
 			"viewport_size IS NOT NULL",
 		],
-		groupBy: ["usage_pattern"],
+		groupBy: ["viewport_size"],
 		orderBy: "visitors DESC",
+		limit: 50,
 		timeField: "time",
 		customizable: true,
 	},

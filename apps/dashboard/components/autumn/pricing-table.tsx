@@ -7,6 +7,7 @@ import {
 	RocketLaunchIcon,
 	SparkleIcon,
 	StarIcon,
+	WarningIcon,
 } from "@phosphor-icons/react";
 import type { Product, ProductItem } from "autumn-js";
 import {
@@ -17,6 +18,7 @@ import {
 import { createContext, useCallback, useContext, useState } from "react";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
 import AttachDialog from "@/components/autumn/attach-dialog";
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
@@ -88,7 +90,6 @@ export default function PricingTable({
 	selectedPlan?: string | null;
 }) {
 	const { attach } = useCustomer();
-	const [isAnnual, setIsAnnual] = useState(false);
 	const { products, isLoading, error, refetch } = usePricingTable({
 		productDetails,
 	});
@@ -112,71 +113,30 @@ export default function PricingTable({
 
 	if (error) {
 		return (
-			<div className="flex flex-col items-center justify-center py-12">
-				<span className="mb-3 font-medium text-destructive">
-					Failed to load pricing plans
-				</span>
-				<Button onClick={handleRetry} size="sm" variant="outline">
-					Retry
-				</Button>
-			</div>
+			<EmptyState
+				className="flex h-full flex-col items-center justify-center"
+				description="Something went wrong while loading pricing plans"
+				icon={<WarningIcon />}
+				title="Failed to load pricing plans"
+				variant="error"
+			/>
 		);
 	}
-
-	const intervals = Array.from(
-		new Set(products?.map((p) => p.properties?.interval_group).filter(Boolean))
-	);
-	const multiInterval = intervals.length > 1;
 
 	const intervalFilter = (product: Product) => {
 		if (!product.properties?.interval_group) {
 			return true;
 		}
-		if (multiInterval) {
-			return isAnnual
-				? product.properties.interval_group === "year"
-				: product.properties.interval_group === "month";
-		}
 		return true;
 	};
 
 	const filteredProducts =
-		products?.filter((p) => p.id !== "free" && intervalFilter(p)) ?? [];
+		products?.filter(
+			(p) => p.id !== "free" && p.id !== "verification_fee" && intervalFilter(p)
+		) ?? [];
 
 	return (
 		<div>
-			{/* Header */}
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				{multiInterval && (
-					<div className="flex shrink-0 rounded border bg-muted p-1">
-						<button
-							className={cn(
-								"rounded px-4 py-1.5 font-medium text-sm transition",
-								isAnnual
-									? "text-muted-foreground hover:text-foreground"
-									: "bg-background shadow-sm"
-							)}
-							onClick={() => setIsAnnual(false)}
-							type="button"
-						>
-							Monthly
-						</button>
-						<button
-							className={cn(
-								"rounded px-4 py-1.5 font-medium text-sm transition",
-								isAnnual
-									? "bg-background shadow-sm"
-									: "text-muted-foreground hover:text-foreground"
-							)}
-							onClick={() => setIsAnnual(true)}
-							type="button"
-						>
-							Annual
-						</button>
-					</div>
-				)}
-			</div>
-
 			{/* Cards Grid */}
 			<PricingTableContext.Provider
 				value={{ products: products ?? [], selectedPlan }}
@@ -188,7 +148,7 @@ export default function PricingTable({
 								disabled:
 									plan.scenario === "active" || plan.scenario === "scheduled",
 								onClick: async () => {
-									await attach({ productId: plan.id, dialog: AttachDialog });
+									await attach({ productIds: [plan.id], dialog: AttachDialog });
 								},
 							}}
 							isSelected={selectedPlan === plan.id}
@@ -266,8 +226,8 @@ function PricingCard({
 	return (
 		<div
 			className={cn(
-				"relative flex flex-col rounded border bg-background transition-shadow hover:shadow-md",
-				isRecommended && "border-primary shadow-md",
+				"relative flex flex-col rounded border bg-card",
+				isRecommended && "border-primary",
 				isSelected && "border-primary ring-2 ring-primary/20",
 				className
 			)}
@@ -281,8 +241,8 @@ function PricingCard({
 			)}
 
 			<div className="flex items-center gap-3 p-5 pb-4">
-				<div className="flex h-11 w-11 shrink-0 items-center justify-center rounded border bg-muted/50">
-					<Icon className="text-primary" size={20} weight="duotone" />
+				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-accent">
+					<Icon className="text-accent-foreground" size={16} weight="duotone" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
@@ -304,18 +264,13 @@ function PricingCard({
 			</div>
 
 			{/* Price */}
-			<div className="border-y bg-muted/30 px-5 py-4">
+			<div className="dotted-bg border-y bg-accent px-5 py-4">
 				{product.id === "hobby" ? (
 					<div className="flex items-baseline gap-2">
 						<span className="text-muted-foreground line-through">$9.99</span>
 						<span className="font-semibold text-2xl text-green-600">$2.00</span>
 						<span className="text-muted-foreground text-sm">/month</span>
-						<Badge
-							className="ml-2 bg-green-600/10 text-green-600"
-							variant="secondary"
-						>
-							Limited time
-						</Badge>
+						<Badge variant="secondary">Limited time</Badge>
 					</div>
 				) : (
 					<div className="flex items-baseline gap-1">
@@ -338,7 +293,7 @@ function PricingCard({
 						Everything from {product.display.everything_from}, plus:
 					</p>
 				)}
-				<div className="space-y-2.5">
+				<div className="space-y-3">
 					{featureItems.map((item) => (
 						<FeatureItem item={item} key={item.display?.primary_text} />
 					))}
@@ -377,7 +332,7 @@ function FeatureItem({ item }: { item: ProductItem }) {
 	return (
 		<div className="flex items-start gap-2 text-sm">
 			<CheckIcon
-				className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+				className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground"
 				weight="bold"
 			/>
 			<div className="flex flex-col">
@@ -429,7 +384,7 @@ function PricingCardButton({
 			className={cn("w-full", className)}
 			disabled={loading || disabled}
 			onClick={handleClick}
-			variant={recommended ? "default" : "outline"}
+			variant={recommended ? "default" : "secondary"}
 		>
 			{loading ? (
 				<CircleNotchIcon className="h-4 w-4 animate-spin" />

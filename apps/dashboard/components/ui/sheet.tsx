@@ -57,7 +57,7 @@ function SheetContent({
 			<SheetOverlay />
 			<SheetPrimitive.Content
 				className={cn(
-					'fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
+					'fixed z-50 p-4 sm:px-6 gap-4 overflow-y-auto flex flex-col bg-card shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
 					side === 'right' &&
 						'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
 					side === 'left' &&
@@ -84,7 +84,7 @@ function SheetContent({
 function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
 	return (
 		<div
-			className={cn('flex flex-col gap-1.5 p-4', className)}
+			className={cn('flex flex-col p-4 px-0', className)}
 			data-slot="sheet-header"
 			{...props}
 		/>

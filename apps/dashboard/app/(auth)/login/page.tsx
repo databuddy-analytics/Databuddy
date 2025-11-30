@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,85 +106,111 @@ function LoginPage() {
 
 	return (
 		<>
-			<div className="-mt-8 mb-8 text-center">
-				<h1 className="font-bold text-2xl text-foreground">Welcome back</h1>
-				<p className="mt-2 text-muted-foreground">
+			<div className="mb-8 space-y-1 px-6 text-left">
+				<h1 className="font-medium text-2xl text-foreground">Welcome back</h1>
+				<p className="text-muted-foreground text-sm">
 					Sign in to your account to continue your journey with Databuddy
 				</p>
 			</div>
-			<div className="relative overflow-hidden p-6">
-				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
-				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 rounded-full blur-3xl" />
+			<div className="relative px-6">
 				<div className="relative z-10">
 					<div className="space-y-6">
-						<div className="-mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-2">
 							<Button
-								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
+								className="relative w-full"
 								disabled={isLoading}
 								onClick={() => handleSocialLogin("github")}
+								size="lg"
 								type="button"
-								variant="outline"
+								variant="secondary"
 							>
-								<GithubLogoIcon className="mr-2 h-5 w-5" />
-								<span>Sign in with GitHub</span>
+								<GithubLogoIcon className="size-4" />
+								Sign in with GitHub
 								{lastUsed === "github" && (
-									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+									<Badge
+										className="-top-3 -right-0.5 absolute z-10 rounded-full px-1 py-0 text-[10px]"
+										variant="secondary"
+									>
 										Last used
-									</span>
+									</Badge>
 								)}
 							</Button>
 							<Button
-								className="relative flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
+								className="relative w-full"
 								disabled={isLoading}
 								onClick={() => handleSocialLogin("google")}
+								size="lg"
 								type="button"
-								variant="outline"
+								variant="secondary"
 							>
-								<GoogleLogoIcon className="mr-2 h-5 w-5" />
-								<span>Sign in with Google</span>
+								<GoogleLogoIcon className="size-4" />
+								Sign in with Google
 								{lastUsed === "google" && (
-									<span className="-top-4 -right-0.5 absolute inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
+									<Badge
+										className="-top-3 -right-0.5 absolute z-10 rounded-full px-1 py-0 text-[10px]"
+										variant="secondary"
+									>
 										Last used
-									</span>
+									</Badge>
 								)}
 							</Button>
+							<Link
+								className="relative lg:col-span-2"
+								href="/login/magic"
+								passHref
+							>
+								<Button
+									className="w-full"
+									disabled={isLoading}
+									size="lg"
+									type="button"
+									variant="secondary"
+								>
+									<SparkleIcon className="size-4" />
+									Sign in with Magic Link
+								</Button>
+								{lastUsed === "magic" && (
+									<Badge
+										className="-top-3 -right-0.5 absolute z-10 rounded-full px-1 py-0 text-[10px]"
+										variant="secondary"
+									>
+										Last used
+									</Badge>
+								)}
+							</Link>
 						</div>
-						<div className="relative">
-							<div className="absolute inset-0 flex items-center">
-								<Separator className="w-full" />
-							</div>
-							<div className="relative flex justify-center">
-								<span className="bg-card px-4 font-medium text-muted-foreground text-sm">
-									or continue with
-								</span>
-							</div>
+						<div className="relative flex w-full items-center justify-center gap-3">
+							<Separator className="flex-1 opacity-70" />
+							<p className="text-nowrap font-medium text-muted-foreground/50 text-sm">
+								Or
+							</p>
+							<Separator className="flex-1 opacity-70" />
 						</div>
-						<form className="space-y-4" onSubmit={handleEmailPasswordLogin}>
-							<div className="space-y-2">
+						<form className="space-y-5" onSubmit={handleEmailPasswordLogin}>
+							<div className="relative space-y-3">
 								<Label className="font-medium text-foreground" htmlFor="email">
 									Email<span className="text-primary">*</span>
 								</Label>
-								<div className="relative">
-									<Input
-										autoComplete="email"
-										className="h-11 border-none bg-input text-foreground transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
-										id="email"
-										name="email"
-										onChange={(e) => setEmail(e.target.value)}
-										placeholder="Enter your email"
-										required
-										type="email"
-										value={email}
-									/>
-									{lastUsed === "email" && (
-										<span className="-translate-y-1/2 absolute top-1/2 right-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs sm:px-2">
-											<span className="hidden sm:inline">Last used</span>
-											<span className="sm:hidden">★</span>
-										</span>
-									)}
-								</div>
+								<Input
+									autoComplete="email"
+									id="email"
+									name="email"
+									onChange={(e) => setEmail(e.target.value)}
+									placeholder="Enter your email"
+									required
+									type="email"
+									value={email}
+								/>
+								{lastUsed === "email" && (
+									<Badge
+										className="-translate-y-1/2 absolute top-5 right-0 rounded-full px-1 py-0 text-[10px]"
+										variant="secondary"
+									>
+										Last used
+									</Badge>
+								)}
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-3">
 								<div className="flex items-center justify-between">
 									<Label
 										className="font-medium text-foreground"
@@ -191,18 +218,10 @@ function LoginPage() {
 									>
 										Password<span className="text-primary">*</span>
 									</Label>
-									<Link
-										className="h-auto cursor-pointer p-0 text-primary text-xs sm:text-sm"
-										href="/login/forgot"
-									>
-										<span className="hidden sm:inline">Forgot password?</span>
-										<span className="sm:hidden">Forgot?</span>
-									</Link>
 								</div>
 								<div className="relative">
 									<Input
 										autoComplete="current-password"
-										className="h-11 border-none bg-input pr-10 transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 										id="password"
 										name="password"
 										onChange={(e) => setPassword(e.target.value)}
@@ -215,25 +234,21 @@ function LoginPage() {
 										aria-label={
 											showPassword ? "Hide password" : "Show password"
 										}
-										className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
+										className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 										onClick={() => setShowPassword(!showPassword)}
 										size="sm"
 										type="button"
-										variant="link"
+										variant="ghost"
 									>
 										{showPassword ? (
-											<EyeSlashIcon className="h-4 w-4" />
+											<EyeSlashIcon className="size-4" />
 										) : (
-											<EyeIcon className="h-4 w-4" />
+											<EyeIcon className="size-4" />
 										)}
 									</Button>
 								</div>
 							</div>
-							<Button
-								className="hover:-translate-y-0.5 relative h-11 w-full overflow-hidden shadow transition-all duration-300 hover:shadow-lg hover:shadow-primary/20"
-								disabled={isLoading}
-								type="submit"
-							>
+							<Button className="w-full" disabled={isLoading} type="submit">
 								{isLoading ? (
 									<>
 										<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -243,30 +258,26 @@ function LoginPage() {
 									"Sign in"
 								)}
 							</Button>
-							<Link href="/login/magic" passHref>
-								<Button
-									className="flex w-full cursor-pointer items-center justify-center font-medium text-primary hover:text-primary/80 hover:no-underline"
-									type="button"
-									variant="link"
-								>
-									<SparkleIcon className="mr-2 h-4 w-4" />
-									Sign in with magic link
-								</Button>
-							</Link>
 						</form>
 					</div>
 				</div>
 			</div>
-			<div className="mt-2 text-center">
-				<p className="text-muted-foreground text-sm">
+			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
+				<p className="flex-1 text-nowrap text-[13px] text-muted-foreground">
 					Don&apos;t have an account?{" "}
 					<Link
-						className="font-medium text-primary hover:text-primary/80"
+						className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
 						href="/register"
 					>
 						Sign up
 					</Link>
 				</p>
+				<Link
+					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60 transition-colors duration-200 hover:text-accent-foreground"
+					href="/login/forgot"
+				>
+					Forgot password?
+				</Link>
 			</div>
 		</>
 	);

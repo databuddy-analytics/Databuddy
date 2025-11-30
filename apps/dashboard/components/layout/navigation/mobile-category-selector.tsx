@@ -67,15 +67,20 @@ export function MobileCategorySelector({
 					<Button
 						className="flex h-10 w-full items-center justify-between px-3"
 						type="button"
-						variant="outline"
+						variant="secondary"
 					>
 						<div className="flex items-center gap-2">
 							{currentCategory?.icon && (
-								<currentCategory.icon className="h-4 w-4" weight="duotone" />
+								<currentCategory.icon
+									className="size-4 text-sidebar-foreground"
+									weight="duotone"
+								/>
 							)}
-							<span>{currentCategory?.name || "Select Category"}</span>
+							<span className="text-sidebar-foreground text-sm">
+								{currentCategory?.name || "Select Category"}
+							</span>
 						</div>
-						<CaretDownIcon className="h-4 w-4" weight="fill" />
+						<CaretDownIcon className="size-4" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent className="w-full min-w-(--radix-dropdown-menu-trigger-width)">
@@ -93,7 +98,7 @@ export function MobileCategorySelector({
 							>
 								<Icon
 									className={cn(
-										"h-4 w-4",
+										"size-4",
 										isActive ? "text-sidebar-ring" : "text-muted-foreground"
 									)}
 									weight={isActive ? "fill" : "duotone"}

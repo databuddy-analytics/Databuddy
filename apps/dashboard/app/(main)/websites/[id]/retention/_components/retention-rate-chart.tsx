@@ -12,6 +12,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { TableEmptyState } from "@/components/table/table-empty-state";
 
 type RetentionRate = {
 	date: string;
@@ -168,12 +169,11 @@ export function RetentionRateChart({
 
 	if (data.length === 0) {
 		return (
-			<div className="flex h-full flex-col items-center justify-center text-center">
-				<ChartLineIcon className="mb-3 h-12 w-12 text-muted-foreground/40" />
-				<p className="text-muted-foreground text-sm">
-					No retention rate data available for the selected time period
-				</p>
-			</div>
+			<TableEmptyState
+				description="No retention rate data available for the selected time period"
+				icon={<ChartLineIcon />}
+				title="No data"
+			/>
 		);
 	}
 

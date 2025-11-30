@@ -2,10 +2,14 @@ import { randomUUID } from "node:crypto";
 import type {
 	AnalyticsEvent,
 	CustomEvent,
+	CustomEventSpan,
 	CustomOutgoingLink,
 	ErrorEvent,
+	ErrorSpanRow,
 	WebVitalsEvent,
+	WebVitalsSpan,
 } from "@databuddy/db";
+import type { CustomEventSpanInput, ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { getGeo } from "../utils/ip-geo";
 import { parseUserAgent } from "../utils/user-agent";
 import {
@@ -227,6 +231,35 @@ export async function insertCustomEvent(
 	} catch (error) {
 		captureError(error, { eventId });
 		// Don't throw - event is buffered or sent async
+	}
+}
+
+/**
+ * Insert lean custom event spans (v2.x format)
+ */
+export async function insertCustomEventSpans(
+	events: CustomEventSpanInput[],
+	clientId: string
+): Promise<void> {
+	if (events.length === 0) {
+		return;
+	}
+
+	const now = Date.now();
+	const spans: CustomEventSpan[] = events.map((event) => ({
+		client_id: clientId,
+		anonymous_id: sanitizeString(event.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		session_id: validateSessionId(event.sessionId),
+		timestamp: typeof event.timestamp === "number" ? event.timestamp : now,
+		path: sanitizeString(event.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		event_name: sanitizeString(event.eventName, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		properties: (event.properties as Record<string, unknown>) ?? {},
+	}));
+
+	try {
+		await sendEventBatch("analytics-custom-event-spans", spans);
+	} catch (error) {
+		captureError(error, { count: spans.length });
 	}
 }
 
@@ -471,6 +504,39 @@ export function insertErrorsBatch(events: ErrorEvent[]): Promise<void> {
 	});
 }
 
+/**
+ * Insert lean error spans (v2.x format)
+ */
+export async function insertErrorSpans(
+	errors: ErrorSpan[],
+	clientId: string
+): Promise<void> {
+	if (errors.length === 0) {
+		return;
+	}
+
+	const now = Date.now();
+	const spans: ErrorSpanRow[] = errors.map((error) => ({
+		client_id: clientId,
+		anonymous_id: sanitizeString(error.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		session_id: validateSessionId(error.sessionId),
+		timestamp: typeof error.timestamp === "number" ? error.timestamp : now,
+		path: sanitizeString(error.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		message: sanitizeString(error.message, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		filename: sanitizeString(error.filename, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		lineno: error.lineno ?? undefined,
+		colno: error.colno ?? undefined,
+		stack: sanitizeString(error.stack, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		error_type: sanitizeString(error.errorType, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH) || "Error",
+	}));
+
+	try {
+		await sendEventBatch("analytics-error-spans", spans);
+	} catch (error) {
+		captureError(error, { count: spans.length });
+	}
+}
+
 export function insertWebVitalsBatch(events: WebVitalsEvent[]): Promise<void> {
 	return record("insertWebVitalsBatch", async () => {
 		if (events.length === 0) {
@@ -488,6 +554,40 @@ export function insertWebVitalsBatch(events: WebVitalsEvent[]): Promise<void> {
 			captureError(error, { count: events.length });
 		}
 	});
+}
+
+/**
+ * Insert individual vital metrics (v2.x format)
+ * Transforms and groups metrics before storing
+ */
+/**
+ * Insert individual vital metrics (v2.x format) as spans
+ * Each metric is stored as a separate row - no aggregation
+ */
+export async function insertIndividualVitals(
+	vitals: IndividualVital[],
+	clientId: string
+): Promise<void> {
+	if (vitals.length === 0) {
+		return;
+	}
+
+	const now = Date.now();
+	const spans: WebVitalsSpan[] = vitals.map((vital) => ({
+		client_id: clientId,
+		anonymous_id: sanitizeString(vital.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		session_id: validateSessionId(vital.sessionId),
+		timestamp: typeof vital.timestamp === "number" ? vital.timestamp : now,
+		path: sanitizeString(vital.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		metric_name: vital.metricName,
+		metric_value: vital.metricValue,
+	}));
+
+	try {
+		await sendEventBatch("analytics-vitals-spans", spans);
+	} catch (error) {
+		captureError(error, { count: spans.length });
+	}
 }
 
 export function insertCustomEventsBatch(events: CustomEvent[]): Promise<void> {

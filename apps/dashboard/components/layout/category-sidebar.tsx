@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
+import { Button } from "../ui/button";
 import {
 	categoryConfig,
 	createLoadingWebsitesNavigation,
@@ -73,16 +74,16 @@ export function CategorySidebar({
 	const activeCategory = selectedCategory || defaultCategory;
 
 	return (
-		<div className="fixed inset-y-0 left-0 z-40 w-12 border-sidebar-border border-r bg-sidebar-primary">
+		<div className="fixed inset-y-0 left-0 z-40 w-12 border-r bg-transparent">
 			<div className="flex h-full flex-col">
-				<div className="flex h-12 items-center justify-center border-sidebar-border border-b">
+				<div className="flex h-12 items-center justify-center border-b">
 					<Link
 						className="relative shrink-0 transition-opacity hover:opacity-80"
 						href="/websites"
 					>
 						<Image
 							alt="DataBuddy Logo"
-							className="drop-shadow-sm invert dark:invert-0"
+							className="invert dark:invert-0"
 							height={32}
 							priority
 							src="/logo.svg"
@@ -90,23 +91,34 @@ export function CategorySidebar({
 						/>
 					</Link>
 				</div>
-				{categories.map((category) => {
+
+				{categories.map((category, idx) => {
 					const Icon = category.icon;
 					const isActive = activeCategory === category.id;
-
+					const isLast = idx === categories.length - 1;
 					return (
 						<Tooltip delayDuration={500} key={category.id}>
 							<TooltipTrigger asChild>
 								<button
 									className={cn(
-										"flex cursor-pointer items-center justify-center px-3 py-2.5 hover:bg-sidebar-accent",
+										isActive && !isLast && "border-accent",
+										"relative flex h-10 w-full items-center justify-center transition-colors duration-200",
 										"focus:outline-none",
-										isActive &&
-											"bg-sidebar-accent text-sidebar-accent-foreground"
+										!isActive && "hover:bg-sidebar-accent-brighter",
+										isLast
+											? "box-content border-border border-b"
+											: "box-content border-transparent"
 									)}
 									onClick={() => onCategoryChangeAction?.(category.id)}
 									type="button"
 								>
+									{isActive && (
+										<div
+											className={cn(
+												"absolute top-0 left-0 z-[-1] box-border h-full w-full bg-sidebar-accent-brighter"
+											)}
+										/>
+									)}
 									<Icon
 										className={cn(
 											"h-5 w-5 transition-colors",
@@ -127,7 +139,7 @@ export function CategorySidebar({
 
 				<div className="flex-1" />
 
-				<div className="space-y-2 border-sidebar-border border-t p-2 pb-4">
+				<div className="space-y-2 border-t p-2 pb-4">
 					<div className="flex justify-center">
 						<div className="flex h-8 w-8 items-center justify-center">
 							<NotificationsPopover />
@@ -141,16 +153,15 @@ export function CategorySidebar({
 					</div>
 
 					<div className="flex justify-center">
-						<button
-							className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-muted/50 focus:outline-none"
+						<Button
+							className="flex h-8 w-8 items-center justify-center transition-colors"
 							onClick={() => setHelpOpen(true)}
+							suppressHydrationWarning
 							type="button"
+							variant="ghost"
 						>
-							<InfoIcon
-								className="h-4 w-4 not-dark:text-primary"
-								weight="duotone"
-							/>
-						</button>
+							<InfoIcon className="h-4 w-4" weight="duotone" />
+						</Button>
 					</div>
 
 					<div className="flex justify-center">

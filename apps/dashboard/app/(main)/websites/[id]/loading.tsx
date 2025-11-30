@@ -3,8 +3,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
 	return (
 		<div className="select-none space-y-6 p-6">
+			<Skeleton className="h-12 w-full rounded sm:h-16" />
 			{/* Key metrics cards skeleton */}
-			<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+			<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 				{[1, 2, 3, 4, 5, 6].map((num) => (
 					<div
 						className="rounded border bg-sidebar p-4"

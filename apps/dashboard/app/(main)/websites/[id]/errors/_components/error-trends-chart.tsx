@@ -13,7 +13,9 @@ import {
 	YAxis,
 } from "recharts";
 import { METRIC_COLORS, METRICS } from "@/components/charts/metrics-constants";
+import { TableEmptyState } from "@/components/table/table-empty-state";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ErrorChartTooltip } from "./error-chart-tooltip";
 
 const ResponsiveContainer = dynamic(
@@ -101,19 +103,15 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 
 	if (!errorChartData.length) {
 		return (
-			<div className="flex h-full items-center justify-center rounded-lg border border-sidebar-border bg-sidebar/20 p-8 shadow-sm">
-				<div className="max-w-md text-center">
-					<BugIcon
-						className="mx-auto mb-4 h-8 w-8 text-muted-foreground"
-						weight="duotone"
+			<Card className="h-full">
+				<CardContent>
+					<TableEmptyState
+						description="Not enough data to display a trend chart. Error trends will appear here when your website encounters errors."
+						icon={<BugIcon className="size-6 text-accent" />}
+						title="No error trend data"
 					/>
-					<h3 className="mb-2 font-semibold text-sm">No error trend data</h3>
-					<p className="text-muted-foreground text-xs leading-relaxed">
-						Not enough data to display a trend chart. Error trends will appear
-						here when your website encounters errors.
-					</p>
-				</div>
-			</div>
+				</CardContent>
+			</Card>
 		);
 	}
 

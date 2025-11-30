@@ -116,9 +116,14 @@ export class HttpClient {
 	fetch<T>(
 		endpoint: string,
 		data: any,
-		options: RequestInit = {}
+		options: RequestInit = {},
+		queryParams?: Record<string, string>
 	): Promise<T | null> {
-		const url = `${this.baseUrl}${endpoint}`;
+		let url = `${this.baseUrl}${endpoint}`;
+		if (queryParams) {
+			const params = new URLSearchParams(queryParams);
+			url = `${url}?${params.toString()}`;
+		}
 		return this.post(url, data, options, 0);
 	}
 }

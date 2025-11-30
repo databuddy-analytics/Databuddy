@@ -23,8 +23,8 @@ export default function GlobalError({
 		<div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
 			<div className="max-w-md text-center">
 				<WarningCircleIcon
-					className="mx-auto mb-6 h-16 w-16 text-destructive"
-					size={64}
+					className="mx-auto mb-6 text-destructive"
+					size={52}
 					weight="duotone"
 				/>
 				<h1 className="mb-3 font-semibold text-3xl">Something went wrong</h1>
@@ -32,7 +32,7 @@ export default function GlobalError({
 					We encountered an unexpected issue. Please try again.
 				</p>
 				{error?.message && (
-					<p className="my-3 rounded-md bg-destructive/20 p-2 text-destructive-foreground text-sm">
+					<p className="mx-auto my-3 w-fit rounded-md bg-destructive p-2 text-sm text-white">
 						Error details: {error.message}
 					</p>
 				)}

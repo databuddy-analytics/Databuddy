@@ -35,11 +35,11 @@ import {
 } from "../ui/sheet";
 import type { ApiKeyAccessEntry, ApiScope } from "./api-key-types";
 
-interface ApiKeyCreateDialogProps {
+type ApiKeyCreateDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	organizationId?: string;
-}
+};
 
 const SCOPES: { value: ApiScope; label: string }[] = [
 	{ value: "read:data", label: "Read Data" },
@@ -178,7 +178,7 @@ export function ApiKeyCreateDialog({
 
 						<div className="w-full max-w-sm space-y-4">
 							<div className="relative rounded border bg-muted/50">
-								<code className="block p-4 pr-12 font-mono text-sm break-all">
+								<code className="block break-all p-4 pr-12 font-mono text-sm">
 									{created.secret}
 								</code>
 								<Button
@@ -208,15 +208,19 @@ export function ApiKeyCreateDialog({
 	return (
 		<Sheet onOpenChange={handleClose} open={open}>
 			<SheetContent
-				className="m-3 h-[calc(100%-1.5rem)] rounded border bg-background p-0 sm:max-w-md"
+				className="m-3 h-[calc(100%-1.5rem)] rounded border bg-card p-0 sm:max-w-md"
 				side="right"
 			>
-				<div className="flex h-full flex-col">
+				<div className="flex h-full flex-col gap-6">
 					{/* Header */}
-					<SheetHeader className="shrink-0 border-b bg-muted/30 px-6 py-5">
+					<SheetHeader className="shrink-0">
 						<div className="flex items-center gap-4">
-							<div className="flex h-11 w-11 items-center justify-center rounded border bg-background">
-								<KeyIcon className="text-primary" size={22} weight="duotone" />
+							<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+								<KeyIcon
+									className="text-accent-foreground"
+									size={22}
+									weight="fill"
+								/>
 							</div>
 							<div>
 								<SheetTitle className="text-lg">Create API Key</SheetTitle>
@@ -227,16 +231,18 @@ export function ApiKeyCreateDialog({
 						</div>
 					</SheetHeader>
 
-					<form className="flex flex-1 flex-col overflow-hidden" onSubmit={onSubmit}>
+					<form
+						className="flex flex-1 flex-col overflow-hidden"
+						onSubmit={onSubmit}
+					>
 						{/* Content */}
-						<div className="flex-1 space-y-6 overflow-y-auto p-6">
+						<div className="flex-1 space-y-6 overflow-y-auto px-2">
 							{/* Name Section */}
 							<section className="space-y-3">
 								<Label className="font-medium" htmlFor="name">
 									Key Name
 								</Label>
 								<Input
-									className="h-11"
 									id="name"
 									placeholder="e.g., Production API Key"
 									{...form.register("name")}
@@ -262,17 +268,13 @@ export function ApiKeyCreateDialog({
 								<p className="text-muted-foreground text-xs">
 									These permissions apply to all websites
 								</p>
-								<div className="rounded border bg-muted/20 p-1">
+								<div className="rounded border bg-card p-1">
 									<div className="grid grid-cols-2 gap-1">
 										{SCOPES.map((scope) => {
 											const isSelected = globalScopes.includes(scope.value);
 											return (
 												<button
-													className={`flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm transition-colors ${
-														isSelected
-															? "bg-primary text-primary-foreground"
-															: "hover:bg-muted"
-													}`}
+													className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm transition-colors"
 													key={scope.value}
 													onClick={() => toggleGlobalScope(scope.value)}
 													type="button"
@@ -280,11 +282,17 @@ export function ApiKeyCreateDialog({
 													<div
 														className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
 															isSelected
-																? "border-primary-foreground bg-primary-foreground text-primary"
+																? "border-primary bg-primary text-primary"
 																: "border-muted-foreground/30"
 														}`}
 													>
-														{isSelected && <CheckIcon size={12} weight="bold" />}
+														{isSelected && (
+															<CheckIcon
+																className="text-white"
+																size={12}
+																weight="bold"
+															/>
+														)}
 													</div>
 													<span className="truncate">{scope.label}</span>
 												</button>
@@ -297,9 +305,11 @@ export function ApiKeyCreateDialog({
 							{/* Website-Specific Permissions */}
 							{websites && websites.length > 0 && (
 								<section className="space-y-3">
-									<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2">
 										<Label className="font-medium">Website Restrictions</Label>
-										<span className="text-muted-foreground text-xs">optional</span>
+										<span className="text-muted-foreground text-xs">
+											optional
+										</span>
 									</div>
 									<p className="text-muted-foreground text-xs">
 										Limit this key to specific websites with custom permissions
@@ -307,13 +317,19 @@ export function ApiKeyCreateDialog({
 
 									{/* Add Website */}
 									<div className="flex gap-2">
-										<Select onValueChange={setWebsiteToAdd} value={websiteToAdd}>
+										<Select
+											onValueChange={setWebsiteToAdd}
+											value={websiteToAdd}
+										>
 											<SelectTrigger className="h-10 flex-1">
 												<SelectValue placeholder="Select a website..." />
 											</SelectTrigger>
 											<SelectContent>
 												{websites
-													.filter((w) => !websiteAccess.some((e) => e.resourceId === w.id))
+													.filter(
+														(w) =>
+															!websiteAccess.some((e) => e.resourceId === w.id)
+													)
 													.map((w) => (
 														<SelectItem key={w.id} value={w.id}>
 															{w.name || w.domain}
@@ -336,7 +352,9 @@ export function ApiKeyCreateDialog({
 									{websiteAccess.length > 0 && (
 										<div className="space-y-3">
 											{websiteAccess.map((entry) => {
-												const website = websites.find((w) => w.id === entry.resourceId);
+												const website = websites.find(
+													(w) => w.id === entry.resourceId
+												);
 												return (
 													<div
 														className="rounded border bg-muted/20 p-3"
@@ -344,11 +362,15 @@ export function ApiKeyCreateDialog({
 													>
 														<div className="mb-3 flex items-center justify-between">
 															<span className="font-medium text-sm">
-																{website?.name || website?.domain || entry.resourceId}
+																{website?.name ||
+																	website?.domain ||
+																	entry.resourceId}
 															</span>
 															<Button
 																className="h-7 w-7"
-																onClick={() => removeWebsite(entry.resourceId ?? "")}
+																onClick={() =>
+																	removeWebsite(entry.resourceId ?? "")
+																}
 																size="icon"
 																type="button"
 																variant="ghost"
@@ -358,7 +380,9 @@ export function ApiKeyCreateDialog({
 														</div>
 														<div className="grid grid-cols-2 gap-1">
 															{SCOPES.slice(0, 6).map((scope) => {
-																const isSelected = entry.scopes.includes(scope.value);
+																const isSelected = entry.scopes.includes(
+																	scope.value
+																);
 																return (
 																	<button
 																		className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
@@ -368,7 +392,10 @@ export function ApiKeyCreateDialog({
 																		}`}
 																		key={scope.value}
 																		onClick={() =>
-																			toggleWebsiteScope(entry.resourceId ?? "", scope.value)
+																			toggleWebsiteScope(
+																				entry.resourceId ?? "",
+																				scope.value
+																			)
 																		}
 																		type="button"
 																	>
@@ -379,9 +406,13 @@ export function ApiKeyCreateDialog({
 																					: "border-muted-foreground/30"
 																			}`}
 																		>
-																			{isSelected && <CheckIcon size={8} weight="bold" />}
+																			{isSelected && (
+																				<CheckIcon size={8} weight="bold" />
+																			)}
 																		</div>
-																		<span className="truncate">{scope.label}</span>
+																		<span className="truncate">
+																			{scope.label}
+																		</span>
 																	</button>
 																);
 															})}
@@ -396,7 +427,7 @@ export function ApiKeyCreateDialog({
 						</div>
 
 						{/* Footer */}
-						<div className="shrink-0 flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+						<div className="flex shrink-0 items-center justify-end gap-3 border-t px-2 py-4">
 							<Button onClick={handleClose} type="button" variant="ghost">
 								Cancel
 							</Button>
@@ -405,7 +436,7 @@ export function ApiKeyCreateDialog({
 									"Creating..."
 								) : (
 									<>
-										<PlusIcon className="mr-1.5" size={16} />
+										<PlusIcon size={16} />
 										Create Key
 									</>
 								)}

@@ -2,7 +2,7 @@
 
 import { getCountryName } from "@databuddy/shared/country-codes";
 import type { ProfileData } from "@databuddy/shared/types/analytics";
-import { SpinnerIcon, UsersIcon } from "@phosphor-icons/react";
+import { SpinnerIcon, UsersIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
 	flexRender,
@@ -13,6 +13,8 @@ import dayjs from "dayjs";
 import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PageHeader } from "@/app/(main)/websites/_components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -121,7 +123,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 				id: "index",
 				header: "#",
 				cell: ({ row }) => (
-					<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-semibold text-primary text-sm">
+					<div className="flex size-8 items-center justify-center rounded-lg bg-accent font-medium text-accent-foreground text-sm">
 						{row.index + 1}
 					</div>
 				),
@@ -195,7 +197,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 				header: "Sessions",
 				accessorKey: "total_sessions",
 				cell: ({ row }) => (
-					<div className="text-center">
+					<div>
 						<div className="font-semibold text-foreground text-lg">
 							{row.original.total_sessions}
 						</div>
@@ -209,7 +211,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 				header: "Pages",
 				accessorKey: "total_pageviews",
 				cell: ({ row }) => (
-					<div className="text-center">
+					<div>
 						<div className="font-semibold text-foreground text-lg">
 							{row.original.total_pageviews}
 						</div>
@@ -224,14 +226,12 @@ export function UsersList({ websiteId }: UsersListProps) {
 				cell: ({ row }) => {
 					const isReturning = row.original.total_sessions > 1;
 					return (
-						<div className="flex justify-center">
-							<Badge
-								className="px-2 py-1 font-semibold text-xs"
-								variant={isReturning ? "default" : "secondary"}
-							>
-								{isReturning ? "Return" : "New"}
-							</Badge>
-						</div>
+						<Badge
+							className="w-16"
+							variant={isReturning ? "default" : "secondary"}
+						>
+							{isReturning ? "Return" : "New"}
+						</Badge>
 					);
 				},
 				size: 100,
@@ -270,33 +270,19 @@ export function UsersList({ websiteId }: UsersListProps) {
 	if (isLoading && isInitialLoad) {
 		return (
 			<div className="flex h-full flex-col">
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3">
-								<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-									<UsersIcon className="h-5 w-5 text-primary" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-										Users
-									</h1>
-									<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-										View detailed visitor profiles and activity
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+				<PageHeader
+					description="View detailed visitor profiles and activity"
+					icon={<UsersThreeIcon />}
+					title="Users"
+				/>
 
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="overflow-auto">
 						<Table>
-							<TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
+							<TableHeader className="sticky top-0 z-10 bg-accent/50 backdrop-blur-sm">
 								<TableRow>
 									{columns.map((column) => (
-										<TableHead key={column.id}>
+										<TableHead className="h-[39px]" key={column.id}>
 											{typeof column.header === "string" ? column.header : null}
 										</TableHead>
 									))}
@@ -330,25 +316,11 @@ export function UsersList({ websiteId }: UsersListProps) {
 		return (
 			<div className="flex h-full flex-col">
 				{/* Header */}
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3">
-								<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-									<UsersIcon className="h-5 w-5 text-primary" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-										Users
-									</h1>
-									<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-										View detailed visitor profiles and activity
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+				<PageHeader
+					description="View detailed visitor profiles and activity"
+					icon={<UsersThreeIcon />}
+					title="Users"
+				/>
 
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center py-24 text-center text-muted-foreground">
 					<UsersIcon className="mb-4 h-12 w-12 opacity-50" />
@@ -365,33 +337,18 @@ export function UsersList({ websiteId }: UsersListProps) {
 		return (
 			<div className="flex h-full flex-col">
 				{/* Header */}
-				<div className="h-[89px] border-b">
-					<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3">
-								<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-									<UsersIcon className="h-5 w-5 text-primary" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-										Users
-									</h1>
-									<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-										View detailed visitor profiles and activity
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+				<PageHeader
+					description="View detailed visitor profiles and activity"
+					icon={<UsersThreeIcon />}
+					title="Users"
+				/>
 
-				<div className="flex min-h-0 flex-1 flex-col items-center justify-center py-24 text-center text-muted-foreground">
-					<UsersIcon className="mb-4 h-12 w-12 opacity-50" />
-					<p className="mb-2 font-medium text-lg">No users found</p>
-					<p className="text-sm">
-						Users will appear here once visitors browse your website
-					</p>
-				</div>
+				<EmptyState
+					description="Users will appear here once visitors browse your website"
+					icon={<UsersIcon />}
+					title="No users found"
+					variant="minimal"
+				/>
 			</div>
 		);
 	}
@@ -399,46 +356,26 @@ export function UsersList({ websiteId }: UsersListProps) {
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header */}
-			<div className="h-[89px] border-b">
-				<div className="flex h-full flex-col justify-center gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-3">
-							<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-								<UsersIcon className="h-5 w-5 text-primary" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-2">
-									<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">
-										Users
-									</h1>
-									<span className="rounded bg-muted px-2 py-1 font-medium text-muted-foreground text-sm">
-										{allUsers.length}
-									</span>
-									{isLoading && !isInitialLoad && (
-										<div className="flex items-center gap-1.5 rounded bg-primary/10 px-2 py-1 text-primary">
-											<SpinnerIcon className="h-3 w-3 animate-spin" />
-											<span className="font-medium text-xs">Loading...</span>
-										</div>
-									)}
-								</div>
-								<p className="mt-0.5 text-muted-foreground text-xs sm:text-sm">
-									View detailed visitor profiles and activity
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+			<PageHeader
+				count={allUsers.length}
+				description="View detailed visitor profiles and activity"
+				icon={<UsersThreeIcon />}
+				title="Users"
+			/>
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<div className="h-full overflow-auto" ref={setScrollContainerRef}>
 					<Table>
-						<TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
+						<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
 							{table.getHeaderGroups().map((headerGroup) => (
-								<TableRow key={headerGroup.id}>
+								<TableRow
+									className="bg-accent shadow-[0_0_0_0.5px_var(--border)]"
+									key={headerGroup.id}
+								>
 									{headerGroup.headers.map((header) => (
 										<TableHead
+											className="h-[39px]"
 											key={header.id}
 											style={{
 												width: header.getSize(),

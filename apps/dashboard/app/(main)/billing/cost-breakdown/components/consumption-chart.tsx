@@ -20,6 +20,7 @@ import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
 type ViewMode = "daily" | "cumulative";
 
 import { METRIC_COLORS } from "@/components/charts/metrics-constants";
+import { EmptyState } from "@/components/empty-state";
 
 const EVENT_TYPE_COLORS = {
 	event: METRIC_COLORS.pageviews.primary, // blue
@@ -133,26 +134,11 @@ export function ConsumptionChart({
 
 	if (!usageData || chartData.length === 0) {
 		return (
-			<div className="flex h-full flex-col border-b">
-				<div className="border-b px-5 py-4">
-					<div className="flex items-center gap-2">
-						<ChartBarIcon className="h-5 w-5" weight="duotone" />
-						<h2 className="font-semibold">Consumption Breakdown</h2>
-					</div>
-				</div>
-				<div className="flex h-[350px] items-center justify-center p-5">
-					<div className="text-center">
-						<CalendarIcon
-							className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
-							weight="duotone"
-						/>
-						<h3 className="font-semibold">No Data Available</h3>
-						<p className="text-muted-foreground text-sm">
-							No usage data found for the selected period
-						</p>
-					</div>
-				</div>
-			</div>
+			<EmptyState
+				icon={<CalendarIcon />}
+				title="No Data Available"
+				variant="minimal"
+			/>
 		);
 	}
 
@@ -167,11 +153,11 @@ export function ConsumptionChart({
 	const yAxisMax = Math.ceil(maxValue * 1.1);
 
 	return (
-		<div className="flex h-full flex-col border-b">
+		<div className="flex h-fit flex-col border-b">
 			<div className="border-b px-5 py-4">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<ChartBarIcon className="h-5 w-5" weight="duotone" />
+						<ChartBarIcon className="size-5" weight="duotone" />
 						<h2 className="font-semibold">Consumption Breakdown</h2>
 					</div>
 					<div className="flex items-center gap-2">
@@ -213,7 +199,7 @@ export function ConsumptionChart({
 					</div>
 				</div>
 			</div>
-			<div className="flex-1 p-5">
+			<div className="bg-card p-4">
 				<div className="h-[350px]">
 					<ResponsiveContainer height="100%" width="100%">
 						<BarChart

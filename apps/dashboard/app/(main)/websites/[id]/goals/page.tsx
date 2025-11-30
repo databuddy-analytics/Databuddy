@@ -197,14 +197,14 @@ export default function GoalsPage() {
 	}
 
 	return (
-		<div className="space-y-4 p-6" ref={pageRef}>
+		<div className="relative flex h-full flex-col space-y-4" ref={pageRef}>
 			<WebsitePageHeader
 				createActionLabel="Create Goal"
 				description="Track key conversions and measure success"
 				hasError={!!goalsError}
 				icon={
 					<TargetIcon
-						className="h-6 w-6 text-primary"
+						className="size-6 text-accent-foreground"
 						size={16}
 						weight="duotone"
 					/>

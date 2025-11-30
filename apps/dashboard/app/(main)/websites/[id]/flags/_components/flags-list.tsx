@@ -71,26 +71,21 @@ export function FlagsList({
     return null; // Skeleton is handled by parent
   }
 
-  if (flags.length === 0) {
-    return (
-      <EmptyState
-        action={{
-          label: "Create Your First Flag",
-          onClick: onCreateFlagAction,
-        }}
-        description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
-        icon={
-          <FlagIcon
-            className="h-16 w-16 text-primary"
-            size={16}
-            weight="duotone"
-          />
-        }
-        title="No feature flags yet"
-        variant="default"
-      />
-    );
-  }
+	if (flags.length === 0) {
+		return (
+			<EmptyState
+				action={{
+					label: "Create Your First Flag",
+					onClick: onCreateFlagAction,
+				}}
+				className="h-full py-0"
+				description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+				icon={<FlagIcon weight="duotone" />}
+				title="No feature flags yet"
+				variant="minimal"
+			/>
+		);
+	}
 
   return (
     <div className="space-y-4">
@@ -115,6 +110,7 @@ export function FlagsList({
               value={statusFilter}
             >
               <SelectTrigger className="w-36">
+								<FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>

@@ -1,6 +1,17 @@
 /**
- * Configuration options for the Databuddy SDK and <Databuddy /> component.
- * All options are passed as data attributes to the injected script.
+ * Configuration for the `<Databuddy />` component and tracker script.
+ *
+ * @example
+ * ```tsx
+ * <Databuddy
+ *   clientId="your-client-id"
+ *   apiUrl="https://basket.databuddy.cc"
+ *   trackWebVitals
+ *   trackErrors
+ *   trackScrollDepth
+ *   samplingRate={0.5}
+ * />
+ * ```
  */
 export type DatabuddyConfig = {
 	/**
@@ -276,51 +287,64 @@ export type PropertiesForEvent<T extends EventName> =
 	: EventProperties;
 
 /**
- * Databuddy tracker instance interface
+ * The global tracker instance available at `window.databuddy` or `window.db`.
+ *
+ * @example
+ * ```ts
+ * // Direct access (prefer SDK functions instead)
+ * window.databuddy.track("signup", { plan: "pro" });
+ * window.databuddy.flush();
+ *
+ * // Access IDs for server-side identification
+ * const { anonymousId, sessionId } = window.databuddy;
+ * ```
  */
 export type DatabuddyTracker = {
-	/**
-	 * Current anonymous user ID
-	 */
+	/** Persistent user ID (stored in localStorage, survives sessions) */
 	anonymousId: string;
 
-	/**
-	 * Current session ID
-	 */
+	/** Current session ID (resets after 30 min inactivity) */
 	sessionId: string;
 
 	/**
-	 * Track a custom event
+	 * Track a custom event.
+	 * @param eventName - Name of the event (e.g., "purchase", "signup")
+	 * @param properties - Additional data to attach
 	 */
-	track<T extends EventName>(
-		eventName: T,
-		properties?: PropertiesForEvent<T>
-	): Promise<void>;
+	track(eventName: string, properties?: Record<string, unknown>): void;
 
 	/**
-	 * Track a screen/page view
+	 * Manually track a page view. Called automatically on route changes.
+	 * @param path - Override the current path
+	 * @param properties - Additional properties
 	 */
 	screenView(path?: string, properties?: EventProperties): void;
 
 	/**
-	 * Set global properties that will be attached to all events
+	 * Set properties that will be attached to ALL future events.
+	 * Useful for user traits like plan, role, or A/B test variants.
+	 *
+	 * @example
+	 * ```ts
+	 * window.databuddy.setGlobalProperties({
+	 *   plan: "enterprise",
+	 *   abVariant: "checkout-v2"
+	 * });
+	 * ```
 	 */
 	setGlobalProperties(properties: EventProperties): void;
 
 	/**
-	 * Clear the current user session and generate new IDs
+	 * Reset the user session. Generates new anonymous and session IDs.
+	 * Call after logout to ensure clean slate for next user.
 	 */
 	clear(): void;
 
 	/**
-	 * Flush any queued events immediately
+	 * Force send all queued events immediately.
+	 * Call before navigation to external sites.
 	 */
 	flush(): void;
-
-	/**
-	 * Track a custom event with full type safety
-	 */
-	trackCustomEvent(eventName: string, properties?: EventProperties): void;
 }
 
 /**
@@ -336,18 +360,41 @@ declare global {
 			clear: DatabuddyTracker["clear"];
 			flush: DatabuddyTracker["flush"];
 			setGlobalProperties: DatabuddyTracker["setGlobalProperties"];
-			trackCustomEvent: DatabuddyTracker["trackCustomEvent"];
 		};
 	}
 }
 
 /**
- * Helper type for HTML data attributes for automatic tracking
+ * HTML data attributes for declarative click tracking.
+ * Add these to any clickable element to track without JavaScript.
+ *
+ * @example
+ * ```tsx
+ * // Track button clicks with properties
+ * <button
+ *   data-track="cta_clicked"
+ *   data-button-text="Get Started"
+ *   data-location="hero"
+ * >
+ *   Get Started
+ * </button>
+ *
+ * // Properties are auto-converted to camelCase:
+ * // { buttonText: "Get Started", location: "hero" }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Track navigation
+ * <a href="/pricing" data-track="nav_link_clicked" data-destination="pricing">
+ *   Pricing
+ * </a>
+ * ```
  */
 export type DataAttributes = {
 	/** Event name to track when element is clicked */
 	"data-track": string;
-	/** Additional data attributes (converted to camelCase) */
+	/** Additional data attributes (auto-converted from kebab-case to camelCase) */
 	[key: `data-${string}`]: string;
 }
 

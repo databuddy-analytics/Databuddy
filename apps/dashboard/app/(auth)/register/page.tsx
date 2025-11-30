@@ -4,14 +4,12 @@ import { authClient } from "@databuddy/auth/client";
 import { track } from "@databuddy/sdk";
 import {
 	CaretLeftIcon,
-	CheckCircleIcon,
 	EyeIcon,
 	EyeSlashIcon,
 	GithubLogoIcon,
 	GoogleLogoIcon,
 	InfoIcon,
 	SpinnerIcon,
-	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -184,47 +182,36 @@ function RegisterPageContent() {
 			case "verification-needed":
 				return (
 					<>
-						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-warning/10 p-3">
-							<div className="absolute inset-0 animate-pulse rounded-full bg-warning/5" />
-							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-warning/20 to-warning/10 opacity-70 blur-md" />
-							<div className="relative rounded-full bg-gradient-to-tr from-warning to-warning/80 p-2.5">
-								<WarningCircleIcon className="h-8 w-8 text-warning-foreground" />
-							</div>
-						</div>
-						<h1 className="font-bold text-2xl text-foreground">
+						<h1 className="font-medium text-2xl text-foreground">
 							Verify your email
 						</h1>
-						<p className="mt-2 text-muted-foreground">
-							We've sent a verification link to{" "}
-							<strong className="font-medium text-warning">
+						<p className="mt-2 text-muted-foreground text-sm">
+							Please check your email:{" "}
+							<span className="font-medium text-accent-foreground">
 								{formData.email}
-							</strong>
+							</span>{" "}
+							and click the verification link to activate your account. If you
+							don't see the email, check your spam folder.
 						</p>
 					</>
 				);
 			case "success":
 				return (
 					<>
-						<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/10 p-3">
-							<div className="absolute inset-0 animate-pulse rounded-full bg-success/5" />
-							<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-success/20 to-success/10 opacity-70 blur-md" />
-							<div className="relative rounded-full bg-gradient-to-tr from-success to-success/80 p-2.5">
-								<CheckCircleIcon className="h-8 w-8 text-success-foreground" />
-							</div>
-						</div>
-						<h1 className="font-bold text-2xl text-foreground">Success!</h1>
-						<p className="mt-2 text-muted-foreground">
-							Your account has been created successfully
+						<h1 className="font-medium text-2xl text-foreground">Success!</h1>
+						<p className="mt-1 text-muted-foreground text-sm">
+							Your account has been created successfully. You can now sign in to
+							access your dashboard.
 						</p>
 					</>
 				);
 			default:
 				return (
 					<>
-						<h1 className="font-bold text-2xl text-foreground tracking-tight">
+						<h1 className="font-medium text-2xl text-foreground tracking-tight">
 							Create your account
 						</h1>
-						<p className="mt-2 text-muted-foreground">
+						<p className="mt-1 text-muted-foreground text-sm">
 							Sign up to start building better products with Databuddy
 						</p>
 					</>
@@ -234,20 +221,13 @@ function RegisterPageContent() {
 
 	// Split render content into smaller components
 	const renderVerificationContent = () => (
-		<div className="space-y-5 py-4">
-			<div className="rounded-lg border border-warning/20 bg-warning/5 p-4 text-warning-foreground">
-				<p className="text-sm">
-					Please check your email inbox and click the verification link to
-					activate your account. If you don't see the email, check your spam
-					folder.
-				</p>
-			</div>
-
+		<div className="space-y-5">
 			<div className="flex flex-col space-y-3">
 				<Button
-					className="w-full bg-warning text-sm text-warning-foreground hover:bg-warning/90 sm:text-base"
+					className="w-full"
 					disabled={isLoading}
 					onClick={resendVerificationEmail}
+					size="lg"
 				>
 					{isLoading ? (
 						<>
@@ -265,11 +245,11 @@ function RegisterPageContent() {
 				</Button>
 
 				<Button
-					className="w-full border-warning/20 text-sm text-warning hover:bg-warning/5 sm:text-base"
 					onClick={() => setRegistrationStep("form")}
-					variant="outline"
+					size="lg"
+					variant="ghost"
 				>
-					<CaretLeftIcon className="mr-2 h-4 w-4" />
+					<CaretLeftIcon className="size-3" weight="bold" />
 					<span className="hidden sm:inline">Back to registration</span>
 					<span className="sm:hidden">Back</span>
 				</Button>
@@ -278,17 +258,11 @@ function RegisterPageContent() {
 	);
 
 	const renderSuccessContent = () => (
-		<div className="space-y-5 py-4">
-			<div className="rounded-lg border border-success/20 bg-success/5 p-4 text-success-foreground">
-				<p className="text-sm">
-					Your account has been created successfully. You can now sign in to
-					access your dashboard.
-				</p>
-			</div>
-
+		<div className="space-y-5">
 			<Button
-				className="w-full bg-success text-sm text-success-foreground hover:bg-success/90 sm:text-base"
+				className="w-full"
 				onClick={() => router.push("/login")}
+				size="lg"
 			>
 				<span className="hidden sm:inline">Continue to login</span>
 				<span className="sm:hidden">Continue</span>
@@ -298,49 +272,47 @@ function RegisterPageContent() {
 
 	const renderFormContent = () => (
 		<div className="space-y-4">
-			<div className="-mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+			<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
 				<Button
-					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
 					onClick={() => handleSocialLogin("github")}
+					size="lg"
 					type="button"
-					variant="outline"
+					variant="secondary"
 				>
-					<GithubLogoIcon className="mr-2 h-5 w-5" />
-					<span>Sign up with GitHub</span>
+					<GithubLogoIcon className="size-4" />
+					Sign up with GitHub
 				</Button>
 
 				<Button
-					className="flex h-11 w-full cursor-pointer items-center justify-center transition-all duration-200 hover:bg-primary/5"
 					disabled={isLoading}
 					onClick={() => handleSocialLogin("google")}
+					size="lg"
 					type="button"
-					variant="outline"
+					variant="secondary"
 				>
-					<GoogleLogoIcon className="mr-2 h-5 w-5" />
-					<span>Sign up with Google</span>
+					<GoogleLogoIcon className="size-4" />
+					Sign up with Google
 				</Button>
 			</div>
 
 			<div className="relative">
-				<div className="absolute inset-0 flex items-center">
-					<Separator className="w-full" />
-				</div>
-				<div className="relative flex justify-center">
-					<span className="bg-card px-4 font-medium text-muted-foreground text-sm">
-						or continue with email
-					</span>
+				<div className="relative flex items-center justify-center gap-3">
+					<Separator className="flex-1 opacity-70" />
+					<p className="text-nowrap font-medium text-muted-foreground/50 text-sm">
+						Or
+					</p>
+					<Separator className="flex-1 opacity-70" />
 				</div>
 			</div>
 
-			<form className="space-y-4" onSubmit={handleSubmit}>
-				<div className="space-y-2">
+			<form className="space-y-5" onSubmit={handleSubmit}>
+				<div className="space-y-3">
 					<Label className="font-medium text-foreground" htmlFor="name">
 						Full name<span className="text-primary">*</span>
 					</Label>
 					<Input
 						autoComplete="name"
-						className="h-11 border-none bg-input transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 						disabled={isLoading}
 						id="name"
 						name="name"
@@ -352,13 +324,12 @@ function RegisterPageContent() {
 					/>
 				</div>
 
-				<div className="space-y-2">
+				<div className="space-y-3">
 					<Label className="font-medium text-foreground" htmlFor="email">
 						Email address<span className="text-primary">*</span>
 					</Label>
 					<Input
 						autoComplete="email"
-						className="h-11 border-none bg-input transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 						disabled={isLoading}
 						id="email"
 						name="email"
@@ -371,7 +342,7 @@ function RegisterPageContent() {
 				</div>
 
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-					<div className="space-y-2">
+					<div className="space-y-3">
 						<div className="flex items-center gap-2">
 							<Label className="font-medium text-foreground" htmlFor="password">
 								Password<span className="text-primary">*</span>
@@ -391,7 +362,6 @@ function RegisterPageContent() {
 						<div className="relative">
 							<Input
 								autoComplete="new-password"
-								className="h-11 border-none bg-input pr-10 transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 								disabled={isLoading}
 								id="password"
 								minLength={8}
@@ -404,11 +374,11 @@ function RegisterPageContent() {
 							/>
 							<Button
 								aria-label={showPassword ? "Hide password" : "Show password"}
-								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
+								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 								onClick={() => setShowPassword(!showPassword)}
 								size="sm"
 								type="button"
-								variant="link"
+								variant="ghost"
 							>
 								{showPassword ? (
 									<EyeSlashIcon className="h-4 w-4" />
@@ -419,7 +389,7 @@ function RegisterPageContent() {
 						</div>
 					</div>
 
-					<div className="space-y-2">
+					<div className="space-y-3">
 						<Label
 							className="whitespace-nowrap font-medium text-foreground"
 							htmlFor="confirmPassword"
@@ -429,7 +399,6 @@ function RegisterPageContent() {
 						<div className="relative">
 							<Input
 								autoComplete="new-password"
-								className="h-11 border-none bg-input pr-10 transition-all duration-200 placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20"
 								disabled={isLoading}
 								id="confirmPassword"
 								minLength={8}
@@ -444,11 +413,11 @@ function RegisterPageContent() {
 								aria-label={
 									showConfirmPassword ? "Hide password" : "Show password"
 								}
-								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:text-foreground"
+								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 								onClick={() => setShowConfirmPassword(!showConfirmPassword)}
 								size="sm"
 								type="button"
-								variant="link"
+								variant="ghost"
 							>
 								{showConfirmPassword ? (
 									<EyeSlashIcon className="h-4 w-4" />
@@ -471,7 +440,7 @@ function RegisterPageContent() {
 					</div>
 				</VisuallyHidden>
 
-				<div className="space-y-2">
+				<div className="space-y-3">
 					<div className="flex items-start gap-2">
 						<Checkbox
 							checked={acceptTerms}
@@ -481,13 +450,13 @@ function RegisterPageContent() {
 							onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
 						/>
 						<Label
-							className="text-muted-foreground text-xs leading-relaxed sm:text-sm"
+							className="text-[13px] text-muted-foreground leading-relaxed"
 							htmlFor="terms"
 						>
 							<span className="hidden sm:inline">
 								I agree to the{" "}
 								<Link
-									className="font-medium text-primary hover:text-primary/80"
+									className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
@@ -495,7 +464,7 @@ function RegisterPageContent() {
 								</Link>{" "}
 								and{" "}
 								<Link
-									className="font-medium text-primary hover:text-primary/80"
+									className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/privacy"
 									target="_blank"
 								>
@@ -525,8 +494,9 @@ function RegisterPageContent() {
 				</div>
 
 				<Button
-					className="hover:-translate-y-0.5 relative h-11 w-full overflow-hidden text-sm shadow transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 sm:text-base"
+					className="relative mt-4 w-full"
 					disabled={isLoading}
+					size="lg"
 					type="submit"
 				>
 					{isLoading ? (
@@ -560,18 +530,16 @@ function RegisterPageContent() {
 
 	return (
 		<>
-			<div className="mb-8 text-center">{renderHeaderContent()}</div>
-			<div className="relative overflow-hidden p-6">
-				<div className="-top-40 -right-40 pointer-events-none absolute h-80 w-80 blur-3xl" />
-				<div className="-bottom-40 -left-40 pointer-events-none absolute h-80 w-80 blur-3xl" />
+			<div className="mb-8 px-6 text-left">{renderHeaderContent()}</div>
+			<div className="relative overflow-hidden px-6">
 				<div className="relative z-10">{renderContent()}</div>
 			</div>
 			{registrationStep === "form" && (
-				<div className="mt-2 text-center">
+				<div className="mt-4 text-center">
 					<p className="text-muted-foreground text-sm">
 						Already have an account?{" "}
 						<Link
-							className="font-medium text-primary hover:text-primary/80"
+							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/60"
 							href={
 								callbackUrl
 									? `/login?callback=${encodeURIComponent(callbackUrl)}`

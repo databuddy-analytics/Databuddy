@@ -4,11 +4,10 @@ export function NotificationEmpty() {
 	return (
 		<div className="p-8 text-center text-muted-foreground">
 			<BellIcon
-				className="mx-auto mb-2 h-10 w-10 not-dark:text-primary opacity-50"
-				size={32}
+				className="mx-auto mb-2 size-8 text-muted-foreground/50"
 				weight="duotone"
 			/>
-			<p>No notifications yet</p>
+			<p className="text-muted text-xs">No notifications yet</p>
 		</div>
 	);
 }

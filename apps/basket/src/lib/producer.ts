@@ -3,6 +3,14 @@ import { clickHouse, TABLE_NAMES } from "@databuddy/db";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, record, setAttributes } from "./tracing";
 
+/**
+ * JSON stringify with undefined -> null conversion
+ * ClickHouse needs explicit nulls, not omitted fields
+ */
+function stringifyEvent(event: unknown): string {
+	return JSON.stringify(event, (_key, value) => (value === undefined ? null : value));
+}
+
 type BufferedEvent = {
 	table: string;
 	event: unknown;
@@ -335,7 +343,7 @@ export class EventProducer {
 							topic,
 							messages: [
 								{
-									value: JSON.stringify(event),
+									value: stringifyEvent(event),
 									key: key || (event as { client_id?: string }).client_id,
 								},
 							],
@@ -426,7 +434,7 @@ export class EventProducer {
 						await this.producer.send({
 							topic,
 							messages: events.map((e) => ({
-								value: JSON.stringify(e),
+								value: stringifyEvent(e),
 								key:
 									(e as { client_id?: string; event_id?: string }).client_id ||
 									(e as { event_id?: string }).event_id,
