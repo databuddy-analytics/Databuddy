@@ -7,7 +7,8 @@ import { z } from "zod";
 import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
-import { flagFormSchema, variantSchema } from "@databuddy/shared/flags";
+import { flagFormSchema, variantSchema, } from "@databuddy/shared/flags";
+import { getScopeCondition, handleFlagUpdateDependencyCascading } from "@databuddy/shared/flags/utils";
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 const CACHE_DURATION = 60;
 
@@ -40,22 +41,7 @@ const authorizeScope = async (
 	}
 };
 
-const getScopeCondition = (
-	websiteId?: string,
-	organizationId?: string,
-	userId?: string
-) => {
-	if (websiteId) {
-		return eq(flags.websiteId, websiteId);
-	}
-	if (organizationId) {
-		return eq(flags.organizationId, organizationId);
-	}
-	if (userId) {
-		return eq(flags.userId, userId);
-	}
-	return eq(flags.organizationId, "");
-};
+
 
 const invalidateFlagCache = async (
 	id: string,
@@ -349,6 +335,7 @@ export const flagsRouter = {
 							input.rolloutPercentage || existingFlag[0].rolloutPercentage || 0,
 						variants: input.variants || existingFlag[0].variants || [],
 						dependencies: input.dependencies || existingFlag[0].dependencies || [],
+						environment: input.environment || existingFlag?.[0]?.environment,
 						deletedAt: null,
 						updatedAt: new Date(),
 					})
@@ -359,7 +346,6 @@ export const flagsRouter = {
 
 				return restoredFlag;
 			}
-
 
 			const [newFlag] = await context.db
 				.insert(flags)
@@ -379,6 +365,7 @@ export const flagsRouter = {
 					dependencies: input.dependencies || [],
 					websiteId: input.websiteId || null,
 					organizationId: input.organizationId || null,
+					environment: input.environment || existingFlag?.[0]?.environment,
 					userId: input.websiteId ? null : context.user.id,
 					createdBy: context.user.id,
 				})
@@ -417,40 +404,6 @@ export const flagsRouter = {
 					message: "Not authorized to update this flag",
 				});
 			}
-
-			// If client is attempting to change rolloutPercentage, ensure there's no pending scheduled rollout
-			// if (typeof input.rolloutPercentage !== "undefined") {
-			// 	const pendingRollout = await context.db.query.flagSchedules.findFirst({
-			// 		where: and(
-			// 			eq(flagSchedules.flagId, flag.id),
-			// 			eq(flagSchedules.action, "update_rollout"),
-			// 			isNull(flagSchedules.executedAt),
-			// 			isNull(flagSchedules.cancelledAt)
-			// 		),
-			// 	});
-
-			// 	if (pendingRollout) {
-			// 		if (!input.forceCancelScheduledRollout) {
-			// 			throw new ORPCError("CONFLICT", {
-			// 				message: `A rollout update of ${pendingRollout.value} is scheduled at ${pendingRollout.scheduledAt}. Cancel it to update now.`,
-			// 			});
-			// 		} else {
-			// 			// Cancel pending rollout schedules for this flag
-			// 			await context.db
-			// 				.update(flagSchedules)
-			// 				.set({ cancelledAt: new Date(), updatedAt: new Date() })
-			// 				.where(
-			// 					and(
-			// 						eq(flagSchedules.flagId, flag.id),
-			// 						eq(flagSchedules.action, "update_rollout"),
-			// 						isNull(flagSchedules.executedAt),
-			// 						isNull(flagSchedules.cancelledAt)
-			// 					)
-			// 				);
-			// 		}
-			// 	}
-			// }
-
 			const dependencyFlags = await context.db
 				.select()
 				.from(flags)
@@ -508,115 +461,7 @@ export const flagsRouter = {
 			await invalidateFlagCache(id, flag.websiteId, flag.organizationId);
 
 			// Handle cascading status changes for dependent flags
-			if (updatedFlag.status !== "archived") {
-				const dependentFlags = await context.db
-					.select()
-					.from(flags)
-					.where(
-						and(
-							getScopeCondition(
-								flag.websiteId || undefined,
-								flag.organizationId || undefined,
-								context.user.id
-							),
-							isNull(flags.deletedAt)
-						)
-					);
-
-				const relevantDependents = dependentFlags.filter((depFlag) => {
-					const deps = (depFlag.dependencies as string[]) ?? [];
-					return deps.includes(flag.key);
-				});
-
-				if (relevantDependents.length > 0) {
-					const flagsToUpdate: Array<{ id: string; key: string; newStatus: "active" | "inactive" }> = [];
-
-					if (updatedFlag.status === "inactive") {
-						const flagsToDeactivate = relevantDependents.filter(
-							(depFlag) => depFlag.status === "active"
-						);
-
-						flagsToUpdate.push(
-							...flagsToDeactivate.map((f) => ({
-								id: f.id,
-								key: f.key,
-								newStatus: "inactive" as const,
-							}))
-						);
-					} else if (updatedFlag.status === "active") {
-						const potentialActivations = relevantDependents.filter(
-							(depFlag) => depFlag.status === "inactive"
-						);
-
-						for (const depFlag of potentialActivations) {
-							const deps = (depFlag.dependencies as string[]) ?? [];
-
-							const depFlagDependencies = await context.db
-								.select()
-								.from(flags)
-								.where(
-									and(
-										inArray(flags.key, deps),
-										getScopeCondition(
-											flag.websiteId || undefined,
-											flag.organizationId || undefined,
-											context.user.id
-										),
-										isNull(flags.deletedAt)
-									)
-								);
-
-							const allDependenciesActive = depFlagDependencies.every(
-								(df) => df.status === "active"
-							);
-
-							if (allDependenciesActive) {
-								flagsToUpdate.push({
-									id: depFlag.id,
-									key: depFlag.key,
-									newStatus: "active",
-								});
-							}
-						}
-					}
-
-					if (flagsToUpdate.length > 0) {
-						console.log({
-							message: `Cascading ${updatedFlag.status} status to dependent flags`,
-							changedFlag: flag.key,
-							newStatus: updatedFlag.status,
-							affectedFlags: flagsToUpdate.map((f) => ({
-								key: f.key,
-								newStatus: f.newStatus,
-							})),
-						});
-
-						await Promise.all(
-							flagsToUpdate.map((flagUpdate) =>
-								context.db
-									.update(flags)
-									.set({
-										status: flagUpdate.newStatus,
-										updatedAt: new Date(),
-									})
-									.where(eq(flags.id, flagUpdate.id))
-							)
-						);
-
-						await Promise.all(
-							flagsToUpdate.map((flagUpdate) => {
-								const affectedFlag = relevantDependents.find((f) => f.id === flagUpdate.id);
-								return invalidateFlagCache(
-									flagUpdate.id,
-									affectedFlag?.websiteId,
-									affectedFlag?.organizationId
-								);
-							})
-						);
-					}
-				}
-			}
-
+			await handleFlagUpdateDependencyCascading({ updatedFlag, userId: context.user.id })
 			return updatedFlag;
 		}),
 

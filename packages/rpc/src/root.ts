@@ -4,6 +4,7 @@ import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { chatRouter } from "./routers/chat";
+import { exportRouter } from "./routers/export";
 import { flagSchedulesRouter } from "./routers/flag-schedules";
 import { flagsRouter } from "./routers/flags";
 import { funnelsRouter } from "./routers/funnels";

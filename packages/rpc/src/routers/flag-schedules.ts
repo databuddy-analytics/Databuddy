@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, flagSchedules, flags, isNull } from "@databuddy/db";
-import { createFlagScheduleSchema } from "@databuddy/shared/types/flags";
+import { flagScheduleSchema } from "@databuddy/shared/flags";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure } from "../orpc";
@@ -26,7 +26,7 @@ export const flagSchedulesRouter = {
         }),
 
     create: protectedProcedure
-        .input(createFlagScheduleSchema)
+        .input(flagScheduleSchema)
         .handler(async ({ context, input }) => {
 
             const flag = await context.db.query.flags.findFirst({
@@ -46,11 +46,10 @@ export const flagSchedulesRouter = {
                 .values({
                     id: randomUUID(),
                     flagId: input.flagId,
-                    scheduledAt: input.scheduledAt ? new input,
-                    timezone: input.timezone,
-                    action: input.action,
-                    value: input.value,
-                    createdBy: context.user.id,
+                    scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+                    type: input.type,
+                    isEnabled: input.isEnabled,
+                    rolloutSteps: input.rolloutSteps,
                 })
                 .returning();
 
@@ -58,14 +57,13 @@ export const flagSchedulesRouter = {
         }),
 
     update: protectedProcedure
-        .input(createFlagScheduleSchema)
+        .input(flagScheduleSchema)
         .handler(async ({ context, input }) => {
+            if (!input.id) {
+                throw new ORPCError("BAD_REQUEST", { message: "Schedule ID is required" });
+            }
             const existingSchedule = await context.db.query.flagSchedules.findFirst({
                 where: eq(flagSchedules.id, input.id),
-                with: {
-                    // We need to join with flags to check permissions, but drizzle query builder 
-                    // might be easier with a separate fetch if relations aren't set up perfectly in schema types for query builder
-                }
             });
 
             if (!existingSchedule) {
@@ -91,7 +89,8 @@ export const flagSchedulesRouter = {
             if (updates.scheduledAt) {
                 updateData.scheduledAt = new Date(updates.scheduledAt);
             }
-
+            updateData.executedAt = null;
+            console.log({ updateData });
             const [updated] = await context.db
                 .update(flagSchedules)
                 .set(updateData)

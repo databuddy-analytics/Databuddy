@@ -49,3 +49,31 @@ export function getDefaultDateRange() {
 export function getDeviceIcon(device: string, size: 'sm' | 'md' | 'lg' = 'md') {
 	return getDeviceTypeIcon(device, size);
 }
+
+export function formatDate(
+	date: Date | string,
+	formatType: 'PPP p' | 'HH:mm' = 'PPP p'
+): string {
+	const dateObj = typeof date === 'string' ? new Date(date) : date;
+
+	if (isNaN(dateObj.getTime())) {
+		return 'Invalid Date';
+	}
+
+	if (formatType === 'HH:mm') {
+		const hours = dateObj.getHours().toString().padStart(2, '0');
+		const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+		return `${hours}:${minutes}`;
+	}
+
+	const options: Intl.DateTimeFormatOptions = {
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true,
+	};
+
+	return dateObj.toLocaleString('en-US', options).replace(',', ' at');
+}

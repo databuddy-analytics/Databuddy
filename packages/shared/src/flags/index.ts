@@ -23,10 +23,13 @@ const userRuleSchema = z.object({
 
 export const variantSchema = z.object({
     key: z.string().min(1, "Key is required").max(50, "Key too long"),
-    value: z.any(),
+    value: z.union([
+        z.string(),
+        z.number(),
+    ]),
     weight: z.number().min(0, "Weight must be >= 0").max(100, "Weight must be <= 100").optional(),
     description: z.string().optional(),
-    type: z.enum(["string", "number", "json"]).default("string"),
+    type: z.enum(["string", "number", "json"]),
 });
 export type Variant = z.infer<typeof variantSchema>;
 const flagTypeEnum = z.enum(["boolean", "rollout", "multivariant"]);
@@ -54,6 +57,7 @@ export const flagFormSchema = z
         rules: z.array(userRuleSchema).optional(),
         variants: z.array(variantSchema).optional(),
         dependencies: z.array(z.string()).optional(),
+        environment: z.string().optional(),
     })
     .superRefine((data, ctx) => {
         if (data.type === "multivariant" && data.variants) {
@@ -79,7 +83,7 @@ export const flagScheduleTypeEnum = z.enum([
 export type FlagScheduleType = z.infer<typeof flagScheduleTypeEnum>;
 
 export const rolloutStepSchema = z.object({
-    scheduledAt: z.string().datetime(),
+    scheduledAt: z.string(),
     value: z.union([
         z.number().min(0).max(100),
         z.literal("enable"),
@@ -101,7 +105,7 @@ export const flagScheduleSchema = z.object({
         if (!data.isEnabled) return
         if (data.type !== "update_rollout") {
 
-            if (data.rolloutSteps) {
+            if (data.rolloutSteps && data?.rolloutSteps?.length > 0) {
                 ctx.addIssue({
                     code: "custom",
                     path: ["rolloutSteps"],
@@ -111,7 +115,7 @@ export const flagScheduleSchema = z.object({
             if (!data.scheduledAt) {
                 ctx.addIssue({
                     code: "custom",
-                    params: ['scheduledAt'],
+                    path: ['scheduledAt'],
                     message: "Date time is required for enable/disable schedule types",
                 })
             }
@@ -119,7 +123,7 @@ export const flagScheduleSchema = z.object({
             if (isNaN(scheduledDate.getTime())) {
                 ctx.addIssue({
                     code: "custom",
-                    params: ['scheduledAt'],
+                    path: ['scheduledAt'],
                     message: "Invalid schedule date",
                 })
             }
@@ -127,7 +131,7 @@ export const flagScheduleSchema = z.object({
             if (Date.now() > new Date(data.scheduledAt!).getTime()) {
                 ctx.addIssue({
                     code: "custom",
-                    params: ['scheduledAt'],
+                    path: ['scheduledAt'],
                     message: "Scheduled time must be in the future",
                 })
             }
@@ -135,7 +139,7 @@ export const flagScheduleSchema = z.object({
             if (data.scheduledAt) {
                 ctx.addIssue({
                     code: "custom",
-                    params: ['scheduledAt'],
+                    path: ['scheduledAt'],
                     message: "scheduledAt not allowed for rollout schedules",
                 })
             }

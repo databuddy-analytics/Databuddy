@@ -1,16 +1,14 @@
 import type { FlagsConfig } from "@/core/flags/types";
-import { NodeFlagsManager } from "./flags-manager";
+import { ServerFlagsManager } from "./flags-manager";
 
 /**
- * Create a NodeFlagsManager with Redis caching (default)
- * Automatically uses Redis from @databuddy/redis package if available
- * Falls back to in-memory caching if Redis is not available
+ * Create a ServerFlagsManager with in-memory caching
  * 
  * @example
  * ```typescript
- * import { createNodeFlagsManager } from '@databuddy/sdk/node';
+ * import { createServerFlagsManager } from '@databuddy/sdk/node';
  * 
- * const manager = createNodeFlagsManager({
+ * const manager = createServerFlagsManager({
  *   clientId: process.env.DATABUDDY_CLIENT_ID!,
  * });
  * 
@@ -18,29 +16,20 @@ import { NodeFlagsManager } from "./flags-manager";
  * const flag = await manager.getFlag('my-feature');
  * ```
  */
-export function createNodeFlagsManager(
-    config: FlagsConfig,
-    options?: {
-        cachePrefix?: string;
-        cacheTTL?: number;
-    }
-): NodeFlagsManager {
-    return new NodeFlagsManager({
+export function createServerFlagsManager(config: FlagsConfig): ServerFlagsManager {
+    return new ServerFlagsManager({
         config,
-        useRedis: true,
-        ...options,
     });
 }
 
 /**
- * Create a NodeFlagsManager without Redis (in-memory only)
- * Useful for development or environments without Redis
+ * Alias for createServerFlagsManager (for backwards compatibility)
  * 
  * @example
  * ```typescript
- * import { createNodeFlagsManagerInMemory } from '@databuddy/sdk/node';
+ * import { createServerFlagsManagerInMemory } from '@databuddy/sdk/node';
  * 
- * const manager = createNodeFlagsManagerInMemory({
+ * const manager = createServerFlagsManagerInMemory({
  *   clientId: process.env.DATABUDDY_CLIENT_ID!,
  * });
  * 
@@ -48,14 +37,6 @@ export function createNodeFlagsManager(
  * const flag = await manager.getFlag('my-feature');
  * ```
  */
-export function createNodeFlagsManagerInMemory(
-    config: FlagsConfig
-): NodeFlagsManager {
-    return new NodeFlagsManager({
-        config: {
-            ...config,
-            skipStorage: true,
-        },
-        useRedis: false,
-    });
+export function createServerFlagsManagerInMemory(config: FlagsConfig): ServerFlagsManager {
+    return createServerFlagsManager(config);
 }

@@ -7,6 +7,7 @@ import {
   FormItem,
   FormLabel,
   FormControl,
+  FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,10 +23,9 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { CalendarIcon, Trash } from "@phosphor-icons/react";
-import { format } from "date-fns";
-import { UseFormReturn } from "react-hook-form";
+import { UseFormReturn, UseFormSetValue } from "react-hook-form";
 import type {
   FlagSchedule,
   FlagScheduleType,
@@ -35,9 +35,10 @@ import type {
 interface ScheduleManagerProps {
   form: UseFormReturn<any>;
   flagType: FlagType;
+  setValue: UseFormSetValue<any>;
 }
 
-export function ScheduleManager({ form, flagType }: ScheduleManagerProps) {
+export function ScheduleManager({ form, flagType, setValue }: ScheduleManagerProps) {
   const rolloutSteps = form.watch("schedule.rolloutSteps") || [];
   const scheduleEnabled = form.watch("schedule.isEnabled");
   const watchedScheduledType = form.watch("schedule.type");
@@ -64,18 +65,23 @@ export function ScheduleManager({ form, flagType }: ScheduleManagerProps) {
         </div>
         <div className="flex items-center gap-2">
           <FormField
-            control={form.control}
-            name="schedule.isEnabled"
-            render={({ field }) => (
+            // control={form.control}
+            name="isEnabled"
+            render={() => (
               <FormItem className="flex items-center gap-2">
                 <FormLabel className="text-sm text-muted-foreground">
-                  {field.value ? "Enabled" : "Disabled"}
+                  {scheduleEnabled ? "Enabled" : "Disabled"}
                 </FormLabel>
                 <FormControl>
                   <Switch
                     id="schedule-toggle"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
+                    checked={scheduleEnabled}
+                    onCheckedChange={(value) => {
+                      setValue("schedule.isEnabled", value);
+                      if (!value) {
+                        setValue("schedule", undefined);
+                      }
+                    }}
                   />
                 </FormControl>
               </FormItem>
@@ -146,7 +152,7 @@ export function ScheduleManager({ form, flagType }: ScheduleManagerProps) {
                           disabled={watchedScheduledType === "update_rollout"}
                         >
                           {field.value
-                            ? format(new Date(field.value), "PPP p")
+                            ? formatDate(new Date(field.value), "PPP p")
                             : "Pick a Time"}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -176,7 +182,7 @@ export function ScheduleManager({ form, flagType }: ScheduleManagerProps) {
                           type="time"
                           defaultValue={
                             field.value
-                              ? format(new Date(field.value), "HH:mm")
+                              ? formatDate(new Date(field.value), "HH:mm")
                               : ""
                           }
                           onChange={(e) => {
@@ -191,6 +197,7 @@ export function ScheduleManager({ form, flagType }: ScheduleManagerProps) {
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <FormMessage />
                 </FormItem>
               )}
             />

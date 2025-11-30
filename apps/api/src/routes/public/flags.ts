@@ -10,6 +10,7 @@ const flagQuerySchema = t.Object({
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	properties: t.Optional(t.String()),
+	environment: t.Optional(t.String()),
 });
 
 const bulkFlagQuerySchema = t.Object({
@@ -45,20 +46,26 @@ type FlagResult = {
 };
 
 const getCachedFlag = cacheable(
-	(key: string, clientId: string) => {
+	(key: string, clientId: string, environment?: string) => {
 		const scopeCondition = or(
 			eq(flags.websiteId, clientId),
 			eq(flags.organizationId, clientId)
 		);
-
-		return db.query.flags.findFirst({
-			where: and(
-				eq(flags.key, key),
-				isNull(flags.deletedAt),
-				eq(flags.status, "active"),
-				scopeCondition
-			),
-		});
+		const environmentCondition = environment
+			? eq(flags.environment, environment)
+			: isNull(flags.environment);
+		console.log({ environmentCondition });
+		const a =
+			db.query.flags.findFirst({
+				where: and(
+					eq(flags.key, key),
+					environmentCondition,
+					isNull(flags.deletedAt),
+					eq(flags.status, "active"),
+					scopeCondition
+				),
+			});
+		return a
 	},
 	{
 		expireInSec: 30,
@@ -290,7 +297,7 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 			value,
 			variant,
 			payload: flag.payload,
-			reason: "VARIANT_SELECTED",
+			reason: "MULTIVARIANT_EVALUATED",
 		};
 	}
 
@@ -326,11 +333,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 		"/evaluate",
 		function evaluateFlagEndpoint({ query, set }) {
 			return record("evaluateFlag", async (): Promise<FlagResult> => {
+				console.log("🚀 Flag evaluation request:", query);
+
 				setAttributes({
 					"flag.key": query.key || "missing",
 					"flag.client_id": query.clientId || "missing",
 					"flag.has_user_id": Boolean(query.userId),
 					"flag.has_email": Boolean(query.email),
+					"flag.environment": query.environment || "missing",
 				});
 
 				try {
@@ -361,7 +371,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						"Flag evaluation request"
 					);
 
-					const flag = await getCachedFlag(query.key, query.clientId);
+					const flag = await getCachedFlag(query.key, query.clientId, query.environment);
 
 					if (!flag) {
 						setAttributes({ "flag.found": false });

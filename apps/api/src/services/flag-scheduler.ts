@@ -1,6 +1,7 @@
 import { and, db, eq, flagSchedules, flags, lte, isNotNull, inArray, isNull } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { logger } from "@databuddy/shared/logger";
+import { handleFlagUpdateDependencyCascading } from "@databuddy/shared/flags/utils";
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 
@@ -112,9 +113,15 @@ async function executeSchedule(sched: any) {
                     break;
             }
         }
-        updates.executedAt = new Date();
-        await db.update(flags).set(updates).where(eq(flags.id, sched.flagId));
-        await flagsCache.invalidateByTables(["flags"]);
+        const updatedFlag = (await db.update(flags).set(updates).where(eq(flags.id, sched.flagId)).returning())[0];
+        await db.update(flagSchedules).set({ isEnabled: false, executedAt: new Date() }).where(eq(flagSchedules.id, sched.id));
+
+        if (updatedFlag) {
+            await handleFlagUpdateDependencyCascading({ updatedFlag: updatedFlag, userId: sched.userId });
+            await flagsCache.invalidateByTables(["flags"]);
+        } else {
+            logger.warn({ flagId: sched.flagId, scheduleId: sched.id }, "Failed to update flag, schedule not executed",);
+        }
 
         logger.info({
             scheduleId: sched.id,

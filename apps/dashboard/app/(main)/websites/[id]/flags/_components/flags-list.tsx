@@ -20,6 +20,8 @@ import {
 import { FlagExamples } from "./flag-examples";
 import { FlagRow } from "./flag-row";
 import type { Flag } from "./types";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
 
 type FlagsListProps = {
   flags: Flag[];
@@ -39,6 +41,13 @@ export function FlagsList({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<FlagStatus | "all">("all");
   const [showExamples, setShowExamples] = useState(false);
+
+
+  const isFlagExamplesEnabledQuery = useQuery({
+    ...orpc.flags.getByKey.queryOptions({
+      input: { key: "enable-flag-examples", websiteId: "Jwb5jRcgB1G0A95x_KXsp" },
+    }),
+  });
 
   const filteredFlags = flags.filter((flag) => {
     // Status filter
@@ -121,14 +130,14 @@ export function FlagsList({
           <div className="text-muted-foreground text-sm">
             {filteredFlags.length} flag{filteredFlags.length !== 1 ? "s" : ""}
           </div>
-          <Button
+          {isFlagExamplesEnabledQuery?.data?.status === "active" && <Button
             variant={showExamples ? "default" : "outline"}
             size="sm"
             onClick={() => setShowExamples(!showExamples)}
           >
             <LightbulbIcon className="mr-2 h-4 w-4" weight="duotone" />
             {showExamples ? "Hide" : "View"} Examples
-          </Button>
+          </Button>}
         </div>
       </div>
 

@@ -4,7 +4,7 @@ export interface FlagResult {
 	payload: any;
 	reason: string;
 	flagId?: string;
-	flagType?: "boolean" | "rollout";
+	flagType?: "boolean" | "rollout" | "multivariant";
 }
 
 export interface FlagsConfig {
@@ -25,6 +25,7 @@ export interface FlagsConfig {
 	isPending?: boolean;
 	/** Automatically fetch all flags on initialization (default: true) */
 	autoFetch?: boolean;
+	environment?: string;
 }
 
 export interface FlagState {

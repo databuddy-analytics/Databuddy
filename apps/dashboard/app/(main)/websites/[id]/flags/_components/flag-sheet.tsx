@@ -34,6 +34,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -48,79 +49,13 @@ import { DependencySelector } from "./dependency-selector";
 import { VariantEditor } from "./variant-editor";
 import { ScheduleManager } from "./schedule-manager";
 import {
-  createFlagScheduleSchema,
-  FlagSchedule,
-} from "@databuddy/shared/types/flags";
-
-const userRuleSchema = z.object({
-  type: z.enum(["user_id", "email", "property"]),
-  operator: z.enum([
-    "equals",
-    "contains",
-    "starts_with",
-    "ends_with",
-    "in",
-    "not_in",
-    "exists",
-    "not_exists",
-  ]),
-  field: z.string().optional(),
-  value: z.string().optional(),
-  values: z.array(z.string()).optional(),
-  enabled: z.boolean(),
-  batch: z.boolean(),
-  batchValues: z.array(z.string()).optional(),
-});
-
-const variantSchema = z.object({
-  key: z.string().min(1, "Key is required").max(50, "Key too long"),
-  value: z.any(),
-  weight: z.number().min(0).max(100),
-  description: z.string().optional(),
-});
-
-const flagFormSchema = z
-  .object({
-    key: z
-      .string()
-      .min(1, "Key is required")
-      .max(100, "Key too long")
-      .regex(
-        /^[a-zA-Z0-9_-]+$/,
-        "Key must contain only letters, numbers, underscores, and hyphens"
-      ),
-    name: z
-      .string()
-      .min(1, "Name is required")
-      .max(100, "Name too long")
-      .optional(),
-    description: z.string().optional(),
-    type: z.enum(["boolean", "rollout", "multivariant"]),
-    status: z.enum(["active", "inactive", "archived"]),
-    defaultValue: z.boolean(),
-    rolloutPercentage: z.number().min(0).max(100),
-    rules: z.array(userRuleSchema).optional(),
-    variants: z.array(variantSchema).optional(),
-    dependencies: z.array(z.string()).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.type === "multivariant" && data.variants) {
-      const totalWeight = data.variants.reduce(
-        (sum, v) => sum + (v.weight || 0),
-        0
-      );
-      if (totalWeight !== 100) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["variants"],
-        });
-      }
-    }
-  });
+  flagScheduleSchema,
+  flagFormSchema,
+} from "@databuddy/shared/flags";
 
 export const flagWithScheduleSchema = z.object({
   flag: flagFormSchema,
-  schedule: createFlagScheduleSchema.optional(),
+  schedule: flagScheduleSchema.optional(),
 });
 
 type FlagWithScheduleForm = z.infer<typeof flagWithScheduleSchema>;
@@ -146,8 +81,9 @@ export function FlagSheet({
       input: { websiteId },
     }),
   });
-  const { data: schedules, isLoading: isFlagSchedulesLoading } = useQuery(
-    orpc.flagSchedules.get.queryOptions({
+
+  const { data: schedule } = useQuery(
+    orpc.flagSchedules.getByFlagId.queryOptions({
       input: { flagId: flag?.id || "" },
       enabled: !!flag?.id,
     })
@@ -196,7 +132,18 @@ export function FlagSheet({
             variants: flag.variants ?? [],
             dependencies: flag.dependencies ?? [],
           },
-          schedule: undefined, // always fresh when editing
+          schedule: schedule
+            ? {
+              id: schedule?.id,
+              type: schedule?.type,
+              isEnabled: schedule?.isEnabled || false,
+              scheduledAt: schedule?.scheduledAt
+                ? new Date(schedule.scheduledAt).toISOString()
+                : undefined,
+              rolloutSteps: schedule?.rolloutSteps ?? [],
+              flagId: schedule?.flagId,
+            }
+            : undefined,
         });
       } else {
         form.reset({
@@ -218,12 +165,18 @@ export function FlagSheet({
 
       setKeyManuallyEdited(false);
     }
-  }, [isOpen, flag, isEditing, form]);
+  }, [isOpen, flag, isEditing, form, schedule]);
 
   const watchedName = form.watch("flag.name");
   const watchedType = form.watch("flag.type");
+  const watchedIsScheduleEnabled = form.watch("schedule.isEnabled");
 
   useEffect(() => {
+    if (watchedIsScheduleEnabled === false) {
+      form.setValue("schedule", undefined);
+    } else if (watchedIsScheduleEnabled === true && flag?.id) {
+      form.setValue("schedule.flagId", flag.id);
+    }
     if (isEditing || keyManuallyEdited || !watchedName) {
       return;
     }
@@ -236,96 +189,78 @@ export function FlagSheet({
       .replace(/^-+|-+$/g, "")
       .slice(0, 50);
     form.setValue("flag.key", key);
-  }, [watchedName, keyManuallyEdited, isEditing]);
+  }, [watchedName, keyManuallyEdited, isEditing, watchedIsScheduleEnabled]);
 
   const showRolloutPercentage = watchedType === "rollout";
   const showVariants = watchedType === "multivariant";
   const showDefaultValue = watchedType !== "multivariant";
 
-  const createFlagScheduleMutation = useMutation(
-    orpc.flagSchedules.create.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: orpc.flagSchedules.list.key({
-            input: { flagId: flag?.id },
-          }),
-        });
-        toast.success("Schedule created successfully");
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  const createFlagScheduleMutation = useMutation({
+    ...orpc.flagSchedules.create.mutationOptions(),
+  });
+  const updateFlagScheduleMutation = useMutation({
+    ...orpc.flagSchedules.update.mutationOptions(),
+  });
 
   const onSubmit = async (formData: FlagWithScheduleForm) => {
     try {
       const data = formData.flag;
-      const schedule = formData.schedule;
+      const scheduleData = formData.schedule;
 
       const mutation = isEditing ? updateMutation : createMutation;
 
       const mutationData =
         isEditing && flag
           ? {
-              id: flag.id,
-              name: data.name,
-              description: data.description,
-              type: data.type,
-              status: data.status,
-              defaultValue: data.defaultValue,
-              rolloutPercentage: data.rolloutPercentage,
-              rules: data.rules || [],
-              variants: data.variants || [],
-              dependencies: data.dependencies || [],
-            }
+            id: flag.id,
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            status: data.status,
+            defaultValue: data.defaultValue,
+            rolloutPercentage: data.rolloutPercentage,
+            rules: data.rules || [],
+            variants: data.variants || [],
+            dependencies: data.dependencies || [],
+          }
           : {
-              websiteId,
-              key: data.key,
-              name: data.name,
-              description: data.description,
-              type: data.type,
-              status: data.status,
-              defaultValue: data.defaultValue,
-              rolloutPercentage: data.rolloutPercentage,
-              rules: data.rules || [],
-              variants: data.variants || [],
-              dependencies: data.dependencies || [],
-            };
+            websiteId,
+            key: data.key,
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            status: data.status,
+            defaultValue: data.defaultValue,
+            rolloutPercentage: data.rolloutPercentage,
+            rules: data.rules || [],
+            variants: data.variants || [],
+            dependencies: data.dependencies || [],
+          };
 
       const updatedFlag = await mutation.mutateAsync(mutationData as any);
       const flagIdToUse = isEditing ? flag!.id : updatedFlag.id;
 
       // Handle Schedule Creation
-      if (schedule) {
-        if (
-          schedule.action === "update_rollout" &&
-          schedule.rolloutSteps &&
-          schedule.rolloutSteps.length > 0
-        ) {
-          await createFlagScheduleMutation.mutateAsync({
-            flagId: flagIdToUse,
-            action: schedule.action,
-            timezone: schedule.timezone,
-            scheduledAt: schedule.scheduledAt,
-            value: schedule.value,
-            rolloutSteps: schedule.rolloutSteps || [],
-          });
+      if (scheduleData) {
+        let scheduleMutationData: any = {
+          flagId: flagIdToUse,
+          type: scheduleData.type,
+          scheduledAt: scheduleData.scheduledAt,
+          rolloutSteps: scheduleData.rolloutSteps || [],
+          isEnabled: scheduleData.isEnabled,
+        };
+        if (schedule && schedule.id) {
+          scheduleMutationData.id = schedule.id;
+          await updateFlagScheduleMutation.mutateAsync(scheduleMutationData);
         } else {
-          await createFlagScheduleMutation.mutateAsync({
-            flagId: flagIdToUse,
-            action: schedule.action,
-            timezone: schedule.timezone,
-            scheduledAt: schedule.scheduledAt!,
-            value: schedule.value,
-          });
+          await createFlagScheduleMutation.mutateAsync(scheduleMutationData);
         }
       }
 
       toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
 
       queryClient.invalidateQueries({
-        queryKey: orpc.flagSchedules.list.key({
+        queryKey: orpc.flagSchedules.getByFlagId.queryKey({
           input: { flagId: flagIdToUse },
         }),
       });
@@ -336,9 +271,13 @@ export function FlagSheet({
 
       onCloseAction();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
 
-      if (errorMessage.includes("unique") || errorMessage.includes("CONFLICT")) {
+      if (
+        errorMessage.includes("unique") ||
+        errorMessage.includes("CONFLICT")
+      ) {
         toast.error("A flag with this key already exists in this scope");
       } else if (errorMessage.includes("FORBIDDEN")) {
         toast.error("You do not have permission to perform this action");
@@ -492,7 +431,7 @@ export function FlagSheet({
                     control={form.control}
                     name="flag.status"
                     render={({ field }) => {
-                      const watchedDependencies:string[] =
+                      const watchedDependencies: string[] =
                         form.watch("flag.dependencies") || [];
                       const hasInactiveDependency = watchedDependencies.some(
                         (depKey) => {
@@ -621,6 +560,51 @@ export function FlagSheet({
                 </div>
               </div>
 
+              {/* Environment Field (Optional) */}
+              <div className="mt-4 grid gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="enable-environment"
+                    checked={!!form.watch("flag.environment")}
+                    onCheckedChange={(checked) => {
+                      if (!checked) {
+                        form.setValue("flag.environment", undefined);
+                      } else {
+                        form.setValue("flag.environment", "production");
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="enable-environment"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Specify Environment (Optional)
+                  </label>
+                </div>
+
+                {form.watch("flag.environment") !== undefined && (
+                  <FormField
+                    control={form.control}
+                    name="flag.environment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Environment</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., production, staging, development"
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Categorize this flag to a specific environment
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+
               {/* Rollout Percentage */}
               {showRolloutPercentage && (
                 <div className="space-y-4">
@@ -646,11 +630,10 @@ export function FlagSheet({
                                 {[0, 25, 50, 75, 100].map((preset) => (
                                   <button
                                     aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
-                                    className={`rounded border px-3 py-2 text-sm transition-colors ${
-                                      currentValue === preset
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-border hover:border-primary/50"
-                                    }`}
+                                    className={`rounded border px-3 py-2 text-sm transition-colors ${currentValue === preset
+                                      ? "border-primary bg-primary text-primary-foreground"
+                                      : "border-border hover:border-primary/50"
+                                      }`}
                                     key={preset}
                                     onClick={() => field.onChange(preset)}
                                     type="button"
@@ -741,7 +724,7 @@ export function FlagSheet({
 
               {/* Scheduled Changes */}
               <div className="space-y-4 pt-4 border-t">
-                <ScheduleManager form={form} flagType={watchedType} />
+                <ScheduleManager form={form} flagType={watchedType} setValue={form.setValue} />
               </div>
 
               <div className="flex justify-end gap-3 border-t pt-6">

@@ -7,37 +7,25 @@ import type {
     FlagsManagerOptions,
 } from "@/core/flags/types";
 
-export class NodeFlagsManager implements FlagsManager {
+export class ServerFlagsManager implements FlagsManager {
     private config: FlagsConfig;
-    private redis?: any; // Will be lazy-loaded from @databuddy/redis
-    private cachePrefix: string;
-    private cacheTTL: number;
     private onFlagsUpdate?: (flags: Record<string, FlagResult>) => void;
     private onConfigUpdate?: (config: FlagsConfig) => void;
     private memoryFlags: Record<string, FlagResult> = {};
     private pendingFlags: Set<string> = new Set();
     private initPromise: Promise<void>;
-    private useRedis: boolean;
 
-    constructor(options: FlagsManagerOptions & {
-        cachePrefix?: string;
-        cacheTTL?: number;
-        useRedis?: boolean;
-    }) {
+    constructor(options: FlagsManagerOptions) {
         this.config = this.withDefaults(options.config);
-        this.cachePrefix = options.cachePrefix || "databuddy:flags:";
-        this.cacheTTL = options.cacheTTL || 3600; // 1 hour default
-        this.useRedis = options.useRedis ?? true; // Use Redis by default
         this.onFlagsUpdate = options.onFlagsUpdate;
         this.onConfigUpdate = options.onConfigUpdate;
 
         logger.setDebug(this.config.debug ?? false);
-        logger.debug("NodeFlagsManager initialized with config:", {
+        logger.debug("ServerFlagsManager initialized with config:", {
             clientId: this.config.clientId,
             debug: this.config.debug,
             isPending: this.config.isPending,
             hasUser: !!this.config.user,
-            useRedis: this.useRedis,
         });
 
         this.initPromise = this.initialize();
@@ -52,43 +40,12 @@ export class NodeFlagsManager implements FlagsManager {
             debug: config.debug ?? false,
             skipStorage: config.skipStorage ?? false,
             isPending: config.isPending,
-            autoFetch: config.autoFetch !== false,
+            autoFetch: config.autoFetch ?? false,  // Default to false to use /evaluate endpoint
+            environment: config.environment,
         };
     }
 
-    private async getRedis() {
-        if (!this.useRedis || this.config.skipStorage) {
-            return null;
-        }
-
-        if (!this.redis) {
-            try {
-                // Lazy-load Redis from @databuddy/redis package
-                const redisModule = await import("@databuddy/redis");
-                this.redis = redisModule.redis;
-                logger.debug("Redis client loaded successfully");
-            } catch (err) {
-                logger.warn("Failed to load Redis, falling back to in-memory cache:", err);
-                this.useRedis = false;
-                return null;
-            }
-        }
-
-        return this.redis;
-    }
-
-    private getCacheKey(key: string, userId?: string): string {
-        const userPart = userId ? `:user:${userId}` : "";
-        return `${this.cachePrefix}${this.config.clientId}:${key}${userPart}`;
-    }
-
     private async initialize(): Promise<void> {
-        const redis = await this.getRedis();
-
-        if (redis) {
-            await this.loadCachedFlags();
-        }
-
         if (this.config.autoFetch && !this.config.isPending) {
             await this.fetchAllFlags();
         }
@@ -96,41 +53,6 @@ export class NodeFlagsManager implements FlagsManager {
 
     public async waitForInitialization(): Promise<void> {
         await this.initPromise;
-    }
-
-    private async loadCachedFlags(): Promise<void> {
-        const redis = await this.getRedis();
-        if (!redis) {
-            return;
-        }
-
-        try {
-            const pattern = `${this.cachePrefix}${this.config.clientId}:*`;
-            const keys = await redis.keys(pattern);
-
-            for (const fullKey of keys) {
-                const value = await redis.get(fullKey);
-                if (value) {
-                    try {
-                        const flagResult = JSON.parse(value) as FlagResult;
-                        // Extract the flag key from the cache key
-                        const flagKey = fullKey
-                            .replace(`${this.cachePrefix}${this.config.clientId}:`, "")
-                            .split(":user:")[0];
-                        this.memoryFlags[flagKey] = flagResult;
-                    } catch (err) {
-                        logger.warn(`Error parsing cached flag ${fullKey}:`, err);
-                    }
-                }
-            }
-
-            if (Object.keys(this.memoryFlags).length > 0) {
-                this.notifyFlagsUpdate();
-                logger.debug("Loaded cached flags:", Object.keys(this.memoryFlags));
-            }
-        } catch (err) {
-            logger.warn("Error loading cached flags:", err);
-        }
     }
 
     async fetchAllFlags(user?: FlagsConfig["user"]): Promise<void> {
@@ -168,25 +90,6 @@ export class NodeFlagsManager implements FlagsManager {
             if (result.flags) {
                 this.memoryFlags = result.flags;
                 this.notifyFlagsUpdate();
-
-                const redis = await this.getRedis();
-                if (redis) {
-                    try {
-                        // Cache all flags with Redis
-                        for (const [key, value] of Object.entries(result.flags)) {
-                            const cacheKey = this.getCacheKey(key, targetUser?.userId);
-                            await redis.set(
-                                cacheKey,
-                                JSON.stringify(value),
-                                "EX",
-                                this.cacheTTL
-                            );
-                        }
-                        logger.debug("Bulk flags synced to Redis cache");
-                    } catch (err) {
-                        logger.warn("Bulk Redis cache error:", err);
-                    }
-                }
             }
         } catch (err) {
             logger.error("Bulk fetch error:", err);
@@ -206,13 +109,11 @@ export class NodeFlagsManager implements FlagsManager {
             };
         }
 
-        // If a specific user is provided, we bypass memory cache unless we implement user-aware caching.
-        // For now, if user is provided and differs from config.user, we fetch fresh.
-        // If no user provided (or matches config), we check memory.
+        // If a specific user is provided and differs from config.user, fetch fresh
         const isDifferentUser = user && (user.userId !== this.config.user?.userId);
 
         if (!isDifferentUser && this.memoryFlags[key]) {
-            logger.debug(`Memory: ${key}`);
+            logger.debug(`Memory cache hit: ${key}`);
             return this.memoryFlags[key];
         }
 
@@ -226,24 +127,6 @@ export class NodeFlagsManager implements FlagsManager {
             };
         }
 
-        // Check Redis cache
-        const redis = await this.getRedis();
-        if (!isDifferentUser && redis) {
-            try {
-                const cacheKey = this.getCacheKey(key, user?.userId);
-                const cached = await redis.get(cacheKey);
-                if (cached) {
-                    logger.debug(`Redis cache hit: ${key}`);
-                    const flagResult = JSON.parse(cached) as FlagResult;
-                    this.memoryFlags[key] = flagResult;
-                    this.notifyFlagsUpdate();
-                    return flagResult;
-                }
-            } catch (err) {
-                logger.warn(`Redis cache error: ${key}`, err);
-            }
-        }
-
         return this.fetchFlag(key, user);
     }
 
@@ -255,6 +138,9 @@ export class NodeFlagsManager implements FlagsManager {
         const params = new URLSearchParams();
         params.set("key", key);
         params.set("clientId", this.config.clientId);
+        if (this.config.environment) {
+            params.set("environment", this.config.environment);
+        }
         if (targetUser?.userId) {
             params.set("userId", targetUser.userId);
         }
@@ -267,15 +153,18 @@ export class NodeFlagsManager implements FlagsManager {
 
         const url = `${this.config.apiUrl}/public/v1/flags/evaluate?${params.toString()}`;
 
+        console.log("🔍 SDK Fetching flag:", { key, url, environment: this.config.environment });
         logger.debug(`Fetching: ${key}`);
 
         try {
             const response = await fetch(url);
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             const result: FlagResult = await response.json();
+            console.log({ result: JSON.stringify(result) });
 
             logger.debug(`Response for ${key}:`, result);
 
@@ -285,22 +174,6 @@ export class NodeFlagsManager implements FlagsManager {
             if (isDefaultUser) {
                 this.memoryFlags[key] = result;
                 this.notifyFlagsUpdate();
-
-                const redis = await this.getRedis();
-                if (redis) {
-                    try {
-                        const cacheKey = this.getCacheKey(key, targetUser?.userId);
-                        await redis.set(
-                            cacheKey,
-                            JSON.stringify(result),
-                            "EX",
-                            this.cacheTTL
-                        );
-                        logger.debug(`Cached to Redis: ${key}`);
-                    } catch (err) {
-                        logger.warn(`Redis cache error: ${key}`, err);
-                    }
-                }
             }
 
             return result;
@@ -357,20 +230,6 @@ export class NodeFlagsManager implements FlagsManager {
         if (forceClear) {
             this.memoryFlags = {};
             this.notifyFlagsUpdate();
-
-            const redis = await this.getRedis();
-            if (redis) {
-                try {
-                    const pattern = `${this.cachePrefix}${this.config.clientId}:*`;
-                    const keys = await redis.keys(pattern);
-                    if (keys.length > 0) {
-                        await redis.del(...keys);
-                    }
-                    logger.debug("Redis cache cleared");
-                } catch (err) {
-                    logger.warn("Redis cache clear error:", err);
-                }
-            }
         }
 
         await this.fetchAllFlags();
@@ -385,12 +244,6 @@ export class NodeFlagsManager implements FlagsManager {
     updateConfig(config: FlagsConfig): void {
         this.config = this.withDefaults(config);
         this.onConfigUpdate?.(this.config);
-
-        this.getRedis().then((redis) => {
-            if (redis) {
-                this.loadCachedFlags();
-            }
-        });
 
         if (this.config.autoFetch && !this.config.isPending) {
             this.fetchAllFlags();

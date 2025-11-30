@@ -1,2 +1,2 @@
-export { NodeFlagsManager } from "./flags-manager";
-export { createNodeFlagsManager, createNodeFlagsManagerInMemory } from "./create-manager";
+export { type ServerFlagsManager } from "./flags-manager";
+export { createServerFlagsManager, createServerFlagsManagerInMemory } from "./create-manager";

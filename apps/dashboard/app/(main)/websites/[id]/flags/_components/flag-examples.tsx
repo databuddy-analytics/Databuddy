@@ -1,3 +1,4 @@
+'use client'
 import {
   Lightning,
   Palette,
@@ -56,8 +57,18 @@ const FLAG_TEMPLATES: FlagTemplate[] = [
       },
     ],
     useCase: "Landing pages, CTAs, conversion optimization",
-    codeExample: `const { value } = await flags.getFlag("cta-button-color");
+    codeExample: `// Server Component (Next.js)
+import { createServerFlagsManager } from '@databuddy/sdk/node';
+
+const manager = createServerFlagsManager({ clientId: 'your-id' });
+await manager.waitForInitialization();
+
+const { value, payload } = await manager.getFlag("cta-button-color", {
+  userId: user.id,
+});
 // value = "gray" | "#3B82F6" | "#10B981"
+// Sticky assignment ensures same user gets same color
+
 <button style={{ backgroundColor: value }}>Sign Up</button>`,
   },
   {
@@ -210,24 +221,17 @@ interface FlagExamplesProps {
 
 export function FlagExamples({
   onCreateFromTemplate,
-  variant,
-  showExamples,
 }: FlagExamplesProps) {
-  // State for user ID - starts with a fixed ID, can be randomized
   const [userId, setUserId] = useState("1aZtjWs4U4vQMa3Z2j5XA5PDy76fXNGE");
 
-  // Fetch the strategy
-  const { data, isLoading } = useQuery({
+  const { data,refetch,isFetching } = useQuery({
     queryKey: ["examples-display-strategy", userId],
-    queryFn: async () =>
-      await getExamplesDisplayStrategy("8a7ZQtMbEUJ4WyZA9exvJ", userId),
+    queryFn: async () =>{console.log("Fetching examples display strategy");
+     return await getExamplesDisplayStrategy("dThpQPGm731MwvnBnP35x", userId,"production")}
   });
 
-  const displayedExamples = data?.exampleCount
-    ? FLAG_TEMPLATES.slice(0, data.exampleCount)
-    : FLAG_TEMPLATES;
+  const displayedExamples =  FLAG_TEMPLATES.slice(0, data?.exampleCount||0)
 
-  const currentVariant = data?.variant;
 
   const handleRefetchAsNewUser = () => {
     const newUserId = `test-user-${Math.random().toString(36).substring(2, 15)}`;
@@ -235,26 +239,26 @@ export function FlagExamples({
     setUserId(newUserId);
   };
 
-  if (isLoading) {
+  if (isFetching) {
     return <div className="text-center py-12">Loading...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Multi-Variant Flag Examples</h2>
-        <p className="text-muted-foreground">
-          Real-world use cases to inspire your A/B tests and feature experiments
+      {/* Advanced Features Status Banner */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        
+        <p className="text-muted-foreground text-sm">
+          Real-world use cases demonstrating advanced feature flag capabilities
         </p>
-        {currentVariant && (
-          <p className="text-xs text-muted-foreground font-mono">
-            Current Variant: {currentVariant} | Showing:{" "}
-            {displayedExamples.length}/{FLAG_TEMPLATES.length}
-            {data?.testCondition && ` | ${data.testCondition}`}
-            <br />
-            User ID: {userId.substring(0, 20)}...
-          </p>
-        )}
+
+        {/* Feature Status Grid */}
+          <div className="text-xs space-y-1">
+            <div className="font-medium text-muted-foreground">Environment</div>
+            <div className="font-mono text-primary">
+              {data?.environment || "-"}
+            </div>
+          </div>
 
         {/* Test buttons */}
         <div className="flex justify-center gap-3 mt-4">
@@ -263,7 +267,14 @@ export function FlagExamples({
             variant="secondary"
             onClick={handleRefetchAsNewUser}
           >
-            Refetch as different user
+            🔄 Test as Different User
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={()=>refetch()}
+          >
+            🔄 Refetch
           </Button>
         </div>
       </div>
@@ -271,7 +282,7 @@ export function FlagExamples({
       {displayedExamples.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
-            No examples to display in this variant
+            No examples to display, try changing environment
           </p>
         </div>
       ) : (

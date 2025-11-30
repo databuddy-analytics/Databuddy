@@ -283,13 +283,36 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
       </div>
 
       <div
-        className={`text-sm flex items-center gap-2 ${isValidTotal ? "text-green-600" : "text-amber-600"}`}
+        className={`text-sm flex items-center gap-2 ${
+          totalWeight === 0 
+            ? "text-blue-600" 
+            : isValidTotal 
+            ? "text-green-600" 
+            : "text-amber-600"
+        }`}
       >
         <div
-          className={`w-2 h-2 rounded-full ${isValidTotal ? "bg-green-600" : "bg-amber-600"}`}
+          className={`w-2 h-2 rounded-full ${
+            totalWeight === 0
+              ? "bg-blue-600"
+              : isValidTotal
+              ? "bg-green-600"
+              : "bg-amber-600"
+          }`}
         />
-        Total Weight: {totalWeight}%{" "}
-        {isValidTotal ? "(Valid)" : "(Must sum to 100%)"}
+        {totalWeight === 0 ? (
+          <>
+            <span className="font-medium">Even Distribution</span>
+            <span className="text-muted-foreground">
+              (Each variant covers ~{Math.round(100 / variants.length)}% of traffic)
+            </span>
+          </>
+        ) : (
+          <>
+            Total Weight: {totalWeight}%{" "}
+            {isValidTotal ? "(Valid)" : "(Must sum to 100%)"}
+          </>
+        )}
       </div>
     </div>
   );

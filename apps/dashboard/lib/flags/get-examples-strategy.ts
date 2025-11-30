@@ -1,74 +1,73 @@
-import { createFlagsManager } from "@databuddy/sdk/node";
-import { useFlags } from "@databuddy/sdk/react";
+"use server";
+
+import { createServerFlagsManager } from "@databuddy/sdk/node";
 
 export interface ExamplesDisplayStrategy {
     exampleCount: number; // 0, 3, or 6
     variant: string; // Variant key (for debugging)
-    testCondition?: string; // Optional human‑readable test condition
+    variantValue: any; // The actual variant value
+    testCondition?: string; // Optional human-readable test condition
+    dependencies?: {
+        prerequisiteFlag: string;
+        prerequisiteEnabled: boolean;
+    };
+    schedule?: {
+        hasSchedule: boolean;
+        nextChange?: string;
+    };
+    environment?: string;
 }
 
-// In-memory store for forced variant assignments
-// In production, replace this with a DB table (user_id, flag_key, variant_key, value)
-const forcedAssignments = new Map<string, { variantKey: string; value: number }>();
-
-/**
- * Get the examples display strategy for a user.
- * Checks forced assignments first, then falls back to the flag's weight distribution.
- */
 export async function getExamplesDisplayStrategy(
     websiteId: string,
-    userId?: string
+    userId?: string,
+    environment: string = process.env.NODE_ENV || "development"
 ): Promise<ExamplesDisplayStrategy> {
-    // 1️⃣ Check if this user has a forced assignment
-    if (userId && forcedAssignments.has(userId)) {
-        const forced = forcedAssignments.get(userId)!;
-        console.log(`🎯 User ${userId} has forced assignment:`, forced);
-        return {
-            exampleCount: forced.value,
-            variant: forced.variantKey,
-            testCondition: "forced-assignment",
-        };
-    }
+    console.log("🎯 getExamplesDisplayStrategy called:", { websiteId, userId, environment });
 
-    // 2️⃣ Otherwise, fetch from the flag (weight-based distribution)
-    const flags = new createFlagsManager({
-        config: {
-            clientId: websiteId,
-            apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
-            user: userId ? { userId } : { userId: `anon-${Math.random()}` }, // Generate unique ID for anonymous users
-            cache: {
-                enabled: true,
-                ttl: 15, // Cache for 15 seconds (good for dev)
-            },
-            debug: process.env.NODE_ENV === "development",
-        },
+    const flagsManager = createServerFlagsManager({
+        clientId: websiteId,
+        apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+        user: { userId },
+        debug: process.env.NODE_ENV === "development",
+        environment,
     });
 
+    // Wait for initialization (important in serverless)
+    await flagsManager.waitForInitialization();
+
     try {
-        const result = await flags.getFlag("examples-display-strategy");
+        const result = await flagsManager.getFlag("flag-examples-display-strategy", {
+            userId,
+            properties: {
+                environment,
+                userAgent: "dashboard",
+            },
+        });
+
         console.log("🚀 Flag result:", result);
 
-        if (!result.enabled) {
-            return {
-                exampleCount: 6,
-                variant: "fallback-all",
-                testCondition: "flag-disabled",
-            };
-        }
-
-        const exampleCount = Number(result.value) || 0;
+        const variantKey = result.payload?.variantKey || "unknown";
+        const variantValue = result.value;
+        const exampleCount = typeof variantValue === "number" ? variantValue : 0;
 
         return {
             exampleCount,
-            variant: result.variant || "unknown",
-            testCondition: "weight-based",
+            variant: variantKey,
+            variantValue,
+            testCondition: "multi-variant-sticky-assignment",
+            environment,
         };
     } catch (error) {
         console.error("❌ Error fetching examples display flag:", error);
+
+        // Graceful fallback
         return {
             exampleCount: 6,
             variant: "error-fallback",
+            variantValue: 6,
             testCondition: "error",
+            environment,
         };
     }
 }
