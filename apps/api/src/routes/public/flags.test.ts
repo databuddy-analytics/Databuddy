@@ -562,7 +562,7 @@ describe("evaluateFlag - multi-variant", () => {
 		expect(result.enabled).toBe(true);
 		expect(["gray", "blue"]).toContain(result.value);
 		expect(["control", "variant-a"]).toContain(result.variant as string);
-		expect(result.reason).toBe("VARIANT_SELECTED");
+		expect(result.reason).toBe("MULTIVARIANT_EVALUATED");
 		expect(result.payload).toEqual({ experiment: "button-test" });
 	});
 

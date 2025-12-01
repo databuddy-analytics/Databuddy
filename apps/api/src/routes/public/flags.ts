@@ -54,7 +54,6 @@ const getCachedFlag = cacheable(
 		const environmentCondition = environment
 			? eq(flags.environment, environment)
 			: isNull(flags.environment);
-		console.log({ environmentCondition });
 		const a =
 			db.query.flags.findFirst({
 				where: and(
@@ -236,25 +235,12 @@ export function selectVariant(
 	const hash = hashString(`${flag.key}:variant:${identifier}`);
 	const percentage = hash % 100;
 
-	// 🔍 DEBUG: Log the variants with their weights
-	console.log("🎲 Variant Selection Debug:");
-	console.log("  - User identifier:", identifier);
-	console.log("  - Hash:", hash);
-	console.log("  - Percentage:", percentage);
-	console.log("  - Variants:", flag.variants.map((v: any) => ({
-		key: v.key,
-		value: v.value,
-		weight: v.weight,
-		description: v.description
-	})));
-
 	// If no variants have explicit weights, use deterministic index-based selection
 	const hasAnyWeight = flag.variants.some((v: any) => typeof v.weight === "number");
 
 	if (!hasAnyWeight) {
 		const idx = hash % flag.variants.length;
 		const selected = flag.variants[idx];
-		console.log(`  ℹ️  No weights provided, selected by index: ${selected.key}`);
 		return { value: selected.value, variant: selected.key };
 	}
 
@@ -262,17 +248,13 @@ export function selectVariant(
 	let cumulative = 0;
 	for (const variant of flag.variants) {
 		cumulative += typeof variant.weight === "number" ? variant.weight : 0;
-		console.log(`  - Checking variant "${variant.key}": cumulative=${cumulative}, percentage=${percentage}, match=${percentage < cumulative}`);
 		if (percentage < cumulative) {
-			console.log(`  ✅ Selected variant: ${variant.key} (value: ${variant.value})`);
 			return { value: variant.value, variant: variant.key };
 		}
 	}
 
 	// If no weighted match, fall back to last variant
-	console.log('  ⚠️  No variant matched based on weights, falling back to last variant');
 	const lastVariant = flag.variants[flag.variants.length - 1];
-	console.log(`  ✅ Last variant: ${lastVariant.key} (value: ${lastVariant.value})`);
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
@@ -333,7 +315,6 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 		"/evaluate",
 		function evaluateFlagEndpoint({ query, set }) {
 			return record("evaluateFlag", async (): Promise<FlagResult> => {
-				console.log("🚀 Flag evaluation request:", query);
 
 				setAttributes({
 					"flag.key": query.key || "missing",
@@ -367,6 +348,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 							clientId: query.clientId,
 							userId: query.userId,
 							email: query.email,
+							environment: query.environment,
 						},
 						"Flag evaluation request"
 					);

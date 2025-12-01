@@ -22,6 +22,7 @@ import { FlagRow } from "./flag-row";
 import type { Flag } from "./types";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { getShouldShowExamples } from "@/lib/flags/get-examples-strategy";
 
 type FlagsListProps = {
   flags: Flag[];
@@ -44,9 +45,8 @@ export function FlagsList({
 
 
   const isFlagExamplesEnabledQuery = useQuery({
-    ...orpc.flags.getByKey.queryOptions({
-      input: { key: "enable-flag-examples", websiteId: "Jwb5jRcgB1G0A95x_KXsp" },
-    }),
+    queryKey: ["isFlagExamplesEnabled"],
+    queryFn: () => getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", "", "production"),
   });
 
   const filteredFlags = flags.filter((flag) => {
@@ -71,21 +71,21 @@ export function FlagsList({
     return null; // Skeleton is handled by parent
   }
 
-	if (flags.length === 0) {
-		return (
-			<EmptyState
-				action={{
-					label: "Create Your First Flag",
-					onClick: onCreateFlagAction,
-				}}
-				className="h-full py-0"
-				description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
-				icon={<FlagIcon weight="duotone" />}
-				title="No feature flags yet"
-				variant="minimal"
-			/>
-		);
-	}
+  if (flags.length === 0) {
+    return (
+      <EmptyState
+        action={{
+          label: "Create Your First Flag",
+          onClick: onCreateFlagAction,
+        }}
+        className="h-full py-0"
+        description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+        icon={<FlagIcon weight="duotone" />}
+        title="No feature flags yet"
+        variant="minimal"
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -110,7 +110,7 @@ export function FlagsList({
               value={statusFilter}
             >
               <SelectTrigger className="w-36">
-								<FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
+                <FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -126,14 +126,14 @@ export function FlagsList({
           <div className="text-muted-foreground text-sm">
             {filteredFlags.length} flag{filteredFlags.length !== 1 ? "s" : ""}
           </div>
-          {isFlagExamplesEnabledQuery?.data?.status === "active" && <Button
-            variant={showExamples ? "default" : "outline"}
+          <Button
+            variant={"default"}
             size="sm"
             onClick={() => setShowExamples(!showExamples)}
           >
             <LightbulbIcon className="mr-2 h-4 w-4" weight="duotone" />
             {showExamples ? "Hide" : "View"} Examples
-          </Button>}
+          </Button>
         </div>
       </div>
 

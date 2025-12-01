@@ -1,13 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FlagIcon, Info, InfoIcon } from "@phosphor-icons/react";
+import { CalendarIcon, FlagIcon, Info, InfoIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Slider } from "@/components/ui/elastic-slider";
 import {
   Form,
@@ -19,6 +20,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -37,12 +43,13 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type { Flag } from "./types";
 import { UserRulesBuilder } from "./user-rules-builder";
 import { DependencySelector } from "./dependency-selector";
@@ -104,11 +111,11 @@ export function FlagSheet({
         rules: [],
         variants: [],
         dependencies: [],
+        environment: undefined,
       },
       schedule: undefined,
     },
   });
-
   const createMutation = useMutation({
     ...orpc.flags.create.mutationOptions(),
   });
@@ -131,6 +138,7 @@ export function FlagSheet({
             rules: flag.rules ?? [],
             variants: flag.variants ?? [],
             dependencies: flag.dependencies ?? [],
+            environment: flag.environment || undefined,
           },
           schedule: schedule
             ? {
@@ -170,6 +178,8 @@ export function FlagSheet({
   const watchedName = form.watch("flag.name");
   const watchedType = form.watch("flag.type");
   const watchedIsScheduleEnabled = form.watch("schedule.isEnabled");
+  const watchedRolloutSteps = form.watch("schedule.rolloutSteps");
+  const rolloutStepsErrors = form.formState.errors.schedule?.rolloutSteps?.message;
 
   useEffect(() => {
     if (watchedIsScheduleEnabled === false) {
@@ -209,33 +219,26 @@ export function FlagSheet({
 
       const mutation = isEditing ? updateMutation : createMutation;
 
-      const mutationData =
-        isEditing && flag
-          ? {
-            id: flag.id,
-            name: data.name,
-            description: data.description,
-            type: data.type,
-            status: data.status,
-            defaultValue: data.defaultValue,
-            rolloutPercentage: data.rolloutPercentage,
-            rules: data.rules || [],
-            variants: data.variants || [],
-            dependencies: data.dependencies || [],
-          }
-          : {
-            websiteId,
-            key: data.key,
-            name: data.name,
-            description: data.description,
-            type: data.type,
-            status: data.status,
-            defaultValue: data.defaultValue,
-            rolloutPercentage: data.rolloutPercentage,
-            rules: data.rules || [],
-            variants: data.variants || [],
-            dependencies: data.dependencies || [],
-          };
+      const mutationData: any = {
+        name: data.name,
+        description: data.description,
+        type: data.type,
+        status: data.status,
+        defaultValue: data.defaultValue,
+        rolloutPercentage: data.rolloutPercentage,
+        rules: data.rules || [],
+        variants: data.variants || [],
+        dependencies: data.dependencies || [],
+        environment: data.environment?.trim() || undefined,
+      }
+
+      if (isEditing && flag) {
+        mutationData.id = flag.id
+      } else {
+        mutationData.websiteId = websiteId
+        mutationData.key = data.key
+        mutationData.name = data.name
+      }
 
       const updatedFlag = await mutation.mutateAsync(mutationData as any);
       const flagIdToUse = isEditing ? flag!.id : updatedFlag.id;
@@ -289,32 +292,32 @@ export function FlagSheet({
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-	return (
-		<Sheet onOpenChange={onCloseAction} open={isOpen}>
-			<SheetContent
-				className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
-				side="right"
-			>
-				<SheetHeader>
-					<div className="flex items-center gap-3">
-						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
-							<FlagIcon
-								className="size-6 text-accent-foreground"
-								weight="fill"
-							/>
-						</div>
-						<div>
-							<SheetTitle className="font-semibold text-foreground text-xl">
-								{isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
-							</SheetTitle>
-							<SheetDescription className="mt-1 text-muted-foreground">
-								{isEditing
-									? "Update flag configuration and settings"
-									: "Set up a new feature flag for controlled rollouts"}
-							</SheetDescription>
-						</div>
-					</div>
-				</SheetHeader>
+  return (
+    <Sheet onOpenChange={onCloseAction} open={isOpen}>
+      <SheetContent
+        className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
+        side="right"
+      >
+        <SheetHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+              <FlagIcon
+                className="size-6 text-accent-foreground"
+                weight="fill"
+              />
+            </div>
+            <div>
+              <SheetTitle className="font-semibold text-foreground text-xl">
+                {isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
+              </SheetTitle>
+              <SheetDescription className="mt-1 text-muted-foreground">
+                {isEditing
+                  ? "Update flag configuration and settings"
+                  : "Set up a new feature flag for controlled rollouts"}
+              </SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
 
         <div className="space-y-8">
           <Form {...form}>
@@ -339,53 +342,53 @@ export function FlagSheet({
                     )}
                   />
 
-									<FormField
-										control={form.control}
-										name="flag.key"
-										render={({ field }) => (
-											<FormItem>
-												<FormLabel>
-													Key{" "}
-													{isEditing ? (
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<InfoIcon
-																	className="h-4 w-4"
-																	weight="duotone"
-																/>
-															</TooltipTrigger>
-															<TooltipContent className="max-w-xs">
-																<div className="space-y-2">
-																	<p className="text-xs leading-relaxed">
-																		Key cannot be changed after creation to
-																		maintain data integrity.
-																	</p>
-																</div>
-															</TooltipContent>
-														</Tooltip>
-													) : (
-														<span aria-hidden="true" className="text-red-500">
-															*
-														</span>
-													)}
-												</FormLabel>
-												<FormControl>
-													<Input
-														placeholder="new-dashboard"
-														{...field}
-														disabled={isEditing}
-														onChange={(e) => {
-															const value = e.target.value;
-															setKeyManuallyEdited(value.length > 0);
-															field.onChange(value);
-														}}
-													/>
-												</FormControl>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
-								</div>
+                  <FormField
+                    control={form.control}
+                    name="flag.key"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Key{" "}
+                          {isEditing ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <InfoIcon
+                                  className="h-4 w-4"
+                                  weight="duotone"
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <div className="space-y-2">
+                                  <p className="text-xs leading-relaxed">
+                                    Key cannot be changed after creation to
+                                    maintain data integrity.
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span aria-hidden="true" className="text-red-500">
+                              *
+                            </span>
+                          )}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="new-dashboard"
+                            {...field}
+                            disabled={isEditing}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setKeyManuallyEdited(value.length > 0);
+                              field.onChange(value);
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
@@ -393,11 +396,11 @@ export function FlagSheet({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-												Description{" "}
-												<span className="text-muted-foreground text-xs">
-													(Optional)
-												</span>
-											</FormLabel>
+                        Description{" "}
+                        <span className="text-muted-foreground text-xs">
+                          (Optional)
+                        </span>
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="What does this flag control?"
@@ -482,7 +485,7 @@ export function FlagSheet({
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Info className="h-4 w-4 text-amber-500" />
+                                    <InfoIcon className="h-4 w-4 text-amber-500" />
                                   </TooltipTrigger>
                                   <TooltipContent className="max-w-xs">
                                     <p className="font-medium mb-1">
@@ -535,52 +538,75 @@ export function FlagSheet({
                     }}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="flag.environment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Environment
+                          <span className="text-muted-foreground text-xs">
+                            (Optional)
+                          </span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. production"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {showDefaultValue && (
 
-									<FormField
-										control={form.control}
-										name="flag.defaultValue"
-										render={({ field }) => (
-											<FormItem>
-												<FormLabel>Default Value</FormLabel>
-												<FormControl>
-													<div className="flex h-9 w-fit items-center justify-center rounded-md border bg-accent-brighter/80 px-3 will-change-contents">
-														<div className="flex items-center gap-2">
-															<span
-																className={cn(
-																	"text-sm",
-																	field.value === false
-																		? "text-muted-foreground"
-																		: "text-muted-foreground/50"
-																)}
-															>
-																Off
-															</span>
-															<Switch
-																aria-label="Toggle default flag value"
-																checked={field.value}
-																onCheckedChange={field.onChange}
-															/>
-															<span
-																className={cn(
-																	"text-sm",
-																	field.value === true
-																		? "text-muted-foreground"
-																		: "text-muted-foreground/50"
-																)}
-															>
-																On
-															</span>
-														</div>
-													</div>
-												</FormControl>
-												<FormMessage />
-											</FormItem>
-										)}
+                    <FormField
+                      control={form.control}
+                      name="flag.defaultValue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Default Value</FormLabel>
+                          <FormControl>
+                            <div className="flex h-9 w-fit items-center justify-center rounded-md border bg-accent-brighter/80 px-3 will-change-contents">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={cn(
+                                    "text-sm",
+                                    field.value === false
+                                      ? "text-muted-foreground"
+                                      : "text-muted-foreground/50"
+                                  )}
+                                >
+                                  Off
+                                </span>
+                                <Switch
+                                  aria-label="Toggle default flag value"
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                                <span
+                                  className={cn(
+                                    "text-sm",
+                                    field.value === true
+                                      ? "text-muted-foreground"
+                                      : "text-muted-foreground/50"
+                                  )}
+                                >
+                                  On
+                                </span>
+                              </div>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                   )}
-								</div>
-							</div>
+                </div>
+              </div>
 
               {/* Rollout Percentage */}
               {showRolloutPercentage && (
@@ -590,49 +616,220 @@ export function FlagSheet({
                     name="flag.rolloutPercentage"
                     render={({ field }) => {
                       const currentValue = Number(field.value) || 0;
+                      const hasRolloutSteps = (watchedRolloutSteps || []).length > 0;
 
-											return (
-												<FormItem>
-													<FormLabel>Rollout Percentage</FormLabel>
-													<FormControl>
-														<div className="space-y-4">
-															<Slider
-																max={100}
-																min={0}
-																onValueChange={field.onChange}
-																step={5}
-																value={currentValue}
-															/>
-															<div className="flex flex-wrap justify-center gap-2">
-																{[0, 25, 50, 75, 100].map((preset) => (
-																	<button
-																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
-																		className={`rounded border px-3 py-2 text-sm transition-colors ${
-																			currentValue === preset
-																				? "border-primary bg-primary text-primary-foreground"
-																				: "border-border hover:border-primary/50"
-																		}`}
-																		key={preset}
-																		onClick={() => field.onChange(preset)}
-																		type="button"
-																	>
-																		{preset}%
-																	</button>
-																))}
-															</div>
-														</div>
-													</FormControl>
-													<FormDescription className="mx-auto text-muted-foreground text-xs">
-														Percentage of users who will see this flag enabled.
-														0% = disabled, 100% = fully enabled.
-													</FormDescription>
-													<FormMessage />
-												</FormItem>
-											);
-										}}
-									/>
-								</div>
-							)}
+                      return (
+                        <FormItem>
+                          <FormLabel>Rollout Percentage</FormLabel>
+                          <FormControl>
+                            {!hasRolloutSteps ? (
+                              <div className="space-y-4">
+                                <Slider
+                                  max={100}
+                                  min={0}
+                                  onValueChange={field.onChange}
+                                  step={5}
+                                  value={currentValue}
+                                />
+                                <div className="flex flex-wrap justify-center gap-2">
+                                  {[0, 25, 50, 75, 100].map((preset) => (
+                                    <button
+                                      aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
+                                      className={`rounded border px-3 py-2 text-sm transition-colors ${currentValue === preset
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : "border-border hover:border-primary/50"
+                                        }`}
+                                      key={preset}
+                                      onClick={() => field.onChange(preset)}
+                                      type="button"
+                                    >
+                                      {preset}%
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-md border border-dashed p-4 text-center">
+                                <p className="text-sm text-muted-foreground">
+                                  Rollout percentage will be controlled by scheduled steps below.
+                                  <br />
+                                  Current: <span className="font-medium text-foreground">{currentValue}%</span>
+                                </p>
+                              </div>
+                            )}
+                          </FormControl>
+                          {!hasRolloutSteps && (
+                            <FormDescription className="mx-auto text-muted-foreground text-xs">
+                              Percentage of users who will see this flag enabled.
+                              0% = disabled, 100% = fully enabled.
+                            </FormDescription>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  {/* Scheduled Rollout Steps */}
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <FormLabel>Scheduled Rollout Steps</FormLabel>
+                        <FormDescription>
+                          Automatically update rollout percentage over time
+                        </FormDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const currentSchedule = form.getValues("schedule");
+                          form.setValue("schedule.rolloutSteps", [
+                            ...(watchedRolloutSteps || []),
+                            {
+                              scheduledAt: new Date().toISOString(),
+                              value: 0,
+                            },
+                          ]);
+                          // Ensure all required schedule fields are set
+                          if (!currentSchedule?.type) {
+                            form.setValue("schedule.type", "update_rollout");
+                          }
+                          if (currentSchedule?.isEnabled === undefined || currentSchedule?.isEnabled === null) {
+                            form.setValue("schedule.isEnabled", true);
+                          }
+                          if (!currentSchedule?.flagId && flag?.id) {
+                            form.setValue("schedule.flagId", flag.id);
+                          }
+                        }}
+                      >
+                        Add Step
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {(watchedRolloutSteps || []).map((step: any, idx: number) => {
+                        // Helper function to ensure schedule fields are set when modifying steps
+                        const ensureScheduleFields = () => {
+                          const currentSchedule = form.getValues("schedule");
+                          if (!currentSchedule?.type) {
+                            form.setValue("schedule.type", "update_rollout");
+                          }
+                          if (currentSchedule?.isEnabled === false || currentSchedule?.isEnabled === undefined) {
+                            form.setValue("schedule.isEnabled", true);
+                          }
+                          if (!currentSchedule?.flagId && flag?.id) {
+                            form.setValue("schedule.flagId", flag.id);
+                          }
+                        };
+
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-end gap-4 rounded-md border p-4"
+                          >
+                            <FormItem className="grow">
+                              <FormLabel>Step Date</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal",
+                                      !step.scheduledAt && "text-muted-foreground"
+                                    )}
+                                  >
+                                    {step.scheduledAt
+                                      ? formatDate(new Date(step.scheduledAt), "PPP p")
+                                      : "Pick a Time"}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={
+                                      step.scheduledAt
+                                        ? new Date(step.scheduledAt)
+                                        : undefined
+                                    }
+                                    onSelect={(date) => {
+                                      if (date) {
+                                        ensureScheduleFields();
+                                        const newSteps = watchedRolloutSteps || [];
+                                        newSteps[idx].scheduledAt = date.toISOString();
+                                        form.setValue("schedule.rolloutSteps", newSteps);
+                                      }
+                                    }}
+                                  />
+                                  <div className="p-3 border-t">
+                                    <Input
+                                      type="time"
+                                      defaultValue={
+                                        step.scheduledAt
+                                          ? formatDate(
+                                            new Date(step.scheduledAt),
+                                            "HH:mm"
+                                          )
+                                          : ""
+                                      }
+                                      onChange={(e) => {
+                                        ensureScheduleFields();
+                                        const date = step.scheduledAt
+                                          ? new Date(step.scheduledAt)
+                                          : new Date();
+                                        const [h, m] = e.target.value.split(":");
+                                        date.setHours(Number(h), Number(m));
+                                        const newSteps = watchedRolloutSteps || [];
+                                        newSteps[idx].scheduledAt = date.toISOString();
+                                        form.setValue("schedule.rolloutSteps", newSteps);
+                                      }}
+                                    />
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </FormItem>
+
+                            <FormItem className="grow">
+                              <FormLabel>Rollout %</FormLabel>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={step.value}
+                                onChange={(e) => {
+                                  ensureScheduleFields();
+                                  const newSteps = watchedRolloutSteps || [];
+                                  newSteps[idx].value = Number(e.target.value);
+                                  form.setValue("schedule.rolloutSteps", newSteps);
+                                }}
+                              />
+                            </FormItem>
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => {
+                                const filtered = (watchedRolloutSteps || []).filter(
+                                  (_: any, i: number) => i !== idx
+                                );
+                                form.setValue("schedule.rolloutSteps", filtered);
+                              }}
+                            >
+                              <TrashIcon className="h-4 w-4" weight="duotone" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {rolloutStepsErrors && (
+                      <FormMessage>{rolloutStepsErrors}</FormMessage>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Variants Editor */}
               {showVariants && (
@@ -663,11 +860,11 @@ export function FlagSheet({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-												User Targeting{" "}
-												<span className="text-muted-foreground text-xs">
-													(Optional)
-												</span>
-											</FormLabel>
+                        User Targeting{" "}
+                        <span className="text-muted-foreground text-xs">
+                          (Optional)
+                        </span>
+                      </FormLabel>
                       <FormControl>
                         <UserRulesBuilder
                           onChange={field.onChange}
@@ -706,22 +903,24 @@ export function FlagSheet({
               </div>
 
               {/* Scheduled Changes */}
-              <div className="space-y-4 pt-4 border-t">
-                <ScheduleManager form={form} flagType={watchedType} setValue={form.setValue} />
-              </div>
+              {watchedType !== "rollout" && (
+                <div className="space-y-4 pt-4 border-t">
+                  <ScheduleManager form={form} setValue={form.setValue} />
+                </div>
+              )}
 
-							<div className="flex justify-end gap-3 border-t pt-6">
-								<Button onClick={onCloseAction} type="button" variant="ghost">
-									Cancel
-								</Button>
-								<Button disabled={isLoading} type="submit">
-									{isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
-								</Button>
-							</div>
-						</form>
-					</Form>
-				</div>
-			</SheetContent>
-		</Sheet>
-	);
+              <div className="flex justify-end gap-3 border-t pt-6">
+                <Button onClick={onCloseAction} type="button" variant="ghost">
+                  Cancel
+                </Button>
+                <Button disabled={isLoading} type="submit">
+                  {isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }

@@ -13,6 +13,7 @@ export interface Flag {
 	rules?: UserRule[];
 	variants?: Variant[];
 	dependencies?: string[];
+	environment?: string;
 	persistAcrossAuth?: boolean;
 	websiteId?: string | null;
 	organizationId?: string | null;

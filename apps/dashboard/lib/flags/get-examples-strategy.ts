@@ -23,7 +23,6 @@ export async function getExamplesDisplayStrategy(
     userId?: string,
     environment: string = process.env.NODE_ENV || "development"
 ): Promise<ExamplesDisplayStrategy> {
-    console.log("🎯 getExamplesDisplayStrategy called:", { websiteId, userId, environment });
 
     const flagsManager = createServerFlagsManager({
         clientId: websiteId,
@@ -37,13 +36,7 @@ export async function getExamplesDisplayStrategy(
     await flagsManager.waitForInitialization();
 
     try {
-        const result = await flagsManager.getFlag("flag-examples-display-strategy", {
-            userId,
-            properties: {
-                environment,
-                userAgent: "dashboard",
-            },
-        });
+        const result = await flagsManager.getFlag("flag-examples-display-strategy");
 
         console.log("🚀 Flag result:", result);
 
@@ -70,4 +63,16 @@ export async function getExamplesDisplayStrategy(
             environment,
         };
     }
+}
+
+export const getShouldShowExamples = async (websiteId: string, userId: string, environment: string) => {
+    const flagsManager = createServerFlagsManager({
+        clientId: websiteId,
+        apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+        user: { userId },
+        debug: process.env.NODE_ENV === "development",
+        environment,
+    });
+    const flag = await flagsManager.getFlag("enable-flag-examples");
+    return flag.value;
 }

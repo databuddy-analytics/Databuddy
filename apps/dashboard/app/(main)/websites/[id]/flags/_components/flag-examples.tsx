@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { getExamplesDisplayStrategy } from "@/lib/flags/get-examples-strategy";
+import { getExamplesDisplayStrategy, getShouldShowExamples } from "@/lib/flags/get-examples-strategy";
 import { useState } from "react";
 
 interface FlagTemplate {
@@ -224,19 +224,30 @@ export function FlagExamples({
 }: FlagExamplesProps) {
   const [userId, setUserId] = useState("1aZtjWs4U4vQMa3Z2j5XA5PDy76fXNGE");
 
-  const { data,refetch,isFetching } = useQuery({
-    queryKey: ["examples-display-strategy", userId],
-    queryFn: async () =>{console.log("Fetching examples display strategy");
-     return await getExamplesDisplayStrategy("dThpQPGm731MwvnBnP35x", userId,"production")}
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ["examples-display-strategy"],
+    queryFn: async () => {
+      console.log("Fetching examples display strategy");
+      return await getExamplesDisplayStrategy("OSA-FWQhcahi6J5VDxsbn", userId, "production")
+    }
+  });
+  const { data: shouldShowExamples, refetch: refetchShouldShowExamples, isFetching: isFetchingShouldShowExamples } = useQuery({
+    queryKey: ["should-show-examples"],
+    queryFn: async () => {
+      return await getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", userId, "production")
+    }
   });
 
-  const displayedExamples =  FLAG_TEMPLATES.slice(0, data?.exampleCount||0)
+  const displayedExamples = FLAG_TEMPLATES.slice(0, data?.exampleCount || 0)
 
-
-  const handleRefetchAsNewUser = () => {
+  const handleRefetchAsNewUser = (isRefetchShouldShowExamples?: boolean) => {
     const newUserId = `test-user-${Math.random().toString(36).substring(2, 15)}`;
     console.log(`🔄 Switching to new user: ${newUserId}`);
     setUserId(newUserId);
+    if (isRefetchShouldShowExamples) { refetchShouldShowExamples(); } else {
+      refetch();
+
+    }
   };
 
   if (isFetching) {
@@ -247,35 +258,63 @@ export function FlagExamples({
     <div className="space-y-6">
       {/* Advanced Features Status Banner */}
       <div className="rounded-lg border bg-card p-4 space-y-3">
-        
+
         <p className="text-muted-foreground text-sm">
           Real-world use cases demonstrating advanced feature flag capabilities
         </p>
 
         {/* Feature Status Grid */}
-          <div className="text-xs space-y-1">
-            <div className="font-medium text-muted-foreground">Environment</div>
-            <div className="font-mono text-primary">
-              {data?.environment || "-"}
-            </div>
+        <div className="text-xs space-y-1">
+          <div className="font-medium text-muted-foreground">Environment</div>
+          <div className="font-mono text-primary">
+            {data?.environment || "-"}
           </div>
+        </div>
 
         {/* Test buttons */}
         <div className="flex justify-center gap-3 mt-4">
           <Button
             size="sm"
             variant="secondary"
-            onClick={handleRefetchAsNewUser}
+            onClick={() => handleRefetchAsNewUser(true)}
           >
             🔄 Test as Different User
           </Button>
           <Button
             size="sm"
             variant="secondary"
-            onClick={()=>refetch()}
+            onClick={() => refetch()}
           >
             🔄 Refetch
           </Button>
+        </div>
+      </div>
+
+      {/* Should Show Examples Check */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <h3 className="font-medium text-sm">Check "Enable Examples" Flag</h3>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refetchShouldShowExamples()}
+              disabled={isFetchingShouldShowExamples}
+            >
+              Check for Current User
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRefetchAsNewUser(true)}
+              disabled={isFetchingShouldShowExamples}
+            >
+              Check as New User
+            </Button>
+          </div>
+          <div className={`text-sm font-medium ${shouldShowExamples ? 'text-green-600' : 'text-red-600'}`}>
+            Result: {shouldShowExamples ? 'Enabled' : 'Disabled'}
+          </div>
         </div>
       </div>
 

@@ -84,6 +84,7 @@ export type FlagScheduleType = z.infer<typeof flagScheduleTypeEnum>;
 
 export const rolloutStepSchema = z.object({
     scheduledAt: z.string(),
+    executedAt: z.string().optional(),
     value: z.union([
         z.number().min(0).max(100),
         z.literal("enable"),
@@ -158,7 +159,22 @@ export const flagScheduleSchema = z.object({
                         path: ["value"],
                         message: "Step value must be a number between 0 and 100 for rollout steps",
                     });
+                    continue
+                }
+                if (step.value < 0 || step.value > 100) {
+                    ctx.addIssue({
+                        code: "custom",
+                        path: ["value"],
+                        message: "Step value must be a number between 0 and 100 for rollout steps",
+                    });
+                }
 
+                if (Date.now() > new Date(step.scheduledAt!).getTime()) {
+                    ctx.addIssue({
+                        code: "custom",
+                        path: ['rolloutSteps'],
+                        message: "Scheduled time must be in the future",
+                    })
                 }
             }
         }

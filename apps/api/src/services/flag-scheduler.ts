@@ -5,11 +5,21 @@ import { handleFlagUpdateDependencyCascading } from "@databuddy/shared/flags/uti
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 
+let schedulerInterval: NodeJS.Timeout | null = null;
+
 export function startFlagScheduler() {
     logger.info("Starting flag scheduler...");
 
     processSchedules();
-    setInterval(processSchedules, 60 * 1000);
+    schedulerInterval = setInterval(processSchedules, 60 * 1000);
+}
+
+export function stopFlagScheduler() {
+    if (schedulerInterval) {
+        clearInterval(schedulerInterval);
+        schedulerInterval = null;
+        logger.info("Flag scheduler stopped");
+    }
 }
 
 async function processSchedules() {
@@ -46,15 +56,18 @@ async function processSchedules() {
         for (const sched of rolloutSchedules) {
             if (!sched.rolloutSteps || sched.rolloutSteps.length === 0) continue;
 
-            for (const step of sched.rolloutSteps) {
-                if (new Date(step.scheduledAt) <= now) {
-                    dueSteps.push({
-                        ...sched,
-                        __isStep: true,
-                        stepValue: step.value,
-                        stepScheduledAt: step.scheduledAt,
-                    });
-                }
+            const dueStepsForSchedule = sched.rolloutSteps
+                .filter((step: any) => new Date(step.scheduledAt) <= now && !step.executedAt)
+                .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+
+            const latestStep = dueStepsForSchedule?.[0];
+            if (latestStep) {
+                dueSteps.push({
+                    ...sched,
+                    __isStep: true,
+                    stepValue: latestStep.value,
+                    stepScheduledAt: latestStep.scheduledAt,
+                });
             }
         }
 
@@ -84,43 +97,58 @@ async function executeSchedule(sched: any) {
             return;
         }
 
-        const updates: any = { updatedAt: new Date() };
+        const updates: any = {};
 
         if (sched.__isStep) {
             const value = sched.stepValue;
 
             if (value === "enable") {
                 updates.status = "active";
-                // updates.defaultValue = true;
             } else if (value === "disable") {
                 updates.status = "inactive";
-                // updates.defaultValue = false;
             } else {
                 updates.rolloutPercentage = Number(value);
             }
-        }
-
-        else {
+        } else {
             switch (sched.type) {
                 case "enable":
                     updates.status = "active";
-                    // updates.defaultValue = true;
                     break;
 
                 case "disable":
                     updates.status = "inactive";
-                    // updates.defaultValue = false;
                     break;
             }
         }
+
         const updatedFlag = (await db.update(flags).set(updates).where(eq(flags.id, sched.flagId)).returning())[0];
-        await db.update(flagSchedules).set({ isEnabled: false, executedAt: new Date() }).where(eq(flagSchedules.id, sched.id));
+
+        // For rollout schedules, only disable when all steps are executed
+        if (sched.__isStep) {
+            const updatedRolloutSteps = sched.rolloutSteps.map((step: any) => {
+                if (step.scheduledAt === sched.stepScheduledAt) {
+                    return { ...step, executedAt: new Date().toISOString() };
+                }
+                return step;
+            });
+
+            const allStepsExecuted = updatedRolloutSteps.every((step: any) => step.executedAt);
+
+            await db.update(flagSchedules).set({
+                rolloutSteps: updatedRolloutSteps,
+                isEnabled: allStepsExecuted ? false : true,
+                executedAt: allStepsExecuted ? new Date() : null
+            }).where(eq(flagSchedules.id, sched.id));
+        } else {
+            // For single schedules (enable/disable), disable immediately
+            await db.update(flagSchedules).set({ isEnabled: false, executedAt: new Date() }).where(eq(flagSchedules.id, sched.id));
+        }
 
         if (updatedFlag) {
             await handleFlagUpdateDependencyCascading({ updatedFlag: updatedFlag, userId: sched.userId });
             await flagsCache.invalidateByTables(["flags"]);
         } else {
-            logger.warn({ flagId: sched.flagId, scheduleId: sched.id }, "Failed to update flag, schedule not executed",);
+            logger.warn({ flagId: sched.flagId, scheduleId: sched.id }, "Failed to update flag, schedule not executed");
         }
 
         logger.info({

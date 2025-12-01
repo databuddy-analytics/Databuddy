@@ -103,8 +103,7 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
           coercedValue = "";
           break;
       }
-      console.log({ coercedValue });
-
+      
       newVariants[index] = {
         ...newVariants[index],
         type: newType,
@@ -262,20 +261,6 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
                   handleUpdateVariant(index, "weight", val)
                 }
                 disabled={typeof variant.weight !== "number"}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                Description
-              </Label>
-              <Input
-                value={variant.description || ""}
-                onChange={(e) =>
-                  handleUpdateVariant(index, "description", e.target.value)
-                }
-                placeholder="Optional description"
-                className="h-8"
               />
             </div>
           </div>

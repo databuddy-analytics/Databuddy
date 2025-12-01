@@ -1,5 +1,4 @@
 import { isNotNull, isNull } from "drizzle-orm";
-import { check } from "drizzle-orm/gel-core";
 import {
 	boolean,
 	foreignKey,
@@ -715,7 +714,7 @@ export const flagSchedules = pgTable(
 		flagId: text("flag_id").notNull(),
 		scheduledAt: timestamp("scheduled_at"),
 		rolloutSteps: jsonb("rollout_steps").$type<
-			{ scheduledAt: string; value: number | "enable" | "disable" }[]
+			{ scheduledAt: string; value: number | "enable" | "disable", executedAt?: string }[]
 		>(),
 		type: flagScheduleActionType().notNull(),
 		isEnabled: boolean("is_enabled").default(false).notNull(),
