@@ -24,7 +24,7 @@ export function stopFlagScheduler() {
 
 async function processSchedules() {
     try {
-        console.log('Processing Schedules');
+        logger.debug("Processing schedules");
 
         const now = new Date();
 
@@ -78,6 +78,7 @@ async function processSchedules() {
         logger.info(`Executing ${toExecute.length} pending schedules...`);
 
         for (const sched of toExecute) {
+
             await executeSchedule(sched);
         }
     } catch (err) {
@@ -85,14 +86,24 @@ async function processSchedules() {
     }
 }
 
-async function executeSchedule(sched: any) {
+interface ExecutableSchedule {
+    id: string;
+    flagId: string;
+    type: string;
+    userId?: string;
+    __isStep?: boolean;
+    stepValue?: string | number;
+    stepScheduledAt?: string;
+    rolloutSteps: { value: string | number; scheduledAt: string; executedAt?: string }[] | null;
+}
+
+async function executeSchedule(sched: ExecutableSchedule) {
     try {
         const flag = await db.query.flags.findFirst({
             where: eq(flags.id, sched.flagId),
         });
 
         if (!flag) {
-            logger.warn("Flag not found for schedule", sched.flagId);
             await db.delete(flagSchedules).where(eq(flagSchedules.id, sched.id));
             return;
         }
@@ -124,7 +135,7 @@ async function executeSchedule(sched: any) {
         const updatedFlag = (await db.update(flags).set(updates).where(eq(flags.id, sched.flagId)).returning())[0];
 
         // For rollout schedules, only disable when all steps are executed
-        if (sched.__isStep) {
+        if (sched.__isStep && sched.rolloutSteps) {
             const updatedRolloutSteps = sched.rolloutSteps.map((step: any) => {
                 if (step.scheduledAt === sched.stepScheduledAt) {
                     return { ...step, executedAt: new Date().toISOString() };
