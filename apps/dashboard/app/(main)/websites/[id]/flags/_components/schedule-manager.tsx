@@ -24,7 +24,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { CalendarIcon, Trash, TrashIcon } from "@phosphor-icons/react";
 import { UseFormReturn, UseFormSetValue } from "react-hook-form";
 import type {
@@ -32,6 +32,7 @@ import type {
   FlagScheduleType,
   FlagType,
 } from "@databuddy/shared/flags";
+import { DATE_FORMATS, formatDate } from "../../../../../../lib/formatters";
 
 interface ScheduleManagerProps {
   form: UseFormReturn<any>;
@@ -149,7 +150,7 @@ export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
                           disabled={watchedScheduledType === "update_rollout"}
                         >
                           {field.value
-                            ? formatDate(new Date(field.value), "PPP p")
+                            ? formatDate(new Date(field.value), DATE_FORMATS.DATE_TIME_12H)
                             : "Pick a Time"}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -179,7 +180,7 @@ export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
                           type="time"
                           defaultValue={
                             field.value
-                              ? formatDate(new Date(field.value), "HH:mm")
+                              ? formatDate(new Date(field.value), DATE_FORMATS.TIME_ONLY)
                               : ""
                           }
                           onChange={(e) => {

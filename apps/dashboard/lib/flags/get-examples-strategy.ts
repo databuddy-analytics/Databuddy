@@ -73,6 +73,7 @@ export const getShouldShowExamples = async (websiteId: string, userId: string, e
         debug: process.env.NODE_ENV === "development",
         environment,
     });
+    await createServerFlagsManager.waitForInitialization()
     const flag = await flagsManager.getFlag("enable-flag-examples");
     return flag.value;
 }

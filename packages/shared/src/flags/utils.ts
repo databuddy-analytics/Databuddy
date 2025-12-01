@@ -12,7 +12,7 @@ export const invalidateFlagCache = async (
     organizationId?: string | null
 ) => {
     const scope = getScope(websiteId, organizationId);
-    await Promise.all([
+    await Promise.allSettled([
         flagsCache.invalidateByTables(["flags"]),
         flagsCache.invalidateByKey(`byId:${id}:${scope}`),
     ]);
@@ -92,27 +92,27 @@ export async function handleFlagUpdateDependencyCascading(
                     (depFlag) => depFlag.status === "inactive"
                 );
 
+                const allDepKeys = new Set(
+                    potentialActivations.flatMap((f) => (f.dependencies as string[]) ?? [])
+                );
+                const allDepFlags = await db
+                    .select()
+                    .from(flags)
+                    .where(
+                        and(
+                            inArray(flags.key, [...allDepKeys]),
+                            getScopeCondition(updatedFlag.websiteId, updatedFlag.organizationId, userId),
+                            isNull(flags.deletedAt)
+                        )
+                    );
+                const depFlagsByKey = new Map(allDepFlags.map((f) => [f.key, f]));
+
                 for (const depFlag of potentialActivations) {
                     const deps = (depFlag.dependencies as string[]) ?? [];
-
-                    const depFlagDependencies = await db
-                        .select()
-                        .from(flags)
-                        .where(
-                            and(
-                                inArray(flags.key, deps),
-                                getScopeCondition(
-                                    updatedFlag.websiteId,
-                                    updatedFlag.organizationId,
-                                    userId
-                                ),
-                                isNull(flags.deletedAt)
-                            )
-                        );
-
-                    const allDependenciesActive = depFlagDependencies.every(
-                        (df) => df.status === "active"
-                    );
+                    const allDependenciesActive = deps.every((key) => {
+                        const dep = depFlagsByKey.get(key);
+                        return dep && dep.status === "active";
+                    });
 
                     if (allDependenciesActive) {
                         flagsToUpdate.push({
@@ -150,6 +150,16 @@ export async function handleFlagUpdateDependencyCascading(
                         );
                     })
                 );
+
+                for (const flagUpdate of flagsToUpdate) {
+                    const affectedFlag = dependentFlags.find((f) => f.id === flagUpdate.id);
+                    if (affectedFlag) {
+                        await handleFlagUpdateDependencyCascading({
+                            updatedFlag: { ...affectedFlag, status: flagUpdate.newStatus },
+                            userId,
+                        });
+                    }
+                }
             }
         }
     }

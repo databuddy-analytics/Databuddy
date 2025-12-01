@@ -137,6 +137,68 @@ const updateFlagSchema = z.object({
 	forceCancelScheduledRollout: z.boolean().optional(),
 }).passthrough();
 
+const checkCircularDependency = async (
+	context: Context,
+	targetFlagKey: string,
+	proposedDependencies: string[],
+	websiteId?: string,
+	organizationId?: string
+) => {
+	const allFlags = await context.db
+		.select({
+			key: flags.key,
+			dependencies: flags.dependencies,
+		})
+		.from(flags)
+		.where(
+			and(
+				getScopeCondition(websiteId, organizationId, context?.user?.id),
+				isNull(flags.deletedAt)
+			)
+		);
+
+	const graph = new Map<string, string[]>();
+	for (const flag of allFlags) {
+		if (flag.key === targetFlagKey) {
+			graph.set(flag.key, proposedDependencies);
+		} else {
+			graph.set(flag.key, (flag.dependencies as string[]) || []);
+		}
+	}
+
+	if (!graph.has(targetFlagKey)) {
+		graph.set(targetFlagKey, proposedDependencies);
+	}
+
+
+	const visited = new Set<string>();
+	const recursionStack = new Set<string>();
+
+	const hasCycle = (currentKey: string): boolean => {
+		visited.add(currentKey);
+		recursionStack.add(currentKey);
+
+		const neighbors = graph.get(currentKey) || [];
+
+		for (const neighbor of neighbors) {
+			if (!visited.has(neighbor)) {
+				if (hasCycle(neighbor)) return true;
+			} else if (recursionStack.has(neighbor)) {
+				return true;
+			}
+		}
+
+		recursionStack.delete(currentKey);
+		return false;
+	};
+
+	if (hasCycle(targetFlagKey)) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `Circular dependency detected involving flag "${targetFlagKey}".`,
+		});
+	}
+};
+
 export const flagsRouter = {
 	list: publicProcedure.input(listFlagsSchema).handler(({ context, input }) => {
 		const scope = getScope(input.websiteId, input.organizationId);
@@ -265,6 +327,17 @@ export const flagsRouter = {
 				"update"
 			);
 
+			// Check for circular dependencies
+			if (input.dependencies && input.dependencies.length > 0) {
+				await checkCircularDependency(
+					context,
+					input.key,
+					input.dependencies,
+					input.websiteId,
+					input.organizationId
+				);
+			}
+
 			const dependencyFlags = await context.db
 				.select()
 				.from(flags)
@@ -279,16 +352,6 @@ export const flagsRouter = {
 						isNull(flags.deletedAt)
 					)
 				);
-
-			for (const depFlag of dependencyFlags) {
-				const depList = (depFlag.dependencies ?? []) as string[];
-
-				if (depList.includes(input.key)) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Circular dependency detected: "${input.key}" cannot depend on "${depFlag.key}" because "${depFlag.key}" already depends on "${input.key}".`,
-					});
-				}
-			}
 
 			const existingFlag = await context.db
 				.select()
@@ -404,6 +467,18 @@ export const flagsRouter = {
 					message: "Not authorized to update this flag",
 				});
 			}
+
+			// Check for circular dependencies if dependencies are being updated
+			if (input.dependencies) {
+				await checkCircularDependency(
+					context,
+					flag.key,
+					input.dependencies,
+					flag.websiteId || undefined,
+					flag.organizationId || undefined
+				);
+			}
+
 			const dependencyFlags = await context.db
 				.select()
 				.from(flags)
@@ -419,16 +494,6 @@ export const flagsRouter = {
 					)
 				);
 
-			for (const depFlag of dependencyFlags) {
-				const depList = (depFlag.dependencies ?? []) as string[];
-
-				if (depList.includes(flag.key)) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Circular dependency detected: "${flag.key}" cannot depend on "${depFlag.key}" because "${depFlag.key}" already depends on "${flag.key}".`,
-					});
-				}
-			}
-
 			const nextDependencies = input.dependencies ?? (flag.dependencies as string[]) ?? [];
 
 			if (nextDependencies.length > 0 && input.status === "active") {
@@ -438,13 +503,6 @@ export const flagsRouter = {
 
 				if (hasInactiveDependency) {
 					input.status = "inactive";
-					console.log({
-						message: "Flag forced to inactive due to inactive dependencies",
-						flagKey: flag.key,
-						inactiveDependencies: dependencyFlags
-							.filter((d) => d.status !== "active")
-							.map((d) => d.key),
-					});
 				}
 			}
 

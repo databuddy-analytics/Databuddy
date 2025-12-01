@@ -29,7 +29,7 @@ export const flagSchedulesRouter = {
 
 
             if (!schedules[0]) {
-                throw new ORPCError("NOT_FOUND", { message: "Flag not found" });
+                throw new ORPCError("NOT_FOUND", { message: "No schedules found for this flag" });
             }
 
             return schedules[0];
@@ -46,7 +46,6 @@ export const flagSchedulesRouter = {
             if (!flag?.websiteId) {
                 throw new ORPCError("NOT_FOUND", { message: "Flag not found" });
             }
-            console.log({ flag });
 
             await authorizeWebsiteAccess(context, flag.websiteId, "update");
 
@@ -100,10 +99,13 @@ export const flagSchedulesRouter = {
                 updateData.scheduledAt = new Date(updates.scheduledAt);
             }
             updateData.executedAt = null;
-            updates.rolloutSteps?.forEach((step, i) => {
-                updateData.rolloutSteps[i].executedAt = null;
-                updateData.rolloutSteps[i].scheduledAt = new Date(step.scheduledAt);
-            });
+            if (updates.rolloutSteps) {
+                updateData.rolloutSteps = updates.rolloutSteps.map((step) => ({
+                    ...step,
+                    executedAt: null,
+                    scheduledAt: new Date(step.scheduledAt),
+                }));
+            }
 
             const [updated] = await context.db
                 .update(flagSchedules)
@@ -117,27 +119,25 @@ export const flagSchedulesRouter = {
     delete: protectedProcedure
         .input(z.object({ id: z.string() }))
         .handler(async ({ context, input }) => {
-            const flag = await context.db.query.flags.findFirst({
-                where: eq(flags.id, input.id),
-            });
-
-            if (!flag?.websiteId) {
-                throw new ORPCError("NOT_FOUND", { message: "Flag not found" });
-            }
-            await authorizeWebsiteAccess(context, flag.websiteId, "update");
-
             const existingSchedule = await context.db.query.flagSchedules.findFirst({
                 where: eq(flagSchedules.id, input.id),
             });
-
             if (!existingSchedule) {
                 throw new ORPCError("NOT_FOUND", { message: "Schedule not found" });
             }
 
+            const flag = await context.db.query.flags.findFirst({
+                where: eq(flags.id, existingSchedule.flagId),
+            });
+            if (!flag?.websiteId) {
+                throw new ORPCError("NOT_FOUND", { message: "Flag not found" });
+            }
+
+            await authorizeWebsiteAccess(context, flag.websiteId, "update");
+
             await context.db
                 .delete(flagSchedules)
                 .where(eq(flagSchedules.id, input.id));
-
             return { success: true };
         }),
 };

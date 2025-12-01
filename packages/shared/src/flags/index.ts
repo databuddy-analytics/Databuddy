@@ -29,7 +29,7 @@ export const variantSchema = z.object({
     ]),
     weight: z.number().min(0, "Weight must be >= 0").max(100, "Weight must be <= 100").optional(),
     description: z.string().optional(),
-    type: z.enum(["string", "number", "json"]),
+    type: z.enum(["string", "number"]),
 });
 export type Variant = z.infer<typeof variantSchema>;
 const flagTypeEnum = z.enum(["boolean", "rollout", "multivariant"]);

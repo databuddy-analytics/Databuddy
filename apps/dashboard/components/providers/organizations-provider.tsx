@@ -12,7 +12,7 @@ import {
 } from "@/stores/jotai/organizationsAtoms";
 
 export type Organization = NonNullable<
-  ReturnType<typeof authClient.useListOrganizations>["data"]
+	ReturnType<typeof authClient.useListOrganizations>["data"]
 >[number];
 
 export const AUTH_QUERY_KEYS = {
@@ -69,21 +69,16 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	return <>{children}</>;
 }
 
-/**
- * @deprecated Use useOrganizations from @/hooks/use-organizations instead
- * This is kept for backwards compatibility
- */
 export function useOrganizationsContext() {
 	const organizations = useAtomValue(organizationsAtom);
 	const activeOrganization = useAtomValue(activeOrganizationAtom);
 	const isLoading = useAtomValue(isLoadingOrganizationsAtom);
 	const [getOrganizationBySlug] = useAtom(getOrganizationBySlugAtom);
 
-  return {
-    organizations,
-    activeOrganization,
-    isLoading,
-    getOrganization: (orgSlug: string) =>
-      organizations.find((org) => org.slug === orgSlug),
-  };
+	return {
+		organizations,
+		activeOrganization,
+		isLoading,
+		getOrganization: getOrganizationBySlug,
+	};
 }

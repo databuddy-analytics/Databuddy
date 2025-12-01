@@ -74,7 +74,9 @@ export class ServerFlagsManager implements FlagsManager {
         if (targetUser?.properties) {
             params.set("properties", JSON.stringify(targetUser.properties));
         }
-
+        if (this.config.environment) {
+            params.set("environment", this.config.environment);
+        }
         const url = `${this.config.apiUrl}/public/v1/flags/bulk?${params.toString()}`;
 
         try {
@@ -153,7 +155,6 @@ export class ServerFlagsManager implements FlagsManager {
 
         const url = `${this.config.apiUrl}/public/v1/flags/evaluate?${params.toString()}`;
 
-        console.log("🔍 SDK Fetching flag:", { key, url, environment: this.config.environment });
         logger.debug(`Fetching: ${key}`);
 
         try {
@@ -164,7 +165,6 @@ export class ServerFlagsManager implements FlagsManager {
             }
 
             const result: FlagResult = await response.json();
-            console.log({ result: JSON.stringify(result) });
 
             logger.debug(`Response for ${key}:`, result);
 
@@ -216,8 +216,7 @@ export class ServerFlagsManager implements FlagsManager {
             };
         }
         // Trigger fetch but don't await
-        this.getFlag(key);
-        return {
+        this.getFlag(key).catch((err) => logger.error(`Background fetch error for ${key}:`, err)); return {
             enabled: false,
             isLoading: true,
             isReady: false,
@@ -238,7 +237,7 @@ export class ServerFlagsManager implements FlagsManager {
     updateUser(user: FlagsConfig["user"]): void {
         this.config = { ...this.config, user };
         this.onConfigUpdate?.(this.config);
-        this.refresh();
+        this.refresh().catch((err) => logger.error("Refresh error after user update:", err));
     }
 
     updateConfig(config: FlagsConfig): void {
@@ -246,7 +245,7 @@ export class ServerFlagsManager implements FlagsManager {
         this.onConfigUpdate?.(this.config);
 
         if (this.config.autoFetch && !this.config.isPending) {
-            this.fetchAllFlags();
+            this.fetchAllFlags().catch((err) => logger.error("Fetch error after config update:", err));
         }
     }
 
