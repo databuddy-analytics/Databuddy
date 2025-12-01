@@ -11,6 +11,7 @@ export type Website = InferSelectModel<typeof websites>;
 export type WebsitesListData = {
 	websites: Website[];
 	chartData: Record<string, ProcessedMiniChartData>;
+	activeUsers: Record<string, number>;
 };
 
 export const getWebsiteByIdKey = (id: string): QueryKey =>
@@ -41,7 +42,7 @@ const addWebsiteToList = (
 	newWebsite: Website
 ): WebsitesListData => {
 	if (!old) {
-		return { websites: [newWebsite], chartData: {} };
+		return { websites: [newWebsite], chartData: {}, activeUsers: {} };
 	}
 	if (old.websites.some((w) => w.id === newWebsite.id)) {
 		return old;
@@ -51,6 +52,10 @@ const addWebsiteToList = (
 		chartData: {
 			...old.chartData,
 			[newWebsite.id]: { data: [], totalViews: 0, trend: null },
+		},
+		activeUsers: {
+			...old.activeUsers,
+			[newWebsite.id]: 0,
 		},
 	};
 };
@@ -67,6 +72,9 @@ const removeWebsiteFromList = (
 		websites: old.websites.filter((w) => w.id !== websiteId),
 		chartData: Object.fromEntries(
 			Object.entries(old.chartData).filter(([key]) => key !== websiteId)
+		),
+		activeUsers: Object.fromEntries(
+			Object.entries(old.activeUsers).filter(([key]) => key !== websiteId)
 		),
 	};
 };
@@ -85,6 +93,7 @@ export function useWebsites() {
 	return {
 		websites: query.data?.websites ?? [],
 		chartData: query.data?.chartData,
+		activeUsers: query.data?.activeUsers,
 		isLoading: query.isLoading || isLoadingOrganization,
 		isFetching: query.isFetching,
 		isError: query.isError,

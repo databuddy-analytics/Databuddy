@@ -3,7 +3,7 @@
 import { BugIcon, CopyIcon, GlobeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { CountryFlag } from "@/components/icon";
 import { BrowserIcon, OSIcon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

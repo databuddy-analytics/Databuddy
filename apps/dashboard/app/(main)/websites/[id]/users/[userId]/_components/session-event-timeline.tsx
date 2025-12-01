@@ -1,49 +1,32 @@
 "use client";
 
 import type { SessionEvent } from "@databuddy/shared/types/sessions";
-import { FileTextIcon, SparkleIcon } from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
 import {
-	cleanUrl,
-	formatPropertyValue,
-	getDisplayPath,
-	getEventIconAndColor,
-} from "./session-utils";
+	CursorClickIcon,
+	FileTextIcon,
+	LightningIcon,
+	SparkleIcon,
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { Badge } from "@/components/ui/badge";
+import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
 
 interface SessionEventTimelineProps {
 	events: SessionEvent[];
 }
 
-function EventProperties({
-	properties,
-}: {
-	properties: Record<string, unknown>;
-}) {
-	return (
-		<div className="mt-3 rounded-lg border-2 border-accent/20 bg-accent/10 p-3">
-			<div className="mb-2 flex items-center gap-2">
-				<SparkleIcon className="h-4 w-4 text-accent-foreground" />
-				<span className="font-semibold text-accent-foreground text-sm">
-					Event Properties
-				</span>
-			</div>
-			<div className="space-y-2">
-				{Object.entries(properties).map(([key, value]) => (
-					<div
-						className="flex items-center gap-3 rounded border border-accent/20 bg-card/60 p-2"
-						key={key}
-					>
-						<span className="min-w-0 truncate font-mono font-semibold text-accent-foreground text-xs">
-							{key}
-						</span>
-						<span className="rounded bg-accent/20 px-2 py-1 font-medium text-accent-foreground text-xs">
-							{formatPropertyValue(value)}
-						</span>
-					</div>
-				))}
-			</div>
-		</div>
-	);
+function getEventIcon(eventName: string, hasProperties: boolean) {
+	if (hasProperties) return SparkleIcon;
+	switch (eventName) {
+		case "screen_view":
+		case "page_view":
+			return FileTextIcon;
+		case "click":
+		case "player-page-tab":
+			return CursorClickIcon;
+		default:
+			return LightningIcon;
+	}
 }
 
 function EventItem({
@@ -56,59 +39,74 @@ function EventItem({
 	const hasProperties = Boolean(
 		event.properties && Object.keys(event.properties).length > 0
 	);
-	const { icon, color, bgColor, borderColor, badgeColor } =
-		getEventIconAndColor(event.event_name, hasProperties);
+	const Icon = getEventIcon(event.event_name, hasProperties);
 	const displayPath = getDisplayPath(event.path || "");
 	const fullPath = cleanUrl(event.path || "");
-
-	const eventTitle = event.event_name;
-	const titleColor = hasProperties
-		? "text-accent-foreground"
-		: "text-foreground";
+	const time = dayjs(event.time).format("h:mm:ss A");
 
 	return (
-		<div
-			className={`group flex items-start gap-3 rounded-lg border-2 p-4 ${bgColor} ${borderColor} ${hasProperties ? "shadow-sm" : ""}`}
-			key={event.event_id || eventIndex}
-		>
-			<div
-				className={`flex h-8 w-8 items-center justify-center rounded-full border-2 bg-card font-bold text-xs ${color} shrink-0 shadow-sm`}
-			>
+		<div className="grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 px-2 py-1.5 text-sm">
+			{/* Index */}
+			<span className="text-right font-mono text-muted-foreground text-xs tabular-nums">
 				{eventIndex + 1}
-			</div>
-			<div className="flex min-w-0 flex-1 items-start gap-3">
-				<div className={`${color} mt-1 shrink-0`}>{icon}</div>
-				<div className="min-w-0 flex-1">
-					<div className="mb-2 flex items-start justify-between gap-2">
-						<div className="flex min-w-0 flex-wrap items-center gap-2">
-							<span className={`font-semibold text-sm ${titleColor}`}>
-								{eventTitle}
-							</span>
-							{displayPath && (
-								<Badge
-									className="font-mono text-xs"
-									title={fullPath}
-									variant="secondary"
-								>
-									{displayPath}
-								</Badge>
-							)}
-							{hasProperties && (
-								<Badge className={`font-medium text-xs ${badgeColor}`}>
-									Custom Event
-								</Badge>
-							)}
-						</div>
-						<div className="shrink-0 whitespace-nowrap font-medium text-muted-foreground text-xs">
-							{new Date(event.time).toLocaleTimeString()}
-						</div>
-					</div>
+			</span>
 
-					{hasProperties && event.properties && (
-						<EventProperties properties={event.properties} />
-					)}
-				</div>
+			{/* Icon */}
+			<Icon
+				className={`size-4 ${hasProperties ? "text-primary" : "text-muted-foreground"}`}
+			/>
+
+			{/* Event Name */}
+			<span className="truncate font-medium">
+				{event.event_name}
+			</span>
+
+			{/* Path */}
+			<span
+				className="truncate font-mono text-muted-foreground text-xs"
+				title={fullPath}
+			>
+				{displayPath || "—"}
+			</span>
+
+			{/* Custom Badge */}
+			<div className="w-[52px]">
+				{hasProperties && (
+					<Badge className="bg-primary/10 text-primary text-[10px]" variant="secondary">
+						Custom
+					</Badge>
+				)}
 			</div>
+
+			{/* Time */}
+			<span className="text-right text-muted-foreground text-xs tabular-nums">
+				{time}
+			</span>
+		</div>
+	);
+}
+
+function EventProperties({
+	properties,
+}: {
+	properties: Record<string, unknown>;
+}) {
+	const entries = Object.entries(properties);
+	if (entries.length === 0) return null;
+
+	return (
+		<div className="ml-12 flex flex-wrap gap-1.5 pb-2">
+			{entries.map(([key, value]) => (
+				<div
+					className="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5 text-xs"
+					key={key}
+				>
+					<span className="font-mono text-muted-foreground">{key}:</span>
+					<span className="font-medium text-foreground">
+						{formatPropertyValue(value)}
+					</span>
+				</div>
+			))}
 		</div>
 	);
 }
@@ -116,22 +114,34 @@ function EventItem({
 export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 	if (!events?.length) {
 		return (
-			<div className="py-8 text-center text-muted-foreground">
-				<FileTextIcon className="mx-auto mb-2 h-8 w-8 opacity-50" />
-				<p className="text-sm">No events recorded for this session</p>
+			<div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
+				No events recorded
 			</div>
 		);
 	}
 
 	return (
-		<div className="max-h-96 space-y-3 overflow-y-auto">
-			{events.map((event, eventIndex) => (
-				<EventItem
-					event={event}
-					eventIndex={eventIndex}
-					key={event.event_id || eventIndex}
-				/>
-			))}
+		<div className="max-h-[280px] overflow-y-auto rounded border bg-background">
+			{/* Header */}
+			<div className="sticky top-0 grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 border-b bg-accent px-2 py-1.5 text-xs font-medium text-muted-foreground">
+				<span className="text-right">#</span>
+				<span />
+				<span>Event</span>
+				<span>Path</span>
+				<span className="w-[52px]" />
+				<span className="text-right">Time</span>
+			</div>
+			{/* Events */}
+			<div className="divide-y divide-border/50">
+				{events.map((event, eventIndex) => (
+					<div key={event.event_id || eventIndex}>
+						<EventItem event={event} eventIndex={eventIndex} />
+						{event.properties && Object.keys(event.properties).length > 0 && (
+							<EventProperties properties={event.properties} />
+						)}
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }

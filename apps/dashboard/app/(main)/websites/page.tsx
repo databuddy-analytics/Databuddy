@@ -15,21 +15,18 @@ import { WebsiteDialog } from "@/components/website-dialog";
 import { useWebsites } from "@/hooks/use-websites";
 
 import { cn } from "@/lib/utils";
-import { NoticeBanner } from "./_components/notice-banner";
 import { PageHeader } from "./_components/page-header";
 import { WebsiteCard } from "./_components/website-card";
 
 function LoadingSkeleton() {
 	return (
-		<>
-			<Skeleton className="mb-6 h-[38px] w-full rounded" />
 			<div className="grid select-none gap-6 sm:grid-cols-2 lg:grid-cols-3">
 				{[1, 2, 3, 4, 5, 6].map((num) => (
 					<Card
 						className="animate-pulse overflow-hidden pt-0"
 						key={`website-skeleton-${num}`}
 					>
-						<CardHeader className="dotted-bg gap-0! border-b bg-accent-brighter/80 px-3 pt-4 pb-0!">
+						<CardHeader className="dotted-bg gap-0! border-b bg-accent px-3 pt-4 pb-0!">
 							<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
 						</CardHeader>
 						<CardContent className="px-4 py-3">
@@ -50,15 +47,21 @@ function LoadingSkeleton() {
 					</Card>
 				))}
 			</div>
-		</>
 	);
 }
 
 export default function WebsitesPage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const { websites, chartData, isLoading, isError, isFetching, refetch } =
-		useWebsites();
+	const {
+		websites,
+		chartData,
+		activeUsers,
+		isLoading,
+		isError,
+		isFetching,
+		refetch,
+	} = useWebsites();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -109,19 +112,8 @@ export default function WebsitesPage() {
 				aria-busy={isFetching}
 				className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"
 			>
-				{/* Website count indicator */}
-				{!isLoading && websites && websites.length > 0 && (
-					<NoticeBanner
-						className="mb-6"
-						icon={<GlobeIcon />}
-						title={`Tracking ${websites.length} website${websites.length !== 1 ? "s" : ""}`}
-					/>
-				)}
-
-				{/* Show loading state */}
 				{isLoading && <LoadingSkeleton />}
 
-				{/* Show error state */}
 				{isError && (
 					<EmptyState
 						action={{
@@ -159,6 +151,7 @@ export default function WebsitesPage() {
 					>
 						{websites.map((website) => (
 							<WebsiteCard
+								activeUsers={activeUsers?.[website.id]}
 								chartData={chartData?.[website.id]}
 								isLoadingChart={isLoading || isFetching}
 								key={website.id}

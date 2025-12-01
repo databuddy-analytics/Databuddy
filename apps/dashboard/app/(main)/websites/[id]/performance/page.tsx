@@ -23,20 +23,50 @@ const PerformanceContent = dynamic(
 		})),
 	{
 		loading: () => (
-			<div className="space-y-6">
-				<div>
-					<Skeleton className="mb-2 h-6 w-48" />
-					<Skeleton className="h-4 w-64" />
+			<div className="space-y-4">
+				{/* Web Vitals Chart Skeleton */}
+				<div className="rounded border bg-sidebar">
+					<div className="border-b p-4">
+						<Skeleton className="h-5 w-32" />
+						<Skeleton className="mt-1 h-4 w-64" />
+					</div>
+					<div className="p-4">
+						<div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+							{[1, 2, 3, 4].map((num) => (
+								<div
+									className="rounded border bg-background p-3"
+									key={`metric-skeleton-${num}`}
+								>
+									<Skeleton className="mb-2 h-4 w-16" />
+									<Skeleton className="h-6 w-20" />
+									<Skeleton className="mt-1 h-3 w-12" />
+								</div>
+							))}
+						</div>
+						<Skeleton className="h-80 w-full" />
+					</div>
 				</div>
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-					{[1, 2].map((num) => (
+				{/* Summary Cards Skeleton */}
+				<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+					{[1, 2, 3, 4].map((num) => (
 						<div
-							className="rounded border border-sidebar-border bg-sidebar p-4"
-							key={`skeleton-${num}`}
+							className="rounded border bg-sidebar p-4"
+							key={`summary-skeleton-${num}`}
 						>
-							<Skeleton className="h-80 w-full" />
+							<Skeleton className="mb-2 h-4 w-24" />
+							<Skeleton className="h-8 w-20" />
 						</div>
 					))}
+				</div>
+				{/* Table Skeleton */}
+				<div className="rounded border bg-sidebar">
+					<div className="border-b p-4">
+						<Skeleton className="h-5 w-40" />
+						<Skeleton className="mt-1 h-4 w-64" />
+					</div>
+					<div className="p-4">
+						<Skeleton className="h-96 w-full" />
+					</div>
 				</div>
 			</div>
 		),
@@ -65,18 +95,25 @@ export default function PerformancePage() {
 
 	if (isTrackingSetupLoading) {
 		return (
-			<div className="space-y-4 p-6">
-				<Skeleton className="h-10 w-64" />
-				<Skeleton className="h-96 w-full" />
+			<div className="space-y-4 p-4">
+				<div className="rounded border bg-sidebar">
+					<div className="border-b p-4">
+						<Skeleton className="h-5 w-32" />
+						<Skeleton className="mt-1 h-4 w-64" />
+					</div>
+					<div className="p-4">
+						<Skeleton className="h-80 w-full" />
+					</div>
+				</div>
 			</div>
 		);
 	}
 
 	if (isTrackingSetup === false) {
 		return (
-			<div className="p-6">
-				<div className="rounded border border-sidebar-border bg-sidebar p-8 text-center">
-					<p className="text-muted-foreground">
+			<div className="p-4">
+				<div className="rounded border bg-sidebar p-8 text-center">
+					<p className="text-sidebar-foreground/70">
 						Please set up tracking to view performance data.
 					</p>
 				</div>
@@ -85,7 +122,7 @@ export default function PerformancePage() {
 	}
 
 	return (
-		<div className="p-6">
+		<div className="p-4">
 			<ErrorBoundary>
 				<PerformanceContent
 					addFilter={addFilter}

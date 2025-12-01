@@ -11,7 +11,7 @@ import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Country, useCountries } from "@/lib/geo";
-import { CountryFlag } from "./icons/CountryFlag";
+import { CountryFlag } from "@/components/icon";
 
 const MapContainer = dynamic(
 	() => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -100,10 +100,26 @@ export function MapComponent({
 	const [mapView] = useState<"countries" | "subdivisions">("countries");
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+	// Theme colors from globals.css (Leaflet needs actual values, not CSS vars)
+	const themeColors = useMemo(() => {
+		const isDark = resolvedTheme === "dark";
+		return {
+			// --chart-1: oklch(0.81 0.1 252)
+			chart1: "oklch(0.81 0.1 252",
+			// --chart-2: oklch(0.62 0.19 260)
+			chart2: "oklch(0.62 0.19 260",
+			// --chart-3: oklch(0.55 0.22 263)
+			chart3: "oklch(0.55 0.22 263",
+			// --muted: light oklch(0.60 0.0079 240) / dark oklch(0.50 0.006 286.033)
+			muted: isDark ? "oklch(0.50 0.006 286.033" : "oklch(0.60 0.0079 240",
+			// --secondary: light oklch(0.93 0.005 240) / dark oklch(0.28 0.006 286.033)
+			secondary: isDark ? "oklch(0.28 0.006 286.033" : "oklch(0.93 0.005 240",
+		};
+	}, [resolvedTheme]);
+
 	const colorScale = useMemo(() => {
 		if (!countryData?.data) {
-			return () =>
-				resolvedTheme === "dark" ? "hsl(240 3.7% 15.9%)" : "hsl(210 40% 92%)";
+			return () => `${themeColors.secondary} / 0.6)`;
 		}
 
 		const values = countryData.data?.map((d: { count: number }) => d.count) || [
@@ -113,10 +129,6 @@ export function MapComponent({
 		const nonZeroValues = values.filter((v: number) => v > 0);
 		const minValue = nonZeroValues.length > 0 ? Math.min(...nonZeroValues) : 0;
 
-		const isDark = resolvedTheme === "dark";
-		const baseBlue = isDark ? "59, 130, 246" : "37, 99, 235"; // blue-500 / blue-600 (more saturated)
-		const lightBlue = isDark ? "96, 165, 250" : "59, 130, 246"; // blue-400 / blue-500
-
 		const scale = scalePow<number>()
 			.exponent(0.5)
 			.domain([minValue || 0, maxValue])
@@ -124,46 +136,33 @@ export function MapComponent({
 
 		return (value: number) => {
 			if (value === 0) {
-				return isDark ? "rgba(75, 85, 99, 0.6)" : "rgba(229, 231, 235, 0.6)";
+				return `${themeColors.muted} / 0.6)`;
 			}
 
 			const intensity = scale(value);
 
 			if (intensity < 0.3) {
-				return `rgba(${lightBlue}, ${0.4 + intensity * 0.3})`;
+				return `${themeColors.chart1} / ${(0.4 + intensity * 0.3).toFixed(2)})`;
 			}
 			if (intensity < 0.7) {
-				return `rgba(${baseBlue}, ${0.6 + intensity * 0.3})`;
+				return `${themeColors.chart2} / ${(0.6 + intensity * 0.3).toFixed(2)})`;
 			}
-			return `rgba(${baseBlue}, ${0.8 + intensity * 0.2})`;
+			return `${themeColors.chart3} / ${(0.8 + intensity * 0.2).toFixed(2)})`;
 		};
-	}, [countryData?.data, resolvedTheme]);
+	}, [countryData?.data, themeColors]);
 
 	const { data: countriesGeoData } = useCountries();
 
-	const getThemeColors = useCallback(() => {
-		const isDark = resolvedTheme === "dark";
-		return {
-			primary: isDark ? "rgb(59, 130, 246)" : "rgb(37, 99, 235)", // blue-500 / blue-600
-			muted: isDark ? "rgb(75, 85, 99)" : "rgb(156, 163, 175)", // gray-600 / gray-400
-			isDark,
-		};
-	}, [resolvedTheme]);
-
 	const getBorderColor = useCallback(
-		(
-			hasData: boolean,
-			isHovered: boolean,
-			colors: ReturnType<typeof getThemeColors>
-		) => {
+		(hasData: boolean, isHovered: boolean) => {
 			if (!hasData) {
-				return `${colors.muted.replace(")", ", 0.5)")}`;
+				return `${themeColors.muted} / 0.5)`;
 			}
 			return isHovered
-				? colors.primary
-				: `${colors.primary.replace(")", ", 0.6)")}`;
+				? `${themeColors.chart2} / 1)`
+				: `${themeColors.chart2} / 0.6)`;
 		},
-		[]
+		[themeColors]
 	);
 
 	const getFeatureData = useCallback(
@@ -209,8 +208,7 @@ export function MapComponent({
 
 			const { metricValue, isHovered, hasData } = featureData;
 			const fillColor = colorScale(metricValue);
-			const colors = getThemeColors();
-			const borderColor = getBorderColor(hasData, isHovered, colors);
+			const borderColor = getBorderColor(hasData, isHovered);
 			const weights = getStyleWeights(hasData, isHovered);
 
 			const baseStyle = {
@@ -226,9 +224,9 @@ export function MapComponent({
 			if (isHovered && hasData) {
 				return {
 					...baseStyle,
-					filter: colors.isDark
-						? "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))"
-						: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))",
+					filter: resolvedTheme === "dark"
+						? "drop-shadow(0 2px 4px oklch(0 0 0 / 0.3))"
+						: "drop-shadow(0 2px 4px oklch(0 0 0 / 0.1))",
 					transform: "scale(1.02)",
 					transformOrigin: "center",
 				};
@@ -238,7 +236,7 @@ export function MapComponent({
 		},
 		[
 			colorScale,
-			getThemeColors,
+			resolvedTheme,
 			getBorderColor,
 			getStyleWeights,
 			getFeatureData,
@@ -457,10 +455,7 @@ export function MapComponent({
 				<div
 					className="h-2 rounded-full"
 					style={{
-						background:
-							resolvedTheme === "dark"
-								? "linear-gradient(90deg, rgba(96,165,250,0.4) 0%, rgba(59,130,246,0.95) 100%)"
-								: "linear-gradient(90deg, rgba(147,197,253,0.4) 0%, rgba(37,99,235,0.95) 100%)",
+						background: "linear-gradient(90deg, oklch(0.81 0.1 252 / 0.4) 0%, oklch(0.55 0.22 263 / 0.95) 100%)",
 					}}
 				/>
 			</div>

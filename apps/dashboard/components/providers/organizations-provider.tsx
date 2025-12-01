@@ -1,7 +1,7 @@
 	"use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect } from "react";
 import {
@@ -26,30 +26,32 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
 	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
 
-	// Fetch organizations with TanStack Query (cached & deduplicated)
-	const { data: organizationsData, isPending: isLoadingOrgs } = useQuery({
-		queryKey: AUTH_QUERY_KEYS.organizations,
-		queryFn: async () => {
-			const result = await authClient.organization.list();
-			return result.data ?? [];
-		},
-		staleTime: 2 * 60 * 1000, // 2 minutes
-		gcTime: 5 * 60 * 1000, // 5 minutes
+	const [
+		{ data: organizationsData, isPending: isLoadingOrgs },
+		{ data: activeOrganization, isPending: isLoadingActive },
+	] = useQueries({
+		queries: [
+			{
+				queryKey: AUTH_QUERY_KEYS.organizations,
+				queryFn: async () => {
+					const result = await authClient.organization.list();
+					return result.data ?? [];
+				},
+				staleTime: 5 * 60 * 1000, // 5 minutes - org list changes rarely
+				gcTime: 10 * 60 * 1000, // 10 minutes
+			},
+			{
+				queryKey: AUTH_QUERY_KEYS.activeOrganization,
+				queryFn: async () => {
+					const result = await authClient.organization.getFullOrganization();
+					return result.data ?? null;
+				},
+				staleTime: 5 * 60 * 1000, // 5 minutes
+				gcTime: 10 * 60 * 1000, // 10 minutes
+			},
+		],
 	});
 
-	// Fetch active organization with TanStack Query (cached & deduplicated)
-	const { data: activeOrganization, isPending: isLoadingActive } = useQuery({
-		queryKey: AUTH_QUERY_KEYS.activeOrganization,
-		queryFn: async () => {
-			// getFullOrganization returns the currently active org when no ID specified
-			const result = await authClient.organization.getFullOrganization();
-			return result.data ?? null;
-		},
-		staleTime: 2 * 60 * 1000,
-		gcTime: 5 * 60 * 1000,
-	});
-
-	// Sync to atoms in useEffect to avoid setState during render
 	useEffect(() => {
 		if (organizationsData) {
 			setOrganizations(organizationsData);

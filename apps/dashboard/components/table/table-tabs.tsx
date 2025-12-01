@@ -1,18 +1,18 @@
 import { cn } from "@/lib/utils";
 
-interface TabConfig<TData> {
+type TabConfig<TData> = {
 	id: string;
 	label: string;
 	data: TData[];
 	columns: any[];
 	getFilter?: (row: TData) => { field: string; value: string };
-}
+};
 
-interface TableTabsProps<TData> {
+type TableTabsProps<TData> = {
 	tabs: TabConfig<TData>[];
 	activeTab: string;
 	onTabChange: (tabId: string) => void;
-}
+};
 
 export function TableTabs<TData>({
 	tabs,

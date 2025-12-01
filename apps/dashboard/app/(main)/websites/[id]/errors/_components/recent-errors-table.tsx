@@ -2,7 +2,7 @@
 
 import { GlobeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { CountryFlag } from "@/components/icon";
 import { BrowserIcon, OSIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { Badge } from "@/components/ui/badge";

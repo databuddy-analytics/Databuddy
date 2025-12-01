@@ -92,7 +92,6 @@
     "@orpc/client": "^1.11.3",
     "@orpc/server": "^1.11.3",
     "@orpc/tanstack-query": "^1.11.3",
-    "atmn": "^0.0.28",
     "dayjs": "^1.11.19",
     "dotted-map": "^2.2.3",
     "framer-motion": "^12.23.24",

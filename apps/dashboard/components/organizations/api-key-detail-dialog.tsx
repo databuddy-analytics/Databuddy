@@ -10,7 +10,7 @@ import {
 	ProhibitIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,12 +37,11 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "../ui/sheet";
-import { Skeleton } from "../ui/skeleton";
 import { Switch } from "../ui/switch";
-import type { ApiKeyDetail, ApiScope } from "./api-key-types";
+import type { ApiKeyListItem, ApiScope } from "./api-key-types";
 
 type ApiKeyDetailDialogProps = {
-	keyId: string | null;
+	apiKey: ApiKeyListItem | null;
 	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
 };
@@ -67,37 +66,8 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-function DetailSkeleton() {
-	return (
-		<div className="flex h-full flex-col">
-			<div className="border-b bg-muted/30 px-6 py-5">
-				<div className="flex items-start gap-4">
-					<Skeleton className="h-12 w-12 rounded" />
-					<div className="flex-1 space-y-2">
-						<Skeleton className="h-5 w-40" />
-						<Skeleton className="h-4 w-28" />
-					</div>
-					<Skeleton className="h-6 w-16 rounded-full" />
-				</div>
-			</div>
-			<div className="flex-1 space-y-6 p-6">
-				<div className="grid grid-cols-2 gap-4">
-					<Skeleton className="h-11 w-full" />
-					<Skeleton className="h-11 w-full" />
-				</div>
-				<Skeleton className="h-16 w-full rounded" />
-				<div className="grid grid-cols-2 gap-1 rounded border bg-muted/20 p-1">
-					{Array.from({ length: 6 }).map((_, i) => (
-						<Skeleton className="h-10 w-full rounded" key={i.toString()} />
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
-
 export function ApiKeyDetailDialog({
-	keyId,
+	apiKey,
 	open,
 	onOpenChangeAction,
 }: ApiKeyDetailDialogProps) {
@@ -106,28 +76,20 @@ export function ApiKeyDetailDialog({
 	const [copied, setCopied] = useState(false);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-	const { data, isLoading } = useQuery({
-		...orpc.apikeys.getById.queryOptions({ input: { id: keyId ?? "" } }),
-		enabled: !!keyId && open,
-	});
-
-	const detail = data as ApiKeyDetail | undefined;
-
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
 		defaultValues: { name: "", enabled: true, expiresAt: "" },
 	});
 
 	useEffect(() => {
-		if (detail) {
+		if (apiKey) {
 			form.reset({
-				name: detail.name,
-				enabled: detail.enabled && !detail.revokedAt,
-				expiresAt: detail.expiresAt?.slice(0, 10) ?? "",
+				name: apiKey.name,
+				enabled: apiKey.enabled && !apiKey.revokedAt,
+				expiresAt: apiKey.expiresAt?.slice(0, 10) ?? "",
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [detail]);
+	}, [apiKey, form]);
 
 	const handleClose = () => {
 		onOpenChangeAction(false);
@@ -140,11 +102,6 @@ export function ApiKeyDetailDialog({
 
 	const invalidateQueries = () => {
 		queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
-		if (keyId) {
-			queryClient.invalidateQueries({
-				queryKey: orpc.apikeys.getById.key({ input: { id: keyId } }),
-			});
-		}
 	};
 
 	const updateMutation = useMutation({
@@ -182,18 +139,22 @@ export function ApiKeyDetailDialog({
 	};
 
 	const onSubmit = form.handleSubmit((values) => {
-		if (!keyId) {
+		if (!apiKey) {
 			return;
 		}
 		updateMutation.mutate({
-			id: keyId,
+			id: apiKey.id,
 			name: values.name,
 			enabled: values.enabled,
 			expiresAt: values.expiresAt || null,
 		});
 	});
 
-	const isActive = detail?.enabled && !detail?.revokedAt;
+	const isActive = apiKey?.enabled && !apiKey?.revokedAt;
+
+	if (!apiKey) {
+		return null;
+	}
 
 	return (
 		<>
@@ -202,239 +163,227 @@ export function ApiKeyDetailDialog({
 					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-md"
 					side="right"
 				>
-					{isLoading || !detail ? (
-						<DetailSkeleton />
-					) : (
-						<div className="flex h-full flex-col">
-							{/* Header */}
-							<SheetHeader className="shrink-0 pr-5">
-								<div className="flex items-start gap-4">
-									<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
-										<KeyIcon
-											className="text-foreground"
-											size={22}
-											weight="fill"
-										/>
-									</div>
-									<div className="min-w-0 flex-1">
-										<SheetTitle className="truncate text-lg">
-											{detail.name}
-										</SheetTitle>
-										<SheetDescription className="font-mono text-xs">
-											{detail.prefix}_{detail.start}…
-										</SheetDescription>
-									</div>
-									<Badge variant="secondary">
-										{isActive ? "Active" : "Inactive"}
-									</Badge>
+					<div className="flex h-full flex-col">
+						{/* Header */}
+						<SheetHeader className="shrink-0 pr-5">
+							<div className="flex items-start gap-4">
+								<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+									<KeyIcon
+										className="text-foreground"
+										size={22}
+										weight="fill"
+									/>
 								</div>
-							</SheetHeader>
+								<div className="min-w-0 flex-1">
+									<SheetTitle className="truncate text-lg">
+										{apiKey.name}
+									</SheetTitle>
+									<SheetDescription className="font-mono text-xs">
+										{apiKey.prefix}_{apiKey.start}…
+									</SheetDescription>
+								</div>
+								<Badge variant="secondary">
+									{isActive ? "Active" : "Inactive"}
+								</Badge>
+							</div>
+						</SheetHeader>
 
-							<form
-								className="flex flex-1 flex-col overflow-hidden"
-								onSubmit={onSubmit}
-							>
-								{/* Content */}
-								<div className="flex-1 space-y-6 overflow-y-auto p-2">
-									{/* New Secret Alert */}
-									{newSecret && (
-										<div className="rounded border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
-											<div className="mb-3 flex items-center gap-2">
-												<div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+						<form
+							className="flex flex-1 flex-col overflow-hidden"
+							onSubmit={onSubmit}
+						>
+							{/* Content */}
+							<div className="flex-1 space-y-6 overflow-y-auto p-2">
+								{/* New Secret Alert */}
+								{newSecret && (
+									<div className="rounded border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
+										<div className="mb-3 flex items-center gap-2">
+											<div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+												<CheckCircleIcon
+													className="text-green-600 dark:text-green-400"
+													size={14}
+													weight="fill"
+												/>
+											</div>
+											<p className="font-medium text-green-800 text-sm dark:text-green-300">
+												New secret generated
+											</p>
+										</div>
+										<div className="relative rounded border border-green-200 bg-background dark:border-green-900/50">
+											<code className="block break-all p-3 pr-12 font-mono text-xs">
+												{newSecret}
+											</code>
+											<Button
+												className="absolute top-1.5 right-1.5 h-7 w-7 text-muted-foreground hover:text-foreground"
+												onClick={handleCopy}
+												size="icon"
+												variant="ghost"
+											>
+												{copied ? (
 													<CheckCircleIcon
-														className="text-green-600 dark:text-green-400"
+														className="text-green-600"
 														size={14}
 														weight="fill"
 													/>
-												</div>
-												<p className="font-medium text-green-800 text-sm dark:text-green-300">
-													New secret generated
-												</p>
-											</div>
-											<div className="relative rounded border border-green-200 bg-background dark:border-green-900/50">
-												<code className="block break-all p-3 pr-12 font-mono text-xs">
-													{newSecret}
-												</code>
-												<Button
-													className="absolute top-1.5 right-1.5 h-7 w-7 text-muted-foreground hover:text-foreground"
-													onClick={handleCopy}
-													size="icon"
-													variant="ghost"
-												>
-													{copied ? (
-														<CheckCircleIcon
-															className="text-green-600"
-															size={14}
-															weight="fill"
-														/>
-													) : (
-														<CopyIcon size={14} />
-													)}
-												</Button>
-											</div>
+												) : (
+													<CopyIcon size={14} />
+												)}
+											</Button>
 										</div>
-									)}
+									</div>
+								)}
 
-									{/* Settings Section */}
-									<div className="space-y-4">
-										<div className="grid gap-4 sm:grid-cols-2">
-											<div className="space-y-2">
-												<Label htmlFor="name">Name</Label>
-												<Input id="name" {...form.register("name")} />
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="expiresAt">Expires</Label>
-												<Input
-													id="expiresAt"
-													type="date"
-													{...form.register("expiresAt")}
-												/>
-											</div>
+								{/* Settings Section */}
+								<div className="space-y-4">
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div className="space-y-2">
+											<Label htmlFor="name">Name</Label>
+											<Input id="name" {...form.register("name")} />
 										</div>
-
-										{/* Enabled Toggle */}
-										<div className="flex items-center justify-between rounded border bg-card p-2">
-											<div>
-												<p className="font-medium text-foreground text-sm">
-													Enabled
-												</p>
-												<p className="text-muted-foreground text-xs">
-													Disable to block all requests
-												</p>
-											</div>
-											<Switch
-												checked={form.watch("enabled")}
-												onCheckedChange={(v) => form.setValue("enabled", v)}
+										<div className="space-y-2">
+											<Label htmlFor="expiresAt">Expires</Label>
+											<Input
+												id="expiresAt"
+												type="date"
+												{...form.register("expiresAt")}
 											/>
 										</div>
+									</div>
 
-										{/* Permissions Section */}
-										<section className="space-y-3">
-											<Label className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-												Permissions
-											</Label>
-											<div className="rounded border bg-card p-1">
-												<div className="grid grid-cols-2 gap-1">
-													{SCOPES.map((scope) => {
-														const hasScope = detail.scopes.includes(
-															scope.value
-														);
-														return (
+									{/* Enabled Toggle */}
+									<div className="flex items-center justify-between rounded border bg-card p-2">
+										<div>
+											<p className="font-medium text-foreground text-sm">
+												Enabled
+											</p>
+											<p className="text-muted-foreground text-xs">
+												Disable to block all requests
+											</p>
+										</div>
+										<Switch
+											checked={form.watch("enabled")}
+											onCheckedChange={(v) => form.setValue("enabled", v)}
+										/>
+									</div>
+
+									{/* Permissions Section */}
+									<section className="space-y-3">
+										<Label className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+											Permissions
+										</Label>
+										<div className="rounded border bg-card p-1">
+											<div className="grid grid-cols-2 gap-1">
+												{SCOPES.map((scope) => {
+													const hasScope = apiKey.scopes.includes(scope.value);
+													return (
+														<div
+															className="flex items-center gap-2 rounded px-3 py-2.5 text-sm transition-colors"
+															key={scope.value}
+														>
 															<div
-																className="flex items-center gap-2 rounded px-3 py-2.5 text-sm transition-colors"
-																key={scope.value}
+																className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
+																	hasScope
+																		? "border-primary bg-primary text-primary-foreground"
+																		: "border-muted-foreground/30"
+																}`}
 															>
-																<div
-																	className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
-																		hasScope
-																			? "border-primary bg-primary text-primary-foreground"
-																			: "border-muted-foreground/30"
-																	}`}
-																>
-																	{hasScope && (
-																		<CheckIcon
-																			className="text-white"
-																			size={12}
-																			weight="bold"
-																		/>
-																	)}
-																</div>
-																<span className="truncate">{scope.label}</span>
+																{hasScope && (
+																	<CheckIcon
+																		className="text-white"
+																		size={12}
+																		weight="bold"
+																	/>
+																)}
 															</div>
-														);
-													})}
-												</div>
+															<span className="truncate">{scope.label}</span>
+														</div>
+													);
+												})}
 											</div>
-										</section>
+										</div>
+									</section>
 
-										{/* Meta Section */}
-										<section className="space-y-2 rounded border bg-card p-2">
+									{/* Meta Section */}
+									<section className="space-y-2 rounded border bg-card p-2">
+										<div className="flex items-center justify-between text-sm">
+											<span className="font-medium text-muted-foreground">
+												Created
+											</span>
+											<span>
+												{dayjs(apiKey.createdAt).format("MMM D, YYYY")}
+											</span>
+										</div>
+										{apiKey.expiresAt && (
 											<div className="flex items-center justify-between text-sm">
-												<span className="font-medium text-muted-foreground">
-													Created
-												</span>
+												<span className="text-muted-foreground">Expires</span>
 												<span>
-													{dayjs(detail.createdAt).format("MMM D, YYYY")}
+													{dayjs(apiKey.expiresAt).format("MMM D, YYYY")}
 												</span>
 											</div>
-											{detail.expiresAt && (
-												<div className="flex items-center justify-between text-sm">
-													<span className="text-muted-foreground">Expires</span>
-													<span>
-														{dayjs(detail.expiresAt).format("MMM D, YYYY")}
-													</span>
-												</div>
-											)}
-											{detail.revokedAt && (
-												<div className="flex items-center justify-between text-sm">
-													<span className="text-muted-foreground">Revoked</span>
-													<span className="text-destructive">
-														{dayjs(detail.revokedAt).format("MMM D, YYYY")}
-													</span>
-												</div>
-											)}
-										</section>
-
-										{/* Danger Zone */}
-										<section className="mt-8 space-y-3">
-											<div className="flex flex-wrap gap-2">
-												<Button
-													className="flex-1"
-													disabled={rotateMutation.isPending}
-													onClick={() =>
-														rotateMutation.mutate({ id: keyId as string })
-													}
-													size="sm"
-													type="button"
-													variant="outline"
-												>
-													<ArrowsClockwiseIcon size={14} />
-													{rotateMutation.isPending
-														? "Rotating…"
-														: "Rotate Secret"}
-												</Button>
-												<Button
-													className="flex-1"
-													disabled={revokeMutation.isPending || !isActive}
-													onClick={() =>
-														revokeMutation.mutate({ id: keyId as string })
-													}
-													size="sm"
-													type="button"
-													variant="outline"
-												>
-													<ProhibitIcon size={14} />
-													{revokeMutation.isPending
-														? "Revoking…"
-														: "Revoke Key"}
-												</Button>
+										)}
+										{apiKey.revokedAt && (
+											<div className="flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">Revoked</span>
+												<span className="text-destructive">
+													{dayjs(apiKey.revokedAt).format("MMM D, YYYY")}
+												</span>
 											</div>
+										)}
+									</section>
+
+									{/* Danger Zone */}
+									<section className="mt-8 space-y-3">
+										<div className="flex flex-wrap gap-2">
 											<Button
-												className="w-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-												onClick={() => setShowDeleteConfirm(true)}
+												className="flex-1"
+												disabled={rotateMutation.isPending}
+												onClick={() => rotateMutation.mutate({ id: apiKey.id })}
 												size="sm"
 												type="button"
 												variant="outline"
 											>
-												<TrashIcon className="mr-1.5" size={14} />
-												Delete Key Permanently
+												<ArrowsClockwiseIcon size={14} />
+												{rotateMutation.isPending
+													? "Rotating…"
+													: "Rotate Secret"}
 											</Button>
-										</section>
-									</div>
+											<Button
+												className="flex-1"
+												disabled={revokeMutation.isPending || !isActive}
+												onClick={() => revokeMutation.mutate({ id: apiKey.id })}
+												size="sm"
+												type="button"
+												variant="outline"
+											>
+												<ProhibitIcon size={14} />
+												{revokeMutation.isPending ? "Revoking…" : "Revoke Key"}
+											</Button>
+										</div>
+										<Button
+											className="w-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+											onClick={() => setShowDeleteConfirm(true)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											<TrashIcon className="mr-1.5" size={14} />
+											Delete Key Permanently
+										</Button>
+									</section>
 								</div>
+							</div>
 
-								{/* Footer */}
-								<div className="flex shrink-0 items-center justify-end gap-3 border-t px-6 py-4">
-									<Button onClick={handleClose} type="button" variant="ghost">
-										Cancel
-									</Button>
-									<Button disabled={updateMutation.isPending} type="submit">
-										{updateMutation.isPending ? "Saving…" : "Save Changes"}
-									</Button>
-								</div>
-							</form>
-						</div>
-					)}
+							{/* Footer */}
+							<div className="flex shrink-0 items-center justify-end gap-3 border-t px-6 py-4">
+								<Button onClick={handleClose} type="button" variant="ghost">
+									Cancel
+								</Button>
+								<Button disabled={updateMutation.isPending} type="submit">
+									{updateMutation.isPending ? "Saving…" : "Save Changes"}
+								</Button>
+							</div>
+						</form>
+					</div>
 				</SheetContent>
 			</Sheet>
 
@@ -452,7 +401,7 @@ export function ApiKeyDetailDialog({
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => deleteMutation.mutate({ id: keyId as string })}
+							onClick={() => deleteMutation.mutate({ id: apiKey.id })}
 						>
 							{deleteMutation.isPending ? "Deleting…" : "Delete"}
 						</AlertDialogAction>

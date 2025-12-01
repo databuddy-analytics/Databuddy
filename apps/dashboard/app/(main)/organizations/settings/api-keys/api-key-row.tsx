@@ -4,12 +4,12 @@ import {
 	CalendarIcon,
 	CaretRightIcon,
 	KeyIcon,
-	LockIcon,
+	LockKeyIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
-import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export type ApiKeyRowItem = {
 	id: string;
@@ -20,46 +20,64 @@ export type ApiKeyRowItem = {
 	revokedAt: Date | null;
 	expiresAt: string | null;
 	createdAt: Date;
+	scopes: string[];
 };
 
 type ApiKeyRowProps = {
 	apiKey: ApiKeyRowItem;
-	onSelect: (id: string) => void;
+	onSelect: () => void;
 };
 
-export const ApiKeyRow = memo(function ApiKeyRowComponent({
-	apiKey,
-	onSelect,
-}: ApiKeyRowProps) {
+export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 	const isActive = apiKey.enabled && !apiKey.revokedAt;
 	const isExpired =
 		apiKey.expiresAt && dayjs(apiKey.expiresAt).isBefore(dayjs());
+	const isRevoked = !!apiKey.revokedAt;
 
 	return (
 		<button
-			className="group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent"
-			onClick={() => onSelect(apiKey.id)}
+			className={cn(
+				"group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent",
+				!isActive && "opacity-60"
+			)}
+			onClick={onSelect}
 			type="button"
 		>
 			{/* Icon */}
-			<div className="flex h-10 w-10 items-center justify-center rounded border bg-background transition-colors group-hover:border-primary/30 group-hover:bg-primary/5">
-				<KeyIcon
-					className="text-muted-foreground transition-colors group-hover:text-primary"
-					size={18}
-					weight="duotone"
-				/>
+			<div
+				className={cn(
+					"flex size-10 items-center justify-center rounded border bg-background transition-colors",
+					isActive
+						? "group-hover:border-primary/30 group-hover:bg-primary/5"
+						: "border-dashed"
+				)}
+			>
+				{isActive ? (
+					<KeyIcon
+						className="text-muted-foreground transition-colors group-hover:text-primary"
+						size={18}
+						weight="duotone"
+					/>
+				) : (
+					<LockKeyIcon
+						className="text-muted-foreground"
+						size={18}
+						weight="duotone"
+					/>
+				)}
 			</div>
 
 			{/* Info */}
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
-					<span className="truncate font-medium">{apiKey.name}</span>
-					{!isActive && (
-						<Badge variant="destructive">
-							<LockIcon className="mr-1" size={10} weight="fill" />
-							{apiKey.revokedAt ? "Revoked" : "Disabled"}
-						</Badge>
-					)}
+					<span
+						className={cn(
+							"truncate font-medium",
+							!isActive && "line-through decoration-muted-foreground/50"
+						)}
+					>
+						{apiKey.name}
+					</span>
 					{isExpired && (
 						<Badge variant="amber">
 							<WarningIcon className="mr-1" size={10} weight="fill" />
@@ -85,18 +103,18 @@ export const ApiKeyRow = memo(function ApiKeyRowComponent({
 					Active
 				</Badge>
 			) : (
-				<Badge variant="gray">
-					<div className="mr-1.5 size-1.5 rounded-full bg-muted-foreground" />
-					Inactive
-				</Badge>
+				<Badge variant="gray">{isRevoked ? "Revoked" : "Disabled"}</Badge>
 			)}
 
 			{/* Arrow */}
 			<CaretRightIcon
-				className="text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary"
+				className={cn(
+					"text-muted-foreground/40 transition-all",
+					isActive && "group-hover:translate-x-0.5 group-hover:text-primary"
+				)}
 				size={16}
 				weight="bold"
 			/>
 		</button>
 	);
-});
+}

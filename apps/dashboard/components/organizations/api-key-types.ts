@@ -30,13 +30,13 @@ export type ApiResourceType =
 	| "custom_events"
 	| "export_data";
 
-export interface ApiKeyAccessEntry {
+export type ApiKeyAccessEntry = {
 	resourceType: ApiResourceType;
 	resourceId?: string | null;
 	scopes: ApiScope[];
 }
 
-export interface ApiKeyListItem {
+export type ApiKeyListItem = {
 	id: string;
 	name: string;
 	prefix: string;
@@ -52,13 +52,13 @@ export interface ApiKeyListItem {
 	createdAt: string;
 	updatedAt: string;
 	metadata?: Record<string, unknown>;
-}
+};
 
 export interface ApiKeyDetail extends ApiKeyListItem {
 	access: Array<{ id: string } & ApiKeyAccessEntry>;
 }
 
-export interface CreateApiKeyInput {
+export type CreateApiKeyInput = {
 	name: string;
 	organizationId?: string;
 	type?: "user" | "sdk" | "automation";

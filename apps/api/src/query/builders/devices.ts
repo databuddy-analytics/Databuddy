@@ -161,59 +161,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 	},
 
-	connection_type: {
-		meta: {
-			title: "Connection Types",
-			description:
-				"Distribution of visitors by internet connection type (WiFi, Cellular, etc.).",
-			category: "Technology",
-			tags: ["connection", "network", "speed", "performance"],
-			output_fields: [
-				{
-					name: "name",
-					type: "string",
-					label: "Connection Type",
-					description: "The type of internet connection",
-				},
-				{
-					name: "pageviews",
-					type: "number",
-					label: "Pageviews",
-					description: "Total pageviews from this connection type",
-				},
-				{
-					name: "visitors",
-					type: "number",
-					label: "Visitors",
-					description: "Unique visitors with this connection type",
-				},
-				{
-					name: "percentage",
-					type: "number",
-					label: "Usage %",
-					description: "Percentage of total connection type usage",
-					unit: "%",
-				},
-			],
-			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"connection_type as name",
-			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
-		],
-		where: ["connection_type != ''", "event_name = 'screen_view'"],
-		groupBy: ["connection_type"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-	},
-
 	browsers_grouped: {
 		meta: {
 			title: "Browser Versions",

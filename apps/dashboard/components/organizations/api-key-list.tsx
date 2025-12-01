@@ -1,6 +1,7 @@
 import { KeyIcon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
+import type { ApiKeyRowItem } from "@/app/(main)/organizations/settings/api-keys/api-key-row";
 import { orpc } from "@/lib/orpc";
 import { EmptyState } from "../empty-state";
 import { Badge } from "../ui/badge";
@@ -16,11 +17,11 @@ import {
 } from "../ui/table";
 import type { ApiKeyListItem } from "./api-key-types";
 
-interface ApiKeyListProps {
+type ApiKeyListProps = {
 	organizationId?: string;
 	onCreateNew?: () => void;
-	onSelect?: (id: string) => void;
-}
+	onSelect?: (apiKey: ApiKeyListItem) => void;
+};
 
 function ApiKeyListSkeleton() {
 	return (
@@ -88,7 +89,7 @@ export function ApiKeyList({
 		);
 	}
 
-	const items = (data ?? []) as ApiKeyListItem[];
+	const items = (data ?? []) as ApiKeyRowItem[];
 
 	return (
 		<div className="h-full space-y-6">
@@ -125,7 +126,7 @@ export function ApiKeyList({
 									<TableRow
 										className="group cursor-pointer"
 										key={k.id}
-										onClick={() => onSelect?.(k.id)}
+										onClick={() => onSelect?.(k)}
 									>
 										<TableCell>
 											<div className="flex items-center gap-3">
@@ -163,7 +164,7 @@ export function ApiKeyList({
 											<Button
 												onClick={(e) => {
 													e.stopPropagation();
-													onSelect?.(k.id);
+													onSelect?.(k);
 												}}
 												size="sm"
 												type="button"

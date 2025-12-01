@@ -18,15 +18,15 @@ const DEFAULT_MIN_HEIGHT = 200;
 const FULLSCREEN_HEIGHT = "h-[92vh]";
 const FULLSCREEN_WIDTH = "w-[92vw]";
 
-interface TabConfig<TData> {
+type TabConfig<TData> = {
 	id: string;
 	label: string;
 	data: TData[];
 	columns: ColumnDef<TData, unknown>[];
 	getFilter?: (row: TData) => { field: string; value: string };
-}
+};
 
-interface DataTableProps<TData extends { name: string | number }, TValue> {
+type DataTableProps<TData extends { name: string | number }, TValue> = {
 	data?: TData[] | undefined;
 	columns?: ColumnDef<TData, TValue>[];
 	tabs?: TabConfig<TData>[];
@@ -47,7 +47,7 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 		index: number
 	) => React.ReactNode;
 	expandable?: boolean;
-}
+};
 
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
 	<div className="animate-pulse space-y-3" style={{ minHeight }}>
@@ -113,7 +113,9 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	});
 
 	const handleTabChange = (tabId: string) => {
-		if (tabId === activeTab) return;
+		if (tabId === activeTab) {
+			return;
+		}
 		setActiveTab(tabId);
 	};
 
@@ -197,7 +199,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 				fullScreen &&
 				ReactDOM.createPortal(
 					<div
-						className="fixed inset-0 z-[1000] flex items-center justify-center"
+						className="fixed inset-0 z-1000 flex items-center justify-center"
 						ref={modalRef}
 						tabIndex={-1}
 					>

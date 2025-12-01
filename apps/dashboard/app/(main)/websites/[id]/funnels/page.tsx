@@ -48,7 +48,7 @@ const FunnelsListSkeleton = () => (
 	<div className="space-y-3 px-4">
 		{[...new Array(3)].map((_, i) => (
 			<Card className="rounded" key={`funnel-skeleton-${i + 1}`}>
-				<div className="p-6">
+				<div className="p-4">
 					<div className="mb-4 flex items-start justify-between">
 						<div className="flex-1 space-y-3">
 							<div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ export default function FunnelsPage() {
 
 	if (funnelsError) {
 		return (
-			<div className="p-6">
+			<div className="p-4">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">

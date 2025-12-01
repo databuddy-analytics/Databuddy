@@ -3,12 +3,8 @@
 import {
 	DeviceMobileIcon,
 	DeviceTabletIcon,
-	GlobeIcon,
-	InfoIcon,
 	LaptopIcon,
 	MonitorIcon,
-	WifiHighIcon,
-	WifiLowIcon,
 } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import dayjs from "dayjs";
@@ -20,7 +16,6 @@ import { BrowserIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import {
 	createGeoColumns,
-	createIconTextColumns,
 	createLanguageColumns,
 	createTimezoneColumns,
 } from "@/components/table/rows";
@@ -67,38 +62,6 @@ const formatNumber = (value: number | null | undefined): string => {
 	}).format(value);
 };
 
-const getConnectionIcon = (connection: string): React.ReactNode => {
-	const connectionLower = connection.toLowerCase();
-	if (!connection || connection === "Unknown") {
-		return <InfoIcon className="size-5 text-muted-foreground" />;
-	}
-	if (connectionLower.includes("wifi")) {
-		return <WifiHighIcon className="size-5 text-green-500" />;
-	}
-	if (connectionLower.includes("4g")) {
-		return <DeviceMobileIcon className="size-5 text-foreground" />;
-	}
-	if (connectionLower.includes("5g")) {
-		return <DeviceMobileIcon className="size-5 text-purple-500" />;
-	}
-	if (connectionLower.includes("3g")) {
-		return <DeviceMobileIcon className="size-5 text-yellow-500" />;
-	}
-	if (connectionLower.includes("2g")) {
-		return <DeviceMobileIcon className="size-5 text-orange-500" />;
-	}
-	if (connectionLower.includes("ethernet")) {
-		return <LaptopIcon className="size-5 text-foreground" />;
-	}
-	if (connectionLower.includes("cellular")) {
-		return <DeviceMobileIcon className="size-5 text-foreground" />;
-	}
-	if (connectionLower.includes("offline")) {
-		return <WifiLowIcon className="size-5 text-red-500" />;
-	}
-	return <GlobeIcon className="size-5 text-primary" />;
-};
-
 export function WebsiteAudienceTab({
 	websiteId,
 	dateRange,
@@ -115,18 +78,17 @@ export function WebsiteAudienceTab({
 				limit: 100,
 				filters,
 			},
-			{
-				id: "device-data",
-				parameters: [
-					"browser_name",
-					"browser_versions",
-					"os_name",
-					"screen_resolution",
-					"connection_type",
-				],
-				limit: 50,
-				filters,
-			},
+		{
+			id: "device-data",
+			parameters: [
+				"browser_name",
+				"browser_versions",
+				"os_name",
+				"screen_resolution",
+			],
+			limit: 50,
+			filters,
+		},
 		],
 		[filters]
 	);
@@ -254,15 +216,6 @@ export function WebsiteAudienceTab({
 		[]
 	);
 
-	const connectionColumns = createIconTextColumns({
-		header: "Connection Type",
-		getIcon: getConnectionIcon,
-	});
-
-	const countryColumns = createGeoColumns({ type: "country" });
-
-	const timezoneColumns = createTimezoneColumns();
-
 	const displayNames =
 		typeof window !== "undefined"
 			? new Intl.DisplayNames([navigator.language || "en"], {
@@ -270,11 +223,11 @@ export function WebsiteAudienceTab({
 				})
 			: null;
 
-	const languageColumns = createLanguageColumns(displayNames);
-
+	const countryColumns = createGeoColumns({ type: "country" });
 	const regionColumns = createGeoColumns({ type: "region" });
-
 	const cityColumns = createGeoColumns({ type: "city" });
+	const timezoneColumns = createTimezoneColumns();
+	const languageColumns = createLanguageColumns(displayNames);
 
 	const geographicTabs = useMemo(
 		() => [
@@ -340,12 +293,17 @@ export function WebsiteAudienceTab({
 			geographicData.language,
 			geographicData.timezone,
 			displayNames,
+			countryColumns,
+			regionColumns,
+			cityColumns,
+			timezoneColumns,
+			languageColumns,
 		]
 	);
 
 	return (
 		<div className="space-y-4">
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+			<div className="flex">
 				<DataTable
 					columns={browserColumns}
 					data={processedBrowserData}
@@ -353,12 +311,11 @@ export function WebsiteAudienceTab({
 					expandable={true}
 					getSubRows={(row: any) => row.versions}
 					isLoading={isLoading}
-					minHeight={350}
+					minHeight={400}
 					onAddFilter={(field: string, value: string) =>
 						addFilter({ field, operator: "eq" as const, value })
 					}
 					renderSubRow={(subRow: any, parentRow: any) => {
-						// Calculate percentage relative to parent browser (not total visitors)
 						const percentage = Math.round(
 							((subRow.visitors || 0) / (parentRow.visitors || 1)) * 100
 						);
@@ -423,30 +380,6 @@ export function WebsiteAudienceTab({
 					]}
 					title="Browser Versions"
 				/>
-
-				<DataTable
-					columns={connectionColumns}
-					data={deviceData.connection_type || []}
-					description="Visitors by network connection"
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={(field: string, value: string) =>
-						addFilter({ field, operator: "eq" as const, value })
-					}
-					tabs={[
-						{
-							id: "connections",
-							label: "Connection Types",
-							data: deviceData.connection_type || [],
-							columns: connectionColumns,
-							getFilter: (row: any) => ({
-								field: "connection_type",
-								value: row.name,
-							}),
-						},
-					]}
-					title="Connection Types"
-				/>
 			</div>
 
 			{/* Enhanced Geographic Data */}
@@ -482,16 +415,16 @@ export function WebsiteAudienceTab({
 				</CardHeader>
 
 				<CardContent className="overflow-hidden px-3 pb-2">
-					{isLoading ? (
-						<div className="animate-pulse space-y-3" style={{ minHeight: 400 }}>
-							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-								{Array.from({ length: 6 }).map((_, index) => (
-									<div
-										className="space-y-3 rounded-lg bg-muted/20 p-4"
-										key={`skeleton-resolution-card-${index + 1}`}
-									>
-										<Skeleton className="h-4 w-24 rounded-md" />
-										<Skeleton className="h-32 w-full rounded-lg" />
+				{isLoading ? (
+					<div className="animate-pulse space-y-3" style={{ minHeight: 400 }}>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+							{Array.from({ length: 6 }).map((_, index) => (
+								<div
+									className="space-y-3 rounded bg-muted/20 p-4"
+									key={`skeleton-resolution-card-${index + 1}`}
+								>
+									<Skeleton className="h-4 w-24 rounded" />
+									<Skeleton className="h-32 w-full rounded" />
 										<div className="space-y-2">
 											<div className="flex justify-between">
 												<Skeleton className="h-3 w-16 rounded-sm" />
@@ -554,10 +487,10 @@ export function WebsiteAudienceTab({
 										const aspectRatio = isValid ? width / height : 16 / 9;
 
 										return (
-											<div
-												className="flex flex-col rounded-lg border bg-accent p-4"
-												key={`resolution-${resolution}-${item.visitors}`}
-											>
+								<div
+									className="flex flex-col rounded border bg-accent p-4"
+									key={`resolution-${resolution}-${item.visitors}`}
+								>	
 												<div className="mb-3 flex items-center justify-between">
 													<div className="flex items-center gap-2">
 														{deviceIcon}
@@ -579,8 +512,8 @@ export function WebsiteAudienceTab({
 
 												{/* Enhanced Screen visualization with perspective */}
 												<div className="perspective relative mb-4 flex h-32 justify-center">
-													<div
-														className="relative flex transform-gpu items-center justify-center rounded-lg border-2 border-primary/20 bg-linear-to-br from-primary/8 to-primary/12 shadow-lg transition-all duration-300 hover:shadow-xl"
+												<div
+													className="relative flex transform-gpu items-center justify-center rounded border-2 border-primary/20 bg-linear-to-br from-primary/8 to-primary/12 shadow-lg transition-all duration-300 hover:shadow-xl"
 														style={{
 															width: `${Math.min(200, 100 * Math.sqrt(aspectRatio))}px`,
 															height: `${Math.min(160, 100 / Math.sqrt(aspectRatio))}px`,
@@ -675,7 +608,7 @@ export function WebsiteAudienceTab({
 							style={{ minHeight: 400 }}
 						>
 							<div className="mb-4">
-								<div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-accent-foreground">
+								<div className="mx-auto mb-3 flex size-12 items-center justify-center rounded bg-accent-foreground">
 									<MonitorIcon className="size-6 text-accent" />
 								</div>
 							</div>

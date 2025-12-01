@@ -4,7 +4,6 @@ import {
 	ChartLineIcon,
 	CursorIcon,
 	GlobeIcon,
-	LayoutIcon,
 	TimerIcon,
 	UsersIcon,
 	WarningIcon,
@@ -788,81 +787,64 @@ export function WebsiteOverviewTab({
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<EventLimitIndicator />
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
 				{[
 					{
+						id: "pageviews-chart",
+						title: "Pageviews",
+						value: analytics.summary?.pageviews || 0,
+						description: `${formatNumber(todayPageviews)} today`,
+						icon: GlobeIcon,
+						chartData: miniChartData.pageviews,
+						trend: calculateTrends.pageviews,
+					},
+					{
 						id: "visitors-chart",
-						title: "UNIQUE VISITORS",
+						title: "Visitors",
 						value: analytics.summary?.unique_visitors || 0,
-						description: `${todayVisitors} today`,
+						description: `${formatNumber(todayVisitors)} today`,
 						icon: UsersIcon,
 						chartData: miniChartData.visitors,
 						trend: calculateTrends.visitors,
 					},
 					{
 						id: "sessions-chart",
-						title: "SESSIONS",
+						title: "Sessions",
 						value: analytics.summary?.sessions || 0,
-						description: `${todaySessions} today`,
+						description: `${formatNumber(todaySessions)} today`,
 						icon: ChartLineIcon,
 						chartData: miniChartData.sessions,
 						trend: calculateTrends.sessions,
 					},
 					{
-						id: "pageviews-chart",
-						title: "PAGEVIEWS",
-						value: analytics.summary?.pageviews || 0,
-						description: `${todayPageviews} today`,
-						icon: GlobeIcon,
-						chartData: miniChartData.pageviews,
-						trend: calculateTrends.pageviews,
-					},
-					{
-						id: "pages-per-session-chart",
-						title: "PAGES/SESSION",
-						value: analytics.summary
-							? analytics.summary.sessions > 0
-								? (
-										analytics.summary.pageviews / analytics.summary.sessions
-									).toFixed(1)
-								: "0"
-							: "0",
-						description: "",
-						icon: LayoutIcon,
-						chartData: miniChartData.pagesPerSession,
-						trend: calculateTrends.pages_per_session,
-						formatValue: (value: number) => value.toFixed(1),
-					},
-					{
 						id: "bounce-rate-chart",
-						title: "BOUNCE RATE",
+						title: "Bounce Rate",
 						value: analytics.summary?.bounce_rate
 							? `${analytics.summary.bounce_rate.toFixed(1)}%`
 							: "0%",
-						description: "",
 						icon: CursorIcon,
 						chartData: miniChartData.bounceRate,
 						trend: calculateTrends.bounce_rate,
+						invertTrend: true,
 						formatValue: (value: number) => `${value.toFixed(1)}%`,
 					},
 					{
 						id: "session-duration-chart",
-						title: "SESSION DURATION",
+						title: "Avg Duration",
 						value: (() => {
 							const duration = analytics.summary?.avg_session_duration;
 							if (!duration) {
 								return "0s";
 							}
 							if (duration < 60) {
-								return `${duration.toFixed(1)}s`;
+								return `${Math.round(duration)}s`;
 							}
 							const minutes = Math.floor(duration / 60);
 							const seconds = Math.round(duration % 60);
 							return `${minutes}m ${seconds}s`;
 						})(),
-						description: "",
 						icon: TimerIcon,
 						chartData: miniChartData.sessionDuration,
 						trend: calculateTrends.session_duration,
@@ -886,16 +868,7 @@ export function WebsiteOverviewTab({
 				].map((metric) => (
 					<StatCard
 						chartData={isLoading ? undefined : metric.chartData}
-						className="h-full"
-						description={
-							metric.description &&
-							metric.id !== "pages-per-session-chart" &&
-							metric.id !== "bounce-rate-chart" &&
-							metric.id !== "session-duration-chart"
-								? formatNumber(Number(metric.description.split(" ")[0])) +
-									" today"
-								: metric.description
-						}
+						description={metric.description}
 						formatChartValue={metric.formatChartValue}
 						formatValue={metric.formatValue}
 						icon={metric.icon}
@@ -906,21 +879,17 @@ export function WebsiteOverviewTab({
 						showChart={true}
 						title={metric.title}
 						trend={metric.trend}
-						trendLabel={
-							metric.trend !== undefined ? "vs previous period" : undefined
-						}
 						value={
 							typeof metric.value === "number"
 								? formatNumber(metric.value)
 								: metric.value
 						}
-						variant={metric.variant || "default"}
 					/>
 				))}
 			</div>
 
 			{/* Chart */}
-			<div className="rounded border bg-card">
+			<div className="rounded border bg-sidebar">
 				<div className="flex flex-col items-start justify-between gap-3 border-b px-4 py-3 sm:flex-row">
 					<div>
 						<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
