@@ -519,52 +519,37 @@ export function TwoFactorForm() {
 					</div>
 				</>
 			) : (
-				<>
-					<Alert>
-						<ShieldCheckIcon className="h-4 w-4" size={16} weight="duotone" />
-						<AlertTitle>Add an extra layer of security</AlertTitle>
-						<AlertDescription>
-							Two-factor authentication adds an additional layer of security to
-							your account by requiring more than just a password to sign in.
-						</AlertDescription>
-					</Alert>
+				<Form {...setupForm}>
+					<form
+						className="space-y-4"
+						onSubmit={setupForm.handleSubmit(onSetupSubmit)}
+					>
+						<FormField
+							control={setupForm.control}
+							name="password"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>Your Password</FormLabel>
+									<FormControl>
+										<Input placeholder="••••••••" type="password" {...field} />
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
 
-					<Form {...setupForm}>
-						<form
-							className="space-y-4"
-							onSubmit={setupForm.handleSubmit(onSetupSubmit)}
-						>
-							<FormField
-								control={setupForm.control}
-								name="password"
-								render={({ field }) => (
-									<FormItem>
-										<FormLabel>Your Password</FormLabel>
-										<FormControl>
-											<Input
-												placeholder="••••••••"
-												type="password"
-												{...field}
-											/>
-										</FormControl>
-										<FormMessage />
-									</FormItem>
-								)}
-							/>
-
-							<Button className="w-full" disabled={isLoading} type="submit">
-								{isLoading && (
-									<ArrowClockwiseIcon
-										className="mr-2 h-4 w-4 animate-spin"
-										size={16}
-										weight="fill"
-									/>
-								)}
-								Enable Two-Factor Authentication
-							</Button>
-						</form>
-					</Form>
-				</>
+						<Button className="w-full" disabled={isLoading} type="submit">
+							{isLoading && (
+								<ArrowClockwiseIcon
+									className="mr-2 h-4 w-4 animate-spin"
+									size={16}
+									weight="fill"
+								/>
+							)}
+							Enable Two-Factor Authentication
+						</Button>
+					</form>
+				</Form>
 			)}
 		</div>
 	);

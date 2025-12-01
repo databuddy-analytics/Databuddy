@@ -4,13 +4,13 @@ import { GlobeIcon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { useState } from "react";
 
-interface FaviconImageProps {
+type FaviconImageProps = {
 	domain: string;
 	altText?: string;
 	size?: number;
 	className?: string;
 	fallbackIcon?: React.ReactNode;
-}
+};
 
 const hostnameRegex = /^https?:\/\//;
 const wwwRegex = /^www\./;
@@ -49,7 +49,7 @@ export function FaviconImage({
 				{fallbackIcon || (
 					<GlobeIcon
 						aria-label={altText || "Website icon"}
-						className="not-dark:text-primary text-muted-foreground"
+						className="text-muted"
 						size={size}
 						weight="duotone"
 					/>

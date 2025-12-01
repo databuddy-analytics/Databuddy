@@ -11,8 +11,8 @@ import {
 } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
-import { z } from "zod/v4";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { z } from "zod";
+import { protectedProcedure } from "../orpc";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "mini-charts" });
 
@@ -22,11 +22,11 @@ const DEFAULT_DAYS = 7;
 const MIN_DAYS = 3;
 const MAX_DAYS = 30;
 
-interface MiniChartRow {
+type MiniChartRow = {
 	websiteId: string;
 	date: string;
 	value: number;
-}
+};
 
 const normalizeWebsiteIds = (ids: string[]): string[] => {
 	// Deduplicate, copy, and sort for stable cache keys and efficient queries
@@ -185,7 +185,7 @@ const getBatchedMiniChartData = async (
 	return result;
 };
 
-export const miniChartsRouter = createTRPCRouter({
+export const miniChartsRouter = {
 	getMiniCharts: protectedProcedure
 		.input(
 			z.object({
@@ -193,7 +193,7 @@ export const miniChartsRouter = createTRPCRouter({
 				days: z.number().int().optional(),
 			})
 		)
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const normalizedIds = normalizeWebsiteIds(input.websiteIds);
 			const requestedDays = input.days ?? DEFAULT_DAYS;
 			const clampedDays = Math.max(MIN_DAYS, Math.min(MAX_DAYS, requestedDays));
@@ -202,7 +202,7 @@ export const miniChartsRouter = createTRPCRouter({
 				.update(normalizedIds.join(","))
 				.digest("base64url")
 				.slice(0, 16);
-			const cacheKey = `mini-charts:${ctx.user.id}:d${clampedDays}:${idsHash}`;
+			const cacheKey = `mini-charts:${context.user.id}:d${clampedDays}:${idsHash}`;
 
 			return drizzleCache.withCache({
 				key: cacheKey,
@@ -210,11 +210,11 @@ export const miniChartsRouter = createTRPCRouter({
 				tables: ["websites", "member"],
 				queryFn: async () => {
 					const authorizedIds = await getAuthorizedWebsiteIds(
-						ctx.user.id,
+						context.user.id,
 						normalizedIds
 					);
 					return getBatchedMiniChartData(authorizedIds, clampedDays);
 				},
 			});
 		}),
-});
+};

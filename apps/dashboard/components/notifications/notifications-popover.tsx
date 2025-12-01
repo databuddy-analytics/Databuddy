@@ -30,11 +30,7 @@ export function NotificationsPopover() {
 				type="button"
 				variant="ghost"
 			>
-				<BellIcon
-					className="h-6 w-6 not-dark:text-primary"
-					size={32}
-					weight="duotone"
-				/>
+				<BellIcon className="h-6 w-6" size={32} weight="duotone" />
 			</Button>
 		);
 	}
@@ -49,11 +45,7 @@ export function NotificationsPopover() {
 					type="button"
 					variant="ghost"
 				>
-					<BellIcon
-						className="h-6 w-6 not-dark:text-primary"
-						size={32}
-						weight="duotone"
-					/>
+					<BellIcon className="size-5" size={32} weight="duotone" />
 					{Notifications.length > 0 && (
 						<span className="-top-1 -right-1 absolute flex h-4 w-4 items-center justify-center rounded-full bg-background font-medium text-[10px] text-primary-foreground">
 							{Notifications.length}

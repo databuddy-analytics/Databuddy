@@ -4,7 +4,6 @@ const nextConfig: NextConfig = {
 	experimental: {
 		optimizePackageImports: ["@phosphor-icons/react"],
 	},
-	reactCompiler: true,
 	typescript: {
 		ignoreBuildErrors: true,
 	},
@@ -32,7 +31,15 @@ const nextConfig: NextConfig = {
 			},
 		],
 	},
-	serverExternalPackages: ["pg", "pg-pool"],
+	serverExternalPackages: [
+		"pg",
+		"pg-pool",
+		"pino",
+		"pino-pretty",
+		"@axiomhq/pino",
+		"thread-stream",
+	],
+	transpilePackages: [],
 	output: "standalone",
 };
 

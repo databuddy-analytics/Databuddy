@@ -41,10 +41,10 @@ export default function ForgotPasswordPage() {
 	return (
 		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
 			<div className="mb-8 text-center">
-				<h1 className="font-bold text-2xl text-foreground">
+				<h1 className="font-medium text-foreground text-xl">
 					Reset your password
 				</h1>
-				<p className="mt-2 text-muted-foreground">
+				<p className="text-muted-foreground text-sm">
 					We'll send you a link to reset your password
 				</p>
 			</div>
@@ -55,7 +55,6 @@ export default function ForgotPasswordPage() {
 					</Label>
 					<Input
 						autoComplete="email"
-						className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
 						id="forgot-email"
 						name="email"
 						onChange={(e) => setEmail(e.target.value)}
@@ -65,18 +64,14 @@ export default function ForgotPasswordPage() {
 						value={email}
 					/>
 				</div>
-				<div className="rounded-lg border border-info/20 bg-info/5 p-3 text-info-foreground text-sm">
-					Enter your email address and we'll send you a link to reset your
-					password.
-				</div>
 				<Button
-					className="h-11 w-full bg-primary"
+					className="w-full bg-primary"
 					disabled={isLoading}
 					type="submit"
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							<Loader2 className="h-4 w-4 animate-spin" />
 							Sending reset link...
 						</>
 					) : (

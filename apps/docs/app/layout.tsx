@@ -93,6 +93,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 		>
 			<Databuddy
 				clientId="OXmNQsViBT-FOS_wZCTHc"
+				disabled={process.env.NODE_ENV === "development"}
 				trackAttributes
 				trackErrors
 				trackOutgoingLinks

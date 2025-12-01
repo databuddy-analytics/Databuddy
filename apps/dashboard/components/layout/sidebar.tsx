@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useDbConnections } from "@/hooks/use-db-connections";
 import {
 	useAccordionStates,
 	usePersistentState,
@@ -15,19 +14,15 @@ import {
 import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { CategorySidebar } from "./category-sidebar";
-import { DatabaseHeader } from "./navigation/database-header";
 import { MobileCategorySelector } from "./navigation/mobile-category-selector";
 import {
 	categoryConfig,
-	createDatabasesNavigation,
-	createLoadingDatabasesNavigation,
 	createLoadingWebsitesNavigation,
 	createWebsitesNavigation,
 	getContextConfig,
 	getDefaultCategory,
 } from "./navigation/navigation-config";
 import { NavigationSection } from "./navigation/navigation-section";
-import { SandboxHeader } from "./navigation/sandbox-header";
 import type { NavigationSection as NavigationSectionType } from "./navigation/types";
 import { WebsiteHeader } from "./navigation/website-header";
 import { OrganizationSelector } from "./organization-selector";
@@ -45,38 +40,21 @@ export function Sidebar() {
 		string | undefined
 	>("sidebar-selected-category", undefined);
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
-	const { connections: databases, isLoading: isLoadingDatabases } =
-		useDbConnections();
 	const accordionStates = useAccordionStates();
 	const sidebarRef = useRef<HTMLDivElement>(null);
 	const previousFocusRef = useRef<HTMLElement | null>(null);
 
 	const isDemo = pathname.startsWith("/demo");
-	const isSandbox = pathname.startsWith("/sandbox");
 	const isWebsite = pathname.startsWith("/websites/");
-	const isDatabase =
-		pathname.startsWith("/observability/database/") &&
-		pathname !== "/observability/database" &&
-		pathname !== "/observability/database/";
 
 	const websiteId = useMemo(
 		() => (isDemo || isWebsite ? pathname.split("/")[2] : null),
 		[isDemo, isWebsite, pathname]
 	);
 
-	const databaseId = useMemo(
-		() => (isDatabase ? pathname.split("/")[3] : null),
-		[isDatabase, pathname]
-	);
-
 	const currentWebsite = useMemo(
 		() => (websiteId ? websites?.find((site) => site.id === websiteId) : null),
 		[websiteId, websites]
-	);
-
-	const currentDatabase = useMemo(
-		() => (databaseId ? databases?.find((db) => db.id === databaseId) : null),
-		[databaseId, databases]
 	);
 
 	const closeSidebar = useCallback(() => {
@@ -108,9 +86,6 @@ export function Sidebar() {
 							websites: isLoadingWebsites
 								? createLoadingWebsitesNavigation()
 								: createWebsitesNavigation(websites),
-							observability: isLoadingDatabases
-								? createLoadingDatabasesNavigation()
-								: createDatabasesNavigation(databases),
 						},
 					}
 				: baseConfig;
@@ -134,12 +109,6 @@ export function Sidebar() {
 				<WebsiteHeader showBackButton={!isDemo} website={currentWebsite} />
 			);
 			currentId = websiteId;
-		} else if (isDatabase) {
-			headerComponent = <DatabaseHeader database={currentDatabase} />;
-			currentId = databaseId;
-		} else if (isSandbox) {
-			headerComponent = <SandboxHeader />;
-			currentId = "sandbox";
 		} else {
 			headerComponent = <OrganizationSelector />;
 			currentId = undefined;
@@ -155,16 +124,10 @@ export function Sidebar() {
 		selectedCategory,
 		isWebsite,
 		isDemo,
-		isDatabase,
-		isSandbox,
 		websiteId,
-		databaseId,
 		currentWebsite,
-		currentDatabase,
 		websites,
-		databases,
 		isLoadingWebsites,
-		isLoadingDatabases,
 	]);
 
 	useEffect(() => {
@@ -218,7 +181,7 @@ export function Sidebar() {
 							<div className="flex h-8 w-8 items-center justify-center">
 								<Image
 									alt="Databuddy Logo"
-									className="drop-shadow-sm invert dark:invert-0"
+									className="invert dark:invert-0"
 									height={24}
 									priority
 									src="/logo.svg"
@@ -234,13 +197,13 @@ export function Sidebar() {
 			{/* Category Sidebar - Desktop only */}
 			<div className="hidden md:block">
 				<CategorySidebar
-					onCategoryChange={setSelectedCategory}
+					onCategoryChangeAction={setSelectedCategory}
 					selectedCategory={selectedCategory}
 				/>
 			</div>
 
 			{isMobileOpen && (
-				<div
+				<button
 					className="fixed inset-0 z-30 bg-black/20 md:hidden"
 					onClick={closeSidebar}
 					onKeyDown={(e) => {
@@ -248,8 +211,8 @@ export function Sidebar() {
 							closeSidebar();
 						}
 					}}
-					role="button"
 					tabIndex={0}
+					type="button"
 				/>
 			)}
 
@@ -257,7 +220,7 @@ export function Sidebar() {
 				aria-hidden={!isMobileOpen}
 				className={cn(
 					"fixed inset-y-0 z-40 w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
-					"border-sidebar-border border-r transition-transform duration-200 ease-out",
+					"border-r transition-transform duration-200 ease-out",
 					"left-0 md:left-12",
 					"pt-12 md:pt-0",
 					"md:translate-x-0",
@@ -284,14 +247,23 @@ export function Sidebar() {
 
 						{/* Mobile Category Selector */}
 						<MobileCategorySelector
-							onCategoryChange={setSelectedCategory}
+							onCategoryChangeAction={setSelectedCategory}
 							selectedCategory={selectedCategory}
 						/>
 
 						<nav aria-label="Main navigation" className="flex flex-col">
-							{navigation.map((section) => (
+							{navigation.map((section, idx) => (
 								<NavigationSection
 									accordionStates={accordionStates}
+									className={cn(
+										navigation.length > 1 && idx === navigation.length - 1
+											? "border-t"
+											: idx === 0 && navigation.length < 2
+												? "box-content border-b"
+												: idx !== 0 && navigation.length > 1
+													? "border-t"
+													: "border-transparent"
+									)}
 									currentWebsiteId={currentWebsiteId}
 									icon={section.icon}
 									items={section.items}

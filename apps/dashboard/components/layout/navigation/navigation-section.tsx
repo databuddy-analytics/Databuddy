@@ -1,4 +1,5 @@
 import { CaretDownIcon } from "@phosphor-icons/react";
+import clsx from "clsx";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import { memo } from "react";
@@ -6,14 +7,15 @@ import type { useAccordionStates } from "@/hooks/use-persistent-state";
 import { NavigationItem } from "./navigation-item";
 import type { NavigationSection as NavigationSectionType } from "./types";
 
-interface NavigationSectionProps {
+type NavigationSectionProps = {
 	title: string;
 	icon: NavigationSectionType["icon"];
 	items: NavigationSectionType["items"];
 	pathname: string;
 	currentWebsiteId?: string | null;
+	className?: string;
 	accordionStates: ReturnType<typeof useAccordionStates>;
-}
+};
 
 const buildCurrentUrl = (
 	pathname: string,
@@ -64,18 +66,6 @@ const checkWebsiteMatch = (
 	return pathname === fullPath;
 };
 
-const checkDatabaseMatch = (
-	item: NavigationSectionType["items"][0],
-	pathname: string,
-	currentDatabaseId: string | null | undefined
-) => {
-	const fullPath = buildFullPath(
-		`/observability/database/${currentDatabaseId}`,
-		item.href
-	);
-	return pathname === fullPath;
-};
-
 const getPathInfo = (
 	item: NavigationSectionType["items"][0],
 	pathname: string,
@@ -94,14 +84,6 @@ const getPathInfo = (
 		return { isActive: checkDemoMatch(item, pathname, currentWebsiteId) };
 	}
 
-	if (
-		pathname.startsWith("/observability/database/") &&
-		pathname !== "/observability/database" &&
-		pathname !== "/observability/database/"
-	) {
-		return { isActive: checkDatabaseMatch(item, pathname, currentWebsiteId) };
-	}
-
 	return { isActive: checkWebsiteMatch(item, pathname, currentWebsiteId) };
 };
 
@@ -112,6 +94,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	pathname,
 	currentWebsiteId,
 	accordionStates,
+	className,
 }: NavigationSectionProps) {
 	const { getAccordionState, toggleAccordion } = accordionStates;
 	const isExpanded = getAccordionState(title, true); // Default to expanded
@@ -138,29 +121,30 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	}
 
 	return (
-		<div className="border-sidebar-border/30 border-b border-dotted last:border-b-0">
+		<>
 			<button
-				className="flex w-full items-center gap-3 px-3 py-2.5 text-left font-medium text-sidebar-foreground text-sm transition-colors hover:bg-sidebar-accent/50 focus:outline-none"
+				className={clsx(
+					className,
+					"flex h-10 items-center gap-3 border-b px-3 text-left font-medium text-sidebar-foreground text-sm transition-colors focus:outline-none",
+					isExpanded
+						? "bg-sidebar-accent-brighter"
+						: "hover:bg-sidebar-accent-brighter"
+				)}
 				data-section={title}
 				data-track="navigation-section-toggle"
 				onClick={() => toggleAccordion(title, true)}
 				type="button"
 			>
-				<Icon
-					className="size-5 flex-shrink-0 text-sidebar-ring"
-					weight="fill"
-				/>
-				<span className="flex-1 text-sm">{title}</span>
-				<motion.div
-					animate={{ rotate: isExpanded ? 180 : 0 }}
-					className="flex-shrink-0"
-					transition={{ duration: 0.2 }}
-				>
+				<Icon className="size-5 shrink-0 text-sidebar-ring" weight="fill" />
+				<span className="flex-1 truncate text-sm">{title}</span>
+				<div className="shrink-0">
 					<CaretDownIcon
-						className="h-4 w-4 text-sidebar-foreground/60"
-						weight="duotone"
+						className={clsx(
+							"size-4 text-sidebar-foreground/60 transition-transform duration-200",
+							isExpanded ? "rotate-180" : ""
+						)}
 					/>
-				</motion.div>
+				</div>
 			</button>
 
 			<MotionConfig
@@ -207,6 +191,6 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 					)}
 				</AnimatePresence>
 			</MotionConfig>
-		</div>
+		</>
 	);
 });

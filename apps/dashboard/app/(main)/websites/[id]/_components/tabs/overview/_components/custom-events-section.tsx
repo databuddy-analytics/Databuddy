@@ -29,11 +29,11 @@ const cleanPropertyValue = (value: string): string =>
 	value.replace(JSON_QUOTE_REGEX, "$1");
 
 const createEventIndicator = () => (
-	<div className="h-2 w-2 flex-shrink-0 rounded bg-primary" />
+	<div className="h-2 w-2 shrink-0 rounded bg-primary" />
 );
 
 const createDomainIndicator = () => (
-	<div className="h-2 w-2 flex-shrink-0 rounded bg-blue-500" />
+	<div className="h-2 w-2 shrink-0 rounded bg-blue-500" />
 );
 
 const createPercentageBadge = (percentage: number) => (

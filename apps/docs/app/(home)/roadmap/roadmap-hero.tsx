@@ -16,7 +16,7 @@ export default function RoadmapHero({ stats }: Props) {
 				<div className="mb-6">
 					<h1 className="mb-4 font-bold text-4xl tracking-tight sm:text-5xl lg:text-6xl">
 						Product{" "}
-						<span className="bg-gradient-to-r from-foreground via-muted-foreground to-foreground bg-clip-text text-transparent">
+						<span className="bg-linear-to-r from-foreground via-muted-foreground to-foreground bg-clip-text text-transparent">
 							Roadmap
 						</span>
 					</h1>
@@ -35,7 +35,7 @@ export default function RoadmapHero({ stats }: Props) {
 						</div>
 						<div className="h-3 w-full rounded-full bg-muted">
 							<div
-								className="h-3 rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-1000 ease-out"
+								className="h-3 rounded-full bg-linear-to-r from-primary/80 to-primary transition-all duration-1000 ease-out"
 								style={{ width: `${stats.overallProgress}%` }}
 							/>
 						</div>

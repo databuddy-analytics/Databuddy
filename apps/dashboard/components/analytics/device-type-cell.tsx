@@ -30,9 +30,9 @@ const deviceTypeColorMap: Record<string, string> = {
 	unknown: "text-gray-400",
 };
 
-interface DeviceTypeCellProps {
+type DeviceTypeCellProps = {
 	device_type: string;
-}
+};
 
 export function DeviceTypeCell({ device_type }: DeviceTypeCellProps) {
 	const Icon = deviceTypeIconMap[device_type] || QuestionIcon;

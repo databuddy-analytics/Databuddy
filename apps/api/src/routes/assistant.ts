@@ -1,10 +1,11 @@
-import { auth, type User, websitesApi } from "@databuddy/auth";
+import { auth, websitesApi } from "@databuddy/auth";
 import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
 import { Elysia } from "elysia";
 import { processAssistantRequest } from "../agent/processor";
 import { createStreamingResponse } from "../agent/utils/stream-utils";
+import { record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
-import { AssistantRequestSchema, type AssistantRequestType } from "../schemas";
+import { AssistantRequestSchema } from "../schemas";
 
 function createErrorResponse(message: string): StreamingUpdate[] {
 	return [{ type: "error", content: message }];
@@ -36,59 +37,82 @@ export const assistant = new Elysia({ prefix: "/v1/assistant" })
 	})
 	.post(
 		"/stream",
-		async ({
-			body,
-			user,
-			request,
-		}: {
-			body: AssistantRequestType;
-			user: User;
-			request: Request;
-		}) => {
-			try {
-				const websiteValidation = await validateWebsite(body.websiteId);
-				if (!websiteValidation.success) {
-					return createStreamingResponse(
-						createErrorResponse(websiteValidation.error || "Website not found")
-					);
-				}
+		function assistantStream({ body, user, request }) {
+			return record("assistantStream", async () => {
+				setAttributes({
+					"assistant.website_id": body.websiteId,
+					"assistant.user_id": user?.id || "unknown",
+					"assistant.message_count": body.messages.length,
+				});
 
-				const { website } = websiteValidation;
-				if (!website) {
-					return createStreamingResponse(
-						createErrorResponse("Website not found")
-					);
-				}
-
-				// Authorization: allow public websites, org members with permission, or the owner
-				let authorized = website.isPublic;
-				if (!authorized) {
-					if (website.organizationId) {
-						const { success } = await websitesApi.hasPermission({
-							headers: request.headers,
-							body: { permissions: { website: ["read"] } },
-						});
-						authorized = success;
-					} else {
-						authorized = website.userId === user.id;
+				try {
+					const websiteValidation = await validateWebsite(body.websiteId);
+					if (!websiteValidation.success) {
+						setAttributes({ "assistant.website_validation_failed": true });
+						return createStreamingResponse(
+							createErrorResponse(
+								websiteValidation.error || "Website not found"
+							)
+						);
 					}
-				}
 
-				if (!authorized) {
-					return createStreamingResponse(
-						createErrorResponse(
-							"You do not have permission to access this website"
-						)
+					const { website } = websiteValidation;
+					if (!website) {
+						setAttributes({ "assistant.website_not_found": true });
+						return createStreamingResponse(
+							createErrorResponse("Website not found")
+						);
+					}
+
+					// Authorization: allow public websites, org members with permission, or the owner
+					let authorized = website.isPublic;
+					if (!authorized) {
+						if (website.organizationId) {
+							const { success } = await websitesApi.hasPermission({
+								headers: request.headers,
+								body: { permissions: { website: ["read"] } },
+							});
+							authorized = success;
+						} else {
+							authorized = website.userId === user?.id;
+						}
+					}
+
+					if (!authorized) {
+						setAttributes({ "assistant.unauthorized": true });
+						return createStreamingResponse(
+							createErrorResponse(
+								"You do not have permission to access this website"
+							)
+						);
+					}
+
+					setAttributes({
+						"assistant.website_public": website.isPublic,
+						"assistant.website_org": Boolean(website.organizationId),
+					});
+
+					if (!user) {
+						setAttributes({ "assistant.no_user": true });
+						return createStreamingResponse(
+							createErrorResponse("User not found")
+						);
+					}
+
+					const updates = await processAssistantRequest(
+						body,
+						user as never,
+						website
 					);
+					setAttributes({ "assistant.success": true });
+					return createStreamingResponse(updates);
+				} catch (error) {
+					setAttributes({ "assistant.error": true });
+					const errorMessage =
+						error instanceof Error ? error.message : "Unknown error occurred";
+					return createStreamingResponse(createErrorResponse(errorMessage));
 				}
-
-				const updates = await processAssistantRequest(body, user, website);
-				return createStreamingResponse(updates);
-			} catch (error) {
-				const errorMessage =
-					error instanceof Error ? error.message : "Unknown error occurred";
-				return createStreamingResponse(createErrorResponse(errorMessage));
-			}
+			});
 		},
 		{
 			body: AssistantRequestSchema,

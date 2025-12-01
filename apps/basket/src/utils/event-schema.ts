@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/performance/noBarrelFile: This is a barrel file */
 export {
 	analyticsEventSchema,
 	customEventSchema,

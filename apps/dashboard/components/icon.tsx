@@ -1,5 +1,6 @@
 "use client";
 
+import "flag-icons/css/flag-icons.min.css";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -177,10 +178,7 @@ export function PublicIcon({
 
 	return (
 		<div
-			className={cn(
-				"relative flex-shrink-0 overflow-hidden rounded",
-				className
-			)}
+			className={cn("relative shrink-0 overflow-hidden rounded", className)}
 			style={{
 				width: iconSize,
 				height: iconSize,
@@ -266,24 +264,14 @@ export function CountryFlag({
 	}
 
 	return (
-		<div
-			className={cn(
-				"relative flex-shrink-0 overflow-hidden rounded-sm",
-				className
-			)}
-			style={{ width: 24, height: iconSize, minWidth: 24, minHeight: iconSize }}
-		>
-			<Image
-				alt={`${country} flag`}
-				className={cn("object-cover")}
-				height={iconSize}
-				onError={(e) => {
-					const img = e.target as HTMLImageElement;
-					img.style.display = "none";
-				}}
-				src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${country.toUpperCase()}.svg`}
-				width={24}
-			/>
-		</div>
+		<span
+			aria-label={`${country} flag`}
+			className={cn(`fi fi-${country.toLowerCase()}`, className)}
+			style={{
+				fontSize: iconSize,
+				lineHeight: 1,
+				borderRadius: 2,
+			}}
+		/>
 	);
 }

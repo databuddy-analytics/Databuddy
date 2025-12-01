@@ -1,28 +1,5 @@
-// import { Logtail } from '@logtail/edge';
+import { logger as sharedLogger } from "@databuddy/shared/logger";
 
-// const token = process.env.LOGTAIL_SOURCE_TOKEN as string;
-// const endpoint = process.env.LOGTAIL_ENDPOINT as string;
-
-// if (!(token && endpoint)) {
-// 	console.log('LOGTAIL_SOURCE_TOKEN and LOGTAIL_ENDPOINT must be set');
-// }
-
-// export const logger = new Logtail(token, {
-// 	endpoint,
-// 	batchSize: 10,
-// 	batchInterval: 1000,
-// });
-
-import { pino } from "pino";
-
-const logger = pino({
-	level: "debug",
-	transport: {
-		target: "pino-pretty",
-		options: {
-			colorize: true,
-		},
-	},
+export const logger = sharedLogger.child({
+	service: "api",
 });
-
-export { logger };

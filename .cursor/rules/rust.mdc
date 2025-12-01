@@ -1,0 +1,125 @@
+---
+description: When coding in Rust
+alwaysApply: false
+---
+# Rust Safety Rules for LLM
+
+## Rule Set Format
+Each rule follows the structure
+Issue
+Example
+Reason
+
+## Rules
+
+Issue
+Using unwrap
+Example
+`let x = value.unwrap()`
+Reason
+Unwrap causes an instant panic if the value is missing. This can crash services in production.
+
+Issue
+Using expect everywhere
+Example
+`config.expect("it should exist")`
+Reason
+Expect still panics. It must only be used when failure is impossible such as during startup.
+
+Issue
+Using panic in normal logic
+Example
+`panic("unexpected state")`
+Reason
+Panic kills the whole process. This removes all stability guarantees.
+
+Issue
+Ignoring return values
+Example
+`some_func()` without handling the result
+Reason
+Ignoring errors counters Rusts guarantees. Failures become silent and hard to debug.
+
+Issue
+Using clone to avoid ownership problems
+Example
+`let data2 = data.clone()`
+Reason
+Cloning large values causes heavy performance drops and unexpected memory use.
+
+Issue
+Using to_string everywhere
+Example
+`value.to_string()` repeatedly
+Reason
+Unnecessary allocations. Strings are expensive and should be avoided when possible.
+
+Issue
+Blocking inside async code
+Example
+`sleep` inside a Tokio async handler
+Reason
+This freezes the executor and stalls the entire service.
+
+Issue
+Using blocking IO in async
+Example
+`std::fs::read` inside async
+Reason
+Blocking the executor stops all other tasks. Use async alternatives.
+
+Issue
+Spawning untracked tasks
+Example
+`tokio::spawn(task())` without storing the handle
+Reason
+Tasks leak. Memory grows until the service crashes.
+
+Issue
+Global mutable state
+Example
+`static mut COUNTER: i32`
+Reason
+Race conditions and undefined behavior. Global state must use safe abstractions.
+
+Issue
+Random unsafe blocks
+Example
+Raw pointer writes without justification
+Reason
+Unsafe disables compiler guarantees. Each block must be proven correct.
+
+Issue
+Silent numeric conversions
+Example
+`let x: u8 = num.try_into()?`
+Reason
+Overflow errors appear only with certain inputs. Must be handled explicitly.
+
+Issue
+Catch all match arms
+Example
+`_ => {}`
+Reason
+Hides new enum variants and removes compile time checks.
+
+Issue
+Unbounded channels
+Example
+Unbounded MPSC channels in high load systems
+Reason
+Messages queue forever and cause memory explosions.
+
+Issue
+Building strings in loops
+Example
+Repeated string concatenation
+Reason
+Excessive allocations slow down the system.
+
+Issue
+Moving large data instead of borrowing
+Example
+Returning huge structures by value
+Reason
+Unneeded copies waste memory and CPU.

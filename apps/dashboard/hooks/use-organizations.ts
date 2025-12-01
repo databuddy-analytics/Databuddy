@@ -1,7 +1,11 @@
 import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
+import {
+	AUTH_QUERY_KEYS,
+	useOrganizationsContext,
+} from "@/components/providers/organizations-provider";
+import { orpc } from "@/lib/orpc";
 
 export type OrganizationRole = "owner" | "admin" | "member";
 
@@ -62,18 +66,16 @@ const createMutation = <TData, TVariables>(
 });
 
 export function useOrganizations() {
-	const {
-		data: organizationsData,
-		error: organizationsError,
-		isPending: isOrganizationsPending,
-	} = authClient.useListOrganizations();
-	const {
-		data: activeOrganization,
-		error: activeOrganizationError,
-		isPending: isActiveOrganizationPending,
-	} = authClient.useActiveOrganization();
+	const { organizations, activeOrganization, isLoading } =
+		useOrganizationsContext();
+	const queryClient = useQueryClient();
 
-	const organizations = organizationsData || [];
+	const invalidateOrganizationQueries = () => {
+		queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEYS.organizations });
+		queryClient.invalidateQueries({
+			queryKey: AUTH_QUERY_KEYS.activeOrganization,
+		});
+	};
 
 	const createOrganizationMutation = useMutation(
 		createMutation(
@@ -92,7 +94,8 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization created successfully",
-			"Failed to create organization"
+			"Failed to create organization",
+			invalidateOrganizationQueries
 		)
 	);
 
@@ -124,29 +127,36 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization updated successfully",
-			"Failed to update organization"
+			"Failed to update organization",
+			invalidateOrganizationQueries
 		)
 	);
 
-	const uploadOrganizationLogoMutation =
-		trpc.organizations.uploadLogo.useMutation({
-			onSuccess: () => {
-				toast.success("Logo uploaded successfully");
-			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to upload logo");
-			},
-		});
+	const uploadOrganizationLogoMutation = useMutation({
+		...orpc.organizations.uploadLogo.mutationOptions(),
+		onSuccess: () => {
+			invalidateOrganizationQueries();
+			toast.success("Logo uploaded successfully");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to upload logo"
+			);
+		},
+	});
 
-	const deleteOrganizationLogoMutation =
-		trpc.organizations.deleteLogo.useMutation({
-			onSuccess: () => {
-				toast.success("Logo deleted successfully");
-			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to delete logo");
-			},
-		});
+	const deleteOrganizationLogoMutation = useMutation({
+		...orpc.organizations.deleteLogo.mutationOptions(),
+		onSuccess: () => {
+			invalidateOrganizationQueries();
+			toast.success("Logo deleted successfully");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to delete logo"
+			);
+		},
+	});
 
 	const deleteOrganizationMutation = useMutation(
 		createMutation(
@@ -161,7 +171,8 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization deleted successfully",
-			"Failed to delete organization"
+			"Failed to delete organization",
+			invalidateOrganizationQueries
 		)
 	);
 
@@ -191,6 +202,7 @@ export function useOrganizations() {
 			return setActiveData2;
 		},
 		onSuccess: () => {
+			invalidateOrganizationQueries();
 			toast.success("Workspace updated");
 		},
 		onError: (error: Error) => {
@@ -219,19 +231,15 @@ export function useOrganizations() {
 				return result;
 			},
 			"Left organization successfully",
-			"Failed to leave organization"
+			"Failed to leave organization",
+			invalidateOrganizationQueries
 		)
 	);
 
 	return {
 		organizations,
 		activeOrganization,
-
-		isLoading: isOrganizationsPending || isActiveOrganizationPending,
-
-		organizationsError,
-		activeOrganizationError,
-		hasError: !!organizationsError || !!activeOrganizationError,
+		isLoading,
 
 		createOrganization: createOrganizationMutation.mutate,
 		createOrganizationAsync: createOrganizationMutation.mutateAsync,
@@ -453,10 +461,6 @@ export type Organization = ReturnType<
 export type ActiveOrganization = ReturnType<
 	typeof useOrganizations
 >["activeOrganization"];
-
-export type OrganizationsError = ReturnType<
-	typeof useOrganizations
->["organizationsError"];
 
 export type OrganizationMember = ReturnType<
 	typeof useOrganizationMembers

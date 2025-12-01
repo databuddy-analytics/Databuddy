@@ -70,99 +70,61 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			}
 		) => {
 			const tz = timezone || "UTC";
-			const combinedWhereClause = filterConditions?.length
+			const filterClause = filterConditions?.length
 				? `AND ${filterConditions.join(" AND ")}`
 				: "";
 
-			// Use session attribution if helpers are provided
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE("time")},`
 				: "";
 
 			const baseEventsQuery = helpers?.sessionAttributionCTE
-				? `
-		base_events AS (
-			SELECT
-				e.session_id,
-				e.anonymous_id,
-				e.event_name,
-				toTimeZone(e.time, {timezone:String}) as normalized_time
-			FROM analytics.events e
-			${helpers.sessionAttributionJoin("e")}
-			WHERE 
-				e.client_id = {websiteId:String}
-				AND e.time >= parseDateTimeBestEffort({startDate:String})
-				AND e.time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-				AND e.session_id != ''
-				${combinedWhereClause}
-		),`
-				: `
-		base_events AS (
-			SELECT
-				session_id,
-				anonymous_id,
-				event_name,
-				toTimeZone(time, {timezone:String}) as normalized_time
-			FROM analytics.events
-			WHERE 
-				client_id = {websiteId:String}
-				AND time >= parseDateTimeBestEffort({startDate:String})
-				AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-				AND session_id != ''
-				${combinedWhereClause}
-		),`;
+				? `base_events AS (
+					SELECT e.session_id, e.anonymous_id, e.event_name,
+						toTimeZone(e.time, {timezone:String}) as normalized_time
+					FROM analytics.events e
+					${helpers.sessionAttributionJoin("e")}
+					WHERE e.client_id = {websiteId:String}
+						AND e.time >= toDateTime({startDate:String})
+						AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND e.session_id != ''
+						${filterClause}
+				),`
+				: `base_events AS (
+					SELECT session_id, anonymous_id, event_name,
+						toTimeZone(time, {timezone:String}) as normalized_time
+					FROM analytics.events
+					WHERE client_id = {websiteId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND session_id != ''
+						${filterClause}
+				),`;
 
 			return {
 				sql: `
-		WITH ${sessionAttributionCTE}
-		${baseEventsQuery}
-		session_metrics AS (
-			SELECT
-			session_id,
-			countIf(event_name = 'screen_view') as page_count
-			FROM base_events
-			GROUP BY session_id
-		),
-		session_durations AS (
-			SELECT
-			session_id,
-			dateDiff('second', MIN(normalized_time), MAX(normalized_time)) as duration
-			FROM base_events
-			GROUP BY session_id
-			HAVING duration >= 0
-		),
-		unique_visitors AS (
-			SELECT
-			countDistinct(anonymous_id) as unique_visitors
-			FROM base_events
-			WHERE event_name = 'screen_view'
-		),
-		all_events AS (
-			SELECT
-			count() as total_events,
-			countIf(event_name = 'screen_view') as total_screen_views
-			FROM base_events
-		),
-		bounce_sessions AS (
-			SELECT
-			countIf(page_count = 1) as bounced_sessions,
-			count() as total_sessions
-			FROM session_metrics
-		)
-		SELECT
-			sum(page_count) as pageviews,
-			(SELECT unique_visitors FROM unique_visitors) as unique_visitors,
-			(SELECT total_sessions FROM bounce_sessions) as sessions,
-			ROUND(CASE 
-			WHEN (SELECT total_sessions FROM bounce_sessions) > 0 
-			THEN ((SELECT bounced_sessions FROM bounce_sessions) / (SELECT total_sessions FROM bounce_sessions)) * 100 
-			ELSE 0 
-			END, 2) as bounce_rate,
-			ROUND(median(sd.duration), 2) as avg_session_duration,
-			(SELECT total_events FROM all_events) as total_events
-		FROM session_metrics
-		LEFT JOIN session_durations as sd ON session_metrics.session_id = sd.session_id
-        `,
+				WITH ${sessionAttributionCTE}
+				${baseEventsQuery}
+				session_agg AS (
+					SELECT session_id,
+						countIf(event_name = 'screen_view') as page_count,
+						dateDiff('second', min(normalized_time), max(normalized_time)) as duration
+					FROM base_events
+					GROUP BY session_id
+				),
+				event_agg AS (
+					SELECT count() as total_events,
+						countIf(event_name = 'screen_view') as pageviews,
+						uniq(if(event_name = 'screen_view', anonymous_id, null)) as unique_visitors
+					FROM base_events
+				)
+				SELECT ea.pageviews, ea.unique_visitors, count() as sessions,
+					round(countIf(sa.page_count = 1) * 100.0 / nullIf(count(), 0), 2) as bounce_rate,
+					round(medianIf(sa.duration, sa.duration >= 0), 2) as avg_session_duration,
+					ea.total_events
+				FROM session_agg sa
+				CROSS JOIN event_agg ea
+				GROUP BY ea.pageviews, ea.unique_visitors, ea.total_events`,
 				params: {
 					websiteId,
 					startDate,
@@ -174,9 +136,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "time",
 		customizable: true,
-		plugins: {
-			sessionAttribution: true,
-		},
+		plugins: { sessionAttribution: true },
 	},
 
 	today_metrics: {
@@ -212,11 +172,11 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"COUNT(DISTINCT session_id) as sessions",
+			"count() as pageviews",
+			"uniq(anonymous_id) as visitors",
+			"uniq(session_id) as sessions",
 		],
-		where: ["event_name = 'screen_view'", "toDate(time) = today()"],
+		where: ["event_name = 'screen_view'", "time >= toStartOfDay(now())"],
 		timeField: "time",
 		customizable: true,
 	},
@@ -296,197 +256,68 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		) => {
 			const tz = timezone || "UTC";
 			const isHourly = _granularity === "hour" || _granularity === "hourly";
-			const combinedWhereClause = filterConditions?.length
+			const filterClause = filterConditions?.length
 				? `AND ${filterConditions.join(" AND ")}`
 				: "";
+			const dateFilter = `time >= toDateTime({startDate:String}) AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
+			const timeBucketFn = isHourly ? "toStartOfHour" : "toDate";
+			const dateFormat = isHourly
+				? "formatDateTime(ea.time_bucket, '%Y-%m-%d %H:00:00')"
+				: "ea.time_bucket";
 
-			if (isHourly) {
-				// Use session attribution if helpers are provided
-				const sessionAttributionCTE = helpers?.sessionAttributionCTE
-					? `${helpers.sessionAttributionCTE("time")},`
-					: "";
-
-				const baseEventsQuery = helpers?.sessionAttributionCTE
-					? `
-                base_events AS (
-                  SELECT
-                    e.session_id,
-                    e.anonymous_id,
-                    e.event_name,
-                    toTimeZone(e.time, {timezone:String}) as normalized_time
-                  FROM analytics.events e
-                  ${helpers.sessionAttributionJoin("e")}
-                  WHERE 
-                    e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-                    AND e.session_id != ''
-                    ${combinedWhereClause}
-                ),`
-					: `
-                base_events AS (
-                  SELECT
-                    session_id,
-                    anonymous_id,
-                    event_name,
-                    toTimeZone(time, {timezone:String}) as normalized_time
-                  FROM analytics.events
-                  WHERE 
-                    client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-                    AND session_id != ''
-                    ${combinedWhereClause}
-                ),`;
-
-				return {
-					sql: `
-                WITH ${sessionAttributionCTE}
-                ${baseEventsQuery}
-                session_details AS (
-                  SELECT
-                    session_id,
-                    toStartOfHour(MIN(normalized_time)) as session_start_hour,
-                    countIf(event_name = 'screen_view') as page_count,
-                    dateDiff('second', MIN(normalized_time), MAX(normalized_time)) as duration
-                  FROM base_events
-                  GROUP BY session_id
-                ),
-                hourly_session_metrics AS (
-                  SELECT
-                    session_start_hour as event_hour,
-                    count(session_id) as sessions,
-                    countIf(page_count = 1) as bounced_sessions,
-                    medianIf(duration, duration >= 0) as median_session_duration
-                  FROM session_details
-                  GROUP BY session_start_hour
-                ),
-                hourly_event_metrics AS (
-                  SELECT
-                    toStartOfHour(normalized_time) as event_hour,
-                    countIf(event_name = 'screen_view') as pageviews,
-                    count(distinct anonymous_id) as unique_visitors
-                  FROM base_events
-                  GROUP BY event_hour
-                )
-                SELECT
-                  formatDateTime(hem.event_hour, '%Y-%m-%d %H:00:00') as date,
-                  hem.pageviews as pageviews,
-                  hem.unique_visitors as visitors,
-                  COALESCE(hsm.sessions, 0) as sessions,
-                  ROUND(CASE 
-                    WHEN COALESCE(hsm.sessions, 0) > 0 
-                    THEN (COALESCE(hsm.bounced_sessions, 0) / hsm.sessions) * 100 
-                    ELSE 0 
-                  END, 2) as bounce_rate,
-                  ROUND(COALESCE(hsm.median_session_duration, 0), 2) as avg_session_duration,
-                  ROUND(CASE 
-                    WHEN COALESCE(hsm.sessions, 0) > 0 
-                    THEN hem.pageviews / COALESCE(hsm.sessions, 0) 
-                    ELSE 0 
-                  END, 2) as pages_per_session
-                FROM hourly_event_metrics hem
-                LEFT JOIN hourly_session_metrics hsm ON hem.event_hour = hsm.event_hour
-                ORDER BY hem.event_hour ASC
-            `,
-					params: {
-						websiteId,
-						startDate,
-						endDate,
-						timezone: tz,
-						...filterParams,
-					},
-				};
-			}
-
-			// Use session attribution if helpers are provided (daily query)
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE("time")},`
 				: "";
 
 			const baseEventsQuery = helpers?.sessionAttributionCTE
-				? `
-                base_events AS (
-                  SELECT
-                    e.session_id,
-                    e.anonymous_id,
-                    e.event_name,
-                    toTimeZone(e.time, {timezone:String}) as normalized_time
-                  FROM analytics.events e
-                  ${helpers.sessionAttributionJoin("e")}
-                  WHERE
-                    e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-                    AND e.session_id != ''
-                    ${combinedWhereClause}
-                ),`
-				: `
-                base_events AS (
-                  SELECT
-                    session_id,
-                    anonymous_id,
-                    event_name,
-                    toTimeZone(time, {timezone:String}) as normalized_time
-                  FROM analytics.events
-                  WHERE
-                    client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
-                    AND session_id != ''
-                    ${combinedWhereClause}
-                ),`;
+				? `base_events AS (
+					SELECT e.session_id, e.anonymous_id, e.event_name,
+						toTimeZone(e.time, {timezone:String}) as normalized_time
+					FROM analytics.events e
+					${helpers.sessionAttributionJoin("e")}
+					WHERE e.client_id = {websiteId:String}
+						AND e.${dateFilter}
+						AND e.session_id != ''
+						${filterClause}
+				),`
+				: `base_events AS (
+					SELECT session_id, anonymous_id, event_name,
+						toTimeZone(time, {timezone:String}) as normalized_time
+					FROM analytics.events
+					WHERE client_id = {websiteId:String}
+						AND ${dateFilter}
+						AND session_id != ''
+						${filterClause}
+				),`;
 
 			return {
 				sql: `
-                WITH ${sessionAttributionCTE}
-                ${baseEventsQuery}
-                session_details AS (
-                  SELECT
-                    session_id,
-                    toDate(MIN(normalized_time)) as session_start_date,
-                    countIf(event_name = 'screen_view') as page_count,
-                    dateDiff('second', MIN(normalized_time), MAX(normalized_time)) as duration
-                  FROM base_events
-                  GROUP BY session_id
-                ),
-                daily_session_metrics AS (
-                  SELECT
-                    session_start_date,
-                    count(session_id) as sessions,
-                    countIf(page_count = 1) as bounced_sessions,
-                    medianIf(duration, duration >= 0) as median_session_duration
-                  FROM session_details
-                  GROUP BY session_start_date
-                ),
-                daily_event_metrics AS (
-                  SELECT
-                    toDate(normalized_time) as event_date,
-                    countIf(event_name = 'screen_view') as pageviews,
-                    count(distinct anonymous_id) as unique_visitors
-                  FROM base_events
-                  GROUP BY event_date
-                )
-                SELECT
-                  dem.event_date as date,
-                  dem.pageviews as pageviews,
-                  dem.unique_visitors as visitors,
-                  COALESCE(dsm.sessions, 0) as sessions,
-                  ROUND(CASE 
-                    WHEN COALESCE(dsm.sessions, 0) > 0 
-                    THEN (COALESCE(dsm.bounced_sessions, 0) / dsm.sessions) * 100 
-                    ELSE 0 
-                  END, 2) as bounce_rate,
-                  ROUND(COALESCE(dsm.median_session_duration, 0), 2) as avg_session_duration,
-                  ROUND(CASE 
-                    WHEN COALESCE(dsm.sessions, 0) > 0 
-                    THEN dem.pageviews / COALESCE(dsm.sessions, 0) 
-                    ELSE 0 
-                  END, 2) as pages_per_session
-                FROM daily_event_metrics dem
-                LEFT JOIN daily_session_metrics dsm ON dem.event_date = dsm.session_start_date
-                ORDER BY dem.event_date ASC
-            `,
+				WITH ${sessionAttributionCTE}
+				${baseEventsQuery}
+				session_agg AS (
+					SELECT session_id,
+						${timeBucketFn}(min(normalized_time)) as time_bucket,
+						countIf(event_name = 'screen_view') as page_count,
+						dateDiff('second', min(normalized_time), max(normalized_time)) as duration
+					FROM base_events
+					GROUP BY session_id
+				),
+				event_agg AS (
+					SELECT ${timeBucketFn}(normalized_time) as time_bucket,
+						countIf(event_name = 'screen_view') as pageviews,
+						uniq(if(event_name = 'screen_view', anonymous_id, null)) as visitors
+					FROM base_events
+					GROUP BY time_bucket
+				)
+				SELECT ${dateFormat} as date, ea.pageviews, ea.visitors,
+					count(sa.session_id) as sessions,
+					round(countIf(sa.page_count = 1) * 100.0 / nullIf(count(sa.session_id), 0), 2) as bounce_rate,
+					round(medianIf(sa.duration, sa.duration >= 0), 2) as avg_session_duration,
+					round(ea.pageviews * 1.0 / nullIf(count(sa.session_id), 0), 2) as pages_per_session
+				FROM event_agg ea
+				LEFT JOIN session_agg sa ON ea.time_bucket = sa.time_bucket
+				GROUP BY ea.time_bucket, ea.pageviews, ea.visitors
+				ORDER BY ea.time_bucket ASC`,
 				params: {
 					websiteId,
 					startDate,
@@ -498,9 +329,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "time",
 		customizable: true,
-		plugins: {
-			sessionAttribution: true,
-		},
+		plugins: { sessionAttribution: true },
 	},
 
 	active_stats: {
@@ -528,41 +357,18 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			websiteId: string,
-			_startDate: string,
-			_endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-			_offset?: number,
-			_timezone?: string,
-			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
-		) => {
-			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(" AND ")}`
-				: "";
-			return {
-				sql: `
-          SELECT
-            COUNT(DISTINCT anonymous_id) as active_users,
-            COUNT(DISTINCT session_id) as active_sessions
-          FROM analytics.events
-          WHERE event_name = 'screen_view'
-            AND client_id = {websiteId:String}
-            AND session_id != ''
-            AND time >= now() - INTERVAL 5 MINUTE
-            ${combinedWhereClause}
-        `,
-				params: {
-					websiteId,
-					...filterParams,
-				},
-			};
-		},
+		table: Analytics.events,
+		fields: [
+			"uniq(anonymous_id) as active_users",
+			"uniq(session_id) as active_sessions",
+		],
+		where: [
+			"event_name = 'screen_view'",
+			"session_id != ''",
+			"time >= now() - INTERVAL 5 MINUTE",
+		],
 		timeField: "time",
-		customizable: true,
-		appendEndOfDayToTo: false,
+		skipDateFilter: true,
+		customizable: false,
 	},
 };

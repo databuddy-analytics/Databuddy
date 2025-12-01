@@ -1,0 +1,25 @@
+services:
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: redpanda-console
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./console-config.yml:/tmp/console-config.yml:ro
+    environment:
+      CONFIG_FILEPATH: /tmp/console-config.yml
+      KAFKA_BROKERS: ${REDPANDA_BROKER}
+      KAFKA_SASL_USERNAME: ${REDPANDA_USER}
+      KAFKA_SASL_PASSWORD: ${REDPANDA_PASSWORD}
+      KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+      REDPANDA_ADMINAPI_AUTHENTICATION_BASIC_USERNAME: ${REDPANDA_USER}
+      REDPANDA_ADMINAPI_AUTHENTICATION_BASIC_PASSWORD: ${REDPANDA_PASSWORD}
+      AUTHENTICATION_JWTSIGNINGKEY: ${CONSOLE_JWT_SIGNING_KEY}
+    networks:
+      - databuddy
+
+networks:
+  databuddy:
+    name: databuddy
+    driver: bridge

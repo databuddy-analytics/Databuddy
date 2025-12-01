@@ -10,11 +10,11 @@ export const FilterSchema = t.Object({
 	op: t.Enum({
 		eq: "eq",
 		ne: "ne",
-		like: "like",
-		gt: "gt",
-		lt: "lt",
+		contains: "contains",
+		not_contains: "not_contains",
+		starts_with: "starts_with",
 		in: "in",
-		notIn: "notIn",
+		not_in: "not_in",
 	}),
 	value: t.Union([
 		t.String(),
@@ -81,7 +81,7 @@ export const CompileRequestSchema = t.Object({
 
 export type FilterType = {
 	field: string;
-	op: "eq" | "ne" | "like" | "gt" | "lt" | "in" | "notIn";
+	op: "eq" | "ne" | "contains" | "not_contains" | "starts_with" | "in" | "not_in";
 	value: string | number | Array<string | number>;
 };
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { LightningIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { MetricsChart } from "@/components/charts/metrics-chart";
 import type { ChartDataRow } from "@/components/charts/metrics-constants";
@@ -96,24 +95,19 @@ export function WebVitalsChart({
 		: [];
 
 	return (
-		<div className="rounded border bg-muted/20 p-4">
-			<div className="mb-4 flex items-start gap-2">
-				<LightningIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+		<div className="rounded border bg-sidebar">
+			<div className="flex flex-col items-start justify-between gap-3 border-b px-4 py-3 sm:flex-row">
 				<div>
-					<p className="mb-1 font-medium text-foreground">Core Web Vitals</p>
-					<p className="text-muted-foreground text-xs">
-						Performance metrics with percentile distributions.{" "}
-						<span className="font-medium text-green-600">Good</span>,
-						<span className="ml-1 font-medium text-yellow-600">
-							Needs Improvement
-						</span>
-						,<span className="ml-1 font-medium text-red-600">Poor</span>{" "}
-						ratings.
+					<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+						Core Web Vitals
+					</h2>
+					<p className="text-sidebar-foreground/70 text-sm">
+						Performance metrics with percentile distributions
 					</p>
 				</div>
 			</div>
 
-			<div className="space-y-4">
+			<div className="space-y-4 p-4">
 				{/* Metric Selection */}
 				<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
 					{WEB_VITALS_METRICS.map((metric) => {
@@ -125,7 +119,7 @@ export function WebVitalsChart({
 
 						return (
 							<button
-								className={`rounded border p-3 text-left transition-all hover:shadow-sm ${
+								className={`rounded border bg-background p-3 text-left transition-all hover:shadow-sm ${
 									isSelected
 										? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/20"
 										: "border-border hover:border-primary/50 hover:bg-muted/50"
@@ -187,7 +181,7 @@ export function WebVitalsChart({
 						title={`${WEB_VITALS_METRICS.find((m) => m.key === selectedMetric)?.label || "Core Web Vitals"} Performance`}
 					/>
 				) : (
-					<div className="flex items-center justify-center rounded border bg-muted/10 py-12">
+					<div className="flex items-center justify-center rounded border bg-background py-12">
 						<div className="text-center">
 							<p className="text-muted-foreground text-sm">
 								No Web Vitals data available for the selected period.
@@ -196,20 +190,21 @@ export function WebVitalsChart({
 					</div>
 				)}
 
-				{/* Web Vitals Data Table */}
-				{webVitalsTabs && webVitalsTabs.length > 0 && onAddFilter && (
-					<div className="mt-6">
-						<DataTable
-							description="Core Web Vitals metrics (LCP, FCP, FID, INP) across pages, locations, devices, and browsers"
-							isLoading={isLoading || isRefreshing}
-							minHeight={400}
-							onAddFilter={onAddFilter}
-							tabs={webVitalsTabs}
-							title="Web Vitals Analysis"
-						/>
-					</div>
-				)}
 			</div>
+
+			{/* Web Vitals Data Table */}
+			{webVitalsTabs && webVitalsTabs.length > 0 && onAddFilter && (
+				<div className="border-t p-4">
+					<DataTable
+						description="Core Web Vitals metrics (LCP, FCP, FID, INP) across pages, locations, devices, and browsers"
+						isLoading={isLoading || isRefreshing}
+						minHeight={400}
+						onAddFilter={onAddFilter}
+						tabs={webVitalsTabs}
+						title="Web Vitals Analysis"
+					/>
+				</div>
+			)}
 		</div>
 	);
 }

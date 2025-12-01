@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.2.1",
+  "version": "2.2.12",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
@@ -12,14 +12,13 @@
     "vscode:prepublish": "bun run build"
   },
   "dependencies": {
-    "jotai": ">=2.12.5"
+    "jotai": "^2.15.1"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "@types/node": "^20.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "ai": "^5.0.51",
-    "jotai": "catalog:",
     "react": "catalog:",
     "@types/react": "catalog:",
     "tokenlens": "^2.0.0-alpha.3",
@@ -31,7 +30,6 @@
   "peerDependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "ai": "^5.0.51",
-    "jotai": ">=2.0.0",
     "react": ">=18",
     "tokenlens": "^2.0.0-alpha.3",
     "msw": "^2.11.5",
@@ -42,9 +40,6 @@
       "optional": true
     },
     "ai": {
-      "optional": true
-    },
-    "jotai": {
       "optional": true
     },
     "react": {

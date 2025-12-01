@@ -5,19 +5,18 @@ import type React from "react";
 import { formatDomainLink } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import { cn } from "@/lib/utils";
 
-export interface PageLinkCellData {
+export type PageLinkCellData = {
 	path: string;
 	websiteDomain?: string;
-	// Optional unique ID for the component instance
 	id?: string;
-}
+};
 
-interface PageLinkCellProps extends PageLinkCellData {
+type PageLinkCellProps = PageLinkCellData & {
 	className?: string;
 	iconClassName?: string;
 	textClassName?: string;
-	maxLength?: number; // Max length for the displayed path before truncation
-}
+	maxLength?: number;
+};
 
 export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 	id,
@@ -26,7 +25,7 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 	className,
 	iconClassName = "h-4 w-4 text-muted-foreground",
 	textClassName = "text-sm",
-	maxLength = 35, // Default max length for the path
+	maxLength = 35,
 }) => {
 	if (!path) {
 		return (
@@ -51,7 +50,7 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 			target={isExternal ? "_blank" : undefined}
 		>
 			<FileTextIcon
-				className={cn("flex-shrink-0", iconClassName)}
+				className={cn("shrink-0", iconClassName)}
 				weight="duotone"
 			/>
 			<span

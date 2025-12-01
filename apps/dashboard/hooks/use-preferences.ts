@@ -5,14 +5,15 @@ import {
 	formatDate,
 	getBrowserTimezone,
 } from "@databuddy/shared/utils/date-utils";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 
-interface UserPreferences {
+type UserPreferences = {
 	timezone: string;
 	dateFormat: string;
 	timeFormat: string;
-}
+};
 
 const defaultPreferences: UserPreferences = {
 	timezone: "auto",
@@ -26,9 +27,13 @@ export function usePreferences() {
 		isLoading: loading,
 		error,
 		refetch,
-	} = trpc.preferences.getUserPreferences.useQuery();
+	} = useQuery({
+		...orpc.preferences.getUserPreferences.queryOptions(),
+	});
 
-	const updateMutation = trpc.preferences.updateUserPreferences.useMutation();
+	const updateMutation = useMutation({
+		...orpc.preferences.updateUserPreferences.mutationOptions(),
+	});
 
 	const getEffectiveTimezone = useCallback(() => {
 		if (!preferences) {

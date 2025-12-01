@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Funnel } from "@/hooks/use-funnels";
 import { FunnelCard } from "./funnel-card";
 
-interface FunnelsListProps {
+type FunnelsListProps = {
 	funnels: Funnel[];
 	isLoading: boolean;
 	expandedFunnelId: string | null;
@@ -16,7 +16,7 @@ interface FunnelsListProps {
 	onDeleteFunnel: (funnelId: string) => void;
 	onCreateFunnel: () => void;
 	children?: (funnel: Funnel) => React.ReactNode;
-}
+};
 
 export function FunnelsList({
 	funnels,
@@ -30,7 +30,7 @@ export function FunnelsList({
 }: FunnelsListProps) {
 	if (isLoading) {
 		return (
-			<div className="space-y-4">
+			<div className="space-y-4 px-4">
 				{new Array(3).fill(null).map((_, index) => (
 					<Card key={index.toString()}>
 						<CardHeader className="pb-4">
@@ -66,22 +66,18 @@ export function FunnelsList({
 
 	if (funnels.length === 0) {
 		return (
-			<EmptyState
-				action={{
-					label: "Create Your First Funnel",
-					onClick: onCreateFunnel,
-				}}
-				description="Create your first funnel to start tracking user conversion journeys and identify optimization opportunities in your user flow."
-				icon={
-					<FunnelIcon
-						className="h-16 w-16 text-primary"
-						size={16}
-						weight="duotone"
-					/>
-				}
-				title="No funnels yet"
-				variant="default"
-			/>
+			<div className="flex flex-1 items-center justify-center">
+				<EmptyState
+					action={{
+						label: "Create Your First Funnel",
+						onClick: onCreateFunnel,
+					}}
+					description="Create your first funnel to start tracking user conversion journeys and identify optimization opportunities in your user flow."
+					icon={<FunnelIcon weight="duotone" />}
+					title="No funnels yet"
+					variant="minimal"
+				/>
+			</div>
 		);
 	}
 

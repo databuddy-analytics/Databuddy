@@ -1,131 +1,222 @@
 "use client";
 
-import { CreditCardIcon } from "@phosphor-icons/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { lazy, Suspense, useEffect, useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-	type Customer,
-	type Invoice,
-	useBillingData,
-} from "./hooks/use-billing";
-
-const OverviewTab = lazy(() =>
-	import("./components/overview-tab").then((m) => ({ default: m.OverviewTab }))
-);
-const PlansTab = lazy(() =>
-	import("./components/plans-tab").then((m) => ({ default: m.PlansTab }))
-);
-const HistoryTab = lazy(() =>
-	import("./components/history-tab").then((m) => ({ default: m.HistoryTab }))
-);
-
-function ComponentSkeleton() {
-	return (
-		<div className="space-y-6">
-			<Skeleton className="h-32 w-full rounded" />
-			<Skeleton className="h-64 w-full rounded" />
-			<Skeleton className="h-48 w-full rounded" />
-		</div>
-	);
-}
+	ArrowSquareOutIcon,
+	CalendarIcon,
+	CrownIcon,
+	TrendUpIcon,
+} from "@phosphor-icons/react";
+import type { Product } from "autumn-js";
+import dayjs from "dayjs";
+import Link from "next/link";
+import { useMemo } from "react";
+import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
+import { CreditCardDisplay } from "./components/credit-card-display";
+import { ErrorState } from "./components/empty-states";
+import { OverviewSkeleton } from "./components/overview-skeleton";
+import { UsageRow } from "./components/usage-row";
+import { useBilling, useBillingData } from "./hooks/use-billing";
 
 export default function BillingPage() {
-	const router = useRouter();
-	const searchParams = useSearchParams();
-	const activeTab = searchParams.get("tab") || "overview";
-	const selectedPlan = searchParams.get("plan");
+	const { products, usage, customer, isLoading, error, refetch } =
+		useBillingData();
+	const {
+		onCancelClick,
+		onCancelConfirm,
+		onCancelDialogClose,
+		onManageBilling,
+		showCancelDialog,
+		cancelTarget,
+		getSubscriptionStatusDetails,
+	} = useBilling(refetch);
 
-	const navigateToPlans = () => {
-		router.push("/billing?tab=plans");
-	};
+	const { currentPlan, currentProduct, usageStats, statusDetails } =
+		useMemo(() => {
+			const activeCustomerProduct = customer?.products?.find((p) => {
+				if (p.canceled_at && p.current_period_end) {
+					return dayjs(p.current_period_end).isAfter(dayjs());
+				}
+				return !p.canceled_at || p.status === "scheduled";
+			});
 
-	const { customerData, isLoading } = useBillingData();
-	const [invoices, setInvoices] = useState<Invoice[]>([]);
-	const [hasLoadedInvoices, setHasLoadedInvoices] = useState(false);
+			const activePlan = activeCustomerProduct
+				? products?.find((p: Product) => p.id === activeCustomerProduct.id)
+				: products?.find(
+						(p: Product) =>
+							!p.scenario ||
+							(p.scenario !== "upgrade" && p.scenario !== "downgrade")
+					);
 
-	useEffect(() => {
-		if (!isLoading && customerData?.invoices && !hasLoadedInvoices) {
-			setInvoices(customerData.invoices as Invoice[]);
-			setHasLoadedInvoices(true);
-		}
-	}, [customerData?.invoices, isLoading, hasLoadedInvoices]);
+			const planStatusDetails = activeCustomerProduct
+				? getSubscriptionStatusDetails(
+						activeCustomerProduct as unknown as Parameters<
+							typeof getSubscriptionStatusDetails
+						>[0]
+					)
+				: "";
 
-	const getPageTitle = () => {
-		switch (activeTab) {
-			case "overview":
-				return {
-					title: "Usage & Metrics",
-					description: "Monitor your usage and billing metrics",
-				};
-			case "plans":
-				return {
-					title: "Plans & Pricing",
-					description: "Manage your subscription and billing plan",
-				};
-			case "history":
-				return {
-					title: "Payment History",
-					description: "View your billing history and invoices",
-				};
-			default:
-				return {
-					title: "Billing & Subscription",
-					description:
-						"Manage your subscription, usage, and billing preferences",
-				};
-		}
-	};
+			return {
+				currentPlan: activePlan,
+				currentProduct: activeCustomerProduct,
+				usageStats: usage?.features ?? [],
+				statusDetails: planStatusDetails,
+			};
+		}, [
+			products,
+			usage?.features,
+			customer?.products,
+			getSubscriptionStatusDetails,
+		]);
 
-	const { title, description } = getPageTitle();
+	if (isLoading) {
+		return (
+			<main className="min-h-0 flex-1 overflow-hidden">
+				<OverviewSkeleton />
+			</main>
+		);
+	}
+
+	if (error) {
+		return (
+			<main className="min-h-0 flex-1 overflow-hidden">
+				<ErrorState error={error} onRetry={refetch} />
+			</main>
+		);
+	}
+
+	const isFree = currentPlan?.id === "free" || currentPlan?.properties?.is_free;
+	const isCanceled = currentPlan?.scenario === "cancel";
 
 	return (
-		<div className="flex h-full flex-col">
-			<div className="border-b bg-gradient-to-r from-background via-background to-muted/20">
-				<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-4">
-							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-								<CreditCardIcon
-									className="h-6 w-6 text-primary"
-									size={24}
+		<main className="min-h-0 flex-1 overflow-hidden">
+			<div className="flex h-full flex-col overflow-y-auto lg:grid lg:h-full lg:grid-cols-[1fr_20rem] lg:overflow-hidden">
+				<CancelSubscriptionDialog
+					currentPeriodEnd={cancelTarget?.currentPeriodEnd}
+					isLoading={isLoading}
+					onCancel={onCancelConfirm}
+					onOpenChange={(open) => {
+						if (!open) {
+							onCancelDialogClose();
+						}
+					}}
+					open={showCancelDialog}
+					planName={cancelTarget?.name ?? ""}
+				/>
+
+				{/* Main Content */}
+				<div className="shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">
+					{usageStats.length === 0 ? (
+						<EmptyState
+							className="h-full"
+							description="Start using features to see your consumption stats here"
+							icon={<TrendUpIcon />}
+							title="No usage data yet"
+							variant="minimal"
+						/>
+					) : (
+						<div className="divide-y">
+							{usageStats.map((feature) => (
+								<UsageRow feature={feature} key={feature.id} />
+							))}
+						</div>
+					)}
+				</div>
+
+				{/* Sidebar */}
+				<div className="flex w-full shrink-0 flex-col border-t bg-card lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
+					{/* Plan */}
+					<div className="border-b p-5">
+						<div className="mb-3 flex items-center justify-between">
+							<h3 className="font-semibold">Current Plan</h3>
+							<Badge
+								variant={
+									currentProduct?.status === "scheduled"
+										? "outline"
+										: "secondary"
+								}
+							>
+								{currentProduct?.status === "scheduled"
+									? "Scheduled"
+									: "Active"}
+							</Badge>
+						</div>
+						<div className="flex items-center gap-3">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
+								<CrownIcon
+									className="text-accent-foreground"
+									size={16}
 									weight="duotone"
 								/>
 							</div>
 							<div>
-								<h1 className="truncate font-bold text-2xl text-foreground tracking-tight sm:text-3xl">
-									{title}
-								</h1>
-								<p className="mt-1 text-muted-foreground text-sm sm:text-base">
-									{description}
-								</p>
+								<div className="font-medium">
+									{currentPlan?.display?.name || currentPlan?.name || "Free"}
+								</div>
+								{!isFree && currentPlan?.items[0]?.display?.primary_text && (
+									<div className="text-muted-foreground text-sm">
+										{currentPlan.items[0].display.primary_text}
+									</div>
+								)}
 							</div>
+						</div>
+						{statusDetails && (
+							<div className="mt-3 flex items-center gap-2 text-muted-foreground text-sm">
+								<CalendarIcon size={14} weight="duotone" />
+								{statusDetails}
+							</div>
+						)}
+					</div>
+
+					{/* Payment Method + Actions */}
+					<div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-1 lg:gap-0 lg:p-0">
+						{/* Payment Method */}
+						<div className="w-full lg:w-auto lg:border-b lg:p-5">
+							<h3 className="mb-3 font-semibold">Payment Method</h3>
+							<CreditCardDisplay customer={customer} />
+						</div>
+
+						{/* Actions */}
+						<div className="flex w-full flex-col gap-2 lg:w-auto lg:p-5">
+							{isCanceled ? (
+								<Button asChild className="w-full" variant="secondary">
+									<Link href="/billing/plans">Reactivate Plan</Link>
+								</Button>
+							) : isFree ? (
+								<Button asChild className="w-full" variant="secondary">
+									<Link href="/billing/plans">Upgrade Plan</Link>
+								</Button>
+							) : (
+								<>
+									<Button
+										className="w-full"
+										onClick={() =>
+											currentPlan &&
+											onCancelClick(
+												currentPlan.id,
+												currentPlan.display?.name || currentPlan.name,
+												currentProduct?.current_period_end ?? undefined
+											)
+										}
+										variant="outline"
+									>
+										Cancel Plan
+									</Button>
+									<Button asChild className="w-full" variant="secondary">
+										<Link href="/billing/plans">Change Plan</Link>
+									</Button>
+								</>
+							)}
+							<Button className="w-full" onClick={onManageBilling}>
+								Billing Portal
+								<ArrowSquareOutIcon size={14} />
+							</Button>
 						</div>
 					</div>
 				</div>
 			</div>
-
-			<main className="flex-1 overflow-y-auto p-4 sm:p-6">
-				{activeTab === "overview" && (
-					<Suspense fallback={<ComponentSkeleton />}>
-						<OverviewTab onNavigateToPlans={navigateToPlans} />
-					</Suspense>
-				)}
-				{activeTab === "plans" && (
-					<Suspense fallback={<ComponentSkeleton />}>
-						<PlansTab selectedPlan={selectedPlan} />
-					</Suspense>
-				)}
-				{activeTab === "history" && (
-					<Suspense fallback={<ComponentSkeleton />}>
-						<HistoryTab
-							customerData={customerData as unknown as Customer}
-							invoices={invoices}
-							isLoading={isLoading && !hasLoadedInvoices}
-						/>
-					</Suspense>
-				)}
-			</main>
-		</div>
+		</main>
 	);
 }

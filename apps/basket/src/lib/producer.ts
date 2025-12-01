@@ -1,13 +1,19 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db";
-import { Semaphore } from "async-mutex";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
+import { captureError, record, setAttributes } from "./tracing";
+
+/**
+ * JSON stringify with undefined -> null conversion
+ * ClickHouse needs explicit nulls, not omitted fields
+ */
+function stringifyEvent(event: unknown): string {
+	return JSON.stringify(event, (_key, value) => (value === undefined ? null : value));
+}
 
 type BufferedEvent = {
 	table: string;
 	event: unknown;
-	retries: number;
-	timestamp: number;
 };
 
 type ProducerStats = {
@@ -25,7 +31,6 @@ type ProducerConfig = {
 	username?: string;
 	password?: string;
 	selfHost?: boolean;
-	semaphoreLimit?: number;
 	reconnectCooldown?: number;
 	kafkaTimeout?: number;
 	maxProducerRetries?: number;
@@ -33,7 +38,6 @@ type ProducerConfig = {
 	bufferInterval?: number;
 	bufferMax?: number;
 	bufferHardMax?: number;
-	maxRetries?: number;
 	chunkSize?: number;
 	flushTimeout?: number;
 };
@@ -43,7 +47,6 @@ type RequiredProducerConfig = {
 	username?: string;
 	password?: string;
 	selfHost: boolean;
-	semaphoreLimit: number;
 	reconnectCooldown: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
@@ -51,7 +54,6 @@ type RequiredProducerConfig = {
 	bufferInterval: number;
 	bufferMax: number;
 	bufferHardMax: number;
-	maxRetries: number;
 	chunkSize: number;
 	flushTimeout: number;
 };
@@ -65,7 +67,6 @@ type ProducerDependencies = {
 export class EventProducer {
 	private readonly config: RequiredProducerConfig;
 	private readonly dependencies: ProducerDependencies;
-	private readonly semaphore: Semaphore;
 	private readonly stats: ProducerStats;
 	private readonly buffer: BufferedEvent[] = [];
 
@@ -82,7 +83,6 @@ export class EventProducer {
 	constructor(config: ProducerConfig, dependencies: ProducerDependencies) {
 		this.config = {
 			selfHost: false,
-			semaphoreLimit: 15,
 			reconnectCooldown: 60_000,
 			kafkaTimeout: 10_000,
 			maxProducerRetries: 3,
@@ -90,13 +90,11 @@ export class EventProducer {
 			bufferInterval: 5000,
 			bufferMax: 1000,
 			bufferHardMax: 10_000,
-			maxRetries: 3,
 			chunkSize: 5000,
 			flushTimeout: 30_000,
 			...config,
 		};
 		this.dependencies = dependencies;
-		this.semaphore = new Semaphore(this.config.semaphoreLimit);
 		this.stats = {
 			sent: 0,
 			failed: 0,
@@ -121,15 +119,17 @@ export class EventProducer {
 
 	private initializeProducer(): void {
 		if (!(this.config.username && this.config.password)) {
-			console.error(
-				"REDPANDA_BROKER set but credentials missing. Kafka producer disabled."
+			captureError(
+				new Error(
+					"REDPANDA_BROKER set but credentials missing. Kafka producer disabled."
+				)
 			);
 			return;
 		}
 
 		this.kafka = new Kafka({
 			clientId: "basket",
-			brokers: [this.config.broker!],
+			brokers: [this.config.broker ?? ""],
 			connectionTimeout: 5000,
 			requestTimeout: this.config.kafkaTimeout,
 			sasl: {
@@ -147,7 +147,7 @@ export class EventProducer {
 				maxRetryTime: 3000,
 			},
 			idempotent: true,
-			maxInFlightRequests: 5,
+			maxInFlightRequests: 15,
 		});
 	}
 
@@ -169,44 +169,44 @@ export class EventProducer {
 			this.failed = false;
 			this.lastRetry = 0;
 			return true;
-		} catch (err) {
+		} catch (error) {
 			this.failed = true;
 			this.lastRetry = Date.now();
-			this.stats.errors++;
+			this.stats.errors += 1;
 			this.stats.lastErrorTime = Date.now();
-			const error = err instanceof Error ? err : new Error(String(err));
-			console.error(
-				"Redpanda connection failed, using ClickHouse fallback:",
-				error
-			);
+			captureError(error, {
+				message: "Redpanda connection failed, using ClickHouse fallback",
+			});
 			if (this.dependencies.onError) {
-				this.dependencies.onError(error);
+				this.dependencies.onError(new Error(String(error)));
 			}
 			return false;
 		}
 	}
 
 	private async flush(): Promise<void> {
-		if (this.buffer.length === 0 || this.flushing) return;
+		if (this.buffer.length === 0 || this.flushing) {
+			return;
+		}
 
 		this.flushing = true;
-		const items = this.buffer.splice(0);
+		const batchSize = Math.min(this.buffer.length, this.config.bufferMax);
+		const items = this.buffer.splice(0, batchSize);
 
 		try {
 			const grouped = items.reduce(
-				(acc, { table, event, retries, timestamp }) => {
-					if (!acc[table]) acc[table] = [];
-					acc[table].push({ event, retries, timestamp });
+				(acc, { table, event }) => {
+					if (!acc[table]) {
+						acc[table] = [];
+					}
+					acc[table].push(event);
 					return acc;
 				},
-				{} as Record<
-					string,
-					Array<{ event: unknown; retries: number; timestamp: number }>
-				>
+				{} as Record<string, unknown[]>
 			);
 
 			const results = await Promise.allSettled(
-				Object.entries(grouped).map(async ([table, items]) => {
+				Object.entries(grouped).map(async ([table, events]) => {
 					const controller = new AbortController();
 					const timeout = setTimeout(
 						() => controller.abort(),
@@ -214,8 +214,6 @@ export class EventProducer {
 					);
 
 					try {
-						const events = items.map((i) => i.event);
-
 						for (let i = 0; i < events.length; i += this.config.chunkSize) {
 							const chunk = events.slice(i, i + this.config.chunkSize);
 							await this.dependencies.clickHouse.insert({
@@ -226,31 +224,23 @@ export class EventProducer {
 						}
 
 						this.stats.flushed += events.length;
-					} catch (err) {
+					} catch (error) {
 						clearTimeout(timeout);
-						this.stats.errors++;
-						console.error(`Flush failed for ${table}:`, err);
+						this.stats.errors += 1;
+						captureError(error, { message: `Flush failed for ${table}` });
 
-						items.forEach(({ event, retries, timestamp }) => {
-							const age = Date.now() - timestamp;
-							if (retries < this.config.maxRetries && age < 300_000) {
-								this.buffer.push({
-									table,
-									event,
-									retries: retries + 1,
-									timestamp,
-								});
-							} else {
-								this.stats.dropped++;
-								console.error(
-									`Dropped event (retries: ${retries}, age: ${age}ms)`,
-									{
-										table,
-										eventId: (event as { event_id?: string }).event_id,
-									}
-								);
+						if (this.buffer.length + events.length <= this.config.bufferHardMax) {
+							for (const event of events) {
+								this.buffer.push({ table, event });
 							}
-						});
+						} else {
+							this.stats.dropped += events.length;
+							captureError(error, {
+								message: `Dropped ${events.length} events - buffer full`,
+								table,
+								bufferSize: this.buffer.length,
+							});
+						}
 					} finally {
 						clearTimeout(timeout);
 					}
@@ -259,11 +249,13 @@ export class EventProducer {
 
 			const failures = results.filter((r) => r.status === "rejected");
 			if (failures.length > 0) {
-				console.error(`${failures.length} table flush operations failed`);
+				captureError(new Error("Table flush operations failed"), {
+					failures: failures.length,
+				});
 			}
-		} catch (err) {
-			this.stats.errors++;
-			console.error("Critical flush error:", err);
+		} catch (error) {
+			this.stats.errors += 1;
+			captureError(error, { message: "Critical flush error" });
 			this.buffer.push(...items);
 		} finally {
 			this.flushing = false;
@@ -271,13 +263,18 @@ export class EventProducer {
 	}
 
 	private startTimer(): void {
-		if (this.started || this.shuttingDown) return;
+		if (this.started || this.shuttingDown) {
+			return;
+		}
 		this.started = true;
 		this.timer = setInterval(() => {
 			if (!this.flushing && this.buffer.length > 0) {
-				this.flush().catch((err) => {
-					this.stats.errors++;
-					console.error("Flush timer error:", err);
+				// Wrap auto-flush in a span
+				record("producer.autoFlush", async () => {
+					await this.flush().catch((error) => {
+						this.stats.errors += 1;
+						captureError(error, { message: "Flush timer error" });
+					});
 				});
 			}
 		}, this.config.bufferInterval);
@@ -285,87 +282,114 @@ export class EventProducer {
 
 	private toBuffer(topic: string, event: unknown): void {
 		if (this.shuttingDown) {
-			console.error("Cannot buffer event during shutdown");
+			captureError(new Error("Cannot buffer event during shutdown"));
 			return;
 		}
 
 		const table = this.dependencies.topicMap[topic];
 		if (!table) {
-			this.stats.errors++;
-			console.error(`Unknown topic: ${topic}`);
+			this.stats.errors += 1;
+			captureError(new Error("Unknown topic"), { topic });
 			return;
 		}
 
 		if (this.buffer.length >= this.config.bufferHardMax) {
-			this.stats.dropped++;
-			console.error(
-				`Buffer overflow, dropping event (size: ${this.buffer.length})`
-			);
+			this.stats.dropped += 1;
+			captureError(new Error("Buffer overflow, dropping event"), {
+				bufferLength: this.buffer.length,
+			});
 			return;
 		}
 
-		this.buffer.push({ table, event, retries: 0, timestamp: Date.now() });
-		this.stats.buffered++;
+		this.buffer.push({ table, event });
+		this.stats.buffered += 1;
 
-		if (!this.timer) this.startTimer();
+		if (!this.timer) {
+			this.startTimer();
+		}
 		if (this.buffer.length >= this.config.bufferMax && !this.flushing) {
-			this.flush().catch((err) => {
-				this.stats.errors++;
-				console.error("Auto-flush error:", err);
+			this.flush().catch((error) => {
+				this.stats.errors += 1;
+				captureError(error, { message: "Auto-flush error" });
 			});
 		}
 	}
 
-	async send(topic: string, event: unknown, key?: string): Promise<void> {
-		if (this.shuttingDown) {
-			this.toBuffer(topic, event);
-			return;
-		}
+	send(topic: string, event: unknown, key?: string): Promise<void> {
+		return record("kafkaSend", async () => {
+			setAttributes({
+				"kafka.topic": topic,
+				"kafka.has_key": Boolean(key),
+			});
 
-		const [, release] = await this.semaphore.acquire();
-
-		try {
-			if (
-				this.isEnabled() &&
-				(await this.connect()) &&
-				this.producer &&
-				this.connected
-			) {
-				try {
-					await this.producer.send({
-						topic,
-						messages: [
-							{
-								value: JSON.stringify(event),
-								key: key || (event as { client_id?: string }).client_id,
-							},
-						],
-						timeout: this.config.kafkaTimeout,
-						compression: CompressionTypes.GZIP,
-					});
-					this.stats.sent++;
-					return;
-				} catch (err) {
-					this.stats.failed++;
-					console.error("Redpanda send failed, buffering to ClickHouse:", err);
-					this.failed = true;
-				}
+			if (this.shuttingDown) {
+				this.toBuffer(topic, event);
+				setAttributes({
+					"kafka.buffered": true,
+					"kafka.reason": "shutting_down",
+				});
+				return;
 			}
-			this.toBuffer(topic, event);
-		} catch (err) {
-			this.stats.errors++;
-			this.stats.lastErrorTime = Date.now();
-			console.error("Send error:", err);
-			this.toBuffer(topic, event);
-		} finally {
-			release();
-		}
+
+			try {
+				if (
+					this.isEnabled() &&
+					(await this.connect()) &&
+					this.producer &&
+					this.connected
+				) {
+					try {
+						await this.producer.send({
+							topic,
+							messages: [
+								{
+									value: stringifyEvent(event),
+									key: key || (event as { client_id?: string }).client_id,
+								},
+							],
+							timeout: this.config.kafkaTimeout,
+							compression: CompressionTypes.GZIP,
+						});
+						this.stats.sent += 1;
+						setAttributes({
+							"kafka.sent": true,
+							"kafka.stats.sent": this.stats.sent,
+						});
+						return;
+					} catch (error) {
+						this.stats.failed += 1;
+						captureError(error, {
+							message: "Redpanda send failed, buffering to ClickHouse",
+						});
+						this.failed = true;
+						setAttributes({
+							"kafka.send_failed": true,
+							"kafka.stats.failed": this.stats.failed,
+						});
+					}
+				}
+				this.toBuffer(topic, event);
+				setAttributes({
+					"kafka.buffered": true,
+					"kafka.reason": "not_connected",
+				});
+			} catch (error) {
+				this.stats.errors += 1;
+				this.stats.lastErrorTime = Date.now();
+				captureError(error, { message: "Send error" });
+				this.toBuffer(topic, event);
+				setAttributes({
+					"kafka.error": true,
+					"kafka.buffered": true,
+				});
+			}
+		});
 	}
 
 	sendEvent(topic: string, event: unknown, key?: string): void {
-		this.send(topic, event, key).catch((err) => {
-			this.stats.errors++;
-			console.error("sendEvent error:", err);
+		this.send(topic, event, key).catch((error) => {
+			this.stats.errors += 1;
+			captureError(error, { message: "sendEvent error" });
 		});
 	}
 
@@ -377,81 +401,101 @@ export class EventProducer {
 		await this.send(topic, event, key);
 	}
 
-	async sendEventBatch(topic: string, events: unknown[]): Promise<void> {
-		if (events.length === 0) return;
-
-		if (this.shuttingDown) {
-			for (const e of events) {
-				this.toBuffer(topic, e);
+	sendEventBatch(topic: string, events: unknown[]): Promise<void> {
+		return record("kafkaSendBatch", async () => {
+			if (events.length === 0) {
+				return;
 			}
-			return;
-		}
 
-		const [, release] = await this.semaphore.acquire();
+			setAttributes({
+				"kafka.topic": topic,
+				"kafka.batch_size": events.length,
+			});
 
-		try {
-			if (
-				this.isEnabled() &&
-				(await this.connect()) &&
-				this.producer &&
-				this.connected
-			) {
-				try {
-					await this.producer.send({
-						topic,
-						messages: events.map((e) => ({
-							value: JSON.stringify(e),
-							key:
-								(e as { client_id?: string; event_id?: string }).client_id ||
-								(e as { event_id?: string }).event_id,
-						})),
-						timeout: this.config.kafkaTimeout,
-						compression: CompressionTypes.GZIP,
-					});
-					this.stats.sent += events.length;
-					return;
-				} catch (err) {
-					this.stats.failed += events.length;
-					console.error("Redpanda batch failed, buffering to ClickHouse:", err);
-					this.failed = true;
+			if (this.shuttingDown) {
+				for (const e of events) {
+					this.toBuffer(topic, e);
 				}
+				setAttributes({
+					"kafka.buffered": true,
+					"kafka.reason": "shutting_down",
+				});
+				return;
 			}
-			for (const e of events) {
-				this.toBuffer(topic, e);
+
+			try {
+				if (
+					this.isEnabled() &&
+					(await this.connect()) &&
+					this.producer &&
+					this.connected
+				) {
+					try {
+						await this.producer.send({
+							topic,
+							messages: events.map((e) => ({
+								value: stringifyEvent(e),
+								key:
+									(e as { client_id?: string; event_id?: string }).client_id ||
+									(e as { event_id?: string }).event_id,
+							})),
+							timeout: this.config.kafkaTimeout,
+							compression: CompressionTypes.GZIP,
+						});
+						this.stats.sent += events.length;
+						setAttributes({
+							"kafka.sent": true,
+							"kafka.stats.sent": this.stats.sent,
+						});
+						return;
+					} catch (error) {
+						this.stats.failed += events.length;
+						captureError(error, {
+							message: "Redpanda batch failed, buffering to ClickHouse",
+						});
+						this.failed = true;
+						setAttributes({
+							"kafka.send_failed": true,
+							"kafka.stats.failed": this.stats.failed,
+						});
+					}
+				}
+				for (const e of events) {
+					this.toBuffer(topic, e);
+				}
+				setAttributes({
+					"kafka.buffered": true,
+					"kafka.reason": "not_connected",
+				});
+			} catch (error) {
+				this.stats.errors += 1;
+				captureError(error, { message: "sendEventBatch error" });
+				for (const e of events) {
+					this.toBuffer(topic, e);
+				}
+				setAttributes({
+					"kafka.error": true,
+					"kafka.buffered": true,
+				});
 			}
-		} catch (err) {
-			this.stats.errors++;
-			console.error("sendEventBatch error:", err);
-			for (const e of events) {
-				this.toBuffer(topic, e);
-			}
-		} finally {
-			release();
-		}
+		});
 	}
 
 	async disconnect(): Promise<void> {
-		if (this.shuttingDown) return;
+		if (this.shuttingDown) {
+			return;
+		}
 		this.shuttingDown = true;
 
-		let checks = 0;
-		while (
-			this.semaphore.getValue() < this.config.semaphoreLimit &&
-			checks++ < 50
-		) {
-			await new Promise((r) => setTimeout(r, 100));
-		}
+		// Wait a bit for in-flight requests to complete
+		await new Promise((r) => setTimeout(r, 1000));
 
+		// Flush remaining buffer
 		await this.flush();
 
-		let finalFlushAttempts = 0;
-		while (
-			this.buffer.length > 0 &&
-			finalFlushAttempts++ < 3 &&
-			!this.flushing
-		) {
+		// Try one more time if there's still items
+		if (this.buffer.length > 0 && !this.flushing) {
 			await this.flush();
-			await new Promise((r) => setTimeout(r, 1000));
 		}
 
 		if (this.timer) {
@@ -463,8 +507,10 @@ export class EventProducer {
 		if (this.connected && this.producer) {
 			try {
 				await this.producer.disconnect();
-			} catch (err) {
-				console.error("Error disconnecting Redpanda producer:", err);
+			} catch (error) {
+				captureError(error, {
+					message: "Error disconnecting Redpanda producer",
+				});
 			} finally {
 				this.connected = false;
 			}
@@ -538,13 +584,3 @@ export const disconnectProducer = async (): Promise<void> => {
 };
 
 export const getProducerStats = () => getDefaultProducer().getStats();
-
-process.on("SIGTERM", async () => {
-	await disconnectProducer().catch(console.error);
-	process.exit(0);
-});
-
-process.on("SIGINT", async () => {
-	await disconnectProducer().catch(console.error);
-	process.exit(0);
-});

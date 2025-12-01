@@ -1,6 +1,5 @@
 "use client";
 
-import { getTrackingParams } from "@databuddy/sdk";
 import Link from "next/link";
 import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
@@ -9,17 +8,6 @@ import { Wordmark } from "./landing/wordmark";
 import { LogoContent } from "./logo";
 
 export function Footer() {
-	const handleGetStarted = () => {
-		if (typeof window === "undefined") return;
-
-		const trackingParams = getTrackingParams();
-		const url = trackingParams
-			? `https://app.databuddy.cc/login?${trackingParams}`
-			: "https://app.databuddy.cc/login";
-
-		window.open(url, "_blank", "noopener,noreferrer");
-	};
-
 	return (
 		<footer className="border-border border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 			<div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
@@ -29,7 +17,15 @@ export function Footer() {
 						You're just one click away.
 					</h2>
 					<div>
-						<SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
+						<SciFiButton asChild>
+							<a
+								href="https://app.databuddy.cc/login"
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								GET STARTED
+							</a>
+						</SciFiButton>
 					</div>
 				</div>
 

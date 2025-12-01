@@ -3,10 +3,53 @@ import type { DatabuddyConfig } from "@/core/types";
 import { detectClientId } from "@/utils";
 
 /**
- * <Databuddy /> component for Next.js/React apps
- * Injects the databuddy.js script with all config as data attributes
- * Usage: <Databuddy clientId="..." trackScreenViews trackPerformance ... />
- * Or simply: <Databuddy /> (auto-detects clientId from environment variables)
+ * React/Next.js component that injects the Databuddy tracking script.
+ * Place this in your root layout or `_app.tsx`. Renders nothing to the DOM.
+ *
+ * Auto-detects `clientId` from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID` env var if not provided.
+ *
+ * @param props - Configuration options for the tracker
+ *
+ * @example
+ * ```tsx
+ * // app/layout.tsx (Next.js App Router)
+ * import { Databuddy } from "@databuddy/sdk/react";
+ *
+ * export default function RootLayout({ children }) {
+ *   return (
+ *     <html>
+ *       <body>
+ *         {children}
+ *         <Databuddy
+ *           apiUrl="https://basket.databuddy.cc"
+ *           trackWebVitals
+ *           trackErrors
+ *         />
+ *       </body>
+ *     </html>
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // With explicit clientId
+ * <Databuddy
+ *   clientId="your-client-id"
+ *   trackWebVitals
+ *   trackScrollDepth
+ *   trackOutgoingLinks
+ * />
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Disable in development
+ * <Databuddy
+ *   disabled={process.env.NODE_ENV === "development"}
+ *   trackWebVitals
+ * />
+ * ```
  */
 export function Databuddy(props: DatabuddyConfig) {
 	const clientId = detectClientId(props.clientId);

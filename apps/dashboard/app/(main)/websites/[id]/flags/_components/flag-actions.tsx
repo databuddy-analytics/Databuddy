@@ -6,6 +6,7 @@ import {
 	PencilIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -25,21 +26,27 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 import type { Flag } from "./types";
 
-interface FlagActionsProps {
+type FlagActionsProps = {
 	flag: Flag;
-	onEdit: () => void;
-	onDeleted?: () => void;
-}
+	onEditAction: () => void;
+	onDeletedAction?: () => void;
+};
 
-export function FlagActions({ flag, onEdit, onDeleted }: FlagActionsProps) {
+export function FlagActions({
+	flag,
+	onEditAction,
+	onDeletedAction = () => {},
+}: FlagActionsProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	const utils = trpc.useUtils();
-	const deleteMutation = trpc.flags.delete.useMutation();
+	const queryClient = useQueryClient();
+	const deleteMutation = useMutation({
+		...orpc.flags.delete.mutationOptions(),
+	});
 
 	const handleCopyKey = async () => {
 		await navigator.clipboard.writeText(flag.key);
@@ -48,16 +55,22 @@ export function FlagActions({ flag, onEdit, onDeleted }: FlagActionsProps) {
 
 	const handleConfirmDelete = async () => {
 		setIsDeleting(true);
-		// optimistic removal
-		utils.flags.list.setData({ websiteId: flag.websiteId ?? "" }, (oldData) =>
-			oldData?.filter((f) => f.id !== flag.id)
+		const queryKey = orpc.flags.list.queryKey({
+			input: { websiteId: flag.websiteId ?? "" },
+		});
+		queryClient.setQueryData(queryKey, (oldData: any) =>
+			oldData?.filter((f: any) => f.id !== flag.id)
 		);
 		try {
 			await deleteMutation.mutateAsync({ id: flag.id });
 			toast.success("Flag deleted");
-			onDeleted?.();
+			onDeletedAction?.();
 		} catch (_error) {
-			utils.flags.list.invalidate();
+			queryClient.invalidateQueries({
+				queryKey: orpc.flags.list.key({
+					input: { websiteId: flag.websiteId ?? "" },
+				}),
+			});
 			toast.error("Failed to delete flag");
 		} finally {
 			setIsDeleting(false);
@@ -71,16 +84,15 @@ export function FlagActions({ flag, onEdit, onDeleted }: FlagActionsProps) {
 				<DropdownMenuTrigger asChild>
 					<Button
 						aria-label="Open flag actions"
-						className="focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-						size="icon"
+						className="h-5.5 focus-visible:ring-(--color-primary) focus-visible:ring-2"
 						type="button"
 						variant="ghost"
 					>
-						<DotsThreeIcon className="h-5 w-5" weight="bold" />
+						<DotsThreeIcon className="size-5" weight="bold" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-40">
-					<DropdownMenuItem onClick={onEdit}>
+					<DropdownMenuItem onClick={onEditAction}>
 						<PencilIcon className="h-4 w-4" weight="duotone" /> Edit
 					</DropdownMenuItem>
 					<DropdownMenuItem onClick={handleCopyKey}>

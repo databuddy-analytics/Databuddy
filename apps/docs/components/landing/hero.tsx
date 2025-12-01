@@ -1,6 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { CHATGPT_PROMPT_URL } from "@/app/util/constants";
+import { YCLogo } from "@/components/icons/yc-logo";
 import DemoContainer from "./demo";
 import { SciFiButton } from "./scifi-btn";
 import { Spotlight } from "./spotlight";
@@ -11,61 +13,23 @@ const WorldMap = dynamic(() => import("./map").then((m) => m.WorldMap), {
 });
 
 export default function Hero() {
-	const handleGetStarted = () => {
-		const newWindow = window.open(
-			"https://app.databuddy.cc/login",
-			"_blank",
-			"noopener,noreferrer"
-		);
-		if (
-			!newWindow ||
-			newWindow.closed ||
-			typeof newWindow.closed === "undefined"
-		) {
-			// Handle popup blocked case if needed
-		}
-	};
-
 	return (
-		<section className="relative flex min-h-[100svh] w-full flex-col items-center overflow-hidden">
+		<section className="relative flex min-h-svh w-full flex-col items-center overflow-hidden">
 			<Spotlight transform="translateX(-60%) translateY(-50%)" />
 
 			<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="grid grid-cols-1 items-center gap-8 pt-12 pb-6 sm:pt-16 sm:pb-8 lg:grid-cols-2 lg:gap-12 lg:pt-20 lg:pb-12 xl:gap-16">
+				<div className="grid grid-cols-1 items-center gap-8 pt-16 pb-10 sm:pt-20 sm:pb-12 lg:grid-cols-2 lg:gap-12 lg:pt-28 lg:pb-16 xl:gap-16">
 					{/* Text Content */}
-					<div className="order-2 flex flex-col items-center gap-6 text-center lg:order-1 lg:items-start lg:gap-8 lg:text-left">
-						<div className="self-center lg:self-start">
-							<div className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1 font-medium text-muted-foreground text-xs shadow backdrop-blur">
-								<span>Rejected by</span>
-								<svg
-									aria-hidden="true"
-									className="mx-1 inline-block align-[-2px]"
-									focusable="false"
-									height="14"
-									viewBox="0 0 32 32"
-									width="14"
-									xmlns="http://www.w3.org/2000/svg"
-								>
-									<title>Y Combinator logo</title>
-									<path d="M0 0h32v32H0z" fill="#f26625" />
-									<path
-										d="M14.933 18.133L9.387 7.787h2.56l3.2 6.507c0 .107.107.213.213.32s.107.213.213.427l.107.107v.107c.107.213.107.32.213.533.107.107.107.32.213.427.107-.32.32-.533.427-.96.107-.32.32-.64.533-.96l3.2-6.507h2.347L17.067 18.24v6.613h-2.133z"
-										fill="#fff"
-									/>
-									<path d="M-2.78-46.732h30v30h-30z" fill="#f26625" />
-									<path
-										d="M11.22-29.732l-5.2-9.7h2.4l3 6.1c0 .1.1.2.2.3s.1.2.2.4l.1.1v.1c.1.2.1.3.2.5.1.1.1.3.2.4.1-.3.3-.5.4-.9.1-.3.3-.6.5-.9l3-6.1h2.2l-5.2 9.8v6.2h-2z"
-										fill="#fff"
-									/>
-									<path
-										d="M40.92-40.932c1.5 0 2.8.4 3.8 1.2l-1 1.2c-.9-.6-1.8-1-2.9-1-1.7 0-3 .9-3.7 2.6-.4 1-.6 2.3-.6 4 0 1.3.2 2.4.5 3.2.8 1.9 2.1 2.8 4.1 2.8 1.1 0 2.1-.3 3-1l1 1.3a7.87 7.87 0 0 1-4.2 1.2c-1.8 0-3.3-.7-4.5-2.2-1.2-1.4-1.7-3.3-1.7-5.6s.6-4.1 1.8-5.6c1.1-1.3 2.6-2.1 4.4-2.1zm5.7 9.9c0-1.8.4-3.2 1.3-4.2s2-1.6 3.4-1.6c1.6 0 2.9.6 3.8 1.9.7 1 1 2.4 1 4.1 0 2-.6 3.6-1.7 4.6-.8.7-1.8 1.1-3 1.1-1.5 0-2.6-.5-3.5-1.6-.9-1-1.3-2.5-1.3-4.3zm7-2.9c-.5-.9-1.2-1.4-2.3-1.4s-1.8.4-2.3 1.2c-.4.6-.5 1.6-.5 2.9 0 1.7.2 2.9.7 3.6s1.2 1.1 2.2 1.1c1.2 0 2-.6 2.4-1.7.2-.6.3-1.4.3-2.4.1-1.5-.1-2.6-.5-3.3zm5.7.2c0-1.1-.1-2-.4-2.7l1.7-.4c.3.5.4 1.1.4 1.6v.1c.4-.4.8-.8 1.4-1.1.7-.4 1.3-.6 1.9-.6.9 0 1.7.4 2.2 1.1.1.2.3.5.4.7 1.2-1.2 2.3-1.8 3.5-1.8.8 0 1.5.3 2 .8.5.6.8 1.3.8 2.1v8.3h-1.8v-8.2c0-1.1-.5-1.6-1.4-1.6-.5 0-1.1.2-1.6.6-.2.2-.6.5-1.1.9l-.2.2v8.1h-1.9v-7.8c0-.7-.1-1.2-.3-1.4-.3-.3-.6-.4-1.1-.4-.8 0-1.7.5-2.8 1.5v8.2h-1.7zm17-7.6l1.8-.4c.2.8.3 1.7.3 2.8v3.7c1-1 2.1-1.5 3.2-1.5 1.3 0 2.4.5 3.1 1.5.8 1 1.2 2.4 1.2 4.1 0 1.8-.4 3.2-1.2 4.3s-1.9 1.6-3.2 1.6a3.53 3.53 0 0 1-1.7-.4c-.6-.3-1-.6-1.3-1l-.3 1.2h-1.7c.2-.5.3-1.4.3-2.8v-10.5c-.1-1.2-.2-2.1-.5-2.6zm2.9 6.8c-.3.2-.6.5-.8.8v5.7c.7.9 1.6 1.3 2.7 1.3.9 0 1.6-.3 2-1 .5-.8.8-1.9.8-3.5 0-1.4-.2-2.4-.7-3-.4-.6-1.1-.9-2.1-.9-.6-.1-1.3.1-1.9.6zm9.3-5.4c0-.4.1-.7.4-1s.6-.4 1-.4.7.1 1 .4.4.6.4 1-.1.7-.4 1-.6.4-1 .4-.7-.1-1-.4-.4-.6-.4-1zm.4 14.4v-11l1.8-.3v11.3zm5.7-8.2c0-.8 0-1.3-.1-1.5 0-.3-.2-.6-.4-1.1l1.7-.5a3.53 3.53 0 0 1 .4 1.7c1.1-1.1 2.3-1.7 3.5-1.7.6 0 1.1.1 1.6.4s.9.7 1.1 1.2c.2.4.3.8.3 1.3v8.4h-1.7v-7.5c0-.9-.1-1.5-.4-1.8s-.7-.5-1.2-.5c-.4 0-1 .2-1.6.5s-1.1.7-1.5 1.1v8.2h-1.7zm12.1-.4l-.9-1.2c1.5-1 3-1.5 4.6-1.5s2.6.6 3.1 1.7c.2.4.2 1 .2 1.9v.6l-.1 3.6v.5c0 .6 0 1 .1 1.3.1.4.4.7.8.9l-.9 1.2c-.8-.3-1.3-.8-1.5-1.6-1 1-2.1 1.5-3.2 1.5s-2-.3-2.7-.9c-.6-.5-.9-1.3-.9-2.3 0-1.3.5-2.2 1.5-2.9s2.5-1 4.3-1h.8v-.8c0-.9-.1-1.5-.4-1.7-.4-.4-.8-.6-1.5-.6-.6 0-1.3.2-2.1.5l-1.2.8zm5.3 5.9l.1-2.9h-.9c-1.6 0-2.6.3-3.2.9-.4.4-.6 1-.6 1.8 0 1.3.6 2 1.9 2 1.2-.1 2.1-.7 2.7-1.8zm7.4-8.3h2.8l-.5 1.4h-2.3v7.1c0 .6.1 1 .3 1.3.2.2.6.4 1.1.4.4 0 .8-.1 1.1-.2l.2 1.1c-.6.3-1.2.4-1.9.4-1.7 0-2.5-.8-2.5-2.5v-7.6h-1.5v-1.4h1.4v-.2c0-.2.1-1 .2-2.3v-.3l1.8-.4c-.2 1.2-.2 2.3-.2 3.2zm4.6 5.5c0-1.8.4-3.2 1.3-4.2.8-1 2-1.6 3.4-1.6 1.6 0 2.9.6 3.8 1.9.7 1 1 2.4 1 4.1 0 2-.6 3.6-1.7 4.6-.8.7-1.8 1.1-3 1.1-1.5 0-2.6-.5-3.5-1.6-.8-1-1.3-2.5-1.3-4.3zm7.1-2.9c-.5-.9-1.2-1.4-2.3-1.4s-1.8.4-2.3 1.2c-.4.6-.5 1.6-.5 2.9 0 1.7.2 2.9.7 3.6s1.2 1.1 2.2 1.1c1.2 0 2-.6 2.4-1.7.2-.6.3-1.4.3-2.4 0-1.5-.2-2.6-.5-3.3zm5.7 0c0-1-.1-1.8-.4-2.4l1.7-.5a3.53 3.53 0 0 1 .4 1.7v.2c.9-1.2 1.9-1.8 3.1-1.8.2 0 .4 0 .6.1l-.7 1.9c-.2-.1-.4-.1-.5-.1-.4 0-.9.1-1.3.4s-.8.6-1 1a3.73 3.73 0 0 0-.2 1.2v6.9h-1.7z"
-										fill="#f26625"
-									/>
-								</svg>
-								<span>Combinator</span>
+					<div className="order-2 flex flex-col items-center gap-8 text-center lg:order-1 lg:items-start lg:gap-10 lg:text-left">
+						<div className="fade-in slide-in-from-bottom-4 animate-in self-center duration-700 lg:self-start">
+							<div className="group inline-flex cursor-default items-center rounded-full border border-border/50 bg-background/60 px-4 py-1.5 font-medium text-muted-foreground text-xs shadow-sm backdrop-blur-md transition-colors hover:bg-background/80 hover:text-foreground">
+								<span className="mr-1.5 opacity-70">Rejected by</span>
+								<YCLogo className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px] grayscale transition-all group-hover:grayscale-0" />
+								<span className="font-semibold tracking-tight">Combinator</span>
 							</div>
 						</div>
-						<h1 className="text-balance font-semibold text-3xl leading-tight tracking-tight sm:text-5xl md:text-6xl lg:text-7xl xl:text-[72px]">
+
+						<h1 className="fade-in slide-in-from-bottom-6 animate-in text-balance font-bold text-4xl leading-[1.1] tracking-tight delay-100 duration-700 sm:text-6xl md:text-7xl lg:text-7xl xl:text-[80px]">
 							<span className="block whitespace-normal">
 								Privacy <span className="text-muted-foreground">first</span>
 							</span>
@@ -75,23 +39,29 @@ export default function Hero() {
 							</span>
 						</h1>
 
-						<p className="max-w-prose text-balance font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base lg:text-lg">
+						<p className="fade-in slide-in-from-bottom-6 max-w-prose animate-in text-balance font-medium text-base text-muted-foreground leading-relaxed tracking-tight delay-200 duration-700 sm:text-lg lg:text-xl">
 							Track users, not identities. Get fast, accurate insights with zero
 							cookies and 100% GDPR compliance.
 						</p>
 
-						<div className="flex w-full justify-center pt-2 lg:justify-start">
+						<div className="fade-in slide-in-from-bottom-6 flex w-full animate-in justify-center pt-4 delay-300 duration-700 lg:justify-start">
 							<SciFiButton
-								className="w-full sm:w-auto"
-								onClick={handleGetStarted}
+								asChild
+								className="w-full px-8 py-6 text-lg sm:w-auto"
 							>
-								GET STARTED
+								<a
+									href="https://app.databuddy.cc/login"
+									rel="noopener noreferrer"
+									target="_blank"
+								>
+									GET STARTED
+								</a>
 							</SciFiButton>
 						</div>
 					</div>
 
 					{/* Map Visualization */}
-					<div className="order-1 flex w-full justify-center lg:order-2 lg:justify-end">
+					<div className="fade-in zoom-in-95 order-1 flex w-full animate-in justify-center delay-200 duration-1000 lg:order-2 lg:justify-end">
 						<div className="w-full max-w-lg lg:max-w-none">
 							<WorldMap />
 						</div>
@@ -100,8 +70,20 @@ export default function Hero() {
 			</div>
 
 			{/* Demo Container */}
-			<div className="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8 lg:pb-12">
+			<div className="fade-in slide-in-from-bottom-8 mx-auto w-full max-w-7xl animate-in px-4 pb-12 delay-500 duration-1000 sm:px-6 lg:px-8 lg:pb-20">
 				<DemoContainer />
+			</div>
+			<div className="mx-auto w-full border-t bg-secondary/30 px-4 py-4 sm:px-6 lg:px-8">
+				<div className="flex justify-center">
+					<a
+						className="text-muted-foreground text-sm underline underline-offset-4 transition-colors hover:text-foreground"
+						href={CHATGPT_PROMPT_URL}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Don't understand what this does? Ask ChatGPT
+					</a>
+				</div>
 			</div>
 		</section>
 	);

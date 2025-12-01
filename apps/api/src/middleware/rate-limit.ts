@@ -32,7 +32,7 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 	} = options;
 
 	return new Elysia().onRequest(async ({ request, set }) => {
-		if (request.url.includes("/trpc/")) {
+		if (request.url.includes("/rpc/")) {
 			return;
 		}
 

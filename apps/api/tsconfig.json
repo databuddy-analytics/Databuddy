@@ -27,9 +27,7 @@
   "exclude": ["node_modules", "dist"],
   "references": [
     { "path": "../../packages/db" },
-    { "path": "../../packages/auth" },
     { "path": "../../packages/redis" },
-    { "path": "../../packages/rpc" },
     { "path": "../../packages/sdk" },
     { "path": "../../packages/shared" }
   ]

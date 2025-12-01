@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { DOMAIN_REGEX, SUBDOMAIN_REGEX, WEBSITE_NAME_REGEX } from "../regexes";
 
 export const websiteNameSchema = z

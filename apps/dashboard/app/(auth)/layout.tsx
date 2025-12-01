@@ -24,28 +24,27 @@ export default async function AuthLayout({
 			<div className="relative hidden flex-col items-start justify-between overflow-hidden p-12 md:flex md:w-1/2">
 				<div className="absolute inset-0">
 					<Iridescence
-						amplitude={0.2}
-						color={[0.1, 0.2, 0.9]}
+						amplitude={0.1}
+						color={[0.1, 0.1, 0.1]}
 						mouseReact={false}
 						speed={0.5}
 					/>
 				</div>
 				<Link className="relative z-10" href="https://www.databuddy.cc">
 					<Button
-						className="group scale-100 cursor-pointer border-white/10 bg-white/20 text-white transition-all duration-200 hover:scale-105 hover:bg-white/20"
-						variant="outline"
+						className="px-0! text-white/50 hover:bg-transparent hover:text-white/80"
+						variant="ghost"
 					>
-						<CaretLeftIcon className="h-4 w-4 transition-all duration-200 group-hover:translate-x-[-4px]" />
+						<CaretLeftIcon className="size-4 transition-transform duration-200 group-hover:translate-x-[-4px]" />
 						Back
 					</Button>
 				</Link>
-				<div className="relative z-10 text-white">
-					<h1 className="mb-4 font-bold text-4xl">
-						Build better <br />
-						products with <br />
+				<div className="relative z-10">
+					<h1 className="mb-2 w-full max-w-sm font-medium text-4xl text-white/60 leading-[46px]">
+						Build <span className="text-white">better products</span> with
 						Databuddy
 					</h1>
-					<p className="max-w-md text-white/70">
+					<p className="max-w-sm text-white/90">
 						Connect your data sources, build insights, and share them with your
 						team.
 					</p>

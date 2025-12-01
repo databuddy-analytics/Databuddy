@@ -1,67 +1,202 @@
 import { chQuery } from "@databuddy/db";
-import type { DeviceType } from "./screen-resolution-to-device-type";
+import type { Granularity } from "./expressions";
+import {
+	compileConfigField,
+	Expressions,
+	normalizeGranularity,
+	sessionAttribution,
+	time,
+} from "./expressions";
+import {
+	COMMON_RESOLUTION_DEVICE_TYPE,
+	type DeviceType,
+} from "./screen-resolution-to-device-type";
 import type {
 	CompiledQuery,
+	ConfigField,
+	CTEDefinition,
 	Filter,
 	QueryRequest,
 	SimpleQueryConfig,
+	TimeBucketConfig,
 } from "./types";
 import { FilterOperators } from "./types";
 import { applyPlugins } from "./utils";
 
-// Constants for special filter fields to prevent typos
 const SPECIAL_FILTER_FIELDS = {
 	PATH: "path",
+	QUERY_STRING: "query_string",
 	REFERRER: "referrer",
 	DEVICE_TYPE: "device_type",
 } as const;
 
-// Helper function to normalize user input for referrer filters
-function normalizeReferrerFilterValue(value: string): string {
-	const lowerValue = value.toLowerCase();
+// Filters that are always allowed regardless of per-builder allowedFilters
+const GLOBAL_ALLOWED_FILTERS = [
+	"path",
+	"query_string",
+	"country",
+	"device_type",
+	"browser_name",
+	"os_name",
+	"referrer",
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+] as const;
 
-	// Map common user inputs to normalized referrer values
-	const referrerMappings: Record<string, string> = {
-		direct: "direct",
-		google: "https://google.com",
-		"google.com": "https://google.com",
-		"www.google.com": "https://google.com",
-		facebook: "https://facebook.com",
-		"facebook.com": "https://facebook.com",
-		"www.facebook.com": "https://facebook.com",
-		twitter: "https://twitter.com",
-		"twitter.com": "https://twitter.com",
-		"www.twitter.com": "https://twitter.com",
-		"t.co": "https://twitter.com",
-		instagram: "https://instagram.com",
-		"instagram.com": "https://instagram.com",
-		"www.instagram.com": "https://instagram.com",
-		"l.instagram.com": "https://instagram.com",
-	};
+const DANGEROUS_SQL_KEYWORDS = [
+	"DROP",
+	"DELETE",
+	"INSERT",
+	"UPDATE",
+	"CREATE",
+	"ALTER",
+	"TRUNCATE",
+	"EXEC",
+	"EXECUTE",
+] as const;
 
-	// Check if the input matches any known mapping
-	if (referrerMappings[lowerValue]) {
-		return referrerMappings[lowerValue];
+const SQL_EXPRESSIONS = {
+	normalizedPath: Expressions.path.normalized as string,
+	normalizedReferrer: Expressions.referrer.normalized as string,
+	queryString: "queryString(path)" as string,
+} as const;
+
+const REFERRER_MAPPINGS: Record<string, string> = {
+	direct: "direct",
+	google: "https://google.com",
+	"google.com": "https://google.com",
+	"www.google.com": "https://google.com",
+	facebook: "https://facebook.com",
+	"facebook.com": "https://facebook.com",
+	"www.facebook.com": "https://facebook.com",
+	twitter: "https://twitter.com",
+	"twitter.com": "https://twitter.com",
+	"www.twitter.com": "https://twitter.com",
+	"t.co": "https://twitter.com",
+	instagram: "https://instagram.com",
+	"instagram.com": "https://instagram.com",
+	"www.instagram.com": "https://instagram.com",
+	"l.instagram.com": "https://instagram.com",
+};
+
+function normalizeReferrerValue(value: string, forLikeSearch = false): string {
+	const lower = value.toLowerCase();
+	const mapped = REFERRER_MAPPINGS[lower];
+
+	if (mapped) {
+		return forLikeSearch && lower !== "direct"
+			? lower.replace("https://", "")
+			: mapped;
 	}
-
-	// If the value already looks like a URL, return as-is
 	if (value.startsWith("http://") || value.startsWith("https://")) {
 		return value;
 	}
+	return value.includes(".") && !value.includes(" ")
+		? `https://${value}`
+		: value;
+}
 
-	// For other domains, add https:// prefix if it looks like a domain
-	if (value.includes(".") && !value.includes(" ")) {
-		return `https://${value}`;
+function validateNoSqlInjection(field: string, context: string): void {
+	const upperField = field.toUpperCase();
+	for (const keyword of DANGEROUS_SQL_KEYWORDS) {
+		if (upperField.includes(keyword)) {
+			throw new Error(
+				`${context} field '${field}' contains dangerous keyword: ${keyword}`
+			);
+		}
+	}
+}
+
+function buildDeviceTypeSQL(deviceType: DeviceType): string {
+	const exactMatches = Object.entries(COMMON_RESOLUTION_DEVICE_TYPE)
+		.filter(([, type]) => type === deviceType)
+		.map(([resolution]) => `'${resolution}'`)
+		.join(", ");
+
+	const widthExpr =
+		"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, 1, position(screen_resolution, 'x') - 1), NULL))";
+	const heightExpr =
+		"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, position(screen_resolution, 'x') + 1), NULL))";
+	const longSide = `greatest(${widthExpr}, ${heightExpr})`;
+	const shortSide = `least(${widthExpr}, ${heightExpr})`;
+	const aspect = `${longSide} / ${shortSide}`;
+
+	const heuristics: Record<DeviceType, string> = {
+		mobile: `(${shortSide} <= 480 AND ${shortSide} IS NOT NULL)`,
+		tablet: `(${shortSide} <= 900 AND ${shortSide} > 480 AND ${shortSide} IS NOT NULL)`,
+		laptop: `(${longSide} <= 1600 AND ${shortSide} > 900 AND ${longSide} IS NOT NULL)`,
+		desktop: `(${longSide} <= 3000 AND ${longSide} > 1600 AND ${longSide} IS NOT NULL)`,
+		ultrawide: `(${aspect} >= 2.0 AND ${longSide} >= 2560 AND ${longSide} IS NOT NULL)`,
+		watch: `(${longSide} <= 400 AND ${aspect} >= 0.85 AND ${aspect} <= 1.15 AND ${longSide} IS NOT NULL)`,
+		unknown: "1 = 0",
+	};
+
+	const heuristic = heuristics[deviceType] || "1 = 0";
+	return exactMatches
+		? `(screen_resolution IN (${exactMatches}) OR ${heuristic})`
+		: heuristic;
+}
+
+type FilterResult = { clause: string; params: Record<string, Filter["value"]> };
+
+function buildGenericFilter(
+	filter: Filter,
+	key: string,
+	operator: string,
+	fieldExpr: string,
+	valueTransform?: (v: string) => string
+): FilterResult {
+	const transform = valueTransform || ((v: string) => v);
+
+	// Contains / not_contains - wrap value with %
+	if (filter.op === "contains" || filter.op === "not_contains") {
+		const value = transform(String(filter.value));
+		return {
+			clause: `${fieldExpr} ${operator} {${key}:String}`,
+			params: { [key]: `%${value}%` },
+		};
 	}
 
-	// Return original value if no transformation is needed
-	return value;
+	// Starts with - append % to value
+	if (filter.op === "starts_with") {
+		const value = transform(String(filter.value));
+		return {
+			clause: `${fieldExpr} ${operator} {${key}:String}`,
+			params: { [key]: `${value}%` },
+		};
+	}
+
+	// In / not_in - array of values
+	if (filter.op === "in" || filter.op === "not_in") {
+		const values = Array.isArray(filter.value)
+			? filter.value.map((v) => transform(String(v)))
+			: [transform(String(filter.value))];
+		return {
+			clause: `${fieldExpr} ${operator} {${key}:Array(String)}`,
+			params: { [key]: values },
+		};
+	}
+
+	// eq / ne - exact match
+	return {
+		clause: `${fieldExpr} ${operator} {${key}:String}`,
+		params: { [key]: transform(String(filter.value)) },
+	};
+}
+
+function buildSessionFieldsSelect(timeField: string): string {
+	return sessionAttribution.selectFields(timeField).join(",\n\t\t\t");
+}
+
+function buildSessionFieldsJoinSelect(): string {
+	return sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t");
 }
 
 export class SimpleQueryBuilder {
-	private config: SimpleQueryConfig;
-	private request: QueryRequest;
-	private websiteDomain?: string | null;
+	private readonly config: SimpleQueryConfig;
+	private readonly request: QueryRequest;
+	private readonly websiteDomain?: string | null;
 
 	constructor(
 		config: SimpleQueryConfig,
@@ -73,245 +208,66 @@ export class SimpleQueryBuilder {
 		this.websiteDomain = websiteDomain;
 	}
 
-	private getDeviceTypeFilterCondition(deviceType: DeviceType): string {
-		// Create SQL condition that matches the same logic as mapScreenResolutionToDeviceType
-		// This replicates the heuristics from screen-resolution-to-device-type.ts in SQL
-
-		// First, get common/known resolutions for exact matches
-		const commonResolutions: Record<string, DeviceType> = {
-			"896x414": "mobile",
-			"844x390": "mobile",
-			"932x430": "mobile",
-			"800x360": "mobile",
-			"780x360": "mobile",
-			"736x414": "mobile",
-			"667x375": "mobile",
-			"640x360": "mobile",
-			"568x320": "mobile",
-			"1366x1024": "tablet",
-			"1280x800": "tablet",
-			"1180x820": "tablet",
-			"1024x768": "tablet",
-			"1280x720": "tablet",
-			"1366x768": "laptop",
-			"1440x900": "laptop",
-			"1536x864": "laptop",
-			"1920x1080": "desktop",
-			"2560x1440": "desktop",
-			"3840x2160": "desktop",
-			"3440x1440": "ultrawide",
-			"3840x1600": "ultrawide",
-			"5120x1440": "ultrawide",
-		};
-
-		const exactMatches = Object.entries(commonResolutions)
-			.filter(([_, type]) => type === deviceType)
-			.map(([resolution, _]) => `'${resolution}'`)
-			.join(", ");
-
-		// SQL for parsing resolution dimensions with error handling
-		const widthExpr =
-			"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, 1, position(screen_resolution, 'x') - 1), NULL))";
-		const heightExpr =
-			"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, position(screen_resolution, 'x') + 1), NULL))";
-		const longSideExpr = `greatest(${widthExpr}, ${heightExpr})`;
-		const shortSideExpr = `least(${widthExpr}, ${heightExpr})`;
-		const aspectExpr = `${longSideExpr} / ${shortSideExpr}`;
-
-		// Device type heuristics (matching screen-resolution-to-device-type.ts logic)
-		const heuristicCondition = (() => {
-			switch (deviceType) {
-				case "mobile":
-					return `(${shortSideExpr} <= 480 AND ${shortSideExpr} IS NOT NULL)`;
-				case "tablet":
-					return `(${shortSideExpr} <= 900 AND ${shortSideExpr} > 480 AND ${shortSideExpr} IS NOT NULL)`;
-				case "laptop":
-					return `(${longSideExpr} <= 1600 AND ${shortSideExpr} > 900 AND ${longSideExpr} IS NOT NULL)`;
-				case "desktop":
-					return `(${longSideExpr} <= 3000 AND ${longSideExpr} > 1600 AND ${longSideExpr} IS NOT NULL)`;
-				case "ultrawide":
-					return `(${aspectExpr} >= 2.0 AND ${longSideExpr} >= 2560 AND ${longSideExpr} IS NOT NULL)`;
-				case "watch":
-					return `(${longSideExpr} <= 400 AND ${aspectExpr} >= 0.85 AND ${aspectExpr} <= 1.15 AND ${longSideExpr} IS NOT NULL)`;
-				default:
-					return "1 = 0"; // Never matches
-			}
-		})();
-
-		// Combine exact matches and heuristics
-		if (exactMatches) {
-			return `(screen_resolution IN (${exactMatches}) OR ${heuristicCondition})`;
-		}
-		return heuristicCondition;
-	}
-
-	private buildFilter(filter: Filter, index: number) {
+	private buildFilter(filter: Filter, index: number): FilterResult {
+		const isGloballyAllowed = GLOBAL_ALLOWED_FILTERS.includes(filter.field as typeof GLOBAL_ALLOWED_FILTERS[number]);
 		if (
 			this.config.allowedFilters &&
+			!isGloballyAllowed &&
 			!this.config.allowedFilters.includes(filter.field)
 		) {
 			throw new Error(`Filter on field '${filter.field}' is not permitted.`);
 		}
+
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
 
-		// Special handling for different field types
 		if (filter.field === SPECIAL_FILTER_FIELDS.PATH) {
-			return this.buildPathFilter(filter, key, operator);
+			return buildGenericFilter(filter, key, operator, SQL_EXPRESSIONS.normalizedPath);
+		}
+
+		if (filter.field === SPECIAL_FILTER_FIELDS.QUERY_STRING) {
+			return buildGenericFilter(filter, key, operator, SQL_EXPRESSIONS.queryString);
 		}
 
 		if (filter.field === SPECIAL_FILTER_FIELDS.REFERRER) {
-			return this.buildReferrerFilter(filter, key, operator);
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				SQL_EXPRESSIONS.normalizedReferrer,
+				(v) => normalizeReferrerValue(v, filter.op === "contains" || filter.op === "not_contains")
+			);
 		}
 
 		if (
 			filter.field === SPECIAL_FILTER_FIELDS.DEVICE_TYPE &&
 			typeof filter.value === "string"
 		) {
-			return this.buildDeviceTypeFilter(filter);
-		}
-
-		// Standard filter handling
-		return this.buildStandardFilter(filter, key, operator);
-	}
-
-	private buildPathFilter(filter: Filter, key: string, operator: string) {
-		const normalizedPathExpression =
-			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
-
-		if (filter.op === "like") {
+			const deviceClause = buildDeviceTypeSQL(filter.value as DeviceType);
+			const isNegative = filter.op === "ne" || filter.op === "not_in" || filter.op === "not_contains";
 			return {
-				clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
-				params: { [key]: `%${filter.value}%` },
+				clause: isNegative ? `NOT (${deviceClause})` : deviceClause,
+				params: {},
 			};
 		}
 
-		if (filter.op === "in" || filter.op === "notIn") {
-			const values = Array.isArray(filter.value)
-				? filter.value
-				: [filter.value];
-			return {
-				clause: `${normalizedPathExpression} ${operator} {${key}:Array(String)}`,
-				params: { [key]: values },
-			};
-		}
-
-		return {
-			clause: `${normalizedPathExpression} ${operator} {${key}:String}`,
-			params: { [key]: filter.value },
-		};
+		return buildGenericFilter(filter, key, operator, filter.field);
 	}
 
-	private buildReferrerFilter(filter: Filter, key: string, operator: string) {
-		const normalizedReferrerExpression =
-			"CASE " +
-			"WHEN referrer = '' OR referrer IS NULL THEN 'direct' " +
-			"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
-			"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
-			"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
-			"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
-			"ELSE concat('https://', domain(referrer)) " +
-			"END";
-
-		if (filter.op === "like") {
-			const searchValue = this.normalizeReferrerSearchValue(
-				String(filter.value)
-			);
-			return {
-				clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-				params: { [key]: `%${searchValue}%` },
-			};
-		}
-
-		if (filter.op === "in" || filter.op === "notIn") {
-			const values = Array.isArray(filter.value)
-				? filter.value.map((v) => normalizeReferrerFilterValue(String(v)))
-				: [normalizeReferrerFilterValue(String(filter.value))];
-			return {
-				clause: `${normalizedReferrerExpression} ${operator} {${key}:Array(String)}`,
-				params: { [key]: values },
-			};
-		}
-
-		const normalizedValue = normalizeReferrerFilterValue(String(filter.value));
-		return {
-			clause: `${normalizedReferrerExpression} ${operator} {${key}:String}`,
-			params: { [key]: normalizedValue },
-		};
-	}
-
-	private buildDeviceTypeFilter(filter: Filter) {
-		const deviceType = filter.value as DeviceType;
-		const condition = this.getDeviceTypeFilterCondition(deviceType);
-		return {
-			clause: condition,
-			params: {},
-		};
-	}
-
-	private buildStandardFilter(filter: Filter, key: string, operator: string) {
-		if (filter.op === "like") {
-			return {
-				clause: `${filter.field} ${operator} {${key}:String}`,
-				params: { [key]: `%${filter.value}%` },
-			};
-		}
-
-		if (filter.op === "in" || filter.op === "notIn") {
-			const values = Array.isArray(filter.value)
-				? filter.value
-				: [filter.value];
-			return {
-				clause: `${filter.field} ${operator} {${key}:Array(String)}`,
-				params: { [key]: values },
-			};
-		}
-
-		return {
-			clause: `${filter.field} ${operator} {${key}:String}`,
-			params: { [key]: filter.value },
-		};
-	}
-
-	private normalizeReferrerSearchValue(value: string): string {
-		const lowerValue = value.toLowerCase();
-
-		// Map common search terms to more specific patterns
-		const mappings: Record<string, string> = {
-			direct: "direct",
-			google: "google.com",
-			facebook: "facebook.com",
-			twitter: "twitter.com",
-			instagram: "instagram.com",
-		};
-
-		return mappings[lowerValue] || value;
-	}
-
-	private generateSessionAttributionCTE(timeField: string): string {
-		const sessionFields = [
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-		];
-
-		const sessionFieldsSelect = sessionFields
-			.map((field) => `argMin(${field}, ${timeField}) as session_${field}`)
-			.join(",\n\t\t\t");
-
+	private generateSessionAttributionCTE(
+		timeField: string,
+		table: string,
+		fromParam: string,
+		toParam: string
+	): string {
 		return `session_attribution AS (
 			SELECT 
 				session_id,
-				${sessionFieldsSelect}
-			FROM analytics.events
+				${buildSessionFieldsSelect(timeField)}
+			FROM ${table}
 			WHERE client_id = {websiteId:String}
-				AND ${timeField} >= parseDateTimeBestEffort({startDate:String})
-				AND ${timeField} <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+				AND ${timeField} >= toDateTime({${fromParam}:String})
+				AND ${timeField} <= toDateTime(concat({${toParam}:String}, ' 23:59:59'))
 				AND session_id != ''
 			GROUP BY session_id
 		)`;
@@ -331,15 +287,13 @@ export class SimpleQueryBuilder {
 					"1=1"
 				);
 		}
-
 		return sql
 			.replace(/\{websiteDomain\}/g, this.websiteDomain)
 			.replace(/%.{websiteDomain}/g, `%.${this.websiteDomain}`);
 	}
 
 	private formatDateTime(dateStr: string): string {
-		const parts = dateStr.split(".");
-		return parts[0]?.replace("T", " ") || dateStr;
+		return (dateStr.split(".")[0] || dateStr).replace("T", " ");
 	}
 
 	compile(): CompiledQuery {
@@ -347,14 +301,18 @@ export class SimpleQueryBuilder {
 			const whereClauseParams: Record<string, Filter["value"]> = {};
 			const whereClause = this.buildWhereClauseFromFilters(whereClauseParams);
 
-			// Create helper functions for session attribution if plugins are enabled
 			const helpers = this.config.plugins?.sessionAttribution
 				? {
-						sessionAttributionCTE: (timeField = "time") =>
-							this.generateSessionAttributionCTE(timeField),
-						sessionAttributionJoin: (alias = "e") =>
-							this.generateSessionAttributionJoin(alias),
-					}
+					sessionAttributionCTE: (timeField = "time") =>
+						this.generateSessionAttributionCTE(
+							timeField,
+							"analytics.events",
+							"startDate",
+							"endDate"
+						),
+					sessionAttributionJoin: (alias = "e") =>
+						this.generateSessionAttributionJoin(alias),
+				}
 				: undefined;
 
 			const result = this.config.customSql(
@@ -381,22 +339,46 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildStandardQuery(): CompiledQuery {
-		const params = {
+		const params: Record<string, Filter["value"]> = {
 			websiteId: this.request.projectId,
 			from: this.formatDateTime(this.request.from),
 			to: this.formatDateTime(this.request.to),
 		};
 
-		if (this.config.plugins?.sessionAttribution) {
+		if (this.config.timeBucket?.timezone && this.getTimezone()) {
+			params.timezone = this.getTimezone() as string;
+		}
+
+		const hasCTEs =
+			this.config.with?.length || this.config.plugins?.sessionAttribution;
+
+		if (this.config.plugins?.sessionAttribution && !this.config.with?.length) {
 			return this.buildSessionAttributionQuery(params);
 		}
 
-		let sql = `SELECT ${this.config.fields?.join(", ") || "*"} FROM ${this.config.table}`;
-		const whereClause = this.buildWhereClause(params);
+		const fields: string[] = [];
+		if (this.config.timeBucket && this.getGranularity()) {
+			fields.push(this.buildTimeBucketField(this.config.timeBucket));
+		}
+		fields.push(this.compileFields(this.config.fields));
+		const fieldsStr = fields.filter(Boolean).join(", ");
 
-		sql += ` WHERE ${whereClause.join(" AND ")}`;
+		const ctesStr = hasCTEs ? this.compileCTEs(params) : "";
+		const fromSource = this.config.from || this.config.table;
+
+		let sql = ctesStr ? `${ctesStr}\n` : "";
+		sql += `SELECT ${fieldsStr} FROM ${fromSource}`;
+
+		if (!this.config.from) {
+			const whereClause = this.buildWhereClause(params);
+			sql += ` WHERE ${whereClause.join(" AND ")}`;
+		} else if (this.config.where?.length) {
+			sql += ` WHERE ${this.config.where.join(" AND ")}`;
+		}
+
 		sql = this.replaceDomainPlaceholders(sql);
 		sql += this.buildGroupByClause();
+		sql += this.buildHavingClause(params);
 		sql += this.buildOrderByClause();
 		sql += this.buildLimitClause();
 		sql += this.buildOffsetClause();
@@ -404,71 +386,195 @@ export class SimpleQueryBuilder {
 		return { sql, params };
 	}
 
+	private compileFields(fields?: ConfigField[]): string {
+		if (!fields?.length) {
+			return "*";
+		}
+		return fields.map((f) => compileConfigField(f)).join(", ");
+	}
+
+	private compileCTE(
+		cte: CTEDefinition,
+		params: Record<string, Filter["value"]>
+	): string {
+		const source = cte.from || cte.table;
+		if (!source) {
+			throw new Error(
+				`CTE '${cte.name}' must have either 'table' or 'from' defined`
+			);
+		}
+
+		const fields = this.compileFields(cte.fields);
+		const parts = [`SELECT ${fields}`, `FROM ${source}`];
+		const whereConditions: string[] = [];
+
+		if (cte.where?.length) {
+			whereConditions.push(...cte.where);
+		}
+
+		if (cte.table && !this.config.skipDateFilter) {
+			const timeField = this.config.timeField || "time";
+			whereConditions.push("client_id = {websiteId:String}");
+			whereConditions.push(
+				`${timeField} >= toDateTime({from:String})`
+			);
+			whereConditions.push(
+				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
+			);
+		}
+
+		const cteFilters = this.request.filters?.filter(
+			(f) => f.target === cte.name && !f.having
+		);
+		if (cteFilters?.length) {
+			const baseIdx = Object.keys(params).length;
+			for (let i = 0; i < cteFilters.length; i++) {
+				const filter = cteFilters[i];
+				if (!filter) {
+					continue;
+				}
+				const { clause, params: filterParams } = this.buildFilter(
+					filter,
+					baseIdx + i
+				);
+				whereConditions.push(clause);
+				Object.assign(params, filterParams);
+			}
+		}
+
+		if (whereConditions.length > 0) {
+			parts.push(`WHERE ${whereConditions.join(" AND ")}`);
+		}
+
+		if (cte.groupBy?.length) {
+			parts.push(`GROUP BY ${cte.groupBy.join(", ")}`);
+		}
+
+		if (cte.orderBy) {
+			parts.push(`ORDER BY ${cte.orderBy}`);
+		}
+
+		if (cte.limit) {
+			parts.push(`LIMIT ${cte.limit}`);
+		}
+
+		return `${cte.name} AS (\n\t\t${parts.join("\n\t\t")}\n\t)`;
+	}
+
+	private compileCTEs(params: Record<string, Filter["value"]>): string {
+		const ctes: string[] = [];
+
+		if (this.config.plugins?.sessionAttribution) {
+			const timeField = this.config.timeField || "time";
+			const table = this.config.table || "analytics.events";
+			ctes.push(
+				this.generateSessionAttributionCTE(timeField, table, "from", "to")
+			);
+		}
+
+		if (this.config.with?.length) {
+			for (const cte of this.config.with) {
+				ctes.push(this.compileCTE(cte, params));
+			}
+		}
+
+		return ctes.length > 0 ? `WITH ${ctes.join(",\n\t")}` : "";
+	}
+
+	private getGranularity(): Granularity | undefined {
+		const requestGranularity = normalizeGranularity(this.request.timeUnit);
+		return requestGranularity || this.config.timeBucket?.granularity;
+	}
+
+	private getTimezone(): string | undefined {
+		return this.request.timezone;
+	}
+
+	private buildTimeBucketField(config: TimeBucketConfig): string {
+		const granularity = this.getGranularity();
+		if (!granularity) {
+			return "";
+		}
+
+		const field = config.field || this.config.timeField || "time";
+		const alias = config.alias || "date";
+		const tz = config.timezone ? this.getTimezone() : undefined;
+
+		if (
+			config.format !== false &&
+			(granularity === "hour" || granularity === "minute")
+		) {
+			return `${time.bucketFormatted(granularity, field, tz)} as ${alias}`;
+		}
+
+		return `${time.bucket(granularity, field, tz)} as ${alias}`;
+	}
+
+	private getTimeBucketAlias(): string | null {
+		if (!this.config.timeBucket) {
+			return null;
+		}
+		if (!this.getGranularity()) {
+			return null;
+		}
+		return this.config.timeBucket.alias || "date";
+	}
+
+	private buildHavingClause(params: Record<string, Filter["value"]>): string {
+		const conditions: string[] = [];
+
+		if (this.config.having?.length) {
+			conditions.push(...this.config.having);
+		}
+
+		const havingFilters = this.request.filters?.filter((f) => f.having);
+		if (havingFilters?.length) {
+			const startIdx = Object.keys(params).length;
+			for (let i = 0; i < havingFilters.length; i++) {
+				const filter = havingFilters[i];
+				if (!filter) {
+					continue;
+				}
+				const { clause, params: filterParams } = this.buildFilter(
+					filter,
+					startIdx + i
+				);
+				conditions.push(clause);
+				Object.assign(params, filterParams);
+			}
+		}
+
+		return conditions.length > 0 ? ` HAVING ${conditions.join(" AND ")}` : "";
+	}
+
 	private buildSessionAttributionQuery(
 		params: Record<string, Filter["value"]>
 	): CompiledQuery {
-		// Build the session attribution query with CTEs
 		const timeField = this.config.timeField || "time";
-		const whereClauseParams: Record<string, Filter["value"]> = {};
-		const filterClauses = this.buildWhereClauseFromFilters(whereClauseParams);
+		const table = this.config.table || "analytics.events";
+		const filterClauses = this.buildWhereClauseFromFilters(params);
 
-		// Merge filter params into main params
-		Object.assign(params, whereClauseParams);
-
-		// Build the session attribution fields mapping
-		const sessionFields = [
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-		];
-
-		const sessionFieldsSelect = sessionFields
-			.map((field) => `argMin(${field}, ${timeField}) as session_${field}`)
-			.join(",\n\t\t\t\t");
-
-		const mainFields = this.config.fields?.join(",\n\t\t\t") || "*";
-
-		const finalFilterClauses = filterClauses;
-
+		const mainFields = this.compileFields(this.config.fields).replace(
+			/, /g,
+			",\n\t\t\t"
+		);
 		const additionalWhere = this.config.where
 			? `${this.config.where.join(" AND ")} AND `
 			: "";
 		const finalWhereClause =
-			finalFilterClauses.length > 0 ? finalFilterClauses.join(" AND ") : "1=1";
+			filterClauses.length > 0 ? filterClauses.join(" AND ") : "1=1";
 
 		let sql = `
-		WITH session_attribution AS (
-			SELECT 
-				session_id,
-				${sessionFieldsSelect}
-			FROM ${this.config.table}
-			WHERE client_id = {websiteId:String}
-				AND ${timeField} >= parseDateTimeBestEffort({from:String})
-				AND ${timeField} <= parseDateTimeBestEffort(concat({to:String}, ' 23:59:59'))
-				AND session_id != ''
-			GROUP BY session_id
-		),
+		WITH ${this.generateSessionAttributionCTE(timeField, table, "from", "to")},
 		attributed_events AS (
 			SELECT 
 				e.*,
-				sa.session_referrer as referrer,
-				sa.session_utm_source as utm_source,
-				sa.session_utm_medium as utm_medium,
-				sa.session_utm_campaign as utm_campaign,
-				sa.session_country as country,
-				sa.session_device_type as device_type,
-				sa.session_browser_name as browser_name,
-				sa.session_os_name as os_name
-			FROM ${this.config.table} e
-			INNER JOIN session_attribution sa ON e.session_id = sa.session_id
+				${buildSessionFieldsJoinSelect()}
+			FROM ${table} e
+			${this.generateSessionAttributionJoin("e")}
 			WHERE e.client_id = {websiteId:String}
-				AND e.${timeField} >= parseDateTimeBestEffort({from:String})
-				AND e.${timeField} <= parseDateTimeBestEffort(concat({to:String}, ' 23:59:59'))
+				AND e.${timeField} >= toDateTime({from:String})
+				AND e.${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))
 				AND e.session_id != ''
 				AND ${additionalWhere}${finalWhereClause}
 		)
@@ -493,16 +599,21 @@ export class SimpleQueryBuilder {
 
 		whereClause.push("client_id = {websiteId:String}");
 
-		const timeField = this.config.timeField || "time";
-		whereClause.push(`${timeField} >= parseDateTimeBestEffort({from:String})`);
-
-		const appendEndOfDay = this.config.appendEndOfDayToTo !== false;
-		if (appendEndOfDay) {
+		if (!this.config.skipDateFilter) {
+			const timeField = this.config.timeField || "time";
 			whereClause.push(
-				`${timeField} <= parseDateTimeBestEffort(concat({to:String}, ' 23:59:59'))`
+				`${timeField} >= toDateTime({from:String})`
 			);
-		} else {
-			whereClause.push(`${timeField} <= parseDateTimeBestEffort({to:String})`);
+
+			if (this.config.appendEndOfDayToTo !== false) {
+				whereClause.push(
+					`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
+				);
+			} else {
+				whereClause.push(
+					`${timeField} <= toDateTime({to:String})`
+				);
+			}
 		}
 
 		if (this.request.filters) {
@@ -533,35 +644,26 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildGroupByClause(): string {
+		const groupByFields: string[] = [];
+
+		const timeBucketAlias = this.getTimeBucketAlias();
+		if (timeBucketAlias) {
+			groupByFields.push(timeBucketAlias);
+		}
+
 		const groupBy = this.request.groupBy || this.config.groupBy;
-		if (!groupBy?.length) {
+		if (groupBy?.length) {
+			for (const f of groupBy) {
+				validateNoSqlInjection(f, "Grouping");
+			}
+			groupByFields.push(...groupBy);
+		}
+
+		if (groupByFields.length === 0) {
 			return "";
 		}
 
-		// Security validation - only block dangerous SQL keywords
-		const dangerousKeywords = [
-			"DROP",
-			"DELETE",
-			"INSERT",
-			"UPDATE",
-			"CREATE",
-			"ALTER",
-			"TRUNCATE",
-			"EXEC",
-			"EXECUTE",
-		];
-		for (const field of groupBy) {
-			const upperField = field.toUpperCase();
-			for (const keyword of dangerousKeywords) {
-				if (upperField.includes(keyword)) {
-					throw new Error(
-						`Grouping by field '${field}' contains dangerous keyword: ${keyword}`
-					);
-				}
-			}
-		}
-
-		return ` GROUP BY ${groupBy.join(", ")}`;
+		return ` GROUP BY ${groupByFields.join(", ")}`;
 	}
 
 	private buildOrderByClause(): string {
@@ -569,28 +671,7 @@ export class SimpleQueryBuilder {
 		if (!orderBy) {
 			return "";
 		}
-
-		// Security validation - only block dangerous SQL keywords
-		const dangerousKeywords = [
-			"DROP",
-			"DELETE",
-			"INSERT",
-			"UPDATE",
-			"CREATE",
-			"ALTER",
-			"TRUNCATE",
-			"EXEC",
-			"EXECUTE",
-		];
-		const upperOrderBy = orderBy.toUpperCase();
-		for (const keyword of dangerousKeywords) {
-			if (upperOrderBy.includes(keyword)) {
-				throw new Error(
-					`Ordering by field '${orderBy}' contains dangerous keyword: ${keyword}`
-				);
-			}
-		}
-
+		validateNoSqlInjection(orderBy, "Ordering");
 		return ` ORDER BY ${orderBy}`;
 	}
 

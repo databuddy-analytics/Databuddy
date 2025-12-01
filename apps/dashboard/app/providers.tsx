@@ -2,14 +2,16 @@
 
 import { authClient } from "@databuddy/auth/client";
 import { FlagsProvider } from "@databuddy/sdk/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import {
+	QueryClient,
+	QueryClientProvider,
+	useQuery,
+} from "@tanstack/react-query";
 import { AutumnProvider } from "autumn-js/react";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
-import superjson from "superjson";
-import { trpc } from "@/lib/trpc";
+import { OrganizationsProvider } from "@/components/providers/organizations-provider";
 
 const defaultQueryClientOptions = {
 	defaultOptions: {
@@ -45,43 +47,39 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 			})
 	);
 
-	const [trpcClient] = useState(() =>
-		trpc.createClient({
-			links: [
-				httpBatchLink({
-					url: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/trpc`,
-					fetch: (url, options) =>
-						fetch(url, {
-							...options,
-							credentials: "include",
-						}),
-					transformer: superjson,
-				}),
-			],
-		})
-	);
-
 	return (
 		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-			<trpc.Provider client={trpcClient} queryClient={queryClient}>
-				<QueryClientProvider client={queryClient}>
-					<FlagsProviderWrapper>
-						<AutumnProvider
-							backendUrl={
-								process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-							}
-						>
+			<QueryClientProvider client={queryClient}>
+				<FlagsProviderWrapper>
+					<AutumnProvider
+						backendUrl={
+							process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+						}
+					>
+						<OrganizationsProvider>
 							<NuqsAdapter>{children}</NuqsAdapter>
-						</AutumnProvider>
-					</FlagsProviderWrapper>
-				</QueryClientProvider>
-			</trpc.Provider>
+						</OrganizationsProvider>
+					</AutumnProvider>
+				</FlagsProviderWrapper>
+			</QueryClientProvider>
 		</ThemeProvider>
 	);
 }
 
+// Query key for session - shared with other components for deduplication
+export const SESSION_QUERY_KEY = ["auth", "session"] as const;
+
 function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
-	const { data: session, isPending } = authClient.useSession();
+	const { data: session, isPending } = useQuery({
+		queryKey: SESSION_QUERY_KEY,
+		queryFn: async () => {
+			const result = await authClient.getSession();
+			return result.data;
+		},
+		staleTime: 2 * 60 * 1000, // 2 minutes
+		gcTime: 5 * 60 * 1000, // 5 minutes
+	});
+
 	return (
 		<FlagsProvider
 			clientId="3ed1fce1-5a56-4cb6-a977-66864f6d18e3"

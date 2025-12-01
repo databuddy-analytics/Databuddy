@@ -4,11 +4,9 @@ import { extractIpFromRequest, getGeo } from "../utils/ip-geo";
 import { parseUserAgent } from "../utils/user-agent";
 import { sanitizeString, VALIDATION_LIMITS } from "../utils/validation";
 import { sendEvent } from "./producer";
+import { captureError } from "./tracing";
 
-/**
- * Log blocked traffic for security and monitoring purposes
- */
-export async function logBlockedTraffic(
+async function _logBlockedTrafficAsync(
 	request: Request,
 	body: any,
 	_query: any,
@@ -25,11 +23,13 @@ export async function logBlockedTraffic(
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			) || "";
 
-		const { anonymizedIP, country, region, city } = await getGeo(ip);
-		const { browserName, browserVersion, osName, osVersion, deviceType } =
-			parseUserAgent(userAgent);
-
+		const [geo, ua] = await Promise.all([
+			getGeo(ip),
+			parseUserAgent(userAgent),
+		]);
 		const now = Date.now();
+		const { anonymizedIP, country, region, city } = geo;
+		const { browserName, browserVersion, osName, osVersion, deviceType } = ua;
 
 		const blockedEvent: BlockedTraffic = {
 			id: randomUUID(),
@@ -85,9 +85,31 @@ export async function logBlockedTraffic(
 
 		sendEvent("analytics-blocked-traffic", blockedEvent);
 	} catch (error) {
-		console.error("Failed to send blocked traffic to Kafka", {
-			error: error as Error,
-		});
-		throw error;
+		captureError(error, { message: "Failed to log blocked traffic" });
 	}
+}
+
+/**
+ * Log blocked traffic for security and monitoring purposes (fire-and-forget)
+ */
+export function logBlockedTraffic(
+	request: Request,
+	body: any,
+	query: any,
+	blockReason: string,
+	blockCategory: string,
+	botName?: string,
+	clientId?: string
+): void {
+	_logBlockedTrafficAsync(
+		request,
+		body,
+		query,
+		blockReason,
+		blockCategory,
+		botName,
+		clientId
+	).catch((error) => {
+		captureError(error, { message: "Failed to log blocked traffic" });
+	});
 }

@@ -81,11 +81,6 @@ export function ProfileForm() {
 						<FormItem>
 							<div className="flex items-center justify-between">
 								<FormLabel>Display Name</FormLabel>
-								{session?.user?.name !== form.watch("name") && (
-									<span className="text-slate-400 text-xs">
-										Unsaved changes
-									</span>
-								)}
 							</div>
 							<FormControl>
 								<Input placeholder="Your name" {...field} />

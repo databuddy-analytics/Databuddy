@@ -1,4 +1,5 @@
 import { Analytics } from "../../types/tables";
+import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
 export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
@@ -42,13 +43,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"CASE " +
-				"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
-				"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
-				"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
-				"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
-				"ELSE concat('https://', domain(referrer)) " +
-				"END as name",
+			`${Expressions.referrer.normalized} as name`,
 			"COUNT(*) as pageviews",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
@@ -67,6 +62,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -135,6 +131,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -165,6 +162,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -232,6 +230,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -303,6 +302,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -372,6 +372,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -388,14 +389,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 	traffic_sources: {
 		table: Analytics.events,
 		fields: [
-			"CASE " +
-				"WHEN referrer = '' OR referrer IS NULL THEN 'direct' " +
-				"WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com' " +
-				"WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com' " +
-				"WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com' " +
-				"WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com' " +
-				"ELSE concat('https://', domain(referrer)) " +
-				"END as source",
+			`${Expressions.referrer.normalized} as source`,
 			"COUNT(*) as pageviews",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 		],

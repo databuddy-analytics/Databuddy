@@ -10,7 +10,6 @@ import {
 	ChartPieIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
-	DatabaseIcon,
 	EyeIcon,
 	FileArrowDownIcon,
 	FlagIcon,
@@ -20,23 +19,14 @@ import {
 	GlobeSimpleIcon,
 	IdentificationCardIcon,
 	KeyIcon,
-	LightningIcon,
-	MagnifyingGlassIcon,
 	MapPinIcon,
-	MonitorIcon,
-	NetworkIcon,
 	PlayIcon,
-	PlugIcon,
 	PlusIcon,
-	PulseIcon,
 	ReceiptIcon,
 	RepeatIcon,
 	RoadHorizonIcon,
-	RobotIcon,
 	ShieldCheckIcon,
 	SpeakerHighIcon,
-	StorefrontIcon,
-	TableIcon,
 	TargetIcon,
 	TrendUpIcon,
 	UserGearIcon,
@@ -134,7 +124,6 @@ export const personalNavigation: NavigationSection[] = [
 		createNavItem("Account", GearIcon, "/settings?tab=account"),
 		createNavItem("Security", ShieldCheckIcon, "/settings?tab=security"),
 		createNavItem("API Keys", KeyIcon, "/settings?tab=api-keys"),
-		createNavItem("Integrations", PlugIcon, "/settings?tab=integrations"),
 	]),
 ];
 
@@ -167,7 +156,7 @@ export const resourcesNavigation: NavigationSection[] = [
 
 export const organizationNavigation: NavigationSection[] = [
 	createNavSection("Organizations", BuildingsIcon, [
-		createNavItem("Organization Overview", ChartPieIcon, "/organizations"),
+		createNavItem("Overview", ChartPieIcon, "/organizations"),
 	]),
 	createNavSection("Team Management", UsersThreeIcon, [
 		createNavItem("Members", UserIcon, "/organizations/members"),
@@ -187,9 +176,9 @@ export const organizationNavigation: NavigationSection[] = [
 
 export const billingNavigation: NavigationSection[] = [
 	createNavSection("Billing & Usage", CreditCardIcon, [
-		createNavItem("Usage Overview", ActivityIcon, "/billing?tab=overview"),
-		createNavItem("Plans & Pricing", CurrencyDollarIcon, "/billing?tab=plans"),
-		createNavItem("Payment History", ReceiptIcon, "/billing?tab=history"),
+		createNavItem("Usage Overview", ActivityIcon, "/billing"),
+		createNavItem("Plans & Pricing", CurrencyDollarIcon, "/billing/plans"),
+		createNavItem("Payment History", ReceiptIcon, "/billing/history"),
 		createNavItem(
 			"Cost Breakdown",
 			ChartLineUpIcon,
@@ -198,58 +187,6 @@ export const billingNavigation: NavigationSection[] = [
 				badge: { text: "Experimental", variant: "purple" as const },
 			}
 		),
-	]),
-];
-
-export const createDatabasesNavigation = (
-	databases: Array<{ id: string; name: string; type: string }>
-): NavigationSection[] =>
-	createDynamicNavigation(
-		databases,
-		"Database Monitoring",
-		MonitorIcon,
-		"Database Overview",
-		"/observability/database",
-		DatabaseIcon,
-		"/observability/database",
-		"Add Your First Database",
-		(database) => ({ type: database.type })
-	);
-
-export const observabilityNavigation: NavigationSection[] = [
-	createNavSection("Database Monitoring", MonitorIcon, [
-		createNavItem(
-			"Database Connections",
-			NetworkIcon,
-			"/observability/database"
-		),
-	]),
-];
-
-export const databaseNavigation: NavigationSection[] = [
-	createNavSection("Database Monitoring", MonitorIcon, [
-		createNavItem("Overview", EyeIcon, "", { rootLevel: false }),
-		createNavItem("Performance", PulseIcon, "/performance", {
-			rootLevel: false,
-		}),
-		createNavItem("Queries", MagnifyingGlassIcon, "/queries", {
-			rootLevel: false,
-		}),
-		createNavItem("Tables", TableIcon, "/tables", { rootLevel: false }),
-		createNavItem("Online Advisor", LightningIcon, "/online-advisor", {
-			rootLevel: false,
-		}),
-	]),
-	createNavSection("Configuration", GearIcon, [
-		createNavItem("Connection Settings", PlugIcon, "/settings", {
-			rootLevel: false,
-		}),
-		createNavItem("Monitoring Settings", MonitorIcon, "/monitoring", {
-			rootLevel: false,
-		}),
-		createNavItem("Plugin Marketplace", StorefrontIcon, "/plugins", {
-			rootLevel: false,
-		}),
 	]),
 ];
 
@@ -262,7 +199,7 @@ export const websiteNavigation: NavigationSection[] = [
 		createNavItem("Performance", ActivityIcon, "/performance", {
 			rootLevel: false,
 		}),
-		createNavItem("Geographic Data", MapPinIcon, "/map", { rootLevel: false }),
+		createNavItem("Geographic", MapPinIcon, "/map", { rootLevel: false }),
 		createNavItem("Error Tracking", BugIcon, "/errors", { rootLevel: false }),
 	]),
 	createNavSection("Product Analytics", TrendUpIcon, [
@@ -277,20 +214,20 @@ export const websiteNavigation: NavigationSection[] = [
 			alpha: true,
 			rootLevel: false,
 		}),
-		createNavItem("Databunny AI", RobotIcon, "/assistant", {
-			alpha: true,
-			hideFromDemo: true,
-			rootLevel: false,
-		}),
+		// createNavItem("Databunny AI", RobotIcon, "/assistant", {
+		// 	alpha: true,
+		// 	hideFromDemo: true,
+		// 	rootLevel: false,
+		// }),
 	]),
 ];
 
 export const websiteSettingsNavigation: NavigationSection[] = [
 	createNavSection("Website Settings", GearIcon, [
-		createNavItem("General Settings", GearIcon, "/settings/general", {
+		createNavItem("General", GearIcon, "/settings/general", {
 			rootLevel: false,
 		}),
-		createNavItem("Privacy Settings", ShieldCheckIcon, "/settings/privacy", {
+		createNavItem("Privacy", ShieldCheckIcon, "/settings/privacy", {
 			rootLevel: false,
 		}),
 		createNavItem(
@@ -333,12 +270,6 @@ export const categoryConfig = {
 				production: true,
 			},
 			{
-				id: "observability",
-				name: "Observability BETA",
-				icon: MonitorIcon,
-				production: false,
-			},
-			{
 				id: "settings",
 				name: "Settings",
 				icon: GearIcon,
@@ -357,7 +288,6 @@ export const categoryConfig = {
 			websites: [],
 			organizations: organizationNavigation,
 			billing: billingNavigation,
-			observability: observabilityNavigation,
 			settings: personalNavigation,
 			resources: resourcesNavigation,
 		}
@@ -384,44 +314,21 @@ export const categoryConfig = {
 			settings: websiteSettingsNavigation,
 		}
 	),
-	database: createCategoryConfig(
-		[
-			{
-				id: "monitoring",
-				name: "Monitoring",
-				icon: MonitorIcon,
-				production: false,
-			},
-		],
-		"monitoring",
-		{
-			monitoring: databaseNavigation,
-		}
-	),
 };
 
 const PATH_CONFIG_MAP = [
 	{ pattern: ["/websites/", "/demo/"], config: "website" as const },
-	{
-		pattern: ["/observability/database/"],
-		config: "database" as const,
-		exclude: ["/observability/database", "/observability/database/"],
-	},
 ] as const;
 
 const CATEGORY_PATH_MAP = [
 	{ pattern: "/organizations", category: "organizations" as const },
 	{ pattern: "/billing", category: "billing" as const },
-	{ pattern: "/observability", category: "observability" as const },
 	{ pattern: "/settings", category: "settings" as const },
 ] as const;
 
 export const getContextConfig = (pathname: string) => {
 	for (const item of PATH_CONFIG_MAP) {
-		if (
-			item.pattern.some((p) => pathname.startsWith(p)) &&
-			!("exclude" in item && item.exclude.some((e: string) => pathname === e))
-		) {
+		if (item.pattern.some((p) => pathname.startsWith(p))) {
 			return categoryConfig[item.config];
 		}
 	}
@@ -464,14 +371,4 @@ export const createLoadingWebsitesNavigation = (): NavigationSection[] =>
 		"/websites",
 		"Loading websites...",
 		GlobeIcon
-	);
-
-export const createLoadingDatabasesNavigation = (): NavigationSection[] =>
-	createLoadingNavigation(
-		"Database Monitoring",
-		MonitorIcon,
-		"Database Overview",
-		"/observability/database",
-		"Loading databases...",
-		DatabaseIcon
 	);

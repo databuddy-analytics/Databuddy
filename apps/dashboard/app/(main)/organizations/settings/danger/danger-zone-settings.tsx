@@ -1,10 +1,12 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { SignOutIcon, TrashIcon } from "@phosphor-icons/react";
+import { SignOutIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
+import { RightSidebar } from "@/components/right-sidebar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,7 +18,6 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-
 import { type Organization, useOrganizations } from "@/hooks/use-organizations";
 import { TransferAssets } from "./transfer-assets";
 
@@ -64,7 +65,7 @@ export function DangerZoneSettings({
 		try {
 			await deleteOrganizationAsync(organization.id);
 			router.push("/organizations");
-		} catch (_error) {
+		} catch {
 			toast.error("Failed to delete organization");
 		} finally {
 			setIsDeleting(false);
@@ -77,7 +78,7 @@ export function DangerZoneSettings({
 		try {
 			await leaveOrganizationAsync(organization.id);
 			router.push("/organizations");
-		} catch (_error) {
+		} catch {
 			toast.error("Failed to leave organization");
 		} finally {
 			setIsLeaving(false);
@@ -86,76 +87,83 @@ export function DangerZoneSettings({
 	};
 
 	return (
-		<div className="h-full p-6">
-			<div className="space-y-8">
-				{/* Content Sections */}
-				<div className="space-y-8">
-					{/* Transfer Assets Section */}
-					<div className="rounded-lg border bg-card">
-						<div className="border-b p-6">
-							<h3 className="font-semibold text-lg">Transfer Assets</h3>
-							<p className="text-muted-foreground text-sm">
-								Move websites between your personal account and organization
+		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
+			{/* Main Content */}
+			<div className="flex flex-col gap-6 border-b p-5 lg:border-b-0">
+				{/* Transfer Assets Section */}
+				<section>
+					<div className="mb-6">
+						<h3 className="font-semibold">Transfer Assets</h3>
+						<p className="text-muted-foreground text-sm">
+							Move websites between your personal account and this organization
+						</p>
+					</div>
+					<NoticeBanner
+						className="mb-5"
+						description="Actions here can result in permanent data loss"
+						icon={<WarningIcon />}
+						title="Danger Zone"
+					/>
+					<TransferAssets organizationId={organization.id} />
+				</section>
+
+				{/* Destructive Action */}
+				<section className="mt-auto rounded border border-destructive/20 bg-destructive/5 p-4">
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<h3 className="font-semibold text-destructive">
+								{isOwner === null
+									? "Loading..."
+									: isOwner
+										? "Delete Organization"
+										: "Leave Organization"}
+							</h3>
+							<p className="mt-1 text-destructive/70 text-sm">
+								{isOwner === null
+									? "Checking permissions..."
+									: isOwner
+										? "Permanently delete this organization and all its data"
+										: "You will lose access to all resources"}
 							</p>
 						</div>
-						<div className="p-6">
-							<TransferAssets organizationId={organization.id} />
-						</div>
+						{isOwner === null ? (
+							<Button disabled size="sm" variant="destructive">
+								<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
+								Loading
+							</Button>
+						) : isOwner ? (
+							<Button
+								onClick={() => setShowDeleteDialog(true)}
+								size="sm"
+								variant="destructive"
+							>
+								<TrashIcon className="mr-2" size={14} />
+								Delete
+							</Button>
+						) : (
+							<Button
+								onClick={() => setShowLeaveDialog(true)}
+								size="sm"
+								variant="destructive"
+							>
+								<SignOutIcon size={14} />
+								Leave
+							</Button>
+						)}
 					</div>
-
-					{/* Leave/Delete Organization Section */}
-					<div className="rounded-lg border border-destructive/20 bg-destructive/5">
-						<div className="p-6">
-							<div className="space-y-4">
-								<div>
-									<h3 className="font-semibold text-destructive text-lg">
-										{isOwner === null
-											? "Loading..."
-											: isOwner
-												? "Delete Organization"
-												: "Leave Organization"}
-									</h3>
-									<p className="text-destructive/80 text-sm">
-										{isOwner === null
-											? "Checking permissions..."
-											: isOwner
-												? "Once you delete an organization, there is no going back. Please be certain."
-												: "You will lose access to this organization and all its resources."}
-									</p>
-								</div>
-
-								<div className="flex justify-end">
-									{isOwner === null ? (
-										<Button disabled size="default" variant="destructive">
-											<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
-											Loading...
-										</Button>
-									) : isOwner ? (
-										<Button
-											onClick={() => setShowDeleteDialog(true)}
-											size="default"
-											variant="destructive"
-										>
-											<TrashIcon className="mr-2 h-4 w-4" size={16} />
-											Delete Organization
-										</Button>
-									) : (
-										<Button
-											onClick={() => setShowLeaveDialog(true)}
-											size="default"
-											variant="destructive"
-										>
-											<SignOutIcon className="mr-2 h-4 w-4" size={16} />
-											Leave Organization
-										</Button>
-									)}
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+				</section>
 			</div>
 
+			{/* Sidebar */}
+			<RightSidebar className="gap-4 p-5">
+				<RightSidebar.DocsLink />
+				<RightSidebar.Tip
+					description="Contact support if you need to recover deleted data or transfer ownership of an organization."
+					title="Need help?"
+				/>
+			</RightSidebar>
+
+			{/* Delete Dialog */}
 			<AlertDialog onOpenChange={setShowDeleteDialog} open={showDeleteDialog}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
@@ -168,23 +176,17 @@ export function DangerZoneSettings({
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-destructive text-red-700"
 							disabled={isDeleting}
 							onClick={handleDelete}
 						>
-							{isDeleting ? (
-								<>
-									<div className="mr-2 h-4 w-4 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
-									Deleting...
-								</>
-							) : (
-								"Delete Organization"
-							)}
+							{isDeleting ? "Deleting..." : "Delete Organization"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 
+			{/* Leave Dialog */}
 			<AlertDialog onOpenChange={setShowLeaveDialog} open={showLeaveDialog}>
 				<AlertDialogContent>
 					<AlertDialogHeader>

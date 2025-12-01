@@ -2,6 +2,7 @@
 
 import { useFlags } from "@databuddy/sdk/react";
 import { FlagIcon, InfoIcon } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
@@ -13,7 +14,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useWebsite } from "@/hooks/use-websites";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
 import { WebsitePageHeader } from "../_components/website-page-header";
 import { FlagSheet } from "./_components/flag-sheet";
@@ -70,8 +71,8 @@ export default function FlagsPage() {
 		isLoading,
 		error: flagsError,
 		refetch: refetchFlags,
-	} = trpc.flags.list.useQuery({
-		websiteId,
+	} = useQuery({
+		...orpc.flags.list.queryOptions({ input: { websiteId } }),
 	});
 
 	const handleRefresh = useCallback(async () => {
@@ -123,7 +124,7 @@ export default function FlagsPage() {
 	}
 
 	return (
-		<div className="space-y-4 p-6">
+		<>
 			<WebsitePageHeader
 				createActionLabel="Create Flag"
 				description="Control feature rollouts and A/B testing"
@@ -131,7 +132,7 @@ export default function FlagsPage() {
 				hasError={!!flagsError}
 				icon={
 					<FlagIcon
-						className="h-6 w-6 text-primary"
+						className="size-6 text-accent-foreground"
 						size={16}
 						weight="duotone"
 					/>
@@ -149,57 +150,60 @@ export default function FlagsPage() {
 				websiteId={websiteId}
 				websiteName={website?.name || undefined}
 			/>
-			{experimentFlag.isReady && (
-				<div className="flex items-center gap-3">
-					<FlagIcon
-						className="h-5 w-5"
-						color={experimentFlag.enabled ? "red" : "blue"}
-						size={16}
-						weight="fill"
-					/>
-					{experimentFlag.enabled ? (
-						<Badge className="bg-red-500 text-white">Red Team</Badge>
-					) : (
-						<Badge className="bg-blue-500 text-white">Blue Team</Badge>
-					)}
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="h-4 w-4" weight="duotone" />
-						</TooltipTrigger>
-						<TooltipContent className="max-w-xs">
-							<div className="space-y-2">
-								<p className="font-medium">A/B Test Experiment</p>
-								<p className="text-xs leading-relaxed">
-									This is a proof-of-concept feature flag demonstrating A/B
-									testing capabilities. Approximately 50% of users are randomly
-									assigned to the "Red Team" experience, while the other 50% see
-									the "Blue Team" experience. This live experiment helps test
-									feature flag functionality and user experience variations.
-								</p>
-							</div>
-						</TooltipContent>
-					</Tooltip>
-				</div>
-			)}
-			<Suspense fallback={<FlagsListSkeleton />}>
-				<FlagsList
-					flags={(flags as any) || []}
-					isLoading={isLoading}
-					onCreateFlag={handleCreateFlag}
-					onEditFlag={handleEditFlag}
-				/>
-			</Suspense>
-
-			{isSheetOpen && (
-				<Suspense fallback={null}>
-					<FlagSheet
-						flag={editingFlag}
-						isOpen={isSheetOpen}
-						onClose={handleSheetClose}
-						websiteId={websiteId}
+			<div className="space-y-4 p-4 h-full">
+				{experimentFlag.isReady && flags && flags.length > 0 && (
+					<div className="flex items-center gap-2">
+						<FlagIcon
+							className="size-4"
+							color={experimentFlag.enabled ? "red" : "blue"}
+							size={16}
+							weight="fill"
+						/>
+						{experimentFlag.enabled ? (
+							<Badge className="bg-red-500 text-white">Red Team</Badge>
+						) : (
+							<Badge className="bg-blue-500 text-white">Blue Team</Badge>
+						)}
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon className="h-4 w-4" weight="duotone" />
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								<div className="space-y-2">
+									<p className="font-medium">A/B Test Experiment</p>
+									<p className="text-xs leading-relaxed">
+										This is a proof-of-concept feature flag demonstrating A/B
+										testing capabilities. Approximately 50% of users are
+										randomly assigned to the "Red Team" experience, while the
+										other 50% see the "Blue Team" experience. This live
+										experiment helps test feature flag functionality and user
+										experience variations.
+									</p>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					</div>
+				)}
+				<Suspense fallback={<FlagsListSkeleton />}>
+					<FlagsList
+						flags={(flags as any) || []}
+						isLoading={isLoading}
+						onCreateFlagAction={handleCreateFlag}
+						onEditFlagAction={handleEditFlag}
 					/>
 				</Suspense>
-			)}
-		</div>
+
+				{isSheetOpen && (
+					<Suspense fallback={null}>
+						<FlagSheet
+							flag={editingFlag}
+							isOpen={isSheetOpen}
+							onCloseAction={handleSheetClose}
+							websiteId={websiteId}
+						/>
+					</Suspense>
+				)}
+			</div>
+		</>
 	);
 }

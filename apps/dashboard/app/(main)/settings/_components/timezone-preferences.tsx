@@ -7,7 +7,6 @@ import {
 	ClockIcon,
 	GlobeIcon,
 	MapPinIcon,
-	SparkleIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -197,13 +196,13 @@ export function TimezonePreferences() {
 	return (
 		<div className="fade-in slide-in-from-bottom-2 animate-in space-y-6 duration-300">
 			{/* Current Settings Preview */}
-			<Card className="border-muted/50 bg-gradient-to-br from-muted/20 to-muted/5">
-				<CardContent className="p-4">
+			<Card className="bg-accent-brighter">
+				<CardContent>
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/20 bg-gradient-to-br from-blue-500/20 to-blue-600/5">
+							<div className="flex size-10 items-center justify-center rounded-full bg-accent-foreground">
 								<ClockIcon
-									className="h-5 w-5 text-foreground"
+									className="size-5 text-accent"
 									size={16}
 									weight="duotone"
 								/>
@@ -217,11 +216,7 @@ export function TimezonePreferences() {
 						</div>
 						<div className="flex items-center gap-2">
 							<Badge className="text-xs" variant="secondary">
-								<MapPinIcon
-									className="mr-1 h-3 w-3"
-									size={16}
-									weight="duotone"
-								/>
+								<MapPinIcon className="size-3" size={16} weight="duotone" />
 								{currentTimezone.split("/").pop()?.replace("_", " ")}
 							</Badge>
 						</div>
@@ -251,53 +246,48 @@ export function TimezonePreferences() {
 						<h3 className="font-medium text-base">Select Timezone</h3>
 
 						{/* Auto Detection */}
-						<div className="rounded-lg border border-muted/50 bg-muted/20 p-3">
-							<Button
-								className="w-full justify-start gap-2"
-								onClick={() =>
-									setLocalPreferences({ ...localPreferences, timezone: "auto" })
+						<Button
+							className="w-full justify-start gap-2"
+							onClick={() =>
+								setLocalPreferences({ ...localPreferences, timezone: "auto" })
+							}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									setLocalPreferences({
+										...localPreferences,
+										timezone: "auto",
+									});
 								}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										setLocalPreferences({
-											...localPreferences,
-											timezone: "auto",
-										});
-									}
-								}}
-								size="sm"
-								variant={
-									localPreferences.timezone === "auto" ? "default" : "outline"
-								}
-							>
-								<GlobeIcon className="h-4 w-4" size={16} weight="duotone" />
-								Auto-detect ({getBrowserTimezone()})
-								{localPreferences.timezone === "auto" && (
-									<CheckCircleIcon
-										className="ml-auto h-4 w-4"
-										size={16}
-										weight="duotone"
-									/>
-								)}
-							</Button>
-						</div>
+							}}
+							size="lg"
+							variant={
+								localPreferences.timezone === "auto" ? "default" : "outline"
+							}
+						>
+							<GlobeIcon className="size-4" size={16} weight="duotone" />
+							Auto-detect ({getBrowserTimezone()})
+							{localPreferences.timezone === "auto" && (
+								<CheckCircleIcon
+									className="ml-auto size-4"
+									size={16}
+									weight="duotone"
+								/>
+							)}
+						</Button>
 
 						{/* Manual Selection */}
-						<div className="overflow-hidden rounded-lg border border-muted/50">
+						<div className="overflow-hidden rounded-lg border border-secondary-brightest">
 							<div className="max-h-64 overflow-y-auto">
 								{timezonesByOffset.map(([offset, zones]) => (
-									<div
-										className="border-muted/30 border-b last:border-0"
-										key={offset}
-									>
-										<div className="bg-muted/40 px-4 py-2 font-medium text-sm">
+									<div className="border-secondary-brightest" key={offset}>
+										<div className="bg-secondary p-3 font-medium text-sm">
 											{offset}
 										</div>
 										<div className="p-1">
 											{zones.map((tz) => (
 												<div
 													className={cn(
-														"mx-1 my-0.5 cursor-pointer rounded-md px-3 py-2 text-sm transition-all duration-200",
+														"m-0.5 cursor-pointer rounded-md p-2 text-sm transition-all duration-200",
 														"hover:bg-accent hover:text-accent-foreground",
 														localPreferences.timezone === tz.region &&
 															"bg-primary text-primary-foreground"
@@ -345,7 +335,7 @@ export function TimezonePreferences() {
 							{DATE_FORMATS.map((option) => (
 								<div
 									className={cn(
-										"cursor-pointer rounded-lg border border-muted/50 p-3 transition-all duration-200",
+										"cursor-pointer rounded-lg border p-3 transition-all duration-200",
 										"hover:border-accent-foreground/20 hover:bg-accent",
 										localPreferences.dateFormat === option.value
 											? "border-primary bg-primary/5 ring-1 ring-primary/20"
@@ -478,18 +468,11 @@ export function TimezonePreferences() {
 			)}
 
 			{/* Help Text */}
-			<div className="rounded-lg border border-muted/50 bg-muted/30 p-4">
+			<div className="rounded-lg border bg-secondary p-4">
 				<div className="flex items-start gap-3">
-					<div className="rounded-md bg-primary/10 p-1">
-						<SparkleIcon
-							className="h-4 w-4 text-primary"
-							size={16}
-							weight="duotone"
-						/>
-					</div>
 					<div className="text-sm">
-						<p className="mb-1 font-medium">🌍 Timezone & Format Tips</p>
-						<ul className="space-y-1 text-muted-foreground leading-relaxed">
+						<p className="mb-1 font-medium">Timezone & Format Tips</p>
+						<ul className="mt-2 space-y-1 text-muted-foreground leading-relaxed">
 							<li>• Auto-detect uses your browser's timezone setting</li>
 							<li>
 								• Changes apply to all dates and times across the platform

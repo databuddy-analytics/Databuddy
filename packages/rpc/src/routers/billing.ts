@@ -5,17 +5,11 @@ import type {
 	DailyUsageRow,
 	EventTypeBreakdown,
 } from "@databuddy/shared/types/billing";
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { protectedProcedure } from "../orpc";
 import { buildWebsiteFilter } from "../services/website-service";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-
-const usageQuerySchema = z.object({
-	startDate: z.string().optional(),
-	endDate: z.string().optional(),
-	organizationId: z.string().nullable().optional(),
-});
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -84,10 +78,18 @@ const getDailyUsageByTypeQuery = () => `
 	ORDER BY date ASC, event_category ASC
 `;
 
-export const billingRouter = createTRPCRouter({
+export const billingRouter = {
 	getUsage: protectedProcedure
-		.input(usageQuerySchema.default({}))
-		.query(async ({ ctx, input }) => {
+		.input(
+			z
+				.object({
+					startDate: z.string().optional(),
+					endDate: z.string().optional(),
+					organizationId: z.string().nullable().optional(),
+				})
+				.default({})
+		)
+		.handler(async ({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -101,12 +103,11 @@ export const billingRouter = createTRPCRouter({
 
 			if (organizationId) {
 				const { success } = await websitesApi.hasPermission({
-					headers: ctx.headers,
+					headers: context.headers,
 					body: { permissions: { website: ["read"] } },
 				});
 				if (!success) {
-					throw new TRPCError({
-						code: "FORBIDDEN",
+					throw new ORPCError("FORBIDDEN", {
 						message: "Missing organization permissions.",
 					});
 				}
@@ -114,11 +115,11 @@ export const billingRouter = createTRPCRouter({
 
 			try {
 				const whereClause = buildWebsiteFilter(
-					ctx.user.id,
+					context.user.id,
 					organizationId ?? undefined
 				);
 
-				const userWebsites = await ctx.db.query.websites.findMany({
+				const userWebsites = await context.db.query.websites.findMany({
 					where: whereClause,
 					columns: {
 						id: true,
@@ -181,9 +182,9 @@ export const billingRouter = createTRPCRouter({
 					.sort((a, b) => b.event_count - a.event_count);
 
 				logger.info(
-					`Billing usage calculated for user ${ctx.user.id}: ${totalEvents} events across ${websiteIds.length} websites`,
+					`Billing usage calculated for user ${context.user.id}: ${totalEvents} events across ${websiteIds.length} websites`,
 					{
-						userId: ctx.user.id,
+						userId: context.user.id,
 						organizationId,
 						websiteCount: websiteIds.length,
 						totalEvents,
@@ -201,17 +202,16 @@ export const billingRouter = createTRPCRouter({
 				};
 			} catch (error) {
 				logger.error(
-					`Failed to fetch billing usage for user ${ctx.user.id}: ${error instanceof Error ? error.message : String(error)}`,
+					`Failed to fetch billing usage for user ${context.user.id}: ${error instanceof Error ? error.message : String(error)}`,
 					{
 						error: error instanceof Error ? error.message : String(error),
-						userId: ctx.user.id,
+						userId: context.user.id,
 						organizationId,
 					}
 				);
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to fetch billing usage data",
 				});
 			}
 		}),
-});
+};

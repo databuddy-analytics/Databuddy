@@ -173,10 +173,12 @@ export const EmptyState: React.FC<{
 	action?: React.ReactNode;
 }> = ({ icon, title, description, action }) => (
 	<div className="flex h-64 items-center justify-center">
-		<div className="text-center text-muted-foreground">
-			<div className="mx-auto mb-2 opacity-30">{icon}</div>
-			<p className="mb-1 font-medium text-base">{title}</p>
-			<p className="mb-3">{description}</p>
+		<div className="flex flex-col items-center justify-center gap-6">
+			<div className="flex flex-col items-center justify-center">
+				<div className="mx-auto mb-2">{icon}</div>
+				<p className="font-medium text-base text-foreground">{title}</p>
+				<p className="text-muted-foreground text-sm">{description}</p>
+			</div>
 			{action}
 		</div>
 	</div>

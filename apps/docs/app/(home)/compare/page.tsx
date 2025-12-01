@@ -76,7 +76,7 @@ function CompetitorCard({
 								Databuddy advantages
 							</span>
 							<Badge
-								className="border-primary/20 bg-primary/10 text-primary"
+								className="border-accent bg-accent/50 text-primary"
 								variant="outline"
 							>
 								{featuresWin}/{totalFeatures} features
@@ -115,7 +115,7 @@ function CompetitorCard({
 								.map((feature) => (
 									<div className="flex items-center gap-2" key={feature.name}>
 										<CheckIcon
-											className="h-4 w-4 flex-shrink-0 text-primary"
+											className="h-4 w-4 shrink-0 text-primary"
 											weight="fill"
 										/>
 										<span className="text-muted-foreground text-xs leading-relaxed">
@@ -267,7 +267,7 @@ export default function ComparePage() {
 
 			{/* Gradient Divider */}
 			<div className="w-full">
-				<div className="mx-auto h-px max-w-6xl bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+				<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
 			</div>
 		</div>
 	);

@@ -1,14 +1,65 @@
 "use client";
 
-import { ArrowsOutSimple as ArrowsOutSimpleIcon } from "@phosphor-icons/react";
-import { useRef } from "react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+
+type FullscreenElement = HTMLIFrameElement & {
+	webkitRequestFullscreen?: () => Promise<void>;
+	mozRequestFullScreen?: () => Promise<void>;
+	msRequestFullscreen?: () => Promise<void>;
+};
+
+function isFullscreenSupported(): boolean {
+	if (typeof document === "undefined") {
+		return false;
+	}
+	const element = document.createElement("div") as FullscreenElement;
+	return !!(
+		element.requestFullscreen ||
+		element.webkitRequestFullscreen ||
+		element.mozRequestFullScreen ||
+		element.msRequestFullscreen
+	);
+}
 
 export default function DemoContainer() {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const [isFullscreenAvailable, setIsFullscreenAvailable] = useState(false);
 
-	const handleFullscreen = () => {
-		if (iframeRef.current?.requestFullscreen) {
-			iframeRef.current.requestFullscreen();
+	useEffect(() => {
+		setIsFullscreenAvailable(isFullscreenSupported());
+	}, []);
+
+	const handleFullscreen = async () => {
+		const element = iframeRef.current as FullscreenElement | null;
+		if (!element) {
+			return;
+		}
+
+		try {
+			if (element.requestFullscreen) {
+				await element.requestFullscreen();
+			} else if (element.webkitRequestFullscreen) {
+				await element.webkitRequestFullscreen();
+			} else if (element.mozRequestFullScreen) {
+				await element.mozRequestFullScreen();
+			} else if (element.msRequestFullscreen) {
+				await element.msRequestFullscreen();
+			} else {
+				// Fallback: open in new tab
+				window.open(element.src, "_blank", "noopener,noreferrer");
+			}
+		} catch (error) {
+			// Fullscreen was denied or failed, fallback to new tab
+			console.error("Fullscreen failed:", error);
+			window.open(element.src, "_blank", "noopener,noreferrer");
+		}
+	};
+
+	const handleOpenInNewTab = () => {
+		const element = iframeRef.current;
+		if (element) {
+			window.open(element.src, "_blank", "noopener,noreferrer");
 		}
 	};
 
@@ -72,26 +123,36 @@ export default function DemoContainer() {
 
 				<iframe
 					allowFullScreen
-					className="h-[500px] w-full rounded border-0 bg-gradient-to-b from-transparent to-background shadow-2xl grayscale sm:h-[600px] lg:h-[700px]"
+					className="h-[500px] w-full rounded border-0 bg-linear-to-b from-transparent to-background shadow-2xl grayscale sm:h-[600px] lg:h-[700px]"
 					loading="lazy"
 					ref={iframeRef}
 					src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"
 					title="Databuddy Demo Dashboard"
 				/>
 
-				{/* Fullscreen Button & Overlay */}
+				{/* Fullscreen/Open Button & Overlay */}
 				<button
-					aria-label="Open demo in fullscreen"
+					aria-label={
+						isFullscreenAvailable
+							? "Open demo in fullscreen"
+							: "Open demo in new tab"
+					}
 					className="absolute inset-2 flex items-center justify-center rounded bg-background/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-					onClick={handleFullscreen}
+					onClick={
+						isFullscreenAvailable ? handleFullscreen : handleOpenInNewTab
+					}
 					type="button"
 				>
-					<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-all transition-colors duration-300 hover:bg-background/10">
+					<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-300 hover:bg-background/10">
 						<ArrowsOutSimpleIcon
 							className="h-4 w-4 text-foreground"
 							weight="fill"
 						/>
-						<span className="text-foreground">Click to view fullscreen</span>
+						<span className="text-foreground">
+							{isFullscreenAvailable
+								? "Click to view fullscreen"
+								: "Click to open in new tab"}
+						</span>
 					</div>
 				</button>
 			</div>

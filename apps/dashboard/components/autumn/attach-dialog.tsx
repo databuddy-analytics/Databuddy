@@ -268,6 +268,6 @@ export const PricingDialogButton = ({
 		size={size}
 	>
 		{children}
-		<ArrowRight className="!h-3" />
+		<ArrowRight className="h-3!" />
 	</Button>
 );

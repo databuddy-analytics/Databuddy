@@ -36,15 +36,9 @@ export function GoalsList({
 					onClick: onCreateGoal,
 				}}
 				description="Track conversions like sign-ups, purchases, or button clicks to measure key user actions and optimize your conversion rates."
-				icon={
-					<TargetIcon
-						className="h-16 w-16 text-primary"
-						size={16}
-						weight="duotone"
-					/>
-				}
+				icon={<TargetIcon />}
 				title="No goals yet"
-				variant="default"
+				variant="minimal"
 			/>
 		);
 	}

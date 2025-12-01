@@ -39,10 +39,7 @@ export default function CustomSidebar() {
 						onClick={handleSearch}
 						type="button"
 					>
-						<MagnifyingGlassIcon
-							className="size-4 flex-shrink-0"
-							weight="duotone"
-						/>
+						<MagnifyingGlassIcon className="size-4 shrink-0" weight="duotone" />
 						<span className="text-sm">Search documentation...</span>
 					</button>
 
@@ -64,14 +61,14 @@ export default function CustomSidebar() {
 										type="button"
 									>
 										<item.Icon
-											className="size-5 flex-shrink-0 text-foreground"
+											className="size-5 shrink-0 text-foreground"
 											weight="fill"
 										/>
 										<span className="flex-1 text-sm">{item.title}</span>
 										{item.isNew && <NewBadge />}
 										<motion.div
 											animate={{ rotate: currentOpen === index ? 180 : 0 }}
-											className="flex-shrink-0"
+											className="shrink-0"
 										>
 											<CaretDownIcon
 												className="h-4 w-4 text-muted-foreground"
@@ -96,7 +93,7 @@ export default function CustomSidebar() {
 																		<p className="bg-gradient-to-tr from-gray-900 to-stone-900 bg-clip-text text-sm text-transparent dark:from-gray-100 dark:to-stone-200">
 																			{listItem.title}
 																		</p>
-																		<div className="h-px flex-grow bg-gradient-to-r from-stone-800/90 to-stone-800/60" />
+																		<div className="h-px flex-grow bg-linear-to-r from-stone-800/90 to-stone-800/60" />
 																	</div>
 																) : (
 																	<AsideLink
@@ -107,7 +104,7 @@ export default function CustomSidebar() {
 																		title={listItem.title}
 																	>
 																		<listItem.icon
-																			className="size-5 flex-shrink-0"
+																			className="size-5 shrink-0"
 																			weight="duotone"
 																		/>
 																		<span className="flex-1">

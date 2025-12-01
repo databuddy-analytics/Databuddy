@@ -1,0 +1,44 @@
+# Ingestion Service Migration Plan
+
+This document outlines the necessary steps to migrate the `rust/ingestion` service to full feature parity with `apps/basket`.
+
+## Infrastructure & Data Access
+- [ ] **Database Connection**: Add `sqlx` (Postgres) to query the `websites` and `members` tables.
+- [ ] **Redis Connection**: Add `redis` crate for caching website lookups and checking for duplicate events.
+- [ ] **GeoIP Setup**: Integrate `maxminddb` to resolve IPs to Country/Region/City (needs access to the `.mmdb` file).
+
+## Request Validation (Middleware/Logic)
+- [ ] **Payload Size Limit**: Enforce max payload size (similar to `VALIDATION_LIMITS.PAYLOAD_MAX_SIZE`).
+- [ ] **Client ID Validation**:
+    - Implement logic to query `websites` table by `client_id`.
+    - Check if website status is `ACTIVE`.
+    - Resolve owner ID (check `userId` or `organizationId` -> `owner` member).
+    - Cache this result in Redis.
+- [ ] **Origin Verification**:
+    - Check `Origin` header against the website's configured domain.
+    - Support subdomain matching logic.
+- [ ] **Autumn Check**:
+    - Call the Autumn service (via HTTP) to check usage limits/allowance for the customer.
+- [ ] **Bot Detection**:
+    - Parse `User-Agent` and check against a known bot list (port the regex list from `shared/lists/bots`).
+    - Check for suspicious headers (missing `Accept`, short UA strings).
+
+## Data Enrichment
+- [ ] **User-Agent Parsing**: Use a crate like `uap-rs` to extract Browser, OS, Device Type, Brand, and Model from the UA string.
+- [ ] **IP Anonymization**: Hash the IP address with a salt before sending it downstream.
+- [ ] **GeoIP Lookup**: Enrich the event with `country`, `region`, `city` based on the IP.
+
+## Event Processing
+- [ ] **Duplicate Prevention**: Check Redis for `eventId` existence to prevent processing the same event twice.
+- [ ] **Data Mapping**:
+    - Flatten the input JSON if needed.
+    - Map incoming fields to the expected Kafka message schema (which `basket` seems to insert directly into DB, but here we likely want to send the *enriched* full object to Kafka).
+    - Ensure fields like `session_id`, `anonymous_id` are sanitized/validated.
+
+## Observability
+- [ ] **Tracing**: Set up `tracing` and `tracing-subscriber` to match the observability we have in Node (logging errors, operation times).
+
+## API Parity
+- [ ] **Error Responses**: Ensure 4xx/5xx responses match `basket`'s format (e.g. returning specific "ignored" status for bots).
+- [ ] **Batch Endpoint**: Ensure `/batch` handles the array of events with the same validation logic per item.
+

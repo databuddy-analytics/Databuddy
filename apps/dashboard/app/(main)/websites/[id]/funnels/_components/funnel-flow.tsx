@@ -62,7 +62,7 @@ export function FunnelFlow({ steps, totalUsers }: FunnelFlowProps) {
 					return (
 						<div className="relative pb-6" key={step.step_number}>
 							<div className="mb-2 flex items-center">
-								<div className="mr-2 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-xs">
+								<div className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-xs">
 									{step.step_number}
 								</div>
 								<div className="truncate font-medium text-base text-foreground">
@@ -71,7 +71,7 @@ export function FunnelFlow({ steps, totalUsers }: FunnelFlowProps) {
 							</div>
 
 							<div className="flex items-center pl-8">
-								<div className="mr-4 min-w-[120px] flex-shrink-0">
+								<div className="mr-4 min-w-[120px] shrink-0">
 									<span className="font-semibold text-foreground text-lg">
 										{step.users.toLocaleString()}
 									</span>

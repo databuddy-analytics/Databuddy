@@ -11,7 +11,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	)
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(flagsRoute)
-	.onError(({ error, code, set }) => {
+	.onError(function handlePublicError({ error, code, set }) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
 		set.status = code === "NOT_FOUND" ? 404 : 500;

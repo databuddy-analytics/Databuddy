@@ -6,18 +6,18 @@ import { useCallback, useEffect, useState } from "react";
 
 // const RE_WWW_PREFIX = /^www\./;
 
-interface Logo {
+type Logo = {
 	id: number;
 	name: string;
 	src?: string;
-}
+};
 
-interface LogoColumnProps {
+type LogoColumnProps = {
 	logos: Logo[];
 	columnIndex: number;
 	currentTime: number;
 	isLast: boolean;
-}
+};
 
 function LogoColumn({
 	logos,
@@ -103,10 +103,10 @@ function LogoColumn({
 	);
 }
 
-interface LogoCarouselProps {
+type LogoCarouselProps = {
 	columns?: number;
 	logos: Logo[];
-}
+};
 
 export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 	const [logoColumns, setLogoColumns] = useState<Logo[][]>([]);
@@ -167,9 +167,10 @@ export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 			className="relative mx-auto flex justify-center gap-0 sm:gap-1 md:gap-2 lg:gap-4"
 			onMouseEnter={() => setIsPaused(true)}
 			onMouseLeave={() => setIsPaused(false)}
+			role="tablist"
 		>
 			{/* gradient edges */}
-			<div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent sm:w-12" />
+			<div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-background to-transparent sm:w-12" />
 			<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent sm:w-12" />
 			{logoColumns.map((columnLogos, index) => (
 				<LogoColumn

@@ -64,7 +64,7 @@ const logo = (height: number, width: number) => (
 export function Logo() {
 	return (
 		<Link className="flex items-center gap-3" href="/">
-			<div className="relative flex-shrink-0 scale-150 not-dark:brightness-0 transition-transform duration-200">
+			<div className="relative shrink-0 scale-150 not-dark:brightness-0 transition-transform duration-200">
 				{logo(24, 240)}
 			</div>
 		</Link>

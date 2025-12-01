@@ -40,6 +40,7 @@ import type {
 	FunnelFilter,
 	FunnelStep,
 } from "@/hooks/use-funnels";
+import { cn } from "@/lib/utils";
 import { AutocompleteInput, DraggableStep } from "./funnel-components";
 
 const defaultFilter: FunnelFilter = {
@@ -311,18 +312,18 @@ export function EditFunnelDialog({
 			>
 				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 					<div className="flex items-center gap-3">
-						<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
+						<div className="rounded-xl border bg-secondary p-3">
 							{isCreateMode ? (
 								<FunnelIcon
-									className="h-6 w-6 text-primary"
+									className="size-6 text-accent-foreground"
 									size={16}
-									weight="duotone"
+									weight="fill"
 								/>
 							) : (
 								<PencilIcon
-									className="h-6 w-6 text-primary"
+									className="size-6 text-accent-foreground"
 									size={16}
-									weight="duotone"
+									weight="fill"
 								/>
 							)}
 						</div>
@@ -339,7 +340,7 @@ export function EditFunnelDialog({
 					</div>
 				</SheetHeader>
 
-				<div className="space-y-6 pt-6">
+				<div className="space-y-12 pt-6">
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
 						<div className="space-y-2">
 							<Label
@@ -349,7 +350,6 @@ export function EditFunnelDialog({
 								Funnel Name
 							</Label>
 							<Input
-								className="rounded border-border/50 focus:border-primary/50 focus:ring-primary/20"
 								id="edit-name"
 								onChange={(e) =>
 									setFormData((prev) =>
@@ -368,7 +368,6 @@ export function EditFunnelDialog({
 								Description
 							</Label>
 							<Input
-								className="rounded border-border/50 focus:border-primary/50 focus:ring-primary/20"
 								id="edit-description"
 								onChange={(e) =>
 									setFormData((prev) =>
@@ -384,8 +383,7 @@ export function EditFunnelDialog({
 					<div className="space-y-4">
 						<div className="flex items-center gap-2">
 							<ChartBarIcon
-								className="h-5 w-5 text-primary"
-								size={16}
+								className="size-4 text-accent-foreground"
 								weight="duotone"
 							/>
 							<Label className="font-semibold text-base text-foreground">
@@ -400,11 +398,12 @@ export function EditFunnelDialog({
 								{(provided: any, snapshot: any) => (
 									<div
 										{...provided.droppableProps}
-										className={`space-y-4 transition-colors duration-150 ${
+										className={cn(
+											"space-y-4 transition-colors duration-150",
 											snapshot.isDraggingOver
 												? "rounded-lg bg-accent/10 p-1"
 												: ""
-										}`}
+										)}
 										ref={provided.innerRef}
 									>
 										{formData.steps.map((step, index) => (
@@ -438,17 +437,12 @@ export function EditFunnelDialog({
 							</Droppable>
 						</DragDropContext>
 						<Button
-							className="group rounded border-2 border-primary/30 border-dashed transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
+							className="group mt-4"
 							disabled={formData.steps.length >= 10}
 							onClick={addStep}
-							size="default"
 							type="button"
-							variant="outline"
 						>
-							<PlusIcon
-								className="mr-2 h-4 w-4 transition-transform duration-300 group-hover:rotate-90"
-								size={16}
-							/>
+							<PlusIcon className="size-4 transition-transform duration-300 group-hover:rotate-90" />
 							Add Step
 						</Button>
 					</div>
@@ -456,8 +450,7 @@ export function EditFunnelDialog({
 					<div className="space-y-4">
 						<div className="flex items-center gap-2">
 							<FunnelIcon
-								className="h-5 w-5 text-primary"
-								size={16}
+								className="size-4 text-accent-foreground"
 								weight="duotone"
 							/>
 							<Label className="font-semibold text-base text-foreground">
@@ -532,14 +525,8 @@ export function EditFunnelDialog({
 							</div>
 						)}
 
-						<Button
-							className="rounded border-2 border-primary/30 border-dashed hover:border-primary/50 hover:bg-primary/5"
-							onClick={() => addFilter()}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<PlusIcon className="mr-2 h-4 w-4" size={16} />
+						<Button className="group" onClick={() => addFilter()} type="button">
+							<PlusIcon className="size-4 transition-transform duration-300 group-hover:rotate-90" />
 							Add Filter
 						</Button>
 					</div>
@@ -549,7 +536,7 @@ export function EditFunnelDialog({
 							className="rounded"
 							onClick={handleClose}
 							type="button"
-							variant="outline"
+							variant="ghost"
 						>
 							Cancel
 						</Button>

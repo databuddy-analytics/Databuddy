@@ -1,20 +1,35 @@
+"use client";
+
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useState } from "react";
+import {
+	ArrowsClockwiseIcon,
+	CheckCircleIcon,
+	CheckIcon,
+	CopyIcon,
+	KeyIcon,
+	ProhibitIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
-import {
-	Form,
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
-} from "../ui/form";
 import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import {
 	Sheet,
 	SheetContent,
@@ -22,444 +37,377 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "../ui/sheet";
-import { Skeleton } from "../ui/skeleton";
 import { Switch } from "../ui/switch";
-import type { ApiKeyDetail, ApiScope } from "./api-key-types";
+import type { ApiKeyListItem, ApiScope } from "./api-key-types";
 
-// Loading component
-function ApiKeyDetailSkeleton() {
-	return (
-		<div className="space-y-6">
-			<div className="space-y-3">
-				<Skeleton className="h-6 w-48 rounded" />
-				<div className="rounded border p-4">
-					<div className="flex items-center gap-3">
-						<Skeleton className="h-10 w-10 rounded" />
-						<div className="flex-1 space-y-2">
-							<Skeleton className="h-5 w-32 rounded" />
-							<Skeleton className="h-4 w-20 rounded" />
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div className="space-y-4">
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div className="space-y-2">
-						<Skeleton className="h-4 w-16 rounded" />
-						<Skeleton className="h-10 w-full rounded" />
-					</div>
-					<div className="space-y-2">
-						<Skeleton className="h-4 w-20 rounded" />
-						<Skeleton className="h-10 w-full rounded" />
-					</div>
-				</div>
-				<div className="rounded border p-4">
-					<div className="flex items-center justify-between">
-						<div className="space-y-1">
-							<Skeleton className="h-4 w-16 rounded" />
-							<Skeleton className="h-3 w-32 rounded" />
-						</div>
-						<Skeleton className="h-6 w-12 rounded" />
-					</div>
-				</div>
-			</div>
-
-			<div className="space-y-3">
-				<Skeleton className="h-5 w-24 rounded" />
-				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					{["s1", "s2", "s3", "s4"].map((key) => (
-						<Skeleton className="h-10 w-full rounded" key={key} />
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-// Global scopes display component
-function GlobalScopesDisplay({ scopes }: { scopes: string[] }) {
-	return (
-		<div className="space-y-3">
-			<div className="flex items-center gap-2">
-				<h3 className="font-medium text-foreground">Global Permissions</h3>
-			</div>
-			{scopes.length > 0 ? (
-				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					{scopes.map((s) => (
-						<div className="flex items-center gap-3 rounded border p-3" key={s}>
-							<Checkbox checked disabled />
-							<div className="font-medium text-sm">{s}</div>
-						</div>
-					))}
-				</div>
-			) : (
-				<div className="rounded border border-dashed p-4 text-center">
-					<div className="text-muted-foreground text-sm">
-						No global permissions assigned to this key.
-					</div>
-				</div>
-			)}
-		</div>
-	);
-}
-
-// Resource access display component
-function ResourceAccessDisplay({ access }: { access: ApiKeyDetail["access"] }) {
-	return (
-		<div className="space-y-3">
-			<div className="flex items-center gap-2">
-				<h3 className="font-medium text-foreground">Resource Access</h3>
-			</div>
-			<div className="space-y-3">
-				{access.length > 0 ? (
-					access.map((a) => (
-						<div className="rounded border p-4" key={a.id}>
-							<div className="mb-3">
-								<div className="font-medium text-sm capitalize">
-									{a.resourceType}
-								</div>
-								{a.resourceId && (
-									<code className="font-mono text-muted-foreground text-xs">
-										{a.resourceId}
-									</code>
-								)}
-							</div>
-							<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-								{(
-									[
-										"read:data",
-										"write:data",
-										"read:analytics",
-										"write:custom-sql",
-										"read:experiments",
-										"track:events",
-										"read:export",
-										"write:otel",
-										"admin:apikeys",
-									] as ApiScope[]
-								).map((s) => (
-									<div
-										className="flex items-center gap-3 rounded border p-2"
-										key={`${a.id}-${s}`}
-									>
-										<Checkbox checked={a.scopes.includes(s)} disabled />
-										<div className="font-medium text-sm">{s}</div>
-									</div>
-								))}
-							</div>
-						</div>
-					))
-				) : (
-					<div className="rounded border border-dashed p-6 text-center">
-						<div className="text-muted-foreground text-sm">
-							No resource-specific access configured for this key.
-						</div>
-					</div>
-				)}
-			</div>
-		</div>
-	);
-}
-
-// Action buttons component
-function ApiKeyActions({
-	keyId,
-	rotateMutation,
-	revokeMutation,
-	deleteMutation,
-	updateMutation,
-	onShowSecret,
-}: {
-	keyId: string | null;
-	rotateMutation: ReturnType<typeof trpc.apikeys.rotate.useMutation>;
-	revokeMutation: ReturnType<typeof trpc.apikeys.revoke.useMutation>;
-	deleteMutation: ReturnType<typeof trpc.apikeys.delete.useMutation>;
-	updateMutation: ReturnType<typeof trpc.apikeys.update.useMutation>;
-	onShowSecret: (secret: string) => void;
-}) {
-	return (
-		<div className="flex justify-end gap-3 border-border/50 border-t pt-6">
-			<div className="flex gap-2">
-				<Button
-					disabled={!keyId || rotateMutation.isPending}
-					onClick={async () => {
-						const res = await rotateMutation.mutateAsync({
-							id: keyId as string,
-						});
-						onShowSecret(res.secret);
-					}}
-					type="button"
-					variant="outline"
-				>
-					{rotateMutation.isPending ? "Rotating…" : "Rotate Key"}
-				</Button>
-				<Button
-					disabled={!keyId || revokeMutation.isPending}
-					onClick={() => revokeMutation.mutate({ id: keyId as string })}
-					type="button"
-					variant="outline"
-				>
-					{revokeMutation.isPending ? "Revoking…" : "Revoke"}
-				</Button>
-			</div>
-			<div className="flex gap-2">
-				<Button disabled={updateMutation.isPending} type="submit">
-					{updateMutation.isPending ? "Saving…" : "Save Changes"}
-				</Button>
-				<Button
-					disabled={!keyId || deleteMutation.isPending}
-					onClick={() => deleteMutation.mutate({ id: keyId as string })}
-					type="button"
-					variant="destructive"
-				>
-					{deleteMutation.isPending ? "Deleting…" : "Delete"}
-				</Button>
-			</div>
-		</div>
-	);
-}
-
-interface ApiKeyDetailDialogProps {
-	keyId: string | null;
+type ApiKeyDetailDialogProps = {
+	apiKey: ApiKeyListItem | null;
 	open: boolean;
-	onOpenChange: (open: boolean) => void;
-}
+	onOpenChangeAction: (open: boolean) => void;
+};
+
+const SCOPES: { value: ApiScope; label: string }[] = [
+	{ value: "read:data", label: "Read Data" },
+	{ value: "write:data", label: "Write Data" },
+	{ value: "read:analytics", label: "Analytics" },
+	{ value: "track:events", label: "Track Events" },
+	{ value: "read:export", label: "Export" },
+	{ value: "write:custom-sql", label: "Custom SQL" },
+	{ value: "read:experiments", label: "Experiments" },
+	{ value: "write:otel", label: "OpenTelemetry" },
+	{ value: "admin:apikeys", label: "Manage Keys" },
+];
+
+const formSchema = z.object({
+	name: z.string().min(1, "Name is required"),
+	enabled: z.boolean(),
+	expiresAt: z.string().optional(),
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 export function ApiKeyDetailDialog({
-	keyId,
+	apiKey,
 	open,
-	onOpenChange,
+	onOpenChangeAction,
 }: ApiKeyDetailDialogProps) {
-	const utils = trpc.useUtils();
-	const { data, isLoading } = trpc.apikeys.getById.useQuery(
-		{ id: keyId ?? "" },
-		{ enabled: !!keyId }
-	);
-	const rotateMutation = trpc.apikeys.rotate.useMutation({
-		onSuccess: async () => {
-			if (keyId) {
-				await utils.apikeys.getById.invalidate({ id: keyId });
-			}
-			await utils.apikeys.list.invalidate();
-		},
-	});
-	const revokeMutation = trpc.apikeys.revoke.useMutation({
-		onSuccess: async () => {
-			await utils.apikeys.getById.invalidate({ id: keyId as string });
-			await utils.apikeys.list.invalidate();
-		},
-	});
-	const deleteMutation = trpc.apikeys.delete.useMutation({
-		onSuccess: async () => {
-			await utils.apikeys.list.invalidate();
-			onOpenChange(false);
-		},
-	});
-
-	const detail = data as ApiKeyDetail | undefined;
-	const [showSecret, setShowSecret] = useState<string | null>(null);
-
-	const effectiveStatus = useMemo(
-		() => (detail?.enabled && !detail?.revokedAt ? "Enabled" : "Disabled"),
-		[detail]
-	);
-
-	// form schema for inline updates
-	const formSchema = z.object({
-		name: z.string().min(1, "Name is required"),
-		enabled: z.boolean().optional(),
-		expiresAt: z.string().optional(),
-	});
-
-	type FormData = z.infer<typeof formSchema>;
+	const queryClient = useQueryClient();
+	const [newSecret, setNewSecret] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		defaultValues: { name: "", enabled: true, expiresAt: undefined },
+		defaultValues: { name: "", enabled: true, expiresAt: "" },
 	});
 
 	useEffect(() => {
-		if (!detail) {
-			return;
+		if (apiKey) {
+			form.reset({
+				name: apiKey.name,
+				enabled: apiKey.enabled && !apiKey.revokedAt,
+				expiresAt: apiKey.expiresAt?.slice(0, 10) ?? "",
+			});
 		}
-		form.reset({
-			name: detail.name,
-			enabled: detail.enabled && !detail.revokedAt,
-			expiresAt: detail.expiresAt ? detail.expiresAt.slice(0, 10) : undefined,
-		});
-	}, [detail, form]);
+	}, [apiKey, form]);
 
-	const updateMutation = trpc.apikeys.update.useMutation({
-		onSuccess: async () => {
-			await utils.apikeys.getById.invalidate({ id: keyId as string });
-			await utils.apikeys.list.invalidate();
+	const handleClose = () => {
+		onOpenChangeAction(false);
+		setTimeout(() => {
+			setNewSecret(null);
+			setCopied(false);
+			form.reset();
+		}, 200);
+	};
+
+	const invalidateQueries = () => {
+		queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
+	};
+
+	const updateMutation = useMutation({
+		...orpc.apikeys.update.mutationOptions(),
+		onSuccess: invalidateQueries,
+	});
+
+	const rotateMutation = useMutation({
+		...orpc.apikeys.rotate.mutationOptions(),
+		onSuccess: (res) => {
+			setNewSecret(res.secret);
+			invalidateQueries();
 		},
 	});
 
-	const onSubmit = form.handleSubmit(async (values) => {
-		if (!keyId) {
+	const revokeMutation = useMutation({
+		...orpc.apikeys.revoke.mutationOptions(),
+		onSuccess: invalidateQueries,
+	});
+
+	const deleteMutation = useMutation({
+		...orpc.apikeys.delete.mutationOptions(),
+		onSuccess: () => {
+			invalidateQueries();
+			handleClose();
+		},
+	});
+
+	const handleCopy = async () => {
+		if (newSecret) {
+			await navigator.clipboard.writeText(newSecret);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		}
+	};
+
+	const onSubmit = form.handleSubmit((values) => {
+		if (!apiKey) {
 			return;
 		}
-		await updateMutation.mutateAsync({
-			id: keyId,
+		updateMutation.mutate({
+			id: apiKey.id,
 			name: values.name,
 			enabled: values.enabled,
 			expiresAt: values.expiresAt || null,
 		});
 	});
 
-	// Reset transient state when dialog closes or when a different key is opened
-	useEffect(() => {
-		if (!open) {
-			setShowSecret(null);
-			form.reset({ name: "", enabled: true, expiresAt: undefined });
-		}
-	}, [open, form]);
+	const isActive = apiKey?.enabled && !apiKey?.revokedAt;
 
-	// Removed unnecessary dependency-based reset to satisfy linter
+	if (!apiKey) {
+		return null;
+	}
 
 	return (
-		<Sheet
-			onOpenChange={(o) => {
-				if (!o) {
-					setShowSecret(null);
-					form.reset({ name: "", enabled: true, expiresAt: undefined });
-				}
-				onOpenChange(o);
-			}}
-			open={open}
-		>
-			<SheetContent
-				className="w-full overflow-y-auto p-4 sm:w-[480px] sm:max-w-[480px]"
-				side="right"
-			>
-				<SheetHeader className="space-y-1 pb-3">
-					<SheetTitle className="text-foreground text-lg">
-						Manage API Key
-					</SheetTitle>
-					<SheetDescription className="text-muted-foreground text-xs">
-						View details, update, rotate or revoke
-					</SheetDescription>
-				</SheetHeader>
-				<div className="space-y-5 pt-2">
-					{isLoading || !detail ? (
-						<ApiKeyDetailSkeleton />
-					) : (
-						<>
-							{/* Key Overview */}
-							<div className="space-y-2">
-								<div className="flex items-center justify-between">
-									<div className="font-semibold text-base text-foreground">
-										{detail.name}
-									</div>
-									<Badge
-										variant={
-											detail.enabled && !detail.revokedAt
-												? "default"
-												: "secondary"
-										}
-									>
-										{effectiveStatus}
-									</Badge>
+		<>
+			<Sheet onOpenChange={handleClose} open={open}>
+				<SheetContent
+					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-md"
+					side="right"
+				>
+					<div className="flex h-full flex-col">
+						{/* Header */}
+						<SheetHeader className="shrink-0 pr-5">
+							<div className="flex items-start gap-4">
+								<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+									<KeyIcon
+										className="text-foreground"
+										size={22}
+										weight="fill"
+									/>
 								</div>
-								<code className="block rounded bg-muted px-2 py-1 font-mono text-xs">
-									{detail.prefix}_{detail.start}
-								</code>
+								<div className="min-w-0 flex-1">
+									<SheetTitle className="truncate text-lg">
+										{apiKey.name}
+									</SheetTitle>
+									<SheetDescription className="font-mono text-xs">
+										{apiKey.prefix}_{apiKey.start}…
+									</SheetDescription>
+								</div>
+								<Badge variant="secondary">
+									{isActive ? "Active" : "Inactive"}
+								</Badge>
 							</div>
-							{/* Configuration Form */}
-							<div className="space-y-3">
-								<div className="font-semibold text-foreground text-sm">
-									Configuration
-								</div>
+						</SheetHeader>
 
-								<Form {...form}>
-									<form className="space-y-6" onSubmit={onSubmit}>
-										<div className="grid grid-cols-1 gap-3">
-											<FormField
-												control={form.control}
-												name="name"
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel className="font-medium text-foreground text-sm">
-															Name
-														</FormLabel>
-														<FormControl>
-															<Input placeholder="Key name" {...field} />
-														</FormControl>
-														<FormMessage />
-													</FormItem>
+						<form
+							className="flex flex-1 flex-col overflow-hidden"
+							onSubmit={onSubmit}
+						>
+							{/* Content */}
+							<div className="flex-1 space-y-6 overflow-y-auto p-2">
+								{/* New Secret Alert */}
+								{newSecret && (
+									<div className="rounded border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
+										<div className="mb-3 flex items-center gap-2">
+											<div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+												<CheckCircleIcon
+													className="text-green-600 dark:text-green-400"
+													size={14}
+													weight="fill"
+												/>
+											</div>
+											<p className="font-medium text-green-800 text-sm dark:text-green-300">
+												New secret generated
+											</p>
+										</div>
+										<div className="relative rounded border border-green-200 bg-background dark:border-green-900/50">
+											<code className="block break-all p-3 pr-12 font-mono text-xs">
+												{newSecret}
+											</code>
+											<Button
+												className="absolute top-1.5 right-1.5 h-7 w-7 text-muted-foreground hover:text-foreground"
+												onClick={handleCopy}
+												size="icon"
+												variant="ghost"
+											>
+												{copied ? (
+													<CheckCircleIcon
+														className="text-green-600"
+														size={14}
+														weight="fill"
+													/>
+												) : (
+													<CopyIcon size={14} />
 												)}
-											/>
-											<FormField
-												control={form.control}
-												name="expiresAt"
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel className="font-medium text-foreground text-sm">
-															Expires on
-														</FormLabel>
-														<FormControl>
-															<Input
-																onChange={field.onChange}
-																type="date"
-																value={field.value ?? ""}
-															/>
-														</FormControl>
-														<FormMessage />
-													</FormItem>
-												)}
+											</Button>
+										</div>
+									</div>
+								)}
+
+								{/* Settings Section */}
+								<div className="space-y-4">
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div className="space-y-2">
+											<Label htmlFor="name">Name</Label>
+											<Input id="name" {...form.register("name")} />
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="expiresAt">Expires</Label>
+											<Input
+												id="expiresAt"
+												type="date"
+												{...form.register("expiresAt")}
 											/>
 										</div>
+									</div>
 
-										<FormField
-											control={form.control}
-											name="enabled"
-											render={({ field }) => (
-												<FormItem className="flex items-center justify-between rounded border p-3">
-													<FormLabel className="font-medium text-foreground text-sm">
-														Enabled
-													</FormLabel>
-													<FormControl>
-														<Switch
-															checked={!!field.value}
-															onCheckedChange={field.onChange}
-														/>
-													</FormControl>
-												</FormItem>
-											)}
+									{/* Enabled Toggle */}
+									<div className="flex items-center justify-between rounded border bg-card p-2">
+										<div>
+											<p className="font-medium text-foreground text-sm">
+												Enabled
+											</p>
+											<p className="text-muted-foreground text-xs">
+												Disable to block all requests
+											</p>
+										</div>
+										<Switch
+											checked={form.watch("enabled")}
+											onCheckedChange={(v) => form.setValue("enabled", v)}
 										/>
+									</div>
 
-										<ApiKeyActions
-											deleteMutation={deleteMutation}
-											keyId={keyId}
-											onShowSecret={setShowSecret}
-											revokeMutation={revokeMutation}
-											rotateMutation={rotateMutation}
-											updateMutation={updateMutation}
-										/>
-									</form>
-								</Form>
+									{/* Permissions Section */}
+									<section className="space-y-3">
+										<Label className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+											Permissions
+										</Label>
+										<div className="rounded border bg-card p-1">
+											<div className="grid grid-cols-2 gap-1">
+												{SCOPES.map((scope) => {
+													const hasScope = apiKey.scopes.includes(scope.value);
+													return (
+														<div
+															className="flex items-center gap-2 rounded px-3 py-2.5 text-sm transition-colors"
+															key={scope.value}
+														>
+															<div
+																className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
+																	hasScope
+																		? "border-primary bg-primary text-primary-foreground"
+																		: "border-muted-foreground/30"
+																}`}
+															>
+																{hasScope && (
+																	<CheckIcon
+																		className="text-white"
+																		size={12}
+																		weight="bold"
+																	/>
+																)}
+															</div>
+															<span className="truncate">{scope.label}</span>
+														</div>
+													);
+												})}
+											</div>
+										</div>
+									</section>
+
+									{/* Meta Section */}
+									<section className="space-y-2 rounded border bg-card p-2">
+										<div className="flex items-center justify-between text-sm">
+											<span className="font-medium text-muted-foreground">
+												Created
+											</span>
+											<span>
+												{dayjs(apiKey.createdAt).format("MMM D, YYYY")}
+											</span>
+										</div>
+										{apiKey.expiresAt && (
+											<div className="flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">Expires</span>
+												<span>
+													{dayjs(apiKey.expiresAt).format("MMM D, YYYY")}
+												</span>
+											</div>
+										)}
+										{apiKey.revokedAt && (
+											<div className="flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">Revoked</span>
+												<span className="text-destructive">
+													{dayjs(apiKey.revokedAt).format("MMM D, YYYY")}
+												</span>
+											</div>
+										)}
+									</section>
+
+									{/* Danger Zone */}
+									<section className="mt-8 space-y-3">
+										<div className="flex flex-wrap gap-2">
+											<Button
+												className="flex-1"
+												disabled={rotateMutation.isPending}
+												onClick={() => rotateMutation.mutate({ id: apiKey.id })}
+												size="sm"
+												type="button"
+												variant="outline"
+											>
+												<ArrowsClockwiseIcon size={14} />
+												{rotateMutation.isPending
+													? "Rotating…"
+													: "Rotate Secret"}
+											</Button>
+											<Button
+												className="flex-1"
+												disabled={revokeMutation.isPending || !isActive}
+												onClick={() => revokeMutation.mutate({ id: apiKey.id })}
+												size="sm"
+												type="button"
+												variant="outline"
+											>
+												<ProhibitIcon size={14} />
+												{revokeMutation.isPending ? "Revoking…" : "Revoke Key"}
+											</Button>
+										</div>
+										<Button
+											className="w-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+											onClick={() => setShowDeleteConfirm(true)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											<TrashIcon className="mr-1.5" size={14} />
+											Delete Key Permanently
+										</Button>
+									</section>
+								</div>
 							</div>
-							<GlobalScopesDisplay scopes={detail.scopes} />
-							<ResourceAccessDisplay access={detail.access} />
-						</>
-					)}
-					{showSecret && (
-						<div className="rounded border bg-accent/10 p-4">
-							<div className="mb-2 font-semibold text-foreground text-sm">
-								🔑 Copy your new secret now
+
+							{/* Footer */}
+							<div className="flex shrink-0 items-center justify-end gap-3 border-t px-6 py-4">
+								<Button onClick={handleClose} type="button" variant="ghost">
+									Cancel
+								</Button>
+								<Button disabled={updateMutation.isPending} type="submit">
+									{updateMutation.isPending ? "Saving…" : "Save Changes"}
+								</Button>
 							</div>
-							<p className="mb-3 text-muted-foreground text-xs">
-								This secret will only be shown once. Store it securely.
-							</p>
-							<code className="block break-all rounded bg-muted p-3 font-mono text-sm">
-								{showSecret}
-							</code>
-						</div>
-					)}
-				</div>
-			</SheetContent>
-		</Sheet>
+						</form>
+					</div>
+				</SheetContent>
+			</Sheet>
+
+			{/* Delete Confirmation */}
+			<AlertDialog onOpenChange={setShowDeleteConfirm} open={showDeleteConfirm}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete API Key?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This action cannot be undone. Any applications using this key will
+							immediately lose access.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => deleteMutation.mutate({ id: apiKey.id })}
+						>
+							{deleteMutation.isPending ? "Deleting…" : "Delete"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
 	);
 }

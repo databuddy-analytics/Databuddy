@@ -40,16 +40,6 @@ export function NavigationItem({
 			return href === "" ? "/sandbox" : `/sandbox${href}`;
 		}
 
-		if (
-			pathname.startsWith("/observability/database/") &&
-			pathname !== "/observability/database" &&
-			pathname !== "/observability/database/"
-		) {
-			return href === ""
-				? `/observability/database/${currentWebsiteId}`
-				: `/observability/database/${currentWebsiteId}${href}`;
-		}
-
 		if (pathname.startsWith("/demo/")) {
 			return href === ""
 				? `/demo/${currentWebsiteId}`
@@ -81,18 +71,14 @@ export function NavigationItem({
 					fallbackIcon={
 						<Icon
 							aria-hidden="true"
-							className="size-5 flex-shrink-0"
+							className="size-5 shrink-0"
 							weight="duotone"
 						/>
 					}
 					size={20}
 				/>
 			) : (
-				<Icon
-					aria-hidden="true"
-					className="size-5 flex-shrink-0"
-					weight="duotone"
-				/>
+				<Icon aria-hidden="true" className="size-4 shrink-0" />
 			)}
 			<span className="flex-1">{name}</span>
 		</>
@@ -118,10 +104,10 @@ export function NavigationItem({
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+				"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:text-sidebar-accent-foreground",
 				isActive
 					? "border-sidebar-ring border-r-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-					: "text-sidebar-foreground/70"
+					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"
 			)}
 			data-nav-href={href}
 			data-nav-item={name}

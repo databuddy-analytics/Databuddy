@@ -6,10 +6,10 @@
  */
 
 import { bots } from "@databuddy/shared/lists/bots";
-import { logger } from "@databuddy/shared/utils/discord-webhook";
 import { UAParser } from "ua-parser-js";
+import { captureError, record } from "../lib/tracing";
 
-export interface UserAgentInfo {
+export type UserAgentInfo = {
 	bot: {
 		isBot: boolean;
 		name?: string;
@@ -18,12 +18,12 @@ export interface UserAgentInfo {
 	browser?: string;
 	os?: string;
 	device?: "desktop" | "mobile" | "tablet" | "unknown";
-}
+};
 
 /**
  * Parse user agent to extract useful information
  */
-export function parseUserAgent(userAgent: string): {
+export function parseUserAgent(userAgent: string): Promise<{
 	browserName?: string;
 	browserVersion?: string;
 	osName?: string;
@@ -31,50 +31,46 @@ export function parseUserAgent(userAgent: string): {
 	deviceType?: string;
 	deviceBrand?: string;
 	deviceModel?: string;
-} {
-	if (!userAgent) {
-		return {
-			browserName: undefined,
-			browserVersion: undefined,
-			osName: undefined,
-			osVersion: undefined,
-			deviceType: undefined,
-			deviceBrand: undefined,
-			deviceModel: undefined,
-		};
-	}
+}> {
+	return record("parseUserAgent", () => {
+		if (!userAgent) {
+			return {
+				browserName: undefined,
+				browserVersion: undefined,
+				osName: undefined,
+				osVersion: undefined,
+				deviceType: undefined,
+				deviceBrand: undefined,
+				deviceModel: undefined,
+			};
+		}
 
-	try {
-		const parser = new UAParser(userAgent);
-		const result = parser.getResult();
+		try {
+			const parser = new UAParser(userAgent);
+			const result = parser.getResult();
 
-		return {
-			browserName: result.browser.name || undefined,
-			browserVersion: result.browser.version || undefined,
-			osName: result.os.name || undefined,
-			osVersion: result.os.version || undefined,
-			deviceType: result.device.type || undefined,
-			deviceBrand: result.device.vendor || undefined,
-			deviceModel: result.device.model || undefined,
-		};
-	} catch (error) {
-		logger.error(
-			"User Agent Parse Error",
-			`Failed to parse user agent: ${userAgent}`,
-			{
-				error: error instanceof Error ? error.message : "Unknown error",
-			}
-		);
-		return {
-			browserName: undefined,
-			browserVersion: undefined,
-			osName: undefined,
-			osVersion: undefined,
-			deviceType: undefined,
-			deviceBrand: undefined,
-			deviceModel: undefined,
-		};
-	}
+			return {
+				browserName: result.browser.name || undefined,
+				browserVersion: result.browser.version || undefined,
+				osName: result.os.name || undefined,
+				osVersion: result.os.version || undefined,
+				deviceType: result.device.type || undefined,
+				deviceBrand: result.device.vendor || undefined,
+				deviceModel: result.device.model || undefined,
+			};
+		} catch (error) {
+			captureError(error, { userAgent, message: "Failed to parse user agent" });
+			return {
+				browserName: undefined,
+				browserVersion: undefined,
+				osName: undefined,
+				osVersion: undefined,
+				deviceType: undefined,
+				deviceBrand: undefined,
+				deviceModel: undefined,
+			};
+		}
+	});
 }
 
 export function detectBot(

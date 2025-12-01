@@ -5,8 +5,6 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
 	reactStrictMode: true,
-	reactCompiler: true,
-
 	// biome-ignore lint/suspicious/useAwait: "headers is async"
 	async headers() {
 		return [
@@ -49,7 +47,7 @@ const config = {
 	},
 
 	async redirects() {
-		return [
+		return await [
 			{
 				source: "/documentation/:path*",
 				destination: "/docs/:path*",

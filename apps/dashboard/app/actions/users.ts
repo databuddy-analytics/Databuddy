@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
-import { logger } from "@/lib/discord-webhook";
 
 // Helper to get authenticated user
 const getUser = cache(async () => {
@@ -67,37 +66,13 @@ export async function updateUserProfile(formData: FormData) {
 			.where(eq(user.id, currentUser.id))
 			.returning();
 
-		// Log profile update to Discord (only for significant changes)
-		const newFullName = `${validatedData.firstName} ${validatedData.lastName}`;
-		const hasNameChange = currentUser.name !== newFullName;
-
-		if (hasNameChange) {
-			await logger.info("Profile Updated", "User updated their profile name", {
-				userId: currentUser.id,
-				oldName: currentUser.name || "Unknown",
-				newName: newFullName,
-				email: currentUser.email,
-			});
-		}
-
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
 		console.error("Profile update error:", error);
 
-		// Log profile update error
-		await logger.error(
-			"Profile Update Failed",
-			"User profile update encountered an error",
-			{
-				userId: currentUser.id,
-				userName: currentUser.name || currentUser.email,
-				error: error instanceof Error ? error.message : "Unknown error",
-			}
-		);
-
 		if (error instanceof z.ZodError) {
-			return { error: error.errors[0].message };
+			return { error: error.message };
 		}
 		return { error: "Failed to update profile" };
 	}
@@ -122,10 +97,6 @@ export async function deactivateUserAccount(formData: FormData) {
 		if (!email || typeof email !== "string" || email !== currentUser.email) {
 			return { error: "Email address doesn't match your account" };
 		}
-
-		// Password verification would be done here
-		// This is a placeholder for actual password verification
-
 		await db
 			.update(user)
 			.set({
@@ -134,35 +105,10 @@ export async function deactivateUserAccount(formData: FormData) {
 				// This record is used by a cleanup job to permanently delete after grace period (ensuring user has time to cancel)
 			})
 			.where(eq(user.id, currentUser.id));
-
-		// Log account deactivation - this is a critical security event
-		await logger.warning(
-			"Account Deactivated",
-			"User account was deactivated and scheduled for deletion",
-			{
-				userId: currentUser.id,
-				userName: currentUser.name || currentUser.email,
-				email: currentUser.email,
-				deactivatedAt: new Date().toISOString(),
-			}
-		);
-
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
 		console.error("Account deletion error:", error);
-
-		// Log account deactivation error
-		await logger.error(
-			"Account Deactivation Failed",
-			"Account deactivation process encountered an error",
-			{
-				userId: currentUser.id,
-				userName: currentUser.name || currentUser.email,
-				error: error instanceof Error ? error.message : "Unknown error",
-			}
-		);
-
 		return { error: "Failed to process account deletion" };
 	}
 }

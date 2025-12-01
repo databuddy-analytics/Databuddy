@@ -1,8 +1,19 @@
 /**
- * Configuration options for the Databuddy SDK and <Databuddy /> component.
- * All options are passed as data attributes to the injected script.
+ * Configuration for the `<Databuddy />` component and tracker script.
+ *
+ * @example
+ * ```tsx
+ * <Databuddy
+ *   clientId="your-client-id"
+ *   apiUrl="https://basket.databuddy.cc"
+ *   trackWebVitals
+ *   trackErrors
+ *   trackScrollDepth
+ *   samplingRate={0.5}
+ * />
+ * ```
  */
-export interface DatabuddyConfig {
+export type DatabuddyConfig = {
 	/**
 	 * Your Databuddy project client ID.
 	 * If not provided, will automatically detect from NEXT_PUBLIC_DATABUDDY_CLIENT_ID environment variable.
@@ -52,27 +63,12 @@ export interface DatabuddyConfig {
 	 */
 	debug?: boolean;
 
-	/**
-	 * Wait for user profile before sending events (advanced, default: false).
-	 */
-	waitForProfile?: boolean;
-
 	// --- Core Tracking Features ---
-
-	/**
-	 * Automatically track screen/page views (default: true).
-	 */
-	trackScreenViews?: boolean;
 
 	/**
 	 * Track hash changes in the URL (default: false).
 	 */
 	trackHashChanges?: boolean;
-
-	/**
-	 * Track user sessions (default: true).
-	 */
-	trackSessions?: boolean;
 
 	// --- Interaction Tracking ---
 
@@ -94,24 +90,9 @@ export interface DatabuddyConfig {
 	// --- Engagement Tracking ---
 
 	/**
-	 * Track user engagement metrics (default: false).
-	 */
-	trackEngagement?: boolean;
-
-	/**
 	 * Track scroll depth (default: false).
 	 */
 	trackScrollDepth?: boolean;
-
-	/**
-	 * Track exit intent (default: false).
-	 */
-	trackExitIntent?: boolean;
-
-	/**
-	 * Track bounce rate (default: false).
-	 */
-	trackBounceRate?: boolean;
 
 	// --- Performance Tracking ---
 
@@ -129,43 +110,6 @@ export interface DatabuddyConfig {
 	 * Track JavaScript errors (default: false).
 	 */
 	trackErrors?: boolean;
-
-	// --- Observability ---
-
-	/**
-	 * Enable observability features (logging, error tracking, tracing) (default: false).
-	 */
-	enableObservability?: boolean;
-
-	/**
-	 * Service name for observability events.
-	 */
-	observabilityService?: string;
-
-	/**
-	 * Environment for observability events.
-	 */
-	observabilityEnvironment?: string;
-
-	/**
-	 * Service version for observability events.
-	 */
-	observabilityVersion?: string;
-
-	/**
-	 * Enable structured logging (default: false).
-	 */
-	enableLogging?: boolean;
-
-	/**
-	 * Enable distributed tracing (default: false).
-	 */
-	enableTracing?: boolean;
-
-	/**
-	 * Enable error tracking (default: false).
-	 */
-	enableErrorTracking?: boolean;
 
 	// --- Optimization ---
 
@@ -222,7 +166,7 @@ export interface DatabuddyConfig {
 /**
  * Base event properties that can be attached to any event
  */
-export interface BaseEventProperties {
+export type BaseEventProperties = {
 	/** Page URL */
 	__path?: string;
 	/** Page title */
@@ -237,8 +181,6 @@ export interface BaseEventProperties {
 	sessionStartTime?: number;
 	/** Page count in session */
 	page_count?: number;
-	/** Screen resolution */
-	screen_resolution?: string;
 	/** Viewport size */
 	viewport_size?: string;
 	/** User timezone */
@@ -264,7 +206,7 @@ export interface EventProperties extends BaseEventProperties {
 /**
  * Pre-defined event types with their specific properties
  */
-export interface EventTypeMap {
+export type EventTypeMap = {
 	// Core events
 	screen_view: {
 		time_on_page?: number;
@@ -341,61 +283,75 @@ export type EventName = keyof EventTypeMap;
  */
 export type PropertiesForEvent<T extends EventName> =
 	T extends keyof EventTypeMap
-		? EventTypeMap[T] & EventProperties
-		: EventProperties;
+	? EventTypeMap[T] & EventProperties
+	: EventProperties;
 
 /**
- * Databuddy tracker instance interface
+ * The global tracker instance available at `window.databuddy` or `window.db`.
+ *
+ * @example
+ * ```ts
+ * // Direct access (prefer SDK functions instead)
+ * window.databuddy.track("signup", { plan: "pro" });
+ * window.databuddy.flush();
+ *
+ * // Access IDs for server-side identification
+ * const { anonymousId, sessionId } = window.databuddy;
+ * ```
  */
-export interface DatabuddyTracker {
-	/**
-	 * Current anonymous user ID
-	 */
+export type DatabuddyTracker = {
+	/** Persistent user ID (stored in localStorage, survives sessions) */
 	anonymousId: string;
 
-	/**
-	 * Current session ID
-	 */
+	/** Current session ID (resets after 30 min inactivity) */
 	sessionId: string;
 
 	/**
-	 * Track a custom event
+	 * Track a custom event.
+	 * @param eventName - Name of the event (e.g., "purchase", "signup")
+	 * @param properties - Additional data to attach
 	 */
-	track<T extends EventName>(
-		eventName: T,
-		properties?: PropertiesForEvent<T>
-	): Promise<void>;
+	track(eventName: string, properties?: Record<string, unknown>): void;
 
 	/**
-	 * Track a screen/page view
+	 * Manually track a page view. Called automatically on route changes.
+	 * @param path - Override the current path
+	 * @param properties - Additional properties
 	 */
 	screenView(path?: string, properties?: EventProperties): void;
 
 	/**
-	 * Set global properties that will be attached to all events
+	 * Set properties that will be attached to ALL future events.
+	 * Useful for user traits like plan, role, or A/B test variants.
+	 *
+	 * @example
+	 * ```ts
+	 * window.databuddy.setGlobalProperties({
+	 *   plan: "enterprise",
+	 *   abVariant: "checkout-v2"
+	 * });
+	 * ```
 	 */
 	setGlobalProperties(properties: EventProperties): void;
 
 	/**
-	 * Clear the current user session and generate new IDs
+	 * Reset the user session. Generates new anonymous and session IDs.
+	 * Call after logout to ensure clean slate for next user.
 	 */
 	clear(): void;
 
 	/**
-	 * Flush any queued events immediately
+	 * Force send all queued events immediately.
+	 * Call before navigation to external sites.
 	 */
 	flush(): void;
-
-	/**
-	 * Track a custom event with full type safety
-	 */
-	trackCustomEvent(eventName: string, properties?: EventProperties): void;
 }
 
 /**
  * Global window interface extensions
  */
 declare global {
+	// biome-ignore lint/style/useConsistentTypeDefinitions: It's needed here
 	interface Window {
 		databuddy?: DatabuddyTracker;
 		db?: {
@@ -404,18 +360,41 @@ declare global {
 			clear: DatabuddyTracker["clear"];
 			flush: DatabuddyTracker["flush"];
 			setGlobalProperties: DatabuddyTracker["setGlobalProperties"];
-			trackCustomEvent: DatabuddyTracker["trackCustomEvent"];
 		};
 	}
 }
 
 /**
- * Helper type for HTML data attributes for automatic tracking
+ * HTML data attributes for declarative click tracking.
+ * Add these to any clickable element to track without JavaScript.
+ *
+ * @example
+ * ```tsx
+ * // Track button clicks with properties
+ * <button
+ *   data-track="cta_clicked"
+ *   data-button-text="Get Started"
+ *   data-location="hero"
+ * >
+ *   Get Started
+ * </button>
+ *
+ * // Properties are auto-converted to camelCase:
+ * // { buttonText: "Get Started", location: "hero" }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Track navigation
+ * <a href="/pricing" data-track="nav_link_clicked" data-destination="pricing">
+ *   Pricing
+ * </a>
+ * ```
  */
-export interface DataAttributes {
+export type DataAttributes = {
 	/** Event name to track when element is clicked */
 	"data-track": string;
-	/** Additional data attributes (converted to camelCase) */
+	/** Additional data attributes (auto-converted from kebab-case to camelCase) */
 	[key: `data-${string}`]: string;
 }
 

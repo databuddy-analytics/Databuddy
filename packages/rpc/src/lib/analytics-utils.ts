@@ -1,12 +1,12 @@
 import { chQuery } from "@databuddy/db";
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 
 export type AnalyticsStep = {
 	step_number: number;
 	name: string;
 	type: "PAGE_VIEW" | "EVENT";
 	target: string;
-}
+};
 export type ProcessedAnalytics = {
 	overall_conversion_rate: number;
 	total_users_entered: number;
@@ -171,10 +171,11 @@ const buildStepQuery = (
 				AND timestamp >= parseDateTimeBestEffort({startDate:String})
 				AND timestamp <= parseDateTimeBestEffort({endDate:String})
 				AND event_name = {${targetKey}:String}
-		) AS event_union${includeReferrer
-			? `
+		) AS event_union${
+			includeReferrer
+				? `
 		LEFT JOIN visitor_referrers vr ON event_union.anonymous_id = vr.anonymous_id`
-			: ""
+				: ""
 		}
 		GROUP BY anonymous_id${includeReferrer ? ", vr.visitor_referrer" : ""}`;
 };
@@ -273,8 +274,7 @@ export const processGoalAnalytics = async (
 	);
 
 	if (errors.length > 0) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
+		throw new ORPCError("BAD_REQUEST", {
 			message: `Invalid filters: ${errors.join(", ")}`,
 		});
 	}
@@ -407,7 +407,7 @@ type Filter = {
 	field: string;
 	operator: string;
 	value: string | string[];
-}
+};
 
 const validateFilter = (filter: Filter): string | null => {
 	if (!ALLOWED_FIELDS.includes(filter.field as AllowedField)) {
@@ -587,8 +587,7 @@ export const processFunnelAnalytics = async (
 	);
 
 	if (errors.length > 0) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
+		throw new ORPCError("BAD_REQUEST", {
 			message: `Invalid filters: ${errors.join(", ")}`,
 		});
 	}
@@ -843,8 +842,7 @@ export const processFunnelAnalyticsByReferrer = async (
 	);
 
 	if (errors.length > 0) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
+		throw new ORPCError("BAD_REQUEST", {
 			message: `Invalid filters: ${errors.join(", ")}`,
 		});
 	}

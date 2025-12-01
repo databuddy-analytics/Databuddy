@@ -1,7 +1,4 @@
-import {
-	getCountryCode,
-	getCountryName,
-} from "@databuddy/shared/country-codes";
+import { getCountryCode } from "@databuddy/shared/country-codes";
 import type { DateRange, ProfileData } from "@databuddy/shared/types/analytics";
 import type {
 	BatchQueryResponse,
@@ -96,27 +93,27 @@ async function fetchDynamicQuery(
 	// Prepare the request body
 	const requestBody = Array.isArray(queryData)
 		? queryData.map((query) => ({
-				...query,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: query.limit || 100,
-				page: query.page || 1,
-				filters: transformFilters(query.filters),
-				granularity: query.granularity || dateRange.granularity || "daily",
-				groupBy: query.groupBy,
-			}))
+			...query,
+			startDate: dateRange.start_date,
+			endDate: dateRange.end_date,
+			timeZone: timezone,
+			limit: query.limit || 100,
+			page: query.page || 1,
+			filters: transformFilters(query.filters),
+			granularity: query.granularity || dateRange.granularity || "daily",
+			groupBy: query.groupBy,
+		}))
 		: {
-				...queryData,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: queryData.limit || 100,
-				page: queryData.page || 1,
-				filters: transformFilters(queryData.filters),
-				granularity: queryData.granularity || dateRange.granularity || "daily",
-				groupBy: queryData.groupBy,
-			};
+			...queryData,
+			startDate: dateRange.start_date,
+			endDate: dateRange.end_date,
+			timeZone: timezone,
+			limit: queryData.limit || 100,
+			page: queryData.page || 1,
+			filters: transformFilters(queryData.filters),
+			granularity: queryData.granularity || dateRange.granularity || "daily",
+			groupBy: queryData.groupBy,
+		};
 
 	const response = await fetch(url, {
 		method: "POST",
@@ -766,108 +763,17 @@ export function useSessionsData(
 }
 
 /**
- * Transform profiles data from API2 format to frontend format
+ * Dedupe profiles by visitor_id (API returns one row per session)
  */
-function transformProfilesData(profiles: any[]): ProfileData[] {
-	const profilesByVisitor = new Map();
-
-	for (const profile of profiles) {
-		if (!profilesByVisitor.has(profile.visitor_id)) {
-			// Initialize profile data
-			profilesByVisitor.set(profile.visitor_id, {
-				visitor_id: profile.visitor_id,
-				first_visit: profile.first_visit,
-				last_visit: profile.last_visit,
-				total_sessions: profile.session_count,
-				total_pageviews: profile.total_events,
-				total_duration: 0,
-				total_duration_formatted: "0s",
-				device: profile.device_type,
-				browser: profile.browser_name,
-				os: profile.os_name,
-				country: getCountryCode(profile.country || ""),
-				country_name: getCountryName(profile.country || ""),
-				region: profile.region,
-				sessions: [],
-			});
+function dedupeProfiles(profiles: ProfileData[]): ProfileData[] {
+	const seen = new Set<string>();
+	return profiles.filter((p) => {
+		if (seen.has(p.visitor_id)) {
+			return false;
 		}
-
-		// Add session data if available
-		if (profile.session_id) {
-			const sessionData = {
-				session_id: profile.session_id,
-				session_name: `Session ${profile.session_id.slice(-8)}`,
-				first_visit: profile.session_start,
-				last_visit: profile.session_end,
-				duration: profile.duration || 0,
-				duration_formatted: formatDuration(profile.duration || 0),
-				page_views: profile.page_views || 0,
-				unique_pages: profile.session_unique_pages || 0,
-				device: profile.session_device_type || profile.device_type,
-				browser: profile.session_browser_name || profile.browser_name,
-				os: profile.session_os_name || profile.os_name,
-				country: getCountryCode(
-					profile.session_country || profile.country || ""
-				),
-				country_name: getCountryName(
-					profile.session_country || profile.country || ""
-				),
-				region: profile.session_region || profile.region,
-				referrer: profile.session_referrer || profile.referrer,
-				events: [],
-			};
-
-			// Parse events if available
-			if (profile.events && Array.isArray(profile.events)) {
-				sessionData.events = profile.events
-					.map((eventTuple: any) => {
-						if (Array.isArray(eventTuple) && eventTuple.length >= 7) {
-							const [
-								id,
-								time,
-								event_name,
-								path,
-								error_message,
-								error_type,
-								properties,
-							] = eventTuple;
-
-							let propertiesObj: Record<string, any> = {};
-							if (properties) {
-								try {
-									propertiesObj = JSON.parse(properties);
-								} catch {
-									// If parsing fails, keep empty object
-								}
-							}
-
-							return {
-								event_id: id,
-								time,
-								event_name,
-								path,
-								error_message,
-								error_type,
-								properties: propertiesObj,
-							};
-						}
-						return null;
-					})
-					.filter(Boolean);
-			}
-
-			profilesByVisitor.get(profile.visitor_id).sessions.push(sessionData);
-		}
-	}
-
-	// Convert to array and sort sessions by start time
-	return Array.from(profilesByVisitor.values()).map((profile) => ({
-		...profile,
-		sessions: profile.sessions.sort(
-			(a: any, b: any) =>
-				new Date(b.first_visit).getTime() - new Date(a.first_visit).getTime()
-		),
-	}));
+		seen.add(p.visitor_id);
+		return true;
+	});
 }
 
 /**
@@ -900,7 +806,7 @@ export function useProfilesData(
 
 	const profiles = useMemo(() => {
 		const rawProfiles = (queryResult.data as any)?.profile_list || [];
-		return transformProfilesData(rawProfiles);
+		return dedupeProfiles(rawProfiles);
 	}, [queryResult.data]);
 
 	const hasNextPage = useMemo(
@@ -987,31 +893,31 @@ export function useUserProfile(
 
 		const sessions = Array.isArray(rawSessions)
 			? rawSessions.map((session: any) => ({
-					session_id: session.session_id,
-					session_name: session.session_name || "Session",
-					first_visit: session.first_visit,
-					last_visit: session.last_visit,
-					duration: session.duration || 0,
-					duration_formatted: session.duration_formatted || "0s",
-					page_views: session.page_views || 0,
-					unique_pages: session.unique_pages || 0,
-					device: session.device || "",
-					browser: session.browser || "",
-					os: session.os || "",
-					country: session.country || "",
-					region: session.region || "",
-					referrer: session.referrer || "direct",
-					events:
-						Array.isArray(session.events) && session.events.length > 0
-							? session.events.map((eventTuple: any[]) => ({
-									event_id: eventTuple[0],
-									time: eventTuple[1],
-									event_name: eventTuple[2],
-									path: eventTuple[3],
-									properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
-								}))
-							: [],
-				}))
+				session_id: session.session_id,
+				session_name: session.session_name || "Session",
+				first_visit: session.first_visit,
+				last_visit: session.last_visit,
+				duration: session.duration || 0,
+				duration_formatted: session.duration_formatted || "0s",
+				page_views: session.page_views || 0,
+				unique_pages: session.unique_pages || 0,
+				device: session.device || "",
+				browser: session.browser || "",
+				os: session.os || "",
+				country: session.country || "",
+				region: session.region || "",
+				referrer: session.referrer || "direct",
+				events:
+					Array.isArray(session.events) && session.events.length > 0
+						? session.events.map((eventTuple: any[]) => ({
+							event_id: eventTuple[0],
+							time: eventTuple[1],
+							event_name: eventTuple[2],
+							path: eventTuple[3],
+							properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
+						}))
+						: [],
+			}))
 			: [];
 
 		return {

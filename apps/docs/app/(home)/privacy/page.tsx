@@ -45,7 +45,7 @@ export default function PrivacyPage() {
 			<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
 				{/* Header */}
 				<div className="mb-12 text-center">
-					<div className="mb-5 inline-flex items-center justify-center rounded border border-primary/20 bg-primary/10 p-3">
+					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<ShieldIcon className="h-7 w-7 text-primary" weight="duotone" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
 						</span>
 					</p>
 					{/* TL;DR */}
-					<div className="mx-auto mb-6 max-w-2xl rounded border border-primary/20 bg-primary/10 p-4 text-left">
+					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
 							<strong>TL;DR</strong> — We don’t use cookies, we don’t identify
 							users, we anonymize IPs, and we only collect minimal, aggregated
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
 				</div>
 
 				{/* Privacy-first highlight */}
-				<div className="mb-8 rounded border border-primary/20 bg-primary/10 p-6">
+				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
 						<ShieldCheckIcon className="mr-2 h-5 w-5" weight="duotone" />
 						Privacy-First Analytics
@@ -133,7 +133,7 @@ export default function PrivacyPage() {
 								and how we protect your privacy.
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> We are committed
 								to privacy-first analytics that respects the rights of all
@@ -260,7 +260,7 @@ export default function PrivacyPage() {
 								help website owners improve their sites
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Important:</strong> We
 								immediately anonymize IP addresses using a one-way hash
@@ -339,7 +339,7 @@ export default function PrivacyPage() {
 								Vitals and loading metrics
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> End user data is
 								never used for advertising, marketing, or any purpose other than
@@ -417,7 +417,7 @@ export default function PrivacyPage() {
 								automatically deleted according to our retention policies
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> Because we don't
 								identify individual end users, many traditional rights don't
@@ -457,7 +457,7 @@ export default function PrivacyPage() {
 								anonymized using cryptographic hashes
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-primary/20 bg-primary/10 p-4">
+						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> Our
 								privacy-first approach means that even in the unlikely event of

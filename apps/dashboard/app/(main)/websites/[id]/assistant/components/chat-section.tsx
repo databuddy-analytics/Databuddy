@@ -36,7 +36,7 @@ export function ChatSkeleton() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden rounded border bg-background">
 			{/* Header Skeleton */}
-			<div className="flex flex-shrink-0 items-center justify-between border-b p-4">
+			<div className="flex shrink-0 items-center justify-between border-b p-4">
 				<div className="flex items-center gap-3">
 					<Skeleton className="h-8 w-8 rounded" />
 					<div>
@@ -59,7 +59,7 @@ export function ChatSkeleton() {
 				</div>
 			</div>
 			{/* Input Area Skeleton */}
-			<div className="flex-shrink-0 border-t p-4">
+			<div className="shrink-0 border-t p-4">
 				<div className="flex gap-3">
 					<Skeleton className="h-10 flex-1 rounded" />
 					<Skeleton className="h-10 w-10 rounded" />
@@ -131,7 +131,7 @@ export default function ChatSection() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden rounded border bg-gradient-to-br from-background to-muted/10 shadow-lg backdrop-blur-sm">
 			{/* Enhanced Header */}
-			<div className="flex flex-shrink-0 items-center justify-between border-b bg-gradient-to-r from-primary/5 to-accent/5 p-4">
+			<div className="flex shrink-0 items-center justify-between border-b bg-linear-to-r from-primary/5 to-accent/5 p-4">
 				<div className="flex flex-1 items-center gap-3">
 					<Avatar>
 						<AvatarImage src="/databunny.webp" />
@@ -164,7 +164,7 @@ export default function ChatSection() {
 						<ChatIcon className="h-5 w-5" weight="duotone" />
 					</Button>
 					<Button
-						className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive"
+						className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
 						disabled={isLoading}
 						onClick={resetChat}
 						size="icon"
@@ -210,7 +210,7 @@ export default function ChatSection() {
 											<Button
 												className={cn(
 													"h-auto px-4 py-3 text-left font-normal text-sm",
-													"hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5",
+													"hover:bg-linear-to-r hover:from-primary/5 hover:to-accent/5",
 													"border-dashed transition-all duration-300 hover:border-solid",
 													"fade-in-0 slide-in-from-left-2 animate-in"
 												)}
@@ -225,7 +225,7 @@ export default function ChatSection() {
 												style={{ animationDelay: `${index * 100}ms` }}
 												variant="outline"
 											>
-												<question.icon className="mr-3 h-4 w-4 flex-shrink-0 text-primary/70" />
+												<question.icon className="mr-3 h-4 w-4 shrink-0 text-primary/70" />
 												<div className="flex-1">
 													<div className="font-medium">{question.text}</div>
 													<div className="text-muted-foreground text-xs capitalize">
@@ -260,7 +260,7 @@ export default function ChatSection() {
 			</Conversation>
 
 			{/* Enhanced Input Area */}
-			<div className="flex-shrink-0 border-t bg-gradient-to-r from-muted/10 to-muted/5 p-4">
+			<div className="shrink-0 border-t bg-linear-to-r from-muted/10 to-muted/5 p-4">
 				<div className="flex gap-3">
 					<Input
 						className={cn(
@@ -291,8 +291,8 @@ export default function ChatSection() {
 					/>
 					<Button
 						className={cn(
-							"h-11 w-11 flex-shrink-0 rounded-xl",
-							"bg-gradient-to-r from-primary to-primary/80",
+							"h-11 w-11 shrink-0 rounded-xl",
+							"bg-linear-to-r from-primary to-primary/80",
 							"hover:from-primary/90 hover:to-primary/70",
 							"shadow-lg transition-all duration-200",
 							(!inputValue.trim() || isRateLimited) &&
@@ -317,7 +317,7 @@ export default function ChatSection() {
 				{/* Helper text */}
 				<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
 					<div className="flex items-center gap-2 text-muted-foreground">
-						<SparkleIcon className="h-3 w-3 flex-shrink-0" weight="duotone" />
+						<SparkleIcon className="h-3 w-3 shrink-0" weight="duotone" />
 						<span>Ask about trends, comparisons, or specific metrics</span>
 					</div>
 					{hasMessages && (

@@ -23,7 +23,7 @@ export function EmptyState({
 	variant = "default",
 }: EmptyStateProps) {
 	const variantStyles = {
-		default: "border-primary/20 bg-primary/10 text-primary",
+		default: "border-accent bg-accent/50 text-primary",
 		success: "border-green-200 bg-green-100 text-green-600",
 		warning: "border-orange-200 bg-orange-100 text-orange-600",
 		destructive: "border-destructive/20 bg-destructive/10 text-destructive",
@@ -35,7 +35,7 @@ export function EmptyState({
 				className={`mx-auto mb-6 w-fit rounded-2xl border p-6 sm:mb-8 sm:p-8 ${variantStyles[variant]}`}
 			>
 				<Icon
-					className="h-12 w-12 sm:h-16 sm:w-16"
+					className="h-12 w-12 text-accent-foreground sm:h-16 sm:w-16"
 					size={48}
 					weight="duotone"
 				/>

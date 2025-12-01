@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { logBlockedTraffic } from "../lib/blocked-traffic";
+import { record, setAttributes } from "../lib/tracing";
 import { VALIDATION_LIMITS } from "./validation";
 
 type ParseResult<T> =
@@ -9,36 +10,43 @@ type ParseResult<T> =
 /**
  * Validates event schema in production, skips validation in development
  */
-export async function validateEventSchema<T>(
+export function validateEventSchema<T>(
 	schema: z.ZodSchema<T>,
 	event: unknown,
 	request: Request,
 	query: unknown,
 	clientId: string
 ): Promise<ParseResult<T>> {
-	if (process.env.NODE_ENV === "development") {
-		return { success: true, data: event as T };
-	}
+	return record("validateEventSchema", async () => {
+		if (process.env.NODE_ENV === "development") {
+			return { success: true, data: event as T };
+		}
 
-	const parseResult = schema.safeParse(event);
+		const parseResult = await schema.safeParseAsync(event);
 
-	if (!parseResult.success) {
-		await logBlockedTraffic(
-			request,
-			event,
-			query,
-			"invalid_schema",
-			"Schema Validation",
-			undefined,
-			clientId
-		);
-		return {
-			success: false,
-			error: { issues: parseResult.error.issues },
-		};
-	}
+		if (!parseResult.success) {
+			logBlockedTraffic(
+				request,
+				event,
+				query,
+				"invalid_schema",
+				"Schema Validation",
+				undefined,
+				clientId
+			);
+			setAttributes({
+				"validation.failed": true,
+				"validation.reason": "invalid_schema",
+				"schema.error_count": parseResult.error.issues.length,
+			});
+			return {
+				success: false,
+				error: { issues: parseResult.error.issues },
+			};
+		}
 
-	return parseResult;
+		return parseResult;
+	});
 }
 
 /**
@@ -81,15 +89,15 @@ export function parseProperties(properties: unknown): string {
 /**
  * Creates standardized bot check result
  */
-export interface BotCheckResult {
+export type BotCheckResult = {
 	isBot: boolean;
 	response?: {
 		status: string;
 		message: string;
 		eventType: string;
-		error: string;
+		error?: string;
 	};
-}
+};
 
 /**
  * Parses and sanitizes event ID, generates UUID if missing
@@ -99,7 +107,9 @@ export function parseEventId(
 	generateFn: () => string
 ): string {
 	const sanitizeString = (str: unknown, maxLength: number): string => {
-		if (typeof str !== "string") return "";
+		if (typeof str !== "string") {
+			return "";
+		}
 		return str.slice(0, maxLength);
 	};
 

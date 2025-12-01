@@ -1,12 +1,13 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import type { InferSelectModel, websites } from "@databuddy/db";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -25,15 +26,21 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import type { CreateWebsiteData, Website } from "@/hooks/use-websites";
 import { useCreateWebsite, useUpdateWebsite } from "@/hooks/use-websites";
 
-interface UpdateWebsiteInput {
+type UpdateWebsiteInput = {
 	id: string;
 	name: string;
 	domain?: string;
 	isPublic?: boolean;
-}
+};
+
+type CreateWebsiteData = {
+	name: string;
+	domain: string;
+	subdomain?: string;
+	organizationId?: string;
+};
 
 const domainRegex =
 	/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
@@ -48,13 +55,13 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
-
-interface WebsiteDialogProps {
+export type { CreateWebsiteData };
+type WebsiteDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	website?: Website | null;
-	onSave?: (website: Website) => void;
-}
+	website?: InferSelectModel<typeof websites> | null;
+	onSave?: (website: InferSelectModel<typeof websites>) => void;
+};
 
 export function WebsiteDialog({
 	open,
@@ -63,7 +70,7 @@ export function WebsiteDialog({
 	onSave,
 }: WebsiteDialogProps) {
 	const isEditing = !!website;
-	const { data: activeOrganization } = authClient.useActiveOrganization();
+	const { activeOrganization } = useOrganizationsContext();
 	const formRef = useRef<HTMLFormElement>(null);
 
 	const createWebsiteMutation = useCreateWebsite();
@@ -88,33 +95,32 @@ export function WebsiteDialog({
 	const getErrorMessage = (error: unknown, isEditingMode: boolean): string => {
 		const defaultMessage = `Failed to ${isEditingMode ? "update" : "create"} website.`;
 
-		// Type guard for TRPC error
-		const trpcError = error as {
+		const rpcError = error as {
 			data?: { code?: string };
 			message?: string;
 		};
 
-		if (trpcError?.data?.code) {
-			switch (trpcError.data.code) {
+		if (rpcError?.data?.code) {
+			switch (rpcError.data.code) {
 				case "CONFLICT":
 					return "A website with this domain already exists.";
 				case "FORBIDDEN":
 					return (
-						trpcError.message ||
+						rpcError.message ||
 						"You do not have permission to perform this action."
 					);
 				case "UNAUTHORIZED":
 					return "You must be logged in to perform this action.";
 				case "BAD_REQUEST":
 					return (
-						trpcError.message || "Invalid request. Please check your input."
+						rpcError.message || "Invalid request. Please check your input."
 					);
 				default:
-					return trpcError.message || defaultMessage;
+					return rpcError.message || defaultMessage;
 			}
 		}
 
-		return trpcError?.message || defaultMessage;
+		return rpcError?.message || defaultMessage;
 	};
 
 	const handleSubmit = form.handleSubmit(async (formData) => {
@@ -125,7 +131,7 @@ export function WebsiteDialog({
 		};
 
 		try {
-			if (isEditing) {
+			if (website?.id) {
 				const updateData: UpdateWebsiteInput = {
 					id: website.id,
 					name: formData.name,
@@ -145,7 +151,7 @@ export function WebsiteDialog({
 			}
 			onOpenChange(false);
 		} catch (error: unknown) {
-			const message = getErrorMessage(error, isEditing);
+			const message = getErrorMessage(error, !!website?.id);
 			toast.error(message);
 		}
 	});
@@ -160,7 +166,7 @@ export function WebsiteDialog({
 					<DialogDescription>
 						{isEditing
 							? "Update the details of your existing website."
-							: "Create a new website to start tracking analytics."}
+							: "A new website to start tracking analytics."}
 					</DialogDescription>
 				</DialogHeader>
 				<Form {...form}>
@@ -193,7 +199,7 @@ export function WebsiteDialog({
 										<FormLabel>Domain</FormLabel>
 										<FormControl>
 											<div className="flex items-center">
-												<span className="inline-flex h-10 items-center rounded-l-md border border-input border-r-0 bg-muted px-3 text-muted-foreground text-sm">
+												<span className="inline-flex h-9 items-center rounded-l-md border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
 													https://
 												</span>
 												<Input
@@ -226,9 +232,11 @@ export function WebsiteDialog({
 				</Form>
 				<DialogFooter>
 					<Button
-						className="w-full sm:w-auto"
+						className="w-full"
 						disabled={
-							createWebsiteMutation.isPending || updateWebsiteMutation.isPending
+							createWebsiteMutation.isPending ||
+							updateWebsiteMutation.isPending ||
+							!form.formState.isValid
 						}
 						form="form"
 						onClick={handleSubmit}

@@ -126,13 +126,16 @@ function TestimonialCardContent({
 	) : null;
 
 	return (
-		<div className="group relative flex h-[190px] w-[280px] shrink-0 flex-col justify-between rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10 sm:h-[210px] sm:w-[320px] md:h-[230px] md:w-[350px] lg:h-[250px] lg:w-[400px]">
-			<p className="text-pretty px-3 pt-3 font-light text-foreground text-sm leading-relaxed tracking-tight sm:px-4 sm:pt-4 sm:text-base md:px-5 md:pt-5 md:text-lg lg:px-6 lg:pt-6">
+		<div className="group relative flex h-[190px] w-[280px] shrink-0 flex-col justify-between overflow-hidden rounded-none border border-border/50 bg-card/50 shadow-sm backdrop-blur-sm transition-all duration-500 hover:border-primary/20 hover:bg-card/80 hover:shadow-primary/5 hover:shadow-xl sm:h-[210px] sm:w-[320px] md:h-[230px] md:w-[350px] lg:h-[250px] lg:w-[400px]">
+			{/* Subtle gradient overlay on hover */}
+			<div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+			<p className="relative z-10 text-pretty px-4 pt-4 font-normal text-muted-foreground text-sm leading-relaxed tracking-tight transition-colors duration-300 group-hover:text-foreground sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg lg:px-7 lg:pt-7">
 				"{testimonial.description}"
 			</p>
-			<div className="flex h-[55px] w-full items-center gap-1 border-border border-t bg-card/20 sm:h-[60px] md:h-[65px] lg:h-[70px]">
-				<div className="flex w-full items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3 md:gap-4 md:px-5 md:py-4 lg:px-6">
-					<Avatar className="h-8 w-8 border border-border sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-11 lg:w-11">
+			<div className="relative z-10 flex h-[60px] w-full items-center gap-1 border-border/50 border-t bg-background/40 backdrop-blur-md sm:h-[65px] md:h-[70px] lg:h-[75px]">
+				<div className="flex w-full items-center gap-3 px-4 py-2 sm:gap-3 sm:px-5 sm:py-3 md:gap-4 md:px-6 md:py-4 lg:px-7">
+					<Avatar className="h-9 w-9 border border-border/50 shadow-sm sm:h-10 sm:w-10 md:h-11 md:w-11 lg:h-12 lg:w-12">
 						<AvatarImage
 							src={testimonial.avatar.length > 2 ? testimonial.avatar : ""}
 						/>
@@ -140,19 +143,19 @@ function TestimonialCardContent({
 							{getNameInitial(testimonial.name)}
 						</AvatarFallback>
 					</Avatar>
-					<div className="flex flex-1 flex-col gap-0">
-						<h5 className="font-medium text-foreground text-xs sm:text-sm md:text-base">
+					<div className="flex flex-1 flex-col gap-0.5">
+						<h5 className="font-semibold text-foreground text-xs sm:text-sm md:text-base">
 							{testimonial.name}
 						</h5>
-						<p className="mt-[-1px] truncate text-muted-foreground text-xs sm:text-sm">
+						<p className="truncate text-[10px] text-muted-foreground sm:text-xs">
 							{testimonial.profession}
 						</p>
 					</div>
 				</div>
 				{socialIcon ? (
 					<>
-						<div className="h-full w-[1px] bg-border" />
-						<div className="flex h-full w-[45px] items-center justify-center sm:w-[55px] md:w-[65px] lg:w-[75px]">
+						<div className="w h-full bg-border/50" />
+						<div className="flex h-full w-[50px] items-center justify-center transition-colors hover:bg-primary/5 sm:w-[60px] md:w-[70px] lg:w-[80px]">
 							{socialIcon}
 						</div>
 					</>
@@ -210,7 +213,7 @@ function SlidingTestimonials({
 	reverse?: boolean;
 }): ReactElement {
 	return (
-		<Marquee className="relative w-full [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]">
+		<Marquee className="relative w-full [mask-image:linear-gradient(to_right,transparent,white_10%,white_90%,transparent)]">
 			<MarqueeFade side="left" />
 			<MarqueeFade side="right" />
 			<MarqueeContent
@@ -218,7 +221,7 @@ function SlidingTestimonials({
 				gradient={false}
 				pauseOnClick
 				pauseOnHover
-				speed={50}
+				speed={40}
 			>
 				{rowTestimonials.map((t) => (
 					<MarqueeItem key={`${t.name}-${t.profession}${reverse ? "-r" : ""}`}>
@@ -234,11 +237,11 @@ export default function Testimonials(): ReactElement {
 	return (
 		<div className="relative max-w-full">
 			{/* Header Section */}
-			<div className="mb-6 px-4 text-center sm:mb-8 sm:px-6 md:px-8 lg:mb-12">
-				<h2 className="mb-3 font-medium text-lg leading-tight sm:mb-4 sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl">
+			<div className="mb-10 px-4 text-center sm:mb-12 sm:px-6 md:px-8 lg:mb-16">
+				<h2 className="mb-4 font-semibold text-2xl leading-tight tracking-tight sm:mb-5 sm:text-3xl md:text-4xl lg:text-5xl">
 					What developers are saying
 				</h2>
-				<p className="mx-auto max-w-2xl px-2 text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
+				<p className="mx-auto max-w-2xl px-2 text-base text-muted-foreground sm:px-0 sm:text-lg lg:text-xl">
 					Join thousands of developers who trust Databuddy for their analytics
 					needs.
 				</p>
@@ -246,7 +249,7 @@ export default function Testimonials(): ReactElement {
 
 			{/* Testimonials Marquee */}
 			<div className="max-w-full overflow-x-hidden">
-				<div className="flex flex-col gap-3 sm:gap-4 lg:gap-5">
+				<div className="flex flex-col gap-4 sm:gap-6 lg:gap-8">
 					<SlidingTestimonials
 						testimonials={testimonials.slice(
 							0,

@@ -296,8 +296,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events
                   WHERE
                     client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort({endDate:String})
+                    AND time >= toDateTime({startDate:String})
+                    AND time <= toDateTime({endDate:String})
                     AND anonymous_id != ''
                     AND event_name = 'screen_view'
                     ${combinedWhereClause}
@@ -317,8 +317,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events e
                   WHERE
                     e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.anonymous_id != ''
                     AND e.event_name = 'screen_view'
                     ${combinedWhereClause}
@@ -399,7 +399,6 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                     ELSE 0 
                   END, 2) as week_5_retention
                 FROM retention_calc
-                GROUP BY cohort, total_users, week_1_returned, week_2_returned, week_3_returned, week_4_returned, week_5_returned
                 ORDER BY cohort DESC
             `,
 				params: {
@@ -489,8 +488,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
                   FROM analytics.events e
                   WHERE
                     e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.anonymous_id != ''
                     AND e.event_name = 'screen_view'
                     ${combinedWhereClause}

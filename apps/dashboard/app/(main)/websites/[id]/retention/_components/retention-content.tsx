@@ -1,15 +1,15 @@
 "use client";
 
 import {
+	ArrowCounterClockwiseIcon,
 	ChartLineIcon,
-	RepeatIcon,
 	TableIcon,
+	UserPlusIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/analytics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
@@ -55,18 +55,13 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 		}
 	);
 
-	const cohortsData = data;
-	const rateData = data;
-	const cohortsLoading = isLoading;
-	const rateLoading = isLoading;
-
 	const cohorts = useMemo(
-		() => (cohortsData?.retention_cohorts as RetentionCohort[]) ?? [],
-		[cohortsData]
+		() => (data?.retention_cohorts as RetentionCohort[]) ?? [],
+		[data]
 	);
 
 	const rates = useMemo(() => {
-		const rawRates = (rateData?.retention_rate as RetentionRate[]) ?? [];
+		const rawRates = (data?.retention_rate as RetentionRate[]) ?? [];
 		const hasDateRange = dateRange?.start_date && dateRange?.end_date;
 		if (!hasDateRange) {
 			return rawRates;
@@ -79,7 +74,7 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 			const date = dayjs(rate.date).startOf("day");
 			return date.isValid() && !date.isBefore(start) && !date.isAfter(end);
 		});
-	}, [rateData, dateRange]);
+	}, [data, dateRange]);
 
 	const overallStats = useMemo(() => {
 		const totalNewUsers = rates.reduce((sum, rate) => sum + rate.new_users, 0);
@@ -104,175 +99,136 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 			totalCohortUsers > 0 ? weightedWeek1 / totalCohortUsers : 0;
 
 		return {
-			avgRetentionRate: overallRetentionRate.toFixed(1),
+			avgRetentionRate: overallRetentionRate,
 			totalUsers: totalUniqueUsers,
 			totalNewUsers,
 			totalReturningUsers,
-			avgWeek1Retention: avgWeek1Retention.toFixed(1),
+			avgWeek1Retention,
 		};
 	}, [rates, cohorts]);
 
+	// Build mini chart data from time-series retention data
+	const chartData = useMemo(() => ({
+		retentionRate: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.retention_rate,
+		})),
+		totalUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.new_users + rate.returning_users,
+		})),
+		newUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.new_users,
+		})),
+		returningUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.returning_users,
+		})),
+	}), [rates]);
+
+	const formatNumber = (num: number) => {
+		if (num >= 1_000_000) {
+			return `${(num / 1_000_000).toFixed(1)}M`;
+		}
+		if (num >= 1000) {
+			return `${(num / 1000).toFixed(1)}K`;
+		}
+		return num.toLocaleString();
+	};
+
 	return (
-		<div className="space-y-6">
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-				{isLoading ? (
-					[...new Array(4)].map((_, i) => (
-						<Card key={i}>
-							<CardContent className="p-4">
-								<div className="flex items-center gap-3">
-									<Skeleton className="h-10 w-10 rounded-lg" />
-									<div className="flex-1 space-y-2">
-										<Skeleton className="h-3 w-24 rounded" />
-										<Skeleton className="h-6 w-16 rounded" />
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					))
-				) : (
-					<>
-						<Card>
-							<CardContent className="p-4">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-										<RepeatIcon
-											className="h-5 w-5 text-primary"
-											weight="duotone"
-										/>
-									</div>
-									<div>
-										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-											Overall Retention Rate
-										</p>
-										<p className="font-bold text-foreground text-xl">
-											{overallStats.avgRetentionRate}%
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="p-4">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-										<UsersIcon
-											className="h-5 w-5 text-primary"
-											weight="duotone"
-										/>
-									</div>
-									<div>
-										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-											Total Users
-										</p>
-										<p className="font-bold text-foreground text-xl">
-											{overallStats.totalUsers.toLocaleString()}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="p-4">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-										<ChartLineIcon
-											className="h-5 w-5 text-primary"
-											weight="duotone"
-										/>
-									</div>
-									<div>
-										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-											Week 1 Retention
-										</p>
-										<p className="font-bold text-foreground text-xl">
-											{overallStats.avgWeek1Retention}%
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="p-4">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-										<UsersIcon
-											className="h-5 w-5 text-primary"
-											weight="duotone"
-										/>
-									</div>
-									<div>
-										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-											Returning Users
-										</p>
-										<p className="font-bold text-foreground text-xl">
-											{overallStats.totalReturningUsers.toLocaleString()}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</>
-				)}
+		<div className="flex h-full min-h-0 flex-col gap-4">
+			{/* Stats Grid */}
+			<div className="grid shrink-0 grid-cols-2 gap-4 lg:grid-cols-4">
+				<StatCard
+					chartData={chartData.retentionRate}
+					formatChartValue={(v) => `${v.toFixed(1)}%`}
+					icon={ArrowCounterClockwiseIcon}
+					id="retention-rate"
+					isLoading={isLoading}
+					showChart
+					title="Retention Rate"
+					value={`${overallStats.avgRetentionRate.toFixed(1)}%`}
+				/>
+				<StatCard
+					chartData={chartData.totalUsers}
+					icon={UsersIcon}
+					id="total-users"
+					isLoading={isLoading}
+					showChart
+					title="Total Users"
+					value={formatNumber(overallStats.totalUsers)}
+				/>
+				<StatCard
+					chartData={chartData.newUsers}
+					icon={UserPlusIcon}
+					id="new-users"
+					isLoading={isLoading}
+					showChart
+					title="New Users"
+					value={formatNumber(overallStats.totalNewUsers)}
+				/>
+				<StatCard
+					chartData={chartData.returningUsers}
+					icon={ChartLineIcon}
+					id="returning-users"
+					isLoading={isLoading}
+					showChart
+					title="Returning Users"
+					value={formatNumber(overallStats.totalReturningUsers)}
+				/>
 			</div>
+
+			{/* Tabs Section */}
 			<Tabs
-				className="space-y-6"
-				defaultValue="cohorts"
+				className="flex min-h-0 flex-1 flex-col"
 				onValueChange={setActiveTab}
 				value={activeTab}
 			>
-				<div className="border-border border-b">
-					<TabsList className="h-11 w-full justify-start overflow-x-auto bg-transparent p-0">
-						<TabsTrigger
-							className="relative h-11 whitespace-nowrap rounded-none border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-							value="cohorts"
-						>
-							<TableIcon className="mr-2 h-4 w-4" weight="duotone" />
-							Retention Cohorts
-						</TabsTrigger>
-						<TabsTrigger
-							className="relative h-11 whitespace-nowrap rounded-none border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-							value="rate"
-						>
-							<ChartLineIcon className="mr-2 h-4 w-4" weight="duotone" />
-							Retention Rate
-						</TabsTrigger>
-					</TabsList>
-				</div>
-
-				<TabsContent className="space-y-6" value="cohorts">
-					<div className="space-y-4">
+				<div className="shrink-0 rounded border bg-sidebar">
+					<div className="flex items-center justify-between border-b px-4 py-3">
 						<div>
-							<h3 className="font-semibold text-foreground text-lg">
-								Retention by Cohort
-							</h3>
+							<h2 className="font-semibold text-sidebar-foreground">
+								Retention Analysis
+							</h2>
 							<p className="text-muted-foreground text-sm">
-								Track what percentage of users from each cohort return over 5
-								weeks
+								Track user retention over time
 							</p>
 						</div>
-						<RetentionCohortsGrid
-							cohorts={cohorts}
-							isLoading={cohortsLoading}
-						/>
+						<TabsList className="h-9 bg-sidebar-accent">
+							<TabsTrigger className="gap-1.5 px-3 text-xs" value="cohorts">
+								<TableIcon className="size-4" weight="duotone" />
+								Cohorts
+							</TabsTrigger>
+							<TabsTrigger className="gap-1.5 px-3 text-xs" value="rate">
+								<ChartLineIcon className="size-4" weight="duotone" />
+								Daily Rate
+							</TabsTrigger>
+						</TabsList>
 					</div>
-				</TabsContent>
 
-				<TabsContent className="space-y-6" value="rate">
-					<Card>
-						<CardHeader>
-							<CardTitle>Daily Retention Rate</CardTitle>
-							<p className="text-muted-foreground text-sm">
-								View the percentage of returning users vs new users over time
-							</p>
-						</CardHeader>
-						<CardContent>
-							<RetentionRateChart data={rates} isLoading={rateLoading} />
-						</CardContent>
-					</Card>
-				</TabsContent>
+					<TabsContent
+						className="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden"
+						value="cohorts"
+					>
+						<div className="p-4">
+							<RetentionCohortsGrid
+								cohorts={cohorts}
+								isLoading={isLoading}
+							/>
+						</div>
+					</TabsContent>
+
+					<TabsContent
+						className="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden"
+						value="rate"
+					>
+						<div className="h-[400px] p-4">
+							<RetentionRateChart data={rates} isLoading={isLoading} />
+						</div>
+					</TabsContent>
+				</div>
 			</Tabs>
 		</div>
 	);

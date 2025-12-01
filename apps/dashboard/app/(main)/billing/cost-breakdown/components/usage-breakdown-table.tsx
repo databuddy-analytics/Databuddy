@@ -9,6 +9,7 @@ import {
 	SparkleIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -53,11 +54,11 @@ const EVENT_TYPE_CONFIG = {
 	},
 } as const;
 
-interface UsageBreakdownTableProps {
+type UsageBreakdownTableProps = {
 	usageData?: UsageResponse;
 	isLoading: boolean;
 	overageInfo: OverageInfo | null;
-}
+};
 
 export function UsageBreakdownTable({
 	usageData,
@@ -88,20 +89,13 @@ export function UsageBreakdownTable({
 		);
 	}
 
-	if (
-		!(usageData && usageData.eventTypeBreakdown) ||
-		usageData.eventTypeBreakdown.length === 0
-	) {
+	if (!usageData?.eventTypeBreakdown?.length) {
 		return (
-			<div className="flex h-full items-center justify-center">
-				<div className="text-center">
-					<TableIcon
-						className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
-						weight="duotone"
-					/>
-					<p className="text-muted-foreground">No usage data available</p>
-				</div>
-			</div>
+			<EmptyState
+				icon={<TableIcon />}
+				title="No Data Available"
+				variant="minimal"
+			/>
 		);
 	}
 
@@ -115,7 +109,7 @@ export function UsageBreakdownTable({
 		<div className="h-full">
 			<Table>
 				<TableHeader>
-					<TableRow>
+					<TableRow className="hover:bg-card">
 						<TableHead>Event Type</TableHead>
 						<TableHead>Usage</TableHead>
 						<TableHead>Cost</TableHead>
@@ -144,11 +138,11 @@ export function UsageBreakdownTable({
 
 						return (
 							<TableRow key={item.event_category}>
-								<TableCell>
+								<TableCell className="p-3">
 									<div className="flex items-center gap-3">
-										<div className="flex h-10 w-10 items-center justify-center rounded border bg-muted">
+										<div className="flex size-10 items-center justify-center rounded border bg-secondary">
 											<IconComponent
-												className="h-5 w-5 text-muted-foreground"
+												className="size-5 text-muted-foreground"
 												weight="duotone"
 											/>
 										</div>
@@ -167,8 +161,8 @@ export function UsageBreakdownTable({
 									<div className="text-muted-foreground text-sm">events</div>
 								</TableCell>
 								<TableCell>
-									<div className="font-medium">
-										${overageCost.toPrecision(3)}
+									<div className="font-medium text-muted-foreground">
+										{overageCost > 0 ? `$${overageCost.toFixed(2)}` : "—"}
 									</div>
 								</TableCell>
 							</TableRow>

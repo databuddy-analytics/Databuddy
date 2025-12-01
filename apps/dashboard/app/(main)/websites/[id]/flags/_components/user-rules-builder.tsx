@@ -1,6 +1,6 @@
 "use client";
 
-import { FlagIcon, PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TagsChat } from "@/components/ui/tags";
+import { cn } from "@/lib/utils";
 import type { UserRule } from "./types";
 
 interface UserRulesBuilderProps {
@@ -72,22 +73,21 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 
 	if (rules.length === 0) {
 		return (
-			<div className="rounded border border-primary/30 border-dashed bg-primary/5 p-8 text-center">
-				<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-					<FlagIcon className="h-6 w-6 text-primary" weight="duotone" />
-				</div>
-				<h3 className="mb-2 font-medium text-sm">No targeting rules</h3>
-				<p className="mb-4 text-muted-foreground text-xs">
+			<div className="rounded border border-dashed bg-background p-8 text-center">
+				<h3 className="mx-auto mb-2 w-full font-medium text-sm">
+					No targeting rules
+				</h3>
+				<p className="mx-auto mb-4 w-full text-muted-foreground text-xs">
 					Add rules to target specific users, emails, or properties
 				</p>
 				<Button
-					className="rounded"
+					className="mt-3"
 					onClick={addRule}
 					size="sm"
 					type="button"
-					variant="outline"
+					variant="secondary"
 				>
-					<PlusIcon className="mr-2 h-4 w-4" size={16} />
+					<PlusIcon className="size-3" />
 					Add First Rule
 				</Button>
 			</div>
@@ -105,10 +105,10 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 						{/* Rule Header */}
 						<div className="mb-4 flex items-center justify-between">
 							<div className="flex items-center gap-2">
-								<div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
+								<div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-foreground font-medium text-accent text-xs">
 									{index + 1}
 								</div>
-								<span className="font-medium text-sm">
+								<span className="text-muted-foreground text-sm">
 									{rule.type === "user_id" && "User ID"}
 									{rule.type === "email" && "Email"}
 									{rule.type === "property" && "Property"}
@@ -295,15 +295,18 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 							)}
 
 							{/* Result */}
-							<div className="flex items-center justify-between rounded bg-muted/30 p-3">
+							<div className="flex items-center justify-between rounded bg-secondary p-3">
 								<span className="font-medium text-sm">
 									When this rule matches:
 								</span>
 								<div className="flex items-center gap-2">
 									<span
-										className={
-											rule.enabled ? "text-muted-foreground" : "font-medium"
-										}
+										className={cn(
+											"text-sm",
+											rule.enabled
+												? "text-muted-foreground/50"
+												: "text-muted-foreground"
+										)}
 									>
 										Disabled
 									</span>
@@ -314,9 +317,12 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 										}
 									/>
 									<span
-										className={
-											rule.enabled ? "font-medium" : "text-muted-foreground"
-										}
+										className={cn(
+											"text-sm",
+											rule.enabled
+												? "text-muted-foreground"
+												: "text-muted-foreground/50"
+										)}
 									>
 										Enabled
 									</span>

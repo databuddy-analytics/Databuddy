@@ -84,8 +84,8 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	if (error) {
 		return (
-			<div className="p-6 text-center">
-				<div className="rounded border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950">
+			<div className="p-4 text-center">
+				<div className="rounded border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
 					<div className="mx-auto mb-4 w-fit rounded-full border border-destructive/20 bg-destructive/10 p-3">
 						<BugIcon className="h-6 w-6 text-destructive" weight="duotone" />
 					</div>
@@ -102,12 +102,12 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	}
 
 	return (
-		<div className="space-y-6 p-6">
+		<div className="space-y-4 p-4">
 			{isLoading ? (
 				<ErrorsLoadingSkeleton />
 			) : (
-				<div className="space-y-6">
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<div className="space-y-4">
+					<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 						<div className="lg:col-span-2">
 							<ErrorTrendsChart errorChartData={processedChartData} />
 						</div>
@@ -133,12 +133,12 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 function ErrorsLoadingSkeleton() {
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			{/* Chart and summary stats grid */}
-			<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				{/* Error trends chart skeleton */}
 				<div className="lg:col-span-2">
-					<div className="rounded-lg border bg-background">
+					<div className="rounded border bg-sidebar">
 						<div className="flex flex-col items-start justify-between gap-3 border-b p-4 sm:flex-row">
 							<div className="space-y-2">
 								<Skeleton className="h-5 w-32" />
@@ -158,7 +158,7 @@ function ErrorsLoadingSkeleton() {
 				{/* Summary stats and top error card */}
 				<div className="space-y-4">
 					{/* Error summary stats skeleton */}
-					<div className="rounded-lg border bg-background p-4">
+					<div className="rounded border bg-sidebar p-4">
 						<div className="space-y-4">
 							<div className="space-y-2">
 								<Skeleton className="h-5 w-24" />
@@ -176,7 +176,7 @@ function ErrorsLoadingSkeleton() {
 					</div>
 
 					{/* Top error card skeleton */}
-					<div className="rounded-lg border bg-background p-4">
+					<div className="rounded border bg-sidebar p-4">
 						<div className="space-y-3">
 							<div className="space-y-2">
 								<Skeleton className="h-5 w-20" />
@@ -196,7 +196,7 @@ function ErrorsLoadingSkeleton() {
 			</div>
 
 			{/* Recent errors table skeleton */}
-			<div className="rounded-lg border bg-background">
+			<div className="rounded border bg-sidebar">
 				<div className="border-b p-4">
 					<div className="space-y-2">
 						<Skeleton className="h-5 w-32" />
@@ -223,7 +223,7 @@ function ErrorsLoadingSkeleton() {
 			</div>
 
 			{/* Error data table skeleton */}
-			<div className="rounded-lg border bg-background">
+			<div className="rounded border bg-sidebar">
 				<div className="border-b p-4">
 					<div className="space-y-2">
 						<Skeleton className="h-5 w-24" />

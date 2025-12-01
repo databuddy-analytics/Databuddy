@@ -1,56 +1,41 @@
-import type { Customer, CustomerProduct } from "autumn-js";
+import type { CustomerProduct } from "autumn-js";
 import { useCustomer, usePricingTable } from "autumn-js/react";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import AttachDialog from "@/components/autumn/attach-dialog";
+import {
+	calculateFeatureUsage,
+	type FeatureUsage,
+	type PricingTier,
+} from "../utils/feature-usage";
 
-export type FeatureUsage = {
+export type Usage = { features: FeatureUsage[] };
+export type CancelTarget = {
 	id: string;
 	name: string;
-	used: number;
-	limit: number;
-	balance: number;
-	unlimited: boolean;
-	nextReset: string | null;
-	interval: string | null;
-};
-
-export type Usage = {
-	features: FeatureUsage[];
+	currentPeriodEnd?: number;
 };
 
 export type { Customer, CustomerInvoice as Invoice } from "autumn-js";
+export type { CustomerWithPaymentMethod } from "../types/billing";
 
 export function useBilling(refetch?: () => void) {
 	const { attach, cancel, check, track, openBillingPortal } = useCustomer();
 	const [isLoading, setIsLoading] = useState(false);
-	const [showNoPaymentDialog, setShowNoPaymentDialog] = useState(false);
-	const [showCancelDialog, setShowCancelDialog] = useState(false);
-	const [cancellingPlan, setCancellingPlan] = useState<{
-		id: string;
-		name: string;
-		currentPeriodEnd?: number;
-	} | null>(null);
-	const [_isActionLoading, setIsActionLoading] = useState(false);
+	const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
 
 	const handleUpgrade = async (planId: string) => {
-		setIsActionLoading(true);
-
 		try {
-			const _result = await attach({
+			await attach({
 				productId: planId,
 				dialog: AttachDialog,
 				successUrl: `${window.location.origin}/billing`,
 			});
 		} catch (error) {
-			const message =
-				error instanceof Error
-					? error.message
-					: "An unexpected error occurred.";
-			toast.error(message);
-		} finally {
-			setIsActionLoading(false);
+			toast.error(
+				error instanceof Error ? error.message : "An unexpected error occurred."
+			);
 		}
 	};
 
@@ -67,50 +52,17 @@ export function useBilling(refetch?: () => void) {
 					: "Subscription cancelled."
 			);
 			if (refetch) {
-				setTimeout(() => refetch(), 500);
+				setTimeout(refetch, 500);
 			}
 		} catch (error) {
-			const message =
+			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to cancel subscription.";
-			toast.error(message);
+					: "Failed to cancel subscription."
+			);
 		} finally {
 			setIsLoading(false);
 		}
-	};
-
-	const handleCancelClick = (
-		planId: string,
-		planName: string,
-		currentPeriodEnd?: number
-	) => {
-		setCancellingPlan({ id: planId, name: planName, currentPeriodEnd });
-		setShowCancelDialog(true);
-	};
-
-	const handleCancelConfirm = async (immediate: boolean) => {
-		if (!cancellingPlan) {
-			return;
-		}
-		await handleCancel(cancellingPlan.id, immediate);
-		setCancellingPlan(null);
-	};
-
-	const handleManageBilling = async () => {
-		await openBillingPortal({
-			returnUrl: `${window.location.origin}/billing`,
-		});
-	};
-
-	const getSubscriptionStatus = (product: CustomerProduct) => {
-		if (product.canceled_at) {
-			return "Cancelling";
-		}
-		if (product.status === "scheduled") {
-			return "Scheduled";
-		}
-		return "Active";
 	};
 
 	const getSubscriptionStatusDetails = (product: CustomerProduct) => {
@@ -126,57 +78,27 @@ export function useBilling(refetch?: () => void) {
 		return "";
 	};
 
-	const getFeatureUsage = (featureId: string, customer?: Customer) => {
-		const feature = customer?.features?.[featureId];
-		if (!feature) return null;
-
-		const includedUsage = feature.included_usage ?? 0;
-		const balance = feature.balance ?? 0;
-		const reportedUsage = feature.usage ?? 0;
-
-		const isUnlimited =
-			feature.unlimited ||
-			!Number.isFinite(balance) ||
-			balance === Number.POSITIVE_INFINITY ||
-			balance === Number.NEGATIVE_INFINITY;
-
-		const actualUsed = isUnlimited
-			? 0
-			: reportedUsage > 0
-				? reportedUsage
-				: Math.max(0, includedUsage - balance);
-
-		return {
-			id: feature.id,
-			name: feature.name,
-			used: actualUsed,
-			limit: isUnlimited ? Number.POSITIVE_INFINITY : includedUsage,
-			balance,
-			unlimited: isUnlimited,
-			nextReset: feature.next_reset_at
-				? dayjs(feature.next_reset_at).format("MMM D, YYYY")
-				: null,
-			interval: feature.interval ?? null,
-		};
-	};
-
 	return {
 		isLoading,
 		onUpgrade: handleUpgrade,
 		onCancel: handleCancel,
-		onCancelClick: handleCancelClick,
-		onCancelConfirm: handleCancelConfirm,
-		onManageBilling: handleManageBilling,
+		onCancelClick: (id: string, name: string, currentPeriodEnd?: number) =>
+			setCancelTarget({ id, name, currentPeriodEnd }),
+		onCancelConfirm: async (immediate: boolean) => {
+			if (!cancelTarget) {
+				return;
+			}
+			await handleCancel(cancelTarget.id, immediate);
+			setCancelTarget(null);
+		},
+		onCancelDialogClose: () => setCancelTarget(null),
+		onManageBilling: () =>
+			openBillingPortal({ returnUrl: `${window.location.origin}/billing` }),
 		check,
 		track,
-		showNoPaymentDialog,
-		setShowNoPaymentDialog,
-		showCancelDialog,
-		setShowCancelDialog,
-		cancellingPlan,
-		getSubscriptionStatus,
+		showCancelDialog: !!cancelTarget,
+		cancelTarget,
 		getSubscriptionStatusDetails,
-		getFeatureUsage,
 	};
 }
 
@@ -186,9 +108,7 @@ export function useBillingData() {
 		isLoading: isCustomerLoading,
 		error: customerError,
 		refetch: refetchCustomer,
-	} = useCustomer({
-		expand: ["invoices"],
-	});
+	} = useCustomer({ expand: ["invoices", "payment_method"] });
 
 	const {
 		products,
@@ -196,7 +116,43 @@ export function useBillingData() {
 		refetch: refetchPricing,
 	} = usePricingTable();
 
-	const isLoading = isCustomerLoading || isPricingLoading;
+	const featureConfig = useMemo(() => {
+		const limits: Record<string, number> = {};
+		const tiers: Record<string, PricingTier[]> = {};
+
+		const activeProduct = customer?.products?.find(
+			(p) =>
+				p.status === "active" ||
+				(p.canceled_at && dayjs(p.current_period_end).isAfter(dayjs()))
+		);
+
+		for (const item of activeProduct?.items ?? []) {
+			if (item.feature_id) {
+				if (typeof item.included_usage === "number") {
+					limits[item.feature_id] = item.included_usage;
+				}
+				// Tiers exist on priced_feature items but aren't in the type
+				const itemTiers = (item as { tiers?: PricingTier[] }).tiers;
+				if (Array.isArray(itemTiers)) {
+					tiers[item.feature_id] = itemTiers;
+				}
+			}
+		}
+
+		return { limits, tiers };
+	}, [customer?.products]);
+
+	const usage: Usage = {
+		features: customer?.features
+			? Object.values(customer.features).map((f) =>
+				calculateFeatureUsage(
+					f,
+					featureConfig.limits[f.id],
+					featureConfig.tiers[f.id]
+				)
+			)
+			: [],
+	};
 
 	const refetch = () => {
 		refetchCustomer();
@@ -205,47 +161,12 @@ export function useBillingData() {
 		}
 	};
 
-	const usage: Usage = {
-		features: customer?.features
-			? Object.values(customer.features).map((feature) => {
-					const includedUsage = feature.included_usage ?? 0;
-					const balance = feature.balance ?? 0;
-					const reportedUsage = feature.usage ?? 0;
-
-					const isUnlimited =
-						feature.unlimited ||
-						!Number.isFinite(balance) ||
-						balance === Number.POSITIVE_INFINITY ||
-						balance === Number.NEGATIVE_INFINITY;
-
-					const actualUsed = isUnlimited
-						? 0
-						: reportedUsage > 0
-							? reportedUsage
-							: Math.max(0, includedUsage - balance);
-
-					return {
-						id: feature.id,
-						name: feature.name,
-						used: actualUsed,
-						limit: isUnlimited ? Number.POSITIVE_INFINITY : includedUsage,
-						balance,
-						unlimited: isUnlimited,
-						nextReset: feature.next_reset_at
-							? dayjs(feature.next_reset_at).format("MMM D, YYYY")
-							: null,
-						interval: feature.interval ?? null,
-					};
-				})
-			: [],
-	};
-
 	return {
 		products: products ?? [],
 		usage,
 		customer,
 		customerData: customer,
-		isLoading,
+		isLoading: isCustomerLoading || isPricingLoading,
 		error: customerError,
 		refetch,
 	};

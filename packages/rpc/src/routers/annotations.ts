@@ -1,8 +1,8 @@
 import { and, annotations, desc, eq, isNull } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
 const annotationsCache = createDrizzleCache({
@@ -10,10 +10,6 @@ const annotationsCache = createDrizzleCache({
 	namespace: "annotations",
 });
 const CACHE_TTL = 300; // 5 minutes
-
-// ============================================================================
-// Schemas
-// ============================================================================
 
 const chartContextSchema = z.object({
 	dateRange: z.object({
@@ -34,33 +30,7 @@ const chartContextSchema = z.object({
 	tabId: z.string().optional(),
 });
 
-const createAnnotationSchema = z.object({
-	websiteId: z.string(),
-	chartType: z.enum(["metrics"]),
-	chartContext: chartContextSchema,
-	annotationType: z.enum(["point", "line", "range"]),
-	xValue: z.string(), // ISO timestamp
-	xEndValue: z.string().optional(), // For range annotations
-	yValue: z.number().optional(),
-	text: z.string().min(1).max(500),
-	tags: z.array(z.string()).optional(),
-	color: z.string().optional(),
-	isPublic: z.boolean().default(false),
-});
-
-const updateAnnotationSchema = z.object({
-	id: z.string(),
-	text: z.string().min(1).max(500).optional(),
-	tags: z.array(z.string()).optional(),
-	color: z.string().optional(),
-	isPublic: z.boolean().optional(),
-});
-
-// ============================================================================
-// Router
-// ============================================================================
-
-export const annotationsRouter = createTRPCRouter({
+export const annotationsRouter = {
 	// List annotations for a chart context
 	list: publicProcedure
 		.input(
@@ -70,7 +40,7 @@ export const annotationsRouter = createTRPCRouter({
 				chartContext: chartContextSchema,
 			})
 		)
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}`;
 
 			return annotationsCache.withCache({
@@ -78,9 +48,9 @@ export const annotationsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 
-					return ctx.db
+					return context.db
 						.select()
 						.from(annotations)
 						.where(
@@ -98,7 +68,7 @@ export const annotationsRouter = createTRPCRouter({
 	// Get annotation by ID
 	getById: publicProcedure
 		.input(z.object({ id: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `annotations:byId:${input.id}`;
 
 			return annotationsCache.withCache({
@@ -106,7 +76,7 @@ export const annotationsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
-					const result = await ctx.db
+					const result = await context.db
 						.select()
 						.from(annotations)
 						.where(
@@ -115,20 +85,18 @@ export const annotationsRouter = createTRPCRouter({
 						.limit(1);
 
 					if (result.length === 0) {
-						throw new TRPCError({
-							code: "NOT_FOUND",
+						throw new ORPCError("NOT_FOUND", {
 							message: "Annotation not found",
 						});
 					}
 
 					const annotation = result[0];
 					if (!annotation) {
-						throw new TRPCError({
-							code: "NOT_FOUND",
+						throw new ORPCError("NOT_FOUND", {
 							message: "Annotation not found",
 						});
 					}
-					await authorizeWebsiteAccess(ctx, annotation.websiteId, "read");
+					await authorizeWebsiteAccess(context, annotation.websiteId, "read");
 
 					return annotation;
 				},
@@ -137,12 +105,26 @@ export const annotationsRouter = createTRPCRouter({
 
 	// Create annotation
 	create: protectedProcedure
-		.input(createAnnotationSchema)
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
+		.input(
+			z.object({
+				websiteId: z.string(),
+				chartType: z.enum(["metrics"]),
+				chartContext: chartContextSchema,
+				annotationType: z.enum(["point", "line", "range"]),
+				xValue: z.string(),
+				xEndValue: z.string().optional(),
+				yValue: z.number().optional(),
+				text: z.string().min(1).max(500),
+				tags: z.array(z.string()).optional(),
+				color: z.string().optional(),
+				isPublic: z.boolean().default(false),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
 
 			const annotationId = crypto.randomUUID();
-			const [newAnnotation] = await ctx.db
+			const [newAnnotation] = await context.db
 				.insert(annotations)
 				.values({
 					id: annotationId,
@@ -157,7 +139,7 @@ export const annotationsRouter = createTRPCRouter({
 					tags: input.tags || [],
 					color: input.color || "#3B82F6",
 					isPublic: input.isPublic,
-					createdBy: ctx.user.id,
+					createdBy: context.user.id,
 				})
 				.returning();
 
@@ -168,29 +150,36 @@ export const annotationsRouter = createTRPCRouter({
 
 	// Update annotation
 	update: protectedProcedure
-		.input(updateAnnotationSchema)
-		.mutation(async ({ ctx, input }) => {
+		.input(
+			z.object({
+				id: z.string(),
+				text: z.string().min(1).max(500).optional(),
+				tags: z.array(z.string()).optional(),
+				color: z.string().optional(),
+				isPublic: z.boolean().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
 			// First verify the annotation exists and get website ID
-			const existingAnnotation = await ctx.db
+			const existingAnnotation = await context.db
 				.select()
 				.from(annotations)
 				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
 			if (existingAnnotation.length === 0) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
+				throw new ORPCError("NOT_FOUND", {
 					message: "Annotation not found",
 				});
 			}
 
 			await authorizeWebsiteAccess(
-				ctx,
+				context,
 				existingAnnotation[0].websiteId,
 				"update"
 			);
 
-			const [updatedAnnotation] = await ctx.db
+			const [updatedAnnotation] = await context.db
 				.update(annotations)
 				.set({
 					...input,
@@ -207,28 +196,27 @@ export const annotationsRouter = createTRPCRouter({
 	// Delete annotation (soft delete)
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			// First verify the annotation exists and get website ID
-			const existingAnnotation = await ctx.db
+			const existingAnnotation = await context.db
 				.select()
 				.from(annotations)
 				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
 			if (existingAnnotation.length === 0) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
+				throw new ORPCError("NOT_FOUND", {
 					message: "Annotation not found",
 				});
 			}
 
 			await authorizeWebsiteAccess(
-				ctx,
+				context,
 				existingAnnotation[0].websiteId,
 				"update"
 			);
 
-			await ctx.db
+			await context.db
 				.update(annotations)
 				.set({ deletedAt: new Date() })
 				.where(eq(annotations.id, input.id));
@@ -237,4 +225,4 @@ export const annotationsRouter = createTRPCRouter({
 
 			return { success: true };
 		}),
-});
+};

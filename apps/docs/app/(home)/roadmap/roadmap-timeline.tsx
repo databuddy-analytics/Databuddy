@@ -285,7 +285,7 @@ export default function RoadmapTimeline({ items }: Props) {
 												</div>
 												<div className="h-2 w-full rounded-full bg-muted">
 													<div
-														className="h-2 rounded-full bg-gradient-to-r from-primary/60 to-primary transition-all duration-500"
+														className="h-2 rounded-full bg-linear-to-r from-primary/60 to-primary transition-all duration-500"
 														style={{ width: `${item.progress}%` }}
 													/>
 												</div>

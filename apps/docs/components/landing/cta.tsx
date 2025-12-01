@@ -108,7 +108,7 @@ export default function CTA() {
 					</div>
 
 					{/* Gradient overlays for edge fading - theme aware */}
-					<div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-background/80" />
+					<div className="absolute inset-0 bg-linear-to-r from-background/80 via-transparent to-background/80" />
 					<div className="absolute inset-0 bg-gradient-to-b from-background/60 via-transparent to-background/60" />
 					<div className="absolute inset-0 bg-gradient-to-tr from-background/40 via-transparent to-transparent" />
 					<div className="absolute inset-0 bg-gradient-to-bl from-transparent via-transparent to-background/40" />

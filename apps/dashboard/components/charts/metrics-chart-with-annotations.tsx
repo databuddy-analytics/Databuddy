@@ -1,20 +1,31 @@
 "use client";
 
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { ANNOTATION_STORAGE_KEYS } from "@/lib/annotation-constants";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 import type {
 	Annotation,
 	AnnotationFormData,
 	ChartContext,
 	CreateAnnotationData,
 } from "@/types/annotations";
-import { EditAnnotationModal } from "./edit-annotation-modal";
+import { AnnotationModal } from "./annotation-modal";
 import { MetricsChart } from "./metrics-chart";
 
-interface MetricsChartWithAnnotationsProps {
+type CreateAnnotationInput = {
+	annotationType: "range";
+	xValue: string;
+	xEndValue: string;
+	text: string;
+	tags: string[];
+	color: string;
+	isPublic: boolean;
+};
+
+type MetricsChartWithAnnotationsProps = {
 	websiteId: string;
 	data: any[] | undefined;
 	isLoading: boolean;
@@ -30,7 +41,7 @@ interface MetricsChartWithAnnotationsProps {
 		endDate: Date;
 		granularity: "hourly" | "daily" | "weekly" | "monthly";
 	};
-}
+};
 
 export function MetricsChartWithAnnotations({
 	websiteId,
@@ -48,18 +59,26 @@ export function MetricsChartWithAnnotations({
 	const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(
 		null
 	);
-	const [isEditing, setIsEditing] = useState(false);
+
 	const [showAnnotations, setShowAnnotations] = usePersistentState(
 		ANNOTATION_STORAGE_KEYS.visibility(websiteId),
 		true
 	);
 
-	const createAnnotation = trpc.annotations.create.useMutation();
-	const updateAnnotation = trpc.annotations.update.useMutation();
-	const deleteAnnotation = trpc.annotations.delete.useMutation();
+	const createAnnotation = useMutation({
+		...orpc.annotations.create.mutationOptions(),
+	});
+	const updateAnnotation = useMutation({
+		...orpc.annotations.update.mutationOptions(),
+	});
+	const deleteAnnotation = useMutation({
+		...orpc.annotations.delete.mutationOptions(),
+	});
 
 	const chartContext = useMemo((): ChartContext | null => {
-		if (!(dateRange && data?.length)) return null;
+		if (!(dateRange && data?.length)) {
+			return null;
+		}
 
 		return {
 			dateRange: {
@@ -71,20 +90,21 @@ export function MetricsChartWithAnnotations({
 		};
 	}, [dateRange, data]);
 
-	const { data: allAnnotations, refetch: refetchAnnotations } =
-		trpc.annotations.list.useQuery(
-			{
+	const { data: allAnnotations, refetch: refetchAnnotations } = useQuery({
+		...orpc.annotations.list.queryOptions({
+			input: {
 				websiteId,
 				chartType: "metrics" as const,
-				chartContext: chartContext!,
+				chartContext: chartContext as any,
 			},
-			{
-				enabled: !!websiteId && !!chartContext,
-			}
-		);
+		}),
+		enabled: !!websiteId && !!chartContext,
+	});
 
 	const annotations = useMemo(() => {
-		if (!(allAnnotations && dateRange)) return [];
+		if (!(allAnnotations && dateRange)) {
+			return [];
+		}
 
 		const { startDate, endDate } = dateRange;
 
@@ -102,15 +122,11 @@ export function MetricsChartWithAnnotations({
 		});
 	}, [allAnnotations, dateRange]);
 
-	const handleCreateAnnotation = async (annotation: {
-		annotationType: "range";
-		xValue: string;
-		xEndValue: string;
-		text: string;
-		tags: string[];
-		color: string;
-		isPublic: boolean;
-	}) => {
+	const closeEditModal = () => {
+		setEditingAnnotation(null);
+	};
+
+	const handleCreateAnnotation = async (annotation: CreateAnnotationInput) => {
 		if (!(websiteId && chartContext)) {
 			toast.error("Missing required data for annotation creation");
 			return;
@@ -143,16 +159,11 @@ export function MetricsChartWithAnnotations({
 			},
 		});
 
-		try {
-			await promise;
-		} catch (error) {
-			console.error("Annotation creation failed:", error);
-		}
+		await promise;
 	};
 
 	const handleEditAnnotation = (annotation: Annotation) => {
 		setEditingAnnotation(annotation);
-		setIsEditing(true);
 	};
 
 	const handleDeleteAnnotation = async (id: string) => {
@@ -183,8 +194,6 @@ export function MetricsChartWithAnnotations({
 			loading: "Updating annotation...",
 			success: () => {
 				refetchAnnotations();
-				setIsEditing(false);
-				setEditingAnnotation(null);
 				return "Annotation updated successfully";
 			},
 			error: (err) => {
@@ -218,16 +227,17 @@ export function MetricsChartWithAnnotations({
 				websiteId={websiteId}
 			/>
 
-			<EditAnnotationModal
-				annotation={editingAnnotation}
-				isOpen={isEditing}
-				isSaving={updateAnnotation.isPending}
-				onClose={() => {
-					setIsEditing(false);
-					setEditingAnnotation(null);
-				}}
-				onSave={handleSaveAnnotation}
-			/>
+			{/* Edit Annotation Modal */}
+			{editingAnnotation && (
+				<AnnotationModal
+					annotation={editingAnnotation}
+					isOpen={true}
+					isSubmitting={updateAnnotation.isPending}
+					mode="edit"
+					onClose={closeEditModal}
+					onSubmit={handleSaveAnnotation}
+				/>
+			)}
 		</>
 	);
 }

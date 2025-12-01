@@ -1,7 +1,7 @@
 import { ChartLineIcon, XIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import { useAtom } from "jotai";
-import { useMemo, useState } from "react";
+import { useRef, useState } from "react";
 import {
 	Area,
 	CartesianGrid,
@@ -31,6 +31,7 @@ import {
 	toggleMetricAtom,
 } from "@/stores/jotai/chartAtoms";
 import type { Annotation } from "@/types/annotations";
+import { AnnotationModal } from "./annotation-modal";
 import { AnnotationsPanel } from "./annotations-panel";
 import {
 	type ChartDataRow,
@@ -40,50 +41,79 @@ import {
 import { RangeSelectionPopup } from "./range-selection-popup";
 import { SkeletonChart } from "./skeleton-chart";
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type TooltipPayloadEntry = {
+	dataKey: string;
+	value: number;
+	color: string;
+	payload: Record<string, unknown>;
+};
+
+type TooltipProps = {
+	active?: boolean;
+	payload?: TooltipPayloadEntry[];
+	label?: string;
+	isDragging?: boolean;
+	justFinishedDragging?: boolean;
+};
+
+const CustomTooltip = ({
+	active,
+	payload,
+	label,
+	isDragging,
+	justFinishedDragging,
+}: TooltipProps) => {
+	// Hide tooltip during or immediately after dragging
+	if (isDragging || justFinishedDragging) {
+		return null;
+	}
+
 	if (!(active && payload?.length)) {
 		return null;
 	}
 
 	return (
-		<div className="min-w-[200px] rounded border border-sidebar-border bg-sidebar p-4 shadow-sm">
-			<div className="mb-3 flex items-center gap-2 border-sidebar-border border-b pb-2">
-				<div className="h-2 w-2 animate-pulse rounded-full bg-sidebar-ring" />
-				<p className="font-semibold text-sidebar-foreground text-sm">{label}</p>
+		<div className="min-w-[200px] rounded border bg-popover p-3 shadow-lg">
+			<div className="mb-2 flex items-center gap-2 border-b pb-2">
+				<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
-			<div className="space-y-2.5">
+			<div className="space-y-1.5">
 				{Object.entries(
-					payload.reduce((groups: any, entry: any) => {
-						const key = entry.dataKey
-							.replace("_historical", "")
-							.replace("_future", "");
-						if (!groups[key] || entry.dataKey.includes("_future")) {
-							groups[key] = entry;
-						}
-						return groups;
-					}, {})
-				).map(([key, entry]: [string, any]) => {
+					payload.reduce<Record<string, TooltipPayloadEntry>>(
+						(groups, entry) => {
+							const key = entry.dataKey
+								.replace("_historical", "")
+								.replace("_future", "");
+							if (!groups[key] || entry.dataKey.includes("_future")) {
+								groups[key] = entry;
+							}
+							return groups;
+						},
+						{}
+					)
+				).map(([key, entry]) => {
 					const metric = METRICS.find((m) => m.key === key);
-					if (!metric) {
+					if (!metric || entry.value === undefined || entry.value === null) {
 						return null;
 					}
 
 					const value = metric.formatValue
-						? metric.formatValue(entry.value, entry.payload)
+						? metric.formatValue(entry.value, entry.payload as ChartDataRow)
 						: entry.value.toLocaleString();
 
 					return (
 						<div className="flex items-center justify-between gap-3" key={key}>
-							<div className="flex items-center gap-2.5">
+							<div className="flex items-center gap-2">
 								<div
-									className="h-3 w-3 rounded-full"
+									className="size-2.5 rounded-full"
 									style={{ backgroundColor: entry.color }}
 								/>
-								<span className="text-sidebar-foreground/70 text-xs">
+								<span className="text-muted-foreground text-xs">
 									{metric.label}
 								</span>
 							</div>
-							<span className="font-bold text-sidebar-foreground text-sm">
+							<span className="font-semibold text-foreground text-sm tabular-nums">
 								{value}
 							</span>
 						</div>
@@ -94,12 +124,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 	);
 };
 
-interface DateRangeState {
+type DateRangeState = {
 	startDate: Date;
 	endDate: Date;
-}
+};
 
-interface MetricsChartProps {
+type MetricsChartProps = {
 	data: ChartDataRow[] | undefined;
 	isLoading: boolean;
 	height?: number;
@@ -125,14 +155,21 @@ interface MetricsChartProps {
 	onToggleAnnotations?: (show: boolean) => void;
 	websiteId?: string;
 	granularity?: "hourly" | "daily" | "weekly" | "monthly";
-}
+};
+
+const DEFAULT_METRICS = [
+	"pageviews",
+	"visitors",
+	"sessions",
+	"bounce_rate",
+	"avg_session_duration",
+];
 
 export function MetricsChart({
 	data,
 	isLoading,
 	height = 550,
 	title,
-	description,
 	className,
 	metricsFilter,
 	showLegend = true,
@@ -150,9 +187,14 @@ export function MetricsChart({
 	const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
 	const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 	const [showRangePopup, setShowRangePopup] = useState(false);
-	const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+	const [showAnnotationModal, setShowAnnotationModal] = useState(false);
 	const [selectedDateRange, setSelectedDateRange] =
 		useState<DateRangeState | null>(null);
+
+	// Track drag state to prevent tooltip from showing during/after drag
+	const isDraggingRef = useRef(false);
+	const [suppressTooltip, setSuppressTooltip] = useState(false);
+	const hasAnimatedRef = useRef(false);
 
 	const [tipDismissed, setTipDismissed] = usePersistentState(
 		websiteId
@@ -164,21 +206,9 @@ export function MetricsChart({
 	const [visibleMetrics] = useAtom(metricVisibilityAtom);
 	const [, toggleMetric] = useAtom(toggleMetricAtom);
 
-	const hiddenMetrics = useMemo(
-		() =>
-			Object.fromEntries(
-				Object.entries(visibleMetrics).map(([key, visible]) => [key, !visible])
-			),
-		[visibleMetrics]
+	const hiddenMetrics = Object.fromEntries(
+		Object.entries(visibleMetrics).map(([key, visible]) => [key, !visible])
 	);
-
-	const DEFAULT_METRICS = [
-		"pageviews",
-		"visitors",
-		"sessions",
-		"bounce_rate",
-		"avg_session_duration",
-	];
 
 	const metrics = metricsFilter
 		? METRICS.filter(metricsFilter)
@@ -190,9 +220,7 @@ export function MetricsChart({
 
 		const result = { ...item };
 		for (const metric of metrics) {
-			result[`${metric.key}_historical`] = isLastPoint
-				? null
-				: item[metric.key];
+			result[`${metric.key}_historical`] = isLastPoint ? null : item[metric.key];
 			if (isLastPoint || isSecondToLast) {
 				result[`${metric.key}_future`] = item[metric.key];
 			}
@@ -200,26 +228,34 @@ export function MetricsChart({
 		return result;
 	});
 
-	const handleMouseDown = (e: any) => {
+	const handleMouseDown = (e: { activeLabel?: string }) => {
 		if (!e?.activeLabel) return;
+		isDraggingRef.current = true;
+		setSuppressTooltip(true);
 		setRefAreaLeft(e.activeLabel);
 		setRefAreaRight(null);
 	};
 
-	const handleMouseMove = (e: any) => {
+	const handleMouseMove = (e: { activeLabel?: string }) => {
 		if (!(refAreaLeft && e?.activeLabel)) return;
 		setRefAreaRight(e.activeLabel);
 	};
 
-	const handleMouseUp = (e: any) => {
-		if (!refAreaLeft) {
+	const handleMouseUp = (e: { activeLabel?: string }) => {
+		const wasDragging = isDraggingRef.current;
+		isDraggingRef.current = false;
+
+		if (wasDragging) {
+			setTimeout(() => setSuppressTooltip(false), 150);
+		}
+
+		if (!e?.activeLabel || !refAreaLeft) {
 			setRefAreaLeft(null);
 			setRefAreaRight(null);
 			return;
 		}
 
 		const rightBoundary = refAreaRight || refAreaLeft;
-
 		const leftIndex = chartData.findIndex((d) => d.date === refAreaLeft);
 		const rightIndex = chartData.findIndex((d) => d.date === rightBoundary);
 
@@ -230,37 +266,25 @@ export function MetricsChart({
 		}
 
 		const [startIndex, endIndex] =
-			leftIndex < rightIndex
-				? [leftIndex, rightIndex]
-				: [rightIndex, leftIndex];
+			leftIndex < rightIndex ? [leftIndex, rightIndex] : [rightIndex, leftIndex];
 
 		const startDateStr =
-			(chartData[startIndex] as any).rawDate || chartData[startIndex].date;
+			(chartData[startIndex] as ChartDataRow & { rawDate?: string }).rawDate ||
+			chartData[startIndex].date;
 		const endDateStr =
-			(chartData[endIndex] as any).rawDate || chartData[endIndex].date;
+			(chartData[endIndex] as ChartDataRow & { rawDate?: string }).rawDate ||
+			chartData[endIndex].date;
 
-		const startDate = dayjs(startDateStr).toDate();
-		const endDate = dayjs(endDateStr).toDate();
-
-		const dateRange = {
-			startDate,
-			endDate,
-		};
-
-		setSelectedDateRange(dateRange);
+		setSelectedDateRange({
+			startDate: dayjs(startDateStr).toDate(),
+			endDate: dayjs(endDateStr).toDate(),
+		});
 		setShowRangePopup(true);
-
 		setRefAreaLeft(null);
 		setRefAreaRight(null);
 	};
 
-	const handleZoom = (dateRange: DateRangeState) => {
-		if (onRangeSelect) {
-			onRangeSelect(dateRange);
-		}
-	};
-
-	const handleCreateAnnotation = (annotation: {
+	const handleInternalCreateAnnotation = async (annotation: {
 		annotationType: "range";
 		xValue: string;
 		xEndValue: string;
@@ -269,9 +293,8 @@ export function MetricsChart({
 		color: string;
 		isPublic: boolean;
 	}) => {
-		if (onCreateAnnotation) {
-			onCreateAnnotation(annotation);
-		}
+		await onCreateAnnotation?.(annotation);
+		setShowAnnotationModal(false);
 	};
 
 	if (isLoading) {
@@ -282,38 +305,19 @@ export function MetricsChart({
 		return (
 			<div
 				className={cn(
-					"w-full rounded border border-sidebar-border bg-sidebar",
+					"w-full overflow-hidden rounded border bg-card",
 					className
 				)}
 			>
-				<div className="border-sidebar-border border-b px-6 py-6">
-					<h2 className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground tracking-tight">
-						<ChartLineIcon
-							className="h-5 w-5 text-sidebar-ring"
-							weight="duotone"
-						/>
-						{title}
-					</h2>
-					{description && (
-						<p className="mt-1 text-sidebar-foreground/70 text-sm">
-							{description}
-						</p>
-					)}
-				</div>
 				<div className="flex items-center justify-center p-8">
-					<div className="py-12 text-center">
-						<div className="relative">
-							<ChartLineIcon
-								className="mx-auto h-16 w-16 text-sidebar-foreground/20"
-								strokeWidth={1.5}
-								weight="duotone"
-							/>
-							<div className="absolute inset-0 rounded-full bg-gradient-to-t from-sidebar-ring/10 to-transparent blur-xl" />
+					<div className="flex flex-col items-center py-12 text-center">
+						<div className="relative flex size-12 items-center justify-center rounded bg-accent">
+							<ChartLineIcon className="size-6 text-muted-foreground" />
 						</div>
-						<p className="mt-6 font-semibold text-lg text-sidebar-foreground">
+						<p className="mt-6 font-medium text-foreground text-lg">
 							No data available
 						</p>
-						<p className="mx-auto mt-2 max-w-sm text-sidebar-foreground/70 text-sm">
+						<p className="mx-auto max-w-sm text-muted-foreground text-sm">
 							Your analytics data will appear here as visitors interact with
 							your website
 						</p>
@@ -324,19 +328,21 @@ export function MetricsChart({
 	}
 
 	return (
-		<div className={cn("w-full overflow-hidden rounded", className)}>
+		<div
+			className={cn("w-full overflow-hidden rounded border bg-card", className)}
+		>
 			{/* Annotations Panel */}
 			{annotations.length > 0 && (
-				<div className="flex items-center justify-between border-sidebar-border border-b bg-sidebar px-4 py-2">
+				<div className="flex items-center justify-between border-b bg-accent px-4 py-2">
 					<div className="flex items-center gap-3">
-						<span className="text-sidebar-foreground/70 text-sm">
+						<span className="text-muted-foreground text-sm">
 							{annotations.length} annotation
 							{annotations.length !== 1 ? "s" : ""} on this chart
 						</span>
 						{onToggleAnnotations && (
 							<div className="flex items-center gap-2">
 								<Label
-									className="text-sidebar-foreground/70 text-xs"
+									className="text-muted-foreground text-xs"
 									htmlFor="show-annotations"
 								>
 									Show annotations
@@ -371,7 +377,7 @@ export function MetricsChart({
 					{/* Range Selection Instructions */}
 					{refAreaLeft && !refAreaRight && (
 						<div className="-translate-x-1/2 absolute top-4 left-1/2 z-10 transform">
-							<div className="rounded bg-sidebar-ring px-3 py-1 font-medium text-sidebar-foreground text-xs shadow-sm">
+							<div className="rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs shadow-lg">
 								Drag to select range or click to annotate this point
 							</div>
 						</div>
@@ -379,12 +385,13 @@ export function MetricsChart({
 
 					{!refAreaLeft && annotations.length === 0 && !tipDismissed && (
 						<div className="absolute top-4 right-4 z-10">
-							<div className="flex items-center gap-2 rounded border border-sidebar-border bg-sidebar px-3 py-2 text-sidebar-foreground/70 text-xs shadow-sm">
+							<div className="flex items-center gap-2 rounded border bg-popover px-3 py-2 text-muted-foreground text-xs shadow-sm">
 								<span>💡 Click or drag on chart to create annotations</span>
 								<button
 									aria-label="Dismiss tip"
-									className="text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground"
+									className="text-muted-foreground transition-colors hover:text-foreground"
 									onClick={() => setTipDismissed(true)}
+									type="button"
 								>
 									<XIcon size={12} />
 								</button>
@@ -436,27 +443,39 @@ export function MetricsChart({
 							<XAxis
 								axisLine={false}
 								dataKey="date"
-								tick={{ fontSize: 11, fill: "oklch(0.4 0.01 240)" }}
+								tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
 								tickLine={false}
 							/>
 							<YAxis
 								axisLine={false}
-								tick={{ fontSize: 11, fill: "oklch(0.4 0.01 240)" }}
+								tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
 								tickLine={false}
 								width={45}
 							/>
 							<Tooltip
-								content={<CustomTooltip />}
-								cursor={{
-									stroke: "var(--sidebar-ring)",
-									strokeDasharray: "4 4",
-								}}
+								content={
+									<CustomTooltip
+										isDragging={isDraggingRef.current}
+										justFinishedDragging={suppressTooltip}
+									/>
+								}
+								cursor={
+									suppressTooltip
+										? false
+										: {
+												stroke: "var(--color-primary)",
+												strokeDasharray: "4 4",
+												strokeOpacity: 0.5,
+											}
+								}
 							/>
 							{refAreaLeft && refAreaRight && (
 								<ReferenceArea
-									fill="var(--sidebar-ring)"
-									fillOpacity={0.15}
-									strokeOpacity={0.3}
+									fill="var(--color-primary)"
+									fillOpacity={0.2}
+									stroke="var(--color-primary)"
+									strokeOpacity={0.6}
+									strokeWidth={1}
 									x1={refAreaLeft}
 									x2={refAreaRight}
 								/>
@@ -555,7 +574,7 @@ export function MetricsChart({
 											<span
 												className={`cursor-pointer text-xs ${
 													isHidden
-														? "text-muted-foreground/50 line-through"
+														? "text-muted line-through opacity-50"
 														: "text-muted-foreground hover:text-foreground"
 												}`}
 											>
@@ -577,12 +596,20 @@ export function MetricsChart({
 							)}
 							{metrics.map((metric) => (
 								<Area
-									activeDot={{ r: 4, stroke: metric.color, strokeWidth: 2 }}
+									activeDot={
+										suppressTooltip
+											? false
+											: { r: 4, stroke: metric.color, strokeWidth: 2 }
+									}
 									dataKey={`${metric.key}_historical`}
 									fill={`url(#gradient-${metric.gradient})`}
 									hide={hiddenMetrics[metric.key]}
+									isAnimationActive={!hasAnimatedRef.current}
 									key={metric.key}
 									name={metric.label}
+									onAnimationEnd={() => {
+										hasAnimatedRef.current = true;
+									}}
 									stroke={metric.color}
 									strokeWidth={2.5}
 									type="monotone"
@@ -595,6 +622,7 @@ export function MetricsChart({
 									dot={false}
 									fill={`url(#gradient-${metric.gradient})`}
 									hide={hiddenMetrics[metric.key]}
+									isAnimationActive={!hasAnimatedRef.current}
 									key={`future-${metric.key}`}
 									legendType="none"
 									stroke={metric.color}
@@ -613,11 +641,23 @@ export function MetricsChart({
 			{showRangePopup && selectedDateRange && (
 				<RangeSelectionPopup
 					dateRange={selectedDateRange}
-					isOpen={showRangePopup} // Position is handled by modal overlay
-					onClose={() => setShowRangePopup(false)}
-					onCreateAnnotation={handleCreateAnnotation}
-					onZoom={handleZoom}
-					position={{ x: 0, y: 0 }}
+					isOpen={showRangePopup}
+					onAddAnnotationAction={() => {
+						setShowRangePopup(false);
+						setShowAnnotationModal(true);
+					}}
+					onCloseAction={() => setShowRangePopup(false)}
+					onZoomAction={onRangeSelect ?? (() => {})}
+				/>
+			)}
+
+			{showAnnotationModal && selectedDateRange && (
+				<AnnotationModal
+					dateRange={selectedDateRange}
+					isOpen={showAnnotationModal}
+					mode="create"
+					onClose={() => setShowAnnotationModal(false)}
+					onCreate={handleInternalCreateAnnotation}
 				/>
 			)}
 		</div>

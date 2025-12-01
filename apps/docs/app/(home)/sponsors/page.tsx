@@ -100,7 +100,7 @@ export default function SponsorsPage() {
 
 			{/* Gradient Divider */}
 			<div className="w-full">
-				<div className="mx-auto h-px max-w-6xl bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+				<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
 			</div>
 
 			{/* Footer Section */}
@@ -108,7 +108,7 @@ export default function SponsorsPage() {
 
 			{/* Final Gradient Divider */}
 			<div className="w-full">
-				<div className="mx-auto h-px max-w-6xl bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+				<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
 			</div>
 		</div>
 	);

@@ -108,10 +108,12 @@ const logos = [
 import { LogoCarousel } from "./logo-carousel";
 
 export const TrustedBy = () => (
-	<div className="space-y-6 sm:space-y-8">
+	<div className="relative space-y-6 sm:space-y-8">
 		<h2 className="mx-auto max-w-md text-center font-medium text-foreground text-lg leading-tight tracking-tight sm:text-xl md:text-2xl">
 			Trusted by teams and developers worldwide
 		</h2>
-		<LogoCarousel columns={4} logos={logos} />
+		<div className="relative [mask-image:linear-gradient(to_right,transparent,black_20%,black_80%,transparent)]">
+			<LogoCarousel columns={4} logos={logos} />
+		</div>
 	</div>
 );

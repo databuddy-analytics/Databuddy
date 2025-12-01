@@ -948,29 +948,55 @@
 			}
 
 			try {
-				const metrics = { fcp: null, lcp: null, cls: 0, fid: null, inp: null };
-				let reported = false;
-
+				const metrics = { fcp: undefined, lcp: undefined, cls: undefined, fid: undefined, inp: undefined, ttfb: undefined };
+				
 				const clamp = (v) =>
 					typeof v === 'number' ? Math.min(60_000, Math.max(0, v)) : v;
 
-				const report = () => {
-					if (
-						reported ||
-						!Object.values(metrics).some((m) => m !== null && m !== 0)
-					) {
+				const sendVitals = () => {
+					if (!Object.values(metrics).some((m) => m !== undefined)) {
 						return;
 					}
-					reported = true;
-					this.trackWebVitals({
+
+					const payload = {
+						eventId: generateUUIDv4(),
+						anonymousId: this.anonymousId,
+						sessionId: this.sessionId,
 						timestamp: Date.now(),
 						fcp: clamp(metrics.fcp),
 						lcp: clamp(metrics.lcp),
-						cls: metrics.cls,
-						fid: metrics.fid,
+						cls: clamp(metrics.cls),
 						inp: metrics.inp,
+						ttfb: clamp(metrics.ttfb),
+						url: window.location.href,
+					};
+
+					this.sendBeacon({
+						type: 'web_vitals',
+						payload
 					});
-					this.cleanupWebVitals();
+				};
+
+				// Send initial report after a delay to let FCP/LCP settle
+				setTimeout(() => {
+					sendVitals();
+				}, 4000);
+
+				const report = () => {
+					sendVitals();
+				};
+
+				// Debounce reporting to avoid multiple triggers close together
+				let reportTimeout;
+				const debouncedReport = (immediate = false) => {
+					if (reportTimeout) {
+						window.clearTimeout(reportTimeout);
+					}
+					if (immediate) {
+						report();
+					} else {
+						reportTimeout = window.setTimeout(report, 1000);
+					}
 				};
 
 				const observe = (type, callback) => {
@@ -1005,7 +1031,7 @@
 				observe('layout-shift', (entries) => {
 					for (const entry of entries) {
 						if (!entry.hadRecentInput) {
-							metrics.cls += entry.value;
+							metrics.cls = (metrics.cls || 0) + entry.value;
 						}
 					}
 				});
@@ -1024,26 +1050,29 @@
 						}
 					}
 				});
+				
+				// Navigation Timing API for TTFB
+				try {
+					const navEntry = performance.getEntriesByType('navigation')[0];
+					if (navEntry) {
+						metrics.ttfb = Math.round(navEntry.responseStart - navEntry.requestStart);
+					}
+				} catch (e) {}
 
 				this.webVitalsVisibilityChangeHandler = () => {
 					if (document.visibilityState === 'hidden') {
-						report();
+						debouncedReport(true);
 					}
 				};
+				
 				document.addEventListener(
 					'visibilitychange',
-					this.webVitalsVisibilityChangeHandler,
-					{
-						once: true,
-					}
+					this.webVitalsVisibilityChangeHandler
 				);
 
-				this.webVitalsPageHideHandler = report;
-				window.addEventListener('pagehide', this.webVitalsPageHideHandler, {
-					once: true,
-				});
+				this.webVitalsPageHideHandler = () => debouncedReport(true);
+				window.addEventListener('pagehide', this.webVitalsPageHideHandler);
 
-				this.webVitalsReportTimeoutId = setTimeout(report, 10_000);
 			} catch (_e) {
 				//
 			}

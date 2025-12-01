@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/performance/noBarrelFile: It's witerawwy just a bawel file*/
 export * from "./analytics";
 export * from "./batch";
 export * from "./custom-events";

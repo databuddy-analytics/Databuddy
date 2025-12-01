@@ -4,16 +4,16 @@ import type React from "react";
 import { cn } from "@/lib/utils";
 import { FaviconImage } from "../analytics/favicon-image";
 
-export interface ReferrerSourceCellData {
+export type ReferrerSourceCellData = {
 	name?: string;
 	referrer?: string;
 	domain?: string;
 	id?: string;
-}
+};
 
-interface ReferrerSourceCellProps extends ReferrerSourceCellData {
+type ReferrerSourceCellProps = ReferrerSourceCellData & {
 	className?: string;
-}
+};
 
 export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 	id,

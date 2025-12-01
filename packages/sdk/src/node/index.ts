@@ -28,7 +28,7 @@ const DEFAULT_MAX_QUEUE_SIZE = 1000;
 const DEFAULT_MAX_DEDUPLICATION_CACHE_SIZE = 10_000;
 
 export class Databuddy {
-	private clientId: string;
+	private readonly clientId: string;
 	private apiUrl: string;
 	private logger: Logger;
 	private enableBatching: boolean;

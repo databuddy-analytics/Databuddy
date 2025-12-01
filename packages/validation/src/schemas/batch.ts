@@ -7,7 +7,7 @@ export const batchAnalyticsEventSchema = z.object({
 		anonymousId: z.string().max(128).optional(),
 		properties: z.record(z.string(), z.unknown()).optional(),
 		property: z.string().max(255).optional(),
-		value: z.number().finite().optional(),
+		value: z.number().optional(),
 	}),
 });
 

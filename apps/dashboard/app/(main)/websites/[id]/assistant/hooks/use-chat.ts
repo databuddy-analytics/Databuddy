@@ -1,8 +1,9 @@
 import type { StreamingUpdate } from "@databuddy/shared/types/assistant";
+import { useMutation } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 import {
 	inputValueAtom,
 	isLoadingAtom,
@@ -27,10 +28,13 @@ export function useChat() {
 		throw new Error("Website ID is required");
 	}
 
-	const addFeedback = trpc.assistant.addFeedback.useMutation({
+	const addFeedback = useMutation({
+		...orpc.assistant.addFeedback.mutationOptions(),
 		onError: (error) => {
 			toast.error(
-				error.message || "Failed to submit feedback. Please try again."
+				error instanceof Error
+					? error.message
+					: "Failed to submit feedback. Please try again."
 			);
 		},
 	});

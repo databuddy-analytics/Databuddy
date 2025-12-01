@@ -7,7 +7,7 @@
 
 import { and, db, eq, member, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "../lib/logger";
+import { captureError, record, setAttributes } from "../lib/tracing";
 
 type Website = typeof websites.$inferSelect;
 
@@ -46,26 +46,23 @@ async function _resolveOwnerId(website: Website): Promise<string | null> {
 				return orgMember.userId;
 			}
 
-			logger.warn(
-				{ websiteId: website.id, organizationId: website.organizationId },
-				"Organization owner not found for website"
-			);
+			// logger.warn(
+			// 	{ websiteId: website.id, organizationId: website.organizationId },
+			// 	"Organization owner not found for website"
+			// );
 		} catch (error) {
-			logger.error(
-				{
-					websiteId: website.id,
-					organizationId: website.organizationId,
-					error,
-				},
-				"Failed to fetch organization owner"
-			);
+			captureError(error, {
+				message: "Failed to fetch organization owner",
+				websiteId: website.id,
+				organizationId: website.organizationId || "unknown",
+			});
 		}
 	}
 
-	logger.warn(
-		{ websiteId: website.id },
-		"No owner could be determined for website"
-	);
+	// logger.warn(
+	// 	{ websiteId: website.id },
+	// 	"No owner could be determined for website"
+	// );
 	return null;
 }
 
@@ -83,17 +80,25 @@ const getOwnerId = cacheable(
 // Cache the website lookup and owner lookup
 export const getWebsiteById = cacheable(
 	async (id: string): Promise<WebsiteWithOwner | null> => {
-		const website = await db.query.websites.findFirst({
-			where: eq(websites.id, id),
-		});
+		try {
+			const website = await db.query.websites.findFirst({
+				where: eq(websites.id, id),
+			});
 
-		if (!website) {
+			if (!website) {
+				return null;
+			}
+
+			const ownerId = await getOwnerId(website);
+
+			return { ...website, ownerId };
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to get website by ID",
+				websiteId: id,
+			});
 			return null;
 		}
-
-		const ownerId = await getOwnerId(website);
-
-		return { ...website, ownerId };
 	},
 	{
 		expireInSec: 300,
@@ -124,7 +129,7 @@ export function isValidOrigin(
 		return true;
 	}
 	if (!allowedDomain?.trim()) {
-		logger.warn("[isValidOrigin] No allowed domain provided");
+		// logger.warn({ originHeader }, "[isValidOrigin] No allowed domain provided");
 		return false;
 	}
 	try {
@@ -138,11 +143,11 @@ export function isValidOrigin(
 			isSubdomain(normalizedOriginDomain, normalizedAllowedDomain)
 		);
 	} catch (error) {
-		logger.error(
-			new Error(
-				`[isValidOrigin] Validation failed: ${error instanceof Error ? error.message : String(error)}`
-			)
-		);
+		captureError(error, {
+			message: "[isValidOrigin] Validation failed",
+			originHeader,
+			allowedDomain,
+		});
 		return false;
 	}
 }
@@ -176,7 +181,7 @@ export function normalizeDomain(domain: string): string {
 		}
 		return finalDomain;
 	} catch (error) {
-		logger.error({ error }, `Failed to parse domain: ${domain}`);
+		captureError(error, { message: "Failed to parse domain", domain });
 		throw new Error(`Invalid domain format: ${domain}`);
 	}
 }
@@ -296,11 +301,11 @@ export function isValidOriginSecure(
 			isSubdomain(normalizedOriginDomain, normalizedAllowedDomain)
 		);
 	} catch (error) {
-		logger.error(
-			new Error(
-				`[isValidOriginSecure] Validation failed: ${error instanceof Error ? error.message : String(error)}`
-			)
-		);
+		captureError(error, {
+			message: "[isValidOriginSecure] Validation failed",
+			originHeader,
+			allowedDomain,
+		});
 		return false;
 	}
 }
@@ -318,40 +323,66 @@ export function isLocalhost(hostname: string): boolean {
 	); // IPv4 loopback
 }
 
-const getWebsiteByIdCached = cacheable(
-	async (id: string): Promise<Website | null> => {
-		const website = await db.query.websites.findFirst({
-			where: eq(websites.id, id),
-		});
-		return website ?? null;
+const getWebsiteByIdWithOwnerCached = cacheable(
+	async (id: string): Promise<WebsiteWithOwner | null> => {
+		try {
+			const website = await db.query.websites.findFirst({
+				where: eq(websites.id, id),
+			});
+
+			if (!website) {
+				return null;
+			}
+
+			const ownerId = await _resolveOwnerId(website);
+			return { ...website, ownerId };
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to get website by ID from cache",
+				websiteId: id,
+			});
+			return null;
+		}
 	},
 	{
-		expireInSec: 300, // 5 minutes
-		prefix: "website_by_id",
+		expireInSec: 600, // 10 minutes - longer cache for better performance
+		prefix: "website_with_owner_v2",
 		staleWhileRevalidate: true,
-		staleTime: 60, // 1 minute
+		staleTime: 120, // 2 minutes stale time
 	}
 );
 
-const getOwnerIdCached = cacheable(
-	async (website: Website): Promise<string | null> =>
-		await _resolveOwnerId(website),
-	{
-		expireInSec: 300,
-		prefix: "website_owner_id",
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
+export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
+	return record("getWebsiteByIdV2", async () => {
+		setAttributes({
+			"website.id": id,
+		});
 
-export async function getWebsiteByIdV2(
-	id: string
-): Promise<WebsiteWithOwner | null> {
-	const website = await getWebsiteByIdCached(id);
-	if (!website) {
-		return null;
-	}
+		try {
+			const result = await getWebsiteByIdWithOwnerCached(id);
 
-	const ownerId = await getOwnerIdCached(website);
-	return { ...website, ownerId };
+			if (result) {
+				setAttributes({
+					"website.found": true,
+					"website.status": result.status,
+					"website.has_owner": Boolean(result.ownerId),
+				});
+			} else {
+				setAttributes({
+					"website.found": false,
+				});
+			}
+
+			return result;
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to get website by ID V2",
+				websiteId: id,
+			});
+			setAttributes({
+				"website.lookup_failed": true,
+			});
+			return null;
+		}
+	});
 }

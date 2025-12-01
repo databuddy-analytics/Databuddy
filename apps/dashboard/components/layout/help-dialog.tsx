@@ -5,14 +5,15 @@ import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
 
-interface HelpDialogProps {
+type HelpDialogProps = {
 	open: boolean;
-	onOpenChange: (open: boolean) => void;
-}
+	onOpenChangeAction: (open: boolean) => void;
+};
 
 const helpItems = [
 	{
@@ -38,9 +39,9 @@ const helpItems = [
 	},
 ] as const;
 
-export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
+export function HelpDialog({ open, onOpenChangeAction }: HelpDialogProps) {
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
+		<Dialog onOpenChange={onOpenChangeAction} open={open}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader className="text-center">
 					<DialogTitle>Help & Resources</DialogTitle>
@@ -49,7 +50,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-2 py-4">
+				<div className="space-y-2">
 					{helpItems.map((item) => {
 						const Icon = item.icon;
 						return (
@@ -63,13 +64,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
 								className="block"
 							>
 								<Button
-									className="h-auto w-full justify-start p-4 text-left transition-colors hover:bg-muted/50"
+									className="h-auto w-full justify-start p-4 text-left transition-colors hover:bg-accent"
 									variant="ghost"
 								>
 									<div className="flex items-start gap-4">
-										<div className="rounded-lg bg-primary/10 p-2">
+										<div className="rounded-lg bg-accent-brighter p-2">
 											<Icon
-												className="h-5 w-5 not-dark:text-primary"
+												className="h-5 w-5 text-accent-foreground"
 												weight="duotone"
 											/>
 										</div>
@@ -87,6 +88,16 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
 						);
 					})}
 				</div>
+				<DialogFooter>
+					<Button
+						className="w-full"
+						onClick={() => onOpenChangeAction(false)}
+						type="button"
+						variant="secondary"
+					>
+						Close
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);

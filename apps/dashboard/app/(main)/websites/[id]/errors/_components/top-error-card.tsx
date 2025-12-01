@@ -36,7 +36,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 				<div className="grid grid-cols-2 gap-3">
 					<div className="flex items-center gap-2 rounded-md border border-primary/10 bg-primary/5 p-2">
 						<WarningCircleIcon
-							className="h-3.5 w-3.5 flex-shrink-0 text-primary"
+							className="h-3.5 w-3.5 shrink-0 text-primary"
 							weight="duotone"
 						/>
 						<div className="min-w-0">
@@ -48,7 +48,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 					</div>
 					<div className="flex items-center gap-2 rounded-md border border-chart-2/10 bg-chart-2/5 p-2">
 						<UsersIcon
-							className="h-3.5 w-3.5 flex-shrink-0 text-chart-2"
+							className="h-3.5 w-3.5 shrink-0 text-chart-2"
 							weight="duotone"
 						/>
 						<div className="min-w-0">

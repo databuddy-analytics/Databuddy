@@ -1,20 +1,14 @@
 import { chQuery } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
-import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { ORPCError } from "@orpc/server";
+import { z } from "zod";
 import { logger } from "../lib/logger";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
 
 const CACHE_TTL = 1800;
-
-const analyticsDateRangeSchema = z.object({
-	websiteId: z.string(),
-	startDate: z.string().optional(),
-	endDate: z.string().optional(),
-});
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -139,10 +133,16 @@ const categorizeAutocompleteResults = (
 		.map((r) => r.value),
 });
 
-export const autocompleteRouter = createTRPCRouter({
+export const autocompleteRouter = {
 	get: publicProcedure
-		.input(analyticsDateRangeSchema)
-		.query(({ ctx, input }) => {
+		.input(
+			z.object({
+				websiteId: z.string(),
+				startDate: z.string().optional(),
+				endDate: z.string().optional(),
+			})
+		)
+		.handler(({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -155,7 +155,7 @@ export const autocompleteRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["websites"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 					const params = { websiteId: input.websiteId, startDate, endDate };
 
 					try {
@@ -166,16 +166,12 @@ export const autocompleteRouter = createTRPCRouter({
 
 						return categorizeAutocompleteResults(results);
 					} catch (error) {
-						logger.error("Failed to fetch autocomplete data", {
-							error: error instanceof Error ? error.message : String(error),
-							websiteId: input.websiteId,
-						});
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
-							message: "Failed to fetch autocomplete data",
+						logger.error(`Failed to fetch autocomplete data for website ${input.websiteId}: ${error instanceof Error ? error.message : String(error)}`);
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
+							message: `Failed to fetch autocomplete data for website ${input.websiteId}: ${error instanceof Error ? error.message : String(error)}`,
 						});
 					}
 				},
 			});
 		}),
-});
+};

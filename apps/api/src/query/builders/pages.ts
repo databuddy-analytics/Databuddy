@@ -19,6 +19,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -82,6 +83,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	entry_pages: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -139,8 +141,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.event_name = 'screen_view'
                     ${combinedWhereClause}
             )`
@@ -154,8 +156,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY time) as page_rank
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort({endDate:String})
+                    AND time >= toDateTime({startDate:String})
+                    AND time <= toDateTime({endDate:String})
                     AND event_name = 'screen_view'
                     ${combinedWhereClause}
             )`;
@@ -203,6 +205,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	exit_pages: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -257,8 +260,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.event_name = 'screen_view'
 					${combinedWhereClause}
                 GROUP BY e.session_id, sa.session_referrer, sa.session_utm_source, sa.session_utm_medium, sa.session_utm_campaign, sa.session_country, sa.session_device_type, sa.session_browser_name, sa.session_os_name
@@ -270,8 +273,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     MAX(time) as session_end_time
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
-                    AND time >= parseDateTimeBestEffort({startDate:String})
-                    AND time <= parseDateTimeBestEffort({endDate:String})
+                    AND time >= toDateTime({startDate:String})
+                    AND time <= toDateTime({endDate:String})
                     AND event_name = 'screen_view'
 					${combinedWhereClause}
                 GROUP BY session_id
@@ -289,8 +292,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 FROM analytics.events e
                 INNER JOIN sessions s ON e.session_id = s.session_id AND e.time = s.session_end_time
                 WHERE e.client_id = {websiteId:String}
-                    AND e.time >= parseDateTimeBestEffort({startDate:String})
-                    AND e.time <= parseDateTimeBestEffort({endDate:String})
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime({endDate:String})
                     AND e.event_name = 'screen_view'
 					${combinedWhereClause}
             )
@@ -333,6 +336,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -351,6 +355,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	page_time_analysis: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -399,8 +404,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             FROM analytics.events e
             ${helpers.sessionAttributionJoin("e")}
             WHERE e.client_id = {websiteId:String}
-                AND e.time >= parseDateTimeBestEffort({startDate:String})
-                AND e.time <= parseDateTimeBestEffort({endDate:String})
+                AND e.time >= toDateTime({startDate:String})
+                AND e.time <= toDateTime({endDate:String})
                 AND e.event_name = 'page_exit'
                 AND e.time_on_page IS NOT NULL
                 AND e.time_on_page > 1
@@ -419,8 +424,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
             FROM analytics.events
             WHERE client_id = {websiteId:String}
-                AND time >= parseDateTimeBestEffort({startDate:String})
-                AND time <= parseDateTimeBestEffort({endDate:String})
+                AND time >= toDateTime({startDate:String})
+                AND time <= toDateTime({endDate:String})
                 AND event_name = 'page_exit'
                 AND time_on_page IS NOT NULL
                 AND time_on_page > 1

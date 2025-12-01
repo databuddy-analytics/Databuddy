@@ -1,62 +1,47 @@
 import { websitesApi } from "@databuddy/auth";
-import { chQuery } from "@databuddy/db";
-import { createDrizzleCache, redis } from "@databuddy/redis";
-import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
-import { logger } from "@databuddy/shared/utils/discord-webhook";
 import {
+	and,
+	chQuery,
+	eq,
+	inArray,
+	isNull,
+	member,
+	or,
+	websites,
+} from "@databuddy/db";
+import { createDrizzleCache, redis } from "@databuddy/redis";
+import { logger } from "@databuddy/shared/logger";
+import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
+import {
+	createWebsiteSchema,
+	togglePublicWebsiteSchema,
 	transferWebsiteSchema,
 	transferWebsiteToOrgSchema,
+	updateWebsiteSchema,
 } from "@databuddy/validation";
-import { TRPCError } from "@trpc/server";
-import { Effect, pipe } from "effect";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import { protectedProcedure, publicProcedure } from "../orpc";
 import {
 	buildWebsiteFilter,
 	DuplicateDomainError,
-	domainSchema,
-	subdomainSchema,
 	ValidationError,
 	type Website,
-	type WebsiteError,
 	WebsiteNotFoundError,
 	WebsiteService,
-	websiteNameSchema,
-} from "../services/website-service.js";
-import {
-	createTRPCRouter,
-	protectedProcedure,
-	publicProcedure,
-} from "../trpc.js";
-import { authorizeWebsiteAccess } from "../utils/auth.js";
-import { invalidateWebsiteCaches } from "../utils/cache-invalidation.js";
-
-const createWebsiteSchema = z.object({
-	name: websiteNameSchema,
-	domain: domainSchema,
-	subdomain: subdomainSchema,
-	organizationId: z.string().optional(),
-});
-
-const updateWebsiteSchema = z.object({
-	id: z.string(),
-	name: websiteNameSchema,
-	domain: domainSchema.optional(),
-});
-
-const togglePublicWebsiteSchema = z.object({
-	id: z.string(),
-	isPublic: z.boolean(),
-});
+} from "../services/website-service";
+import { authorizeWebsiteAccess } from "../utils/auth";
+import { invalidateWebsiteCaches } from "../utils/cache-invalidation";
 
 const websiteCache = createDrizzleCache({ redis, namespace: "websites" });
 const CACHE_DURATION = 60; // seconds
 const TREND_THRESHOLD = 5; // percentage
 
-interface ChartDataPoint {
+type ChartDataPoint = {
 	websiteId: string;
 	date: string;
 	value: number;
-}
+};
 
 const calculateAverage = (values: { value: number }[]) =>
 	values.length > 0
@@ -91,6 +76,44 @@ const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
 		return { type: "down" as const, value: Math.abs(percentageChange) };
 	}
 	return { type: "neutral" as const, value: Math.abs(percentageChange) };
+};
+
+type ActiveUsersRow = {
+	websiteId: string;
+	activeUsers: number;
+};
+
+const fetchActiveUsers = async (
+	websiteIds: string[]
+): Promise<Record<string, number>> => {
+	if (!websiteIds.length) {
+		return {};
+	}
+
+	const query = `
+    SELECT
+      client_id AS websiteId,
+      uniq(anonymous_id) AS activeUsers
+    FROM analytics.events
+    WHERE
+      client_id IN {websiteIds:Array(String)}
+      AND event_name = 'screen_view'
+      AND session_id != ''
+      AND time >= now() - INTERVAL 5 MINUTE
+    GROUP BY client_id
+  `;
+
+	const results = await chQuery<ActiveUsersRow>(query, { websiteIds });
+
+	const activeUsersMap: Record<string, number> = {};
+	for (const id of websiteIds) {
+		activeUsersMap[id] = 0;
+	}
+	for (const row of results) {
+		activeUsersMap[row.websiteId] = row.activeUsers;
+	}
+
+	return activeUsersMap;
 };
 
 const fetchChartData = async (
@@ -167,11 +190,11 @@ const fetchChartData = async (
 	return processedData;
 };
 
-export const websitesRouter = createTRPCRouter({
+export const websitesRouter = {
 	list: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
-		.query(({ ctx, input }) => {
-			const listCacheKey = `list:${ctx.user.id}:${input.organizationId || ""}`;
+		.handler(({ context, input }) => {
+			const listCacheKey = `list:${context.user.id}:${input.organizationId || ""}`;
 			return websiteCache.withCache({
 				key: listCacheKey,
 				ttl: CACHE_DURATION,
@@ -179,21 +202,20 @@ export const websitesRouter = createTRPCRouter({
 				queryFn: async () => {
 					if (input.organizationId) {
 						const { success } = await websitesApi.hasPermission({
-							headers: ctx.headers,
+							headers: context.headers,
 							body: { permissions: { website: ["read"] } },
 						});
 						if (!success) {
-							throw new TRPCError({
-								code: "FORBIDDEN",
+							throw new ORPCError("FORBIDDEN", {
 								message: "Missing organization permissions.",
 							});
 						}
 					}
 					const whereClause = buildWebsiteFilter(
-						ctx.user.id,
+						context.user.id,
 						input.organizationId
 					);
-					return ctx.db.query.websites.findMany({
+					return context.db.query.websites.findMany({
 						where: whereClause,
 						orderBy: (table, { desc }) => [desc(table.createdAt)],
 					});
@@ -201,10 +223,47 @@ export const websitesRouter = createTRPCRouter({
 			});
 		}),
 
+	listAll: protectedProcedure.handler(({ context }) => {
+		const listAllCacheKey = `listAll:${context.user.id}`;
+		return websiteCache.withCache({
+			key: listAllCacheKey,
+			ttl: CACHE_DURATION,
+			tables: ["websites"],
+			queryFn: async () => {
+				// 1. Get user's organization memberships
+				const userMemberships = await context.db.query.member.findMany({
+					where: eq(member.userId, context.user.id),
+					columns: { organizationId: true },
+				});
+				const orgIds = userMemberships.map((m) => m.organizationId);
+
+				// 2. Build filter: (userId = me AND orgId is null) OR (orgId IN myOrgs)
+				const personalSites = and(
+					eq(websites.userId, context.user.id),
+					isNull(websites.organizationId)
+				);
+
+				const orgSites =
+					orgIds.length > 0
+						? inArray(websites.organizationId, orgIds)
+						: undefined;
+
+				const whereClause = orgSites
+					? or(personalSites, orgSites)
+					: personalSites;
+
+				return context.db.query.websites.findMany({
+					where: whereClause,
+					orderBy: (table, { desc }) => [desc(table.createdAt)],
+				});
+			},
+		});
+	}),
+
 	listWithCharts: protectedProcedure
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
-		.query(({ ctx, input }) => {
-			const chartsListCacheKey = `listWithCharts:${ctx.user.id}:${input.organizationId || ""}`;
+		.handler(({ context, input }) => {
+			const chartsListCacheKey = `listWithCharts:${context.user.id}:${input.organizationId || ""}`;
 
 			return websiteCache.withCache({
 				key: chartsListCacheKey,
@@ -213,32 +272,35 @@ export const websitesRouter = createTRPCRouter({
 				queryFn: async () => {
 					if (input.organizationId) {
 						const { success } = await websitesApi.hasPermission({
-							headers: ctx.headers,
+							headers: context.headers,
 							body: { permissions: { website: ["read"] } },
 						});
 						if (!success) {
-							throw new TRPCError({
-								code: "FORBIDDEN",
+							throw new ORPCError("FORBIDDEN", {
 								message: "Missing organization permissions.",
 							});
 						}
 					}
 					const whereClause = buildWebsiteFilter(
-						ctx.user.id,
+						context.user.id,
 						input.organizationId
 					);
 
-					const websitesList = await ctx.db.query.websites.findMany({
+					const websites = await context.db.query.websites.findMany({
 						where: whereClause,
 						orderBy: (table, { desc }) => [desc(table.createdAt)],
 					});
 
-					const websiteIds = websitesList.map((site) => site.id);
-					const chartData = await fetchChartData(websiteIds);
+					const websiteIds = websites.map((site) => site.id);
+					const [chartData, activeUsers] = await Promise.all([
+						fetchChartData(websiteIds),
+						fetchActiveUsers(websiteIds),
+					]);
 
 					return {
-						websites: websitesList,
+						websites,
 						chartData,
+						activeUsers,
 					};
 				},
 			});
@@ -246,27 +308,26 @@ export const websitesRouter = createTRPCRouter({
 
 	getById: publicProcedure
 		.input(z.object({ id: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const getByIdCacheKey = `getById:${input.id}`;
 			return websiteCache.withCache({
 				key: getByIdCacheKey,
 				ttl: CACHE_DURATION,
 				tables: ["websites"],
-				queryFn: () => authorizeWebsiteAccess(ctx, input.id, "read"),
+				queryFn: () => authorizeWebsiteAccess(context, input.id, "read"),
 			});
 		}),
 
 	create: protectedProcedure
 		.input(createWebsiteSchema)
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
-					headers: ctx.headers,
+					headers: context.headers,
 					body: { permissions: { website: ["create"] } },
 				});
 				if (!success) {
-					throw new TRPCError({
-						code: "FORBIDDEN",
+					throw new ORPCError("FORBIDDEN", {
 						message: "Missing organization permissions.",
 					});
 				}
@@ -276,38 +337,32 @@ export const websitesRouter = createTRPCRouter({
 				name: input.name,
 				domain: input.domain,
 				subdomain: input.subdomain,
-				userId: ctx.user.id,
+				userId: context.user.id,
 				organizationId: input.organizationId,
 			};
 
-			const result = await pipe(
-				new WebsiteService(ctx.db).createWebsite(serviceInput),
-				Effect.mapError((error: WebsiteError) => {
-					if (error instanceof ValidationError) {
-						return new TRPCError({
-							code: "BAD_REQUEST",
-							message: error.message,
-						});
-					}
-					if (error instanceof DuplicateDomainError) {
-						return new TRPCError({ code: "CONFLICT", message: error.message });
-					}
-					return new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
+			try {
+				return await new WebsiteService(context.db).createWebsite(serviceInput);
+			} catch (error) {
+				if (error instanceof ValidationError) {
+					throw new ORPCError("BAD_REQUEST", {
 						message: error.message,
 					});
-				}),
-				Effect.runPromise
-			);
-
-			return result;
+				}
+				if (error instanceof DuplicateDomainError) {
+					throw new ORPCError("CONFLICT", { message: error.message });
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 		}),
 
 	update: protectedProcedure
 		.input(updateWebsiteSchema)
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const websiteToUpdate = await authorizeWebsiteAccess(
-				ctx,
+				context,
 				input.id,
 				"update"
 			);
@@ -317,33 +372,30 @@ export const websitesRouter = createTRPCRouter({
 				domain: input.domain,
 			};
 
-			const updatedWebsite: Website = await pipe(
-				new WebsiteService(ctx.db).updateWebsite(
+			let updatedWebsite: Website;
+			try {
+				updatedWebsite = await new WebsiteService(context.db).updateWebsite(
 					input.id,
 					serviceInput,
-					ctx.user.id,
-					websiteToUpdate.organizationId
-				),
-				Effect.mapError((error: WebsiteError) => {
-					if (error instanceof ValidationError) {
-						return new TRPCError({
-							code: "BAD_REQUEST",
-							message: error.message,
-						});
-					}
-					if (error instanceof DuplicateDomainError) {
-						return new TRPCError({ code: "CONFLICT", message: error.message });
-					}
-					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: "NOT_FOUND", message: error.message });
-					}
-					return new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
+					context.user.id,
+					websiteToUpdate.organizationId ?? undefined
+				);
+			} catch (error) {
+				if (error instanceof ValidationError) {
+					throw new ORPCError("BAD_REQUEST", {
 						message: error.message,
 					});
-				}),
-				Effect.runPromise
-			);
+				}
+				if (error instanceof DuplicateDomainError) {
+					throw new ORPCError("CONFLICT", { message: error.message });
+				}
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 
 			const changes: string[] = [];
 			if (input.name !== websiteToUpdate.name) {
@@ -356,10 +408,13 @@ export const websitesRouter = createTRPCRouter({
 			}
 
 			if (changes.length > 0) {
-				logger.info("Website Updated", changes.join(", "), {
-					websiteId: updatedWebsite.id,
-					userId: ctx.user.id,
-				});
+				logger.info(
+					{
+						websiteId: updatedWebsite.id,
+						userId: context.user.id,
+					},
+					`Website Updated: ${changes.join(", ")}`
+				);
 			}
 
 			return updatedWebsite;
@@ -367,35 +422,31 @@ export const websitesRouter = createTRPCRouter({
 
 	togglePublic: protectedProcedure
 		.input(togglePublicWebsiteSchema)
-		.mutation(async ({ ctx, input }) => {
-			const website = await authorizeWebsiteAccess(ctx, input.id, "update");
+		.handler(async ({ context, input }) => {
+			const website = await authorizeWebsiteAccess(context, input.id, "update");
 
-			const updatedWebsite = await pipe(
-				new WebsiteService(ctx.db).toggleWebsitePublic(
-					input.id,
-					input.isPublic,
-					ctx.user.id
-				),
-				Effect.mapError((error: WebsiteError) => {
-					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: "NOT_FOUND", message: error.message });
-					}
-					return new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: error.message,
-					});
-				}),
-				Effect.runPromise
-			);
+			let updatedWebsite: Website;
+			try {
+				updatedWebsite = await new WebsiteService(
+					context.db
+				).toggleWebsitePublic(input.id, input.isPublic, context.user.id);
+			} catch (error) {
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 
 			logger.info(
-				"Website Privacy Updated",
-				`${website.domain} is now ${input.isPublic ? "public" : "private"}`,
 				{
 					websiteId: input.id,
 					isPublic: input.isPublic,
-					userId: ctx.user.id,
-				}
+					userId: context.user.id,
+					event: "Website Privacy Updated",
+				},
+				`${website.domain} is now ${input.isPublic ? "public" : "private"}`
 			);
 
 			return updatedWebsite;
@@ -403,34 +454,33 @@ export const websitesRouter = createTRPCRouter({
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const websiteToDelete = await authorizeWebsiteAccess(
-				ctx,
+				context,
 				input.id,
 				"delete"
 			);
 
-			await pipe(
-				new WebsiteService(ctx.db).deleteWebsite(input.id, ctx.user.id),
-				Effect.mapError(
-					(error: WebsiteError) =>
-						new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
-							message: error.message,
-						})
-				),
-				Effect.runPromise
-			);
+			try {
+				await new WebsiteService(context.db).deleteWebsite(
+					input.id,
+					context.user.id
+				);
+			} catch (error) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 
-			logger.warning(
-				"Website Deleted",
-				`Website "${websiteToDelete.name}" with domain "${websiteToDelete.domain}" was deleted`,
+			logger.warn(
 				{
 					websiteId: websiteToDelete.id,
 					websiteName: websiteToDelete.name,
 					domain: websiteToDelete.domain,
-					userId: ctx.user.id,
-				}
+					userId: context.user.id,
+					event: "Website Deleted",
+				},
+				`Website "${websiteToDelete.name}" with domain "${websiteToDelete.domain}" was deleted`
 			);
 
 			return { success: true };
@@ -438,142 +488,133 @@ export const websitesRouter = createTRPCRouter({
 
 	transfer: protectedProcedure
 		.input(transferWebsiteSchema)
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
 
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
-					headers: ctx.headers,
+					headers: context.headers,
 					body: {
 						organizationId: input.organizationId,
 						permissions: { website: ["create"] },
 					},
 				});
 				if (!success) {
-					throw new TRPCError({
-						code: "FORBIDDEN",
+					throw new ORPCError("FORBIDDEN", {
 						message: "Missing organization permissions.",
 					});
 				}
 			}
 
-			const result = await pipe(
-				new WebsiteService(ctx.db).transferWebsite(
+			try {
+				return await new WebsiteService(context.db).transferWebsite(
 					input.websiteId,
 					input.organizationId ?? null,
-					ctx.user.id
-				),
-				Effect.mapError((error: WebsiteError) => {
-					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: "NOT_FOUND", message: error.message });
-					}
-					return new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: error.message,
-					});
-				}),
-				Effect.runPromise
-			);
-
-			return result;
+					context.user.id
+				);
+			} catch (error) {
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 		}),
 
 	transferToOrganization: protectedProcedure
 		.input(transferWebsiteToOrgSchema)
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "transfer");
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "transfer");
 
 			const { success } = await websitesApi.hasPermission({
-				headers: ctx.headers,
+				headers: context.headers,
 				body: {
 					organizationId: input.targetOrganizationId,
 					permissions: { website: ["create"] },
 				},
 			});
 			if (!success) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
+				throw new ORPCError("FORBIDDEN", {
 					message:
 						"Missing permissions to transfer website to target organization.",
 				});
 			}
 
-			const result = await pipe(
-				new WebsiteService(ctx.db).transferWebsiteToOrganization(
+			try {
+				return await new WebsiteService(
+					context.db
+				).transferWebsiteToOrganization(
 					input.websiteId,
 					input.targetOrganizationId,
-					ctx.user.id
-				),
-				Effect.mapError((error: WebsiteError) => {
-					if (error instanceof WebsiteNotFoundError) {
-						return new TRPCError({ code: "NOT_FOUND", message: error.message });
-					}
-					return new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: error.message,
-					});
-				}),
-				Effect.runPromise
-			);
-
-			return result;
+					context.user.id
+				);
+			} catch (error) {
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 		}),
 
 	invalidateCaches: protectedProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
 
-			await pipe(
-				Effect.tryPromise({
-					try: () => invalidateWebsiteCaches(input.websiteId, ctx.user.id),
-					catch: (error: WebsiteError) => new Error(String(error)),
-				}),
-				Effect.mapError(
-					() =>
-						new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
-							message: "Failed to invalidate caches",
-						})
-				),
-				Effect.runPromise
-			);
+			try {
+				await invalidateWebsiteCaches(input.websiteId, context.user.id);
+			} catch {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to invalidate caches",
+				});
+			}
 
 			return { success: true };
 		}),
 
 	isTrackingSetup: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.query(async ({ ctx, input }) => {
-			const website = await authorizeWebsiteAccess(
-				ctx,
-				input.websiteId,
-				"read"
-			);
+		.handler(async ({ context, input }) => {
+			try {
+				await authorizeWebsiteAccess(context, input.websiteId, "read");
 
-			const hasVercelIntegration = !!(
-				website.integrations as unknown as {
-					vercel?: { environments: unknown[] };
+				let hasTrackingEvents = false;
+				try {
+					const trackingCheckResult = await Promise.race([
+						chQuery<{ count: number }>(
+							`SELECT COUNT(*) as count FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' LIMIT 1`,
+							{ websiteId: input.websiteId }
+						),
+						new Promise<never>((_, reject) =>
+							setTimeout(
+								() => reject(new Error("ClickHouse query timeout")),
+								10_000
+							)
+						),
+					]);
+
+					hasTrackingEvents = (trackingCheckResult[0]?.count ?? 0) > 0;
+				} catch (error) {
+					logger.error(
+						{ websiteId: input.websiteId },
+						`Error checking tracking events: ${error instanceof Error ? error.message : String(error)}`
+					);
+					hasTrackingEvents = false;
 				}
-			)?.vercel?.environments?.length;
 
-			const trackingCheckResult = await chQuery<{ count: number }>(
-				`SELECT COUNT(*) as count FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' LIMIT 1`,
-				{ websiteId: input.websiteId }
-			);
-
-			const hasTrackingEvents = (trackingCheckResult[0]?.count ?? 0) > 0;
-
-			let integrationType: "vercel" | "manual" | null = null;
-			if (hasVercelIntegration) {
-				integrationType = "vercel";
-			} else if (hasTrackingEvents) {
-				integrationType = "manual";
+				return {
+					tracking_setup: hasTrackingEvents,
+					integration_type: hasTrackingEvents ? "manual" : null,
+				};
+			} catch (error) {
+				logger.error(
+					{ websiteId: input.websiteId },
+					`Error in isTrackingSetup: ${error instanceof Error ? error.message : String(error)}`
+				);
+				throw error;
 			}
-
-			return {
-				tracking_setup: hasTrackingEvents,
-				integration_type: integrationType,
-			};
 		}),
-});
+};

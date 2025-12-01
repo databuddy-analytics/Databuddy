@@ -8,7 +8,6 @@ import {
 	EyeSlashIcon,
 	LockKeyIcon,
 	ShieldCheckIcon,
-	SparkleIcon,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -16,7 +15,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { setPassword } from "@/app/(main)/settings/actions";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { Button } from "@/components/ui/button";
 import {
 	Form,
@@ -135,18 +134,11 @@ export function PasswordForm() {
 
 	return (
 		<div className="fade-in slide-in-from-bottom-2 animate-in space-y-6 duration-300">
-			<Alert className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
-				<ShieldCheckIcon
-					className="h-4 w-4 text-amber-600"
-					size={16}
-					weight="duotone"
-				/>
-				<AlertDescription className="text-sm">
-					<strong>Security Tip:</strong> Use a strong password with a mix of
-					letters, numbers, and special characters. Consider using a password
-					manager.
-				</AlertDescription>
-			</Alert>
+			<NoticeBanner
+				description="Use a strong password with a mix of letters, numbers, and special characters. Consider using a password manager."
+				icon={<ShieldCheckIcon size={16} weight="duotone" />}
+				title="Security Tip"
+			/>
 
 			<Form {...form}>
 				<form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -154,15 +146,19 @@ export function PasswordForm() {
 						control={form.control}
 						name="newPassword"
 						render={({ field }) => (
-							<FormItem className="space-y-3">
+							<FormItem className="gap-0">
 								<FormLabel className="font-medium text-base">
 									New Password
 								</FormLabel>
+								<FormDescription className="text-sm leading-relaxed">
+									Must be at least 8 characters with letters and numbers.
+									Special characters recommended.
+								</FormDescription>
 								<FormControl>
-									<div className="relative">
+									<div className="relative mt-3">
 										<Input
 											className={cn(
-												"pr-10 pl-10 transition-all duration-200",
+												"pr-9 pl-9 transition-all duration-200",
 												form.formState.errors.newPassword &&
 													"border-destructive"
 											)}
@@ -226,10 +222,6 @@ export function PasswordForm() {
 									</div>
 								)}
 
-								<FormDescription className="text-sm leading-relaxed">
-									Must be at least 8 characters with letters and numbers.
-									Special characters recommended.
-								</FormDescription>
 								<FormMessage />
 							</FormItem>
 						)}
@@ -239,15 +231,15 @@ export function PasswordForm() {
 						control={form.control}
 						name="confirmPassword"
 						render={({ field }) => (
-							<FormItem className="space-y-3">
+							<FormItem className="gap-0">
 								<FormLabel className="font-medium text-base">
 									Confirm New Password
 								</FormLabel>
 								<FormControl>
-									<div className="relative">
+									<div className="relative mt-3">
 										<Input
 											className={cn(
-												"pr-10 pl-10 transition-all duration-200",
+												"pr-9 pl-9 transition-all duration-200",
 												form.formState.errors.confirmPassword &&
 													"border-destructive",
 												field.value &&
@@ -300,7 +292,7 @@ export function PasswordForm() {
 						)}
 					/>
 
-					<div className="flex items-center justify-between gap-4 pt-4">
+					<div className="flex items-center justify-between gap-4">
 						<Button
 							className="w-full sm:w-auto"
 							disabled={isLoading}
@@ -321,28 +313,6 @@ export function PasswordForm() {
 					</div>
 				</form>
 			</Form>
-
-			{/* Help Text */}
-			<div className="rounded-lg border border-muted/50 bg-muted/30 p-4">
-				<div className="flex items-start gap-3">
-					<div className="rounded-md bg-primary/10 p-1">
-						<SparkleIcon
-							className="h-4 w-4 text-primary"
-							size={16}
-							weight="fill"
-						/>
-					</div>
-					<div className="text-sm">
-						<p className="mb-1 font-medium">🔒 Password Security Tips</p>
-						<ul className="space-y-1 text-muted-foreground leading-relaxed">
-							<li>• Use a unique password you don't use elsewhere</li>
-							<li>• Include uppercase, lowercase, numbers, and symbols</li>
-							<li>• Consider using a password manager</li>
-							<li>• Enable two-factor authentication for extra security</li>
-						</ul>
-					</div>
-				</div>
-			</div>
 		</div>
 	);
 }

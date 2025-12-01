@@ -8,9 +8,9 @@ import {
 	eq,
 } from "@databuddy/db";
 import { createId } from "@databuddy/shared/utils/ids";
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { protectedProcedure } from "../orpc";
 
 const messageSchema = z.object({
 	messageId: z.string().optional(),
@@ -28,7 +28,7 @@ const messageSchema = z.object({
 	finalResult: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const assistantRouter = createTRPCRouter({
+export const assistantRouter = {
 	// Save a conversation (creates conversation + message)
 	saveConversation: protectedProcedure
 		.input(
@@ -39,14 +39,14 @@ export const assistantRouter = createTRPCRouter({
 				messages: z.array(messageSchema.omit({ conversationId: true })),
 			})
 		)
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const conversationId = input.conversationId || createId();
 
 			await db.transaction(async (tx) => {
 				// Insert conversation
 				await tx.insert(assistantConversations).values({
 					id: conversationId,
-					userId: ctx.user.id,
+					userId: context.user.id,
 					websiteId: input.websiteId,
 					title: input.title,
 				});
@@ -76,7 +76,7 @@ export const assistantRouter = createTRPCRouter({
 	// Add message to existing conversation
 	addMessage: protectedProcedure
 		.input(z.array(messageSchema))
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const conversationId = input[0].conversationId;
 			// Verify conversation exists and user has access
 			const conversation = await db
@@ -85,14 +85,13 @@ export const assistantRouter = createTRPCRouter({
 				.where(
 					and(
 						eq(assistantConversations.id, conversationId),
-						eq(assistantConversations.userId, ctx.user.id)
+						eq(assistantConversations.userId, context.user.id)
 					)
 				)
 				.limit(1);
 
 			if (!conversation[0]) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
+				throw new ORPCError("NOT_FOUND", {
 					message: "Conversation not found or access denied",
 				});
 			}
@@ -135,17 +134,17 @@ export const assistantRouter = createTRPCRouter({
 				offset: z.number().default(0),
 			})
 		)
-		.query(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const conversations = await db
 				.select()
 				.from(assistantConversations)
 				.where(
 					input.websiteId
 						? and(
-								eq(assistantConversations.userId, ctx.user.id),
+								eq(assistantConversations.userId, context.user.id),
 								eq(assistantConversations.websiteId, input.websiteId)
 							)
-						: eq(assistantConversations.userId, ctx.user.id)
+						: eq(assistantConversations.userId, context.user.id)
 				)
 				.orderBy(desc(assistantConversations.updatedAt))
 				.limit(input.limit)
@@ -157,21 +156,20 @@ export const assistantRouter = createTRPCRouter({
 	// Get conversation with messages
 	getConversation: protectedProcedure
 		.input(z.object({ conversationId: z.string() }))
-		.query(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const conversation = await db
 				.select()
 				.from(assistantConversations)
 				.where(
 					and(
 						eq(assistantConversations.id, input.conversationId),
-						eq(assistantConversations.userId, ctx.user.id)
+						eq(assistantConversations.userId, context.user.id)
 					)
 				)
 				.limit(1);
 
 			if (!conversation[0]) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
+				throw new ORPCError("NOT_FOUND", {
 					message: "Conversation not found",
 				});
 			}
@@ -201,7 +199,7 @@ export const assistantRouter = createTRPCRouter({
 					message: "Either type or comment must be provided",
 				})
 		)
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			// Get message with conversation to verify user access
 			const result = await db
 				.select({
@@ -216,14 +214,13 @@ export const assistantRouter = createTRPCRouter({
 				.where(
 					and(
 						eq(assistantMessages.id, input.messageId),
-						eq(assistantConversations.userId, ctx.user.id)
+						eq(assistantConversations.userId, context.user.id)
 					)
 				)
 				.limit(1);
 
 			if (!result[0]) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
+				throw new ORPCError("NOT_FOUND", {
 					message: "Message not found or access denied",
 				});
 			}
@@ -249,7 +246,7 @@ export const assistantRouter = createTRPCRouter({
 				updates.feedbackComments = [
 					...existingComments,
 					{
-						userId: ctx.user.id,
+						userId: context.user.id,
 						comment: input.comment,
 						timestamp: new Date().toISOString(),
 					},
@@ -267,13 +264,13 @@ export const assistantRouter = createTRPCRouter({
 	// Delete conversation
 	deleteConversation: protectedProcedure
 		.input(z.object({ conversationId: z.string() }))
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			const _result = await db
 				.delete(assistantConversations)
 				.where(
 					and(
 						eq(assistantConversations.id, input.conversationId),
-						eq(assistantConversations.userId, ctx.user.id)
+						eq(assistantConversations.userId, context.user.id)
 					)
 				);
 
@@ -288,7 +285,7 @@ export const assistantRouter = createTRPCRouter({
 				title: z.string().min(1).max(100),
 			})
 		)
-		.mutation(async ({ ctx, input }) => {
+		.handler(async ({ context, input }) => {
 			await db
 				.update(assistantConversations)
 				.set({
@@ -298,10 +295,10 @@ export const assistantRouter = createTRPCRouter({
 				.where(
 					and(
 						eq(assistantConversations.id, input.conversationId),
-						eq(assistantConversations.userId, ctx.user.id)
+						eq(assistantConversations.userId, context.user.id)
 					)
 				);
 
 			return { success: true };
 		}),
-});
+};

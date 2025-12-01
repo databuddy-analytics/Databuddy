@@ -1,7 +1,8 @@
-import { db, flags } from "@databuddy/db";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, db, eq, flags, isNull, or } from "@databuddy/db";
+import { cacheable } from "@databuddy/redis";
 import { Elysia, t } from "elysia";
 import { logger } from "@/lib/logger";
+import { record, setAttributes } from "@/lib/tracing";
 
 const flagQuerySchema = t.Object({
 	key: t.String(),
@@ -18,13 +19,13 @@ const bulkFlagQuerySchema = t.Object({
 	properties: t.Optional(t.String()),
 });
 
-interface UserContext {
+type UserContext = {
 	userId?: string;
 	email?: string;
 	properties?: Record<string, unknown>;
-}
+};
 
-interface FlagRule {
+type FlagRule = {
 	type: "user_id" | "email" | "property";
 	operator: string;
 	field?: string;
@@ -33,20 +34,69 @@ interface FlagRule {
 	enabled: boolean;
 	batch: boolean;
 	batchValues?: string[];
-}
+};
 
-interface FlagResult {
+type FlagResult = {
 	enabled: boolean;
 	value: boolean;
 	payload: unknown;
 	reason: string;
-}
+};
+
+const getCachedFlag = cacheable(
+	(key: string, clientId: string) => {
+		const scopeCondition = or(
+			eq(flags.websiteId, clientId),
+			eq(flags.organizationId, clientId)
+		);
+
+		return db.query.flags.findFirst({
+			where: and(
+				eq(flags.key, key),
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				scopeCondition
+			),
+		});
+	},
+	{
+		expireInSec: 30,
+		prefix: "flag",
+		staleWhileRevalidate: true,
+		staleTime: 15,
+	}
+);
+
+const getCachedFlagsForClient = cacheable(
+	(clientId: string) => {
+		const scopeCondition = or(
+			eq(flags.websiteId, clientId),
+			eq(flags.organizationId, clientId)
+		);
+
+		return db.query.flags.findMany({
+			where: and(
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				scopeCondition
+			),
+		});
+	},
+	{
+		expireInSec: 30,
+		prefix: "flags-client",
+		staleWhileRevalidate: true,
+		staleTime: 15,
+	}
+);
 
 export function hashString(str: string): number {
 	let hash = 0;
-	for (let i = 0; i < str.length; i++) {
+	for (let i = 0; i < str.length; i += 1) {
 		const char = str.charCodeAt(i);
+		// biome-ignore lint: hash calculation requires bitwise operations
 		hash = (hash << 5) - hash + char;
+		// biome-ignore lint: hash calculation requires bitwise operations
 		hash &= hash;
 	}
 	return Math.abs(hash);
@@ -61,8 +111,8 @@ export function parseProperties(
 
 	try {
 		return JSON.parse(propertiesJson);
-	} catch {
-		logger.warn("Invalid properties JSON");
+	} catch (error) {
+		logger.warn({ error, propertiesJson }, "Invalid properties JSON");
 		return {};
 	}
 }
@@ -210,155 +260,149 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/evaluate",
-		async ({ query, set }) => {
-			try {
-				if (!(query.key && query.clientId)) {
-					set.status = 400;
+		function evaluateFlagEndpoint({ query, set }) {
+			return record("evaluateFlag", async (): Promise<FlagResult> => {
+				setAttributes({
+					"flag.key": query.key || "missing",
+					"flag.client_id": query.clientId || "missing",
+					"flag.has_user_id": Boolean(query.userId),
+					"flag.has_email": Boolean(query.email),
+				});
+
+				try {
+					if (!(query.key && query.clientId)) {
+						setAttributes({ "flag.error": "missing_params" });
+						set.status = 400;
+						return {
+							enabled: false,
+							value: false,
+							payload: null,
+							reason: "MISSING_REQUIRED_PARAMS",
+						};
+					}
+
+					const context: UserContext = {
+						userId: query.userId,
+						email: query.email,
+						properties: parseProperties(query.properties),
+					};
+
+					logger.debug(
+						{
+							key: query.key,
+							clientId: query.clientId,
+							userId: query.userId,
+							email: query.email,
+						},
+						"Flag evaluation request"
+					);
+
+					const flag = await getCachedFlag(query.key, query.clientId);
+
+					if (!flag) {
+						setAttributes({ "flag.found": false });
+						return {
+							enabled: false,
+							value: false,
+							payload: null,
+							reason: "FLAG_NOT_FOUND",
+						};
+					}
+
+					const result = evaluateFlag(flag, context);
+					setAttributes({
+						"flag.found": true,
+						"flag.type": flag.type,
+						"flag.enabled": result.enabled,
+						"flag.reason": result.reason,
+					});
+
+					return result;
+				} catch (error) {
+					setAttributes({ "flag.error": true });
+					logger.error(
+						{ error, key: query.key, clientId: query.clientId },
+						"Flag evaluation failed"
+					);
+					set.status = 500;
 					return {
 						enabled: false,
 						value: false,
 						payload: null,
-						reason: "MISSING_REQUIRED_PARAMS",
+						reason: "EVALUATION_ERROR",
 					};
 				}
-
-				const context: UserContext = {
-					userId: query.userId,
-					email: query.email,
-					properties: parseProperties(query.properties),
-				};
-
-				const scopeCondition = or(
-					eq(flags.websiteId, query.clientId),
-					eq(flags.organizationId, query.clientId)
-				);
-
-				logger.info({
-					message: "Flag evaluation request",
-					key: query.key,
-					clientId: query.clientId,
-					userId: query.userId,
-					email: query.email,
-				});
-
-				const flag = await db.query.flags.findFirst({
-					where: and(
-						eq(flags.key, query.key),
-						isNull(flags.deletedAt),
-						eq(flags.status, "active"),
-						scopeCondition
-					),
-				});
-
-				if (!flag) {
-					// Debug: Let's check if the flag exists with any websiteId
-					const allFlags = await db.query.flags.findMany({
-						where: and(
-							eq(flags.key, query.key),
-							isNull(flags.deletedAt),
-							eq(flags.status, "active")
-						),
-					});
-
-					logger.info({
-						message: "Flag debug info",
-						key: query.key,
-						clientId: query.clientId,
-						foundFlags: allFlags.map((f) => ({
-							id: f.id,
-							websiteId: f.websiteId,
-							organizationId: f.organizationId,
-						})),
-					});
-				}
-
-				if (!flag) {
-					return {
-						enabled: false,
-						value: false,
-						payload: null,
-						reason: "FLAG_NOT_FOUND",
-					};
-				}
-
-				const result = evaluateFlag(flag, context);
-				return {
-					...result,
-					flagId: flag.id,
-					flagType: flag.type,
-				};
-			} catch (error) {
-				logger.error({
-					message: "Flag evaluation failed",
-					error,
-				});
-				set.status = 500;
-				return {
-					enabled: false,
-					value: false,
-					payload: null,
-					reason: "EVALUATION_ERROR",
-				};
-			}
+			});
 		},
 		{ query: flagQuerySchema }
 	)
 
 	.get(
 		"/bulk",
-		async ({ query, set }) => {
-			try {
-				if (!query.clientId) {
-					set.status = 400;
+		function bulkEvaluateFlags({ query, set }) {
+			return record("bulkEvaluateFlags", async () => {
+				setAttributes({
+					"flag.bulk": true,
+					"flag.client_id": query.clientId || "missing",
+					"flag.has_user_id": Boolean(query.userId),
+					"flag.has_email": Boolean(query.email),
+				});
+
+				try {
+					if (!query.clientId) {
+						setAttributes({ "flag.error": "missing_client_id" });
+						set.status = 400;
+						return {
+							flags: {},
+							count: 0,
+							error: "Missing required clientId parameter",
+						};
+					}
+
+					const context: UserContext = {
+						userId: query.userId,
+						email: query.email,
+						properties: parseProperties(query.properties),
+					};
+
+					const allFlags = await getCachedFlagsForClient(query.clientId);
+
+					setAttributes({
+						"flag.total_flags": allFlags.length,
+					});
+
+					const enabledFlags: Record<string, FlagResult> = {};
+
+					for (const flag of allFlags) {
+						const result = evaluateFlag(flag, context);
+						if (result.enabled) {
+							enabledFlags[flag.key] = result;
+						}
+					}
+
+					setAttributes({
+						"flag.enabled_count": Object.keys(enabledFlags).length,
+					});
+
+					return {
+						flags: enabledFlags,
+						count: Object.keys(enabledFlags).length,
+						timestamp: new Date().toISOString(),
+					};
+				} catch (error) {
+					setAttributes({ "flag.error": true });
+					logger.error(
+						{ error, clientId: query.clientId },
+						"Bulk flag evaluation failed"
+					);
+					set.status = 500;
 					return {
 						flags: {},
 						count: 0,
-						error: "Missing required clientId parameter",
+						error: "Bulk evaluation failed",
 					};
 				}
-
-				const context: UserContext = {
-					userId: query.userId,
-					email: query.email,
-					properties: parseProperties(query.properties),
-				};
-
-				const scopeCondition = or(
-					eq(flags.websiteId, query.clientId),
-					eq(flags.organizationId, query.clientId)
-				);
-
-				const allFlags = await db.query.flags.findMany({
-					where: and(
-						isNull(flags.deletedAt),
-						eq(flags.status, "active"),
-						scopeCondition
-					),
-				});
-
-				const enabledFlags: Record<string, FlagResult> = {};
-
-				for (const flag of allFlags) {
-					const result = evaluateFlag(flag, context);
-					if (result.enabled) {
-						enabledFlags[flag.key] = result;
-					}
-				}
-
-				return {
-					flags: enabledFlags,
-					count: Object.keys(enabledFlags).length,
-					timestamp: new Date().toISOString(),
-				};
-			} catch (_error) {
-				logger.error("Bulk flag evaluation failed");
-				set.status = 500;
-				return {
-					flags: {},
-					count: 0,
-					error: "Bulk evaluation failed",
-				};
-			}
+			});
 		},
 		{ query: bulkFlagQuerySchema }
 	)

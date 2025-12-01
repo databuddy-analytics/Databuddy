@@ -105,7 +105,7 @@ function OnboardingStepCard({
 						className={cn(
 							"rounded-lg border p-3 transition-all duration-300",
 							isActive || step.completed
-								? "border-primary/20 bg-primary/10"
+								? "border-accent bg-accent/50"
 								: "border-muted bg-muted/50"
 						)}
 					>
@@ -163,7 +163,7 @@ function OnboardingStepCard({
 function WelcomeSection() {
 	return (
 		<div className="mb-8 space-y-4 text-center">
-			<div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2">
+			<div className="inline-flex items-center gap-2 rounded-full border border-accent bg-accent/50 px-4 py-2">
 				<SparkleIcon className="h-4 w-4 text-primary" weight="fill" />
 				<span className="font-medium text-primary text-sm">
 					Welcome to Databuddy!
@@ -184,7 +184,7 @@ function CompletionSection() {
 	return (
 		<Card className="border-primary/20 bg-primary/5">
 			<CardHeader className="text-center">
-				<div className="mx-auto mb-4 w-fit rounded-full border border-primary/20 bg-primary/10 p-4">
+				<div className="mx-auto mb-4 w-fit rounded-full border border-accent bg-accent/50 p-4">
 					<CheckIcon className="h-8 w-8 text-primary" weight="bold" />
 				</div>
 				<CardTitle className="text-xl">All Set!</CardTitle>

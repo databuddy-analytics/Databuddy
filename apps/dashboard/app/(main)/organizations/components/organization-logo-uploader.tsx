@@ -161,7 +161,7 @@ export function OrganizationLogoUploader({
 		<div className="space-y-3">
 			<div className="flex items-center gap-3">
 				<div className="group relative">
-					<Avatar className="h-16 w-16 border border-border/30 shadow-sm">
+					<Avatar className="size-10">
 						<AvatarImage alt={organization.name} src={preview || undefined} />
 						<AvatarFallback className="bg-accent font-medium text-sm">
 							{getOrganizationInitials(organization.name)}
@@ -169,14 +169,14 @@ export function OrganizationLogoUploader({
 					</Avatar>
 					<button
 						aria-label="Upload new organization logo"
-						className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+						className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-foreground opacity-0 transition-opacity group-hover:opacity-100"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
-						<UploadSimpleIcon className="text-white" size={20} />
+						<UploadSimpleIcon className="text-accent" size={20} />
 					</button>
 				</div>
-				<div className="space-y-2">
+				<div className="space-y-1">
 					<p className="font-medium text-foreground text-sm">
 						Update your logo
 					</p>

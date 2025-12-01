@@ -1,21 +1,9 @@
 kafka:
-  brokers: ["redpanda:9092"]
   sasl:
     enabled: true
-    impersonateUser: false
+    mechanism: SCRAM-SHA-256
+  tls:
+    enabled: false
 redpanda:
   adminApi:
-    enabled: true
-    urls: ["http://redpanda:9644"]
-    authentication:
-      impersonateUser: false
-authentication:
-  useSecureCookies: false
-  basic:
-    enabled: true
-authorization:
-  roleBindings:
-    - roleName: admin
-      users:
-        - loginType: basic
-          name: "admin"
+    enabled: false

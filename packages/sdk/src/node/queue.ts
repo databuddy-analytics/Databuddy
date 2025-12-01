@@ -2,7 +2,7 @@ import type { BatchEventInput } from "./types";
 
 export class EventQueue {
 	private queue: BatchEventInput[] = [];
-	private maxSize: number;
+	private readonly maxSize: number;
 
 	constructor(maxSize: number) {
 		this.maxSize = maxSize;

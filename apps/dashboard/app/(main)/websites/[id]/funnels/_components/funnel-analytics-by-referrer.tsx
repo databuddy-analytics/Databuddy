@@ -1,9 +1,6 @@
 "use client";
 
-import type { AppRouter } from "@databuddy/rpc";
 import { ChartBarIcon, TrendDownIcon, UsersIcon } from "@phosphor-icons/react";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import type { UseTRPCQueryResult } from "@trpc/react-query/shared";
 import { useMemo, useState } from "react";
 import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { Badge } from "@/components/ui/badge";
@@ -18,18 +15,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FunnelAnalyticsByReferrerResult } from "@/hooks/use-funnels";
 
-interface Props {
+type Props = {
 	websiteId: string;
 	funnelId: string;
 	dateRange: { start_date: string; end_date: string };
 	onReferrerChange?: (referrer: string) => void;
-	data: UseTRPCQueryResult<
-		{ referrer_analytics: FunnelAnalyticsByReferrerResult[] },
-		TRPCClientErrorLike<AppRouter>
-	>["data"];
+	data: { referrer_analytics: FunnelAnalyticsByReferrerResult[] } | undefined;
 	isLoading: boolean;
-	error: TRPCClientErrorLike<AppRouter> | null;
-}
+	error: Error | null;
+};
 
 export default function FunnelAnalyticsByReferrer({
 	onReferrerChange,
@@ -163,7 +157,7 @@ export default function FunnelAnalyticsByReferrer({
 						<SelectItem key={option.value} value={option.value}>
 							<div className="flex w-full items-center gap-2">
 								<ReferrerSourceCell
-									className="flex-shrink-0"
+									className="shrink-0"
 									domain={option.parsed?.domain || ""}
 									name={option.label}
 									referrer={option.value}

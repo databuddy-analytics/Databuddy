@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic";
 import { SkeletonChart } from "./skeleton-chart";
 
-// Dynamic imports for heavy chart components
 export const MetricsChart = dynamic(
 	() =>
 		import("./metrics-chart").then((mod) => ({ default: mod.MetricsChart })),

@@ -1,4 +1,5 @@
-import { trpc } from "@/lib/trpc";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
 
 export function useTrackingSetup(websiteId: string) {
 	const {
@@ -7,10 +8,10 @@ export function useTrackingSetup(websiteId: string) {
 		isError: isTrackingSetupError,
 		error: trackingSetupError,
 		refetch: refetchTrackingSetup,
-	} = trpc.websites.isTrackingSetup.useQuery(
-		{ websiteId },
-		{ enabled: !!websiteId }
-	);
+	} = useQuery({
+		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),
+		enabled: !!websiteId,
+	});
 
 	const isTrackingSetup = isTrackingSetupLoading
 		? null

@@ -1,33 +1,35 @@
 import type {
 	AnalyticsEvent,
 	BlockedTraffic,
-	ErrorEvent,
-	StripeCharge,
-	StripePaymentIntent,
-	StripeRefund,
-	WebVitalsEvent,
+	CustomEventSpan,
+	CustomEventsHourlyAggregate,
+	ErrorHourlyAggregate,
+	ErrorSpanRow,
+	WebVitalsHourlyAggregate,
+	WebVitalsSpan,
 } from "@databuddy/db";
 
 export const Analytics = {
 	events: "analytics.events",
-	errors: "analytics.errors",
-	web_vitals: "analytics.web_vitals",
-	stripe_payment_intents: "analytics.stripe_payment_intents",
-	stripe_charges: "analytics.stripe_charges",
-	stripe_refunds: "analytics.stripe_refunds",
+	error_spans: "analytics.error_spans",
+	error_hourly: "analytics.error_hourly",
+	web_vitals_spans: "analytics.web_vitals_spans",
+	web_vitals_hourly: "analytics.web_vitals_hourly",
+	custom_event_spans: "analytics.custom_event_spans",
+	custom_events_hourly: "analytics.custom_events_hourly",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
-	custom_events: "analytics.custom_events",
 } as const;
 
 export type AnalyticsTable = (typeof Analytics)[keyof typeof Analytics];
 
 export type TableFieldsMap = {
 	"analytics.events": keyof AnalyticsEvent;
-	"analytics.errors": keyof ErrorEvent;
-	"analytics.web_vitals": keyof WebVitalsEvent;
-	"analytics.stripe_payment_intents": keyof StripePaymentIntent;
-	"analytics.stripe_charges": keyof StripeCharge;
-	"analytics.stripe_refunds": keyof StripeRefund;
+	"analytics.error_spans": keyof ErrorSpanRow;
+	"analytics.error_hourly": keyof ErrorHourlyAggregate;
+	"analytics.web_vitals_spans": keyof WebVitalsSpan;
+	"analytics.web_vitals_hourly": keyof WebVitalsHourlyAggregate;
+	"analytics.custom_event_spans": keyof CustomEventSpan;
+	"analytics.custom_events_hourly": keyof CustomEventsHourlyAggregate;
 	"analytics.blocked_traffic": keyof BlockedTraffic;
 };

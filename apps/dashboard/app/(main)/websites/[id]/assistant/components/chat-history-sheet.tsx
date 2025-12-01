@@ -189,8 +189,8 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 				>
 					<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
 						<div className="flex items-center gap-3">
-							<div className="rounded-xl border border-primary/20 bg-primary/10 p-3">
-								<ChatIcon className="h-6 w-6 text-primary" />
+							<div className="rounded-xl border border-accent bg-accent/50 p-3">
+								<ChatIcon className="size-6 text-accent-foreground" />
 							</div>
 							<div>
 								<SheetTitle className="font-semibold text-foreground text-xl">
@@ -271,7 +271,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 											}}
 											type="button"
 										>
-											<div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+											<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
 												<ChatIcon className="h-5 w-5 text-primary" />
 											</div>
 											<div className="min-w-0 flex-1">

@@ -1,63 +1,6 @@
 import { and, db, eq, member } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/utils/discord-webhook";
-import { Autumn } from "autumn-js";
-
-const autumn = new Autumn();
-
-const isDevelopment = process.env.NODE_ENV === "development";
-
-export async function checkAndTrackWebsiteCreation(customerId: string) {
-	if (isDevelopment) {
-		return { allowed: true };
-	}
-
-	if (!customerId) {
-		return { allowed: true };
-	}
-	try {
-		const { data } = await autumn.check({
-			customer_id: customerId,
-			feature_id: "websites",
-			send_event: true,
-		});
-
-		if (data && !data.allowed) {
-			return { allowed: false, error: "Website creation limit exceeded" };
-		}
-		return { allowed: true };
-	} catch (error) {
-		logger.error(
-			"Error with autumn checkAndTrack:",
-			error instanceof Error ? error.message : String(error)
-		);
-		return { allowed: true };
-	}
-}
-
-export async function trackWebsiteUsage(customerId: string, value: number) {
-	if (isDevelopment) {
-		return { success: true };
-	}
-
-	if (!customerId) {
-		return { success: false };
-	}
-	try {
-		await autumn.track({
-			customer_id: customerId,
-			feature_id: "websites",
-			value,
-		});
-		return { success: true };
-	} catch (error) {
-		logger.error(
-			"[Billing Util] Error with autumn track:",
-			error instanceof Error ? error.message : String(error)
-		);
-		return { success: false };
-	}
-}
+import { logger } from "@databuddy/shared/logger";
 
 async function _getOrganizationOwnerId(
 	organizationId: string
@@ -76,8 +19,10 @@ async function _getOrganizationOwnerId(
 		return orgMember?.userId || null;
 	} catch (error) {
 		logger.error(
-			"[Billing Util] Error with _getOrganizationOwnerId:",
-			error instanceof Error ? error.message : String(error)
+			{
+				error,
+			},
+			"[Billing Util] Error with _getOrganizationOwnerId"
 		);
 		return null;
 	}

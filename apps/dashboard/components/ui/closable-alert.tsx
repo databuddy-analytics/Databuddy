@@ -54,7 +54,7 @@ export function ClosableAlert({
 				<div className="flex min-w-0 flex-1 items-center gap-2">
 					<Icon
 						className={cn(
-							'h-4 w-4 flex-shrink-0',
+							'h-4 w-4 shrink-0',
 							isError ? 'text-destructive' : 'text-muted-foreground'
 						)}
 					/>

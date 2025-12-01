@@ -2,13 +2,15 @@
   "name": "databuddy",
   "module": "index.ts",
   "devDependencies": {
-    "@biomejs/biome": "^2.3.2",
+    "@biomejs/biome": "^2.3.7",
     "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20251102.1",
+    "@types/node": "^24.10.1",
+    "chalk": "^5.6.2",
     "dotenv-cli": "^10.0.0",
-    "turbo": "^2.6.0",
+    "knip": "^5.70.2",
+    "turbo": "^2.6.1",
     "typescript": "^5.9.3",
-    "ultracite": "^6.1.0"
+    "ultracite": "^6.3.6"
   },
   "engines": {
     "node": ">=20"
@@ -16,12 +18,12 @@
   "packageManager": "bun@1.2.19",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
+    "build": "dotenv -- turbo run build",
     "dev": "dotenv -- turbo run dev",
-    "start": "turbo run start",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage",
+    "start": "dotenv -- turbo run start",
+    "test": "dotenv -- bun test ./apps",
+    "test:watch": "dotenv -- bun test --watch ./apps",
+    "test:coverage": "dotenv -- bun test --coverage ./apps",
     "lint": "npx ultracite@latest check",
     "format": "npx ultracite@latest fix",
     "check-types": "tsgo --noEmit --project .",
@@ -32,7 +34,7 @@
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
     "db:seed": "dotenv -- sh -c 'cd packages/db && bun run db:seed \"$@\"' --",
-    "email:dev": "cd packages/email && bun run dev",
+    "email:dev": "dotenv -- sh -c 'cd packages/email && bun run dev'",
     "sdk:build": "cd packages/sdk && bun run build",
     "dashboard:dev": "dotenv -- cd apps/dashboard; bun run dev"
   },
@@ -54,7 +56,6 @@
       "dayjs": "^1.11.13",
       "elysia": "^1.3.4",
       "pino": "^9.7.0",
-      "vitest": "^3.2.4",
       "@phosphor-icons/react": "^2.1.10",
       "@radix-ui/react-dialog": "^1.1.14",
       "@radix-ui/react-popover": "^1.1.14",
@@ -67,9 +68,6 @@
       "sonner": "^2.0.6",
       "vaul": "^1.1.2",
       "@tanstack/react-query": "^5.82.0",
-      "@trpc/client": "^11.4.3",
-      "@trpc/react-query": "^11.4.3",
-      "@trpc/server": "^11.4.3",
       "superjson": "^2.2.2",
       "jotai": "^2.12.5",
       "@clickhouse/client": "^1.11.1",
@@ -89,8 +87,18 @@
     }
   },
   "dependencies": {
+    "@axiomhq/pino": "^1.3.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.67.1",
+    "@orpc/client": "^1.11.3",
+    "@orpc/server": "^1.11.3",
+    "@orpc/tanstack-query": "^1.11.3",
+    "dayjs": "^1.11.19",
+    "dotted-map": "^2.2.3",
+    "framer-motion": "^12.23.24",
+    "jszip": "^3.10.1",
     "pg": "^8.16.3",
     "pg-pool": "^3.10.1",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "zod": "^4.1.13"
   }
 }

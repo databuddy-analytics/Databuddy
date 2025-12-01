@@ -21,7 +21,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d databuddy_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -104,13 +104,13 @@ jobs:
           EMAIL_API_KEY: test-email-api-key
           IP_HASH_SALT: test-ip-hash-salt
           
-        run: bun test
+        run: bun run test:coverage
 
-      - name: Upload coverage reports
+      - name: Upload coverage reports 
         if: always()
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage/coverage-final.json
+          files: ./apps/coverage/coverage-final.json
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 

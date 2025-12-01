@@ -1,73 +1,123 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { BuildingsIcon, CalendarIcon, CheckIcon } from "@phosphor-icons/react";
+import {
+	BuildingsIcon,
+	CaretRightIcon,
+	CheckCircleIcon,
+	PlusIcon,
+} from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import type { Organization } from "@/components/providers/organizations-provider";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn, getOrganizationInitials } from "@/lib/utils";
-import { EmptyState } from "./empty-state";
 
 dayjs.extend(relativeTime);
 
-interface OrganizationsListProps {
-	organizations: ReturnType<typeof authClient.useListOrganizations>["data"];
-	activeOrganization: ReturnType<
-		typeof authClient.useActiveOrganization
-	>["data"];
-	isLoading: boolean;
-}
+type OrganizationsListProps = {
+	organizations: Organization[] | null | undefined;
+	activeOrganization: Organization | null | undefined;
+};
 
-function OrganizationSkeleton() {
+function EmptyState() {
 	return (
-		<Card className="group relative overflow-hidden">
-			<CardContent className="p-4">
-				<div className="space-y-3">
-					<div className="flex items-start gap-3">
-						<Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
-						<div className="min-w-0 flex-1 space-y-1.5">
-							<Skeleton className="h-3 w-32" />
-							<Skeleton className="h-3 w-24" />
-							<Skeleton className="h-3 w-28" />
-						</div>
-					</div>
-					<Skeleton className="h-3 w-40" />
-				</div>
-			</CardContent>
-		</Card>
+		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
+			<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+				<BuildingsIcon className="text-primary" size={28} weight="duotone" />
+			</div>
+			<h3 className="mb-1 font-semibold text-lg">No organizations yet</h3>
+			<p className="mb-6 max-w-sm text-muted-foreground text-sm">
+				Create your first organization to collaborate with your team
+			</p>
+			<Button asChild>
+				<Link href="/organizations/new">
+					<PlusIcon className="mr-2" size={16} />
+					Create Organization
+				</Link>
+			</Button>
+		</div>
 	);
 }
 
-function OrganizationsEmptyState() {
+type OrganizationRowProps = {
+	organization: Organization;
+	isActive: boolean;
+	isProcessing: boolean;
+	onClick: () => void;
+};
+
+function OrganizationRow({
+	organization,
+	isActive,
+	isProcessing,
+	onClick,
+}: OrganizationRowProps) {
 	return (
-		<EmptyState
-			description="Organizations help you collaborate with your team and manage projects more effectively. Create your first organization to get started."
-			features={[
-				{ label: "Team collaboration" },
-				{ label: "Project management" },
-				{ label: "Shared resources" },
-			]}
-			icon={BuildingsIcon}
-			title="Start Building Together"
-		/>
+		<button
+			className={cn(
+				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent",
+				isProcessing && "pointer-events-none opacity-60"
+			)}
+			onClick={onClick}
+			type="button"
+		>
+			{isProcessing && (
+				<div className="absolute inset-0 flex items-center justify-center bg-background/50">
+					<div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+				</div>
+			)}
+
+			<Avatar className="size-10 transition-colors">
+				<AvatarImage
+					alt={organization.name}
+					src={organization.logo ?? undefined}
+				/>
+				<AvatarFallback className="bg-accent text-sm">
+					{getOrganizationInitials(organization.name)}
+				</AvatarFallback>
+			</Avatar>
+
+			<div className="min-w-0">
+				<p className="truncate font-medium">{organization.name}</p>
+				<p className="truncate text-muted-foreground text-sm">
+					@{organization.slug} · {dayjs(organization.createdAt).fromNow()}
+				</p>
+			</div>
+
+			{isActive && (
+				<Badge variant="secondary">
+					<CheckCircleIcon className="mr-1" size={12} weight="fill" />
+					Active
+				</Badge>
+			)}
+
+			<CaretRightIcon
+				className="text-accent-foreground transition-all group-hover:translate-x-0.5"
+				size={16}
+				weight="bold"
+			/>
+		</button>
 	);
 }
 
 export function OrganizationsList({
 	organizations,
 	activeOrganization,
-	isLoading,
 }: OrganizationsListProps) {
 	const router = useRouter();
 	const [processingId, setProcessingId] = useState<string | null>(null);
-
-	const handleCardClick = async (orgId: string) => {
+	const [showCreateOrganizationDialog, setShowCreateOrganizationDialog] =
+		useState(false);
+	const handleOrgClick = async (orgId: string) => {
 		const isCurrentlyActive = activeOrganization?.id === orgId;
 
 		if (isCurrentlyActive) {
@@ -81,106 +131,56 @@ export function OrganizationsList({
 				organizationId: orgId,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to switch workspace");
+				toast.error(error.message ?? "Failed to switch workspace");
 			} else {
 				toast.success("Workspace updated");
 				await new Promise((resolve) => setTimeout(resolve, 300));
 				router.push("/organizations/settings");
 			}
-		} catch (_error) {
+		} catch {
 			toast.error("Failed to switch workspace");
 		} finally {
 			setProcessingId(null);
 		}
 	};
 
-	if (isLoading) {
-		return (
-			<div className="p-4 sm:p-6">
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-					{Array.from({ length: 6 }).map((_, i) => (
-						<OrganizationSkeleton key={i.toString()} />
-					))}
-				</div>
-			</div>
-		);
-	}
-
 	if (!organizations || organizations.length === 0) {
-		return <OrganizationsEmptyState />;
+		return <EmptyState />;
 	}
 
 	return (
-		<div className="p-4 sm:p-6">
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-				{organizations?.map((org) => {
-					const isActive = activeOrganization?.id === org.id;
-					const isProcessing = processingId === org.id;
-
-					return (
-						<Card
-							className={cn(
-								"group relative cursor-pointer overflow-hidden transition-all duration-200",
-								isActive
-									? "border-primary/30 bg-primary/5 shadow-sm"
-									: "hover:border-border/60 hover:bg-muted/30",
-								isProcessing && "pointer-events-none opacity-70"
-							)}
+		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
+			{/* Organizations List */}
+			<div className="flex flex-col border-b lg:border-b-0">
+				<div className="flex-1 divide-y overflow-y-auto">
+					{organizations.map((org) => (
+						<OrganizationRow
+							isActive={activeOrganization?.id === org.id}
+							isProcessing={processingId === org.id}
 							key={org.id}
-							onClick={() => handleCardClick(org.id)}
-						>
-							{isActive && (
-								<div className="absolute top-3 right-3">
-									<Badge
-										className="border-primary/20 bg-primary/10 text-primary text-xs"
-										variant="secondary"
-									>
-										<CheckIcon className="mr-1 h-3 w-3" size={12} />
-										Active
-									</Badge>
-								</div>
-							)}
-
-							{isProcessing && (
-								<div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-									<div className="h-6 w-6 animate-spin rounded-full border border-primary/30 border-t-primary" />
-								</div>
-							)}
-
-							<CardContent className="p-4">
-								<div className="space-y-3">
-									{/* Organization Info */}
-									<div className="flex items-start gap-3">
-										<Avatar className="h-10 w-10 flex-shrink-0 border border-border/30">
-											<AvatarImage alt={org.name} src={org.logo || undefined} />
-											<AvatarFallback className="bg-accent font-medium text-xs">
-												{getOrganizationInitials(org.name)}
-											</AvatarFallback>
-										</Avatar>
-										<div className="min-w-0 flex-1">
-											<h3 className="truncate font-semibold text-sm">
-												{org.name}
-											</h3>
-											<p className="truncate text-muted-foreground text-xs">
-												@{org.slug}
-											</p>
-											<div className="mt-0.5 flex items-center gap-1">
-												<CalendarIcon
-													className="h-3 w-3 text-muted-foreground"
-													size={12}
-												/>
-												<span className="text-muted-foreground text-xs">
-													Created {dayjs(org.createdAt).fromNow()}
-												</span>
-											</div>
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					);
-				})}
+							onClick={() => handleOrgClick(org.id)}
+							organization={org}
+						/>
+					))}
+				</div>
 			</div>
+
+			{/* Sidebar */}
+			<RightSidebar className="gap-4 p-5">
+				<Button
+					className="w-full"
+					onClick={() => setShowCreateOrganizationDialog(true)}
+				>
+					<PlusIcon size={16} />
+					New Organization
+				</Button>
+				<CreateOrganizationDialog
+					isOpen={showCreateOrganizationDialog}
+					onClose={() => setShowCreateOrganizationDialog(false)}
+				/>
+				<RightSidebar.DocsLink />
+				<RightSidebar.Tip description="Click on an organization to switch to it. The active organization is used across the dashboard." />
+			</RightSidebar>
 		</div>
 	);
 }

@@ -2,7 +2,7 @@ import { S3Client } from "bun";
 import { nanoid } from "nanoid";
 
 export class S3UploadManager {
-	private client: S3Client;
+	private readonly client: S3Client;
 
 	constructor() {
 		this.client = new S3Client({

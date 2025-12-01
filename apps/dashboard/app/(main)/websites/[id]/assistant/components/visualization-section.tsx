@@ -96,7 +96,7 @@ const getChartIcon = (chartType: string) => {
 export function VisualizationSkeleton() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden rounded border bg-background">
-			<div className="flex flex-shrink-0 items-center gap-2 border-b p-2">
+			<div className="flex shrink-0 items-center gap-2 border-b p-2">
 				<Skeleton className="h-6 w-6 rounded" />
 				<div className="flex-1">
 					<Skeleton className="mb-1 h-4 w-24" />
@@ -1121,8 +1121,8 @@ export default function VisualizationSection() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border bg-background">
-			<div className="flex flex-shrink-0 items-center gap-2 border-b p-2">
-				<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-primary/10">
+			<div className="flex shrink-0 items-center gap-2 border-b p-2">
+				<div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10">
 					<TrendUpIcon className="h-3 w-3 text-primary" />
 				</div>
 				<div className="min-w-0 flex-1">

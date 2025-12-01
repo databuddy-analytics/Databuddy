@@ -10,13 +10,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDbConnections } from "@/hooks/use-db-connections";
 import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import {
 	categoryConfig,
-	createDatabasesNavigation,
-	createLoadingDatabasesNavigation,
 	createLoadingWebsitesNavigation,
 	createWebsitesNavigation,
 	filterCategoriesForRoute,
@@ -24,19 +21,17 @@ import {
 	getDefaultCategory,
 } from "./navigation-config";
 
-interface MobileCategorySelectorProps {
-	onCategoryChange?: (categoryId: string) => void;
+type MobileCategorySelectorProps = {
+	onCategoryChangeAction?: (categoryId: string) => void;
 	selectedCategory?: string;
-}
+};
 
 export function MobileCategorySelector({
-	onCategoryChange,
+	onCategoryChangeAction,
 	selectedCategory,
 }: MobileCategorySelectorProps) {
 	const pathname = usePathname();
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
-	const { connections: databases, isLoading: isLoadingDatabases } =
-		useDbConnections();
 
 	const { categories, defaultCategory } = useMemo(() => {
 		const baseConfig = getContextConfig(pathname);
@@ -49,9 +44,6 @@ export function MobileCategorySelector({
 							websites: isLoadingWebsites
 								? createLoadingWebsitesNavigation()
 								: createWebsitesNavigation(websites),
-							observability: isLoadingDatabases
-								? createLoadingDatabasesNavigation()
-								: createDatabasesNavigation(databases),
 						},
 					}
 				: baseConfig;
@@ -63,7 +55,7 @@ export function MobileCategorySelector({
 		);
 
 		return { categories: filteredCategories, defaultCategory: defaultCat };
-	}, [pathname, websites, isLoadingWebsites, databases, isLoadingDatabases]);
+	}, [pathname, websites, isLoadingWebsites]);
 
 	const activeCategory = selectedCategory || defaultCategory;
 	const currentCategory = categories.find((cat) => cat.id === activeCategory);
@@ -75,18 +67,23 @@ export function MobileCategorySelector({
 					<Button
 						className="flex h-10 w-full items-center justify-between px-3"
 						type="button"
-						variant="outline"
+						variant="secondary"
 					>
 						<div className="flex items-center gap-2">
 							{currentCategory?.icon && (
-								<currentCategory.icon className="h-4 w-4" weight="duotone" />
+								<currentCategory.icon
+									className="size-4 text-sidebar-foreground"
+									weight="duotone"
+								/>
 							)}
-							<span>{currentCategory?.name || "Select Category"}</span>
+							<span className="text-sidebar-foreground text-sm">
+								{currentCategory?.name || "Select Category"}
+							</span>
 						</div>
-						<CaretDownIcon className="h-4 w-4" weight="fill" />
+						<CaretDownIcon className="size-4" />
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)]">
+				<DropdownMenuContent className="w-full min-w-(--radix-dropdown-menu-trigger-width)">
 					{categories.map((category) => {
 						const Icon = category.icon;
 						const isActive = activeCategory === category.id;
@@ -97,11 +94,11 @@ export function MobileCategorySelector({
 									isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
 								)}
 								key={category.id}
-								onClick={() => onCategoryChange?.(category.id)}
+								onClick={() => onCategoryChangeAction?.(category.id)}
 							>
 								<Icon
 									className={cn(
-										"h-4 w-4",
+										"size-4",
 										isActive ? "text-sidebar-ring" : "text-muted-foreground"
 									)}
 									weight={isActive ? "fill" : "duotone"}

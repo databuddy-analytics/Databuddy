@@ -22,7 +22,7 @@ export function ListSkeleton({
 						key={i.toString()}
 					>
 						{showAvatar && (
-							<Skeleton className="h-10 w-10 flex-shrink-0 rounded-full sm:h-12 sm:w-12" />
+							<Skeleton className="h-10 w-10 shrink-0 rounded-full sm:h-12 sm:w-12" />
 						)}
 						<div className="min-w-0 flex-1 space-y-2">
 							<Skeleton className="h-3 w-40 sm:h-4 sm:w-48" />

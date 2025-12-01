@@ -1,14 +1,7 @@
-import { userPreferences } from "@databuddy/db";
-import { eq } from "drizzle-orm";
+import { eq, userPreferences } from "@databuddy/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-
-const preferencesSchema = z.object({
-	timezone: z.string().optional(),
-	dateFormat: z.string().optional(),
-	timeFormat: z.string().optional(),
-});
+import { protectedProcedure } from "../orpc";
 
 const defaultPreferences = {
 	timezone: "auto",
@@ -16,18 +9,18 @@ const defaultPreferences = {
 	timeFormat: "h:mm a",
 } as const;
 
-export const preferencesRouter = createTRPCRouter({
-	getUserPreferences: protectedProcedure.query(async ({ ctx }) => {
-		let preferences = await ctx.db.query.userPreferences.findFirst({
-			where: eq(userPreferences.userId, ctx.user.id),
+export const preferencesRouter = {
+	getUserPreferences: protectedProcedure.handler(async ({ context }) => {
+		let preferences = await context.db.query.userPreferences.findFirst({
+			where: eq(userPreferences.userId, context.user.id),
 		});
 
 		if (!preferences) {
-			const inserted = await ctx.db
+			const inserted = await context.db
 				.insert(userPreferences)
 				.values({
 					id: nanoid(),
-					userId: ctx.user.id,
+					userId: context.user.id,
 					...defaultPreferences,
 					updatedAt: new Date(),
 				})
@@ -38,15 +31,21 @@ export const preferencesRouter = createTRPCRouter({
 	}),
 
 	updateUserPreferences: protectedProcedure
-		.input(preferencesSchema)
-		.mutation(async ({ ctx, input }) => {
+		.input(
+			z.object({
+				timezone: z.string().optional(),
+				dateFormat: z.string().optional(),
+				timeFormat: z.string().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
 			const now = new Date();
 
-			const result = await ctx.db
+			const result = await context.db
 				.insert(userPreferences)
 				.values({
 					id: nanoid(),
-					userId: ctx.user.id,
+					userId: context.user.id,
 					timezone: input.timezone ?? defaultPreferences.timezone,
 					dateFormat: input.dateFormat ?? defaultPreferences.dateFormat,
 					timeFormat: input.timeFormat ?? defaultPreferences.timeFormat,
@@ -65,4 +64,4 @@ export const preferencesRouter = createTRPCRouter({
 
 			return result[0];
 		}),
-});
+};

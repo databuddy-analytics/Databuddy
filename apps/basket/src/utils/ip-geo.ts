@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
+import { cacheable } from "@databuddy/redis";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
-import { logger } from "../lib/logger";
+import { captureError, record, setAttributes } from "../lib/tracing";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
@@ -17,6 +18,7 @@ let reader: GeoIPReader | null = null;
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
 let loadError: Error | null = null;
+let dbBuffer: Buffer | null = null;
 
 async function loadDatabaseFromCdn(): Promise<Buffer> {
 	try {
@@ -38,7 +40,7 @@ async function loadDatabaseFromCdn(): Promise<Buffer> {
 
 		return dbBuffer;
 	} catch (error) {
-		logger.error({ error }, "Failed to load database from CDN:");
+		captureError(error, { message: "Failed to load database from CDN" });
 		throw error;
 	}
 }
@@ -59,15 +61,13 @@ function loadDatabase() {
 	isLoading = true;
 	loadPromise = (async () => {
 		try {
-			const dbBuffer = await loadDatabaseFromCdn();
-
-			await new Promise((resolve) => setTimeout(resolve, 100));
-
+			dbBuffer = await loadDatabaseFromCdn();
 			reader = Reader.openBuffer(dbBuffer) as GeoIPReader;
 		} catch (error) {
-			logger.error({ error }, "Failed to load GeoIP database:");
+			captureError(error, { message: "Failed to load GeoIP database" });
 			loadError = error as Error;
 			reader = null;
+			dbBuffer = null;
 		} finally {
 			isLoading = false;
 		}
@@ -84,96 +84,79 @@ const ipv4Regex =
 const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
 
 function isValidIp(ip: string): boolean {
-	if (!ip) {
-		return false;
-	}
-
-	if (ipv4Regex.test(ip)) {
-		return true;
-	}
-
-	if (ipv6Regex.test(ip)) {
-		return true;
-	}
-
-	return false;
+	return Boolean(ip && (ipv4Regex.test(ip) || ipv6Regex.test(ip)));
 }
 
-export async function getGeoLocation(ip: string) {
-	if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
-		return { country: undefined, region: undefined, city: undefined };
-	}
+function lookupGeoLocation(ip: string): Promise<{
+	country: string | undefined;
+	region: string | undefined;
+	city: string | undefined;
+}> {
+	return record("lookupGeoLocation", async () => {
+		if (!(reader || isLoading || loadError)) {
+			try {
+				await loadDatabase();
+			} catch (error) {
+				captureError(error, {
+					message: "Failed to load database for IP lookup",
+				});
+				setAttributes({
+					"geo.lookup_failed": true,
+					"geo.error": "database_load_failed",
+				});
+				return { country: undefined, region: undefined, city: undefined };
+			}
+		}
 
-	if (!(reader || isLoading || loadError)) {
+		if (!reader) {
+			setAttributes({
+				"geo.lookup_failed": true,
+				"geo.error": "no_reader",
+			});
+			return { country: undefined, region: undefined, city: undefined };
+		}
+
 		try {
-			await loadDatabase();
+			const response = reader.city(ip);
+			const result = {
+				country: response.country?.names?.en,
+				region: response.subdivisions?.[0]?.names?.en,
+				city: response.city?.names?.en,
+			};
+
+			setAttributes({
+				"geo.country": result.country || "unknown",
+				"geo.region": result.region || "unknown",
+				"geo.city": result.city || "unknown",
+			});
+
+			return result;
 		} catch (error) {
-			logger.error({ error }, "Failed to load database for IP lookup:");
+			if (
+				error instanceof AddressNotFoundError ||
+				error instanceof BadMethodCallError
+			) {
+				setAttributes({
+					"geo.address_not_found": true,
+				});
+				return { country: undefined, region: undefined, city: undefined };
+			}
+			captureError(error, { message: "Error looking up IP" });
+			setAttributes({
+				"geo.lookup_failed": true,
+				"geo.error": "lookup_error",
+			});
 			return { country: undefined, region: undefined, city: undefined };
 		}
-	}
-
-	if (!reader) {
-		return { country: undefined, region: undefined, city: undefined };
-	}
-
-	try {
-		const response = reader.city(ip);
-
-		// Extract region and city data
-		const region = response.subdivisions?.[0]?.names?.en;
-		const city = response.city?.names?.en;
-
-		return {
-			country: response.country?.names?.en,
-			region,
-			city,
-		};
-	} catch (error) {
-		// Handle AddressNotFoundError specifically (IP not in database)
-		if (error instanceof AddressNotFoundError) {
-			return { country: undefined, region: undefined, city: undefined };
-		}
-
-		// Handle BadMethodCallError (wrong database type)
-		if (error instanceof BadMethodCallError) {
-			logger.error(
-				"Database type mismatch - using city() method with ipinfo database"
-			);
-			return { country: undefined, region: undefined, city: undefined };
-		}
-
-		logger.error({ error }, "Error looking up IP:");
-		return { country: undefined, region: undefined, city: undefined };
-	}
+	});
 }
 
-export function getClientIp(req: Request): string | undefined {
-	const cfIp = req.headers.get("cf-connecting-ip");
-	if (cfIp) {
-		return cfIp;
-	}
-
-	const forwardedFor = req.headers.get("x-forwarded-for");
-	if (forwardedFor) {
-		const firstIp = forwardedFor.split(",")[0]?.trim();
-		if (firstIp) {
-			return firstIp;
-		}
-	}
-
-	const realIp = req.headers.get("x-real-ip");
-	if (realIp) {
-		return realIp;
-	}
-
-	return;
-}
-
-export function parseIp(req: Request) {
-	const ip = getClientIp(req);
-	return getGeoLocation(ip || "");
-}
+const getGeoLocation = cacheable(lookupGeoLocation, {
+	expireInSec: 86_400 * 7,
+	prefix: "geoip_location",
+	staleWhileRevalidate: true,
+	staleTime: 86_400,
+});
 
 export function anonymizeIp(ip: string): string {
 	if (!ip) {
@@ -187,6 +170,15 @@ export function anonymizeIp(ip: string): string {
 }
 
 export async function getGeo(ip: string) {
+	if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
+		return {
+			anonymizedIP: anonymizeIp(ip),
+			country: undefined,
+			region: undefined,
+			city: undefined,
+		};
+	}
+
 	const geo = await getGeoLocation(ip);
 	return {
 		anonymizedIP: anonymizeIp(ip),
@@ -214,4 +206,16 @@ export function extractIpFromRequest(request: Request): string {
 	}
 
 	return "";
+}
+
+export function closeGeoIPReader(): void {
+	if (reader) {
+		reader = null;
+	}
+	if (dbBuffer) {
+		dbBuffer = null;
+	}
+	loadPromise = null;
+	loadError = null;
+	isLoading = false;
 }

@@ -5,7 +5,7 @@ import { RobotIcon } from "@phosphor-icons/react";
 export function LoadingMessage() {
 	return (
 		<div className="flex max-w-[85%] gap-3">
-			<div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-muted">
+			<div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted">
 				<RobotIcon className="h-4 w-4" />
 			</div>
 			<div className="mr-2 rounded bg-muted px-4 py-3">

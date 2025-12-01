@@ -88,7 +88,7 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 						)}
 						key={`preview-${index}-${step.slice(0, 20)}`}
 					>
-						<ClockIcon className="mt-0.5 h-3 w-3 flex-shrink-0" />
+						<ClockIcon className="mt-0.5 h-3 w-3 shrink-0" />
 						<span className="break-words leading-relaxed">{step}</span>
 					</div>
 				);
@@ -333,7 +333,7 @@ function AIMessage({
 					message.metricValue !== undefined && (
 						<div className="mt-4 rounded border border-primary/20 bg-primary/5 p-4">
 							<div className="flex min-w-0 items-center gap-3">
-								<div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-primary/10">
+								<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-primary/10">
 									<HashIcon className="h-4 w-4 text-primary" />
 								</div>
 								<div className="min-w-0 flex-1">

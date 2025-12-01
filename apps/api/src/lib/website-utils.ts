@@ -1,26 +1,25 @@
 import { auth } from "@databuddy/auth";
-import { db, userPreferences, websites } from "@databuddy/db";
+import { db, eq, inArray, userPreferences, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
 import type { Website } from "@databuddy/shared/types/website";
-import { eq } from "drizzle-orm";
 import {
 	getApiKeyFromHeader,
 	hasWebsiteScope,
 	isApiKeyPresent,
 } from "./api-key";
 
-export interface WebsiteContext {
+export type WebsiteContext = {
 	user: unknown;
 	session: unknown;
 	website?: Website;
 	timezone: string;
-}
+};
 
-export interface WebsiteValidationResult {
+export type WebsiteValidationResult = {
 	success: boolean;
 	website?: Website;
 	error?: string;
-}
+};
 
 const getCachedWebsite = cacheable(
 	async (websiteId: string) => {
@@ -62,15 +61,28 @@ const getWebsiteDomain = cacheable(
 
 const getCachedWebsiteDomain = cacheable(
 	async (websiteIds: string[]): Promise<Record<string, string | null>> => {
-		const results: Record<string, string | null> = {};
+		if (websiteIds.length === 0) {
+			return {};
+		}
 
-		await Promise.all(
-			websiteIds.map(async (id) => {
-				results[id] = await getWebsiteDomain(id);
-			})
-		);
+		try {
+			const websitesList = await db.query.websites.findMany({
+				where: inArray(websites.id, websiteIds),
+				columns: { id: true, domain: true },
+			});
 
-		return results;
+			const results: Record<string, string | null> = {};
+			for (const id of websiteIds) {
+				results[id] = null;
+			}
+			for (const website of websitesList) {
+				results[website.id] = website.domain;
+			}
+
+			return results;
+		} catch {
+			return Object.fromEntries(websiteIds.map((id) => [id, null]));
+		}
 	},
 	{
 		expireInSec: 300,
@@ -97,8 +109,6 @@ const userPreferencesCache = cacheable(
 		staleTime: 120,
 	}
 );
-
-// Removed unused cached session helper to satisfy linter rules
 
 export async function getTimezone(
 	request: Request,

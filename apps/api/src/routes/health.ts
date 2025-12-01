@@ -8,7 +8,7 @@ const checkClickhouse = async () => {
 		const result = await chQuery("SELECT 1 FROM analytics.events LIMIT 1");
 		return result.length > 0;
 	} catch (error) {
-		logger.error("ClickHouse health check failed:", { error });
+		logger.error({ error }, "ClickHouse health check failed");
 		return false;
 	}
 };
@@ -20,7 +20,7 @@ const checkDatabase = async () => {
 		});
 		return result.length > 0;
 	} catch (error) {
-		logger.error("Database health check failed:", { error });
+		logger.error({ error }, "Database health check failed");
 		return false;
 	}
 };
@@ -30,12 +30,12 @@ const checkRedis = async () => {
 		const result = await redisClient.ping();
 		return result === "PONG";
 	} catch (error) {
-		logger.error("Redis health check failed:", { error });
+		logger.error({ error }, "Redis health check failed");
 		return false;
 	}
 };
 
-export const health = new Elysia().get("/health", async () => {
+export const health = new Elysia().get("/health", async function healthCheck() {
 	const [clickhouse, database, redis] = await Promise.all([
 		checkClickhouse(),
 		checkDatabase(),

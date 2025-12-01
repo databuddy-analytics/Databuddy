@@ -4,13 +4,13 @@ import {
 	eq,
 	type InferSelectModel,
 	isNull,
+	ne,
 	websites,
 } from "@databuddy/db";
-import { logger } from "@databuddy/shared/utils/discord-webhook";
-import { Effect, pipe } from "effect";
+import { logger } from "@databuddy/shared/logger";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { invalidateWebsiteCaches } from "../utils/cache-invalidation.js";
+import { invalidateWebsiteCaches } from "../utils/cache-invalidation";
 
 export type Website = InferSelectModel<typeof websites>;
 
@@ -91,401 +91,293 @@ export const buildWebsiteFilter = (userId: string, organizationId?: string) =>
 		: and(eq(websites.userId, userId), isNull(websites.organizationId));
 
 // Types
-export interface CreateWebsiteInput {
+export type CreateWebsiteInput = {
 	name: string;
 	domain: string;
 	subdomain?: string;
 	userId: string;
 	organizationId?: string;
-}
+};
 
-export interface CreateWebsiteOptions {
+export type CreateWebsiteOptions = {
 	skipDuplicateCheck?: boolean;
 	logContext?: Record<string, any>;
-}
+};
 
 // Website service class
 export class WebsiteService {
-	private db: typeof drizzleDb;
+	private readonly db: typeof drizzleDb;
 
 	constructor(db: typeof drizzleDb) {
 		this.db = db;
 	}
 
-	private performDBOperation<T>(
-		operation: () => Promise<T>
-	): Effect.Effect<T, WebsiteError> {
-		return Effect.tryPromise({
-			try: operation,
-			catch: (error) =>
-				new Error(`DB operation failed: ${String(error)}`) as WebsiteError,
-		});
-	}
-
-	private performTransaction<T>(
-		fn: (tx: any) => Promise<T>
-	): Effect.Effect<T, WebsiteError> {
-		return Effect.tryPromise({
-			try: () => this.db.transaction(fn),
-			catch: (error) =>
-				new Error(`Transaction failed: ${String(error)}`) as WebsiteError,
-		});
-	}
-
-	private validateNameAndFlow(
-		input: CreateWebsiteInput
-	): Effect.Effect<CreateWebsiteInput, ValidationError> {
-		const validation = websiteNameSchema.safeParse(input.name);
-		return validation.success
-			? Effect.succeed(input)
-			: Effect.fail(new ValidationError(validation.error.message));
-	}
-
-	private validateDomainAndFlow(
-		input: CreateWebsiteInput
-	): Effect.Effect<CreateWebsiteInput, ValidationError> {
-		const domainToCreate = buildFullDomain(input.domain, input.subdomain);
-		const validation = domainSchema.safeParse(domainToCreate);
-		return validation.success
-			? Effect.succeed({ ...input, domain: domainToCreate })
-			: Effect.fail(new ValidationError(validation.error.message));
-	}
-
-	private checkDuplicateAndFlow(
-		input: CreateWebsiteInput,
-		skipDuplicateCheck: boolean
-	): Effect.Effect<CreateWebsiteInput, DuplicateDomainError | ValidationError> {
-		if (skipDuplicateCheck) {
-			return Effect.succeed(input);
+	private async performDBOperation<T>(operation: () => Promise<T>): Promise<T> {
+		try {
+			return await operation();
+		} catch (error) {
+			throw new Error(`DB operation failed: ${String(error)}`);
 		}
-		const websiteFilter = and(
-			eq(websites.domain, input.domain),
-			buildWebsiteFilter(input.userId, input.organizationId)
-		);
-		return pipe(
-			this.performDBOperation<Website | null>(() =>
-				this.db.query.websites.findFirst({ where: websiteFilter })
-			),
-			Effect.flatMap((dup) =>
-				dup
-					? Effect.fail(new DuplicateDomainError(input.domain))
-					: Effect.succeed(input)
-			)
-		);
 	}
 
-	private logCreationAndFlow(
-		createdWebsite: Website,
-		logContext: Record<string, unknown>
-	): Effect.Effect<Website, WebsiteError> {
-		return pipe(
-			Effect.try({
-				try: () =>
-					logger.success(
-						"Website Created",
-						`New website "${createdWebsite.name}" was created with domain "${createdWebsite.domain}"`,
-						{
-							websiteId: createdWebsite.id,
-							domain: createdWebsite.domain,
-							userId: createdWebsite.userId,
-							organizationId: createdWebsite.organizationId,
-							...logContext,
-						}
-					),
-				catch: (error) =>
-					new Error(`Logging failed: ${String(error)}`) as WebsiteError,
-			}),
-			Effect.as(createdWebsite)
-		);
+	private async performTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+		try {
+			return await this.db.transaction(fn);
+		} catch (error) {
+			throw new Error(`Transaction failed: ${String(error)}`);
+		}
 	}
 
-	private invalidateCachesAndFlow(
-		website: Website,
+	private async invalidateCaches(
+		websiteId: string,
 		userId: string
-	): Effect.Effect<Website, WebsiteError> {
-		return pipe(
-			Effect.tryPromise({
-				try: () => invalidateWebsiteCaches(website.id, userId),
-				catch: (error) =>
-					new Error(
-						`Cache invalidation failed: ${String(error)}`
-					) as WebsiteError,
-			}),
-			Effect.as(website)
-		);
+	): Promise<void> {
+		try {
+			await invalidateWebsiteCaches(websiteId, userId);
+		} catch (error) {
+			throw new Error(`Cache invalidation failed: ${String(error)}`);
+		}
 	}
 
-	createWebsite(
+	async createWebsite(
 		input: CreateWebsiteInput,
 		options: CreateWebsiteOptions = {}
-	): Effect.Effect<Website, WebsiteError> {
+	): Promise<Website> {
 		const { skipDuplicateCheck = false, logContext = {} } = options;
 
-		const insertFn = async (tx: any) =>
-			tx
+		// Validate name
+		const nameValidation = websiteNameSchema.safeParse(input.name);
+		if (!nameValidation.success) {
+			throw new ValidationError(nameValidation.error.message);
+		}
+
+		// Validate domain
+		const domainToCreate = buildFullDomain(input.domain, input.subdomain);
+		const domainValidation = domainSchema.safeParse(domainToCreate);
+		if (!domainValidation.success) {
+			throw new ValidationError(domainValidation.error.message);
+		}
+
+		const validatedInput = { ...input, domain: domainToCreate };
+
+		// Check duplicate
+		if (!skipDuplicateCheck) {
+			const websiteFilter = and(
+				eq(websites.domain, validatedInput.domain),
+				buildWebsiteFilter(validatedInput.userId, validatedInput.organizationId)
+			);
+			const dup = await this.performDBOperation(async () =>
+				this.db.query.websites.findFirst({ where: websiteFilter })
+			);
+			if (dup) {
+				throw new DuplicateDomainError(validatedInput.domain);
+			}
+		}
+
+		// Insert
+		const createdWebsite = await this.performTransaction(async (tx) => {
+			const [website] = await tx
 				.insert(websites)
 				.values({
 					id: nanoid(),
-					name: input.name,
-					domain: input.domain,
-					userId: input.userId,
-					organizationId: input.organizationId,
+					name: validatedInput.name,
+					domain: validatedInput.domain,
+					userId: validatedInput.userId,
+					organizationId: validatedInput.organizationId,
 					status: "ACTIVE",
 				})
-				.returning()
-				.then(([website]) => website as Website);
+				.returning();
+			return website as Website;
+		});
 
-		return pipe(
-			Effect.succeed(input),
-			Effect.flatMap(this.validateNameAndFlow),
-			Effect.flatMap(this.validateDomainAndFlow),
-			Effect.flatMap((validatedInput) =>
-				skipDuplicateCheck
-					? Effect.succeed(validatedInput)
-					: this.checkDuplicateAndFlow(validatedInput, skipDuplicateCheck)
-			),
-			Effect.flatMap(() => this.performTransaction<Website>(insertFn)),
-			Effect.flatMap((createdWebsite) =>
-				pipe(
-					this.logCreationAndFlow(createdWebsite, logContext),
-					Effect.flatMap(() =>
-						this.invalidateCachesAndFlow(createdWebsite, input.userId)
-					),
-					Effect.as(createdWebsite)
-				)
-			)
-		);
-	}
-
-	private validateNameIfPresentAndFlow(
-		updates: Updates
-	): Effect.Effect<Updates, ValidationError> {
-		if (!updates.name) {
-			return Effect.succeed(updates);
+		// Log
+		try {
+			logger.info(
+				{
+					websiteId: createdWebsite.id,
+					domain: createdWebsite.domain,
+					userId: createdWebsite.userId,
+					organizationId: createdWebsite.organizationId,
+					...logContext,
+				},
+				`Website Created: "${createdWebsite.name}" with domain "${createdWebsite.domain}"`
+			);
+		} catch (error) {
+			throw new Error(`Logging failed: ${String(error)}`);
 		}
-		const validation = websiteNameSchema.safeParse(updates.name);
-		return validation.success
-			? Effect.succeed(updates)
-			: Effect.fail(new ValidationError(validation.error.message));
+
+		// Invalidate caches
+		await this.invalidateCaches(createdWebsite.id, input.userId);
+
+		return createdWebsite;
 	}
 
-	private validateDomainIfPresentAndFlow(
-		updates: Updates,
-		userId: string,
-		organizationId?: string
-	): Effect.Effect<Updates, WebsiteError> {
-		if (!updates.domain) {
-			return Effect.succeed(updates);
-		}
-		const domainToUpdate = buildFullDomain(updates.domain as string);
-		const websiteFilter = and(
-			eq(websites.domain, domainToUpdate),
-			buildWebsiteFilter(userId, organizationId)
-		);
-		return pipe(
-			this.performDBOperation<Website | null>(() =>
-				this.db.query.websites.findFirst({ where: websiteFilter })
-			),
-			Effect.flatMap((dup) =>
-				dup
-					? Effect.fail(new DuplicateDomainError(domainToUpdate))
-					: Effect.succeed({ ...updates, domain: domainToUpdate })
-			)
-		);
-	}
-	updateWebsite(
+	async updateWebsite(
 		websiteId: string,
 		updates: Updates,
 		userId: string,
 		organizationId?: string
-	): Effect.Effect<Website, WebsiteError> {
-		const updateFn = (finalUpdates: Updates) =>
-			this.db
+	): Promise<Website> {
+		const finalUpdates = { ...updates };
+
+		// Validate name if present
+		if (finalUpdates.name) {
+			const validation = websiteNameSchema.safeParse(finalUpdates.name);
+			if (!validation.success) {
+				throw new ValidationError(validation.error.message);
+			}
+		}
+
+		// Validate domain if present
+		if (finalUpdates.domain) {
+			const domainToUpdate = buildFullDomain(finalUpdates.domain);
+			const baseFilter = and(
+				eq(websites.domain, domainToUpdate),
+				buildWebsiteFilter(userId, organizationId)
+			);
+			const websiteFilter = and(baseFilter, ne(websites.id, websiteId));
+
+			const dup = await this.performDBOperation(async () =>
+				this.db.query.websites.findFirst({ where: websiteFilter })
+			);
+
+			if (dup) {
+				throw new DuplicateDomainError(domainToUpdate);
+			}
+			finalUpdates.domain = domainToUpdate;
+		}
+
+		const updatedWebsite = await this.performDBOperation(async () => {
+			const [w] = await this.db
 				.update(websites)
 				.set(finalUpdates)
 				.where(eq(websites.id, websiteId))
-				.returning()
-				.then(([w]) => w ?? (null as Website | null));
+				.returning();
+			return w ?? null;
+		});
 
-		return pipe(
-			Effect.succeed(updates),
-			Effect.flatMap(this.validateNameIfPresentAndFlow),
-			Effect.flatMap((u) =>
-				this.validateDomainIfPresentAndFlow(u, userId, organizationId)
-			),
-			Effect.flatMap((finalUpdates) =>
-				this.performDBOperation<Website | null>(() => updateFn(finalUpdates))
-			),
-			Effect.flatMap((updatedWebsite) =>
-				updatedWebsite
-					? pipe(
-							Effect.tryPromise({
-								try: () => invalidateWebsiteCaches(websiteId, userId),
-								catch: (error) =>
-									new Error(
-										`Cache invalidation failed: ${String(error)}`
-									) as WebsiteError,
-							}),
-							Effect.as(updatedWebsite)
-						)
-					: Effect.fail(new WebsiteNotFoundError())
-			)
-		);
+		if (!updatedWebsite) {
+			throw new WebsiteNotFoundError();
+		}
+
+		await this.invalidateCaches(websiteId, userId);
+
+		return updatedWebsite;
 	}
 
-	deleteWebsite(
+	async deleteWebsite(
 		websiteId: string,
 		userId: string
-	): Effect.Effect<{ success: true }, WebsiteError> {
-		const deleteFn = (tx: any) =>
-			tx.delete(websites).where(eq(websites.id, websiteId));
+	): Promise<{ success: true }> {
+		await this.performTransaction(async (tx) => {
+			await tx.delete(websites).where(eq(websites.id, websiteId));
+		});
 
-		return pipe(
-			this.performTransaction<void>(deleteFn),
-			Effect.flatMap(() =>
-				Effect.tryPromise({
-					try: () => invalidateWebsiteCaches(websiteId, userId),
-					catch: (error) =>
-						new Error(
-							`Cache invalidation failed: ${String(error)}`
-						) as WebsiteError,
-				})
-			),
-			Effect.map(() => ({ success: true }))
-		);
+		await this.invalidateCaches(websiteId, userId);
+
+		return { success: true };
 	}
 
-	toggleWebsitePublic(
+	async toggleWebsitePublic(
 		websiteId: string,
 		isPublic: boolean,
 		userId: string
-	): Effect.Effect<Website, WebsiteError> {
-		const updateFn = () =>
-			this.db
+	): Promise<Website> {
+		const updatedWebsite = await this.performDBOperation(async () => {
+			const [w] = await this.db
 				.update(websites)
 				.set({ isPublic })
 				.where(eq(websites.id, websiteId))
-				.returning()
-				.then(([w]) => w ?? (null as Website | null));
+				.returning();
+			return w ?? null;
+		});
 
-		return pipe(
-			this.performDBOperation<Website | null>(updateFn),
-			Effect.flatMap((updatedWebsite) =>
-				updatedWebsite
-					? pipe(
-							Effect.tryPromise({
-								try: () => invalidateWebsiteCaches(websiteId, userId),
-								catch: (error) =>
-									new Error(
-										`Cache invalidation failed: ${String(error)}`
-									) as WebsiteError,
-							}),
-							Effect.as(updatedWebsite)
-						)
-					: Effect.fail(new WebsiteNotFoundError())
-			)
-		);
+		if (!updatedWebsite) {
+			throw new WebsiteNotFoundError();
+		}
+
+		await this.invalidateCaches(websiteId, userId);
+
+		return updatedWebsite;
 	}
 
-	transferWebsite(
+	async transferWebsite(
 		websiteId: string,
 		organizationId: string | null,
 		userId: string
-	): Effect.Effect<Website, WebsiteError> {
-		const updateFn = () =>
-			this.db
+	): Promise<Website> {
+		const transferredWebsite = await this.performDBOperation(async () => {
+			const [w] = await this.db
 				.update(websites)
 				.set({
 					organizationId,
 					updatedAt: new Date(),
 				})
 				.where(eq(websites.id, websiteId))
-				.returning()
-				.then(([w]) => w ?? (null as Website | null));
+				.returning();
+			return w ?? null;
+		});
 
-		return pipe(
-			this.performDBOperation<Website | null>(updateFn),
-			Effect.flatMap((transferredWebsite) =>
-				transferredWebsite
-					? pipe(
-							Effect.try({
-								try: () =>
-									logger.info(
-										"Website Transferred",
-										`Website "${transferredWebsite.name}" was transferred to organization "${organizationId}"`,
-										{
-											websiteId: transferredWebsite.id,
-											organizationId,
-											userId,
-										}
-									),
-								catch: (error) =>
-									new Error(`Logging failed: ${String(error)}`) as WebsiteError,
-							}),
-							Effect.flatMap(() =>
-								Effect.tryPromise({
-									try: () => invalidateWebsiteCaches(websiteId, userId),
-									catch: (error) =>
-										new Error(
-											`Cache invalidation failed: ${String(error)}`
-										) as WebsiteError,
-								})
-							),
-							Effect.as(transferredWebsite)
-						)
-					: Effect.fail(new WebsiteNotFoundError())
-			)
-		);
+		if (!transferredWebsite) {
+			throw new WebsiteNotFoundError();
+		}
+
+		try {
+			logger.info(
+				{
+					websiteId: transferredWebsite.id,
+					organizationId,
+					userId,
+					event: "Website Transferred",
+				},
+				`Website "${transferredWebsite.name}" was transferred to organization "${organizationId}"`
+			);
+		} catch (error) {
+			throw new Error(`Logging failed: ${String(error)}`);
+		}
+
+		await this.invalidateCaches(websiteId, userId);
+
+		return transferredWebsite;
 	}
 
-	transferWebsiteToOrganization(
+	async transferWebsiteToOrganization(
 		websiteId: string,
 		targetOrganizationId: string,
 		userId: string
-	): Effect.Effect<Website, WebsiteError> {
-		const updateFn = () =>
-			this.db
+	): Promise<Website> {
+		const transferredWebsite = await this.performDBOperation(async () => {
+			const [w] = await this.db
 				.update(websites)
 				.set({
 					organizationId: targetOrganizationId,
 					updatedAt: new Date(),
 				})
 				.where(eq(websites.id, websiteId))
-				.returning()
-				.then(([w]) => w ?? (null as Website | null));
+				.returning();
+			return w ?? null;
+		});
 
-		return pipe(
-			this.performDBOperation<Website | null>(updateFn),
-			Effect.flatMap((transferredWebsite) =>
-				transferredWebsite
-					? pipe(
-							Effect.try({
-								try: () =>
-									logger.info(
-										"Website Transferred to Organization",
-										`Website "${transferredWebsite.name}" was transferred to organization "${targetOrganizationId}"`,
-										{
-											websiteId: transferredWebsite.id,
-											targetOrganizationId,
-											userId,
-										}
-									),
-								catch: (error) =>
-									new Error(`Logging failed: ${String(error)}`) as WebsiteError,
-							}),
-							Effect.flatMap(() =>
-								Effect.tryPromise({
-									try: () => invalidateWebsiteCaches(websiteId, userId),
-									catch: (error) =>
-										new Error(
-											`Cache invalidation failed: ${String(error)}`
-										) as WebsiteError,
-								})
-							),
-							Effect.as(transferredWebsite)
-						)
-					: Effect.fail(new WebsiteNotFoundError())
-			)
-		);
+		if (!transferredWebsite) {
+			throw new WebsiteNotFoundError();
+		}
+
+		try {
+			logger.info(
+				{
+					websiteId: transferredWebsite.id,
+					targetOrganizationId,
+					userId,
+					event: "Website Transferred to Organization",
+				},
+				`Website "${transferredWebsite.name}" was transferred to organization "${targetOrganizationId}"`
+			);
+		} catch (error) {
+			throw new Error(`Logging failed: ${String(error)}`);
+		}
+
+		await this.invalidateCaches(websiteId, userId);
+
+		return transferredWebsite;
 	}
 }

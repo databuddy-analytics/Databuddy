@@ -11,7 +11,7 @@ const geistMono = Geist_Mono({
 export function LogoContent() {
 	return (
 		<div className="group flex items-center gap-3">
-			<div className="relative flex-shrink-0">
+			<div className="relative shrink-0">
 				<Image
 					alt="DataBuddy Logo"
 					className="drop-shadow-sm invert dark:invert-0"
@@ -37,7 +37,7 @@ export function LogoContent() {
 export function Logo() {
 	return (
 		<Link className="flex items-center gap-3" href="/">
-			<div className="relative flex-shrink-0">
+			<div className="relative shrink-0">
 				<Image
 					alt="DataBuddy Logo"
 					className="drop-shadow-sm invert dark:invert-0"

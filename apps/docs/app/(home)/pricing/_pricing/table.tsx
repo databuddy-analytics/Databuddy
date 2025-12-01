@@ -79,26 +79,6 @@ export function PlansComparisonTable({ plans }: Props) {
 						</tr>
 						<tr className="border-border border-t transition-colors hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Websites
-							</td>
-							{plans.map((p) => (
-								<td
-									className={`px-4 py-3 text-center text-foreground sm:px-5 lg:px-6 ${p.id === "pro" ? "border-border border-x bg-primary/10" : ""}`}
-									key={`sites-${p.id}`}
-								>
-									{p.websitesIncluded === "inf"
-										? "Unlimited"
-										: p.websitesIncluded?.toLocaleString()}
-									{p.websitesOveragePerUnit ? (
-										<span className="text-muted-foreground text-xs">
-											{` (then $${Number(p.websitesOveragePerUnit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/website)`}
-										</span>
-									) : null}
-								</td>
-							))}
-						</tr>
-						<tr className="border-border border-t transition-colors hover:bg-card/10">
-							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Assistant messages / day
 							</td>
 							{plans.map((p) => (

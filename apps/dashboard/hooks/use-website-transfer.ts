@@ -1,43 +1,49 @@
 "use client";
 
-import { trpc } from "@/lib/trpc";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
 
 export function useWebsiteTransfer(organizationId?: string) {
-	// Fetch personal websites (no organizationId)
-	const { data: personalWebsites, isLoading: isLoadingPersonal } =
-		trpc.websites.list.useQuery({
-			organizationId: undefined,
-		});
+	const queryClient = useQueryClient();
 
-	// Fetch organization websites (only if organizationId is provided)
-	const { data: organizationWebsites, isLoading: isLoadingOrg } =
-		trpc.websites.list.useQuery(
-			{
-				organizationId,
-			},
-			{
-				enabled: !!organizationId,
-			}
-		);
+	const { data: personalWebsites, isLoading: isLoadingPersonal } = useQuery({
+		...orpc.websites.list.queryOptions({
+			input: { organizationId: undefined },
+		}),
+	});
 
-	const utils = trpc.useUtils();
+	const { data: organizationWebsites, isLoading: isLoadingOrg } = useQuery({
+		...orpc.websites.list.queryOptions({
+			input: { organizationId },
+		}),
+		enabled: !!organizationId,
+	});
 
-	const transferMutation = trpc.websites.transfer.useMutation({
-		onSuccess: (_, variables) => {
-			utils.websites.list.invalidate();
-			utils.websites.listWithCharts.invalidate();
-			utils.websites.getById.invalidate({ id: variables.websiteId });
+	const transferMutation = useMutation({
+		...orpc.websites.transfer.mutationOptions(),
+		onSuccess: (_data, variables) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.websites.list.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.websites.listWithCharts.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.websites.getById.key({
+					input: { id: variables.websiteId },
+				}),
+			});
 		},
 	});
 
 	return {
-		personalWebsites: personalWebsites || [],
-		organizationWebsites: organizationWebsites || [],
+		personalWebsites: personalWebsites ?? [],
+		organizationWebsites: organizationWebsites ?? [],
 		isLoading: isLoadingPersonal || isLoadingOrg,
 		isTransferring: transferMutation.isPending,
 		transferWebsite: (
 			args: { websiteId: string; organizationId?: string },
-			opts?: { onSuccess?: () => void; onError?: (error: any) => void }
+			opts?: { onSuccess?: () => void; onError?: (error: unknown) => void }
 		) => {
 			transferMutation.mutate(args, {
 				onSuccess: () => {

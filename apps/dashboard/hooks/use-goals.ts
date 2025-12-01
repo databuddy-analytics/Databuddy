@@ -1,63 +1,60 @@
+import type { goals, InferInsertModel, InferSelectModel } from "@databuddy/db";
 import type { GoalFilter } from "@databuddy/shared/types/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 
-export interface Goal {
-	id: string;
-	websiteId: string;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	name: string;
-	description?: string | null;
-	filters?: GoalFilter[];
-	isActive: boolean;
-	createdBy: string;
-	createdAt: string;
-	updatedAt: string;
-	deletedAt?: string | null;
-}
-
-export interface CreateGoalData {
-	websiteId: string;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	name: string;
-	description?: string;
-	filters?: GoalFilter[];
-}
+export type Goal = InferSelectModel<typeof goals>;
+export type CreateGoalData = InferInsertModel<typeof goals>;
+export type UpdateGoalData = Partial<InferInsertModel<typeof goals>>;
 
 export function useGoals(websiteId: string, enabled = true) {
 	const queryClient = useQueryClient();
-	const query = trpc.goals.list.useQuery(
-		{ websiteId },
-		{ enabled: enabled && !!websiteId }
-	);
+	const query = useQuery({
+		...orpc.goals.list.queryOptions({ input: { websiteId } }),
+		enabled: enabled && !!websiteId,
+	});
+
 	const goalsData = useMemo(
 		() =>
-			(query.data || []).map((goal) => ({
+			(query.data ?? []).map((goal) => ({
 				...goal,
 				type: goal.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
-				filters: (goal.filters as GoalFilter[]) || [],
+				filters: (goal.filters as GoalFilter[]) ?? [],
 			})),
 		[query.data]
 	);
 
-	const createMutation = trpc.goals.create.useMutation({
+	const createMutation = useMutation({
+		...orpc.goals.create.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
+			queryClient.invalidateQueries({
+				queryKey: orpc.goals.list.key({ input: { websiteId } }),
+			});
 		},
 	});
-	const updateMutation = trpc.goals.update.useMutation({
+
+	const updateMutation = useMutation({
+		...orpc.goals.update.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
-			queryClient.invalidateQueries({ queryKey: [["goals", "getAnalytics"]] });
+			queryClient.invalidateQueries({
+				queryKey: orpc.goals.list.key({ input: { websiteId } }),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.goals.getAnalytics.key(),
+			});
 		},
 	});
-	const deleteMutation = trpc.goals.delete.useMutation({
+
+	const deleteMutation = useMutation({
+		...orpc.goals.delete.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [["goals", "list"]] });
-			queryClient.invalidateQueries({ queryKey: [["goals", "getAnalytics"]] });
+			queryClient.invalidateQueries({
+				queryKey: orpc.goals.list.key({ input: { websiteId } }),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.goals.getAnalytics.key(),
+			});
 		},
 	});
 
@@ -73,7 +70,7 @@ export function useGoals(websiteId: string, enabled = true) {
 			updates,
 		}: {
 			goalId: string;
-			updates: Partial<CreateGoalData>;
+			updates: UpdateGoalData;
 		}) => updateMutation.mutateAsync({ id: goalId, ...updates }),
 		deleteGoal: (goalId: string) => deleteMutation.mutateAsync({ id: goalId }),
 		isCreating: createMutation.isPending,
@@ -86,10 +83,10 @@ export function useGoals(websiteId: string, enabled = true) {
 }
 
 export function useGoal(websiteId: string, goalId: string, enabled = true) {
-	return trpc.goals.getById.useQuery(
-		{ id: goalId, websiteId },
-		{ enabled: enabled && !!websiteId && !!goalId }
-	);
+	return useQuery({
+		...orpc.goals.getById.queryOptions({ input: { id: goalId, websiteId } }),
+		enabled: enabled && !!websiteId && !!goalId,
+	});
 }
 
 export function useGoalAnalytics(
@@ -98,15 +95,17 @@ export function useGoalAnalytics(
 	dateRange: { start_date: string; end_date: string },
 	options: { enabled: boolean } = { enabled: true }
 ) {
-	return trpc.goals.getAnalytics.useQuery(
-		{
-			goalId,
-			websiteId,
-			startDate: dateRange?.start_date,
-			endDate: dateRange?.end_date,
-		},
-		{ enabled: options.enabled && !!websiteId && !!goalId }
-	);
+	return useQuery({
+		...orpc.goals.getAnalytics.queryOptions({
+			input: {
+				goalId,
+				websiteId,
+				startDate: dateRange?.start_date,
+				endDate: dateRange?.end_date,
+			},
+		}),
+		enabled: options.enabled && !!websiteId && !!goalId,
+	});
 }
 
 export function useBulkGoalAnalytics(
@@ -115,13 +114,15 @@ export function useBulkGoalAnalytics(
 	dateRange: { start_date: string; end_date: string },
 	options: { enabled: boolean } = { enabled: true }
 ) {
-	return trpc.goals.bulkAnalytics.useQuery(
-		{
-			websiteId,
-			goalIds,
-			startDate: dateRange?.start_date,
-			endDate: dateRange?.end_date,
-		},
-		{ enabled: options.enabled && !!websiteId && goalIds.length > 0 }
-	);
+	return useQuery({
+		...orpc.goals.bulkAnalytics.queryOptions({
+			input: {
+				websiteId,
+				goalIds,
+				startDate: dateRange?.start_date,
+				endDate: dateRange?.end_date,
+			},
+		}),
+		enabled: options.enabled && !!websiteId && goalIds.length > 0,
+	});
 }

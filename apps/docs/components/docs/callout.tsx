@@ -79,7 +79,7 @@ function Callout({
 			{...props}
 		>
 			<div className="flex items-center gap-2 pl-4">
-				<div className="mt-0.5 flex-shrink-0">
+				<div className="mt-0.5 shrink-0">
 					<Icon className={cn(iconVariants({ type }))} weight="duotone" />
 				</div>
 				<div className="min-w-0 flex-1 space-y-2">

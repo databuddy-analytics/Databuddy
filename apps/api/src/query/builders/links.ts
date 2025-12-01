@@ -101,8 +101,8 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 						)
 						WHERE 
 							ol.client_id = {websiteId:String}
-							AND ol.timestamp >= parseDateTimeBestEffort({startDate:String})
-							AND ol.timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+							AND ol.timestamp >= toDateTime({startDate:String})
+							AND ol.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 							AND ol.href IS NOT NULL
 							AND ol.href != ''
 							AND ol.href NOT LIKE '%undefined%'
@@ -247,8 +247,8 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 						)
 						WHERE 
 							ol.client_id = {websiteId:String}
-							AND ol.timestamp >= parseDateTimeBestEffort({startDate:String})
-							AND ol.timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'))
+							AND ol.timestamp >= toDateTime({startDate:String})
+							AND ol.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 							AND ol.href IS NOT NULL
 							AND ol.href != ''
 							AND ol.href NOT LIKE '%undefined%'

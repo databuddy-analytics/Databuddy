@@ -96,13 +96,19 @@ export function Estimator({
 						</div>
 
 						<div className="rounded border border-border bg-card/20 p-4">
-							<div className="flex items-center justify-between">
-								<span className="text-muted-foreground text-sm">
-									Best matching plan
-								</span>
-								<span className="font-medium text-sm">
-									{bestPlanDisplayName}
-								</span>
+							<div className="flex flex-col gap-1">
+								<div className="flex items-center justify-between">
+									<span className="text-muted-foreground text-sm">
+										Recommended plan
+									</span>
+									<span className="font-medium text-sm">
+										{bestPlanDisplayName}
+									</span>
+								</div>
+								<p className="text-muted-foreground text-xs">
+									Cheapest option for {formatInteger(monthlyEvents)}{" "}
+									events/month
+								</p>
 							</div>
 							<Separator className="my-3" />
 							<div className="relative h-2 w-full rounded bg-muted">

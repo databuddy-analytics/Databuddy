@@ -1,9 +1,5 @@
-import { Logtail } from "@logtail/edge";
+import { logger as sharedLogger } from "@databuddy/shared/logger";
 
-const token = process.env.LOGTAIL_SOURCE_TOKEN as string;
-const endpoint = process.env.LOGTAIL_ENDPOINT as string;
-export const logger = new Logtail(token, {
-	endpoint,
-	batchSize: 10,
-	batchInterval: 1000,
+export const logger = sharedLogger.child({
+	service: "rpc",
 });

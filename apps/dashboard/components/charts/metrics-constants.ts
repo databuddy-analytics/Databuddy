@@ -25,15 +25,15 @@ const createColorSet = (
 
 export const METRIC_COLORS = {
 	pageviews: createColorSet(
-		"#3b82f6",
-		"#1d4ed8",
+		"#2E27F5",
+		"#3D39E3",
 		"#dbeafe",
 		"from-blue-500/20 to-blue-600/5"
 	),
 	visitors: createColorSet(
-		"#10b981",
-		"#059669",
-		"#d1fae5",
+		"#40BCF7",
+		"#25B0F5",
+		"#ADE6FF",
 		"from-emerald-500/20 to-emerald-600/5"
 	),
 	sessions: createColorSet(
@@ -130,7 +130,7 @@ export const METRIC_COLORS = {
 	),
 } as const;
 
-export interface ChartDataRow {
+export type ChartDataRow = {
 	date: string;
 	pageviews?: number;
 	visitors?: number;
@@ -157,9 +157,9 @@ export interface ChartDataRow {
 	p50_inp?: number;
 	measurements?: number;
 	[key: string]: unknown;
-}
+};
 
-export interface MetricConfig {
+export type MetricConfig = {
 	key: string;
 	label: string;
 	color: string;
@@ -168,7 +168,7 @@ export interface MetricConfig {
 	icon: React.ComponentType<{ className?: string }>;
 	formatValue?: (value: number, row: ChartDataRow) => string;
 	category?: "analytics" | "performance" | "core_web_vitals";
-}
+};
 
 // Utility functions
 export const formatPerformanceTime = (value: number): string => {

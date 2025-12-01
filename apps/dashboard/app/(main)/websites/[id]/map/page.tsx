@@ -4,9 +4,9 @@ import type { LocationData } from "@databuddy/shared/types/website";
 import { GlobeIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { useParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState } from "react";
+import { CountryFlag } from "@/components/icon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -53,14 +53,15 @@ function CountryRow({
 }: CountryRowProps) {
 	const percentage =
 		totalVisitors > 0 ? (country.visitors / totalVisitors) * 100 : 0;
+	// Colors from globals.css: success, chart-1, warning, muted
 	const getColor = (pct: number) =>
 		pct >= 50
-			? ["rgba(34, 197, 94, 0.08)", "rgba(34, 197, 94, 0.8)"]
+			? ["oklch(0.60 0.22 150 / 0.08)", "oklch(0.60 0.22 150 / 0.8)"] // success
 			: pct >= 25
-				? ["rgba(59, 130, 246, 0.08)", "rgba(59, 130, 246, 0.8)"]
+				? ["oklch(0.81 0.1 252 / 0.08)", "oklch(0.81 0.1 252 / 0.8)"] // chart-1
 				: pct >= 10
-					? ["rgba(245, 158, 11, 0.08)", "rgba(245, 158, 11, 0.8)"]
-					: ["rgba(107, 114, 128, 0.06)", "rgba(107, 114, 128, 0.7)"];
+					? ["oklch(0.7 0.17 76 / 0.08)", "oklch(0.7 0.17 76 / 0.8)"] // warning
+					: ["oklch(0.60 0.0079 240 / 0.06)", "oklch(0.60 0.0079 240 / 0.7)"]; // muted
 	const [bgColor, accentColor] = getColor(percentage);
 
 	return (
@@ -78,15 +79,10 @@ function CountryRow({
 			}}
 			type="button"
 		>
-			<div className="relative h-4 w-5 flex-shrink-0 overflow-hidden border border-border/20 shadow-sm">
-				<Image
-					alt={`${country.country} flag`}
-					className="object-cover"
-					fill
-					sizes="32p"
-					src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${country.country_code?.toUpperCase() || country.country.toUpperCase()}.svg`}
-				/>
-			</div>
+			<CountryFlag
+				country={country.country_code?.toUpperCase() || country.country.toUpperCase()}
+				size={16}
+			/>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center justify-between">
 					<div className="truncate font-medium text-xs">{country.country}</div>
@@ -103,7 +99,6 @@ function CountryRow({
 
 function WebsiteMapPage() {
 	const { id } = useParams<{ id: string }>();
-	const [mode] = useState<"total" | "perCapita">("total");
 	const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
 	const { dateRange } = useDateFilters();
@@ -176,7 +171,6 @@ function WebsiteMapPage() {
 					height="100%"
 					isLoading={isLoading}
 					locationData={locationData}
-					mode={mode}
 					selectedCountry={selectedCountry}
 				/>
 

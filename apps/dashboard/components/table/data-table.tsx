@@ -18,15 +18,15 @@ const DEFAULT_MIN_HEIGHT = 200;
 const FULLSCREEN_HEIGHT = "h-[92vh]";
 const FULLSCREEN_WIDTH = "w-[92vw]";
 
-interface TabConfig<TData> {
+type TabConfig<TData> = {
 	id: string;
 	label: string;
 	data: TData[];
 	columns: ColumnDef<TData, unknown>[];
 	getFilter?: (row: TData) => { field: string; value: string };
-}
+};
 
-interface DataTableProps<TData extends { name: string | number }, TValue> {
+type DataTableProps<TData extends { name: string | number }, TValue> = {
 	data?: TData[] | undefined;
 	columns?: ColumnDef<TData, TValue>[];
 	tabs?: TabConfig<TData>[];
@@ -47,7 +47,7 @@ interface DataTableProps<TData extends { name: string | number }, TValue> {
 		index: number
 	) => React.ReactNode;
 	expandable?: boolean;
-}
+};
 
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
 	<div className="animate-pulse space-y-3" style={{ minHeight }}>
@@ -61,7 +61,7 @@ const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
 					className="flex animate-pulse items-center space-x-4 rounded bg-sidebar-accent/20 p-3"
 					key={`skeleton-${itemIndex}`}
 				>
-					<Skeleton className="h-6 w-6 flex-shrink-0 rounded-full" />
+					<Skeleton className="h-6 w-6 shrink-0 rounded-full" />
 					<div className="flex-1 space-y-2">
 						<Skeleton className="h-4 w-full rounded" />
 						<div className="flex items-center space-x-2">
@@ -113,7 +113,9 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	});
 
 	const handleTabChange = (tabId: string) => {
-		if (tabId === activeTab) return;
+		if (tabId === activeTab) {
+			return;
+		}
 		setActiveTab(tabId);
 	};
 
@@ -121,7 +123,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		return (
 			<div
 				className={cn(
-					"w-full overflow-hidden rounded border-sidebar-border bg-sidebar/50 shadow-sm backdrop-blur-sm",
+					"w-full overflow-hidden rounded border bg-accent/50 backdrop-blur-sm",
 					className
 				)}
 			>
@@ -154,12 +156,13 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		<>
 			<div
 				className={cn(
-					"w-full overflow-hidden rounded border bg-card/50 shadow-sm backdrop-blur-sm",
+					"w-full overflow-hidden rounded border bg-card backdrop-blur-sm",
 					className
 				)}
 			>
 				{/* Toolbar */}
 				<TableToolbar
+					borderBottom={!tabs}
 					description={description}
 					onFullScreenToggle={() => setFullScreen(true)}
 					title={title}
@@ -196,7 +199,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 				fullScreen &&
 				ReactDOM.createPortal(
 					<div
-						className="fixed inset-0 z-[1000] flex items-center justify-center"
+						className="fixed inset-0 z-1000 flex items-center justify-center"
 						ref={modalRef}
 						tabIndex={-1}
 					>

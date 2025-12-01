@@ -1,7 +1,8 @@
 "use client";
 
 import { RocketLaunchIcon } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { SciFiButton } from "@/components/landing/scifi-btn";
+import { SciFiCard } from "@/components/scifi-card";
 
 const examples = ["saas", "merch store"] as const;
 const prompts = {
@@ -33,7 +34,10 @@ export const LeapComponent = () => {
 	};
 
 	return (
-		<div className="group relative my-2 mb-8 w-fullrounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70">
+		<SciFiCard
+			className="my-2 mb-8 w-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/70"
+			opacity="reduced"
+		>
 			<div className="p-4 sm:p-3">
 				<div className="mb-2 flex items-center gap-2">
 					<RocketLaunchIcon
@@ -56,20 +60,13 @@ export const LeapComponent = () => {
 						placeholder="What do you want to build with Databuddy analytics?"
 						type="text"
 					/>
-					<button
-						className={cn(
-							"inline-flex items-center justify-center whitespace-nowrap rounded px-4 py-2 font-medium text-sm transition-all duration-200",
-							"bg-foreground/5 text-foreground backdrop-blur-[50px]",
-							"border border-border hover:animate-[borderGlitch_0.6s_ease-in-out]",
-							"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.98]",
-							"w-full sm:w-auto"
-						)}
+					<SciFiButton
+						className="w-full sm:w-auto"
 						data-track="leap-generate"
 						onClick={handleGenerate}
-						type="button"
 					>
 						Generate
-					</button>
+					</SciFiButton>
 				</div>
 
 				<div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -86,25 +83,7 @@ export const LeapComponent = () => {
 					))}
 				</div>
 			</div>
-
-			{/* Sci-fi corners */}
-			<div className="pointer-events-none absolute inset-0">
-				{[
-					"top-0 left-0",
-					"top-0 right-0 -scale-x-[1]",
-					"bottom-0 left-0 -scale-y-[1]",
-					"bottom-0 right-0 -scale-[1]",
-				].map((position) => (
-					<div
-						className={`absolute h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out] ${position}`}
-						key={position}
-					>
-						<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground/20" />
-						<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground/20" />
-					</div>
-				))}
-			</div>
-		</div>
+		</SciFiCard>
 	);
 };
 

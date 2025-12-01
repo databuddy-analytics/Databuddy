@@ -7,8 +7,8 @@ import {
 	emailEventSchema,
 } from "@databuddy/validation";
 import { Elysia } from "elysia";
-import { logger } from "../lib/logger";
 import { sendEvent } from "../lib/producer";
+import { captureError } from "../lib/tracing";
 
 const expectedKey = process.env.EMAIL_API_KEY;
 
@@ -16,7 +16,7 @@ function validateApiKey(request: Request): boolean {
 	const apiKey = request.headers.get("x-api-key");
 
 	if (!expectedKey) {
-		logger.error("EMAIL_API_KEY not configured");
+		captureError(new Error("EMAIL_API_KEY not configured"));
 		return false;
 	}
 
@@ -27,7 +27,7 @@ function hashEmailId(emailId: string, domain: string): string {
 	return createHash("sha256").update(`${emailId}:${domain}`).digest("hex");
 }
 
-async function insertEmailEvent(emailData: EmailEventInput): Promise<void> {
+function insertEmailEvent(emailData: EmailEventInput): void {
 	const now = Date.now();
 
 	const emailHash = hashEmailId(emailData.email_id, emailData.domain);
@@ -48,13 +48,12 @@ async function insertEmailEvent(emailData: EmailEventInput): Promise<void> {
 	try {
 		sendEvent("analytics-email-events", emailEvent);
 
-		logger.info({ emailEvent }, "Email event sent to Kafka successfully");
-	} catch (err) {
-		logger.error(
-			{ error: err as Error, emailEvent },
-			"Failed to send email event to Kafka"
-		);
-		throw err;
+		// logger.info({ emailEvent }, "Email event sent to Kafka successfully");
+	} catch (error) {
+		captureError(error, {
+			message: "Failed to send email event to Kafka",
+			email_id: emailEvent.event_id,
+		});
 	}
 }
 
@@ -102,14 +101,14 @@ const app = new Elysia()
 			}
 
 			try {
-				await insertEmailEvent(emailData);
+				insertEmailEvent(emailData);
 				return {
 					status: "success",
 					type: "email",
 					event_id: emailHash,
 				};
 			} catch (error) {
-				logger.error({ error }, "Email event processing failed");
+				captureError(error, { message: "Email event processing failed" });
 				return {
 					status: "error",
 					message: "Failed to process email event",
@@ -154,7 +153,7 @@ const app = new Elysia()
 					}
 
 					try {
-						await insertEmailEvent(emailData);
+						insertEmailEvent(emailData);
 						return {
 							status: "success",
 							type: "email",

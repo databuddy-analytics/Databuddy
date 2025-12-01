@@ -8,9 +8,14 @@ import {
 	SpinnerGapIcon,
 	UserIcon,
 } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import {
+	AUTH_QUERY_KEYS,
+	useOrganizationsContext,
+} from "@/components/providers/organizations-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,29 +36,29 @@ const getOrganizationInitials = (name: string) =>
 		.toUpperCase()
 		.slice(0, 2);
 
+const MENU_ITEM_BASE_CLASSES =
+	"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground";
+const MENU_ITEM_ACTIVE_CLASSES =
+	"bg-sidebar-accent font-medium text-sidebar-accent-foreground";
+
 function filterOrganizations<T extends { name: string; slug?: string | null }>(
 	orgs: T[] | undefined,
 	query: string
 ): T[] {
-	if (!orgs || orgs.length === 0) {
+	if (!orgs?.length) {
 		return [];
 	}
 	if (!query) {
 		return orgs;
 	}
 	const q = query.toLowerCase();
-	const filtered: T[] = [];
-	for (const org of orgs) {
-		const nameMatch = org.name.toLowerCase().includes(q);
-		const slugMatch = org.slug ? org.slug.toLowerCase().includes(q) : false;
-		if (nameMatch || slugMatch) {
-			filtered.push(org);
-		}
-	}
-	return filtered;
+	return orgs.filter(
+		(org) =>
+			org.name.toLowerCase().includes(q) || org.slug?.toLowerCase().includes(q)
+	);
 }
 
-interface OrganizationSelectorTriggerProps {
+type OrganizationSelectorTriggerProps = {
 	activeOrganization: {
 		name: string;
 		slug?: string | null;
@@ -61,7 +66,7 @@ interface OrganizationSelectorTriggerProps {
 	} | null;
 	isOpen: boolean;
 	isSettingActiveOrganization: boolean;
-}
+};
 
 function OrganizationSelectorTrigger({
 	activeOrganization,
@@ -71,7 +76,7 @@ function OrganizationSelectorTrigger({
 	return (
 		<div
 			className={cn(
-				"flex h-12 w-full items-center border-sidebar-border border-b bg-sidebar-accent px-3 py-3 transition-colors",
+				"flex h-12 w-full items-center border-b bg-sidebar-accent px-3 py-3 transition-colors",
 				"hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
 				isSettingActiveOrganization && "cursor-not-allowed opacity-70",
 				isOpen && "bg-sidebar-accent/60"
@@ -80,17 +85,17 @@ function OrganizationSelectorTrigger({
 			<div className="flex w-full items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="rounded">
-						<Avatar className="h-5 w-5">
+						<Avatar className="size-7">
 							<AvatarImage
 								alt={activeOrganization?.name || "Personal"}
 								className="rounded"
 								src={activeOrganization?.logo || undefined}
 							/>
-							<AvatarFallback className="bg-transparent font-medium text-xs">
+							<AvatarFallback className="bg-secondary font-medium text-xs">
 								{activeOrganization?.name ? (
 									getOrganizationInitials(activeOrganization.name)
 								) : (
-									<UserIcon className="text-sidebar-ring" weight="duotone" />
+									<UserIcon weight="duotone" />
 								)}
 							</AvatarFallback>
 						</Avatar>
@@ -116,7 +121,6 @@ function OrganizationSelectorTrigger({
 							"h-4 w-4 text-sidebar-accent-foreground/60 transition-transform duration-200",
 							isOpen && "rotate-180"
 						)}
-						weight="fill"
 					/>
 				)}
 			</div>
@@ -125,20 +129,22 @@ function OrganizationSelectorTrigger({
 }
 
 export function OrganizationSelector() {
-	const { data: organizations, isPending: isLoadingOrgs } =
-		authClient.useListOrganizations();
-	const { data: activeOrganization, isPending: isLoadingActive } =
-		authClient.useActiveOrganization();
+	const queryClient = useQueryClient();
+	const { organizations, activeOrganization, isLoading } =
+		useOrganizationsContext();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState("");
 	const [isSwitching, setIsSwitching] = useState(false);
 
-	const isLoading = isLoadingOrgs || isLoadingActive;
-
 	const handleSelectOrganization = async (organizationId: string | null) => {
-		if (organizationId === activeOrganization?.id) return;
-		if (organizationId === null && !activeOrganization) return;
+		const isAlreadySelected =
+			organizationId === activeOrganization?.id ||
+			(organizationId === null && !activeOrganization);
+
+		if (isAlreadySelected) {
+			return;
+		}
 
 		setIsSwitching(true);
 		setIsOpen(false);
@@ -149,26 +155,27 @@ export function OrganizationSelector() {
 
 		if (error) {
 			toast.error(error.message || "Failed to switch workspace");
-		} else {
-			toast.success("Workspace updated");
+			setIsSwitching(false);
+			return;
 		}
 
+		await queryClient.invalidateQueries({
+			queryKey: AUTH_QUERY_KEYS.activeOrganization,
+		});
+		queryClient.invalidateQueries();
+
 		setIsSwitching(false);
+		toast.success("Workspace updated");
 	};
 
-	const handleCreateOrganization = () => {
-		setShowCreateDialog(true);
-		setIsOpen(false);
-	};
-
-	const filteredOrganizations = filterOrganizations(organizations || [], query);
+	const filteredOrganizations = filterOrganizations(organizations, query);
 
 	if (isLoading) {
 		return (
-			<div className="flex h-12 w-full items-center border-sidebar-border border-b bg-sidebar-accent px-3 py-3">
+			<div className="flex h-12 w-full items-center bg-sidebar-accent px-3 py-3">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-3">
-						<div className="rounded-lg bg-sidebar/80 p-1.5 ring-1 ring-sidebar-border/50">
+						<div className="rounded-lg border bg-sidebar/80 p-1.5">
 							<Skeleton className="h-5 w-5 rounded" />
 						</div>
 						<div className="flex min-w-0 flex-1 flex-col items-start">
@@ -211,12 +218,12 @@ export function OrganizationSelector() {
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					align="start"
-					className="w-72 rounded-none border-sidebar-border bg-sidebar p-0"
+					className="w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
 					sideOffset={0}
 				>
 					<DropdownMenuItem
 						className={cn(
-							"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+							"flex cursor-pointer items-center gap-3 border-b px-4 py-2.5 text-sm transition-colors",
 							"text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
 							!activeOrganization &&
 								"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
@@ -224,7 +231,7 @@ export function OrganizationSelector() {
 						onClick={() => handleSelectOrganization(null)}
 					>
 						<UserIcon
-							className="h-5 w-5 not-dark:text-primary"
+							className="h-5 w-5 text-accent-foreground"
 							weight="duotone"
 						/>
 						<div className="flex min-w-0 flex-1 flex-col items-start text-left">
@@ -234,28 +241,23 @@ export function OrganizationSelector() {
 							</span>
 						</div>
 						{!activeOrganization && (
-							<CheckIcon
-								className="h-4 w-4 not-dark:text-primary"
-								weight="duotone"
-							/>
+							<CheckIcon className="h-4 w-4 text-accent-foreground" />
 						)}
 					</DropdownMenuItem>
 
-					{filteredOrganizations && filteredOrganizations.length > 0 && (
+					{filteredOrganizations.length > 0 && (
 						<div className="flex flex-col">
-							<DropdownMenuSeparator className="m-0 bg-sidebar-border p-0" />
 							{filteredOrganizations.map((org) => (
 								<DropdownMenuItem
 									className={cn(
-										"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
-										"text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+										MENU_ITEM_BASE_CLASSES,
 										activeOrganization?.id === org.id &&
-											"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+											MENU_ITEM_ACTIVE_CLASSES
 									)}
 									key={org.id}
 									onClick={() => handleSelectOrganization(org.id)}
 								>
-									<Avatar className="h-5 w-5">
+									<Avatar className="size-5">
 										<AvatarImage alt={org.name} src={org.logo || undefined} />
 										<AvatarFallback className="bg-sidebar-primary/30 text-xs">
 											{getOrganizationInitials(org.name)}
@@ -270,22 +272,22 @@ export function OrganizationSelector() {
 										</span>
 									</div>
 									{activeOrganization?.id === org.id && (
-										<CheckIcon
-											className="h-4 w-4 not-dark:text-primary"
-											weight="duotone"
-										/>
+										<CheckIcon className="h-4 w-4 text-accent-foreground" />
 									)}
 								</DropdownMenuItem>
 							))}
 						</div>
 					)}
 
-					<DropdownMenuSeparator className="m-0 bg-sidebar-border p-0" />
+					<DropdownMenuSeparator className="m-0 p-0" />
 					<DropdownMenuItem
-						className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sidebar-foreground/70 text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-						onClick={handleCreateOrganization}
+						className={MENU_ITEM_BASE_CLASSES}
+						onClick={() => {
+							setShowCreateDialog(true);
+							setIsOpen(false);
+						}}
 					>
-						<PlusIcon className="h-5 w-5 not-dark:text-primary" />
+						<PlusIcon className="h-5 w-5 text-accent-foreground" />
 						<span className="font-medium text-sm">Create Organization</span>
 					</DropdownMenuItem>
 				</DropdownMenuContent>

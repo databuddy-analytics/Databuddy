@@ -179,7 +179,7 @@ export default function AcceptInvitationPage() {
 						</div>
 
 						<div className="mb-8 space-y-4">
-							<h3 className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text font-bold text-2xl text-transparent">
+							<h3 className="bg-linear-to-r from-foreground to-foreground/70 bg-clip-text font-bold text-2xl text-transparent">
 								You're Invited!
 							</h3>
 							<p className="max-w-md text-lg text-muted-foreground leading-relaxed">
@@ -265,7 +265,7 @@ export default function AcceptInvitationPage() {
 				return (
 					<div className="flex flex-col items-center justify-center px-4 py-16 text-center">
 						<div className="relative mb-8">
-							<div className="rounded-full border border-primary/20 bg-primary/10 p-8">
+							<div className="rounded-full border border-accent bg-accent/50 p-8">
 								<CircleNotch className="h-16 w-16 animate-spin text-primary" />
 							</div>
 						</div>
@@ -298,7 +298,7 @@ export default function AcceptInvitationPage() {
 						</div>
 
 						<div className="mb-8 space-y-4">
-							<h3 className="bg-gradient-to-r from-green-600 to-green-500 bg-clip-text font-bold text-2xl text-transparent">
+							<h3 className="bg-linear-to-r from-green-600 to-green-500 bg-clip-text font-bold text-2xl text-transparent">
 								Welcome Aboard!
 							</h3>
 							<p className="text-lg text-muted-foreground leading-relaxed">
@@ -438,7 +438,7 @@ export default function AcceptInvitationPage() {
 				<div className="flex flex-col justify-between gap-3 p-3 sm:flex-row sm:items-center sm:gap-0 sm:px-4 sm:py-4">
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3">
-							<div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
+							<div className="rounded-lg border border-accent bg-accent/50 p-2">
 								<UserPlus className="h-5 w-5 text-primary" weight="duotone" />
 							</div>
 							<div>

@@ -1,6 +1,6 @@
 import { and, desc, eq, goals, inArray, isNull, sql } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import {
 	type AnalyticsStep,
@@ -8,59 +8,13 @@ import {
 	processGoalAnalytics,
 } from "../lib/analytics-utils";
 import { logger } from "../lib/logger";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "goals" });
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 600;
-
-const goalSchema = z.object({
-	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-	target: z.string().min(1),
-	name: z.string().min(1).max(100),
-	description: z.string().optional(),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-				value: z.union([z.string(), z.array(z.string())]),
-			})
-		)
-		.optional(),
-});
-
-const createGoalSchema = z.object({
-	websiteId: z.string(),
-	...goalSchema.shape,
-});
-
-const updateGoalSchema = z.object({
-	id: z.string(),
-	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
-	target: z.string().min(1).optional(),
-	name: z.string().min(1).max(100).optional(),
-	description: z.string().optional(),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-				value: z.union([z.string(), z.array(z.string())]),
-			})
-		)
-		.optional(),
-	isActive: z.boolean().optional(),
-});
-
-const analyticsDateRangeSchema = z.object({
-	goalId: z.string(),
-	websiteId: z.string(),
-	startDate: z.string().optional(),
-	endDate: z.string().optional(),
-});
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -70,10 +24,10 @@ const getDefaultDateRange = () => {
 	return { startDate, endDate };
 };
 
-export const goalsRouter = createTRPCRouter({
+export const goalsRouter = {
 	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `goals:list:${input.websiteId}`;
 
 			return drizzleCache.withCache({
@@ -81,8 +35,8 @@ export const goalsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
-					return ctx.db
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
+					return context.db
 						.select()
 						.from(goals)
 						.where(
@@ -95,7 +49,7 @@ export const goalsRouter = createTRPCRouter({
 
 	getById: publicProcedure
 		.input(z.object({ id: z.string(), websiteId: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `goals:byId:${input.id}:${input.websiteId}`;
 
 			return drizzleCache.withCache({
@@ -103,8 +57,8 @@ export const goalsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
-					const result = await ctx.db
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
+					const result = await context.db
 						.select()
 						.from(goals)
 						.where(
@@ -116,8 +70,7 @@ export const goalsRouter = createTRPCRouter({
 						)
 						.limit(1);
 					if (result.length === 0) {
-						throw new TRPCError({
-							code: "NOT_FOUND",
+						throw new ORPCError("NOT_FOUND", {
 							message: "Goal not found",
 						});
 					}
@@ -127,11 +80,20 @@ export const goalsRouter = createTRPCRouter({
 		}),
 
 	create: protectedProcedure
-		.input(createGoalSchema)
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
+		.input(
+			z.object({
+				websiteId: z.string(),
+				type: z.string(),
+				target: z.string(),
+				name: z.string(),
+				description: z.string().nullable().optional(),
+				filters: z.unknown().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
 			const goalId = crypto.randomUUID();
-			const [newGoal] = await ctx.db
+			const [newGoal] = await context.db
 				.insert(goals)
 				.values({
 					id: goalId,
@@ -142,7 +104,7 @@ export const goalsRouter = createTRPCRouter({
 					description: input.description,
 					filters: input.filters,
 					isActive: true,
-					createdBy: ctx.user.id,
+					createdBy: context.user.id,
 				})
 				.returning();
 
@@ -152,19 +114,33 @@ export const goalsRouter = createTRPCRouter({
 		}),
 
 	update: protectedProcedure
-		.input(updateGoalSchema)
-		.mutation(async ({ ctx, input }) => {
-			const existingGoal = await ctx.db
+		.input(
+			z.object({
+				id: z.string(),
+				type: z.string().optional(),
+				target: z.string().optional(),
+				name: z.string().optional(),
+				description: z.string().nullable().optional(),
+				filters: z.unknown().optional(),
+				isActive: z.boolean().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const existingGoal = await context.db
 				.select({ websiteId: goals.websiteId })
 				.from(goals)
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
 			if (existingGoal.length === 0) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found" });
+				throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, "update");
+			await authorizeWebsiteAccess(
+				context,
+				existingGoal[0].websiteId,
+				"update"
+			);
 			const { id, ...updates } = input;
-			const [updatedGoal] = await ctx.db
+			const [updatedGoal] = await context.db
 				.update(goals)
 				.set({
 					...updates,
@@ -185,17 +161,21 @@ export const goalsRouter = createTRPCRouter({
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			const existingGoal = await ctx.db
+		.handler(async ({ context, input }) => {
+			const existingGoal = await context.db
 				.select({ websiteId: goals.websiteId })
 				.from(goals)
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
 			if (existingGoal.length === 0) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found" });
+				throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingGoal[0].websiteId, "delete");
-			await ctx.db
+			await authorizeWebsiteAccess(
+				context,
+				existingGoal[0].websiteId,
+				"delete"
+			);
+			await context.db
 				.update(goals)
 				.set({
 					deletedAt: new Date(),
@@ -214,8 +194,15 @@ export const goalsRouter = createTRPCRouter({
 		}),
 
 	getAnalytics: publicProcedure
-		.input(analyticsDateRangeSchema)
-		.query(({ ctx, input }) => {
+		.input(
+			z.object({
+				goalId: z.string(),
+				websiteId: z.string(),
+				startDate: z.string().optional(),
+				endDate: z.string().optional(),
+			})
+		)
+		.handler(({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -228,8 +215,8 @@ export const goalsRouter = createTRPCRouter({
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
-					const goal = await ctx.db
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
+					const goal = await context.db
 						.select()
 						.from(goals)
 						.where(
@@ -241,8 +228,7 @@ export const goalsRouter = createTRPCRouter({
 						)
 						.limit(1);
 					if (goal.length === 0) {
-						throw new TRPCError({
-							code: "NOT_FOUND",
+						throw new ORPCError("NOT_FOUND", {
 							message: "Goal not found",
 						});
 					}
@@ -290,7 +276,7 @@ export const goalsRouter = createTRPCRouter({
 				endDate: z.string().optional(),
 			})
 		)
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -303,8 +289,8 @@ export const goalsRouter = createTRPCRouter({
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
-					const goalsList = await ctx.db
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
+					const goalsList = await context.db
 						.select()
 						.from(goals)
 						.where(
@@ -366,7 +352,27 @@ export const goalsRouter = createTRPCRouter({
 					});
 
 					const analyticsResultsArray = await Promise.all(analyticsPromises);
-					const analyticsResults: Record<string, unknown> = {};
+					const analyticsResults: Record<
+						string,
+						| {
+							overall_conversion_rate: number;
+							total_users_entered: number;
+							total_users_completed: number;
+							avg_completion_time: number;
+							avg_completion_time_formatted: string;
+							steps_analytics: Array<{
+								step_number: number;
+								step_name: string;
+								users: number;
+								total_users: number;
+								conversion_rate: number;
+								dropoffs: number;
+								dropoff_rate: number;
+								avg_time_to_complete: number;
+							}>;
+						}
+						| { error: string }
+					> = {};
 					for (const { id, result } of analyticsResultsArray) {
 						analyticsResults[id] = result;
 					}
@@ -374,4 +380,4 @@ export const goalsRouter = createTRPCRouter({
 				},
 			});
 		}),
-});
+};

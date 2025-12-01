@@ -4,15 +4,15 @@ import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 import { GridPatternBg } from "./grid-pattern";
 
-interface GridCard {
+type GridCard = {
 	title: string;
 	description: string;
 	icon: ComponentType<IconProps>;
-}
+};
 
-interface SciFiGridCardProps extends GridCard {
+type SciFiGridCardProps = GridCard & {
 	className?: string;
-}
+};
 
 export const SciFiGridCard = ({
 	title,
@@ -22,29 +22,30 @@ export const SciFiGridCard = ({
 }: SciFiGridCardProps) => (
 	<div
 		className={cn(
-			"group relative w-full overflow-hidden",
-			"min-h-[340px] sm:min-h-[380px] lg:min-h-[420px]",
+			"group relative min-h-[340px] w-full overflow-hidden rounded-none transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 sm:min-h-[380px] lg:min-h-[420px]",
 			className
 		)}
 	>
-		<div className="absolute inset-0">
+		<div className="absolute inset-0 opacity-40 transition-opacity duration-500 group-hover:opacity-100">
 			<GridPatternBg />
 		</div>
 
-		<SciFiCard className="h-full border border-border bg-transparent px-5 transition-all duration-300 sm:px-6 lg:px-8">
+		<div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-primary/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+		<SciFiCard className="h-full border border-border/50 bg-background/50 px-5 backdrop-blur-sm transition-all duration-500 group-hover:border-primary/20 group-hover:bg-background/80 sm:px-6 lg:px-8">
 			<div className="relative flex h-full flex-col items-center justify-center py-6 sm:py-8">
-				<div className="mb-6 rounded border border-border bg-card p-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] sm:mb-8 sm:p-5">
+				<div className="mb-6 rounded-2xl border border-border/50 bg-card p-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:scale-110 group-hover:border-primary/20 group-hover:shadow-lg group-hover:shadow-primary/10 sm:mb-8 sm:p-5">
 					<Icon
-						className="h-10 w-10 text-foreground/80 transition-colors duration-300 group-hover:text-foreground sm:h-12 sm:w-12"
+						className="h-10 w-10 text-muted-foreground transition-colors duration-500 group-hover:text-primary sm:h-12 sm:w-12"
 						weight="duotone"
 					/>
 				</div>
 
-				<h3 className="px-2 pb-2 text-center font-medium text-2xl text-foreground transition-colors duration-300 group-hover:text-foreground/90 sm:pb-2 sm:text-3xl">
+				<h3 className="px-2 pb-3 text-center font-semibold text-2xl text-foreground transition-colors duration-300 sm:pb-4 sm:text-3xl">
 					{title}
 				</h3>
 
-				<p className="px-2 text-center text-base text-muted-foreground/70 leading-relaxed transition-colors duration-300 group-hover:text-muted-foreground sm:text-lg">
+				<p className="max-w-[280px] px-2 text-center text-base text-muted-foreground leading-relaxed transition-colors duration-300 group-hover:text-foreground/80 sm:max-w-none sm:text-lg">
 					{description}
 				</p>
 			</div>

@@ -1,20 +1,28 @@
 import { and, desc, eq, funnelDefinitions, isNull, sql } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
-import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { ORPCError } from "@orpc/server";
+import { z } from "zod";
 import {
 	type AnalyticsStep,
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
 } from "../lib/analytics-utils";
 import { logger } from "../lib/logger";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "funnels" });
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 600;
+
+const getDefaultDateRange = () => {
+	const endDate = new Date().toISOString().split("T")[0];
+	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+		.toISOString()
+		.split("T")[0];
+	return { startDate, endDate };
+};
 
 const funnelStepSchema = z.object({
 	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
@@ -29,42 +37,10 @@ const funnelFilterSchema = z.object({
 	value: z.union([z.string(), z.array(z.string())]),
 });
 
-const createFunnelSchema = z.object({
-	websiteId: z.string(),
-	name: z.string().min(1).max(100),
-	description: z.string().optional(),
-	steps: z.array(funnelStepSchema).min(2).max(10),
-	filters: z.array(funnelFilterSchema).optional(),
-});
-
-const updateFunnelSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).max(100).optional(),
-	description: z.string().optional(),
-	steps: z.array(funnelStepSchema).min(2).max(10).optional(),
-	filters: z.array(funnelFilterSchema).optional(),
-	isActive: z.boolean().optional(),
-});
-
-const funnelAnalyticsSchema = z.object({
-	funnelId: z.string(),
-	websiteId: z.string(),
-	startDate: z.string().optional(),
-	endDate: z.string().optional(),
-});
-
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
-
-export const funnelsRouter = createTRPCRouter({
+export const funnelsRouter = {
 	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `funnels:list:${input.websiteId}`;
 
 			return drizzleCache.withCache({
@@ -72,10 +48,10 @@ export const funnelsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 
 					try {
-						const funnels = await ctx.db
+						const funnels = await context.db
 							.select({
 								id: funnelDefinitions.id,
 								name: funnelDefinitions.name,
@@ -102,8 +78,7 @@ export const funnelsRouter = createTRPCRouter({
 							error: error instanceof Error ? error.message : String(error),
 							websiteId: input.websiteId,
 						});
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
 							message: "Failed to fetch funnels",
 						});
 					}
@@ -113,7 +88,7 @@ export const funnelsRouter = createTRPCRouter({
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string(), websiteId: z.string() }))
-		.query(({ ctx, input }) => {
+		.handler(({ context, input }) => {
 			const cacheKey = `funnels:byId:${input.id}:${input.websiteId}`;
 
 			return drizzleCache.withCache({
@@ -121,10 +96,10 @@ export const funnelsRouter = createTRPCRouter({
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 
 					try {
-						const funnel = await ctx.db
+						const funnel = await context.db
 							.select()
 							.from(funnelDefinitions)
 							.where(
@@ -137,15 +112,14 @@ export const funnelsRouter = createTRPCRouter({
 							.limit(1);
 
 						if (funnel.length === 0) {
-							throw new TRPCError({
-								code: "NOT_FOUND",
+							throw new ORPCError("NOT_FOUND", {
 								message: "Funnel not found",
 							});
 						}
 
 						return funnel[0];
 					} catch (error) {
-						if (error instanceof TRPCError) {
+						if (error instanceof ORPCError) {
 							throw error;
 						}
 
@@ -154,8 +128,7 @@ export const funnelsRouter = createTRPCRouter({
 							funnelId: input.id,
 							websiteId: input.websiteId,
 						});
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
 							message: "Failed to fetch funnel",
 						});
 					}
@@ -164,14 +137,22 @@ export const funnelsRouter = createTRPCRouter({
 		}),
 
 	create: protectedProcedure
-		.input(createFunnelSchema)
-		.mutation(async ({ ctx, input }) => {
-			await authorizeWebsiteAccess(ctx, input.websiteId, "update");
+		.input(
+			z.object({
+				websiteId: z.string(),
+				name: z.string().min(1).max(100),
+				description: z.string().optional(),
+				steps: z.array(funnelStepSchema).min(2).max(10),
+				filters: z.array(funnelFilterSchema).optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
 
 			try {
 				const funnelId = crypto.randomUUID();
 
-				const [newFunnel] = await ctx.db
+				const [newFunnel] = await context.db
 					.insert(funnelDefinitions)
 					.values({
 						id: funnelId,
@@ -180,7 +161,7 @@ export const funnelsRouter = createTRPCRouter({
 						description: input.description,
 						steps: input.steps,
 						filters: input.filters,
-						createdBy: ctx.user.id,
+						createdBy: context.user.id,
 					})
 					.returning();
 
@@ -190,7 +171,7 @@ export const funnelsRouter = createTRPCRouter({
 					message: `Created funnel "${input.name}"`,
 					funnelId,
 					websiteId: input.websiteId,
-					userId: ctx.user.id,
+					userId: context.user.id,
 				});
 
 				return newFunnel;
@@ -198,19 +179,27 @@ export const funnelsRouter = createTRPCRouter({
 				logger.error("Failed to create funnel", {
 					error: error instanceof Error ? error.message : String(error),
 					websiteId: input.websiteId,
-					userId: ctx.user.id,
+					userId: context.user.id,
 				});
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to create funnel",
 				});
 			}
 		}),
 
 	update: protectedProcedure
-		.input(updateFunnelSchema)
-		.mutation(async ({ ctx, input }) => {
-			const existingFunnel = await ctx.db
+		.input(
+			z.object({
+				id: z.string(),
+				name: z.string().min(1).max(100).optional(),
+				description: z.string().optional(),
+				steps: z.array(funnelStepSchema).min(2).max(10).optional(),
+				filters: z.array(funnelFilterSchema).optional(),
+				isActive: z.boolean().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const existingFunnel = await context.db
 				.select({ websiteId: funnelDefinitions.websiteId })
 				.from(funnelDefinitions)
 				.where(
@@ -221,13 +210,17 @@ export const funnelsRouter = createTRPCRouter({
 				)
 				.limit(1);
 			if (existingFunnel.length === 0) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Funnel not found" });
+				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, "update");
+			await authorizeWebsiteAccess(
+				context,
+				existingFunnel[0].websiteId,
+				"update"
+			);
 
 			try {
 				const { id, ...updates } = input;
-				const [updatedFunnel] = await ctx.db
+				const [updatedFunnel] = await context.db
 					.update(funnelDefinitions)
 					.set({
 						...updates,
@@ -255,8 +248,7 @@ export const funnelsRouter = createTRPCRouter({
 					funnelId: input.id,
 					websiteId: existingFunnel[0].websiteId,
 				});
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to update funnel",
 				});
 			}
@@ -264,8 +256,8 @@ export const funnelsRouter = createTRPCRouter({
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			const existingFunnel = await ctx.db
+		.handler(async ({ context, input }) => {
+			const existingFunnel = await context.db
 				.select({ websiteId: funnelDefinitions.websiteId })
 				.from(funnelDefinitions)
 				.where(
@@ -276,12 +268,16 @@ export const funnelsRouter = createTRPCRouter({
 				)
 				.limit(1);
 			if (existingFunnel.length === 0) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Funnel not found" });
+				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(ctx, existingFunnel[0].websiteId, "delete");
+			await authorizeWebsiteAccess(
+				context,
+				existingFunnel[0].websiteId,
+				"delete"
+			);
 
 			try {
-				await ctx.db
+				await context.db
 					.update(funnelDefinitions)
 					.set({
 						deletedAt: new Date(),
@@ -308,16 +304,22 @@ export const funnelsRouter = createTRPCRouter({
 					funnelId: input.id,
 					websiteId: existingFunnel[0].websiteId,
 				});
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to delete funnel",
 				});
 			}
 		}),
 
 	getAnalytics: publicProcedure
-		.input(funnelAnalyticsSchema)
-		.query(({ ctx, input }) => {
+		.input(
+			z.object({
+				funnelId: z.string(),
+				websiteId: z.string(),
+				startDate: z.string().optional(),
+				endDate: z.string().optional(),
+			})
+		)
+		.handler(({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -330,10 +332,10 @@ export const funnelsRouter = createTRPCRouter({
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 
 					try {
-						const funnel = await ctx.db
+						const funnel = await context.db
 							.select()
 							.from(funnelDefinitions)
 							.where(
@@ -346,8 +348,7 @@ export const funnelsRouter = createTRPCRouter({
 							.limit(1);
 
 						if (funnel.length === 0) {
-							throw new TRPCError({
-								code: "NOT_FOUND",
+							throw new ORPCError("NOT_FOUND", {
 								message: "Funnel not found",
 							});
 						}
@@ -384,7 +385,7 @@ export const funnelsRouter = createTRPCRouter({
 
 						return processFunnelAnalytics(analyticsSteps, filters, params);
 					} catch (error) {
-						if (error instanceof TRPCError) {
+						if (error instanceof ORPCError) {
 							throw error;
 						}
 
@@ -393,8 +394,7 @@ export const funnelsRouter = createTRPCRouter({
 							funnelId: input.funnelId,
 							websiteId: input.websiteId,
 						});
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
 							message: "Failed to fetch funnel analytics",
 						});
 					}
@@ -403,8 +403,15 @@ export const funnelsRouter = createTRPCRouter({
 		}),
 
 	getAnalyticsByReferrer: publicProcedure
-		.input(funnelAnalyticsSchema)
-		.query(({ ctx, input }) => {
+		.input(
+			z.object({
+				funnelId: z.string(),
+				websiteId: z.string(),
+				startDate: z.string().optional(),
+				endDate: z.string().optional(),
+			})
+		)
+		.handler(({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -417,10 +424,10 @@ export const funnelsRouter = createTRPCRouter({
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(ctx, input.websiteId, "read");
+					await authorizeWebsiteAccess(context, input.websiteId, "read");
 
 					try {
-						const funnel = await ctx.db
+						const funnel = await context.db
 							.select()
 							.from(funnelDefinitions)
 							.where(
@@ -433,8 +440,7 @@ export const funnelsRouter = createTRPCRouter({
 							.limit(1);
 
 						if (funnel.length === 0) {
-							throw new TRPCError({
-								code: "NOT_FOUND",
+							throw new ORPCError("NOT_FOUND", {
 								message: "Funnel not found",
 							});
 						}
@@ -448,8 +454,7 @@ export const funnelsRouter = createTRPCRouter({
 						}>;
 
 						if (!steps || steps.length === 0) {
-							throw new TRPCError({
-								code: "BAD_REQUEST",
+							throw new ORPCError("BAD_REQUEST", {
 								message: "Funnel has no steps",
 							});
 						}
@@ -482,7 +487,7 @@ export const funnelsRouter = createTRPCRouter({
 							params
 						);
 					} catch (error) {
-						if (error instanceof TRPCError) {
+						if (error instanceof ORPCError) {
 							throw error;
 						}
 
@@ -491,12 +496,11 @@ export const funnelsRouter = createTRPCRouter({
 							funnelId: input.funnelId,
 							websiteId: input.websiteId,
 						});
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
 							message: "Failed to fetch funnel analytics by referrer",
 						});
 					}
 				},
 			});
 		}),
-});
+};

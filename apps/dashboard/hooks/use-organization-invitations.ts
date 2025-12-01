@@ -1,9 +1,10 @@
 import { authClient } from "@databuddy/auth/client";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { OrganizationRole } from "@/hooks/use-organizations";
-import { trpc } from "@/lib/trpc";
+import { orpc } from "@/lib/orpc";
 import {
 	acceptedCountAtom,
 	expiredCountAtom,
@@ -34,10 +35,13 @@ export function useOrganizationInvitations(organizationId: string) {
 		data,
 		isLoading: queryLoading,
 		refetch,
-	} = trpc.organizations.getPendingInvitations.useQuery(
-		{ organizationId, includeExpired: true },
-		{ enabled: !!organizationId }
-	);
+		error
+	} = useQuery({
+		...orpc.organizations.getPendingInvitations.queryOptions({
+			input: { organizationId, includeExpired: true },
+		}),
+		enabled: !!organizationId,
+	});
 
 	useEffect(() => {
 		setIsLoading(queryLoading);
@@ -123,6 +127,7 @@ export function useOrganizationInvitations(organizationId: string) {
 		invitations,
 		filteredInvitations,
 		isLoading,
+		error,
 		selectedTab,
 		isInviting,
 		isCancelling,
