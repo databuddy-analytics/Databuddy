@@ -11,7 +11,7 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { orpc } from "@/lib/orpc";
@@ -39,6 +39,14 @@ type ApiKeyCreateDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	organizationId?: string;
+	onSuccess: Dispatch<
+		SetStateAction<{
+			id: string;
+			secret: string;
+			prefix: string;
+			start: string;
+		} | null>
+	>;
 };
 
 const SCOPES: { value: ApiScope; label: string }[] = [
@@ -63,6 +71,7 @@ export function ApiKeyCreateDialog({
 	open,
 	onOpenChange,
 	organizationId,
+	onSuccess,
 }: ApiKeyCreateDialogProps) {
 	const queryClient = useQueryClient();
 	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>([]);
@@ -85,6 +94,7 @@ export function ApiKeyCreateDialog({
 		onSuccess: (res) => {
 			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
 			setCreated(res);
+			onSuccess(res);
 		},
 	});
 

@@ -2,7 +2,7 @@
 
 import { SpinnerIcon, TableIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
 
 type RetentionCohort = {
@@ -22,47 +22,36 @@ type RetentionCohortsGridProps = {
 };
 
 const WEEK_COUNT = 6;
-const OPACITY_MIN = 0.15;
-const OPACITY_MAX = 0.85;
-const OPACITY_RANGE = OPACITY_MAX - OPACITY_MIN;
-const LOG_WEIGHT = 0.6;
-const LINEAR_WEIGHT = 0.4;
 
 type RetentionColor = {
-	backgroundColor: string;
-	textColor: string;
 	className: string;
 };
 
 const getRetentionColor = (percentage: number | null): RetentionColor => {
 	if (!percentage || Number.isNaN(percentage)) {
-		return {
-			backgroundColor: "transparent",
-			textColor: "transparent",
-			className: "bg-muted/30 text-muted-foreground/30",
-		};
+		return { className: "bg-muted/20 text-muted-foreground/50" };
 	}
 
-	const linearScale = percentage / 100;
-	const logScale = Math.log(percentage + 1) / Math.log(101);
-	const blendedScale = logScale * LOG_WEIGHT + linearScale * LINEAR_WEIGHT;
-	const opacity = OPACITY_MIN + blendedScale * OPACITY_RANGE;
-
-	return {
-		backgroundColor: `oklch(0.81 0.1 252 / ${opacity.toFixed(3)})`,
-		textColor: "var(--color-foreground)",
-		className: "",
-	};
+	const normalizedPct = Math.min(percentage, 100) / 100;
+	
+	if (normalizedPct >= 0.7) {
+		return { className: "bg-primary text-primary-foreground" };
+	}
+	if (normalizedPct >= 0.5) {
+		return { className: "bg-primary/70 text-primary-foreground" };
+	}
+	if (normalizedPct >= 0.3) {
+		return { className: "bg-primary/40 text-foreground" };
+	}
+	if (normalizedPct >= 0.1) {
+		return { className: "bg-primary/20 text-foreground" };
+	}
+	return { className: "bg-primary/10 text-foreground" };
 };
 
 const formatCohortDate = (dateStr: string): string => {
 	const date = dayjs(dateStr);
-	const startDate = date.startOf("week");
-	const endDate = date.endOf("week");
-
-	return startDate.month() === endDate.month()
-		? `${startDate.format("MMM D")} - ${endDate.format("D, YYYY")}`
-		: `${startDate.format("MMM D")} - ${endDate.format("MMM D, YYYY")}`;
+	return date.format("MMM D");
 };
 
 const getRetentionPercentages = (
@@ -76,12 +65,6 @@ const getRetentionPercentages = (
 	cohort.week_5_retention > 0 ? cohort.week_5_retention : null,
 ];
 
-const headerCellClassName =
-	"border-border border-b bg-card/80 px-4 py-3 text-center font-semibold text-foreground text-sm uppercase tracking-wide backdrop-blur-sm";
-
-const cohortCellClassName =
-	"sticky left-0 z-10 border-border border-r bg-card/50 px-4 py-3 text-sm backdrop-blur-sm";
-
 export function RetentionCohortsGrid({
 	cohorts,
 	isLoading,
@@ -89,20 +72,23 @@ export function RetentionCohortsGrid({
 	const sortedCohorts = useMemo(
 		() =>
 			[...cohorts].sort(
-				(a, b) => dayjs(a.cohort).valueOf() - dayjs(b.cohort).valueOf()
+				(a, b) => dayjs(b.cohort).valueOf() - dayjs(a.cohort).valueOf()
 			),
 		[cohorts]
 	);
 
 	const periodHeaders = useMemo(
-		() => Array.from({ length: WEEK_COUNT }, (_, i) => `Week ${i}`),
+		() => Array.from({ length: WEEK_COUNT }, (_, i) => `W${i}`),
 		[]
 	);
 
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center py-12">
-				<SpinnerIcon className="h-6 w-6 animate-spin" />
+			<div className="flex items-center justify-center py-16">
+				<div className="flex flex-col items-center gap-3">
+					<SpinnerIcon className="size-6 animate-spin text-primary" />
+					<span className="text-muted-foreground text-sm">Loading cohorts...</span>
+				</div>
 			</div>
 		);
 	}
@@ -111,8 +97,8 @@ export function RetentionCohortsGrid({
 		return (
 			<EmptyState
 				description="No retention data available for the selected time period"
-				icon={<TableIcon />}
-				title="No data"
+				icon={<TableIcon className="text-muted-foreground" weight="duotone" />}
+				title="No cohort data"
 				variant="minimal"
 			/>
 		);
@@ -120,61 +106,65 @@ export function RetentionCohortsGrid({
 
 	return (
 		<div className="w-full overflow-x-auto">
-			<div
-				className="w-full gap-px rounded border border-border bg-card shadow-sm"
-				style={{
-					display: "grid",
-					gridTemplateColumns: `minmax(160px, 1fr) repeat(${WEEK_COUNT}, 1fr)`,
-				}}
-			>
-				<div className={`sticky left-0 z-10 border-r ${headerCellClassName}`}>
-					Cohort
-				</div>
-				{periodHeaders.map((header) => (
-					<div className={headerCellClassName} key={header}>
-						{header}
-					</div>
-				))}
+			<table className="w-full border-collapse text-sm">
+				<thead>
+					<tr className="border-b border-border">
+						<th className="w-20 bg-sidebar px-2 py-2.5 text-left font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							Cohort
+						</th>
+						<th className="w-16 bg-sidebar px-2 py-2.5 text-right font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							Users
+						</th>
+						{periodHeaders.map((header) => (
+							<th
+								className="min-w-[60px] flex-1 bg-sidebar px-2 py-2.5 text-center font-semibold text-muted-foreground text-xs uppercase tracking-wider"
+								key={header}
+							>
+								{header}
+							</th>
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{sortedCohorts.map((cohort, rowIndex) => {
+						const percentages = getRetentionPercentages(cohort);
+						const dateLabel = formatCohortDate(cohort.cohort);
 
-				{sortedCohorts.map((cohort) => {
-					const percentages = getRetentionPercentages(cohort);
-					const dateRange = formatCohortDate(cohort.cohort);
+						return (
+							<tr
+								className={`transition-colors hover:bg-accent/30 ${
+									rowIndex !== sortedCohorts.length - 1 ? "border-b border-border/50" : ""
+								}`}
+								key={cohort.cohort}
+							>
+								<td className="whitespace-nowrap bg-sidebar px-2 py-2">
+									<span className="font-medium text-foreground text-xs">
+										{dateLabel}
+									</span>
+								</td>
+								<td className="whitespace-nowrap px-2 py-2 text-right">
+									<span className="font-medium text-foreground text-xs tabular-nums">
+										{cohort.users.toLocaleString()}
+									</span>
+								</td>
+								{percentages.map((percentage, index) => {
+									const { className } = getRetentionColor(percentage);
 
-					return (
-						<Fragment key={cohort.cohort}>
-							<div className={cohortCellClassName}>
-								<div className="whitespace-nowrap font-medium text-foreground">
-									{dateRange}
-								</div>
-								<div className="mt-1 whitespace-nowrap text-muted-foreground text-xs">
-									{cohort.users.toLocaleString()} users
-								</div>
-							</div>
-
-							{percentages.map((percentage, index) => {
-								const { backgroundColor, textColor, className } =
-									getRetentionColor(percentage);
-
-								return (
-									<div
-										className={`m-1 flex h-12 items-center justify-center rounded text-center font-medium transition-all duration-200 ${className}`}
-										key={`${cohort.cohort}-period-${index}`}
-										style={
-											backgroundColor && backgroundColor !== "transparent"
-												? { backgroundColor, color: textColor }
-												: undefined
-										}
-									>
-										<span className="text-sm tabular-nums">
-											{percentage !== null ? `${percentage.toFixed(1)}%` : "—"}
-										</span>
-									</div>
-								);
-							})}
-						</Fragment>
-					);
-				})}
-			</div>
+									return (
+										<td className="px-1 py-1" key={`${cohort.cohort}-week-${index}`}>
+											<div
+												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums transition-colors ${className}`}
+											>
+												{percentage !== null ? `${percentage.toFixed(0)}%` : "—"}
+											</div>
+										</td>
+									);
+								})}
+							</tr>
+						);
+					})}
+				</tbody>
+			</table>
 		</div>
 	);
 }

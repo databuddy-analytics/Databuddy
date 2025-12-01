@@ -1,7 +1,12 @@
 "use client";
 
-import { CalendarDotsIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import {
+	CalendarDotsIcon,
+	CaretRightIcon,
+	CheckIcon,
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,21 +16,81 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-	formatDateOnly,
-	formatDateRange,
-	formatMonthDay,
-} from "@/lib/formatters";
+import { formatMonthDay } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
-interface DateRangePickerProps {
+type PresetRange = {
+	label: string;
+	getValue: () => DateRange;
+};
+
+const PRESET_RANGES: PresetRange[] = [
+	{
+		label: "Today",
+		getValue: () => {
+			const today = dayjs().startOf("day").toDate();
+			return { from: today, to: today };
+		},
+	},
+	{
+		label: "Yesterday",
+		getValue: () => {
+			const yesterday = dayjs().subtract(1, "day").startOf("day").toDate();
+			return { from: yesterday, to: yesterday };
+		},
+	},
+	{
+		label: "Last 7 days",
+		getValue: () => ({
+			from: dayjs().subtract(6, "day").startOf("day").toDate(),
+			to: dayjs().endOf("day").toDate(),
+		}),
+	},
+	{
+		label: "Last 14 days",
+		getValue: () => ({
+			from: dayjs().subtract(13, "day").startOf("day").toDate(),
+			to: dayjs().endOf("day").toDate(),
+		}),
+	},
+	{
+		label: "Last 30 days",
+		getValue: () => ({
+			from: dayjs().subtract(29, "day").startOf("day").toDate(),
+			to: dayjs().endOf("day").toDate(),
+		}),
+	},
+	{
+		label: "This month",
+		getValue: () => ({
+			from: dayjs().startOf("month").toDate(),
+			to: dayjs().endOf("day").toDate(),
+		}),
+	},
+	{
+		label: "Last month",
+		getValue: () => ({
+			from: dayjs().subtract(1, "month").startOf("month").toDate(),
+			to: dayjs().subtract(1, "month").endOf("month").toDate(),
+		}),
+	},
+	{
+		label: "Last 90 days",
+		getValue: () => ({
+			from: dayjs().subtract(89, "day").startOf("day").toDate(),
+			to: dayjs().endOf("day").toDate(),
+		}),
+	},
+];
+
+type DateRangePickerProps = {
 	className?: string;
 	value?: DateRange;
 	onChange?: (dateRange: DateRange | undefined) => void;
 	disabled?: boolean;
 	maxDate?: Date;
 	minDate?: Date;
-}
+};
 
 export function DateRangePicker({
 	className,
@@ -38,178 +103,248 @@ export function DateRangePicker({
 	const isMobile = useIsMobile();
 	const [isOpen, setIsOpen] = useState(false);
 	const [tempRange, setTempRange] = useState<DateRange | undefined>(value);
-	const [appliedRange, setAppliedRange] = useState<DateRange | undefined>(
-		value
-	);
 
 	useEffect(() => {
-		setAppliedRange(value);
-		setTempRange(value);
-	}, [value]);
+		if (!isOpen) {
+			setTempRange(value);
+		}
+	}, [value, isOpen]);
 
-	const handleTempSelect = useCallback((range: DateRange | undefined) => {
+	const daysDiff = useMemo(() => {
+		if (!(tempRange?.from && tempRange?.to)) return 0;
+		return dayjs(tempRange.to).diff(dayjs(tempRange.from), "day") + 1;
+	}, [tempRange]);
+
+	const activePreset = useMemo(() => {
+		if (!(tempRange?.from && tempRange?.to)) return null;
+		return PRESET_RANGES.find((preset) => {
+			const presetRange = preset.getValue();
+			return (
+				dayjs(tempRange.from).isSame(presetRange.from, "day") &&
+				dayjs(tempRange.to).isSame(presetRange.to, "day")
+			);
+		});
+	}, [tempRange]);
+
+	const handlePresetSelect = useCallback(
+		(preset: PresetRange) => {
+			const range = preset.getValue();
+			setTempRange(range);
+			onChange?.(range);
+			setIsOpen(false);
+		},
+		[onChange]
+	);
+
+	const handleCalendarSelect = useCallback((range: DateRange | undefined) => {
 		setTempRange(range);
 	}, []);
 
 	const handleApply = useCallback(() => {
 		if (tempRange?.from && tempRange?.to) {
-			setAppliedRange(tempRange);
 			onChange?.(tempRange);
 			setIsOpen(false);
 		}
 	}, [tempRange, onChange]);
 
-	const handleCancel = useCallback(() => {
-		setTempRange(appliedRange);
-		setIsOpen(false);
-	}, [appliedRange]);
-
-	const handleClear = useCallback(() => {
-		setTempRange(undefined);
-		setAppliedRange(undefined);
-		onChange?.(undefined);
-		setIsOpen(false);
-	}, [onChange]);
-
-	const getDisplayText = useCallback(() => {
-		if (!appliedRange?.from) {
-			return "Select dates";
-		}
-
-		if (appliedRange.from && !appliedRange.to) {
-			return formatDateOnly(appliedRange.from);
-		}
-
-		if (appliedRange.from && appliedRange.to) {
-			if (appliedRange.from.getTime() === appliedRange.to.getTime()) {
-				return formatDateOnly(appliedRange.from);
+	const handleOpenChange = useCallback(
+		(open: boolean) => {
+			setIsOpen(open);
+			if (!open) {
+				setTempRange(value);
 			}
+		},
+		[value]
+	);
 
-			const currentYear = new Date().getFullYear();
-			const startYear = appliedRange.from.getFullYear();
-			const endYear = appliedRange.to.getFullYear();
+	const formatDisplayRange = useCallback((range: DateRange | undefined) => {
+		if (!(range?.from && range?.to)) return "Select dates";
 
-			// If both dates are in the current year, don't show the year
-			if (startYear === currentYear && endYear === currentYear) {
-				const startMonthDay = formatMonthDay(appliedRange.from);
-				const endMonthDay = formatMonthDay(appliedRange.to);
-				return `${startMonthDay} - ${endMonthDay}`;
-			}
+		const from = dayjs(range.from);
+		const to = dayjs(range.to);
+		const currentYear = dayjs().year();
 
-			// If dates span different years or are not in current year, show full format
-			return formatDateRange(appliedRange.from, appliedRange.to);
+		if (from.isSame(to, "day")) {
+			return from.year() === currentYear
+				? from.format("MMM D")
+				: from.format("MMM D, YYYY");
 		}
 
-		return "Select dates";
-	}, [appliedRange]);
+		const sameYear = from.year() === to.year();
+		const isCurrentYear = from.year() === currentYear;
 
-	const hasSelection = appliedRange?.from && appliedRange?.to;
-	const hasValidTempSelection = tempRange?.from && tempRange?.to;
+		if (sameYear && isCurrentYear) {
+			return `${from.format("MMM D")} – ${to.format("MMM D")}`;
+		}
+
+		if (sameYear) {
+			return `${from.format("MMM D")} – ${to.format("MMM D, YYYY")}`;
+		}
+
+		return `${from.format("MMM D, YYYY")} – ${to.format("MMM D, YYYY")}`;
+	}, []);
+
+	const hasValidSelection = tempRange?.from && tempRange?.to;
 
 	return (
 		<div className={cn("grid gap-2", className)}>
-			<Popover onOpenChange={setIsOpen} open={isOpen}>
+			<Popover onOpenChange={handleOpenChange} open={isOpen}>
 				<PopoverTrigger asChild>
 					<Button
 						className={cn(
-							"h-8 justify-start gap-2 whitespace-nowrap rounded px-3 text-left font-medium text-xs transition-colors",
-							!hasSelection && "text-muted-foreground"
+							"h-8 justify-start gap-2 whitespace-nowrap px-3 text-left font-medium text-xs",
+							!value?.from && "text-muted-foreground"
 						)}
 						disabled={disabled}
 						variant="secondary"
 					>
 						<CalendarDotsIcon className="size-4" weight="duotone" />
-						<span className="truncate">{getDisplayText()}</span>
+						<span className="truncate">{formatDisplayRange(value)}</span>
 					</Button>
 				</PopoverTrigger>
+
 				<PopoverContent
 					align="end"
-					className="w-auto rounded border p-0 sm:max-w-none"
+					className="w-auto overflow-hidden p-0"
 					sideOffset={4}
 				>
-					<div className="rounded-t-md border-b bg-accent-brighter p-4">
-						<div className="text-muted-foreground text-sm">
-							{tempRange?.from && tempRange?.to ? (
-								<span className="font-medium text-foreground">
-									{(() => {
-										const currentYear = new Date().getFullYear();
-										const startYear = tempRange.from.getFullYear();
-										const endYear = tempRange.to.getFullYear();
-
-										// If both dates are in the current year, don't show the year
-										if (startYear === currentYear && endYear === currentYear) {
-											const startMonthDay = formatMonthDay(tempRange.from);
-											const endMonthDay = formatMonthDay(tempRange.to);
-											return `${startMonthDay} - ${endMonthDay}`;
-										}
-
-										// Otherwise show full format
-										return formatDateRange(tempRange.from, tempRange.to);
-									})()}
-								</span>
-							) : tempRange?.from ? (
-								<span>
-									<span className="font-medium text-foreground">
-										{formatDateOnly(tempRange.from)}
-									</span>
-									<span className="text-muted-foreground">
-										{" "}
-										→ Select end date
-									</span>
-								</span>
-							) : (
-								<span className="font-medium">Select start date</span>
-							)}
+					<div className="flex">
+						{/* Presets sidebar */}
+						<div className="hidden w-40 shrink-0 border-r bg-background sm:block">
+							<div className="p-2">
+								<p className="px-2 py-1.5 font-medium text-muted-foreground text-[11px] uppercase tracking-wide">
+									Quick select
+								</p>
+								<div className="space-y-0.5">
+									{PRESET_RANGES.map((preset) => {
+										const isActive = activePreset?.label === preset.label;
+										return (
+											<button
+												className={cn(
+													"flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm transition-colors",
+													isActive
+														? "bg-primary text-primary-foreground"
+														: "text-muted-foreground hover:bg-secondary hover:text-foreground"
+												)}
+												key={preset.label}
+												onClick={() => handlePresetSelect(preset)}
+												type="button"
+											>
+												<span>{preset.label}</span>
+												{isActive && <CheckIcon className="size-3.5" />}
+											</button>
+										);
+									})}
+								</div>
+							</div>
 						</div>
-					</div>
 
-					<div className="p-2 sm:p-4">
-						<Calendar
-							defaultMonth={tempRange?.from || appliedRange?.from || new Date()}
-							disabled={(date) => {
-								if (minDate && date < minDate) {
-									return true;
-								}
-								if (maxDate && date > maxDate) {
-									return true;
-								}
-								return false;
-							}}
-							initialFocus
-							mode="range"
-							numberOfMonths={isMobile ? 1 : 2}
-							onSelect={handleTempSelect}
-							selected={tempRange}
-						/>
-					</div>
+						{/* Calendar section */}
+						<div className="flex flex-col">
+							{/* Header showing selection */}
+							<div className="flex items-center justify-between border-b bg-secondary px-4 py-3">
+								<div className="flex items-center gap-2">
+									{tempRange?.from ? (
+										<>
+											<div className="rounded bg-background px-2.5 py-1 shadow-sm">
+												<span className="font-semibold text-foreground text-sm tabular-nums">
+													{formatMonthDay(tempRange.from)}
+												</span>
+											</div>
+											<CaretRightIcon
+												className="size-3.5 text-muted-foreground"
+												weight="bold"
+											/>
+											<div
+												className={cn(
+													"rounded px-2.5 py-1",
+													tempRange?.to
+														? "bg-background shadow-sm"
+														: "border border-dashed border-muted-foreground/40"
+												)}
+											>
+												<span
+													className={cn(
+														"font-semibold text-sm tabular-nums",
+														tempRange?.to
+															? "text-foreground"
+															: "text-muted-foreground"
+													)}
+												>
+													{tempRange?.to
+														? formatMonthDay(tempRange.to)
+														: "End date"}
+												</span>
+											</div>
+										</>
+									) : (
+										<span className="text-muted-foreground text-sm">
+											Select a date range
+										</span>
+									)}
+								</div>
+								{daysDiff > 0 && (
+									<span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary text-xs tabular-nums">
+										{daysDiff} day{daysDiff !== 1 ? "s" : ""}
+									</span>
+								)}
+							</div>
 
-					<div className="flex items-center justify-between rounded-b-md border-t bg-accent-brighter p-4">
-						<Button
-							className="h-8 text-muted-foreground transition-[color,box-shadow] hover:text-foreground"
-							onClick={handleClear}
-							size="sm"
-							variant="ghost"
-						>
-							Clear
-						</Button>
+							{/* Mobile presets */}
+							<div className="flex gap-1.5 overflow-x-auto border-b bg-background p-2 sm:hidden">
+								{PRESET_RANGES.slice(0, 5).map((preset) => {
+									const isActive = activePreset?.label === preset.label;
+									return (
+										<button
+											className={cn(
+												"shrink-0 rounded px-2.5 py-1.5 font-medium text-xs transition-colors",
+												isActive
+													? "bg-primary text-primary-foreground"
+													: "bg-secondary text-muted-foreground"
+											)}
+											key={preset.label}
+											onClick={() => handlePresetSelect(preset)}
+											type="button"
+										>
+											{preset.label}
+										</button>
+									);
+								})}
+							</div>
 
-						<div className="flex gap-2">
-							<Button
-								className="h-8 transition-[color,box-shadow]"
-								onClick={handleCancel}
-								size="sm"
-								variant="ghost"
-							>
-								Cancel
-							</Button>
-							<Button
-								className="h-8 transition-[color,box-shadow]"
-								disabled={!hasValidTempSelection}
-								onClick={handleApply}
-								size="sm"
-							>
-								Apply
-							</Button>
+							{/* Calendar */}
+							<div className="p-3">
+								<Calendar
+									defaultMonth={tempRange?.from || value?.from || new Date()}
+									disabled={(date) => {
+										if (minDate && date < minDate) return true;
+										if (maxDate && date > maxDate) return true;
+										return false;
+									}}
+									mode="range"
+									numberOfMonths={isMobile ? 1 : 2}
+									onSelect={handleCalendarSelect}
+									selected={tempRange}
+								/>
+							</div>
+
+							{/* Footer */}
+							<div className="flex items-center justify-end gap-2 border-t bg-secondary angled-rectangle-gradient px-4 py-3">
+								<Button
+									onClick={() => handleOpenChange(false)}
+									size="sm"
+									variant="ghost"
+								>
+									Cancel
+								</Button>
+								<Button
+									disabled={!hasValidSelection}
+									onClick={handleApply}
+									size="sm"
+								>
+									Apply
+								</Button>
+							</div>
 						</div>
 					</div>
 				</PopoverContent>

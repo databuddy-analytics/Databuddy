@@ -12,8 +12,18 @@ import type {
 	ChartContext,
 	CreateAnnotationData,
 } from "@/types/annotations";
-import { EditAnnotationModal } from "./edit-annotation-modal";
+import { AnnotationModal } from "./annotation-modal";
 import { MetricsChart } from "./metrics-chart";
+
+type CreateAnnotationInput = {
+	annotationType: "range";
+	xValue: string;
+	xEndValue: string;
+	text: string;
+	tags: string[];
+	color: string;
+	isPublic: boolean;
+};
 
 type MetricsChartWithAnnotationsProps = {
 	websiteId: string;
@@ -49,7 +59,7 @@ export function MetricsChartWithAnnotations({
 	const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(
 		null
 	);
-	const [isEditing, setIsEditing] = useState(false);
+
 	const [showAnnotations, setShowAnnotations] = usePersistentState(
 		ANNOTATION_STORAGE_KEYS.visibility(websiteId),
 		true
@@ -112,15 +122,11 @@ export function MetricsChartWithAnnotations({
 		});
 	}, [allAnnotations, dateRange]);
 
-	const handleCreateAnnotation = async (annotation: {
-		annotationType: "range";
-		xValue: string;
-		xEndValue: string;
-		text: string;
-		tags: string[];
-		color: string;
-		isPublic: boolean;
-	}) => {
+	const closeEditModal = () => {
+		setEditingAnnotation(null);
+	};
+
+	const handleCreateAnnotation = async (annotation: CreateAnnotationInput) => {
 		if (!(websiteId && chartContext)) {
 			toast.error("Missing required data for annotation creation");
 			return;
@@ -153,16 +159,11 @@ export function MetricsChartWithAnnotations({
 			},
 		});
 
-		try {
-			await promise;
-		} catch (error) {
-			console.error("Annotation creation failed:", error);
-		}
+		await promise;
 	};
 
 	const handleEditAnnotation = (annotation: Annotation) => {
 		setEditingAnnotation(annotation);
-		setIsEditing(true);
 	};
 
 	const handleDeleteAnnotation = async (id: string) => {
@@ -193,8 +194,6 @@ export function MetricsChartWithAnnotations({
 			loading: "Updating annotation...",
 			success: () => {
 				refetchAnnotations();
-				setIsEditing(false);
-				setEditingAnnotation(null);
 				return "Annotation updated successfully";
 			},
 			error: (err) => {
@@ -228,16 +227,17 @@ export function MetricsChartWithAnnotations({
 				websiteId={websiteId}
 			/>
 
-			<EditAnnotationModal
-				annotation={editingAnnotation}
-				isOpen={isEditing}
-				isSaving={updateAnnotation.isPending}
-				onClose={() => {
-					setIsEditing(false);
-					setEditingAnnotation(null);
-				}}
-				onSave={handleSaveAnnotation}
-			/>
+			{/* Edit Annotation Modal */}
+			{editingAnnotation && (
+				<AnnotationModal
+					annotation={editingAnnotation}
+					isOpen={true}
+					isSubmitting={updateAnnotation.isPending}
+					mode="edit"
+					onClose={closeEditModal}
+					onSubmit={handleSaveAnnotation}
+				/>
+			)}
 		</>
 	);
 }

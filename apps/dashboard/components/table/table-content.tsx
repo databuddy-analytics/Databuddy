@@ -22,9 +22,9 @@ const PERCENTAGE_THRESHOLDS = {
 	LOW: 10,
 } as const;
 
-interface PercentageRow {
+type PercentageRow = {
 	percentage?: string | number;
-}
+};
 
 function getRowPercentage(row: PercentageRow): number {
 	const value = row.percentage;
@@ -131,7 +131,7 @@ function getPercentageGradient(percentage: number) {
 	);
 }
 
-interface TableContentProps<TData extends { name: string | number }> {
+type TableContentProps<TData extends { name: string | number }> = {
 	table: Table<TData>;
 	title?: string;
 	minHeight?: string | number;
@@ -149,7 +149,7 @@ interface TableContentProps<TData extends { name: string | number }> {
 	activeTab?: string;
 	emptyMessage?: string;
 	className?: string;
-}
+};
 
 export function TableContent<TData extends { name: string | number }>({
 	table,

@@ -148,7 +148,7 @@ export default function PricingTable({
 								disabled:
 									plan.scenario === "active" || plan.scenario === "scheduled",
 								onClick: async () => {
-									await attach({ productIds: [plan.id], dialog: AttachDialog });
+									await attach({ productId: plan.id, dialog: AttachDialog });
 								},
 							}}
 							isSelected={selectedPlan === plan.id}

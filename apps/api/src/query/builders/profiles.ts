@@ -210,7 +210,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         LEAST(dateDiff('second', MIN(time), MAX(time)), 28800) as duration,
         formatReadableTimeDelta(LEAST(dateDiff('second', MIN(time), MAX(time)), 28800)) as duration_formatted,
         countIf(event_name = 'screen_view') as page_views,
-        COUNT(DISTINCT path) as unique_pages,
+        COUNT(DISTINCT CASE WHEN event_name = 'screen_view' THEN path ELSE NULL END) as unique_pages,
         any(device_type) as device,
         any(browser_name) as browser,
         any(os_name) as os,

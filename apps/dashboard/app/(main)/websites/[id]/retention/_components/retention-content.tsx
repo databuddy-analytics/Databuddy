@@ -1,15 +1,15 @@
 "use client";
 
 import {
+	ArrowCounterClockwiseIcon,
 	ChartLineIcon,
-	RepeatIcon,
 	TableIcon,
+	UserPlusIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/analytics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
@@ -38,14 +38,6 @@ type RetentionRate = {
 	retention_rate: number;
 };
 
-type StatCardConfig = {
-	id: string;
-	title: string;
-	value: string;
-	subtitle?: string;
-	icon: typeof RepeatIcon;
-};
-
 export function RetentionContent({ websiteId }: RetentionContentProps) {
 	const { dateRange } = useDateFilters();
 	const [activeTab, setActiveTab] = useState("cohorts");
@@ -63,18 +55,13 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 		}
 	);
 
-	const cohortsData = data;
-	const rateData = data;
-	const cohortsLoading = isLoading;
-	const rateLoading = isLoading;
-
 	const cohorts = useMemo(
-		() => (cohortsData?.retention_cohorts as RetentionCohort[]) ?? [],
-		[cohortsData]
+		() => (data?.retention_cohorts as RetentionCohort[]) ?? [],
+		[data]
 	);
 
 	const rates = useMemo(() => {
-		const rawRates = (rateData?.retention_rate as RetentionRate[]) ?? [];
+		const rawRates = (data?.retention_rate as RetentionRate[]) ?? [];
 		const hasDateRange = dateRange?.start_date && dateRange?.end_date;
 		if (!hasDateRange) {
 			return rawRates;
@@ -87,7 +74,7 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 			const date = dayjs(rate.date).startOf("day");
 			return date.isValid() && !date.isBefore(start) && !date.isAfter(end);
 		});
-	}, [rateData, dateRange]);
+	}, [data, dateRange]);
 
 	const overallStats = useMemo(() => {
 		const totalNewUsers = rates.reduce((sum, rate) => sum + rate.new_users, 0);
@@ -112,184 +99,136 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 			totalCohortUsers > 0 ? weightedWeek1 / totalCohortUsers : 0;
 
 		return {
-			avgRetentionRate: overallRetentionRate.toFixed(1),
+			avgRetentionRate: overallRetentionRate,
 			totalUsers: totalUniqueUsers,
 			totalNewUsers,
 			totalReturningUsers,
-			avgWeek1Retention: avgWeek1Retention.toFixed(1),
+			avgWeek1Retention,
 		};
 	}, [rates, cohorts]);
 
-	const statCards: StatCardConfig[] = useMemo(
-		() => [
-			{
-				id: "overall-rate",
-				title: "Overall Retention Rate",
-				value: `${overallStats.avgRetentionRate}%`,
-				subtitle: "Average across selected range",
-				icon: RepeatIcon,
-			},
-			{
-				id: "total-users",
-				title: "Total Users",
-				value: overallStats.totalUsers.toLocaleString(),
-				subtitle: `${overallStats.totalNewUsers.toLocaleString()} new · ${overallStats.totalReturningUsers.toLocaleString()} returning`,
-				icon: UsersIcon,
-			},
-			{
-				id: "week1",
-				title: "Week 1 Retention",
-				value: `${overallStats.avgWeek1Retention}%`,
-				subtitle: "Weighted by cohort size",
-				icon: ChartLineIcon,
-			},
-			{
-				id: "returning",
-				title: "Returning Users",
-				value: overallStats.totalReturningUsers.toLocaleString(),
-				subtitle: "Users who came back",
-				icon: UsersIcon,
-			},
-		],
-		[overallStats]
-	);
+	// Build mini chart data from time-series retention data
+	const chartData = useMemo(() => ({
+		retentionRate: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.retention_rate,
+		})),
+		totalUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.new_users + rate.returning_users,
+		})),
+		newUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.new_users,
+		})),
+		returningUsers: rates.map((rate) => ({
+			date: rate.date,
+			value: rate.returning_users,
+		})),
+	}), [rates]);
 
-	const renderStatCard = (card: StatCardConfig) => {
-		const Icon = card.icon;
-		return (
-			<Card
-				className="min-w-[200px] snap-center md:min-w-0 md:snap-none"
-				key={card.id}
-			>
-				<CardContent className="p-3 sm:p-4">
-					<div className="flex flex-col items-center justify-center space-y-5">
-						<div className="flex flex-col items-center gap-6 xl:flex-row">
-							<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-secondary sm:h-10 sm:w-10">
-								<Icon className="h-4 w-4 text-accent-foreground sm:h-5 sm:w-5" />
-							</div>
-							<div className="flex flex-col items-center xl:items-start">
-								<p className="text-center font-medium text-[11px] text-muted-foreground uppercase tracking-wide sm:text-xs xl:text-left">
-									{card.title}
-								</p>
-								<p className="font-bold text-foreground text-lg sm:text-xl">
-									{card.value}
-								</p>
-							</div>
-						</div>
-						{card.subtitle ? (
-							<p className="text-center text-[11px] text-muted-foreground sm:text-xs xl:text-left">
-								{card.subtitle}
-							</p>
-						) : null}
-					</div>
-				</CardContent>
-			</Card>
-		);
+	const formatNumber = (num: number) => {
+		if (num >= 1_000_000) {
+			return `${(num / 1_000_000).toFixed(1)}M`;
+		}
+		if (num >= 1000) {
+			return `${(num / 1000).toFixed(1)}K`;
+		}
+		return num.toLocaleString();
 	};
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-4">
-			<div className="shrink-0 space-y-3">
-				<div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 md:hidden">
-					{isLoading
-						? [...new Array(4)].map((_, i) => (
-								<Card
-									className="min-w-[200px] snap-center"
-									key={`skeleton-mobile-${i}`}
-								>
-									<CardContent className="p-4">
-										<div className="flex items-center gap-3">
-											<Skeleton className="h-10 w-10 rounded-lg" />
-											<div className="space-y-2">
-												<Skeleton className="h-3 w-24 rounded" />
-												<Skeleton className="h-6 w-16 rounded" />
-											</div>
-										</div>
-									</CardContent>
-								</Card>
-							))
-						: statCards.map((card) => renderStatCard(card))}
-				</div>
-				<div className="hidden grid-cols-1 gap-3 sm:grid-cols-2 md:grid lg:grid-cols-4">
-					{isLoading
-						? [...new Array(4)].map((_, i) => (
-								<Card key={`skeleton-desktop-${i}`}>
-									<CardContent className="p-4">
-										<div className="flex items-center gap-3">
-											<Skeleton className="h-10 w-10 rounded-lg" />
-											<div className="flex-1 space-y-2">
-												<Skeleton className="h-3 w-24 rounded" />
-												<Skeleton className="h-6 w-16 rounded" />
-											</div>
-										</div>
-									</CardContent>
-								</Card>
-							))
-						: statCards.map((card) => renderStatCard(card))}
-				</div>
+			{/* Stats Grid */}
+			<div className="grid shrink-0 grid-cols-2 gap-4 lg:grid-cols-4">
+				<StatCard
+					chartData={chartData.retentionRate}
+					formatChartValue={(v) => `${v.toFixed(1)}%`}
+					icon={ArrowCounterClockwiseIcon}
+					id="retention-rate"
+					isLoading={isLoading}
+					showChart
+					title="Retention Rate"
+					value={`${overallStats.avgRetentionRate.toFixed(1)}%`}
+				/>
+				<StatCard
+					chartData={chartData.totalUsers}
+					icon={UsersIcon}
+					id="total-users"
+					isLoading={isLoading}
+					showChart
+					title="Total Users"
+					value={formatNumber(overallStats.totalUsers)}
+				/>
+				<StatCard
+					chartData={chartData.newUsers}
+					icon={UserPlusIcon}
+					id="new-users"
+					isLoading={isLoading}
+					showChart
+					title="New Users"
+					value={formatNumber(overallStats.totalNewUsers)}
+				/>
+				<StatCard
+					chartData={chartData.returningUsers}
+					icon={ChartLineIcon}
+					id="returning-users"
+					isLoading={isLoading}
+					showChart
+					title="Returning Users"
+					value={formatNumber(overallStats.totalReturningUsers)}
+				/>
 			</div>
+
+			{/* Tabs Section */}
 			<Tabs
 				className="flex min-h-0 flex-1 flex-col"
-				defaultValue="cohorts"
 				onValueChange={setActiveTab}
 				value={activeTab}
 			>
-				<div className="h-auto shrink-0">
-					<TabsList className="h-10 w-full justify-start overflow-x-auto">
-						<TabsTrigger className="p-3" value="cohorts">
-							<TableIcon className="size-4" />
-							Retention Cohorts
-						</TabsTrigger>
-						<TabsTrigger className="p-3" value="rate">
-							<ChartLineIcon className="size-4" />
-							Retention Rate
-						</TabsTrigger>
-					</TabsList>
-				</div>
-
-				<TabsContent
-					className="mt-4 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
-					value="cohorts"
-				>
-					<div className="flex h-full flex-col gap-4">
-						<div className="shrink-0">
-							<h3 className="font-semibold text-foreground text-lg">
-								Retention by Cohort
-							</h3>
+				<div className="shrink-0 rounded border bg-sidebar">
+					<div className="flex items-center justify-between border-b px-4 py-3">
+						<div>
+							<h2 className="font-semibold text-sidebar-foreground">
+								Retention Analysis
+							</h2>
 							<p className="text-muted-foreground text-sm">
-								Track what percentage of users from each cohort return over 5
-								weeks
+								Track user retention over time
 							</p>
 						</div>
-						<div className="min-h-0 flex-1 overflow-auto">
+						<TabsList className="h-9 bg-sidebar-accent">
+							<TabsTrigger className="gap-1.5 px-3 text-xs" value="cohorts">
+								<TableIcon className="size-4" weight="duotone" />
+								Cohorts
+							</TabsTrigger>
+							<TabsTrigger className="gap-1.5 px-3 text-xs" value="rate">
+								<ChartLineIcon className="size-4" weight="duotone" />
+								Daily Rate
+							</TabsTrigger>
+						</TabsList>
+					</div>
+
+					<TabsContent
+						className="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden"
+						value="cohorts"
+					>
+						<div className="p-4">
 							<RetentionCohortsGrid
 								cohorts={cohorts}
-								isLoading={cohortsLoading}
+								isLoading={isLoading}
 							/>
 						</div>
-					</div>
-				</TabsContent>
+					</TabsContent>
 
-				<TabsContent
-					className="mt-4 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
-					value="rate"
-				>
-					<Card className="flex h-full flex-col">
-						<CardHeader className="shrink-0 px-3 py-2 sm:px-6 sm:py-4">
-							<CardTitle className="font-semibold text-base text-foreground sm:text-lg">
-								Daily Retention Rate
-							</CardTitle>
-							<p className="text-[11px] text-muted-foreground sm:text-sm">
-								View the percentage of returning users vs new users over time
-							</p>
-						</CardHeader>
-						<CardContent className="min-h-0 flex-1 px-2 pb-3 sm:px-6 sm:pb-6">
-							<div className="h-[320px] sm:h-full">
-								<RetentionRateChart data={rates} isLoading={rateLoading} />
-							</div>
-						</CardContent>
-					</Card>
-				</TabsContent>
+					<TabsContent
+						className="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden"
+						value="rate"
+					>
+						<div className="h-[400px] p-4">
+							<RetentionRateChart data={rates} isLoading={isLoading} />
+						</div>
+					</TabsContent>
+				</div>
 			</Tabs>
 		</div>
 	);

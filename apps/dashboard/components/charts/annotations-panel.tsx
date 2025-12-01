@@ -1,11 +1,13 @@
 "use client";
 
 import {
+	CalendarIcon,
 	NoteIcon,
 	PencilIcon,
 	TagIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
+import dayjs from "dayjs";
 import { useState } from "react";
 import {
 	AlertDialog,
@@ -55,138 +57,174 @@ export function AnnotationsPanel({
 		}
 	};
 
+	const annotationToDelete = annotations.find((a) => a.id === deleteId);
+
 	return (
 		<>
 			<Sheet onOpenChange={setIsOpen} open={isOpen}>
 				<SheetTrigger asChild>
-					<Button
-						className="gap-2 border-sidebar-border hover:bg-sidebar-accent"
-						size="sm"
-						variant="outline"
-					>
-						<NoteIcon className="h-4 w-4" weight="duotone" />
+					<Button className="gap-2" size="sm" variant="outline">
+						<NoteIcon className="size-4" weight="duotone" />
 						Annotations ({annotations.length})
 					</Button>
 				</SheetTrigger>
 				<SheetContent
-					className="w-full overflow-y-auto border-sidebar-border bg-sidebar p-4 sm:w-[60vw] sm:max-w-[600px]"
+					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-md"
 					side="right"
 				>
-					<SheetHeader className="space-y-3 border-sidebar-border border-b pb-6">
-						<div className="flex items-center gap-3">
-							<div className="rounded border border-sidebar-border bg-sidebar-accent p-3">
-								<NoteIcon
-									className="h-6 w-6 text-sidebar-ring"
-									size={16}
-									weight="duotone"
-								/>
-							</div>
-							<div>
-								<SheetTitle className="font-semibold text-sidebar-foreground text-xl tracking-tight">
-									Chart Annotations ({annotations.length})
-								</SheetTitle>
-								<SheetDescription className="mt-1 text-sidebar-foreground/70">
-									Manage your chart annotations. Click to edit or delete.
-								</SheetDescription>
-							</div>
-						</div>
-					</SheetHeader>
-
-					<div className="space-y-6 pt-6">
-						{annotations.length === 0 ? (
-							<div className="flex flex-col items-center justify-center py-12 text-center">
-								<div className="mb-4 rounded bg-sidebar-accent p-4">
+					<div className="flex h-full flex-col">
+						{/* Header */}
+						<SheetHeader className="shrink-0 pr-5">
+							<div className="flex items-start gap-4">
+								<div className="flex size-11 items-center justify-center rounded border bg-secondary-brighter">
 									<NoteIcon
-										className="h-8 w-8 text-sidebar-foreground/70"
-										weight="duotone"
+										className="text-foreground"
+										size={22}
+										weight="fill"
 									/>
 								</div>
-								<p className="font-medium text-sidebar-foreground">
-									No annotations yet
-								</p>
-								<p className="mt-1 text-sidebar-foreground/70 text-sm">
-									Drag on the chart to create your first annotation
-								</p>
-							</div>
-						) : (
-							annotations.map((annotation) => (
-								<div
-									className="group rounded border border-sidebar-border bg-sidebar p-4 transition-all hover:border-sidebar-ring/50 hover:shadow-sm"
-									key={annotation.id}
-								>
-									<div className="flex items-start justify-between gap-3">
-										<div className="min-w-0 flex-1">
-											{/* Color indicator and date */}
-											<div className="mb-2 flex items-center gap-2">
-												<div
-													className="h-3 w-3 rounded-full border-2 border-sidebar shadow-sm"
-													style={{ backgroundColor: annotation.color }}
-												/>
-												<span className="text-sidebar-foreground/70 text-xs">
-													{formatAnnotationDateRange(
-														annotation.xValue,
-														annotation.xEndValue,
-														granularity
-													)}
-												</span>
-												{annotation.annotationType === "range" &&
-													annotation.xEndValue &&
-													new Date(annotation.xValue).getTime() !==
-														new Date(annotation.xEndValue).getTime() && (
-														<Badge className="text-xs" variant="secondary">
-															Range
-														</Badge>
-													)}
-											</div>
-
-											{/* Text */}
-											<p className="mb-2 break-words text-sidebar-foreground text-sm">
-												{annotation.text}
-											</p>
-
-											{/* Tags */}
-											{annotation.tags && annotation.tags.length > 0 && (
-												<div className="flex flex-wrap gap-1">
-													{annotation.tags.map((tag) => (
-														<Badge
-															className="text-xs"
-															key={tag}
-															variant="outline"
-														>
-															<TagIcon className="mr-1 h-3 w-3" />
-															{tag}
-														</Badge>
-													))}
-												</div>
-											)}
-										</div>
-
-										{/* Actions */}
-										<div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-											<Button
-												className="h-8 w-8 p-0"
-												onClick={() => {
-													onEdit(annotation);
-													setIsOpen(false);
-												}}
-												size="sm"
-												variant="ghost"
-											>
-												<PencilIcon className="h-4 w-4" weight="duotone" />
-											</Button>
-											<Button
-												className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
-												onClick={() => setDeleteId(annotation.id)}
-												size="sm"
-												variant="ghost"
-											>
-												<TrashIcon className="h-4 w-4" weight="duotone" />
-											</Button>
-										</div>
-									</div>
+								<div className="min-w-0 flex-1">
+									<SheetTitle className="text-lg">Chart Annotations</SheetTitle>
+									<SheetDescription className="text-sm">
+										{annotations.length} annotation
+										{annotations.length !== 1 ? "s" : ""} on this chart
+									</SheetDescription>
 								</div>
-							))
-						)}
+							</div>
+						</SheetHeader>
+
+						{/* Content */}
+						<div className="flex-1 space-y-4 overflow-y-auto p-2">
+							{annotations.length === 0 ? (
+								<div className="flex flex-col items-center justify-center rounded border bg-card py-12 text-center">
+									<div className="flex size-12 items-center justify-center rounded bg-secondary">
+										<NoteIcon
+											className="size-6 text-muted-foreground"
+											weight="duotone"
+										/>
+									</div>
+									<p className="mt-4 font-medium text-foreground">
+										No annotations yet
+									</p>
+									<p className="mt-1 text-muted-foreground text-sm">
+										Drag on the chart to create your first annotation
+									</p>
+								</div>
+							) : (
+								<div className="space-y-3">
+									{annotations.map((annotation) => {
+										const isRange =
+											annotation.annotationType === "range" &&
+											annotation.xEndValue &&
+											new Date(annotation.xValue).getTime() !==
+												new Date(annotation.xEndValue).getTime();
+
+										return (
+											<div
+												className="group rounded border bg-card transition-colors hover:border-primary"
+												key={annotation.id}
+											>
+												{/* Annotation Header */}
+												<div className="flex items-start gap-3 p-3">
+													<div
+														className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded border"
+														style={{ borderColor: annotation.color }}
+													>
+														<div
+															className="size-3 rounded-full"
+															style={{ backgroundColor: annotation.color }}
+														/>
+													</div>
+													<div className="min-w-0 flex-1">
+														<p className="font-medium text-foreground text-sm">
+															{annotation.text}
+														</p>
+														<div className="mt-1 flex flex-wrap items-center gap-2">
+															<span className="flex items-center gap-1 text-muted-foreground text-xs">
+																<CalendarIcon className="size-3" />
+																{formatAnnotationDateRange(
+																	annotation.xValue,
+																	annotation.xEndValue,
+																	granularity
+																)}
+															</span>
+															{isRange && (
+																<Badge
+																	className="px-1.5 py-0 text-[10px]"
+																	variant="secondary"
+																>
+																	Range
+																</Badge>
+															)}
+														</div>
+													</div>
+												</div>
+
+												{/* Tags */}
+												{annotation.tags && annotation.tags.length > 0 && (
+													<div className="border-t px-3 py-2">
+														<div className="flex flex-wrap gap-1.5">
+															{annotation.tags.map((tag) => (
+																<Badge
+																	className="gap-1 px-1.5 py-0.5 text-[10px]"
+																	key={tag}
+																	variant="outline"
+																>
+																	<TagIcon className="size-2.5" />
+																	{tag}
+																</Badge>
+															))}
+														</div>
+													</div>
+												)}
+
+												{/* Meta */}
+												<div className="flex items-center justify-between border-t bg-secondary px-3 py-2">
+													<span className="text-muted-foreground text-xs">
+														Created{" "}
+														{dayjs(annotation.createdAt).format("MMM D, YYYY")}
+													</span>
+													<div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+														<Button
+															className="size-7"
+															onClick={() => {
+																onEdit(annotation);
+																setIsOpen(false);
+															}}
+															size="icon"
+															variant="ghost"
+														>
+															<PencilIcon
+																className="size-3.5"
+																weight="duotone"
+															/>
+														</Button>
+														<Button
+															className="size-7 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+															onClick={() => setDeleteId(annotation.id)}
+															size="icon"
+															variant="ghost"
+														>
+															<TrashIcon
+																className="size-3.5"
+																weight="duotone"
+															/>
+														</Button>
+													</div>
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							)}
+						</div>
+
+						{/* Footer */}
+						<div className="flex shrink-0 items-center justify-end gap-3 border-t px-6 py-4">
+							<Button onClick={() => setIsOpen(false)} variant="ghost">
+								Close
+							</Button>
+						</div>
 					</div>
 				</SheetContent>
 			</Sheet>
@@ -195,23 +233,47 @@ export function AnnotationsPanel({
 			<AlertDialog onOpenChange={() => setDeleteId(null)} open={!!deleteId}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Annotation</AlertDialogTitle>
+						<AlertDialogTitle>Delete Annotation?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Are you sure you want to delete this annotation? This action
-							cannot be undone.
+							This action cannot be undone. The annotation will be permanently
+							removed from this chart.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
+					{annotationToDelete && (
+						<div className="rounded border bg-card p-3">
+							<div className="flex items-start gap-3">
+								<div
+									className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded"
+									style={{ backgroundColor: annotationToDelete.color }}
+								>
+									<NoteIcon className="size-3 text-white" weight="fill" />
+								</div>
+								<div className="min-w-0 flex-1">
+									<p className="line-clamp-2 text-foreground text-sm">
+										{annotationToDelete.text}
+									</p>
+									<p className="mt-1 text-muted-foreground text-xs">
+										{formatAnnotationDateRange(
+											annotationToDelete.xValue,
+											annotationToDelete.xEndValue,
+											granularity
+										)}
+									</p>
+								</div>
+							</div>
+						</div>
+					)}
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-destructive text-destructive-foreground hover:bg-destructive-brighter"
 							disabled={isDeleting}
 							onClick={handleDelete}
 						>
 							{isDeleting ? (
 								<>
-									<div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									Deleting...
+									<div className="mr-2 size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									Deleting…
 								</>
 							) : (
 								"Delete"

@@ -1,6 +1,6 @@
 import { MapPinIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { CountryFlag } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface GeoEntry {
@@ -39,27 +39,10 @@ export function createGeoColumns({ type }: GeoRowProps): ColumnDef<GeoEntry>[] {
 				const countryName = entry.country_name;
 
 				const getIcon = () => {
-					if (type === "country") {
-						if (countryCode && countryCode !== "Unknown") {
-							return (
-								<img
-									alt={countryCode}
-									className="h-4 w-5 rounded-sm bg-muted object-cover"
-									onError={(e) => {
-										(e.target as HTMLImageElement).style.display = "none";
-									}}
-									src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${countryCode.toUpperCase()}.svg`}
-								/>
-							);
-						}
-						return <CountryFlag country={""} size={16} />;
-					}
-
-					// Region and City
-					if (countryCode) {
+					if (countryCode && countryCode !== "Unknown") {
 						return <CountryFlag country={countryCode} size={16} />;
 					}
-					return <MapPinIcon className="h-4 w-4 text-primary" />;
+					return <MapPinIcon className="h-4 w-4 text-muted-foreground" weight="duotone" />;
 				};
 
 				const formatName = () => {

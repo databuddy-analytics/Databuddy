@@ -19,6 +19,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -82,6 +83,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	entry_pages: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -203,6 +205,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	exit_pages: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -333,6 +336,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -351,6 +355,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	page_time_analysis: {
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",

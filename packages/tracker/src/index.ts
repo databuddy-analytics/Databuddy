@@ -174,20 +174,18 @@ export class Databuddy extends BaseTracker {
 	}
 
 	private setupPageLifecycle() {
-		const handleHide = () => this.handlePageHide();
-		const handleResume = () => this.handlePageResume();
-
-		window.addEventListener("beforeunload", handleHide);
-		window.addEventListener("pagehide", handleHide);
-
-		const visibilityHandler = () => {
+		const handleUnload = () => this.handlePageUnload();
+		const handleVisibilityChange = () => {
 			if (document.visibilityState === "hidden") {
-				handleHide();
+				this.pauseEngagement();
 			} else {
-				handleResume();
+				this.startEngagement();
 			}
 		};
-		document.addEventListener("visibilitychange", visibilityHandler);
+
+		window.addEventListener("beforeunload", handleUnload);
+		window.addEventListener("pagehide", handleUnload);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 
 		const pageshowHandler = (event: PageTransitionEvent) => {
 			if (!event.persisted) { return; }
@@ -196,14 +194,14 @@ export class Databuddy extends BaseTracker {
 		window.addEventListener("pageshow", pageshowHandler);
 
 		this.cleanupFns.push(() => {
-			window.removeEventListener("beforeunload", handleHide);
-			window.removeEventListener("pagehide", handleHide);
-			document.removeEventListener("visibilitychange", visibilityHandler);
+			window.removeEventListener("beforeunload", handleUnload);
+			window.removeEventListener("pagehide", handleUnload);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			window.removeEventListener("pageshow", pageshowHandler);
 		});
 	}
 
-	private handlePageHide() {
+	private handlePageUnload() {
 		this.pauseEngagement();
 		if (this.hasSentExitBeacon) { return; }
 		this.hasSentExitBeacon = true;
@@ -224,11 +222,6 @@ export class Databuddy extends BaseTracker {
 				page_count: this.pageCount,
 			},
 		]);
-	}
-
-	private handlePageResume() {
-		this.hasSentExitBeacon = false;
-		this.startEngagement();
 	}
 
 	private handleBfCacheRestore() {

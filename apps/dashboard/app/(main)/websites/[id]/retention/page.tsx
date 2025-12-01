@@ -23,7 +23,7 @@ export default function RetentionPage() {
 	const { id: websiteId } = useParams();
 
 	return (
-		<div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden p-6">
+		<div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden p-4">
 			<RetentionContentDynamic websiteId={websiteId as string} />
 		</div>
 	);

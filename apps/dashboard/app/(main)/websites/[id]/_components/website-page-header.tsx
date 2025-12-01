@@ -86,7 +86,7 @@ export function WebsitePageHeader({
 
 	if (variant === "minimal") {
 		return (
-			<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
+			<div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
 				<div className="flex items-center gap-3">
 					<div className="flex items-center gap-3">
 						{showBackButton && (
@@ -97,9 +97,9 @@ export function WebsitePageHeader({
 								</Link>
 							</Button>
 						)}
-						<div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
-							{icon}
-						</div>
+					<div className="rounded border border-primary/10 bg-primary/5 p-3">
+						{icon}
+					</div>
 					</div>
 
 					<div className="flex-1">
@@ -143,7 +143,7 @@ export function WebsitePageHeader({
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="border-b p-3 sm:p-4">
 				<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 					<div className="space-y-2">
@@ -214,8 +214,8 @@ export function WebsitePageHeader({
 				</div>
 			</div>
 
-			{hasError && (
-				<Card className="rounded-xl border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+		{hasError && (
+			<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex flex-col items-center space-y-3 text-center">
 							<div className="rounded-full border border-destructive/10 bg-destructive/5 p-3">
@@ -251,12 +251,12 @@ export function WebsitePageHeader({
 
 export function WebsitePageHeaderSkeleton() {
 	return (
-		<div className="space-y-6">
-			<div className="border-b pb-6">
+		<div className="space-y-4">
+			<div className="border-b pb-4">
 				<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 					<div className="space-y-2">
 						<div className="flex items-center gap-3">
-							<div className="h-12 w-12 animate-pulse rounded-xl bg-muted" />
+							<div className="h-12 w-12 animate-pulse rounded bg-muted" />
 							<div>
 								<div className="mb-2 h-8 w-48 animate-pulse rounded bg-muted" />
 								<div className="h-4 w-64 animate-pulse rounded bg-muted" />
@@ -264,8 +264,8 @@ export function WebsitePageHeaderSkeleton() {
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						<div className="h-10 w-32 animate-pulse rounded-lg bg-muted" />
-						<div className="h-10 w-36 animate-pulse rounded-lg bg-muted" />
+						<div className="h-10 w-32 animate-pulse rounded bg-muted" />
+						<div className="h-10 w-36 animate-pulse rounded bg-muted" />
 					</div>
 				</div>
 			</div>

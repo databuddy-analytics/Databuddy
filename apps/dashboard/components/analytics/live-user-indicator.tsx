@@ -42,17 +42,13 @@ export function LiveUserIndicator({ websiteId }: LiveUserIndicatorProps) {
 	};
 
 	return (
-		<div className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-background px-2 py-2 font-medium text-xs transition-colors hover:bg-accent/50 sm:gap-2 sm:px-3">
-			<span className="relative flex h-2 w-2 shrink-0">
-				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-				<span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+		<div className="flex h-8 shrink-0 items-center gap-2 rounded border px-3 text-sm">
+			<span className="relative flex size-2 shrink-0">
+				<span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-75" />
+				<span className="relative inline-flex size-2 rounded-full bg-green-500" />
 			</span>
-			<span className={`truncate ${getChangeColor()}`}>
-				<span className="hidden sm:inline">
-					{count} {count === 1 ? "user" : "users"}
-				</span>
-				<span className="sm:hidden">{count}</span>
-			</span>
+			<span className={`tabular-nums ${getChangeColor()}`}>{count}</span>
+			<span className="hidden text-muted-foreground sm:inline">online</span>
 		</div>
 	);
 }

@@ -13,17 +13,11 @@ import type {
 export const FilterOperators = {
 	eq: "=",
 	ne: "!=",
-	like: "LIKE",
-	ilike: "ILIKE",
-	notLike: "NOT LIKE",
-	gt: ">",
-	gte: ">=",
-	lt: "<",
-	lte: "<=",
+	contains: "LIKE",
+	not_contains: "NOT LIKE",
+	starts_with: "LIKE",
 	in: "IN",
-	notIn: "NOT IN",
-	isNull: "IS NULL",
-	isNotNull: "IS NOT NULL",
+	not_in: "NOT IN",
 } as const;
 
 export const TimeGranularity = {

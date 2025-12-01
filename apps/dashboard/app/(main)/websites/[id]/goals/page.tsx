@@ -30,12 +30,12 @@ import { GoalsList } from "./_components/goals-list";
 const GoalsListSkeleton = () => (
 	<div className="space-y-3">
 		{[...new Array(3)].map((_, i) => (
-			<Card className="animate-pulse rounded-xl" key={`goal-skeleton-${i + 1}`}>
-				<div className="p-6">
+			<Card className="animate-pulse rounded" key={`goal-skeleton-${i + 1}`}>
+				<div className="p-4">
 					<div className="mb-4 flex items-start justify-between">
 						<div className="flex-1 space-y-3">
 							<div className="flex items-center gap-3">
-								<div className="h-6 w-48 rounded-lg bg-muted" />
+								<div className="h-6 w-48 rounded bg-muted" />
 								<div className="h-4 w-4 rounded bg-muted" />
 							</div>
 							<div className="flex items-center gap-3">
@@ -47,12 +47,12 @@ const GoalsListSkeleton = () => (
 					</div>
 					<div className="space-y-3">
 						<div className="h-4 w-2/3 rounded bg-muted" />
-						<div className="rounded-lg bg-muted/50 p-3">
+						<div className="rounded bg-muted/50 p-3">
 							<div className="mb-2 h-3 w-24 rounded bg-muted" />
 							<div className="flex gap-2">
-								<div className="h-8 w-32 rounded-lg bg-muted" />
+								<div className="h-8 w-32 rounded bg-muted" />
 								<div className="h-4 w-4 rounded bg-muted" />
-								<div className="h-8 w-28 rounded-lg bg-muted" />
+								<div className="h-8 w-28 rounded bg-muted" />
 							</div>
 						</div>
 					</div>
@@ -176,7 +176,7 @@ export default function GoalsPage() {
 
 	if (goalsError) {
 		return (
-			<div className="p-6">
+			<div className="p-4">
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">

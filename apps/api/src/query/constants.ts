@@ -102,6 +102,11 @@ export const COMMON_FILTERS = {
 		description: "Filter by specific page paths",
 		type: "string",
 	},
+	query_string: {
+		name: "Query String",
+		description: "Filter by URL query parameters (e.g., ?foo=bar)",
+		type: "string",
+	},
 	referrer: {
 		name: "Referrer",
 		description: "Filter by referring websites",

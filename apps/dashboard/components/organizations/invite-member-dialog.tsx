@@ -142,36 +142,36 @@ export function InviteMemberDialog({
 								)}
 							/>
 						</div>
+						<DialogFooter>
+							<Button
+								className="flex-1"
+								disabled={isInviting}
+								onClick={handleClose}
+								type="button"
+								variant="secondary"
+							>
+								Cancel
+							</Button>
+							<Button
+								className="flex-1"
+								disabled={isInviting || !form.formState.isValid}
+								type="submit"
+							>
+								{isInviting ? (
+									<>
+										<div className="mr-1 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+										Sending...
+									</>
+								) : (
+									<>
+										<UserPlusIcon className="mr-1 h-3 w-3" weight="duotone" />
+										Send Invite
+									</>
+								)}
+							</Button>
+						</DialogFooter>
 					</form>
 				</Form>
-				<DialogFooter>
-					<Button
-						className="flex-1"
-						disabled={isInviting}
-						onClick={handleClose}
-						type="button"
-						variant="secondary"
-					>
-						Cancel
-					</Button>
-					<Button
-						className="flex-1"
-						disabled={isInviting || !form.formState.isValid}
-						type="submit"
-					>
-						{isInviting ? (
-							<>
-								<div className="mr-1 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
-								Sending...
-							</>
-						) : (
-							<>
-								<UserPlusIcon className="mr-1 h-3 w-3" weight="duotone" />
-								Send Invite
-							</>
-						)}
-					</Button>
-				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);

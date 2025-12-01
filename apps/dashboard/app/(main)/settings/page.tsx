@@ -11,6 +11,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ApiKeyDetailDialog } from "@/components/organizations/api-key-detail-dialog";
+import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
 import {
 	Card,
 	CardContent,
@@ -259,12 +260,14 @@ function ApiKeysSection() {
 		prefix: string;
 		start: string;
 	}>(null);
-	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [selectedApiKey, setSelectedApiKey] = useState<ApiKeyListItem | null>(
+		null
+	);
 	return (
 		<div className="h-full space-y-4">
 			<ApiKeyList
 				onCreateNew={() => setOpen(true)}
-				onSelect={(id) => setSelectedId(id)}
+				onSelect={(apiKey) => setSelectedApiKey(apiKey)}
 			/>
 			{createdSecret && (
 				<div className="rounded border p-3 text-sm">
@@ -273,18 +276,18 @@ function ApiKeysSection() {
 				</div>
 			)}
 			<ApiKeyCreateDialog
-				onCreated={(res) => setCreatedSecret(res)}
 				onOpenChange={(o) => setOpen(o)}
+				onSuccess={(res) => setCreatedSecret(res)}
 				open={open}
 			/>
 			<ApiKeyDetailDialog
-				keyId={selectedId}
+				apiKey={selectedApiKey}
 				onOpenChangeAction={(o) => {
 					if (!o) {
-						setSelectedId(null);
+						setSelectedApiKey(null);
 					}
 				}}
-				open={!!selectedId}
+				open={!!selectedApiKey}
 			/>
 		</div>
 	);

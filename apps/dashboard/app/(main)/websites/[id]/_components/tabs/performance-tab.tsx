@@ -4,9 +4,8 @@ import {
 	getCountryCode,
 	getCountryName,
 } from "@databuddy/shared/country-codes";
-import { LightningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CountryFlag } from "@/components/analytics/icons/CountryFlag";
+import { CountryFlag } from "@/components/icon";
 import { BrowserIcon, OSIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { useEnhancedPerformanceData } from "@/hooks/use-dynamic-query";
@@ -516,7 +515,7 @@ export function WebsitePerformanceTab({
 
 	if (error) {
 		return (
-			<div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/20">
+			<div className="mt-4 rounded border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
 				<p className="text-red-600 text-sm dark:text-red-400">
 					Failed to load performance data. Please try refreshing.
 				</p>
@@ -546,63 +545,41 @@ export function WebsitePerformanceTab({
 				webVitalsTabs={webVitalsTabs}
 			/>
 
-			<div className="rounded border bg-muted/20 p-4">
-				<div className="mb-4 flex items-start gap-2">
-					<LightningIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-					<div>
-						<p className="mb-1 font-medium text-foreground">
-							Performance Overview
-						</p>
-						<p className="text-muted-foreground text-xs">
-							Core Web Vitals and performance metrics.{" "}
-							<span className="font-medium text-green-600">Good</span>,
-							<span className="ml-1 font-medium text-yellow-600">
-								Needs Improvement
-							</span>
-							,<span className="ml-1 font-medium text-red-600">Poor</span>{" "}
-							ratings.
+			{hasData ? (
+				<>
+					<PerformanceSummaryCard
+						activeFilter={activeFilter}
+						onFilterChange={handleFilterChange}
+						summary={performanceSummary}
+					/>
+
+					<DataTable
+						description={description}
+						isLoading={isLoading || isRefreshing}
+						minHeight={500}
+						onAddFilter={onAddFilter}
+						tabs={tabs}
+						title="Performance Analysis"
+					/>
+				</>
+			) : isLoading ? (
+				<div className="flex items-center justify-center rounded border bg-sidebar py-12">
+					<div className="text-center">
+						<div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-primary border-b-2" />
+						<p className="text-sidebar-foreground/70 text-sm">
+							Loading performance data...
 						</p>
 					</div>
 				</div>
-
-				{hasData ? (
-					<>
-						<PerformanceSummaryCard
-							activeFilter={activeFilter}
-							onFilterChange={handleFilterChange}
-							summary={performanceSummary}
-						/>
-
-						<div className="mt-6">
-							<DataTable
-								description={description}
-								isLoading={isLoading || isRefreshing}
-								minHeight={500}
-								onAddFilter={onAddFilter}
-								tabs={tabs}
-								title="Performance Analysis"
-							/>
-						</div>
-					</>
-				) : isLoading ? (
-					<div className="flex items-center justify-center py-12">
-						<div className="text-center">
-							<div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-primary border-b-2" />
-							<p className="text-muted-foreground text-sm">
-								Loading performance data...
-							</p>
-						</div>
+			) : (
+				<div className="flex items-center justify-center rounded border bg-sidebar py-12">
+					<div className="text-center">
+						<p className="text-sidebar-foreground/70 text-sm">
+							No performance data available for the selected period.
+						</p>
 					</div>
-				) : (
-					<div className="flex items-center justify-center py-12">
-						<div className="text-center">
-							<p className="text-muted-foreground text-sm">
-								No performance data available for the selected period.
-							</p>
-						</div>
-					</div>
-				)}
-			</div>
+				</div>
+			)}
 		</div>
 	);
 }

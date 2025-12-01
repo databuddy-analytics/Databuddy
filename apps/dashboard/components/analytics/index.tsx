@@ -4,7 +4,6 @@ export { DateDisplay } from "./date-display";
 export { DeviceTypeCell } from "./device-type-cell";
 export { EventLimitIndicator } from "./event-limit-indicator";
 export { FaviconImage } from "./favicon-image";
-export { CountryFlag } from "./icons/CountryFlag";
 export { LiveUserIndicator } from "./live-user-indicator";
 export { MapComponent } from "./map-component";
 export { StatCard } from "./stat-card";

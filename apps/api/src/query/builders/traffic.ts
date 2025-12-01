@@ -62,6 +62,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -130,6 +131,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -160,6 +162,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -227,6 +230,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -298,6 +302,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -367,6 +372,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
+			"query_string",
 			"country",
 			"device_type",
 			"browser_name",

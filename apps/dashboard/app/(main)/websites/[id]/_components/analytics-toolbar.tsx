@@ -11,7 +11,8 @@ import { DateRangePicker } from "@/components/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { addDynamicFilterAtom } from "@/stores/jotai/filterAtoms";
-import { AddFilterForm } from "./utils/add-filters";
+import { AddFilterForm } from "./filters/add-filters";
+import { FiltersSection } from "./filters/filters-section";
 
 const MAX_HOURLY_DAYS = 7;
 
@@ -207,6 +208,8 @@ export function AnalyticsToolbar({
 					/>
 				</div>
 			</div>
+
+			{!isDisabled && <FiltersSection />}
 		</div>
 	);
 }

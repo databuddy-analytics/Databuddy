@@ -19,17 +19,13 @@ export interface DynamicQueryRequest {
 export interface DynamicQueryFilter {
 	field: string;
 	operator:
-		| "eq"
-		| "ne"
-		| "gt"
-		| "gte"
-		| "lt"
-		| "lte"
-		| "in"
-		| "not_in"
-		| "contains"
-		| "starts_with"
-		| "like";
+	| "eq"
+	| "ne"
+	| "contains"
+	| "not_contains"
+	| "starts_with"
+	| "in"
+	| "not_in";
 	value: string | number | (string | number)[];
 }
 

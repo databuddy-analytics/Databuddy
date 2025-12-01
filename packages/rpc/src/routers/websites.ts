@@ -78,6 +78,44 @@ const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
 	return { type: "neutral" as const, value: Math.abs(percentageChange) };
 };
 
+type ActiveUsersRow = {
+	websiteId: string;
+	activeUsers: number;
+};
+
+const fetchActiveUsers = async (
+	websiteIds: string[]
+): Promise<Record<string, number>> => {
+	if (!websiteIds.length) {
+		return {};
+	}
+
+	const query = `
+    SELECT
+      client_id AS websiteId,
+      uniq(anonymous_id) AS activeUsers
+    FROM analytics.events
+    WHERE
+      client_id IN {websiteIds:Array(String)}
+      AND event_name = 'screen_view'
+      AND session_id != ''
+      AND time >= now() - INTERVAL 5 MINUTE
+    GROUP BY client_id
+  `;
+
+	const results = await chQuery<ActiveUsersRow>(query, { websiteIds });
+
+	const activeUsersMap: Record<string, number> = {};
+	for (const id of websiteIds) {
+		activeUsersMap[id] = 0;
+	}
+	for (const row of results) {
+		activeUsersMap[row.websiteId] = row.activeUsers;
+	}
+
+	return activeUsersMap;
+};
+
 const fetchChartData = async (
 	websiteIds: string[]
 ): Promise<Record<string, ProcessedMiniChartData>> => {
@@ -254,11 +292,15 @@ export const websitesRouter = {
 					});
 
 					const websiteIds = websites.map((site) => site.id);
-					const chartData = await fetchChartData(websiteIds);
+					const [chartData, activeUsers] = await Promise.all([
+						fetchChartData(websiteIds),
+						fetchActiveUsers(websiteIds),
+					]);
 
 					return {
 						websites,
 						chartData,
+						activeUsers,
 					};
 				},
 			});
