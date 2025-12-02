@@ -51,39 +51,45 @@ export function DependencySelector({
 
   return (
     <div className="space-y-3">
-      {value.map((dep, index) => (
-        <div
-          key={index}
-          className="flex items-center gap-2 p-3 border rounded-lg"
-        >
-          <div className="flex-1">
-            <Select
-              value={dep}
-              onValueChange={(key) => updateDependency(index, key)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select prerequisite flag..." />
-              </SelectTrigger>
-              <SelectContent>
-                {selectableFlags.map((flag) => (
-                  <SelectItem key={flag.key} value={flag.key}>
-                    {flag.name || flag.key}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {value.map((dep, index) => {
+        const availableOptions = selectableFlags.filter(
+          (flag) => !value.includes(flag.key) || flag.key === dep
+        );
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => removeDependency(index)}
-            type="button"
+        return (
+          <div
+            key={index}
+            className="flex items-center gap-2 p-3 border rounded-lg"
           >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ))}
+            <div className="flex-1">
+              <Select
+                value={dep}
+                onValueChange={(key) => updateDependency(index, key)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select prerequisite flag..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOptions.map((flag) => (
+                    <SelectItem key={flag.key} value={flag.key}>
+                      {flag.name || flag.key}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => removeDependency(index)}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      })}
 
       <Button
         variant="outline"
@@ -97,8 +103,8 @@ export function DependencySelector({
       </Button>
 
       {value.length > 0 && (
-        <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-          <p className="font-medium mb-1">ℹ️ How dependencies work:</p>
+        <div className="text-xs bg-muted/50 p-3 rounded-lg">
+          <p className="font-medium mb-1"> How dependencies work:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>
               This flag will <strong>only be enabled</strong> if all selected

@@ -102,7 +102,6 @@ export function FlagsList({
             />
           </div>
           <div className="flex items-center gap-2">
-            <FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
             <Select
               onValueChange={(value: FlagStatus | "all") =>
                 setStatusFilter(value)

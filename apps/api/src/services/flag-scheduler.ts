@@ -108,7 +108,7 @@ async function executeSchedule(sched: ExecutableSchedule) {
             return;
         }
 
-        const updates: any = {};
+        const updates: any = { updatedAt: new Date() };
 
         if (sched.__isStep) {
             const value = sched.stepValue;
@@ -134,11 +134,11 @@ async function executeSchedule(sched: ExecutableSchedule) {
 
         const updatedFlag = (await db.update(flags).set(updates).where(eq(flags.id, sched.flagId)).returning())[0];
 
-        // For rollout schedules, only disable when all steps are executed
         if (sched.__isStep && sched.rolloutSteps) {
+            const now = new Date();
             const updatedRolloutSteps = sched.rolloutSteps.map((step: any) => {
-                if (step.scheduledAt === sched.stepScheduledAt) {
-                    return { ...step, executedAt: new Date().toISOString() };
+                if (step.executedAt || new Date(step.scheduledAt) <= now) {
+                    return { ...step, executedAt: step.executedAt || new Date().toISOString() };
                 }
                 return step;
             });
@@ -151,7 +151,6 @@ async function executeSchedule(sched: ExecutableSchedule) {
                 executedAt: allStepsExecuted ? new Date() : null
             }).where(eq(flagSchedules.id, sched.id));
         } else {
-            // For single schedules (enable/disable), disable immediately
             await db.update(flagSchedules).set({ isEnabled: false, executedAt: new Date() }).where(eq(flagSchedules.id, sched.id));
         }
 

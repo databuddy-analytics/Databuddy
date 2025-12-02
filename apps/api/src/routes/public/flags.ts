@@ -39,7 +39,7 @@ type FlagRule = {
 
 type FlagResult = {
 	enabled: boolean;
-	value: boolean;
+	value: boolean | string | number;
 	payload: unknown;
 	reason: string;
 	variant?: string;
@@ -51,20 +51,19 @@ const getCachedFlag = cacheable(
 			eq(flags.websiteId, clientId),
 			eq(flags.organizationId, clientId)
 		);
+
 		const environmentCondition = environment
 			? eq(flags.environment, environment)
 			: isNull(flags.environment);
-		const a =
-			db.query.flags.findFirst({
-				where: and(
-					eq(flags.key, key),
-					environmentCondition,
-					isNull(flags.deletedAt),
-					eq(flags.status, "active"),
-					scopeCondition
-				),
-			});
-		return a
+		return db.query.flags.findFirst({
+			where: and(
+				eq(flags.key, key),
+				environmentCondition,
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				scopeCondition
+			),
+		});
 	},
 	{
 		expireInSec: 30,

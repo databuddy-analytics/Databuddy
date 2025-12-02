@@ -21,12 +21,10 @@ interface VariantEditorProps {
 }
 
 export function VariantEditor({ variants, onChange }: VariantEditorProps) {
-  // Per-variant type is now stored on each variant. Keep a local fallback for "Add Variant" control.
   const [defaultValueType, setDefaultValueType] = useState<
     "string" | "number" | "json"
   >("string");
 
-  // Initialize with at least two variants if empty
   useEffect(() => {
     if (!variants || variants.length === 0) {
       onChange([
@@ -57,7 +55,6 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
       type: defaultValueType,
     };
 
-    // Redistribute weights if needed or just add with 0
     const newVariants = [...variants, newVariant];
     onChange(newVariants);
   };
@@ -116,7 +113,6 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
     onChange(newVariants);
   };
 
-  // Sum only defined weights
   const weightedVariants = variants.filter((v) => typeof v.weight === "number");
   const totalWeight = weightedVariants.reduce(
     (sum, v) => sum + (v.weight || 0),
@@ -240,10 +236,8 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
                       checked={typeof variant.weight === "number"}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          // enable weight with 0 (user can adjust)
                           handleUpdateVariant(index, "weight", 0);
                         } else {
-                          // disable weight (set undefined)
                           handleUpdateVariant(index, "weight", undefined);
                         }
                       }}

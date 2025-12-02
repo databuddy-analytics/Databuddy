@@ -49,7 +49,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { Flag } from "./types";
 import { UserRulesBuilder } from "./user-rules-builder";
 import { DependencySelector } from "./dependency-selector";
@@ -58,14 +58,10 @@ import { ScheduleManager } from "./schedule-manager";
 import {
   flagScheduleSchema,
   flagFormSchema,
+  FlagWithScheduleForm,
+  flagWithScheduleSchema,
 } from "@databuddy/shared/flags";
-
-export const flagWithScheduleSchema = z.object({
-  flag: flagFormSchema,
-  schedule: flagScheduleSchema.optional(),
-});
-
-type FlagWithScheduleForm = z.infer<typeof flagWithScheduleSchema>;
+import { DATE_FORMATS, formatDate } from "@/lib/formatters";
 
 type FlagSheetProps = {
   isOpen: boolean;
@@ -688,7 +684,7 @@ export function FlagSheet({
                           form.setValue("schedule.rolloutSteps", [
                             ...(watchedRolloutSteps || []),
                             {
-                              scheduledAt: new Date().toISOString(),
+                              scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), 
                               value: 0,
                             },
                           ]);
@@ -741,7 +737,7 @@ export function FlagSheet({
                                     )}
                                   >
                                     {step.scheduledAt
-                                      ? formatDate(new Date(step.scheduledAt), "PPP p")
+                                      ? formatDate(new Date(step.scheduledAt), DATE_FORMATS.DATE_TIME_12H)
                                       : "Pick a Time"}
                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                   </Button>
@@ -757,7 +753,7 @@ export function FlagSheet({
                                     onSelect={(date) => {
                                       if (date) {
                                         ensureScheduleFields();
-                                        const newSteps = watchedRolloutSteps || [];
+                                        const newSteps = [...(watchedRolloutSteps || [])];
                                         newSteps[idx].scheduledAt = date.toISOString();
                                         form.setValue("schedule.rolloutSteps", newSteps);
                                       }
@@ -770,7 +766,7 @@ export function FlagSheet({
                                         step.scheduledAt
                                           ? formatDate(
                                             new Date(step.scheduledAt),
-                                            "HH:mm"
+                                            DATE_FORMATS.DATE_TIME_12H
                                           )
                                           : ""
                                       }
@@ -781,7 +777,7 @@ export function FlagSheet({
                                           : new Date();
                                         const [h, m] = e.target.value.split(":");
                                         date.setHours(Number(h), Number(m));
-                                        const newSteps = watchedRolloutSteps || [];
+                                        const newSteps = [...(watchedRolloutSteps || [])];
                                         newSteps[idx].scheduledAt = date.toISOString();
                                         form.setValue("schedule.rolloutSteps", newSteps);
                                       }}
@@ -800,7 +796,7 @@ export function FlagSheet({
                                 value={step.value}
                                 onChange={(e) => {
                                   ensureScheduleFields();
-                                  const newSteps = watchedRolloutSteps || [];
+                                  const newSteps = [...(watchedRolloutSteps || [])];
                                   newSteps[idx].value = Number(e.target.value);
                                   form.setValue("schedule.rolloutSteps", newSteps);
                                 }}

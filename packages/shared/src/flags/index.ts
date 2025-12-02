@@ -29,7 +29,7 @@ export const variantSchema = z.object({
     ]),
     weight: z.number().min(0, "Weight must be >= 0").max(100, "Weight must be <= 100").optional(),
     description: z.string().optional(),
-    type: z.enum(["string", "number"]),
+    type: z.enum(["string", "number", "json"]),
 });
 export type Variant = z.infer<typeof variantSchema>;
 const flagTypeEnum = z.enum(["boolean", "rollout", "multivariant"]);
@@ -181,3 +181,11 @@ export const flagScheduleSchema = z.object({
     }
 );
 export type FlagSchedule = z.infer<typeof flagScheduleSchema>;
+
+
+export const flagWithScheduleSchema = z.object({
+    flag: flagFormSchema,
+    schedule: flagScheduleSchema.optional(),
+});
+
+export type FlagWithScheduleForm = z.infer<typeof flagWithScheduleSchema>;

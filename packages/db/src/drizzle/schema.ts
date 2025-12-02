@@ -149,7 +149,7 @@ export const invitation = pgTable(
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 		inviterId: text("inviter_id").notNull(),
 	},
-	(table) => [	
+	(table) => [
 		index("invitations_email_idx").using(
 			"btree",
 			table.email.asc().nullsLast().op("text_ops")
@@ -630,7 +630,9 @@ export const flagScheduleActionType = pgEnum("flag_schedule_type", [
 	"disable",
 	"update_rollout",
 ]);
-
+export type RolloutStep =
+	| { scheduledAt: string; action: "enable" | "disable"; executedAt?: string }
+	| { scheduledAt: string; action: "set_percentage"; value: number; executedAt?: string };
 export const annotationType = pgEnum("annotation_type", [
 	"point",
 	"line",

@@ -31,15 +31,19 @@ import type {
   FlagSchedule,
   FlagScheduleType,
   FlagType,
+  FlagWithScheduleForm,
 } from "@databuddy/shared/flags";
 import { DATE_FORMATS, formatDate } from "../../../../../../lib/formatters";
 
-interface ScheduleManagerProps {
-  form: UseFormReturn<any>;
-  setValue: UseFormSetValue<any>;
+interface ScheduleManagerProps<TFormValues> {
+  form: UseFormReturn<FlagWithScheduleForm>;
+  setValue: UseFormSetValue<FlagWithScheduleForm>;
 }
 
-export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
+export function ScheduleManager<TFormValues>({
+  form,
+  setValue,
+}: ScheduleManagerProps<TFormValues>) {
   const rolloutSteps = form.watch("schedule.rolloutSteps") || [];
   const scheduleEnabled = form.watch("schedule.isEnabled");
   const watchedScheduledType = form.watch("schedule.type");
@@ -102,7 +106,7 @@ export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
                   <FormLabel>Schedule Type</FormLabel>
                   <Select
                     onValueChange={(e) => {
-                      if (watchedScheduledType === "update_rollout" && (rolloutSteps.length === 0 || !rolloutSteps)) {
+                      if (e === "update_rollout" && (rolloutSteps.length === 0 || !rolloutSteps)) {
                         addRolloutStep();
                       }
                       field.onChange(e);
@@ -131,10 +135,10 @@ export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
               )}
             />
 
-            {watchedScheduledType !== "update_rollout" && <FormField
+            {watchedScheduledType !== "update_rollout" &&
+             <FormField
               control={form.control}
               name="schedule.scheduledAt"
-              disabled={watchedScheduledType === "update_rollout"}
               render={({ field }) => (
                 <FormItem className="flex flex-col grow">
                   <FormLabel>Date & Time</FormLabel>
@@ -147,7 +151,6 @@ export function ScheduleManager({ form, setValue }: ScheduleManagerProps) {
                             "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
-                          disabled={watchedScheduledType === "update_rollout"}
                         >
                           {field.value
                             ? formatDate(new Date(field.value), DATE_FORMATS.DATE_TIME_12H)
