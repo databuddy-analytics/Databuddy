@@ -26,6 +26,7 @@ export const variantSchema = z.object({
     value: z.union([
         z.string(),
         z.number(),
+        z.object({}).passthrough(),
     ]),
     weight: z.number().min(0, "Weight must be >= 0").max(100, "Weight must be <= 100").optional(),
     description: z.string().optional(),
@@ -74,7 +75,7 @@ export const flagFormSchema = z
             }
         }
     });
-
+export type TFlag = z.infer<typeof flagFormSchema>;
 export const flagScheduleTypeEnum = z.enum([
     "enable",
     "disable",

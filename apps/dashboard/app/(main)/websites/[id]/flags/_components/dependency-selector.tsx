@@ -28,7 +28,7 @@ export function DependencySelector({
   );
 
   const addDependency = () => {
-    onChange([...value, ""]);
+    onChange([...value, availableFlags[0].key]);
   };
 
   const removeDependency = (index: number) => {

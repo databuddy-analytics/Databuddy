@@ -1,12 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon, FlagIcon, Info, InfoIcon, TrashIcon } from "@phosphor-icons/react";
+import { CalendarIcon, FlagIcon, InfoIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Slider } from "@/components/ui/elastic-slider";
@@ -41,7 +40,6 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -85,12 +83,12 @@ export function FlagSheet({
     }),
   });
 
-  const { data: schedule } = useQuery(
-    orpc.flagSchedules.getByFlagId.queryOptions({
-      input: { flagId: flag?.id || "" },
-      enabled: !!flag?.id,
-    })
-  );
+  const { data: schedule } = useQuery({
+    ...orpc.flagSchedules.getByFlagId.queryOptions({
+      input: { flagId: flag!.id },
+    }),
+    enabled: Boolean(flag?.id),
+  });
   const isEditing = Boolean(flag);
 
   const form = useForm<FlagWithScheduleForm>({
@@ -451,33 +449,19 @@ export function FlagSheet({
                     render={({ field }) => {
                       const watchedDependencies: string[] =
                         form.watch("flag.dependencies") || [];
-                      const hasInactiveDependency = watchedDependencies.some(
-                        (depKey) => {
-                          const depFlag = flagsList?.find(
-                            (f) => f.key === depKey
-                          );
-                          return depFlag && depFlag.status !== "active";
-                        }
+
+                      // Find all inactive dependencies
+                      const inactiveDeps = (flagsList || []).filter(
+                        (flag) => watchedDependencies.includes(flag.key) && flag.status !== "active"
                       );
 
-                      const inactiveDeps = watchedDependencies
-                        .map((depKey) => {
-                          const depFlag = flagsList?.find(
-                            (f) => f.key === depKey
-                          );
-                          return depFlag && depFlag.status !== "active"
-                            ? depFlag
-                            : null;
-                        })
-                        .filter(Boolean);
-
-                      const canBeActive = !hasInactiveDependency;
+                      const canBeActive = inactiveDeps.length === 0;
 
                       return (
                         <FormItem>
                           <FormLabel className="flex items-center gap-2">
                             Status
-                            {hasInactiveDependency && (
+                            {!canBeActive && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -491,7 +475,7 @@ export function FlagSheet({
                                       The following dependencies are inactive:
                                     </p>
                                     <ul className="text-sm list-disc list-inside mt-1">
-                                      {inactiveDeps.map((dep: any) => (
+                                      {inactiveDeps.map((dep) => (
                                         <li key={dep.key}>
                                           {dep.name || dep.key}
                                         </li>
@@ -504,7 +488,7 @@ export function FlagSheet({
                           </FormLabel>
                           <Select
                             onValueChange={(value) => {
-                              if (value === "active" && hasInactiveDependency) {
+                              if (value === "active" && !canBeActive) {
                                 return;
                               }
                               field.onChange(value);
@@ -705,7 +689,7 @@ export function FlagSheet({
                     </div>
 
                     <div className="space-y-3">
-                      {(watchedRolloutSteps || []).map((step: any, idx: number) => {
+                      {(watchedRolloutSteps || []).map((step, idx: number) => {
                         // Helper function to ensure schedule fields are set when modifying steps
                         const ensureScheduleFields = () => {
                           const currentSchedule = form.getValues("schedule");
@@ -809,7 +793,7 @@ export function FlagSheet({
                               size="icon"
                               onClick={() => {
                                 const filtered = (watchedRolloutSteps || []).filter(
-                                  (_: any, i: number) => i !== idx
+                                  (_, i: number) => i !== idx
                                 );
                                 form.setValue("schedule.rolloutSteps", filtered);
                               }}
@@ -901,7 +885,7 @@ export function FlagSheet({
               {/* Scheduled Changes */}
               {watchedType !== "rollout" && (
                 <div className="space-y-4 pt-4 border-t">
-                  <ScheduleManager form={form} setValue={form.setValue} />
+                  <ScheduleManager form={form} />
                 </div>
               )}
 

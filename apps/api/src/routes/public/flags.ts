@@ -3,6 +3,7 @@ import { cacheable } from "@databuddy/redis";
 import { Elysia, t } from "elysia";
 import { logger } from "@/lib/logger";
 import { record, setAttributes } from "@/lib/tracing";
+import type { TFlag } from "@databuddy/shared/flags";
 
 const flagQuerySchema = t.Object({
 	key: t.String(),
@@ -18,6 +19,7 @@ const bulkFlagQuerySchema = t.Object({
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	properties: t.Optional(t.String()),
+	environment: t.Optional(t.String()),
 });
 
 type UserContext = {
@@ -74,16 +76,21 @@ const getCachedFlag = cacheable(
 );
 
 const getCachedFlagsForClient = cacheable(
-	(clientId: string) => {
+	(clientId: string, environment?: string) => {
 		const scopeCondition = or(
 			eq(flags.websiteId, clientId),
 			eq(flags.organizationId, clientId)
 		);
 
+		const environmentCondition = environment
+			? eq(flags.environment, environment)
+			: isNull(flags.environment);
+
 		return db.query.flags.findMany({
 			where: and(
 				isNull(flags.deletedAt),
 				eq(flags.status, "active"),
+				environmentCondition,
 				scopeCondition
 			),
 		});
@@ -223,7 +230,7 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 }
 
 export function selectVariant(
-	flag: any,
+	flag: TFlag,
 	context: UserContext
 ): { value: any; variant: string } {
 	if (!flag.variants || flag.variants.length === 0) {
@@ -240,6 +247,9 @@ export function selectVariant(
 	if (!hasAnyWeight) {
 		const idx = hash % flag.variants.length;
 		const selected = flag.variants[idx];
+		if (!selected) {
+			return { value: flag.defaultValue, variant: "default" };
+		}
 		return { value: selected.value, variant: selected.key };
 	}
 
@@ -254,6 +264,9 @@ export function selectVariant(
 
 	// If no weighted match, fall back to last variant
 	const lastVariant = flag.variants[flag.variants.length - 1];
+	if (!lastVariant) {
+		return { value: flag.defaultValue, variant: "default" };
+	}
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
@@ -401,6 +414,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					"flag.client_id": query.clientId || "missing",
 					"flag.has_user_id": Boolean(query.userId),
 					"flag.has_email": Boolean(query.email),
+					"flag.environment": query.environment || "missing",
 				});
 
 				try {
@@ -420,7 +434,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						properties: parseProperties(query.properties),
 					};
 
-					const allFlags = await getCachedFlagsForClient(query.clientId);
+					const allFlags = await getCachedFlagsForClient(query.clientId, query.environment);
 
 					setAttributes({
 						"flag.total_flags": allFlags.length,

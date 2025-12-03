@@ -35,15 +35,13 @@ import type {
 } from "@databuddy/shared/flags";
 import { DATE_FORMATS, formatDate } from "../../../../../../lib/formatters";
 
-interface ScheduleManagerProps<TFormValues> {
+interface ScheduleManagerProps {
   form: UseFormReturn<FlagWithScheduleForm>;
-  setValue: UseFormSetValue<FlagWithScheduleForm>;
 }
 
-export function ScheduleManager<TFormValues>({
+export function ScheduleManager({
   form,
-  setValue,
-}: ScheduleManagerProps<TFormValues>) {
+}: ScheduleManagerProps) {
   const rolloutSteps = form.watch("schedule.rolloutSteps") || [];
   const scheduleEnabled = form.watch("schedule.isEnabled");
   const watchedScheduledType = form.watch("schedule.type");
@@ -82,9 +80,9 @@ export function ScheduleManager<TFormValues>({
                     id="schedule-toggle"
                     checked={scheduleEnabled}
                     onCheckedChange={(value) => {
-                      setValue("schedule.isEnabled", value);
+                      form.setValue("schedule.isEnabled", value);
                       if (!value) {
-                        setValue("schedule", undefined);
+                        form.setValue("schedule", undefined);
                       }
                     }}
                   />
@@ -136,72 +134,72 @@ export function ScheduleManager<TFormValues>({
             />
 
             {watchedScheduledType !== "update_rollout" &&
-             <FormField
-              control={form.control}
-              name="schedule.scheduledAt"
-              render={({ field }) => (
-                <FormItem className="flex flex-col grow">
-                  <FormLabel>Date & Time</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value
-                            ? formatDate(new Date(field.value), DATE_FORMATS.DATE_TIME_12H)
-                            : "Pick a Time"}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
+              <FormField
+                control={form.control}
+                name="schedule.scheduledAt"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col grow">
+                    <FormLabel>Date & Time</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? formatDate(new Date(field.value), DATE_FORMATS.DATE_TIME_12H)
+                              : "Pick a Time"}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
 
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            const currentTime = field.value
-                              ? new Date(field.value)
-                              : new Date();
-                            date.setHours(currentTime.getHours());
-                            date.setMinutes(currentTime.getMinutes());
-                            field.onChange(date.toISOString());
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={
+                            field.value ? new Date(field.value) : undefined
                           }
-                        }}
-                      />
-
-                      <div className="p-3 border-t">
-                        <Input
-                          type="time"
-                          defaultValue={
-                            field.value
-                              ? formatDate(new Date(field.value), DATE_FORMATS.TIME_ONLY)
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const date = field.value
-                              ? new Date(field.value)
-                              : new Date();
-                            const [h, m] = e.target.value.split(":");
-                            date.setHours(Number(h), Number(m));
-                            field.onChange(date.toISOString());
+                          onSelect={(date) => {
+                            if (date) {
+                              const currentTime = field.value
+                                ? new Date(field.value)
+                                : new Date();
+                              date.setHours(currentTime.getHours());
+                              date.setMinutes(currentTime.getMinutes());
+                              field.onChange(date.toISOString());
+                            }
                           }}
                         />
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />}
+
+                        <div className="p-3 border-t">
+                          <Input
+                            type="time"
+                            defaultValue={
+                              field.value
+                                ? formatDate(new Date(field.value), DATE_FORMATS.TIME_ONLY)
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const date = field.value
+                                ? new Date(field.value)
+                                : new Date();
+                              const [h, m] = e.target.value.split(":");
+                              date.setHours(Number(h), Number(m));
+                              field.onChange(date.toISOString());
+                            }}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />}
           </div>
         </div>
       )}
