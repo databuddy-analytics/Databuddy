@@ -384,21 +384,20 @@ export const flagsRouter = {
 				const [restoredFlag] = await context.db
 					.update(flags)
 					.set({
-						name: input.name || existingFlag[0].name,
-						description: input.description ?? existingFlag[0].description,
+						name: input.name,
+						description: input.description,
 						type: input.type,
 						status: finalStatus,
 						defaultValue: input.defaultValue,
-						rules: input.rules || existingFlag[0].rules || [],
+						rules: input.rules,
 						persistAcrossAuth:
 							input.persistAcrossAuth ??
 							existingFlag[0].persistAcrossAuth ??
 							false,
-						rolloutPercentage:
-							input.rolloutPercentage || existingFlag[0].rolloutPercentage || 0,
-						variants: input.variants || existingFlag[0].variants || [],
-						dependencies: input.dependencies || existingFlag[0].dependencies || [],
-						environment: input.environment || existingFlag?.[0]?.environment,
+						rolloutPercentage: input.rolloutPercentage,
+						variants: input.variants,
+						dependencies: input.dependencies,
+						environment: input.environment,
 						deletedAt: null,
 						updatedAt: new Date(),
 					})

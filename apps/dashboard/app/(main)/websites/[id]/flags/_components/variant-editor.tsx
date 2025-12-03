@@ -100,7 +100,7 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
           coercedValue = "";
           break;
       }
-      
+
       newVariants[index] = {
         ...newVariants[index],
         type: newType,
@@ -126,11 +126,47 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
       <div className="flex items-center justify-between">
         <Label>Variants</Label>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={variants.length > 0 && typeof variants[0].weight === "number"}
+              onChange={(e) => {
+                const useWeights = e.target.checked;
+                const updatedVariants = variants.map((variant) => ({
+                  ...variant,
+                  weight: useWeights ? (variant.weight ?? 0) : undefined,
+                }));
+                onChange(updatedVariants);
+              }}
+            />
+            <span className="text-xs">Use Weights</span>
+          </label>
           <Select
             value={defaultValueType}
-            onValueChange={(v: "string" | "number" | "json") =>
-              setDefaultValueType(v)
-            }
+            onValueChange={(v: "string" | "number" | "json") => {
+              setDefaultValueType(v);
+
+              const updatedVariants = variants.map((variant) => {
+                let coercedValue: any = variant.value;
+                switch (v) {
+                  case "number":
+                    coercedValue = Number(coercedValue) || 0;
+                    break;
+                  case "json":
+                  case "string":
+                    coercedValue = typeof variant.value === "object"
+                      ? JSON.stringify(variant.value)
+                      : String(variant.value || "");
+                    break;
+                }
+                return {
+                  ...variant,
+                  type: v,
+                  value: coercedValue,
+                };
+              });
+              onChange(updatedVariants);
+            }}
           >
             <SelectTrigger className="w-[120px] h-8 text-xs">
               <SelectValue placeholder="Value Type" />
@@ -161,7 +197,7 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
             className="rounded-lg border bg-card p-3 shadow-sm space-y-3"
           >
             <div className="flex items-start gap-3">
-              <div className="grid flex-1 gap-3 sm:grid-cols-3">
+              <div className="grid flex-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Key</Label>
                   <Input
@@ -188,24 +224,6 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
                     className="h-8"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Type</Label>
-                  <Select
-                    value={variant.type || "string"}
-                    onValueChange={(v: "string" | "number" | "json") =>
-                      handleUpdateVariant(index, "type", v)
-                    }
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="string">String</SelectItem>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="json">JSON</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
               <Button
                 type="button"
@@ -219,65 +237,41 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
               </Button>
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label
-                  className={`text-xs ${typeof variant.weight !== "number" && "text-muted-foreground"}`}
-                >
-                  Traffic Weight:{" "}
-                  {typeof variant.weight === "number"
-                    ? `${variant.weight}%`
-                    : "— (unweighted)"}
+            {typeof variant.weight === "number" && (
+              <div className="space-y-1">
+                <Label className="text-xs">
+                  Traffic Weight: {variant.weight}%
                 </Label>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm">
-                    <input
-                      type="checkbox"
-                      checked={typeof variant.weight === "number"}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          handleUpdateVariant(index, "weight", 0);
-                        } else {
-                          handleUpdateVariant(index, "weight", undefined);
-                        }
-                      }}
-                    />
-                    <span className="ml-2 text-xs">Use weight</span>
-                  </label>
-                </div>
+                <Slider
+                  value={variant.weight}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={(val) =>
+                    handleUpdateVariant(index, "weight", val)
+                  }
+                />
               </div>
-              <Slider
-                value={typeof variant.weight === "number" ? variant.weight : 0}
-                min={0}
-                max={100}
-                step={1}
-                onValueChange={(val) =>
-                  handleUpdateVariant(index, "weight", val)
-                }
-                disabled={typeof variant.weight !== "number"}
-              />
-            </div>
+            )}
           </div>
         ))}
       </div>
 
       <div
-        className={`text-sm flex items-center gap-2 ${
-          totalWeight === 0 
-            ? "text-blue-600" 
-            : isValidTotal 
-            ? "text-green-600" 
+        className={`text-sm flex items-center gap-2 ${totalWeight === 0
+          ? "text-blue-600"
+          : isValidTotal
+            ? "text-green-600"
             : "text-amber-600"
-        }`}
+          }`}
       >
         <div
-          className={`w-2 h-2 rounded-full ${
-            totalWeight === 0
-              ? "bg-blue-600"
-              : isValidTotal
+          className={`w-2 h-2 rounded-full ${totalWeight === 0
+            ? "bg-blue-600"
+            : isValidTotal
               ? "bg-green-600"
               : "bg-amber-600"
-          }`}
+            }`}
         />
         {totalWeight === 0 ? (
           <>
@@ -293,6 +287,6 @@ export function VariantEditor({ variants, onChange }: VariantEditorProps) {
           </>
         )}
       </div>
-    </div>
+    </div >
   );
 }

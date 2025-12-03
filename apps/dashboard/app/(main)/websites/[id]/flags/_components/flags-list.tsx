@@ -43,12 +43,6 @@ export function FlagsList({
   const [statusFilter, setStatusFilter] = useState<FlagStatus | "all">("all");
   const [showExamples, setShowExamples] = useState(false);
 
-
-  const isFlagExamplesEnabledQuery = useQuery({
-    queryKey: ["isFlagExamplesEnabled"],
-    queryFn: () => getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", "", "production"),
-  });
-
   const filteredFlags = flags.filter((flag) => {
     // Status filter
     if (statusFilter !== "all" && flag.status !== statusFilter) {

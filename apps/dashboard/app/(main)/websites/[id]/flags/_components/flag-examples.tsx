@@ -228,13 +228,13 @@ export function FlagExamples({
     queryKey: ["examples-display-strategy"],
     queryFn: async () => {
       console.log("Fetching examples display strategy");
-      return await getExamplesDisplayStrategy("OSA-FWQhcahi6J5VDxsbn", userId, "production")
+      return await getExamplesDisplayStrategy("OSA-FWQhcahi6J5VDxsbn", userId, "test")
     }
   });
   const { data: shouldShowExamples, refetch: refetchShouldShowExamples, isFetching: isFetchingShouldShowExamples } = useQuery({
     queryKey: ["should-show-examples"],
     queryFn: async () => {
-      return await getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", userId, "production")
+      return await getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", userId, "test")
     }
   });
 
@@ -244,12 +244,12 @@ export function FlagExamples({
     const newUserId = `test-user-${Math.random().toString(36).substring(2, 15)}`;
     console.log(`🔄 Switching to new user: ${newUserId}`);
     setUserId(newUserId);
-    if (isRefetchShouldShowExamples) { refetchShouldShowExamples(); } else {
+    if (isRefetchShouldShowExamples) {
+      refetchShouldShowExamples();
+    } else {
       refetch();
-
     }
   };
-
   if (isFetching) {
     return <div className="text-center py-12">Loading...</div>;
   }
@@ -276,7 +276,7 @@ export function FlagExamples({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => handleRefetchAsNewUser(true)}
+            onClick={() => handleRefetchAsNewUser()}
           >
             🔄 Test as Different User
           </Button>

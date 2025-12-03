@@ -225,7 +225,7 @@ export function FlagSheet({
         rules: data.rules || [],
         variants: data.variants || [],
         dependencies: data.dependencies || [],
-        environment: data.environment?.trim() || undefined,
+        environment: data.environment?.trim() || null,
       }
 
       if (isEditing && flag) {
@@ -684,7 +684,7 @@ export function FlagSheet({
                           form.setValue("schedule.rolloutSteps", [
                             ...(watchedRolloutSteps || []),
                             {
-                              scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), 
+                              scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
                               value: 0,
                             },
                           ]);

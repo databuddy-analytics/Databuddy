@@ -57,7 +57,7 @@ export const flagFormSchema = z
         rules: z.array(userRuleSchema).optional(),
         variants: z.array(variantSchema).optional(),
         dependencies: z.array(z.string()).optional(),
-        environment: z.string().optional(),
+        environment: z.string().nullable().optional(),
     })
     .superRefine((data, ctx) => {
         if (data.type === "multivariant" && data.variants) {
