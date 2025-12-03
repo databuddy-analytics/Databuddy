@@ -689,7 +689,7 @@ export function FlagSheet({
                     </div>
 
                     <div className="space-y-3">
-                      {(watchedRolloutSteps || []).map((step, idx: number) => {
+                      {(watchedRolloutSteps || []).map((step) => {
                         // Helper function to ensure schedule fields are set when modifying steps
                         const ensureScheduleFields = () => {
                           const currentSchedule = form.getValues("schedule");
@@ -793,7 +793,7 @@ export function FlagSheet({
                               size="icon"
                               onClick={() => {
                                 const filtered = (watchedRolloutSteps || []).filter(
-                                  (_, i: number) => i !== idx
+                                  (_, i) => i !== idx
                                 );
                                 form.setValue("schedule.rolloutSteps", filtered);
                               }}

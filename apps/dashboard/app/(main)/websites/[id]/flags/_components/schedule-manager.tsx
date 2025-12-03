@@ -119,11 +119,6 @@ export function ScheduleManager({
                     <SelectContent>
                       <SelectItem value="enable">Enable</SelectItem>
                       <SelectItem value="disable">Disable</SelectItem>
-                      {/* {flagType === "boolean" && (
-                        <SelectItem value="update_default">
-                          Update Default Value
-                        </SelectItem>
-                      )} */}
                     </SelectContent>
                   </Select>
                   {watchedScheduledType === "update_rollout" && <FormDescription>

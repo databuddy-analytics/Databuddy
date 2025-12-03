@@ -232,7 +232,7 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 export function selectVariant(
 	flag: TFlag,
 	context: UserContext
-): { value: any; variant: string } {
+): { value: string | number | boolean; variant: string } {
 	if (!flag.variants || flag.variants.length === 0) {
 		return { value: flag.defaultValue, variant: "default" };
 	}
@@ -242,7 +242,7 @@ export function selectVariant(
 	const percentage = hash % 100;
 
 	// If no variants have explicit weights, use deterministic index-based selection
-	const hasAnyWeight = flag.variants.some((v: any) => typeof v.weight === "number");
+	const hasAnyWeight = flag.variants.some((v) => typeof v?.weight === "number");
 
 	if (!hasAnyWeight) {
 		const idx = hash % flag.variants.length;
