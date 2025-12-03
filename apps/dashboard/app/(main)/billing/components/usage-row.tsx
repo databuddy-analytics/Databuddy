@@ -79,7 +79,7 @@ export const UsageRow = memo(function UsageRowComponent({
 							<span className="font-medium">{feature.name}</span>
 							{feature.hasExtraCredits && (
 								<Badge variant="secondary">
-									<GiftIcon size={10} weight="fill" />
+									<GiftIcon className="mr-1" size={10} weight="fill" />
 									Bonus
 								</Badge>
 							)}

@@ -31,11 +31,11 @@ function AIAssistantLoadingSkeleton() {
 					</div>
 					<div className="flex-1 space-y-2 overflow-y-auto p-2">
 						<div className="flex gap-2">
-							<Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+							<Skeleton className="size-8 shrink-0 rounded-full" />
 							<Skeleton className="h-12 w-3/4 rounded" />
 						</div>
 						<div className="ml-auto flex flex-row-reverse gap-2">
-							<Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+							<Skeleton className="size-8 shrink-0 rounded-full" />
 							<Skeleton className="h-8 w-1/2 rounded" />
 						</div>
 					</div>

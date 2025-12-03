@@ -29,7 +29,7 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
 			<SciFiCard className="h-full rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 hover:shadow-lg">
 				<div className="flex flex-col items-center p-6">
 					{/* Rank Badge */}
-					<div className="mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-sm">
+					<div className="mb-4 flex size-8 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-sm">
 						#{contributor.rank}
 					</div>
 

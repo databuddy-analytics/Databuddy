@@ -125,7 +125,7 @@ export default async function PostPage({
 								<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 									<SciFiButton asChild className="flex-1 sm:flex-initial">
 										<Link aria-label="Back to blog" href="/blog">
-											<ArrowLeftIcon className="h-4 w-4" weight="fill" />
+											<ArrowLeftIcon className="size-4" weight="fill" />
 											Back to Blog
 										</Link>
 									</SciFiButton>
@@ -170,7 +170,7 @@ export default async function PostPage({
 
 				<div className="mb-4 flex flex-wrap items-center gap-4 text-muted-foreground text-xs sm:text-sm">
 					<div className="flex items-center gap-2">
-						<UserIcon className="h-4 w-4" weight="duotone" />
+						<UserIcon className="size-4" weight="duotone" />
 						<div className="-space-x-2 flex">
 							{post.authors.slice(0, 3).map((author) => (
 								<Avatar
@@ -201,11 +201,11 @@ export default async function PostPage({
 						)}
 					</div>
 					<div className="flex items-center gap-2">
-						<CalendarIcon className="h-4 w-4" weight="duotone" />
+						<CalendarIcon className="size-4" weight="duotone" />
 						<span>{formatDate(post.publishedAt)}</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<ClockIcon className="h-4 w-4" weight="duotone" />
+						<ClockIcon className="size-4" weight="duotone" />
 						<span>{readingTime}</span>
 					</div>
 				</div>

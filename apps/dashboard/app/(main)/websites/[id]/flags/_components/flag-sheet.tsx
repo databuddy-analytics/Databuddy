@@ -289,7 +289,7 @@ export function FlagSheet({
   return (
     <Sheet onOpenChange={onCloseAction} open={isOpen}>
       <SheetContent
-        className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[60vw]"
+        className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[30vw]"
         side="right"
       >
         <SheetHeader>

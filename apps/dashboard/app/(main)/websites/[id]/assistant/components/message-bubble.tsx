@@ -36,13 +36,13 @@ interface MessageBubbleProps {
 const getChartIcon = (chartType: string) => {
 	switch (chartType) {
 		case "bar":
-			return <ChartBarIcon className="h-4 w-4" />;
+			return <ChartBarIcon className="size-4" />;
 		case "line":
-			return <ChartLineIcon className="h-4 w-4" />;
+			return <ChartLineIcon className="size-4" />;
 		case "pie":
-			return <ChartPieIcon className="h-4 w-4" />;
+			return <ChartPieIcon className="size-4" />;
 		default:
-			return <ChartBarIcon className="h-4 w-4" />;
+			return <ChartBarIcon className="size-4" />;
 	}
 };
 
@@ -88,14 +88,14 @@ function ThinkingStepsPreview({ steps }: { steps: string[] }) {
 						)}
 						key={`preview-${index}-${step.slice(0, 20)}`}
 					>
-						<ClockIcon className="mt-0.5 h-3 w-3 shrink-0" />
+						<ClockIcon className="mt-0.5 size-3 shrink-0" />
 						<span className="break-words leading-relaxed">{step}</span>
 					</div>
 				);
 			})}
 			{steps.length > maxPreviewSteps && (
 				<div className="flex items-center gap-2 py-1 pl-1 text-muted-foreground text-xs opacity-60">
-					<CaretDownIcon className="h-3 w-3" />
+					<CaretDownIcon className="size-3" />
 					<span>+{steps.length - maxPreviewSteps} more steps...</span>
 				</div>
 			)}
@@ -333,8 +333,8 @@ function AIMessage({
 					message.metricValue !== undefined && (
 						<div className="mt-4 rounded border border-primary/20 bg-primary/5 p-4">
 							<div className="flex min-w-0 items-center gap-3">
-								<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-primary/10">
-									<HashIcon className="h-4 w-4 text-primary" />
+								<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
+									<HashIcon className="size-4 text-primary" />
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="truncate font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -368,7 +368,7 @@ function AIMessage({
 							onClick={() => navigator.clipboard.writeText(message.content)}
 							tooltip="Copy message"
 						>
-							<CopyIcon className="h-4 w-4" />
+							<CopyIcon className="size-4" />
 						</Action>
 						{showUpVoteButton && (
 							<Action
@@ -381,7 +381,7 @@ function AIMessage({
 								onClick={() => handleFeedbackButtonClick("upvote")}
 								tooltip="Upvote"
 							>
-								<ThumbsUpIcon className="h-4 w-4" />
+								<ThumbsUpIcon className="size-4" />
 							</Action>
 						)}
 						{showDownVoteButton && (
@@ -395,7 +395,7 @@ function AIMessage({
 								onClick={() => handleFeedbackButtonClick("downvote")}
 								tooltip="Downvote"
 							>
-								<ThumbsDownIcon className="h-4 w-4" />
+								<ThumbsDownIcon className="size-4" />
 							</Action>
 						)}
 					</Actions>

@@ -58,7 +58,7 @@ export function QueryTypesGrid({ items }: { items: QueryTypeItem[] }) {
 										) : null}
 									</div>
 									<CaretRightIcon
-										className="mt-0.5 hidden h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:block"
+										className="mt-0.5 hidden size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:block"
 										weight="fill"
 									/>
 								</div>

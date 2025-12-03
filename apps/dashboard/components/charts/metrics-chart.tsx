@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
 	ANNOTATION_STORAGE_KEYS,
@@ -196,6 +197,8 @@ export function MetricsChart({
 	const [suppressTooltip, setSuppressTooltip] = useState(false);
 	const hasAnimatedRef = useRef(false);
 
+	const { chartStepType } = useChartPreferences("overview-main");
+
 	const [tipDismissed, setTipDismissed] = usePersistentState(
 		websiteId
 			? ANNOTATION_STORAGE_KEYS.tipDismissed(websiteId)
@@ -220,7 +223,9 @@ export function MetricsChart({
 
 		const result = { ...item };
 		for (const metric of metrics) {
-			result[`${metric.key}_historical`] = isLastPoint ? null : item[metric.key];
+			result[`${metric.key}_historical`] = isLastPoint
+				? null
+				: item[metric.key];
 			if (isLastPoint || isSecondToLast) {
 				result[`${metric.key}_future`] = item[metric.key];
 			}
@@ -229,7 +234,9 @@ export function MetricsChart({
 	});
 
 	const handleMouseDown = (e: { activeLabel?: string }) => {
-		if (!e?.activeLabel) return;
+		if (!e?.activeLabel) {
+			return;
+		}
 		isDraggingRef.current = true;
 		setSuppressTooltip(true);
 		setRefAreaLeft(e.activeLabel);
@@ -237,7 +244,9 @@ export function MetricsChart({
 	};
 
 	const handleMouseMove = (e: { activeLabel?: string }) => {
-		if (!(refAreaLeft && e?.activeLabel)) return;
+		if (!(refAreaLeft && e?.activeLabel)) {
+			return;
+		}
 		setRefAreaRight(e.activeLabel);
 	};
 
@@ -249,7 +258,7 @@ export function MetricsChart({
 			setTimeout(() => setSuppressTooltip(false), 150);
 		}
 
-		if (!e?.activeLabel || !refAreaLeft) {
+		if (!(e?.activeLabel && refAreaLeft)) {
 			setRefAreaLeft(null);
 			setRefAreaRight(null);
 			return;
@@ -266,7 +275,9 @@ export function MetricsChart({
 		}
 
 		const [startIndex, endIndex] =
-			leftIndex < rightIndex ? [leftIndex, rightIndex] : [rightIndex, leftIndex];
+			leftIndex < rightIndex
+				? [leftIndex, rightIndex]
+				: [rightIndex, leftIndex];
 
 		const startDateStr =
 			(chartData[startIndex] as ChartDataRow & { rawDate?: string }).rawDate ||
@@ -385,8 +396,10 @@ export function MetricsChart({
 
 					{!refAreaLeft && annotations.length === 0 && !tipDismissed && (
 						<div className="absolute top-4 right-4 z-10">
-							<div className="flex items-center gap-2 rounded border bg-popover px-3 py-2 text-muted-foreground text-xs shadow-sm">
-								<span>💡 Click or drag on chart to create annotations</span>
+							<div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-sm">
+								<span className="text-muted-foreground text-xs">
+									Click or drag on chart to create annotations
+								</span>
 								<button
 									aria-label="Dismiss tip"
 									className="text-muted-foreground transition-colors hover:text-foreground"
@@ -612,7 +625,7 @@ export function MetricsChart({
 									}}
 									stroke={metric.color}
 									strokeWidth={2.5}
-									type="monotone"
+									type={chartStepType}
 								/>
 							))}
 							{metrics.map((metric) => (
@@ -629,7 +642,7 @@ export function MetricsChart({
 									strokeDasharray="4 4"
 									strokeOpacity={0.8}
 									strokeWidth={2}
-									type="monotone"
+									type={chartStepType}
 								/>
 							))}
 						</ComposedChart>

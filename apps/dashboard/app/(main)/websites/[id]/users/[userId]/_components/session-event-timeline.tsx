@@ -57,9 +57,7 @@ function EventItem({
 			/>
 
 			{/* Event Name */}
-			<span className="truncate font-medium">
-				{event.event_name}
-			</span>
+			<span className="truncate font-medium">{event.event_name}</span>
 
 			{/* Path */}
 			<span
@@ -72,7 +70,10 @@ function EventItem({
 			{/* Custom Badge */}
 			<div className="w-[52px]">
 				{hasProperties && (
-					<Badge className="bg-primary/10 text-primary text-[10px]" variant="secondary">
+					<Badge
+						className="bg-primary/10 text-[10px] text-primary"
+						variant="secondary"
+					>
 						Custom
 					</Badge>
 				)}
@@ -123,7 +124,7 @@ export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 	return (
 		<div className="max-h-[280px] overflow-y-auto rounded border bg-background">
 			{/* Header */}
-			<div className="sticky top-0 grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 border-b bg-accent px-2 py-1.5 text-xs font-medium text-muted-foreground">
+			<div className="sticky top-0 grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 border-b bg-accent px-2 py-1.5 font-medium text-muted-foreground text-xs">
 				<span className="text-right">#</span>
 				<span />
 				<span>Event</span>

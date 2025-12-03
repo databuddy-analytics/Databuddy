@@ -39,8 +39,8 @@ export default function RootLayout({ children }) {
       <head />
       <Databuddy
         clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-        trackScreenViews
         trackPerformance
+        trackWebVitals
         trackErrors
         enableBatching
         batchSize={20}
@@ -61,32 +61,32 @@ All options are type-safe and documented in `DatabuddyConfig`:
 |-----------------------|-----------|--------------|-------------|
 | `clientId`            | string    | —            | **Required.** Your Databuddy project client ID. |
 | `clientSecret`        | string    | —            | (Advanced) For server-side use only. |
-| `apiUrl`              | string    | `https://api.databuddy.cc` | Custom API endpoint. |
+| `apiUrl`              | string    | `https://basket.databuddy.cc` | Custom API endpoint. |
 | `scriptUrl`           | string    | `https://cdn.databuddy.cc/databuddy.js` | Custom script URL. |
 | `sdk`                 | string    | `web`        | SDK name. Only override for custom builds. |
 | `sdkVersion`          | string    | *auto*       | SDK version. Defaults to package version. |
 | `disabled`            | boolean   | `false`      | Disable all tracking. |
-| `waitForProfile`      | boolean   | `false`      | Wait for user profile before sending events. |
-| `trackScreenViews`    | boolean   | `true`       | Auto-track page/screen views. |
+| `debug`               | boolean   | `false`      | Enable debug logging (SDK-only). |
 | `trackHashChanges`    | boolean   | `false`      | Track hash changes in URL. |
-| `trackAttributes`     | boolean   | `false`      | Track data-* attributes. |
-| `trackOutgoingLinks`  | boolean   | `false`      | Track outgoing link clicks. |
-| `trackSessions`       | boolean   | `true`       | Track user sessions. |
-| `trackPerformance`    | boolean   | `true`       | Track page performance. |
-| `trackWebVitals`      | boolean   | `true`       | Track Web Vitals. |
-| `trackEngagement`     | boolean   | `false`      | Track engagement metrics. |
-| `trackScrollDepth`    | boolean   | `false`      | Track scroll depth. |
-| `trackExitIntent`     | boolean   | `false`      | Track exit intent. |
+| `trackAttributes`     | boolean   | `false`      | Track data-* attributes on elements. |
+| `trackOutgoingLinks`  | boolean   | `false`      | Track clicks on outgoing links. |
 | `trackInteractions`   | boolean   | `false`      | Track user interactions. |
-| `trackErrors`         | boolean   | `true`       | Track JS errors. |
-| `trackBounceRate`     | boolean   | `false`      | Track bounce rate. |
+| `trackScrollDepth`    | boolean   | `false`      | Track scroll depth. |
+| `trackPerformance`    | boolean   | `true`       | Track page performance metrics. |
+| `trackWebVitals`      | boolean   | `false`      | Track Web Vitals metrics. |
+| `trackErrors`         | boolean   | `false`      | Track JavaScript errors. |
+| `ignoreBotDetection`  | boolean   | `false`      | Ignore bot detection. |
+| `usePixel`            | boolean   | `false`      | Use pixel tracking instead of script. |
 | `samplingRate`        | number    | `1.0`        | Sampling rate (0.0–1.0). |
-| `enableRetries`       | boolean   | `true`       | Retry failed requests. |
+| `enableRetries`       | boolean   | `false`      | Enable retries for failed requests. |
 | `maxRetries`          | number    | `3`          | Max retries. |
 | `initialRetryDelay`   | number    | `500`        | Initial retry delay (ms). |
-| `enableBatching`      | boolean   | `true`       | Enable event batching. |
-| `batchSize`           | number    | `20`         | Events per batch (1–50). |
+| `enableBatching`       | boolean   | `true`       | Enable event batching. |
+| `batchSize`           | number    | `10`         | Events per batch (1–50). |
 | `batchTimeout`        | number    | `5000`       | Batch timeout (ms, 100–30000). |
+| `skipPatterns`        | string[]  | —            | Array of glob patterns to skip tracking. |
+| `maskPatterns`        | string[]  | —            | Array of glob patterns to mask sensitive paths. |
+| `filter`               | function  | —            | Filter function to conditionally skip events. |
 
 ---
 

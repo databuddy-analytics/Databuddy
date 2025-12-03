@@ -26,7 +26,7 @@ function SkeletonRow() {
 				<Skeleton className="h-3 w-48" />
 			</div>
 			<Skeleton className="h-6 w-16 rounded-full" />
-			<Skeleton className="h-4 w-4" />
+			<Skeleton className="size-4" />
 		</div>
 	);
 }

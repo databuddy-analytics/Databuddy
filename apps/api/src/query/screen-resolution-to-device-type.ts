@@ -45,7 +45,10 @@ function parseResolution(input: string): Resolution | null {
 		return null;
 	}
 
-	const normalized = input.trim().replace(/[X×✕\s]/gi, "x").toLowerCase();
+	const normalized = input
+		.trim()
+		.replace(/[X×✕\s]/gi, "x")
+		.toLowerCase();
 	const parts = normalized.split("x");
 
 	if (parts.length !== 2) {
@@ -55,7 +58,12 @@ function parseResolution(input: string): Resolution | null {
 	const width = Number.parseInt(parts[0] ?? "", 10);
 	const height = Number.parseInt(parts[1] ?? "", 10);
 
-	if (width <= 0 || height <= 0 || Number.isNaN(width) || Number.isNaN(height)) {
+	if (
+		width <= 0 ||
+		height <= 0 ||
+		Number.isNaN(width) ||
+		Number.isNaN(height)
+	) {
 		return null;
 	}
 

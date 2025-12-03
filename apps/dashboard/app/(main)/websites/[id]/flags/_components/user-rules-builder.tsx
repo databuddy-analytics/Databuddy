@@ -105,7 +105,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 						{/* Rule Header */}
 						<div className="mb-4 flex items-center justify-between">
 							<div className="flex items-center gap-2">
-								<div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-foreground font-medium text-accent text-xs">
+								<div className="flex size-6 items-center justify-center rounded-full bg-accent-foreground font-medium text-accent text-xs">
 									{index + 1}
 								</div>
 								<span className="text-muted-foreground text-sm">
@@ -339,7 +339,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 				type="button"
 				variant="outline"
 			>
-				<PlusIcon className="mr-2 h-4 w-4" size={16} />
+				<PlusIcon className="mr-2 size-4" size={16} />
 				Add Rule
 			</Button>
 		</div>

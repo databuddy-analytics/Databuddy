@@ -146,7 +146,7 @@ export const ExternalLinkButton: React.FC<ExternalLinkButtonProps> = ({
 			target="_blank"
 		>
 			{label}
-			<ExternalLink className="h-3 w-3 opacity-70" />
+			<ExternalLink className="size-3 opacity-70" />
 		</a>
 	);
 
@@ -201,7 +201,7 @@ export const MetricTooltip = ({
 				<TooltipTrigger asChild>
 					<div className="relative w-full">
 						{children}
-						<HelpCircle className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/50" />
+						<HelpCircle className="absolute top-2 right-2 size-3 text-muted-foreground/50" />
 					</div>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-[300px] space-y-2 border bg-background p-3 text-foreground shadow-lg">
@@ -210,14 +210,14 @@ export const MetricTooltip = ({
 					</div>
 					<div className="space-y-1 text-xs">
 						<div className="flex items-center">
-							<div className="mr-1.5 h-2 w-2 rounded-full bg-green-500" />
+							<div className="mr-1.5 size-2 rounded-full bg-green-500" />
 							<span>
 								Good: &lt; {threshold.good}
 								{threshold.unit}
 							</span>
 						</div>
 						<div className="flex items-center">
-							<div className="mr-1.5 h-2 w-2 rounded-full bg-yellow-500" />
+							<div className="mr-1.5 size-2 rounded-full bg-yellow-500" />
 							<span>
 								Needs improvement: {threshold.good}
 								{threshold.unit} - {threshold.average}
@@ -225,7 +225,7 @@ export const MetricTooltip = ({
 							</span>
 						</div>
 						<div className="flex items-center">
-							<div className="mr-1.5 h-2 w-2 rounded-full bg-red-500" />
+							<div className="mr-1.5 size-2 rounded-full bg-red-500" />
 							<span>
 								Poor: &gt; {threshold.average}
 								{threshold.unit}

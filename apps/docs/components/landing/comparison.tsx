@@ -93,30 +93,30 @@ const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
 			<div className="pr-4 text-foreground text-sm">{feature.name}</div>
 			<div className="flex justify-center">
 				{feature.us ? (
-					<Check className="h-5 w-5 text-primary" />
+					<Check className="size-5 text-primary" />
 				) : (
-					<X className="h-5 w-5 text-muted-foreground" />
+					<X className="size-5 text-muted-foreground" />
 				)}
 			</div>
 			<div className="flex justify-center">
 				{feature.ga ? (
-					<Check className="h-5 w-5 text-muted-foreground" />
+					<Check className="size-5 text-muted-foreground" />
 				) : (
-					<X className="h-5 w-5 text-muted-foreground" />
+					<X className="size-5 text-muted-foreground" />
 				)}
 			</div>
 			<div className="flex justify-center">
 				{feature.plausible ? (
-					<Check className="h-5 w-5 text-muted-foreground" />
+					<Check className="size-5 text-muted-foreground" />
 				) : (
-					<X className="h-5 w-5 text-muted-foreground" />
+					<X className="size-5 text-muted-foreground" />
 				)}
 			</div>
 			<div className="flex justify-center">
 				{feature.fathom ? (
-					<Check className="h-5 w-5 text-muted-foreground" />
+					<Check className="size-5 text-muted-foreground" />
 				) : (
-					<X className="h-5 w-5 text-muted-foreground" />
+					<X className="size-5 text-muted-foreground" />
 				)}
 			</div>
 			<div className="text-muted-foreground text-xs">{feature.benefit}</div>
@@ -131,9 +131,9 @@ const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
 				<div className="flex items-center gap-1">
 					<span className="font-medium text-primary text-xs">Databuddy</span>
 					{feature.us ? (
-						<Check className="h-4 w-4 text-primary" />
+						<Check className="size-4 text-primary" />
 					) : (
-						<X className="h-4 w-4 text-muted-foreground" />
+						<X className="size-4 text-muted-foreground" />
 					)}
 				</div>
 			</div>
@@ -146,25 +146,25 @@ const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
 				<div className="flex items-center gap-1">
 					<span className="text-muted-foreground text-xs">GA</span>
 					{feature.ga ? (
-						<Check className="h-3 w-3 text-muted-foreground" />
+						<Check className="size-3 text-muted-foreground" />
 					) : (
-						<X className="h-3 w-3 text-muted-foreground" />
+						<X className="size-3 text-muted-foreground" />
 					)}
 				</div>
 				<div className="flex items-center gap-1">
 					<span className="text-muted-foreground text-xs">Plausible</span>
 					{feature.plausible ? (
-						<Check className="h-3 w-3 text-muted-foreground" />
+						<Check className="size-3 text-muted-foreground" />
 					) : (
-						<X className="h-3 w-3 text-muted-foreground" />
+						<X className="size-3 text-muted-foreground" />
 					)}
 				</div>
 				<div className="flex items-center gap-1">
 					<span className="text-muted-foreground text-xs">Fathom</span>
 					{feature.fathom ? (
-						<Check className="h-3 w-3 text-muted-foreground" />
+						<Check className="size-3 text-muted-foreground" />
 					) : (
-						<X className="h-3 w-3 text-muted-foreground" />
+						<X className="size-3 text-muted-foreground" />
 					)}
 				</div>
 			</div>
@@ -179,7 +179,7 @@ export default function Comparison() {
 				{/* Single wide section for comparison */}
 				<div className="border-border border-t-[1.2px] border-b-[1.2px] border-l-[1.2px] p-6 sm:p-8 md:border-t-0 md:p-10">
 					<div className="my-1 flex items-center gap-2">
-						<BarChart3 className="h-4 w-4 text-muted-foreground" />
+						<BarChart3 className="size-4 text-muted-foreground" />
 						<p className="text-muted-foreground">Feature Comparison</p>
 					</div>
 					<div className="mt-2 mb-8">

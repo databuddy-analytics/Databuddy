@@ -36,7 +36,7 @@ export function SignOutButton() {
 			<TooltipTrigger asChild>
 				<Button
 					aria-label={isLoggingOut ? "Signing out..." : "Sign out"}
-					className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+					className="size-8 hover:bg-destructive/10 hover:text-destructive"
 					disabled={isLoggingOut}
 					onClick={handleLogout}
 					size="icon"

@@ -19,13 +19,13 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"CASE " +
-			"WHEN time_on_page < 30 THEN '0-30s' " +
-			"WHEN time_on_page < 60 THEN '30s-1m' " +
-			"WHEN time_on_page < 300 THEN '1m-5m' " +
-			"WHEN time_on_page < 900 THEN '5m-15m' " +
-			"WHEN time_on_page < 3600 THEN '15m-1h' " +
-			"ELSE '1h+' " +
-			"END as duration_range",
+				"WHEN time_on_page < 30 THEN '0-30s' " +
+				"WHEN time_on_page < 60 THEN '30s-1m' " +
+				"WHEN time_on_page < 300 THEN '1m-5m' " +
+				"WHEN time_on_page < 900 THEN '5m-15m' " +
+				"WHEN time_on_page < 3600 THEN '15m-1h' " +
+				"ELSE '1h+' " +
+				"END as duration_range",
 			"COUNT(DISTINCT session_id) as sessions",
 			"COUNT(DISTINCT anonymous_id) as visitors",
 		],
@@ -128,7 +128,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         any(device_type) as device_type,
         any(browser_name) as browser_name,
         any(os_name) as os_name
-      FROM analytics.events
+      FROM ${Analytics.events}
       WHERE 
         client_id = {websiteId:String}
         AND time >= toDateTime({startDate:String})
@@ -151,25 +151,25 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
           THEN CAST(e.properties AS String)
           ELSE NULL
         END as properties
-      FROM analytics.events e
+      FROM ${Analytics.events} e
       INNER JOIN session_list sl ON e.session_id = sl.session_id
       WHERE e.client_id = {websiteId:String}
       
       UNION ALL
       
       SELECT
-        ce.id,
+        generateUUIDv4() as id,
         ce.session_id,
         ce.timestamp as time,
         ce.event_name,
-        '' as path,
+        ce.path,
         CASE 
           WHEN ce.properties IS NOT NULL 
             AND ce.properties != '{}' 
           THEN CAST(ce.properties AS String)
           ELSE NULL
         END as properties
-      FROM analytics.custom_events ce
+      FROM ${Analytics.custom_event_spans} ce
       INNER JOIN session_list sl ON ce.session_id = sl.session_id
       WHERE ce.client_id = {websiteId:String}
     ),

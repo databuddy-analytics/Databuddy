@@ -80,14 +80,14 @@ function BlogPostCard({ post }: { post: Post }) {
 					<div className="mb-3 flex items-center gap-3 text-muted-foreground text-xs">
 						{post.category && (
 							<div className="flex items-center gap-1">
-								<TagIcon className="h-3 w-3" weight="duotone" />
+								<TagIcon className="size-3" weight="duotone" />
 								<span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary">
 									{post.category.name}
 								</span>
 							</div>
 						)}
 						<div className="flex items-center gap-1">
-							<ClockIcon className="h-3 w-3" weight="duotone" />
+							<ClockIcon className="size-3" weight="duotone" />
 							<span>{getReadingTime(post.content)}</span>
 						</div>
 					</div>
@@ -126,7 +126,7 @@ function BlogPostCard({ post }: { post: Post }) {
 						{/* Authors */}
 						<div className="flex items-center gap-2">
 							<UserIcon
-								className="h-4 w-4 text-muted-foreground"
+								className="size-4 text-muted-foreground"
 								weight="duotone"
 							/>
 							<div className="-space-x-2 flex">
@@ -152,7 +152,7 @@ function BlogPostCard({ post }: { post: Post }) {
 
 						{/* Date */}
 						<div className="flex items-center gap-1 text-muted-foreground text-xs">
-							<CalendarIcon className="h-3 w-3" weight="duotone" />
+							<CalendarIcon className="size-3" weight="duotone" />
 							<span>{formatDate(post.publishedAt)}</span>
 						</div>
 					</div>

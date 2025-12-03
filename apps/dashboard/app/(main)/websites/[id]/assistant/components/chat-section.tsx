@@ -38,13 +38,13 @@ export function ChatSkeleton() {
 			{/* Header Skeleton */}
 			<div className="flex shrink-0 items-center justify-between border-b p-4">
 				<div className="flex items-center gap-3">
-					<Skeleton className="h-8 w-8 rounded" />
+					<Skeleton className="size-8 rounded" />
 					<div>
 						<Skeleton className="mb-2 h-4 w-24" />
 						<Skeleton className="h-3 w-32" />
 					</div>
 				</div>
-				<Skeleton className="h-8 w-8 rounded" />
+				<Skeleton className="size-8 rounded" />
 			</div>
 			{/* Messages Area Skeleton */}
 			<div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -161,7 +161,7 @@ export default function ChatSection() {
 						title="Open chat history"
 						variant="ghost"
 					>
-						<ChatIcon className="h-5 w-5" weight="duotone" />
+						<ChatIcon className="size-5" weight="duotone" />
 					</Button>
 					<Button
 						className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
@@ -171,7 +171,7 @@ export default function ChatSection() {
 						title="Reset chat"
 						variant="ghost"
 					>
-						<ClockCounterClockwiseIcon className="h-4 w-4" />
+						<ClockCounterClockwiseIcon className="size-4" />
 					</Button>
 				</div>
 			</div>
@@ -186,7 +186,7 @@ export default function ChatSection() {
 								<div className="space-y-2 py-4 text-center">
 									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-accent/10">
 										<SparkleIcon
-											className="h-8 w-8 text-primary"
+											className="size-8 text-primary"
 											weight="duotone"
 										/>
 									</div>
@@ -202,7 +202,7 @@ export default function ChatSection() {
 
 								<div className="space-y-3">
 									<div className="flex items-center gap-2 text-muted-foreground text-sm">
-										<LightningIcon className="h-4 w-4" weight="duotone" />
+										<LightningIcon className="size-4" weight="duotone" />
 										<span>Try these examples:</span>
 									</div>
 									<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
@@ -225,7 +225,7 @@ export default function ChatSection() {
 												style={{ animationDelay: `${index * 100}ms` }}
 												variant="outline"
 											>
-												<question.icon className="mr-3 h-4 w-4 shrink-0 text-primary/70" />
+												<question.icon className="mr-3 size-4 shrink-0 text-primary/70" />
 												<div className="flex-1">
 													<div className="font-medium">{question.text}</div>
 													<div className="text-muted-foreground text-xs capitalize">
@@ -306,7 +306,7 @@ export default function ChatSection() {
 					>
 						<PaperPlaneRightIcon
 							className={cn(
-								"h-4 w-4",
+								"size-4",
 								inputValue.trim() && !isLoading && !isRateLimited && "scale-110"
 							)}
 							weight="duotone"
@@ -317,20 +317,20 @@ export default function ChatSection() {
 				{/* Helper text */}
 				<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
 					<div className="flex items-center gap-2 text-muted-foreground">
-						<SparkleIcon className="h-3 w-3 shrink-0" weight="duotone" />
+						<SparkleIcon className="size-3 shrink-0" weight="duotone" />
 						<span>Ask about trends, comparisons, or specific metrics</span>
 					</div>
 					{hasMessages && (
 						<div className="flex items-center gap-3 text-muted-foreground">
 							{messageStats.charts > 0 && (
 								<span className="flex items-center gap-1">
-									<ChartBarIcon className="h-3 w-3" weight="duotone" />
+									<ChartBarIcon className="size-3" weight="duotone" />
 									{messageStats.charts}
 								</span>
 							)}
 							{messageStats.metrics > 0 && (
 								<span className="flex items-center gap-1">
-									<HashIcon className="h-3 w-3" weight="duotone" />
+									<HashIcon className="size-3" weight="duotone" />
 									{messageStats.metrics}
 								</span>
 							)}

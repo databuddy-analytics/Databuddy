@@ -19,7 +19,6 @@ import { useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useUserProfile } from "@/hooks/use-dynamic-query";
 import { getDeviceIcon } from "@/lib/utils";
@@ -154,11 +153,13 @@ function NotFoundState({
 		<div className="flex h-full flex-col">
 			<Header onBack={onBack} />
 			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
-				<div className="flex size-16 items-center justify-center rounded-full bg-muted">
-					<UserIcon className="size-8 text-muted-foreground" weight="duotone" />
+				<div className="flex size-16 items-center justify-center rounded-full bg-secondary">
+					<UserIcon className="size-8 text-secondary-foreground" weight="duotone" />
 				</div>
 				<div className="text-center">
-					<p className="font-semibold text-foreground text-lg">User not found</p>
+					<p className="font-semibold text-foreground text-lg">
+						User not found
+					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
 						User "{userId}" was not found in the selected date range.
 					</p>
@@ -184,7 +185,9 @@ function Header({
 		total_sessions: number;
 	};
 }) {
-	const countryCode = userProfile ? getCountryCode(userProfile.country || "") : "";
+	const countryCode = userProfile
+		? getCountryCode(userProfile.country || "")
+		: "";
 
 	return (
 		<div className="flex h-12 shrink-0 items-center border-b bg-background">
@@ -213,7 +216,9 @@ function Header({
 							</p>
 						</div>
 					</div>
-					<Badge variant={userProfile.total_sessions > 1 ? "default" : "secondary"}>
+					<Badge
+						variant={userProfile.total_sessions > 1 ? "default" : "secondary"}
+					>
 						{userProfile.total_sessions > 1 ? "Return" : "New"}
 					</Badge>
 				</div>
@@ -366,8 +371,13 @@ export default function UserDetailPage() {
 					{/* Location */}
 					<div className="border-b p-4">
 						<div className="mb-3 flex items-center gap-2">
-							<GlobeIcon className="size-4 text-muted-foreground" weight="duotone" />
-							<span className="font-semibold text-foreground text-sm">Location</span>
+							<GlobeIcon
+								className="size-4 text-muted-foreground"
+								weight="duotone"
+							/>
+							<span className="font-semibold text-foreground text-sm">
+								Location
+							</span>
 						</div>
 						<div className="flex items-center gap-3 rounded bg-accent/50 px-3 py-2.5">
 							<CountryFlag
@@ -390,7 +400,10 @@ export default function UserDetailPage() {
 					{/* Technology */}
 					<div className="border-b p-4">
 						<div className="mb-3 flex items-center gap-2">
-							<DevicesIcon className="size-4 text-muted-foreground" weight="duotone" />
+							<DevicesIcon
+								className="size-4 text-muted-foreground"
+								weight="duotone"
+							/>
 							<span className="font-semibold text-foreground text-sm">
 								Technology
 							</span>
@@ -417,8 +430,13 @@ export default function UserDetailPage() {
 					{/* Timeline */}
 					<div className="p-4">
 						<div className="mb-3 flex items-center gap-2">
-							<ClockIcon className="size-4 text-muted-foreground" weight="duotone" />
-							<span className="font-semibold text-foreground text-sm">Timeline</span>
+							<ClockIcon
+								className="size-4 text-muted-foreground"
+								weight="duotone"
+							/>
+							<span className="font-semibold text-foreground text-sm">
+								Timeline
+							</span>
 						</div>
 						<div className="space-y-4">
 							<TimelineItem
@@ -491,7 +509,7 @@ export default function UserDetailPage() {
 					</div>
 
 					{/* Sessions Header */}
-					<div className="sticky top-0 z-10 grid h-[39px] grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 border-b bg-accent px-3 text-xs font-medium text-muted-foreground shadow-[0_0_0_0.5px_var(--border)] lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px]">
+					<div className="sticky top-0 z-10 grid h-[39px] grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 border-b bg-accent px-3 font-medium text-muted-foreground text-xs shadow-[0_0_0_0.5px_var(--border)] lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px]">
 						<div />
 						<span>Session</span>
 						<span>Location</span>
@@ -534,13 +552,15 @@ export default function UserDetailPage() {
 						</div>
 					) : (
 						<div className="flex flex-col items-center justify-center py-16">
-							<div className="flex size-12 items-center justify-center rounded-full bg-muted">
+							<div className="flex size-12 items-center justify-center rounded-full bg-secondary">
 								<ChartLineIcon
-									className="size-6 text-muted-foreground"
+									className="size-6 text-secondary-foreground"
 									weight="duotone"
 								/>
 							</div>
-							<p className="mt-4 font-medium text-foreground">No sessions found</p>
+							<p className="mt-4 font-medium text-foreground">
+								No sessions found
+							</p>
 							<p className="mt-1 text-muted-foreground text-sm">
 								No session data available for this user
 							</p>

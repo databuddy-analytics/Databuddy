@@ -49,7 +49,7 @@ export default function NotFound() {
 							size="lg"
 						>
 							<Link className={geist.className} href="/">
-								<Home className="mr-2 h-4 w-4" />
+								<Home className="mr-2 size-4" />
 								Go Home
 							</Link>
 						</Button>
@@ -59,7 +59,7 @@ export default function NotFound() {
 							size="lg"
 							variant="outline"
 						>
-							<ArrowLeft className="mr-2 h-4 w-4" />
+							<ArrowLeft className="mr-2 size-4" />
 							Go Back
 						</Button>
 					</div>

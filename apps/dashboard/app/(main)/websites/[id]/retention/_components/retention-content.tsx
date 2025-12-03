@@ -11,6 +11,7 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { StatCard } from "@/components/analytics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 import { RetentionCohortsGrid } from "./retention-cohorts-grid";
@@ -40,6 +41,7 @@ type RetentionRate = {
 
 export function RetentionContent({ websiteId }: RetentionContentProps) {
 	const { dateRange } = useDateFilters();
+	const { chartType, chartStepType } = useChartPreferences("retention");
 	const [activeTab, setActiveTab] = useState("cohorts");
 
 	const { data, isLoading } = useDynamicQuery(
@@ -108,24 +110,27 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 	}, [rates, cohorts]);
 
 	// Build mini chart data from time-series retention data
-	const chartData = useMemo(() => ({
-		retentionRate: rates.map((rate) => ({
-			date: rate.date,
-			value: rate.retention_rate,
-		})),
-		totalUsers: rates.map((rate) => ({
-			date: rate.date,
-			value: rate.new_users + rate.returning_users,
-		})),
-		newUsers: rates.map((rate) => ({
-			date: rate.date,
-			value: rate.new_users,
-		})),
-		returningUsers: rates.map((rate) => ({
-			date: rate.date,
-			value: rate.returning_users,
-		})),
-	}), [rates]);
+	const chartData = useMemo(
+		() => ({
+			retentionRate: rates.map((rate) => ({
+				date: rate.date,
+				value: rate.retention_rate,
+			})),
+			totalUsers: rates.map((rate) => ({
+				date: rate.date,
+				value: rate.new_users + rate.returning_users,
+			})),
+			newUsers: rates.map((rate) => ({
+				date: rate.date,
+				value: rate.new_users,
+			})),
+			returningUsers: rates.map((rate) => ({
+				date: rate.date,
+				value: rate.returning_users,
+			})),
+		}),
+		[rates]
+	);
 
 	const formatNumber = (num: number) => {
 		if (num >= 1_000_000) {
@@ -143,6 +148,8 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 			<div className="grid shrink-0 grid-cols-2 gap-4 lg:grid-cols-4">
 				<StatCard
 					chartData={chartData.retentionRate}
+					chartStepType={chartStepType}
+					chartType={chartType}
 					formatChartValue={(v) => `${v.toFixed(1)}%`}
 					icon={ArrowCounterClockwiseIcon}
 					id="retention-rate"
@@ -153,6 +160,8 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				/>
 				<StatCard
 					chartData={chartData.totalUsers}
+					chartStepType={chartStepType}
+					chartType={chartType}
 					icon={UsersIcon}
 					id="total-users"
 					isLoading={isLoading}
@@ -162,6 +171,8 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				/>
 				<StatCard
 					chartData={chartData.newUsers}
+					chartStepType={chartStepType}
+					chartType={chartType}
 					icon={UserPlusIcon}
 					id="new-users"
 					isLoading={isLoading}
@@ -171,6 +182,8 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				/>
 				<StatCard
 					chartData={chartData.returningUsers}
+					chartStepType={chartStepType}
+					chartType={chartType}
 					icon={ChartLineIcon}
 					id="returning-users"
 					isLoading={isLoading}
@@ -213,10 +226,7 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 						value="cohorts"
 					>
 						<div className="p-4">
-							<RetentionCohortsGrid
-								cohorts={cohorts}
-								isLoading={isLoading}
-							/>
+							<RetentionCohortsGrid cohorts={cohorts} isLoading={isLoading} />
 						</div>
 					</TabsContent>
 

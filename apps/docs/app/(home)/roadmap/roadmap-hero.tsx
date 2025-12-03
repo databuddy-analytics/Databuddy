@@ -53,7 +53,7 @@ export default function RoadmapHero({ stats }: Props) {
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
 								<ClockIcon
-									className="h-6 w-6 text-blue-600 dark:text-blue-400"
+									className="size-6 text-blue-600 dark:text-blue-400"
 									weight="duotone"
 								/>
 							</div>
@@ -70,7 +70,7 @@ export default function RoadmapHero({ stats }: Props) {
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
 								<RocketLaunchIcon
-									className="h-6 w-6 text-green-600 dark:text-green-400"
+									className="size-6 text-green-600 dark:text-green-400"
 									weight="duotone"
 								/>
 							</div>
@@ -88,7 +88,7 @@ export default function RoadmapHero({ stats }: Props) {
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
 								<MapPinIcon
-									className="h-6 w-6 text-purple-600 dark:text-purple-400"
+									className="size-6 text-purple-600 dark:text-purple-400"
 									weight="duotone"
 								/>
 							</div>

@@ -14,7 +14,7 @@ export const ErrorChartTooltip = ({ active, payload, label }: any) => {
 						key={`tooltip-${entry.dataKey}-${entry.value}`}
 					>
 						<div
-							className="h-3 w-3 rounded-full"
+							className="size-3 rounded-full"
 							style={{ backgroundColor: entry.color }}
 						/>
 						<span className="text-muted-foreground">{entry.name}:</span>

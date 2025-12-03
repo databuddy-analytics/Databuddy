@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import { useAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
+import { useHotkeys } from "react-hotkeys-hook";
 import { LiveUserIndicator } from "@/components/analytics";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ type AnalyticsToolbarProps = {
 	isDisabled?: boolean;
 	isLoading?: boolean;
 	isRefreshing: boolean;
-	onRefresh: () => void;
+	onRefreshAction: () => void;
 	websiteId: string;
 };
 
@@ -53,7 +54,7 @@ export function AnalyticsToolbar({
 	isDisabled = false,
 	isLoading = false,
 	isRefreshing,
-	onRefresh,
+	onRefreshAction,
 	websiteId,
 }: AnalyticsToolbarProps) {
 	const {
@@ -116,6 +117,22 @@ export function AnalyticsToolbar({
 		[selectedRange]
 	);
 
+	useHotkeys(
+		["1", "2", "3", "4", "5", "6"],
+		(e) => {
+			if (isDisabled) {
+				return;
+			}
+			const index = Number.parseInt(e.key, 10) - 1;
+			if (index >= 0 && index < QUICK_RANGES.length) {
+				e.preventDefault();
+				handleQuickRangeSelect(QUICK_RANGES[index]);
+			}
+		},
+		{ preventDefault: true, enabled: !isDisabled },
+		[isDisabled, handleQuickRangeSelect]
+	);
+
 	return (
 		<div className="flex h-fit flex-col bg-background">
 			<div className="flex h-12 items-center justify-between border-b pr-4">
@@ -156,12 +173,12 @@ export function AnalyticsToolbar({
 						aria-label="Refresh data"
 						className="size-8"
 						disabled={isRefreshing || isDisabled}
-						onClick={onRefresh}
+						onClick={onRefreshAction}
 						variant="secondary"
 					>
 						<ArrowClockwiseIcon
 							aria-hidden="true"
-							className={`h-4 w-4 ${isRefreshing || isLoading ? "animate-spin" : ""}`}
+							className={`size-4 ${isRefreshing || isLoading ? "animate-spin" : ""}`}
 						/>
 					</Button>
 				</div>

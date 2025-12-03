@@ -36,11 +36,11 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 	if (!mounted) {
 		return (
 			<Button
-				className={cn("relative h-8 w-8", className)}
+				className={cn("relative size-8", className)}
 				size="sm"
 				variant="ghost"
 			>
-				<MonitorIcon className="h-4 w-4" size={16} weight="duotone" />
+				<MonitorIcon className="size-4" size={16} weight="duotone" />
 				<span className="sr-only">Toggle theme</span>
 			</Button>
 		);
@@ -48,7 +48,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 
 	return (
 		<Button
-			className={cn("relative h-8 w-8", className)}
+			className={cn("relative size-8", className)}
 			onClick={toggleTheme}
 			size="sm"
 			suppressHydrationWarning
@@ -56,7 +56,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 		>
 			<SunIcon
 				className={cn(
-					"h-4 w-4 transition-all duration-300",
+					"size-4 transition-all duration-300",
 					currentTheme === "light" ? "rotate-0 scale-100" : "-rotate-90 scale-0"
 				)}
 				size={16}
@@ -65,7 +65,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 			/>
 			<MoonIcon
 				className={cn(
-					"absolute h-4 w-4 transition-all duration-300",
+					"absolute size-4 transition-all duration-300",
 					currentTheme === "dark" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={16}
@@ -74,7 +74,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 			/>
 			<MonitorIcon
 				className={cn(
-					"absolute h-4 w-4 transition-all duration-300",
+					"absolute size-4 transition-all duration-300",
 					currentTheme === "system" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={16}

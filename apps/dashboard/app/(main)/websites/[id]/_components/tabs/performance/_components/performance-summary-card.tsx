@@ -66,7 +66,7 @@ const FilterButton = ({
 		>
 			<div className="mb-2 flex items-center gap-2">
 				<Icon
-					className={`h-4 w-4 ${filter === "fast" ? "text-green-500" : "text-red-500"}`}
+					className={`size-4 ${filter === "fast" ? "text-green-500" : "text-red-500"}`}
 				/>
 				<span className="font-medium text-sidebar-foreground/70 text-sm">
 					{label}
@@ -103,14 +103,14 @@ export function PerformanceSummaryCard({
 		<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
 			<div className="rounded border bg-sidebar p-4">
 				<div className="mb-2 flex items-center gap-2">
-					<LightningIcon className="h-4 w-4 text-primary" />
+					<LightningIcon className="size-4 text-primary" />
 					<span className="font-medium text-sidebar-foreground/70 text-sm">
 						Performance Score
 					</span>
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger>
-								<QuestionIcon className="h-3 w-3 text-sidebar-foreground/50" />
+								<QuestionIcon className="size-3 text-sidebar-foreground/50" />
 							</TooltipTrigger>
 							<TooltipContent>
 								<p>
@@ -130,7 +130,7 @@ export function PerformanceSummaryCard({
 
 			<div className="rounded border bg-sidebar p-4">
 				<div className="mb-2 flex items-center gap-2">
-					<TrendUpIcon className="h-4 w-4 text-sidebar-foreground/70" />
+					<TrendUpIcon className="size-4 text-sidebar-foreground/70" />
 					<span className="font-medium text-sidebar-foreground/70 text-sm">
 						Avg Load Time
 					</span>

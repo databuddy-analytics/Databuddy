@@ -1,17 +1,11 @@
 "use client";
 
-import { TargetIcon } from "@phosphor-icons/react";
+import { TargetIcon, TrendDownIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
-import {
-	Suspense,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useAutocompleteData } from "@/hooks/use-funnels";
 import {
@@ -20,47 +14,21 @@ import {
 	useBulkGoalAnalytics,
 	useGoals,
 } from "@/hooks/use-goals";
-import { useWebsite } from "@/hooks/use-websites";
 import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
 import { WebsitePageHeader } from "../_components/website-page-header";
-import { DeleteGoalDialog } from "./_components/delete-goal-dialog";
 import { EditGoalDialog } from "./_components/edit-goal-dialog";
+import { GoalItemSkeleton } from "./_components/goal-item";
 import { GoalsList } from "./_components/goals-list";
 
-const GoalsListSkeleton = () => (
-	<div className="space-y-3">
-		{[...new Array(3)].map((_, i) => (
-			<Card className="animate-pulse rounded" key={`goal-skeleton-${i + 1}`}>
-				<div className="p-4">
-					<div className="mb-4 flex items-start justify-between">
-						<div className="flex-1 space-y-3">
-							<div className="flex items-center gap-3">
-								<div className="h-6 w-48 rounded bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
-							</div>
-							<div className="flex items-center gap-3">
-								<div className="h-5 w-16 rounded-full bg-muted" />
-								<div className="h-4 w-20 rounded bg-muted" />
-							</div>
-						</div>
-						<div className="h-8 w-8 rounded bg-muted" />
-					</div>
-					<div className="space-y-3">
-						<div className="h-4 w-2/3 rounded bg-muted" />
-						<div className="rounded bg-muted/50 p-3">
-							<div className="mb-2 h-3 w-24 rounded bg-muted" />
-							<div className="flex gap-2">
-								<div className="h-8 w-32 rounded bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
-								<div className="h-8 w-28 rounded bg-muted" />
-							</div>
-						</div>
-					</div>
-				</div>
-			</Card>
-		))}
-	</div>
-);
+function GoalsListSkeleton() {
+	return (
+		<div>
+			{[1, 2, 3].map((i) => (
+				<GoalItemSkeleton key={i} />
+			))}
+		</div>
+	);
+}
 
 export default function GoalsPage() {
 	const { id } = useParams();
@@ -70,30 +38,7 @@ export default function GoalsPage() {
 	const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 
-	const [isVisible, setIsVisible] = useState(false);
-	const pageRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting) {
-					setIsVisible(true);
-					observer.disconnect();
-				}
-			},
-			{ threshold: 0.1 }
-		);
-
-		if (pageRef.current) {
-			observer.observe(pageRef.current);
-		}
-
-		return () => observer.disconnect();
-	}, []);
-
 	const { dateRange } = useDateFilters();
-
-	const { data: websiteData } = useWebsite(websiteId);
 
 	const {
 		data: goals,
@@ -141,7 +86,7 @@ export default function GoalsPage() {
 		data: Goal | Omit<CreateGoalData, "websiteId">
 	) => {
 		try {
-			if ("id" in data) {
+			if ("id" in data && data.id) {
 				await updateGoal({
 					goalId: data.id,
 					updates: {
@@ -150,13 +95,23 @@ export default function GoalsPage() {
 						type: data.type,
 						target: data.target,
 						filters: data.filters,
+						ignoreHistoricData:
+							"ignoreHistoricData" in data
+								? data.ignoreHistoricData
+								: undefined,
 					},
 				});
 			} else {
 				await createGoal({
-					...data,
+					name: data.name,
+					description: data.description || undefined,
+					type: data.type,
+					target: data.target,
+					filters: data.filters,
+					ignoreHistoricData:
+						"ignoreHistoricData" in data ? data.ignoreHistoricData : undefined,
 					websiteId,
-				});
+				} as CreateGoalData);
 			}
 			setIsDialogOpen(false);
 			setEditingGoal(null);
@@ -177,19 +132,20 @@ export default function GoalsPage() {
 	if (goalsError) {
 		return (
 			<div className="p-4">
-				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+				<Card className="border-destructive/20 bg-destructive/5">
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
-							<TargetIcon
-								className="h-5 w-5 text-red-600"
-								size={16}
+							<TrendDownIcon
+								className="size-5 text-destructive"
 								weight="duotone"
 							/>
-							<p className="font-medium text-red-600">
+							<p className="font-medium text-destructive">
 								Error loading goal data
 							</p>
 						</div>
-						<p className="mt-2 text-red-600/80 text-sm">{goalsError.message}</p>
+						<p className="mt-2 text-destructive/80 text-sm">
+							{goalsError.message}
+						</p>
 					</CardContent>
 				</Card>
 			</div>
@@ -197,7 +153,7 @@ export default function GoalsPage() {
 	}
 
 	return (
-		<div className="relative flex h-full flex-col space-y-4" ref={pageRef}>
+		<div className="relative flex h-full flex-col">
 			<WebsitePageHeader
 				createActionLabel="Create Goal"
 				description="Track key conversions and measure success"
@@ -205,7 +161,6 @@ export default function GoalsPage() {
 				icon={
 					<TargetIcon
 						className="size-6 text-accent-foreground"
-						size={16}
 						weight="duotone"
 					/>
 				}
@@ -215,61 +170,59 @@ export default function GoalsPage() {
 					setEditingGoal(null);
 					setIsDialogOpen(true);
 				}}
-				onRefresh={handleRefresh}
+				onRefreshAction={handleRefresh}
 				subtitle={
 					goalsLoading
 						? undefined
-						: `${goals.length} active goal${goals.length !== 1 ? "s" : ""}`
+						: `${goals.length} goal${goals.length !== 1 ? "s" : ""}`
 				}
 				title="Goals"
 				websiteId={websiteId}
-				websiteName={websiteData?.name || undefined}
 			/>
 
-			{isVisible && (
-				<Suspense fallback={<GoalsListSkeleton />}>
-					<GoalsList
-						analyticsLoading={analyticsLoading}
-						goalAnalytics={goalAnalytics}
-						goals={goals as any}
-						isLoading={goalsLoading}
-						onCreateGoal={() => {
-							setEditingGoal(null);
-							setIsDialogOpen(true);
-						}}
-						onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
-						onEditGoal={(goal) => {
-							setEditingGoal(goal);
-							setIsDialogOpen(true);
-						}}
-					/>
-				</Suspense>
+			{goalsLoading ? (
+				<GoalsListSkeleton />
+			) : (
+				<GoalsList
+					analyticsLoading={analyticsLoading}
+					goalAnalytics={goalAnalytics}
+					goals={goals}
+					isLoading={goalsLoading}
+					onCreateGoal={() => {
+						setEditingGoal(null);
+						setIsDialogOpen(true);
+					}}
+					onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
+					onEditGoal={(goal) => {
+						setEditingGoal(goal);
+						setIsDialogOpen(true);
+					}}
+				/>
 			)}
 
 			{isDialogOpen && (
-				<Suspense>
-					<EditGoalDialog
-						autocompleteData={autocompleteQuery.data}
-						goal={editingGoal}
-						isOpen={isDialogOpen}
-						isSaving={isCreating || isUpdating}
-						onClose={() => {
-							setIsDialogOpen(false);
-							setEditingGoal(null);
-						}}
-						onSave={handleSaveGoal}
-					/>
-				</Suspense>
+				<EditGoalDialog
+					autocompleteData={autocompleteQuery.data}
+					goal={editingGoal}
+					isOpen={isDialogOpen}
+					isSaving={isCreating || isUpdating}
+					onClose={() => {
+						setIsDialogOpen(false);
+						setEditingGoal(null);
+					}}
+					onSave={handleSaveGoal}
+				/>
 			)}
 
 			{deletingGoalId && (
-				<Suspense>
-					<DeleteGoalDialog
-						isOpen={!!deletingGoalId}
-						onClose={() => setDeletingGoalId(null)}
-						onConfirm={() => deletingGoalId && handleDeleteGoal(deletingGoalId)}
-					/>
-				</Suspense>
+				<DeleteDialog
+					confirmLabel="Delete Goal"
+					description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."
+					isOpen={!!deletingGoalId}
+					onClose={() => setDeletingGoalId(null)}
+					onConfirm={() => deletingGoalId && handleDeleteGoal(deletingGoalId)}
+					title="Delete Goal"
+				/>
 			)}
 		</div>
 	);

@@ -44,7 +44,9 @@ const onFPS = (callback: (metric: FPSMetric) => void) => {
 	if (document.readyState === "complete") {
 		requestAnimationFrame(countFrame);
 	} else {
-		window.addEventListener("load", () => requestAnimationFrame(countFrame), { once: true });
+		window.addEventListener("load", () => requestAnimationFrame(countFrame), {
+			once: true,
+		});
 	}
 };
 

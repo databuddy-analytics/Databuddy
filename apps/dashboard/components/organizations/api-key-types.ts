@@ -34,7 +34,7 @@ export type ApiKeyAccessEntry = {
 	resourceType: ApiResourceType;
 	resourceId?: string | null;
 	scopes: ApiScope[];
-}
+};
 
 export type ApiKeyListItem = {
 	id: string;
@@ -69,4 +69,4 @@ export type CreateApiKeyInput = {
 	rateLimitMax?: number;
 	expiresAt?: string;
 	metadata?: Record<string, unknown>;
-}
+};

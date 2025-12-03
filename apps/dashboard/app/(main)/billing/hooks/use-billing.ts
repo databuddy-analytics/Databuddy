@@ -145,12 +145,12 @@ export function useBillingData() {
 	const usage: Usage = {
 		features: customer?.features
 			? Object.values(customer.features).map((f) =>
-				calculateFeatureUsage(
-					f,
-					featureConfig.limits[f.id],
-					featureConfig.tiers[f.id]
+					calculateFeatureUsage(
+						f,
+						featureConfig.limits[f.id],
+						featureConfig.tiers[f.id]
+					)
 				)
-			)
 			: [],
 	};
 

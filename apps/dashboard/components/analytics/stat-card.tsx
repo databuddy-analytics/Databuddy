@@ -5,6 +5,10 @@ import { type ElementType, memo } from "react";
 import {
 	Area,
 	AreaChart,
+	Bar,
+	BarChart,
+	Line,
+	LineChart,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
@@ -33,6 +37,14 @@ type Trend = {
 	previousPeriod: { start: string; end: string };
 };
 
+export type ChartType = "area" | "bar" | "line";
+export type ChartStepType =
+	| "monotone"
+	| "linear"
+	| "step"
+	| "stepBefore"
+	| "stepAfter";
+
 type StatCardProps = {
 	title: string;
 	titleExtra?: React.ReactNode;
@@ -48,6 +60,8 @@ type StatCardProps = {
 	id?: string;
 	chartData?: MiniChartDataPoint[];
 	showChart?: boolean;
+	chartType?: ChartType;
+	chartStepType?: ChartStepType;
 	formatValue?: (value: number) => string;
 	formatChartValue?: (value: number) => string;
 };
@@ -117,11 +131,15 @@ const MiniChart = memo(
 		id,
 		formatChartValue,
 		title,
+		chartType = "area",
+		chartStepType = "monotone",
 	}: {
 		data: MiniChartDataPoint[];
 		id: string;
 		formatChartValue?: (value: number) => string;
 		title?: string;
+		chartType?: ChartType;
+		chartStepType?: ChartStepType;
 	}) => {
 		const hasData = data && data.length > 0;
 		const hasVariation = hasData && data.some((d) => d.value !== data[0].value);
@@ -142,68 +160,262 @@ const MiniChart = memo(
 			);
 		}
 
+		const chartContent = () => {
+			switch (chartType) {
+				case "bar":
+					return (
+						<BarChart
+							data={data}
+							margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+						>
+							<defs>
+								<linearGradient
+									id={`gradient-${id}`}
+									x1="0"
+									x2="0"
+									y1="0"
+									y2="1"
+								>
+									<stop
+										offset="0%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0.4}
+									/>
+									<stop
+										offset="100%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0}
+									/>
+								</linearGradient>
+							</defs>
+							<XAxis dataKey="date" hide />
+							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<Tooltip
+								content={({ active, payload, label }) =>
+									active &&
+									payload?.[0] &&
+									typeof payload[0].value === "number" ? (
+										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+											<p className="text-muted-foreground">
+												{new Date(label).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+												})}
+											</p>
+											<p className="font-semibold text-foreground">
+												{formatChartValue
+													? formatChartValue(payload[0].value)
+													: formatMetricNumber(payload[0].value)}{" "}
+												{title && (
+													<span className="font-normal text-muted-foreground">
+														{title}
+													</span>
+												)}
+											</p>
+										</div>
+									) : null
+								}
+								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+							/>
+							<Bar
+								dataKey="value"
+								fill={`url(#gradient-${id})`}
+								radius={[2, 2, 0, 0]}
+							/>
+						</BarChart>
+					);
+				case "line":
+					return (
+						<LineChart
+							data={data}
+							margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+						>
+							<XAxis dataKey="date" hide />
+							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<Tooltip
+								content={({ active, payload, label }) =>
+									active &&
+									payload?.[0] &&
+									typeof payload[0].value === "number" ? (
+										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+											<p className="text-muted-foreground">
+												{new Date(label).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+												})}
+											</p>
+											<p className="font-semibold text-foreground">
+												{formatChartValue
+													? formatChartValue(payload[0].value)
+													: formatMetricNumber(payload[0].value)}{" "}
+												{title && (
+													<span className="font-normal text-muted-foreground">
+														{title}
+													</span>
+												)}
+											</p>
+										</div>
+									) : null
+								}
+								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+							/>
+							<Line
+								dataKey="value"
+								dot={false}
+								stroke="var(--color-primary)"
+								strokeWidth={1.5}
+								type={chartStepType}
+							/>
+						</LineChart>
+					);
+				case "area":
+					return (
+						<AreaChart
+							data={data}
+							margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+						>
+							<defs>
+								<linearGradient
+									id={`gradient-${id}`}
+									x1="0"
+									x2="0"
+									y1="0"
+									y2="1"
+								>
+									<stop
+										offset="0%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0.4}
+									/>
+									<stop
+										offset="100%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0}
+									/>
+								</linearGradient>
+							</defs>
+							<XAxis dataKey="date" hide />
+							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<Tooltip
+								content={({ active, payload, label }) =>
+									active &&
+									payload?.[0] &&
+									typeof payload[0].value === "number" ? (
+										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+											<p className="text-muted-foreground">
+												{new Date(label).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+												})}
+											</p>
+											<p className="font-semibold text-foreground">
+												{formatChartValue
+													? formatChartValue(payload[0].value)
+													: formatMetricNumber(payload[0].value)}{" "}
+												{title && (
+													<span className="font-normal text-muted-foreground">
+														{title}
+													</span>
+												)}
+											</p>
+										</div>
+									) : null
+								}
+								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+							/>
+							<Area
+								activeDot={{
+									r: 2.5,
+									fill: "var(--color-primary)",
+									stroke: "var(--color-background)",
+									strokeWidth: 1.5,
+								}}
+								dataKey="value"
+								dot={false}
+								fill={`url(#gradient-${id})`}
+								stroke="var(--color-primary)"
+								strokeWidth={1.5}
+								type={chartStepType}
+							/>
+						</AreaChart>
+					);
+				default:
+					return (
+						<AreaChart
+							data={data}
+							margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+						>
+							<defs>
+								<linearGradient
+									id={`gradient-${id}`}
+									x1="0"
+									x2="0"
+									y1="0"
+									y2="1"
+								>
+									<stop
+										offset="0%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0.4}
+									/>
+									<stop
+										offset="100%"
+										stopColor="var(--color-primary)"
+										stopOpacity={0}
+									/>
+								</linearGradient>
+							</defs>
+							<XAxis dataKey="date" hide />
+							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<Tooltip
+								content={({ active, payload, label }) =>
+									active &&
+									payload?.[0] &&
+									typeof payload[0].value === "number" ? (
+										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+											<p className="text-muted-foreground">
+												{new Date(label).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+												})}
+											</p>
+											<p className="font-semibold text-foreground">
+												{formatChartValue
+													? formatChartValue(payload[0].value)
+													: formatMetricNumber(payload[0].value)}{" "}
+												{title && (
+													<span className="font-normal text-muted-foreground">
+														{title}
+													</span>
+												)}
+											</p>
+										</div>
+									) : null
+								}
+								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+							/>
+							<Area
+								activeDot={{
+									r: 2.5,
+									fill: "var(--color-primary)",
+									stroke: "var(--color-background)",
+									strokeWidth: 1.5,
+								}}
+								dataKey="value"
+								dot={false}
+								fill={`url(#gradient-${id})`}
+								stroke="var(--color-primary)"
+								strokeWidth={1.5}
+								type={chartStepType}
+							/>
+						</AreaChart>
+					);
+			}
+		};
+
 		return (
 			<ResponsiveContainer height={100} width="100%">
-				<AreaChart
-					data={data}
-					margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-				>
-					<defs>
-						<linearGradient id={`gradient-${id}`} x1="0" x2="0" y1="0" y2="1">
-							<stop
-								offset="0%"
-								stopColor="var(--color-primary)"
-								stopOpacity={0.4}
-							/>
-							<stop
-								offset="100%"
-								stopColor="var(--color-primary)"
-								stopOpacity={0}
-							/>
-						</linearGradient>
-					</defs>
-					<XAxis dataKey="date" hide />
-					<YAxis domain={["dataMin", "dataMax"]} hide />
-					<Tooltip
-						content={({ active, payload, label }) =>
-							active && payload?.[0] && typeof payload[0].value === "number" ? (
-								<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
-									<p className="text-muted-foreground">
-										{new Date(label).toLocaleDateString("en-US", {
-											month: "short",
-											day: "numeric",
-										})}
-									</p>
-									<p className="font-semibold text-foreground">
-										{formatChartValue
-											? formatChartValue(payload[0].value)
-											: formatMetricNumber(payload[0].value)}{" "}
-										{title && (
-											<span className="font-normal text-muted-foreground">
-												{title}
-											</span>
-										)}
-									</p>
-								</div>
-							) : null
-						}
-						cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
-					/>
-					<Area
-						activeDot={{
-							r: 2.5,
-							fill: "var(--color-primary)",
-							stroke: "var(--color-background)",
-							strokeWidth: 1.5,
-						}}
-						dataKey="value"
-						dot={false}
-						fill={`url(#gradient-${id})`}
-						stroke="var(--color-primary)"
-						strokeWidth={1.5}
-						type="monotone"
-					/>
-				</AreaChart>
+				{chartContent()}
 			</ResponsiveContainer>
 		);
 	}
@@ -228,6 +440,8 @@ export function StatCard({
 	id,
 	chartData,
 	showChart = false,
+	chartType = "area",
+	chartStepType = "monotone",
 	formatValue,
 	formatChartValue,
 }: StatCardProps) {
@@ -276,6 +490,8 @@ export function StatCard({
 			{hasValidChartData && (
 				<div className="dotted-bg bg-accent pt-2">
 					<MiniChart
+						chartStepType={chartStepType}
+						chartType={chartType}
 						data={chartData}
 						formatChartValue={formatChartValue}
 						id={id || `chart-${title.toLowerCase().replace(/\s/g, "-")}`}
@@ -283,7 +499,7 @@ export function StatCard({
 					/>
 				</div>
 			)}
-			<div className="flex items-center gap-2.5 border-t px-2.5 py-2.5">
+			<div className="flex items-center gap-2.5 px-2.5 py-2.5">
 				{Icon && (
 					<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
 						<Icon className="size-4 text-muted-foreground" />
@@ -332,7 +548,9 @@ export function StatCard({
 					{/* Comparison */}
 					<div className="grid grid-cols-2 divide-x">
 						<div className="p-3">
-							<p className="font-medium text-muted-foreground text-xs">Previous</p>
+							<p className="font-medium text-muted-foreground text-xs">
+								Previous
+							</p>
 							<p className="mt-1 font-semibold text-foreground text-lg tabular-nums">
 								{formatTrendValue(trend.previous, formatValue)}
 							</p>
@@ -342,7 +560,9 @@ export function StatCard({
 							</p>
 						</div>
 						<div className="p-3">
-							<p className="font-medium text-muted-foreground text-xs">Current</p>
+							<p className="font-medium text-muted-foreground text-xs">
+								Current
+							</p>
 							<p className="mt-1 font-semibold text-foreground text-lg tabular-nums">
 								{formatTrendValue(trend.current, formatValue)}
 							</p>

@@ -168,11 +168,11 @@ export default function AcceptInvitationPage() {
 								<UserPlus className="h-12 w-12 text-primary" weight="duotone" />
 							</div>
 							<Sparkle
-								className="-top-2 -right-2 absolute h-6 w-6 animate-pulse text-primary/60"
+								className="-top-2 -right-2 absolute size-6 animate-pulse text-primary/60"
 								weight="duotone"
 							/>
 							<Sparkle
-								className="-bottom-1 -left-3 absolute h-4 w-4 animate-pulse text-primary/40"
+								className="-bottom-1 -left-3 absolute size-4 animate-pulse text-primary/40"
 								style={{ animationDelay: "1s" }}
 								weight="duotone"
 							/>
@@ -201,10 +201,7 @@ export default function AcceptInvitationPage() {
 						<div className="mb-8 w-full max-w-md rounded-xl border border-border/50 bg-muted/50 p-6">
 							<div className="mb-4 flex items-start gap-3">
 								<div className="rounded-lg bg-primary/10 p-2">
-									<Buildings
-										className="h-5 w-5 text-primary"
-										weight="duotone"
-									/>
+									<Buildings className="size-5 text-primary" weight="duotone" />
 								</div>
 								<div className="flex-1 text-left">
 									<p className="mb-1 font-semibold text-sm">
@@ -222,7 +219,7 @@ export default function AcceptInvitationPage() {
 							<div className="flex items-start gap-3">
 								<div className="rounded-lg bg-orange-100 p-2 dark:bg-orange-900/20">
 									<Clock
-										className="h-5 w-5 text-orange-600 dark:text-orange-400"
+										className="size-5 text-orange-600 dark:text-orange-400"
 										weight="duotone"
 									/>
 								</div>
@@ -242,11 +239,11 @@ export default function AcceptInvitationPage() {
 								size="lg"
 							>
 								<UserPlus
-									className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:scale-110"
+									className="relative z-10 size-5 transition-transform duration-300 group-hover:scale-110"
 									weight="duotone"
 								/>
 								<span className="relative z-10">Join Organization</span>
-								<ArrowRight className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+								<ArrowRight className="relative z-10 size-5 transition-transform duration-300 group-hover:translate-x-1" />
 							</Button>
 
 							<Button
@@ -292,7 +289,7 @@ export default function AcceptInvitationPage() {
 								/>
 							</div>
 							<Sparkle
-								className="-top-2 -right-2 absolute h-6 w-6 animate-pulse text-green-500/60"
+								className="-top-2 -right-2 absolute size-6 animate-pulse text-green-500/60"
 								weight="duotone"
 							/>
 						</div>
@@ -316,7 +313,7 @@ export default function AcceptInvitationPage() {
 							<div className="flex items-start gap-3">
 								<div className="rounded-lg bg-green-100 p-2 dark:bg-green-900/40">
 									<Sparkle
-										className="h-5 w-5 text-green-600 dark:text-green-400"
+										className="size-5 text-green-600 dark:text-green-400"
 										weight="duotone"
 									/>
 								</div>
@@ -361,9 +358,9 @@ export default function AcceptInvitationPage() {
 							onClick={() => router.push("/websites")}
 							size="lg"
 						>
-							<Buildings className="h-5 w-5" weight="duotone" />
+							<Buildings className="size-5" weight="duotone" />
 							Go to Dashboard
-							<ArrowRight className="h-5 w-5" weight="duotone" />
+							<ArrowRight className="size-5" weight="duotone" />
 						</Button>
 					</div>
 				);
@@ -392,9 +389,9 @@ export default function AcceptInvitationPage() {
 							onClick={() => router.push("/")}
 							size="lg"
 						>
-							<Buildings className="h-5 w-5" weight="duotone" />
+							<Buildings className="size-5" weight="duotone" />
 							Back to Home
-							<ArrowRight className="h-5 w-5" weight="duotone" />
+							<ArrowRight className="size-5" weight="duotone" />
 						</Button>
 					</div>
 				);
@@ -420,9 +417,9 @@ export default function AcceptInvitationPage() {
 							onClick={() => router.push("/")}
 							size="lg"
 						>
-							<Buildings className="h-5 w-5" weight="duotone" />
+							<Buildings className="size-5" weight="duotone" />
 							Back to Home
-							<ArrowRight className="h-5 w-5" weight="duotone" />
+							<ArrowRight className="size-5" weight="duotone" />
 						</Button>
 					</div>
 				);
@@ -439,7 +436,7 @@ export default function AcceptInvitationPage() {
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3">
 							<div className="rounded-lg border border-accent bg-accent/50 p-2">
-								<UserPlus className="h-5 w-5 text-primary" weight="duotone" />
+								<UserPlus className="size-5 text-primary" weight="duotone" />
 							</div>
 							<div>
 								<h1 className="truncate font-bold text-foreground text-xl tracking-tight sm:text-2xl">

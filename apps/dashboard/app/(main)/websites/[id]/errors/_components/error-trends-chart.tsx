@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowCounterClockwiseIcon, BugIcon } from "@phosphor-icons/react";
+import { motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import {
@@ -14,8 +15,8 @@ import {
 } from "recharts";
 import { METRIC_COLORS, METRICS } from "@/components/charts/metrics-constants";
 import { TableEmptyState } from "@/components/table/table-empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ErrorChartTooltip } from "./error-chart-tooltip";
 
 const ResponsiveContainer = dynamic(
@@ -45,7 +46,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 	}> | null>(null);
 
 	const isZoomed = zoomedData !== null;
-
 	const displayData = zoomedData || errorChartData;
 
 	const resetZoom = useCallback(() => {
@@ -54,7 +54,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		setZoomedData(null);
 	}, []);
 
-	const handleMouseDown = (e: any) => {
+	const handleMouseDown = (e: { activeLabel?: string }) => {
 		if (!e?.activeLabel) {
 			return;
 		}
@@ -62,7 +62,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		setRefAreaRight(null);
 	};
 
-	const handleMouseMove = (e: any) => {
+	const handleMouseMove = (e: { activeLabel?: string }) => {
 		if (!(refAreaLeft && e?.activeLabel)) {
 			return;
 		}
@@ -101,21 +101,51 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		setRefAreaRight(null);
 	};
 
+	// Calculate summary stats
+	const totalErrors = displayData.reduce(
+		(sum, d) => sum + d["Total Errors"],
+		0
+	);
+	const totalAffectedUsers = displayData.reduce(
+		(sum, d) => sum + d["Affected Users"],
+		0
+	);
+
 	if (!errorChartData.length) {
 		return (
-			<Card className="h-full">
-				<CardContent>
+			<motion.div
+				animate={{ opacity: 1, y: 0 }}
+				className="flex h-full flex-col rounded border border-border bg-card"
+				initial={{ opacity: 0, y: 20 }}
+				transition={{ duration: 0.5 }}
+			>
+				<div className="flex items-center gap-3 border-border/50 border-b p-4">
+					<div className="flex size-8 items-center justify-center rounded bg-accent ring-1 ring-border">
+						<BugIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
+					</div>
+					<div className="flex flex-col gap-0.5">
+						<span className="font-medium text-foreground text-sm">
+							Error Trends
+						</span>
+						<span className="text-muted-foreground text-xs">
+							No data available
+						</span>
+					</div>
+				</div>
+				<div className="flex-1 p-4">
 					<TableEmptyState
 						description="Not enough data to display a trend chart. Error trends will appear here when your website encounters errors."
-						icon={<BugIcon className="size-6 text-accent" />}
+						icon={<BugIcon className="size-6 text-muted-foreground" />}
 						title="No error trend data"
 					/>
-				</CardContent>
-			</Card>
+				</div>
+			</motion.div>
 		);
 	}
 
-	// Get the error metrics with proper colors from the constants
 	const totalErrorsMetric = METRICS.find((m) => m.key === "total_errors");
 	const affectedUsersMetric = METRICS.find((m) => m.key === "affected_users");
 
@@ -125,39 +155,82 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		affectedUsersMetric?.color || METRIC_COLORS.session_duration.primary;
 
 	return (
-		<div className="flex h-full flex-col rounded-lg border border-sidebar-border bg-sidebar/10 shadow-sm">
-			<div className="flex items-center justify-between border-sidebar-border border-b p-4">
-				<div>
-					<h3 className="font-semibold text-base">Error Trends</h3>
-					<p className="text-muted-foreground text-xs">
-						Error occurrences and impact over time
-					</p>
+		<motion.div
+			animate={{ opacity: 1, y: 0 }}
+			className="flex h-full flex-col overflow-hidden rounded border border-border bg-card"
+			initial={{ opacity: 0, y: 20 }}
+			transition={{ duration: 0.5 }}
+		>
+			{/* Header */}
+			<div className="flex items-center justify-between border-border/50 border-b p-4">
+				<div className="flex items-center gap-3">
+					<div className="flex size-8 items-center justify-center rounded bg-destructive/10 ring-1 ring-destructive/20">
+						<BugIcon className="size-4 text-destructive" weight="duotone" />
+					</div>
+					<div className="flex flex-col gap-0.5">
+						<span className="font-medium text-foreground text-sm">
+							Error Trends
+						</span>
+						<span className="text-muted-foreground text-xs">
+							Error occurrences and impact over time
+						</span>
+					</div>
 				</div>
 				<div className="flex items-center gap-2">
 					{isZoomed && (
 						<Button
-							className="h-7 px-2 text-xs"
+							className="h-7 gap-1 px-2 text-xs"
 							onClick={resetZoom}
 							size="sm"
 							variant="outline"
 						>
-							<ArrowCounterClockwiseIcon
-								className="mr-1 h-3 w-3"
-								size={16}
-								weight="duotone"
-							/>
-							Reset Zoom
+							<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
+							Reset
 						</Button>
 					)}
-					<div className="text-muted-foreground text-xs">Drag to zoom</div>
+					<Badge variant="gray">
+						<span className="font-mono text-[10px]">Drag to zoom</span>
+					</Badge>
 				</div>
 			</div>
+
+			{/* Summary Stats */}
+			<div className="grid grid-cols-2 gap-3 border-border/50 border-b bg-accent/20 p-3">
+				<motion.div
+					animate={{ opacity: 1 }}
+					className="space-y-0.5"
+					initial={{ opacity: 0 }}
+					transition={{ delay: 0.2 }}
+				>
+					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+						Total Errors
+					</p>
+					<p className="font-semibold text-foreground text-lg tabular-nums">
+						{totalErrors.toLocaleString()}
+					</p>
+				</motion.div>
+				<motion.div
+					animate={{ opacity: 1 }}
+					className="space-y-0.5"
+					initial={{ opacity: 0 }}
+					transition={{ delay: 0.3 }}
+				>
+					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+						Affected Users
+					</p>
+					<p className="font-semibold text-foreground text-lg tabular-nums">
+						{totalAffectedUsers.toLocaleString()}
+					</p>
+				</motion.div>
+			</div>
+
+			{/* Chart */}
 			<div className="flex-1 p-2">
 				<div
 					className="relative select-none"
 					style={{
 						width: "100%",
-						height: 300,
+						height: 260,
 						userSelect: refAreaLeft ? "none" : "auto",
 						WebkitUserSelect: refAreaLeft ? "none" : "auto",
 					}}
@@ -186,7 +259,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 									<stop
 										offset="5%"
 										stopColor={totalErrorsColor}
-										stopOpacity={0.25}
+										stopOpacity={0.3}
 									/>
 									<stop
 										offset="95%"
@@ -204,7 +277,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 									<stop
 										offset="5%"
 										stopColor={affectedUsersColor}
-										stopOpacity={0.25}
+										stopOpacity={0.3}
 									/>
 									<stop
 										offset="95%"
@@ -256,8 +329,9 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 							/>
 							{refAreaLeft && refAreaRight && (
 								<ReferenceArea
-									fill="var(--sidebar-ring)"
-									fillOpacity={0.15}
+									fill="var(--primary)"
+									fillOpacity={0.1}
+									stroke="var(--primary)"
 									strokeOpacity={0.3}
 									x1={refAreaLeft}
 									x2={refAreaRight}
@@ -285,6 +359,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 					</ResponsiveContainer>
 				</div>
 			</div>
-		</div>
+		</motion.div>
 	);
 };

@@ -71,7 +71,7 @@ export default function CustomSidebar() {
 											className="shrink-0"
 										>
 											<CaretDownIcon
-												className="h-4 w-4 text-muted-foreground"
+												className="size-4 text-muted-foreground"
 												weight="duotone"
 											/>
 										</motion.div>

@@ -9,7 +9,11 @@ import type {
 	WebVitalsEvent,
 	WebVitalsSpan,
 } from "@databuddy/db";
-import type { CustomEventSpanInput, ErrorSpan, IndividualVital } from "@databuddy/validation";
+import type {
+	CustomEventSpanInput,
+	ErrorSpan,
+	IndividualVital,
+} from "@databuddy/validation";
 import { getGeo } from "../utils/ip-geo";
 import { parseUserAgent } from "../utils/user-agent";
 import {
@@ -248,11 +252,17 @@ export async function insertCustomEventSpans(
 	const now = Date.now();
 	const spans: CustomEventSpan[] = events.map((event) => ({
 		client_id: clientId,
-		anonymous_id: sanitizeString(event.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		anonymous_id: sanitizeString(
+			event.anonymousId,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		),
 		session_id: validateSessionId(event.sessionId),
 		timestamp: typeof event.timestamp === "number" ? event.timestamp : now,
 		path: sanitizeString(event.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		event_name: sanitizeString(event.eventName, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		event_name: sanitizeString(
+			event.eventName,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		),
 		properties: (event.properties as Record<string, unknown>) ?? {},
 	}));
 
@@ -518,16 +528,26 @@ export async function insertErrorSpans(
 	const now = Date.now();
 	const spans: ErrorSpanRow[] = errors.map((error) => ({
 		client_id: clientId,
-		anonymous_id: sanitizeString(error.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		anonymous_id: sanitizeString(
+			error.anonymousId,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		),
 		session_id: validateSessionId(error.sessionId),
 		timestamp: typeof error.timestamp === "number" ? error.timestamp : now,
 		path: sanitizeString(error.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		message: sanitizeString(error.message, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		filename: sanitizeString(error.filename, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		filename: sanitizeString(
+			error.filename,
+			VALIDATION_LIMITS.STRING_MAX_LENGTH
+		),
 		lineno: error.lineno ?? undefined,
 		colno: error.colno ?? undefined,
 		stack: sanitizeString(error.stack, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		error_type: sanitizeString(error.errorType, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH) || "Error",
+		error_type:
+			sanitizeString(
+				error.errorType,
+				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+			) || "Error",
 	}));
 
 	try {
@@ -575,7 +595,10 @@ export async function insertIndividualVitals(
 	const now = Date.now();
 	const spans: WebVitalsSpan[] = vitals.map((vital) => ({
 		client_id: clientId,
-		anonymous_id: sanitizeString(vital.anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+		anonymous_id: sanitizeString(
+			vital.anonymousId,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		),
 		session_id: validateSessionId(vital.sessionId),
 		timestamp: typeof vital.timestamp === "number" ? vital.timestamp : now,
 		path: sanitizeString(vital.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),

@@ -156,9 +156,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+						<div className="flex size-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
 							<CheckCircleIcon
-								className="h-4 w-4 text-green-600 dark:text-green-400"
+								className="size-4 text-green-600 dark:text-green-400"
 								weight="duotone"
 							/>
 						</div>
@@ -169,9 +169,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+						<div className="flex size-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
 							<ClockIcon
-								className="h-4 w-4 text-blue-600 dark:text-blue-400"
+								className="size-4 text-blue-600 dark:text-blue-400"
 								weight="duotone"
 							/>
 						</div>
@@ -182,9 +182,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+						<div className="flex size-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
 							<CalendarIcon
-								className="h-4 w-4 text-purple-600 dark:text-purple-400"
+								className="size-4 text-purple-600 dark:text-purple-400"
 								weight="duotone"
 							/>
 						</div>
@@ -195,9 +195,9 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 					<div className="mb-2 flex items-center justify-center">
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+						<div className="flex size-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
 							<PauseCircleIcon
-								className="h-4 w-4 text-orange-600 dark:text-orange-400"
+								className="size-4 text-orange-600 dark:text-orange-400"
 								weight="duotone"
 							/>
 						</div>
@@ -210,7 +210,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			{/* Category Breakdown */}
 			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
-					<ChartBarIcon className="h-5 w-5" weight="duotone" />
+					<ChartBarIcon className="size-5" weight="duotone" />
 					Progress by Category
 				</h3>
 				<div className="space-y-4">
@@ -238,7 +238,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			{/* Priority Breakdown */}
 			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
-					<TrendUpIcon className="h-5 w-5" weight="duotone" />
+					<TrendUpIcon className="size-5" weight="duotone" />
 					Progress by Priority
 				</h3>
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -262,7 +262,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			{upcomingItems.length > 0 && (
 				<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 					<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
-						<CalendarIcon className="h-5 w-5" weight="duotone" />
+						<CalendarIcon className="size-5" weight="duotone" />
 						Coming Up Next (30 Days)
 					</h3>
 					<div className="space-y-3">

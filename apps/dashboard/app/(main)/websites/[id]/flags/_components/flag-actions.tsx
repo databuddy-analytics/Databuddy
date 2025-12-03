@@ -9,17 +9,8 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -93,41 +84,29 @@ export function FlagActions({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-40">
 					<DropdownMenuItem onClick={onEditAction}>
-						<PencilIcon className="h-4 w-4" weight="duotone" /> Edit
+						<PencilIcon className="size-4" weight="duotone" /> Edit
 					</DropdownMenuItem>
 					<DropdownMenuItem onClick={handleCopyKey}>
-						<CopyIcon className="h-4 w-4" weight="duotone" /> Copy key
+						<CopyIcon className="size-4" weight="duotone" /> Copy key
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => setIsOpen(true)}
 						variant="destructive"
 					>
-						<TrashIcon className="h-4 w-4" weight="duotone" /> Delete
+						<TrashIcon className="size-4" weight="duotone" /> Delete
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			<AlertDialog onOpenChange={setIsOpen} open={isOpen}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete flag?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This action cannot be undone. This will permanently delete the
-							flag "{flag.key}".
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							disabled={isDeleting}
-							onClick={handleConfirmDelete}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteDialog
+				confirmLabel="Delete"
+				description={`This action cannot be undone. This will permanently delete the flag "${flag.key}".`}
+				isDeleting={isDeleting}
+				isOpen={isOpen}
+				onClose={() => setIsOpen(false)}
+				onConfirm={handleConfirmDelete}
+				title="Delete flag?"
+			/>
 		</>
 	);
 }

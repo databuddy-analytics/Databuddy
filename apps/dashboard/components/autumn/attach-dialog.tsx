@@ -111,7 +111,7 @@ export default function AttachDialog(params?: AttachDialogProps) {
 						size="sm"
 					>
 						{loading ? (
-							<Loader2 className="h-4 w-4 animate-spin" />
+							<Loader2 className="size-4 animate-spin" />
 						) : (
 							<span className="flex gap-1 whitespace-nowrap">Confirm</span>
 						)}
@@ -217,7 +217,7 @@ export const QuantityInput = ({
 		>
 			<div className="flex items-center gap-1">
 				<Button
-					className="h-6 w-6 pb-0.5"
+					className="size-6 pb-0.5"
 					disabled={currentValue <= 0}
 					onClick={() =>
 						currentValue > 0 && handleValueChange(currentValue - 1)
@@ -229,7 +229,7 @@ export const QuantityInput = ({
 				</Button>
 				<span className="w-8 text-center text-foreground">{currentValue}</span>
 				<Button
-					className="h-6 w-6 pb-0.5"
+					className="size-6 pb-0.5"
 					onClick={() => handleValueChange(currentValue + 1)}
 					size="icon"
 					variant="outline"

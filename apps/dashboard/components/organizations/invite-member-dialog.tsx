@@ -159,12 +159,12 @@ export function InviteMemberDialog({
 							>
 								{isInviting ? (
 									<>
-										<div className="mr-1 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+										<div className="mr-1 size-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
 										Sending...
 									</>
 								) : (
 									<>
-										<UserPlusIcon className="mr-1 h-3 w-3" weight="duotone" />
+										<UserPlusIcon className="mr-1 size-3" weight="duotone" />
 										Send Invite
 									</>
 								)}

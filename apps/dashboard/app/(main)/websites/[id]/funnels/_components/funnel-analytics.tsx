@@ -2,34 +2,75 @@
 
 import {
 	ArrowClockwiseIcon,
-	ChartBarIcon,
+	ClockIcon,
 	TargetIcon,
 	TrendDownIcon,
 	UsersIcon,
+	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useMemo } from "react";
+import { StatCard } from "@/components/analytics/stat-card";
 import { Button } from "@/components/ui/button";
-import type { FunnelAnalyticsData } from "@/types/funnels";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import type { FunnelAnalyticsByReferrerResult } from "@/hooks/use-funnels";
+import type {
+	FunnelAnalyticsData,
+	FunnelTimeSeriesPoint,
+} from "@/types/funnels";
 import { FunnelFlow } from "./funnel-flow";
 
-interface ReferrerAnalytics {
-	referrer: string;
-	referrer_parsed: {
-		domain: string;
-		url: string;
-	};
-	total_users: number;
-	completed_users: number;
-	conversion_rate: number;
+function createChartData(
+	timeSeries: FunnelTimeSeriesPoint[] | undefined,
+	valueKey: keyof FunnelTimeSeriesPoint
+): { date: string; value: number }[] {
+	if (!timeSeries || timeSeries.length === 0) {
+		return [];
+	}
+	return timeSeries.map((point) => ({
+		date: point.date,
+		value: point[valueKey] as number,
+	}));
 }
 
-interface FunnelAnalyticsProps {
+type FunnelAnalyticsProps = {
 	isLoading: boolean;
 	error: Error | null;
 	data: FunnelAnalyticsData | undefined;
 	onRetry: () => void;
 	selectedReferrer?: string;
-	referrerAnalytics?: ReferrerAnalytics[];
+	referrerAnalytics?: FunnelAnalyticsByReferrerResult[];
+};
+
+function AnalyticsSkeleton() {
+	return (
+		<div className="space-y-6">
+			{/* Stats grid skeleton */}
+			<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+				<StatCard icon={UsersIcon} isLoading title="Users" value={0} />
+				<StatCard icon={TargetIcon} isLoading title="Conversion" value={0} />
+				<StatCard icon={TrendDownIcon} isLoading title="Drop-off" value={0} />
+				<StatCard icon={ClockIcon} isLoading title="Avg Time" value={0} />
+			</div>
+
+			{/* Steps skeleton */}
+			<div className="space-y-3">
+				{[1, 2, 3].map((i) => (
+					<div
+						className="flex items-center gap-4 rounded border border-border bg-card p-4"
+						key={i}
+					>
+						<Skeleton className="size-10 shrink-0 rounded-full" />
+						<div className="min-w-0 flex-1 space-y-2">
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-5 w-full rounded" />
+						</div>
+						<Skeleton className="h-6 w-14" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
 }
 
 export function FunnelAnalytics({
@@ -40,6 +81,7 @@ export function FunnelAnalytics({
 	selectedReferrer,
 	referrerAnalytics,
 }: FunnelAnalyticsProps) {
+	const { chartType, chartStepType } = useChartPreferences("funnels");
 	const selectedReferrerData = useMemo(() => {
 		if (!selectedReferrer || selectedReferrer === "all" || !referrerAnalytics) {
 			return null;
@@ -52,7 +94,7 @@ export function FunnelAnalytics({
 					(r.referrer === "direct" || r.referrer === ""))
 		);
 
-		return referrer || null;
+		return referrer ?? null;
 	}, [selectedReferrer, referrerAnalytics]);
 
 	const displayData = selectedReferrerData
@@ -82,71 +124,25 @@ export function FunnelAnalytics({
 						dropoff_rate:
 							index === 0 ? 0 : 100 - selectedReferrerData.conversion_rate,
 						avg_time_to_complete: 0,
-					})) || [],
+					})) ?? [],
 			}
 		: data;
 
 	if (isLoading) {
-		return (
-			<div className="fade-in-50 animate-in space-y-4 duration-500">
-				<div className="space-y-2">
-					<div className="flex items-center gap-2">
-						<div className="h-4 w-4 animate-pulse rounded bg-muted" />
-						<div className="h-4 w-24 animate-pulse rounded bg-muted" />
-					</div>
-					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-						{[...new Array(3)].map((_, i) => (
-							<div
-								className="animate-pulse rounded border bg-card p-3"
-								key={`summary-stat-skeleton-${i + 1}`}
-							>
-								<div className="mb-1 flex items-center gap-2">
-									<div className="h-3 w-3 rounded bg-muted" />
-									<div className="h-3 w-12 rounded bg-muted" />
-								</div>
-								<div className="h-4 w-16 rounded bg-muted" />
-							</div>
-						))}
-					</div>
-				</div>
-
-				<div className="space-y-2">
-					<div className="flex items-center gap-2">
-						<div className="h-4 w-4 animate-pulse rounded bg-muted" />
-						<div className="h-4 w-20 animate-pulse rounded bg-muted" />
-					</div>
-					<div className="space-y-2">
-						{[...new Array(3)].map((_, i) => (
-							<div
-								className="animate-pulse space-y-1"
-								key={`funnel-step-skeleton-${i + 1}`}
-							>
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-										<div className="h-5 w-5 rounded-full bg-muted" />
-										<div className="h-3 w-24 rounded bg-muted" />
-									</div>
-									<div className="h-4 w-12 rounded bg-muted" />
-								</div>
-								<div className="h-6 rounded bg-muted" />
-							</div>
-						))}
-					</div>
-				</div>
-			</div>
-		);
+		return <AnalyticsSkeleton />;
 	}
 
 	if (error) {
 		return (
-			<div className="py-4">
-				<div className="flex items-center justify-between rounded border bg-destructive/5 p-3">
-					<div className="flex items-center gap-2">
-						<TrendDownIcon
-							className="h-4 w-4 text-destructive"
-							size={14}
-							weight="duotone"
-						/>
+			<div className="red-angled-rectangle-gradient rounded border border-destructive/30 bg-destructive/5 p-4">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<div className="flex size-9 items-center justify-center rounded bg-destructive/10">
+							<WarningCircleIcon
+								className="size-5 text-destructive"
+								weight="fill"
+							/>
+						</div>
 						<div>
 							<div className="font-medium text-destructive text-sm">
 								Error loading analytics
@@ -157,12 +153,12 @@ export function FunnelAnalytics({
 						</div>
 					</div>
 					<Button
-						className="h-7 gap-1 rounded"
+						className="gap-1.5"
 						onClick={onRetry}
 						size="sm"
 						variant="outline"
 					>
-						<ArrowClockwiseIcon className="h-3 w-3" size={12} weight="fill" />
+						<ArrowClockwiseIcon className="size-3.5" weight="fill" />
 						Retry
 					</Button>
 				</div>
@@ -174,56 +170,62 @@ export function FunnelAnalytics({
 		return null;
 	}
 
-	return (
-		<div className="space-y-4">
-			<div className="space-y-2">
-				<div className="flex items-center gap-2">
-					<ChartBarIcon
-						className="h-4 w-4 text-primary"
-						size={14}
-						weight="duotone"
-					/>
-					<h3 className="font-semibold text-foreground text-sm">
-						{selectedReferrerData
-							? `Performance - ${selectedReferrerData.referrer_parsed?.domain || selectedReferrerData.referrer}`
-							: "Performance"}
-					</h3>
-				</div>
-				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-					<div className="rounded border bg-card p-3">
-						<div className="mb-1 flex items-center gap-2">
-							<UsersIcon className="text-muted-foreground" size={12} />
-							<span className="text-muted-foreground text-xs">Users</span>
-						</div>
-						<div className="font-semibold text-sm">
-							{displayData.total_users_entered.toLocaleString()}
-						</div>
-					</div>
-					<div className="rounded border bg-card p-3">
-						<div className="mb-1 flex items-center gap-2">
-							<TargetIcon className="text-muted-foreground" size={12} />
-							<span className="text-muted-foreground text-xs">Conversion</span>
-						</div>
-						<div className="font-semibold text-primary text-sm">
-							{displayData.overall_conversion_rate.toFixed(1)}%
-						</div>
-					</div>
-					<div className="rounded border bg-card p-3">
-						<div className="mb-1 flex items-center gap-2">
-							<TrendDownIcon className="text-muted-foreground" size={12} />
-							<span className="text-muted-foreground text-xs">Drop-off</span>
-						</div>
-						<div className="font-semibold text-destructive text-sm">
-							{displayData.biggest_dropoff_rate.toFixed(1)}%
-						</div>
-					</div>
-				</div>
-			</div>
+	// Prepare chart data from time series
+	const timeSeries = data?.time_series;
+	const usersChartData = createChartData(timeSeries, "users");
+	const conversionChartData = createChartData(timeSeries, "conversion_rate");
+	const dropoffChartData = createChartData(timeSeries, "dropoffs");
+	const avgTimeChartData = createChartData(timeSeries, "avg_time");
 
-			<FunnelFlow
-				steps={displayData.steps_analytics}
-				totalUsers={displayData.total_users_entered}
-			/>
+	const hasChartData = usersChartData.length > 1;
+
+	return (
+		<div className="space-y-6">
+			{/* Stats Grid */}
+			<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+				<StatCard
+					chartData={usersChartData}
+					chartStepType={chartStepType}
+					chartType={chartType}
+					icon={UsersIcon}
+					showChart={hasChartData}
+					title="Users"
+					value={displayData.total_users_entered}
+				/>
+				<StatCard
+					chartData={conversionChartData}
+					chartStepType={chartStepType}
+					chartType={chartType}
+					formatChartValue={(v) => `${v.toFixed(1)}%`}
+					icon={TargetIcon}
+					showChart={hasChartData}
+					title="Conversion"
+					value={`${displayData.overall_conversion_rate.toFixed(1)}%`}
+				/>
+				<StatCard
+					chartData={dropoffChartData}
+					chartStepType={chartStepType}
+					chartType={chartType}
+					icon={TrendDownIcon}
+					invertTrend
+					showChart={hasChartData}
+					title="Drop-off"
+					value={`${displayData.biggest_dropoff_rate.toFixed(1)}%`}
+				/>
+				<StatCard
+					chartData={avgTimeChartData}
+					chartStepType={chartStepType}
+					chartType={chartType}
+					formatChartValue={(v) =>
+						v < 60 ? `${Math.round(v)}s` : `${Math.round(v / 60)}m`
+					}
+					icon={ClockIcon}
+					showChart={hasChartData}
+					title="Avg Time"
+					value={displayData.avg_completion_time_formatted || "—"}
+				/>
+			</div>
+			<FunnelFlow steps={displayData.steps_analytics} />
 		</div>
 	);
 }

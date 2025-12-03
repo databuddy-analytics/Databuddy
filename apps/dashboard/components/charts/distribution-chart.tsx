@@ -151,7 +151,7 @@ export function DistributionChart({
 				<CardContent className="flex items-center justify-center p-4">
 					<div className="py-6 text-center">
 						<PieChartIcon
-							className="mx-auto h-8 w-8 text-muted-foreground/40"
+							className="mx-auto size-8 text-muted-foreground/40"
 							strokeWidth={1.5}
 						/>
 						<p className="mt-2 font-medium text-sm">No data available</p>

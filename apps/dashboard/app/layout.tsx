@@ -1,12 +1,12 @@
 import "./globals.css";
 
 import { Databuddy } from "@databuddy/sdk/react";
+import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import Providers from "./providers";
-import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr";
 
 const geist = Geist({
 	subsets: ["latin"],
@@ -125,7 +125,6 @@ export default function RootLayout({
 						? "5ced32e5-0219-4e75-a18a-ad9826f85698"
 						: "3ed1fce1-5a56-4cb6-a977-66864f6d18e3"
 				}
-				scriptUrl="https://databuddy.b-cdn.net/databuddy.js"
 				trackAttributes={true}
 				trackErrors={true}
 				trackPerformance={true}
@@ -133,11 +132,17 @@ export default function RootLayout({
 			/>
 			<body className="flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
 				<Providers>
-					<Suspense fallback={<div className="flex h-full items-center justify-center p-8"><SpinnerIcon className="h-8 w-8 animate-spin text-primary" /></div>}>
+					<Suspense
+						fallback={
+							<div className="flex h-full items-center justify-center p-8">
+								<SpinnerIcon className="size-8 animate-spin text-primary" />
+							</div>
+						}
+					>
 						<main className="flex-1">{children}</main>
 					</Suspense>
 				</Providers>
-				<Toaster closeButton duration={1500} position="top-center" richColors />
+				<Toaster />
 			</body>
 		</html>
 	);

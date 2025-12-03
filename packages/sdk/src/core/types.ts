@@ -120,7 +120,7 @@ export type DatabuddyConfig = {
 	samplingRate?: number;
 
 	/**
-	 * Enable retries for failed requests (default: true).
+	 * Enable retries for failed requests (default: false).
 	 */
 	enableRetries?: boolean;
 
@@ -139,7 +139,7 @@ export type DatabuddyConfig = {
 	// --- Batching ---
 
 	/**
-	 * Enable event batching (default: false).
+	 * Enable event batching (default: true).
 	 */
 	enableBatching?: boolean;
 
@@ -157,11 +157,38 @@ export type DatabuddyConfig = {
 	 */
 	batchTimeout?: number;
 
+	/**
+	 * Ignore bot detection (default: false).
+	 * If true, bot detection will be disabled and bots will be tracked.
+	 */
+	ignoreBotDetection?: boolean;
+
+	/**
+	 * Use pixel tracking instead of script (default: false).
+	 * When enabled, uses a 1x1 pixel image for tracking.
+	 */
+	usePixel?: boolean;
+
+	/**
+	 * Filter function to conditionally skip events.
+	 * Return false to skip the event, true to send it.
+	 *
+	 * @example
+	 * ```ts
+	 * filter: (event) => {
+	 *   // Skip events from admin pages
+	 *   return !event.path?.includes('/admin');
+	 * }
+	 * ```
+	 */
+	filter?: (event: any) => boolean;
+
 	/** Array of glob patterns to skip tracking on matching paths (e.g., ['/admin/**']) */
 	skipPatterns?: string[];
 
+	/** Array of glob patterns to mask sensitive paths (e.g., ['/users/*']) */
 	maskPatterns?: string[];
-}
+};
 
 /**
  * Base event properties that can be attached to any event
@@ -193,7 +220,7 @@ export type BaseEventProperties = {
 	utm_campaign?: string;
 	utm_term?: string;
 	utm_content?: string;
-}
+};
 
 /**
  * Custom event properties that can be attached to any event
@@ -271,7 +298,7 @@ export type EventTypeMap = {
 
 	// Custom events (catch-all)
 	[eventName: string]: EventProperties;
-}
+};
 
 /**
  * Available event names
@@ -283,8 +310,8 @@ export type EventName = keyof EventTypeMap;
  */
 export type PropertiesForEvent<T extends EventName> =
 	T extends keyof EventTypeMap
-	? EventTypeMap[T] & EventProperties
-	: EventProperties;
+		? EventTypeMap[T] & EventProperties
+		: EventProperties;
 
 /**
  * The global tracker instance available at `window.databuddy` or `window.db`.
@@ -295,17 +322,11 @@ export type PropertiesForEvent<T extends EventName> =
  * window.databuddy.track("signup", { plan: "pro" });
  * window.databuddy.flush();
  *
- * // Access IDs for server-side identification
- * const { anonymousId, sessionId } = window.databuddy;
+ * // Access tracker options
+ * const options = window.databuddy.options;
  * ```
  */
 export type DatabuddyTracker = {
-	/** Persistent user ID (stored in localStorage, survives sessions) */
-	anonymousId: string;
-
-	/** Current session ID (resets after 30 min inactivity) */
-	sessionId: string;
-
 	/**
 	 * Track a custom event.
 	 * @param eventName - Name of the event (e.g., "purchase", "signup")
@@ -315,10 +336,9 @@ export type DatabuddyTracker = {
 
 	/**
 	 * Manually track a page view. Called automatically on route changes.
-	 * @param path - Override the current path
-	 * @param properties - Additional properties
+	 * @param properties - Additional properties to attach to the screen view event
 	 */
-	screenView(path?: string, properties?: EventProperties): void;
+	screenView(properties?: Record<string, unknown>): void;
 
 	/**
 	 * Set properties that will be attached to ALL future events.
@@ -332,7 +352,7 @@ export type DatabuddyTracker = {
 	 * });
 	 * ```
 	 */
-	setGlobalProperties(properties: EventProperties): void;
+	setGlobalProperties(properties: Record<string, unknown>): void;
 
 	/**
 	 * Reset the user session. Generates new anonymous and session IDs.
@@ -345,7 +365,12 @@ export type DatabuddyTracker = {
 	 * Call before navigation to external sites.
 	 */
 	flush(): void;
-}
+
+	/**
+	 * Current tracker configuration options.
+	 */
+	options: DatabuddyConfig;
+};
 
 /**
  * Global window interface extensions
@@ -396,7 +421,7 @@ export type DataAttributes = {
 	"data-track": string;
 	/** Additional data attributes (auto-converted from kebab-case to camelCase) */
 	[key: `data-${string}`]: string;
-}
+};
 
 /**
  * Utility types for creating typed event tracking functions
@@ -406,9 +431,6 @@ export type TrackFunction = <T extends EventName>(
 	properties?: PropertiesForEvent<T>
 ) => Promise<void>;
 
-export type ScreenViewFunction = (
-	path?: string,
-	properties?: EventProperties
-) => void;
+export type ScreenViewFunction = (properties?: Record<string, unknown>) => void;
 
 export type SetGlobalPropertiesFunction = (properties: EventProperties) => void;

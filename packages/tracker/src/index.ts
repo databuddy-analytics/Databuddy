@@ -188,7 +188,9 @@ export class Databuddy extends BaseTracker {
 		document.addEventListener("visibilitychange", handleVisibilityChange);
 
 		const pageshowHandler = (event: PageTransitionEvent) => {
-			if (!event.persisted) { return; }
+			if (!event.persisted) {
+				return;
+			}
 			this.handleBfCacheRestore();
 		};
 		window.addEventListener("pageshow", pageshowHandler);
@@ -203,7 +205,9 @@ export class Databuddy extends BaseTracker {
 
 	private handlePageUnload() {
 		this.pauseEngagement();
-		if (this.hasSentExitBeacon) { return; }
+		if (this.hasSentExitBeacon) {
+			return;
+		}
 		this.hasSentExitBeacon = true;
 
 		const now = Date.now();
@@ -269,7 +273,9 @@ export class Databuddy extends BaseTracker {
 	trackOutgoingLinks() {
 		const handler = (e: MouseEvent) => {
 			const link = (e.target as HTMLElement).closest("a");
-			if (!link?.href || link.hostname === window.location.hostname) { return; }
+			if (!link?.href || link.hostname === window.location.hostname) {
+				return;
+			}
 
 			this.api.fetch(
 				"/outgoing",
@@ -289,10 +295,14 @@ export class Databuddy extends BaseTracker {
 	trackAttributes() {
 		const handler = (e: MouseEvent) => {
 			const trackable = (e.target as HTMLElement).closest("[data-track]");
-			if (!trackable) { return; }
+			if (!trackable) {
+				return;
+			}
 
 			const eventName = trackable.getAttribute("data-track");
-			if (!eventName) { return; }
+			if (!eventName) {
+				return;
+			}
 
 			const properties: Record<string, string> = {};
 			for (const attr of trackable.attributes) {
@@ -309,7 +319,9 @@ export class Databuddy extends BaseTracker {
 	}
 
 	_trackInternal(name: string, props?: Record<string, unknown>) {
-		if (this.shouldSkipTracking()) { return; }
+		if (this.shouldSkipTracking()) {
+			return;
+		}
 
 		this.addToBatch({
 			eventId: generateUUIDv4(),
@@ -324,7 +336,9 @@ export class Databuddy extends BaseTracker {
 	}
 
 	track(name: string, props?: Record<string, unknown>) {
-		if (this.shouldSkipTracking()) { return; }
+		if (this.shouldSkipTracking()) {
+			return;
+		}
 
 		this.sendCustomEvent({
 			timestamp: Date.now(),
@@ -348,7 +362,7 @@ export class Databuddy extends BaseTracker {
 				sessionStorage.removeItem("did_session");
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
-			} catch { }
+			} catch {}
 		}
 		this.anonymousId = this.generateAnonymousId();
 		this.sessionId = this.generateSessionId();
@@ -360,7 +374,9 @@ export class Databuddy extends BaseTracker {
 	}
 
 	destroy() {
-		for (const cleanup of this.cleanupFns) { cleanup(); }
+		for (const cleanup of this.cleanupFns) {
+			cleanup();
+		}
 		this.cleanupFns = [];
 
 		if (this.originalPushState) {
@@ -385,15 +401,17 @@ export class Databuddy extends BaseTracker {
 }
 
 function initializeDatabuddy() {
-	if (typeof window === "undefined" || window.databuddy) { return; }
+	if (typeof window === "undefined" || window.databuddy) {
+		return;
+	}
 
 	if (isOptedOut()) {
 		window.databuddy = {
-			track: () => { },
-			screenView: () => { },
-			clear: () => { },
-			flush: () => { },
-			setGlobalProperties: () => { },
+			track: () => {},
+			screenView: () => {},
+			clear: () => {},
+			flush: () => {},
+			setGlobalProperties: () => {},
 			options: { clientId: "", disabled: true },
 		};
 		window.db = window.databuddy;
@@ -413,7 +431,7 @@ if (typeof window !== "undefined") {
 		try {
 			localStorage.setItem("databuddy_opt_out", "true");
 			localStorage.setItem("databuddy_disabled", "true");
-		} catch { }
+		} catch {}
 		window.databuddyOptedOut = true;
 		window.databuddyDisabled = true;
 		if (window.databuddy) {
@@ -425,7 +443,7 @@ if (typeof window !== "undefined") {
 		try {
 			localStorage.removeItem("databuddy_opt_out");
 			localStorage.removeItem("databuddy_disabled");
-		} catch { }
+		} catch {}
 		window.databuddyOptedOut = false;
 		window.databuddyDisabled = false;
 	};

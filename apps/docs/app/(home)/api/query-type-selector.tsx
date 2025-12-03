@@ -94,7 +94,7 @@ export function QueryTypeSelector({
 									</div>
 									<div
 										className={
-											"h-3 w-3 shrink-0 rounded-full border border-primary bg-primary transition-colors"
+											"size-3 shrink-0 rounded-full border border-primary bg-primary transition-colors"
 										}
 									/>
 								</div>
@@ -136,7 +136,7 @@ export function QueryTypeSelector({
 										</div>
 										<div
 											className={
-												"h-3 w-3 shrink-0 rounded-full border border-muted-foreground/30 transition-colors"
+												"size-3 shrink-0 rounded-full border border-muted-foreground/30 transition-colors"
 											}
 										/>
 									</div>

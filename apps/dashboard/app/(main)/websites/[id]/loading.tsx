@@ -56,7 +56,7 @@ export default function Loading() {
 									key={`row-skeleton-${rowNum}`}
 								>
 									<div className="flex items-center gap-3">
-										<Skeleton className="h-4 w-4" />
+										<Skeleton className="size-4" />
 										<Skeleton className="h-4 w-32" />
 									</div>
 									<div className="flex items-center gap-4">
@@ -88,7 +88,7 @@ export default function Loading() {
 									key={`tech-row-skeleton-${rowNum}`}
 								>
 									<div className="flex items-center gap-3">
-										<Skeleton className="h-6 w-6" />
+										<Skeleton className="size-6" />
 										<Skeleton className="h-4 w-24" />
 									</div>
 									<div className="flex items-center gap-3">

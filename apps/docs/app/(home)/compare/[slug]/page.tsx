@@ -177,7 +177,7 @@ function CompetitorStatsCard({
 					>
 						Visit {competitor.name}
 						<ArrowLeftIcon
-							className="h-4 w-4 rotate-45 transition-transform group-hover:rotate-90"
+							className="size-4 rotate-45 transition-transform group-hover:rotate-90"
 							weight="fill"
 						/>
 					</Link>
@@ -200,16 +200,16 @@ const FeatureRow = ({
 			<div className="font-medium text-foreground text-sm">{feature.name}</div>
 			<div className="flex justify-center">
 				{feature.databuddy ? (
-					<CheckIcon className="h-5 w-5 text-primary" weight="bold" />
+					<CheckIcon className="size-5 text-primary" weight="bold" />
 				) : (
-					<XIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+					<XIcon className="size-5 text-muted-foreground" weight="bold" />
 				)}
 			</div>
 			<div className="flex justify-center">
 				{feature.competitor ? (
-					<CheckIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+					<CheckIcon className="size-5 text-muted-foreground" weight="bold" />
 				) : (
-					<XIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+					<XIcon className="size-5 text-muted-foreground" weight="bold" />
 				)}
 			</div>
 			<div className="text-muted-foreground text-sm">{feature.benefit}</div>
@@ -224,9 +224,9 @@ const FeatureRow = ({
 				<div className="flex items-center gap-2">
 					<span className="font-medium text-primary text-xs">Databuddy</span>
 					{feature.databuddy ? (
-						<CheckIcon className="h-5 w-5 text-primary" weight="bold" />
+						<CheckIcon className="size-5 text-primary" weight="bold" />
 					) : (
-						<XIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+						<XIcon className="size-5 text-muted-foreground" weight="bold" />
 					)}
 				</div>
 			</div>
@@ -241,12 +241,9 @@ const FeatureRow = ({
 						{competitorName}
 					</span>
 					{feature.competitor ? (
-						<CheckIcon
-							className="h-5 w-5 text-muted-foreground"
-							weight="bold"
-						/>
+						<CheckIcon className="size-5 text-muted-foreground" weight="bold" />
 					) : (
-						<XIcon className="h-5 w-5 text-muted-foreground" weight="bold" />
+						<XIcon className="size-5 text-muted-foreground" weight="bold" />
 					)}
 				</div>
 			</div>
@@ -291,7 +288,7 @@ export default async function ComparisonPage({ params }: PageProps) {
 						href="/compare"
 					>
 						<ArrowLeftIcon
-							className="group-hover:-translate-x-0.5 h-4 w-4 transition-transform"
+							className="group-hover:-translate-x-0.5 size-4 transition-transform"
 							weight="fill"
 						/>
 						<span>Back to Comparisons</span>
@@ -423,7 +420,7 @@ export default async function ComparisonPage({ params }: PageProps) {
 							>
 								View Live Demo
 								<ArrowLeftIcon
-									className="h-4 w-4 rotate-180 transition-transform group-hover:translate-x-1"
+									className="size-4 rotate-180 transition-transform group-hover:translate-x-1"
 									weight="fill"
 								/>
 							</Link>

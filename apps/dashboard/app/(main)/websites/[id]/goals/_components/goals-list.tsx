@@ -3,7 +3,7 @@
 import { TargetIcon } from "@phosphor-icons/react";
 import { EmptyState } from "@/components/empty-state";
 import type { Goal } from "@/hooks/use-goals";
-import { GoalCard } from "./goal-card";
+import { GoalItem } from "./goal-item";
 
 interface GoalsListProps {
 	goals: Goal[];
@@ -11,7 +11,15 @@ interface GoalsListProps {
 	onEditGoal: (goal: Goal) => void;
 	onDeleteGoal: (goalId: string) => void;
 	onCreateGoal: () => void;
-	goalAnalytics?: Record<string, any>;
+	goalAnalytics?: Record<
+		string,
+		| {
+				total_users_entered: number;
+				total_users_completed: number;
+				overall_conversion_rate: number;
+		  }
+		| { error: string }
+	>;
 	analyticsLoading?: boolean;
 }
 
@@ -30,34 +38,36 @@ export function GoalsList({
 
 	if (goals.length === 0) {
 		return (
-			<EmptyState
-				action={{
-					label: "Create Your First Goal",
-					onClick: onCreateGoal,
-				}}
-				description="Track conversions like sign-ups, purchases, or button clicks to measure key user actions and optimize your conversion rates."
-				icon={<TargetIcon />}
-				title="No goals yet"
-				variant="minimal"
-			/>
+			<div className="flex flex-1 items-center justify-center py-16">
+				<EmptyState
+					action={{
+						label: "Create Your First Goal",
+						onClick: onCreateGoal,
+					}}
+					description="Track conversions like sign-ups, purchases, or button clicks to measure key user actions and optimize your conversion rates."
+					icon={<TargetIcon weight="duotone" />}
+					title="No goals yet"
+					variant="minimal"
+				/>
+			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-3">
+		<div>
 			{goals.map((goal) => {
 				const analytics = goalAnalytics[goal.id];
+				const validAnalytics =
+					analytics && !("error" in analytics) ? analytics : null;
 
 				return (
-					<GoalCard
-						completions={analytics?.total_users_completed || 0}
-						conversionRate={analytics?.overall_conversion_rate || 0}
+					<GoalItem
+						analytics={validAnalytics}
 						goal={goal}
-						isLoading={analyticsLoading}
+						isLoadingAnalytics={analyticsLoading}
 						key={goal.id}
-						onDelete={() => onDeleteGoal(goal.id)}
-						onEdit={() => onEditGoal(goal)}
-						totalUsers={analytics?.total_users_entered || 0}
+						onDelete={onDeleteGoal}
+						onEdit={onEditGoal}
 					/>
 				);
 			})}

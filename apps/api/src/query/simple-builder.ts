@@ -59,7 +59,7 @@ const DANGEROUS_SQL_KEYWORDS = [
 const SQL_EXPRESSIONS = {
 	normalizedPath: Expressions.path.normalized as string,
 	normalizedReferrer: Expressions.referrer.normalized as string,
-	queryString: "queryString(path)" as string,
+	queryString: "queryString(url)" as string,
 } as const;
 
 const REFERRER_MAPPINGS: Record<string, string> = {
@@ -95,6 +95,14 @@ function normalizeReferrerValue(value: string, forLikeSearch = false): string {
 	return value.includes(".") && !value.includes(" ")
 		? `https://${value}`
 		: value;
+}
+
+/**
+ * Escapes special characters in LIKE patterns for ClickHouse
+ * Escapes backslashes first (they're used for escaping), then escapes LIKE special characters
+ */
+function escapeLikePattern(value: string): string {
+	return value.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&");
 }
 
 function validateNoSqlInjection(field: string, context: string): void {
@@ -152,18 +160,20 @@ function buildGenericFilter(
 	// Contains / not_contains - wrap value with %
 	if (filter.op === "contains" || filter.op === "not_contains") {
 		const value = transform(String(filter.value));
+		const escaped = escapeLikePattern(value);
 		return {
 			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `%${value}%` },
+			params: { [key]: `%${escaped}%` },
 		};
 	}
 
 	// Starts with - append % to value
 	if (filter.op === "starts_with") {
 		const value = transform(String(filter.value));
+		const escaped = escapeLikePattern(value);
 		return {
 			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `${value}%` },
+			params: { [key]: `${escaped}%` },
 		};
 	}
 
@@ -209,7 +219,9 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildFilter(filter: Filter, index: number): FilterResult {
-		const isGloballyAllowed = GLOBAL_ALLOWED_FILTERS.includes(filter.field as typeof GLOBAL_ALLOWED_FILTERS[number]);
+		const isGloballyAllowed = GLOBAL_ALLOWED_FILTERS.includes(
+			filter.field as (typeof GLOBAL_ALLOWED_FILTERS)[number]
+		);
 		if (
 			this.config.allowedFilters &&
 			!isGloballyAllowed &&
@@ -222,11 +234,21 @@ export class SimpleQueryBuilder {
 		const operator = FilterOperators[filter.op];
 
 		if (filter.field === SPECIAL_FILTER_FIELDS.PATH) {
-			return buildGenericFilter(filter, key, operator, SQL_EXPRESSIONS.normalizedPath);
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				SQL_EXPRESSIONS.normalizedPath
+			);
 		}
 
 		if (filter.field === SPECIAL_FILTER_FIELDS.QUERY_STRING) {
-			return buildGenericFilter(filter, key, operator, SQL_EXPRESSIONS.queryString);
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				SQL_EXPRESSIONS.queryString
+			);
 		}
 
 		if (filter.field === SPECIAL_FILTER_FIELDS.REFERRER) {
@@ -235,7 +257,11 @@ export class SimpleQueryBuilder {
 				key,
 				operator,
 				SQL_EXPRESSIONS.normalizedReferrer,
-				(v) => normalizeReferrerValue(v, filter.op === "contains" || filter.op === "not_contains")
+				(v) =>
+					normalizeReferrerValue(
+						v,
+						filter.op === "contains" || filter.op === "not_contains"
+					)
 			);
 		}
 
@@ -244,7 +270,10 @@ export class SimpleQueryBuilder {
 			typeof filter.value === "string"
 		) {
 			const deviceClause = buildDeviceTypeSQL(filter.value as DeviceType);
-			const isNegative = filter.op === "ne" || filter.op === "not_in" || filter.op === "not_contains";
+			const isNegative =
+				filter.op === "ne" ||
+				filter.op === "not_in" ||
+				filter.op === "not_contains";
 			return {
 				clause: isNegative ? `NOT (${deviceClause})` : deviceClause,
 				params: {},
@@ -303,16 +332,16 @@ export class SimpleQueryBuilder {
 
 			const helpers = this.config.plugins?.sessionAttribution
 				? {
-					sessionAttributionCTE: (timeField = "time") =>
-						this.generateSessionAttributionCTE(
-							timeField,
-							"analytics.events",
-							"startDate",
-							"endDate"
-						),
-					sessionAttributionJoin: (alias = "e") =>
-						this.generateSessionAttributionJoin(alias),
-				}
+						sessionAttributionCTE: (timeField = "time") =>
+							this.generateSessionAttributionCTE(
+								timeField,
+								"analytics.events",
+								"startDate",
+								"endDate"
+							),
+						sessionAttributionJoin: (alias = "e") =>
+							this.generateSessionAttributionJoin(alias),
+					}
 				: undefined;
 
 			const result = this.config.customSql(
@@ -415,9 +444,7 @@ export class SimpleQueryBuilder {
 		if (cte.table && !this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";
 			whereConditions.push("client_id = {websiteId:String}");
-			whereConditions.push(
-				`${timeField} >= toDateTime({from:String})`
-			);
+			whereConditions.push(`${timeField} >= toDateTime({from:String})`);
 			whereConditions.push(
 				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
 			);
@@ -601,18 +628,14 @@ export class SimpleQueryBuilder {
 
 		if (!this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";
-			whereClause.push(
-				`${timeField} >= toDateTime({from:String})`
-			);
+			whereClause.push(`${timeField} >= toDateTime({from:String})`);
 
 			if (this.config.appendEndOfDayToTo !== false) {
 				whereClause.push(
 					`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
 				);
 			} else {
-				whereClause.push(
-					`${timeField} <= toDateTime({to:String})`
-				);
+				whereClause.push(`${timeField} <= toDateTime({to:String})`);
 			}
 		}
 

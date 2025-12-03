@@ -107,13 +107,13 @@ export function TagsChat({
 								<span className="max-w-32 truncate">{tag}</span>
 								<Button
 									aria-label={`Remove tag ${tag}`}
-									className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
+									className="size-4 p-0 opacity-60 hover:opacity-100"
 									onClick={() => removeTag(index)}
 									size="icon"
 									type="button"
 									variant="ghost"
 								>
-									<XCircleIcon className="h-3 w-3" weight="duotone" />
+									<XCircleIcon className="size-3" weight="duotone" />
 								</Button>
 							</div>
 						))}

@@ -133,9 +133,7 @@ export default function BillingPage() {
 							<h3 className="font-semibold">Current Plan</h3>
 							<Badge
 								variant={
-									currentProduct?.status === "scheduled"
-										? "outline"
-										: "secondary"
+									currentProduct?.status === "scheduled" ? "outline" : "green"
 								}
 							>
 								{currentProduct?.status === "scheduled"

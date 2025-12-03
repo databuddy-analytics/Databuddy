@@ -212,7 +212,7 @@ export function DateRangePicker({
 						{/* Presets sidebar */}
 						<div className="hidden w-40 shrink-0 border-r bg-background sm:block">
 							<div className="p-2">
-								<p className="px-2 py-1.5 font-medium text-muted-foreground text-[11px] uppercase tracking-wide">
+								<p className="px-2 py-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 									Quick select
 								</p>
 								<div className="space-y-0.5">
@@ -260,7 +260,7 @@ export function DateRangePicker({
 													"rounded px-2.5 py-1",
 													tempRange?.to
 														? "bg-background shadow-sm"
-														: "border border-dashed border-muted-foreground/40"
+														: "border border-muted-foreground/40 border-dashed"
 												)}
 											>
 												<span
@@ -329,7 +329,7 @@ export function DateRangePicker({
 							</div>
 
 							{/* Footer */}
-							<div className="flex items-center justify-end gap-2 border-t bg-secondary angled-rectangle-gradient px-4 py-3">
+							<div className="angled-rectangle-gradient flex items-center justify-end gap-2 border-t bg-secondary px-4 py-3">
 								<Button
 									onClick={() => handleOpenChange(false)}
 									size="sm"

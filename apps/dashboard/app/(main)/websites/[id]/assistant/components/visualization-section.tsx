@@ -59,37 +59,37 @@ const getChartIcon = (chartType: string) => {
 	switch (chartType?.toLowerCase()) {
 		case "bar":
 		case "horizontal_bar":
-			return <ChartBarIcon className="h-3 w-3" />;
+			return <ChartBarIcon className="size-3" />;
 		case "line":
 		case "sparkline":
-			return <ChartLineIcon className="h-3 w-3" />;
+			return <ChartLineIcon className="size-3" />;
 		case "pie":
 		case "donut":
-			return <ChartPieIcon className="h-3 w-3" />;
+			return <ChartPieIcon className="size-3" />;
 		case "area":
 		case "unstacked_area":
-			return <ChartLineIcon className="h-3 w-3" />;
+			return <ChartLineIcon className="size-3" />;
 		case "stacked_bar":
 		case "grouped_bar":
-			return <ChartBarIcon className="h-3 w-3" />;
+			return <ChartBarIcon className="size-3" />;
 		case "multi_line":
-			return <ChartLineIcon className="h-3 w-3" />;
+			return <ChartLineIcon className="size-3" />;
 		case "scatter":
 		case "bubble":
-			return <DotsThreeOutlineVerticalIcon className="h-3 w-3" />;
+			return <DotsThreeOutlineVerticalIcon className="size-3" />;
 		case "radar":
-			return <CompassIcon className="h-3 w-3" />;
+			return <CompassIcon className="size-3" />;
 		case "funnel":
-			return <FunnelIcon className="h-3 w-3" />;
+			return <FunnelIcon className="size-3" />;
 		case "treemap":
-			return <TreeStructureIcon className="h-3 w-3" />;
+			return <TreeStructureIcon className="size-3" />;
 		case "histogram":
-			return <ChartBarIcon className="h-3 w-3" />;
+			return <ChartBarIcon className="size-3" />;
 		case "gauge":
 		case "progress":
-			return <GaugeIcon className="h-3 w-3" />;
+			return <GaugeIcon className="size-3" />;
 		default:
-			return <ChartBarIcon className="h-3 w-3" />;
+			return <ChartBarIcon className="size-3" />;
 	}
 };
 
@@ -97,7 +97,7 @@ export function VisualizationSkeleton() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden rounded border bg-background">
 			<div className="flex shrink-0 items-center gap-2 border-b p-2">
-				<Skeleton className="h-6 w-6 rounded" />
+				<Skeleton className="size-6 rounded" />
 				<div className="flex-1">
 					<Skeleton className="mb-1 h-4 w-24" />
 				</div>
@@ -861,7 +861,7 @@ export default function VisualizationSection() {
 			return (
 				<div className="flex h-full min-h-[200px] flex-col items-center justify-center py-4 text-center text-muted-foreground">
 					<div className="mb-2 flex h-10 w-10 items-center justify-center rounded bg-muted">
-						<DatabaseIcon className="h-5 w-5 opacity-50" />
+						<DatabaseIcon className="size-5 opacity-50" />
 					</div>
 					<h3 className="mb-1 font-medium text-sm">
 						{websiteData
@@ -1122,8 +1122,8 @@ export default function VisualizationSection() {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border bg-background">
 			<div className="flex shrink-0 items-center gap-2 border-b p-2">
-				<div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10">
-					<TrendUpIcon className="h-3 w-3 text-primary" />
+				<div className="flex size-6 shrink-0 items-center justify-center rounded bg-primary/10">
+					<TrendUpIcon className="size-3 text-primary" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<h2 className="truncate font-medium text-sm">Data Visualization</h2>

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	ArrowDownIcon,
 	CheckIcon,
 	CircleNotchIcon,
 	CrownIcon,
@@ -15,12 +16,20 @@ import {
 	useCustomer,
 	usePricingTable,
 } from "autumn-js/react";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +68,7 @@ function PricingTableSkeleton() {
 					<div className="flex-1 space-y-3">
 						{[1, 2, 3, 4].map((j) => (
 							<div className="flex items-center gap-2" key={j}>
-								<div className="h-4 w-4 rounded bg-muted" />
+								<div className="size-4 rounded bg-muted" />
 								<div className="h-4 flex-1 rounded bg-muted" />
 							</div>
 						))}
@@ -90,15 +99,9 @@ export default function PricingTable({
 	selectedPlan?: string | null;
 }) {
 	const { attach } = useCustomer();
-	const { products, isLoading, error, refetch } = usePricingTable({
+	const { products, isLoading, error } = usePricingTable({
 		productDetails,
 	});
-
-	const handleRetry = useCallback(() => {
-		if (typeof refetch === "function") {
-			refetch();
-		}
-	}, [refetch]);
 
 	if (isLoading) {
 		return (
@@ -162,6 +165,71 @@ export default function PricingTable({
 	);
 }
 
+// Downgrade Confirm Dialog
+function DowngradeConfirmDialog({
+	isOpen,
+	onClose,
+	onConfirm,
+	productName,
+	currentProductName,
+}: {
+	isOpen: boolean;
+	onClose: () => void;
+	onConfirm: () => void;
+	productName: string;
+	currentProductName?: string;
+}) {
+	const [isConfirming, setIsConfirming] = useState(false);
+
+	const handleConfirm = async () => {
+		setIsConfirming(true);
+		try {
+			await onConfirm();
+		} finally {
+			setIsConfirming(false);
+		}
+	};
+
+	return (
+		<Dialog onOpenChange={onClose} open={isOpen}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Downgrade to {productName}</DialogTitle>
+					<DialogDescription>
+						{currentProductName
+							? `Are you sure you want to downgrade from ${currentProductName} to ${productName}? Your current subscription will be cancelled and the new plan will begin at the end of your current billing period.`
+							: `Are you sure you want to downgrade to ${productName}? Your current subscription will be cancelled and the new plan will begin at the end of your current billing period.`}
+					</DialogDescription>
+				</DialogHeader>
+				<div className="flex items-center gap-3 py-2">
+					<div className="flex size-10 shrink-0 items-center justify-center border border-amber-500/20 bg-amber-500/10">
+						<ArrowDownIcon
+							className="text-amber-600 dark:text-amber-400"
+							size={18}
+							weight="duotone"
+						/>
+					</div>
+					<p className="text-foreground text-sm">
+						You may lose access to features included in your current plan.
+					</p>
+				</div>
+				<DialogFooter>
+					<Button disabled={isConfirming} onClick={onClose} variant="outline">
+						Cancel
+					</Button>
+					<Button
+						disabled={isConfirming}
+						onClick={handleConfirm}
+						variant="default"
+					>
+						{isConfirming ? "Confirming..." : "Confirm Downgrade"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 // Pricing Card
 function PricingCard({
 	productId,
@@ -175,6 +243,8 @@ function PricingCard({
 	isSelected?: boolean;
 }) {
 	const { products, selectedPlan } = usePricingTableCtx();
+	const { attach } = useCustomer();
+	const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
 	const product = products.find((p) => p.id === productId);
 
 	if (!product) {
@@ -185,6 +255,14 @@ function PricingCard({
 	const { buttonText: defaultButtonText } = getPricingTableContent(product);
 	const isRecommended = !!productDisplay?.recommend_text;
 	const Icon = getPlanIcon(product.id);
+	const isDowngrade = product.scenario === "downgrade";
+
+	// Find current active product
+	const currentProduct = products.find(
+		(p) => p.scenario === "active" || p.scenario === "scheduled"
+	);
+	const currentProductName =
+		currentProduct?.display?.name || currentProduct?.name;
 
 	const buttonText =
 		selectedPlan === productId ? (
@@ -304,12 +382,29 @@ function PricingCard({
 			<div className="p-5 pt-0">
 				<PricingCardButton
 					disabled={buttonProps?.disabled}
-					onClick={buttonProps?.onClick}
+					onClick={() => {
+						if (isDowngrade) {
+							setShowDowngradeDialog(true);
+						} else {
+							buttonProps?.onClick?.();
+						}
+					}}
 					recommended={isRecommended}
 				>
 					{buttonText}
 				</PricingCardButton>
 			</div>
+
+			<DowngradeConfirmDialog
+				currentProductName={currentProductName}
+				isOpen={showDowngradeDialog}
+				onClose={() => setShowDowngradeDialog(false)}
+				onConfirm={async () => {
+					setShowDowngradeDialog(false);
+					await attach({ productId: product.id, dialog: AttachDialog });
+				}}
+				productName={productDisplay?.name || name}
+			/>
 		</div>
 	);
 }
@@ -332,7 +427,7 @@ function FeatureItem({ item }: { item: ProductItem }) {
 	return (
 		<div className="flex items-start gap-2 text-sm">
 			<CheckIcon
-				className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground"
+				className="mt-0.5 size-4 shrink-0 text-accent-foreground"
 				weight="bold"
 			/>
 			<div className="flex flex-col">
@@ -386,11 +481,7 @@ function PricingCardButton({
 			onClick={handleClick}
 			variant={recommended ? "default" : "secondary"}
 		>
-			{loading ? (
-				<CircleNotchIcon className="h-4 w-4 animate-spin" />
-			) : (
-				children
-			)}
+			{loading ? <CircleNotchIcon className="size-4 animate-spin" /> : children}
 		</Button>
 	);
 }

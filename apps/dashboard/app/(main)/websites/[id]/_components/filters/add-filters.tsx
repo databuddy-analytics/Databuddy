@@ -147,7 +147,8 @@ function FilterDialogContent({
 	isError: boolean;
 }) {
 	const [step, setStep] = useState<FilterDialogStep>("select-field");
-	const [selectedFilterOption, setSelectedFilterOption] = useState<FilterOption | null>(null);
+	const [selectedFilterOption, setSelectedFilterOption] =
+		useState<FilterOption | null>(null);
 
 	const form = useForm<FilterFormData>({
 		resolver: zodResolver(filterFormSchema),
@@ -189,17 +190,24 @@ function FilterDialogContent({
 			<>
 				<div className="mb-3 flex items-center gap-3">
 					<div className="rounded-full border bg-destructive/10 p-2.5">
-						<WarningCircleIcon className="size-4 text-destructive" weight="duotone" />
+						<WarningCircleIcon
+							className="size-4 text-destructive"
+							weight="duotone"
+						/>
 					</div>
 					<div>
-						<DialogTitle className="font-medium text-base">Add Filter</DialogTitle>
+						<DialogTitle className="font-medium text-base">
+							Add Filter
+						</DialogTitle>
 						<DialogDescription className="text-muted-foreground text-xs">
 							Failed to load filter suggestions
 						</DialogDescription>
 					</div>
 				</div>
 				<div className="py-4 text-center">
-					<p className="text-muted-foreground text-sm">Please try again later</p>
+					<p className="text-muted-foreground text-sm">
+						Please try again later
+					</p>
 				</div>
 				<DialogFooter>
 					<Button className="flex-1" onClick={onClose} variant="secondary">
@@ -215,10 +223,15 @@ function FilterDialogContent({
 			<>
 				<div className="mb-3 flex items-center gap-3">
 					<div className="rounded-full border bg-secondary p-2.5">
-						<FunnelIcon className="size-4 text-accent-foreground" weight="duotone" />
+						<FunnelIcon
+							className="size-4 text-accent-foreground"
+							weight="duotone"
+						/>
 					</div>
 					<div>
-						<DialogTitle className="font-medium text-base">Add Filter</DialogTitle>
+						<DialogTitle className="font-medium text-base">
+							Add Filter
+						</DialogTitle>
 						<DialogDescription className="text-muted-foreground text-xs">
 							Choose a field to filter your data
 						</DialogDescription>
@@ -228,7 +241,10 @@ function FilterDialogContent({
 				{isLoading ? (
 					<div className="space-y-2 py-2">
 						{Array.from({ length: 5 }, (_, i) => (
-							<Skeleton className="h-9 w-full" key={`skeleton-${i.toString()}`} />
+							<Skeleton
+								className="h-9 w-full"
+								key={`skeleton-${i.toString()}`}
+							/>
 						))}
 					</div>
 				) : (
@@ -264,7 +280,10 @@ function FilterDialogContent({
 		<>
 			<div className="mb-3 flex items-center gap-3">
 				<div className="rounded-full border bg-secondary p-2.5">
-					<FunnelIcon className="size-4 text-accent-foreground" weight="duotone" />
+					<FunnelIcon
+						className="size-4 text-accent-foreground"
+						weight="duotone"
+					/>
 				</div>
 				<div>
 					<DialogTitle className="font-medium text-base">
@@ -303,12 +322,15 @@ function FilterDialogContent({
 													defaultValue={operatorField.value}
 													onValueChange={operatorField.onChange}
 												>
-													<SelectTrigger className="h-9 w-auto gap-1 rounded-r-none border-r-0 bg-secondary px-2.5 text-xs font-medium">
+													<SelectTrigger className="h-9 w-auto gap-1 rounded-r-none border-r-0 bg-secondary px-2.5 font-medium text-xs">
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent align="start">
 														{operatorOptions.map((option) => (
-															<SelectItem key={option.value} value={option.value}>
+															<SelectItem
+																key={option.value}
+																value={option.value}
+															>
 																{option.label}
 															</SelectItem>
 														))}
@@ -330,7 +352,9 @@ function FilterDialogContent({
 					/>
 
 					<ValueSuggestions
-						onSelect={(value) => form.setValue("value", value, { shouldValidate: true })}
+						onSelect={(value) =>
+							form.setValue("value", value, { shouldValidate: true })
+						}
 						searchValue={watchedValue}
 						selectedValue={watchedValue}
 						suggestions={suggestions}

@@ -78,7 +78,7 @@ function RewardCard({ reward }: { reward: Reward }) {
 					<div className="mb-4 flex items-start justify-between">
 						<div className="flex items-center gap-2">
 							<reward.icon
-								className={`h-8 w-8 ${
+								className={`size-8 ${
 									reward.highlight ? "text-primary" : "text-muted-foreground"
 								} transition-colors duration-300 group-hover:text-foreground`}
 								weight="duotone"

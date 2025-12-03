@@ -3,30 +3,79 @@ import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	recent_errors: {
-		table: Analytics.errors,
-		fields: [
-			"id",
-			"message",
-			"stack",
-			"path",
-			"anonymous_id",
-			"session_id",
-			"timestamp",
-			"browser_name",
-			"browser_version",
-			"os_name",
-			"os_version",
-			"device_type",
-			"country",
-			"region",
-			"filename",
-			"lineno",
-			"colno",
-			"error_type",
-		],
-		where: ["message != ''"],
-		orderBy: "timestamp DESC",
-		limit: 50,
+		customSql: (
+			websiteId: string,
+			startDate: string,
+			endDate: string,
+			_filters?: Filter[],
+			_granularity?: TimeUnit,
+			_limit?: number,
+			_offset?: number,
+			_timezone?: string,
+			filterConditions?: string[],
+			filterParams?: Record<string, Filter["value"]>
+		) => {
+			const limit = _limit ?? 50;
+			const combinedWhereClause = filterConditions?.length
+				? `AND ${filterConditions.join(" AND ")}`
+				: "";
+
+			return {
+				sql: `
+					SELECT 
+						es.message,
+						es.stack,
+						es.path,
+						es.anonymous_id,
+						es.session_id,
+						es.timestamp,
+						es.filename,
+						es.lineno,
+						es.colno,
+						es.error_type,
+						-- Get context from events table
+						any(e.browser_name) as browser_name,
+						any(e.browser_version) as browser_version,
+						any(e.os_name) as os_name,
+						any(e.os_version) as os_version,
+						any(e.device_type) as device_type,
+						any(e.country) as country,
+						any(e.region) as region
+					FROM ${Analytics.error_spans} es
+					LEFT JOIN ${Analytics.events} e ON (
+						es.session_id = e.session_id 
+						AND es.client_id = e.client_id
+						AND abs(dateDiff('second', es.timestamp, e.time)) < 60
+					)
+					WHERE 
+						es.client_id = {websiteId:String}
+						AND es.timestamp >= toDateTime({startDate:String})
+						AND es.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND es.message != ''
+						${combinedWhereClause}
+					GROUP BY 
+						es.message,
+						es.stack,
+						es.path,
+						es.anonymous_id,
+						es.session_id,
+						es.timestamp,
+						es.filename,
+						es.lineno,
+						es.colno,
+						es.error_type
+					ORDER BY es.timestamp DESC
+					LIMIT {limit:UInt32}
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					limit,
+					...filterParams,
+				},
+			};
+		},
 		timeField: "timestamp",
 		allowedFilters: [
 			"path",
@@ -35,6 +84,7 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 			"country",
 			"message",
 			"device_type",
+			"error_type",
 		],
 		customizable: true,
 		plugins: {
@@ -43,7 +93,7 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	error_types: {
-		table: Analytics.errors,
+		table: Analytics.error_spans,
 		fields: [
 			"message as name",
 			"COUNT(*) as count",
@@ -55,12 +105,12 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: "count DESC",
 		limit: 50,
 		timeField: "timestamp",
-		allowedFilters: ["message", "path", "browser_name", "country"],
+		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
 
 	error_trends: {
-		table: Analytics.errors,
+		table: Analytics.error_spans,
 		fields: [
 			"toDate(timestamp) as date",
 			"COUNT(*) as errors",
@@ -70,11 +120,11 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ["toDate(timestamp)"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
-		allowedFilters: ["message", "path", "browser_name", "country"],
+		allowedFilters: ["message", "path", "error_type"],
 	},
 
 	errors_by_page: {
-		table: Analytics.errors,
+		table: Analytics.error_spans,
 		fields: [
 			"path as name",
 			"COUNT(*) as errors",
@@ -85,18 +135,18 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: "errors DESC",
 		limit: 20,
 		timeField: "timestamp",
-		allowedFilters: ["path", "message", "browser_name"],
+		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},
 
 	error_frequency: {
-		table: Analytics.errors,
+		table: Analytics.error_spans,
 		fields: ["toDate(timestamp) as date", "COUNT(*) as count"],
 		where: ["message != ''"],
 		groupBy: ["toDate(timestamp)"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
-		allowedFilters: ["message", "path", "browser_name", "country"],
+		allowedFilters: ["message", "path", "error_type"],
 	},
 
 	error_summary: {
@@ -125,14 +175,14 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 				sql: `
 					WITH total_sessions AS (
 						SELECT uniq(session_id) as total 
-						FROM analytics.events 
+						FROM ${Analytics.events}
 						WHERE client_id = {websiteId:String} 
 						AND time >= toDateTime({startDate:String})
 						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 					),
 					error_sessions AS (
 						SELECT uniq(session_id) as error_count 
-						FROM analytics.errors 
+						FROM ${Analytics.error_spans}
 						WHERE client_id = {websiteId:String} 
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
@@ -145,7 +195,7 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 							uniq(message) as uniqueErrorTypes,
 							uniq(anonymous_id) as affectedUsers,
 							uniq(session_id) as affectedSessions
-						FROM analytics.errors 
+						FROM ${Analytics.error_spans}
 						WHERE client_id = {websiteId:String} 
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
@@ -171,12 +221,12 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["message", "path", "browser_name", "country"],
+		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
 
 	error_chart_data: {
-		table: Analytics.errors,
+		table: Analytics.error_spans,
 		fields: [
 			"toDate(timestamp) as date",
 			"COUNT(*) as totalErrors",
@@ -186,6 +236,23 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ["toDate(timestamp)"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
-		allowedFilters: ["message", "path", "browser_name", "country"],
+		allowedFilters: ["message", "path", "error_type"],
+	},
+
+	errors_by_type: {
+		table: Analytics.error_spans,
+		fields: [
+			"error_type as name",
+			"COUNT(*) as count",
+			"uniq(anonymous_id) as users",
+			"uniq(session_id) as sessions",
+		],
+		where: ["message != ''", "error_type != ''"],
+		groupBy: ["error_type"],
+		orderBy: "count DESC",
+		limit: 20,
+		timeField: "timestamp",
+		allowedFilters: ["path", "message", "error_type"],
+		customizable: true,
 	},
 };

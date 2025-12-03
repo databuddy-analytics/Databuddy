@@ -1,13 +1,12 @@
 "use server";
 
 import { auth } from "@databuddy/auth";
-import { db, eq, user } from "@databuddy/db";
+import { account, and, db, eq, user } from "@databuddy/db";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
 
-// Helper to get authenticated user
 const getUser = cache(async () => {
 	const session = await auth.api.getSession({
 		headers: await headers(),
@@ -18,7 +17,6 @@ const getUser = cache(async () => {
 	return session.user;
 });
 
-// Profile update schema
 const profileUpdateSchema = z.object({
 	firstName: z
 		.string()
@@ -28,12 +26,14 @@ const profileUpdateSchema = z.object({
 		.string()
 		.min(1, "Last name is required")
 		.max(50, "Last name cannot exceed 50 characters"),
-	image: z.string().url("Please enter a valid image URL").optional(),
+	image: z.url("Please enter a valid image URL").optional(),
 });
 
-/**
- * Updates the user's profile information
- */
+const passwordSchema = z
+	.string()
+	.min(8, "Password must be at least 8 characters")
+	.max(128, "Password cannot exceed 128 characters");
+
 export async function updateUserProfile(formData: FormData) {
 	const currentUser = await getUser();
 	if (!currentUser) {
@@ -41,26 +41,22 @@ export async function updateUserProfile(formData: FormData) {
 	}
 
 	try {
-		// Parse and validate form data
 		const firstName = formData.get("firstName");
 		const lastName = formData.get("lastName");
 		const image = formData.get("image");
 
-		// Validate the data
 		const validatedData = profileUpdateSchema.parse({
 			firstName,
 			lastName,
 			image: image || undefined,
 		});
 
-		// Update user in database
 		const _updated = await db
 			.update(user)
 			.set({
 				firstName: validatedData.firstName,
 				lastName: validatedData.lastName,
 				image: validatedData.image,
-				// Set the display name to the full name
 				name: `${validatedData.firstName} ${validatedData.lastName}`,
 			})
 			.where(eq(user.id, currentUser.id))
@@ -75,6 +71,51 @@ export async function updateUserProfile(formData: FormData) {
 			return { error: error.message };
 		}
 		return { error: "Failed to update profile" };
+	}
+}
+
+export async function setPasswordForOAuthUser(newPassword: string) {
+	const currentUser = await getUser();
+	if (!currentUser) {
+		return { error: "Unauthorized" };
+	}
+
+	const passwordResult = passwordSchema.safeParse(newPassword);
+	if (!passwordResult.success) {
+		return { error: passwordResult.error.message };
+	}
+
+	try {
+		const existingCredentialAccount = await db
+			.select({ id: account.id })
+			.from(account)
+			.where(
+				and(
+					eq(account.userId, currentUser.id),
+					eq(account.providerId, "credential")
+				)
+			)
+			.limit(1);
+
+		if (existingCredentialAccount.length > 0) {
+			return {
+				error: "You already have a password. Use change password instead.",
+			};
+		}
+
+		await auth.api.setPassword({
+			body: { newPassword },
+			headers: await headers(),
+		});
+
+		revalidatePath("/settings");
+		return { success: true };
+	} catch (error) {
+		console.error("Set password error:", error);
+		if (error instanceof Error) {
+			return { error: error.message };
+		}
+		return { error: "Failed to set password" };
 	}
 }
 
@@ -101,8 +142,6 @@ export async function deactivateUserAccount(formData: FormData) {
 			.update(user)
 			.set({
 				deletedAt: new Date().toISOString(),
-				// Store scheduled deletion date in database
-				// This record is used by a cleanup job to permanently delete after grace period (ensuring user has time to cancel)
 			})
 			.where(eq(user.id, currentUser.id));
 		revalidatePath("/settings");

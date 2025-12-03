@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="h-4 w-4 animate-spin" />
+							<Loader2 className="size-4 animate-spin" />
 							Sending reset link...
 						</>
 					) : (
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
 				</Button>
 				<Link className="mt-4 block" href="/login">
 					<Button className="w-full" type="button" variant="outline">
-						<ChevronLeft className="mr-2 h-4 w-4" />
+						<ChevronLeft className="mr-2 size-4" />
 						Back to login
 					</Button>
 				</Link>

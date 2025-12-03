@@ -10,6 +10,9 @@ import type {
 // Filter Operators
 // ============================================================================
 
+// Note: Both `contains` and `starts_with` use the LIKE operator.
+// The distinction is handled by value formatting: `contains` wraps values with %...%,
+// while `starts_with` appends % to the value (e.g., "value%").
 export const FilterOperators = {
 	eq: "=",
 	ne: "!=",
@@ -222,7 +225,7 @@ export type SimpleQueryConfig = {
 
 	/** Query metadata for documentation */
 	meta?: QueryBuilderMeta;
-}
+};
 
 export type QueryRequest = {
 	projectId: string;

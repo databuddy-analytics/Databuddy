@@ -55,8 +55,8 @@ const BentoCard = ({
 	>
 		<CardHeader className={cn("relative z-20 px-6 py-4", headerClassName)}>
 			<div className="flex items-center gap-3">
-				<div className="flex h-8 w-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
-					<Icon className="h-4 w-4 text-muted-foreground" weight="duotone" />
+				<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
+					<Icon className="size-4 text-muted-foreground" weight="duotone" />
 				</div>
 				<div className="flex flex-col gap-0.5">
 					<CardTitle className="font-medium font-mono text-foreground text-sm">
@@ -202,7 +202,7 @@ const RealTimeFeature = () => {
 		<div className="relative flex h-full flex-col">
 			<div className="relative z-10 space-y-1 px-6">
 				<div className="flex items-center gap-2">
-					<span className="relative flex h-2 w-2">
+					<span className="relative flex size-2">
 						<motion.span
 							animate={{
 								scale: [1, 1.5, 1],
@@ -214,7 +214,7 @@ const RealTimeFeature = () => {
 								repeat: Number.POSITIVE_INFINITY,
 							}}
 						/>
-						<span className="relative inline-flex h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+						<span className="relative inline-flex size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
 					</span>
 					<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
 						Live Users
@@ -410,7 +410,7 @@ const ErrorTrackingFeature = () => (
 						transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
 					>
 						<WarningCircle
-							className="h-4 w-4 shrink-0 text-destructive"
+							className="size-4 shrink-0 text-destructive"
 							weight="fill"
 						/>
 					</motion.div>
@@ -481,7 +481,7 @@ const FeatureFlagsFeature = () => {
 					<div className="flex min-w-0 flex-1 items-center gap-3">
 						<div
 							className={cn(
-								"h-2 w-2 shrink-0 rounded-full ring-4 ring-opacity-20 transition-all duration-300",
+								"size-2 shrink-0 rounded-full ring-4 ring-opacity-20 transition-all duration-300",
 								flag.enabled
 									? "bg-primary shadow-[0_0_12px_var(--primary)] ring-primary/30"
 									: "bg-muted ring-muted-foreground/30"
@@ -506,7 +506,7 @@ const FeatureFlagsFeature = () => {
 					</div>
 					<Switch
 						checked={flag.enabled}
-						className="shrink-0 transition-all duration-300 data-[state=checked]:bg-primary"
+						className="min-h-0! min-w-0!"
 						disabled
 					/>
 				</div>

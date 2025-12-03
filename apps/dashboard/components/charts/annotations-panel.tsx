@@ -9,18 +9,9 @@ import {
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import { useState } from "react";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
 	Sheet,
 	SheetContent,
@@ -230,58 +221,40 @@ export function AnnotationsPanel({
 			</Sheet>
 
 			{/* Delete Confirmation Dialog */}
-			<AlertDialog onOpenChange={() => setDeleteId(null)} open={!!deleteId}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Annotation?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This action cannot be undone. The annotation will be permanently
-							removed from this chart.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					{annotationToDelete && (
-						<div className="rounded border bg-card p-3">
-							<div className="flex items-start gap-3">
-								<div
-									className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded"
-									style={{ backgroundColor: annotationToDelete.color }}
-								>
-									<NoteIcon className="size-3 text-white" weight="fill" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<p className="line-clamp-2 text-foreground text-sm">
-										{annotationToDelete.text}
-									</p>
-									<p className="mt-1 text-muted-foreground text-xs">
-										{formatAnnotationDateRange(
-											annotationToDelete.xValue,
-											annotationToDelete.xEndValue,
-											granularity
-										)}
-									</p>
-								</div>
+			<DeleteDialog
+				confirmLabel="Delete"
+				description="This action cannot be undone. The annotation will be permanently removed from this chart."
+				isDeleting={isDeleting}
+				isOpen={!!deleteId}
+				onClose={() => setDeleteId(null)}
+				onConfirm={handleDelete}
+				title="Delete Annotation"
+			>
+				{annotationToDelete && (
+					<div className="rounded border bg-card p-3">
+						<div className="flex items-start gap-3">
+							<div
+								className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded"
+								style={{ backgroundColor: annotationToDelete.color }}
+							>
+								<NoteIcon className="size-3 text-white" weight="fill" />
+							</div>
+							<div className="min-w-0 flex-1">
+								<p className="line-clamp-2 text-foreground text-sm">
+									{annotationToDelete.text}
+								</p>
+								<p className="mt-1 text-muted-foreground text-xs">
+									{formatAnnotationDateRange(
+										annotationToDelete.xValue,
+										annotationToDelete.xEndValue,
+										granularity
+									)}
+								</p>
 							</div>
 						</div>
-					)}
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive-brighter"
-							disabled={isDeleting}
-							onClick={handleDelete}
-						>
-							{isDeleting ? (
-								<>
-									<div className="mr-2 size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									Deleting…
-								</>
-							) : (
-								"Delete"
-							)}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+					</div>
+				)}
+			</DeleteDialog>
 		</>
 	);
 }

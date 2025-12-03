@@ -18,7 +18,7 @@ export default function DemoPage() {
 					href="/"
 				>
 					<ArrowLeftIcon
-						className="group-hover:-translate-x-0.5 h-4 w-4 text-foreground transition-transform"
+						className="group-hover:-translate-x-0.5 size-4 text-foreground transition-transform"
 						weight="fill"
 					/>
 					<span className="text-foreground">Back to Home</span>
@@ -26,7 +26,7 @@ export default function DemoPage() {
 
 				<div className="flex items-center gap-2">
 					<div className="flex items-center gap-2 rounded border border-border bg-card/90 px-3 py-2 shadow-lg backdrop-blur-sm">
-						<div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+						<div className="size-2 animate-pulse rounded-full bg-green-500" />
 						<span className="font-medium text-foreground text-xs">
 							Live Demo
 						</span>
@@ -40,7 +40,7 @@ export default function DemoPage() {
 					>
 						<span>Get Started Free</span>
 						<ArrowLeftIcon
-							className="h-4 w-4 rotate-180 transition-transform group-hover:translate-x-0.5"
+							className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5"
 							weight="fill"
 						/>
 					</Link>

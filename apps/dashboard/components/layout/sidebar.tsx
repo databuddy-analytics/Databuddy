@@ -159,7 +159,7 @@ export function Sidebar() {
 	return (
 		<>
 			{/* Mobile Header */}
-			<header className="fixed top-0 right-0 left-0 z-50 h-12 w-full border-b bg-background md:hidden">
+			<header className="fixed top-0 right-0 left-0 z-40 h-12 w-full border-b bg-background md:hidden">
 				<div className="flex h-full items-center justify-between px-4">
 					<div className="flex items-center gap-3">
 						<Button
@@ -170,7 +170,7 @@ export function Sidebar() {
 							type="button"
 							variant="ghost"
 						>
-							<ListIcon className="h-5 w-5" weight="duotone" />
+							<ListIcon className="size-5" weight="duotone" />
 						</Button>
 
 						<Link
@@ -178,7 +178,7 @@ export function Sidebar() {
 							data-track="logo-click"
 							href="/websites"
 						>
-							<div className="flex h-8 w-8 items-center justify-center">
+							<div className="flex size-8 items-center justify-center">
 								<Image
 									alt="Databuddy Logo"
 									className="invert dark:invert-0"
@@ -204,7 +204,7 @@ export function Sidebar() {
 
 			{isMobileOpen && (
 				<button
-					className="fixed inset-0 z-30 bg-black/20 md:hidden"
+					className="fixed inset-0 z-[90] bg-black/20 md:hidden"
 					onClick={closeSidebar}
 					onKeyDown={(e) => {
 						if (e.key === "Escape") {
@@ -219,7 +219,7 @@ export function Sidebar() {
 			<nav
 				aria-hidden={!isMobileOpen}
 				className={cn(
-					"fixed inset-y-0 z-40 w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
+					"fixed inset-y-0 z-[100] w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
 					"border-r transition-transform duration-200 ease-out",
 					"left-0 md:left-12",
 					"pt-12 md:pt-0",
@@ -230,14 +230,14 @@ export function Sidebar() {
 			>
 				<Button
 					aria-label="Close sidebar"
-					className="absolute top-3 right-3 z-50 h-8 w-8 p-0 md:hidden"
+					className="absolute top-3 right-3 z-110 size-8 p-0 md:hidden"
 					data-track="sidebar-close"
 					onClick={closeSidebar}
 					size="sm"
 					type="button"
 					variant="ghost"
 				>
-					<XIcon className="h-4 w-4" size={32} weight="duotone" />
+					<XIcon className="size-4" size={32} />
 					<span className="sr-only">Close sidebar</span>
 				</Button>
 

@@ -7,14 +7,29 @@ import {
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
 } from "../lib/analytics-utils";
-import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: "funnels" });
+const cache = createDrizzleCache({ redis, namespace: "funnels" });
 
 const CACHE_TTL = 300;
-const ANALYTICS_CACHE_TTL = 600;
+const ANALYTICS_CACHE_TTL = 180;
+
+const stepSchema = z.object({
+	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+	target: z.string().min(1),
+	name: z.string().min(1),
+	conditions: z.record(z.string(), z.unknown()).optional(),
+});
+
+const filterSchema = z.object({
+	field: z.string(),
+	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+	value: z.union([z.string(), z.array(z.string())]),
+});
+
+type Step = z.infer<typeof stepSchema>;
+type Filter = z.infer<typeof filterSchema>;
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -24,117 +39,98 @@ const getDefaultDateRange = () => {
 	return { startDate, endDate };
 };
 
-const funnelStepSchema = z.object({
-	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-	target: z.string().min(1),
-	name: z.string().min(1),
-	conditions: z.record(z.string(), z.any()).optional(),
-});
+const getEffectiveStartDate = (
+	requestedStartDate: string,
+	createdAt: Date | null,
+	ignoreHistoricData: boolean
+): string => {
+	if (!(ignoreHistoricData && createdAt)) return requestedStartDate;
 
-const funnelFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
+	const createdDate = new Date(createdAt).toISOString().split("T")[0];
+	return new Date(requestedStartDate) > new Date(createdDate)
+		? requestedStartDate
+		: createdDate;
+};
+
+const invalidateFunnelsCache = async (websiteId: string, funnelId?: string) => {
+	const keys = [`list:${websiteId}`];
+	if (funnelId) {
+		keys.push(`byId:${funnelId}:${websiteId}`);
+	}
+	await Promise.all(keys.map((key) => cache.invalidateByKey(key)));
+};
+
+const toAnalyticsSteps = (steps: Step[]): AnalyticsStep[] =>
+	steps.map((step, index) => ({
+		step_number: index + 1,
+		type: step.type as "PAGE_VIEW" | "EVENT",
+		target: step.target,
+		name: step.name,
+	}));
 
 export const funnelsRouter = {
 	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.handler(({ context, input }) => {
-			const cacheKey = `funnels:list:${input.websiteId}`;
-
-			return drizzleCache.withCache({
-				key: cacheKey,
+		.handler(({ context, input }) =>
+			cache.withCache({
+				key: `list:${input.websiteId}`,
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
 					await authorizeWebsiteAccess(context, input.websiteId, "read");
-
-					try {
-						const funnels = await context.db
-							.select({
-								id: funnelDefinitions.id,
-								name: funnelDefinitions.name,
-								description: funnelDefinitions.description,
-								steps: funnelDefinitions.steps,
-								filters: funnelDefinitions.filters,
-								isActive: funnelDefinitions.isActive,
-								createdAt: funnelDefinitions.createdAt,
-								updatedAt: funnelDefinitions.updatedAt,
-							})
-							.from(funnelDefinitions)
-							.where(
-								and(
-									eq(funnelDefinitions.websiteId, input.websiteId),
-									isNull(funnelDefinitions.deletedAt),
-									sql`jsonb_array_length(${funnelDefinitions.steps}) > 1`
-								)
+					return context.db
+						.select({
+							id: funnelDefinitions.id,
+							name: funnelDefinitions.name,
+							description: funnelDefinitions.description,
+							steps: funnelDefinitions.steps,
+							filters: funnelDefinitions.filters,
+							ignoreHistoricData: funnelDefinitions.ignoreHistoricData,
+							isActive: funnelDefinitions.isActive,
+							createdAt: funnelDefinitions.createdAt,
+							updatedAt: funnelDefinitions.updatedAt,
+						})
+						.from(funnelDefinitions)
+						.where(
+							and(
+								eq(funnelDefinitions.websiteId, input.websiteId),
+								isNull(funnelDefinitions.deletedAt),
+								sql`jsonb_array_length(${funnelDefinitions.steps}) > 1`
 							)
-							.orderBy(desc(funnelDefinitions.createdAt));
-
-						return funnels;
-					} catch (error) {
-						logger.error("Failed to fetch funnels", {
-							error: error instanceof Error ? error.message : String(error),
-							websiteId: input.websiteId,
-						});
-						throw new ORPCError("INTERNAL_SERVER_ERROR", {
-							message: "Failed to fetch funnels",
-						});
-					}
+						)
+						.orderBy(desc(funnelDefinitions.createdAt));
 				},
-			});
-		}),
+			})
+		),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string(), websiteId: z.string() }))
-		.handler(({ context, input }) => {
-			const cacheKey = `funnels:byId:${input.id}:${input.websiteId}`;
-
-			return drizzleCache.withCache({
-				key: cacheKey,
+		.handler(({ context, input }) =>
+			cache.withCache({
+				key: `byId:${input.id}:${input.websiteId}`,
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
 					await authorizeWebsiteAccess(context, input.websiteId, "read");
-
-					try {
-						const funnel = await context.db
-							.select()
-							.from(funnelDefinitions)
-							.where(
-								and(
-									eq(funnelDefinitions.id, input.id),
-									eq(funnelDefinitions.websiteId, input.websiteId),
-									isNull(funnelDefinitions.deletedAt)
-								)
+					const [funnel] = await context.db
+						.select()
+						.from(funnelDefinitions)
+						.where(
+							and(
+								eq(funnelDefinitions.id, input.id),
+								eq(funnelDefinitions.websiteId, input.websiteId),
+								isNull(funnelDefinitions.deletedAt)
 							)
-							.limit(1);
+						)
+						.limit(1);
 
-						if (funnel.length === 0) {
-							throw new ORPCError("NOT_FOUND", {
-								message: "Funnel not found",
-							});
-						}
-
-						return funnel[0];
-					} catch (error) {
-						if (error instanceof ORPCError) {
-							throw error;
-						}
-
-						logger.error("Failed to fetch funnel", {
-							error: error instanceof Error ? error.message : String(error),
-							funnelId: input.id,
-							websiteId: input.websiteId,
-						});
-						throw new ORPCError("INTERNAL_SERVER_ERROR", {
-							message: "Failed to fetch funnel",
-						});
+					if (!funnel) {
+						throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
 					}
+					return funnel;
 				},
-			});
-		}),
+			})
+		),
 
 	create: protectedProcedure
 		.input(
@@ -142,49 +138,30 @@ export const funnelsRouter = {
 				websiteId: z.string(),
 				name: z.string().min(1).max(100),
 				description: z.string().optional(),
-				steps: z.array(funnelStepSchema).min(2).max(10),
-				filters: z.array(funnelFilterSchema).optional(),
+				steps: z.array(stepSchema).min(2).max(10),
+				filters: z.array(filterSchema).optional(),
+				ignoreHistoricData: z.boolean().optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeWebsiteAccess(context, input.websiteId, "update");
 
-			try {
-				const funnelId = crypto.randomUUID();
-
-				const [newFunnel] = await context.db
-					.insert(funnelDefinitions)
-					.values({
-						id: funnelId,
-						websiteId: input.websiteId,
-						name: input.name,
-						description: input.description,
-						steps: input.steps,
-						filters: input.filters,
-						createdBy: context.user.id,
-					})
-					.returning();
-
-				await drizzleCache.invalidateByTables(["funnelDefinitions"]);
-
-				logger.info("Funnel created", {
-					message: `Created funnel "${input.name}"`,
-					funnelId,
+			const [newFunnel] = await context.db
+				.insert(funnelDefinitions)
+				.values({
+					id: crypto.randomUUID(),
 					websiteId: input.websiteId,
-					userId: context.user.id,
-				});
+					name: input.name,
+					description: input.description,
+					steps: input.steps,
+					filters: input.filters,
+					ignoreHistoricData: input.ignoreHistoricData ?? false,
+					createdBy: context.user.id,
+				})
+				.returning();
 
-				return newFunnel;
-			} catch (error) {
-				logger.error("Failed to create funnel", {
-					error: error instanceof Error ? error.message : String(error),
-					websiteId: input.websiteId,
-					userId: context.user.id,
-				});
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create funnel",
-				});
-			}
+			await invalidateFunnelsCache(input.websiteId);
+			return newFunnel;
 		}),
 
 	update: protectedProcedure
@@ -193,13 +170,14 @@ export const funnelsRouter = {
 				id: z.string(),
 				name: z.string().min(1).max(100).optional(),
 				description: z.string().optional(),
-				steps: z.array(funnelStepSchema).min(2).max(10).optional(),
-				filters: z.array(funnelFilterSchema).optional(),
+				steps: z.array(stepSchema).min(2).max(10).optional(),
+				filters: z.array(filterSchema).optional(),
+				ignoreHistoricData: z.boolean().optional(),
 				isActive: z.boolean().optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const existingFunnel = await context.db
+			const [existingFunnel] = await context.db
 				.select({ websiteId: funnelDefinitions.websiteId })
 				.from(funnelDefinitions)
 				.where(
@@ -209,55 +187,30 @@ export const funnelsRouter = {
 					)
 				)
 				.limit(1);
-			if (existingFunnel.length === 0) {
+
+			if (!existingFunnel) {
 				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(
-				context,
-				existingFunnel[0].websiteId,
-				"update"
-			);
 
-			try {
-				const { id, ...updates } = input;
-				const [updatedFunnel] = await context.db
-					.update(funnelDefinitions)
-					.set({
-						...updates,
-						updatedAt: new Date(),
-					})
-					.where(
-						and(
-							eq(funnelDefinitions.id, id),
-							isNull(funnelDefinitions.deletedAt)
-						)
-					)
-					.returning();
+			await authorizeWebsiteAccess(context, existingFunnel.websiteId, "update");
 
-				await Promise.all([
-					drizzleCache.invalidateByTables(["funnelDefinitions"]),
-					drizzleCache.invalidateByKey(
-						`funnels:byId:${id}:${existingFunnel[0].websiteId}`
-					),
-				]);
+			const { id, ...updates } = input;
+			const [updatedFunnel] = await context.db
+				.update(funnelDefinitions)
+				.set({ ...updates, updatedAt: new Date() })
+				.where(
+					and(eq(funnelDefinitions.id, id), isNull(funnelDefinitions.deletedAt))
+				)
+				.returning();
 
-				return updatedFunnel;
-			} catch (error) {
-				logger.error("Failed to update funnel", {
-					error: error instanceof Error ? error.message : String(error),
-					funnelId: input.id,
-					websiteId: existingFunnel[0].websiteId,
-				});
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to update funnel",
-				});
-			}
+			await invalidateFunnelsCache(existingFunnel.websiteId, id);
+			return updatedFunnel;
 		}),
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.handler(async ({ context, input }) => {
-			const existingFunnel = await context.db
+			const [existingFunnel] = await context.db
 				.select({ websiteId: funnelDefinitions.websiteId })
 				.from(funnelDefinitions)
 				.where(
@@ -267,47 +220,25 @@ export const funnelsRouter = {
 					)
 				)
 				.limit(1);
-			if (existingFunnel.length === 0) {
+
+			if (!existingFunnel) {
 				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
 			}
-			await authorizeWebsiteAccess(
-				context,
-				existingFunnel[0].websiteId,
-				"delete"
-			);
 
-			try {
-				await context.db
-					.update(funnelDefinitions)
-					.set({
-						deletedAt: new Date(),
-						isActive: false,
-					})
-					.where(
-						and(
-							eq(funnelDefinitions.id, input.id),
-							isNull(funnelDefinitions.deletedAt)
-						)
-					);
+			await authorizeWebsiteAccess(context, existingFunnel.websiteId, "delete");
 
-				await Promise.all([
-					drizzleCache.invalidateByTables(["funnelDefinitions"]),
-					drizzleCache.invalidateByKey(
-						`funnels:byId:${input.id}:${existingFunnel[0].websiteId}`
-					),
-				]);
+			await context.db
+				.update(funnelDefinitions)
+				.set({ deletedAt: new Date(), isActive: false })
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.id),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				);
 
-				return { success: true };
-			} catch (error) {
-				logger.error("Failed to delete funnel", {
-					error: error instanceof Error ? error.message : String(error),
-					funnelId: input.id,
-					websiteId: existingFunnel[0].websiteId,
-				});
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to delete funnel",
-				});
-			}
+			await invalidateFunnelsCache(existingFunnel.websiteId, input.id);
+			return { success: true };
 		}),
 
 	getAnalytics: publicProcedure
@@ -319,86 +250,57 @@ export const funnelsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `funnels:analytics:${input.funnelId}:${input.websiteId}:${startDate}:${endDate}`;
+			const [funnel] = await context.db
+				.select()
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.funnelId),
+						eq(funnelDefinitions.websiteId, input.websiteId),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1);
 
-			return drizzleCache.withCache({
+			if (!funnel) {
+				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
+			}
+
+			const steps = funnel.steps as Step[];
+			if (!steps?.length) {
+				throw new ORPCError("BAD_REQUEST", { message: "Funnel has no steps" });
+			}
+
+			const effectiveStartDate = getEffectiveStartDate(
+				startDate,
+				funnel.createdAt,
+				funnel.ignoreHistoricData
+			);
+
+			const cacheKey = `analytics:${input.funnelId}:${effectiveStartDate}:${endDate}`;
+
+			return cache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
-				queryFn: async () => {
-					await authorizeWebsiteAccess(context, input.websiteId, "read");
-
-					try {
-						const funnel = await context.db
-							.select()
-							.from(funnelDefinitions)
-							.where(
-								and(
-									eq(funnelDefinitions.id, input.funnelId),
-									eq(funnelDefinitions.websiteId, input.websiteId),
-									isNull(funnelDefinitions.deletedAt)
-								)
-							)
-							.limit(1);
-
-						if (funnel.length === 0) {
-							throw new ORPCError("NOT_FOUND", {
-								message: "Funnel not found",
-							});
-						}
-
-						const funnelData = funnel[0];
-						const steps = funnelData.steps as Array<{
-							type: string;
-							target: string;
-							name: string;
-							conditions?: Record<string, unknown>;
-						}>;
-
-						const filters =
-							(funnelData.filters as Array<{
-								field: string;
-								operator: string;
-								value: string | string[];
-							}>) || [];
-
-						const params: Record<string, unknown> = {
+				queryFn: () =>
+					processFunnelAnalytics(
+						toAnalyticsSteps(steps),
+						(funnel.filters as Filter[]) || [],
+						{
 							websiteId: input.websiteId,
-							startDate,
+							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
-						};
-
-						const analyticsSteps: AnalyticsStep[] = steps.map(
-							(step, index) => ({
-								step_number: index + 1,
-								type: step.type as "PAGE_VIEW" | "EVENT",
-								target: step.target,
-								name: step.name,
-							})
-						);
-
-						return processFunnelAnalytics(analyticsSteps, filters, params);
-					} catch (error) {
-						if (error instanceof ORPCError) {
-							throw error;
 						}
-
-						logger.error("Failed to fetch funnel analytics", {
-							error: error instanceof Error ? error.message : String(error),
-							funnelId: input.funnelId,
-							websiteId: input.websiteId,
-						});
-						throw new ORPCError("INTERNAL_SERVER_ERROR", {
-							message: "Failed to fetch funnel analytics",
-						});
-					}
-				},
+					),
 			});
 		}),
 
@@ -411,96 +313,57 @@ export const funnelsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `funnels:analyticsByReferrer:${input.funnelId}:${input.websiteId}:${startDate}:${endDate}`;
+			const [funnel] = await context.db
+				.select()
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.funnelId),
+						eq(funnelDefinitions.websiteId, input.websiteId),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1);
 
-			return drizzleCache.withCache({
+			if (!funnel) {
+				throw new ORPCError("NOT_FOUND", { message: "Funnel not found" });
+			}
+
+			const steps = funnel.steps as Step[];
+			if (!steps?.length) {
+				throw new ORPCError("BAD_REQUEST", { message: "Funnel has no steps" });
+			}
+
+			const effectiveStartDate = getEffectiveStartDate(
+				startDate,
+				funnel.createdAt,
+				funnel.ignoreHistoricData
+			);
+
+			const cacheKey = `analyticsByReferrer:${input.funnelId}:${effectiveStartDate}:${endDate}`;
+
+			return cache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
-				queryFn: async () => {
-					await authorizeWebsiteAccess(context, input.websiteId, "read");
-
-					try {
-						const funnel = await context.db
-							.select()
-							.from(funnelDefinitions)
-							.where(
-								and(
-									eq(funnelDefinitions.id, input.funnelId),
-									eq(funnelDefinitions.websiteId, input.websiteId),
-									isNull(funnelDefinitions.deletedAt)
-								)
-							)
-							.limit(1);
-
-						if (funnel.length === 0) {
-							throw new ORPCError("NOT_FOUND", {
-								message: "Funnel not found",
-							});
-						}
-
-						const funnelData = funnel[0];
-						const steps = funnelData.steps as Array<{
-							type: string;
-							target: string;
-							name: string;
-							conditions?: Record<string, unknown>;
-						}>;
-
-						if (!steps || steps.length === 0) {
-							throw new ORPCError("BAD_REQUEST", {
-								message: "Funnel has no steps",
-							});
-						}
-
-						const filters =
-							(funnelData.filters as Array<{
-								field: string;
-								operator: string;
-								value: string | string[];
-							}>) || [];
-
-						const params: Record<string, unknown> = {
+				queryFn: () =>
+					processFunnelAnalyticsByReferrer(
+						toAnalyticsSteps(steps),
+						(funnel.filters as Filter[]) || [],
+						{
 							websiteId: input.websiteId,
-							startDate,
+							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
-						};
-
-						const analyticsSteps: AnalyticsStep[] = steps.map(
-							(step, index) => ({
-								step_number: index + 1,
-								type: step.type as "PAGE_VIEW" | "EVENT",
-								target: step.target,
-								name: step.name,
-							})
-						);
-
-						return processFunnelAnalyticsByReferrer(
-							analyticsSteps,
-							filters,
-							params
-						);
-					} catch (error) {
-						if (error instanceof ORPCError) {
-							throw error;
 						}
-
-						logger.error("Failed to fetch funnel analytics by referrer", {
-							error: error instanceof Error ? error.message : String(error),
-							funnelId: input.funnelId,
-							websiteId: input.websiteId,
-						});
-						throw new ORPCError("INTERNAL_SERVER_ERROR", {
-							message: "Failed to fetch funnel analytics by referrer",
-						});
-					}
-				},
+					),
 			});
 		}),
 };

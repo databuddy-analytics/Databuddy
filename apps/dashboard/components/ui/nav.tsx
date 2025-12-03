@@ -61,7 +61,7 @@ export function MainNav() {
 				>
 					<route.icon
 						className={cn(
-							'h-4 w-4 stroke-[1.5]',
+							'size-4 stroke-[1.5]',
 							pathname === route.href ? 'text-sky-500' : route.color
 						)}
 					/>

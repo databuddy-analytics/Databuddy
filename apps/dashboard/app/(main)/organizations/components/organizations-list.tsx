@@ -72,7 +72,7 @@ function OrganizationRow({
 		>
 			{isProcessing && (
 				<div className="absolute inset-0 flex items-center justify-center bg-background/50">
-					<div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+					<div className="size-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
 				</div>
 			)}
 
@@ -94,7 +94,7 @@ function OrganizationRow({
 			</div>
 
 			{isActive && (
-				<Badge variant="secondary">
+				<Badge variant="green">
 					<CheckCircleIcon className="mr-1" size={12} weight="fill" />
 					Active
 				</Badge>

@@ -16,18 +16,9 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { orpc } from "@/lib/orpc";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "../ui/alert-dialog";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { DeleteDialog } from "../ui/delete-dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
@@ -182,7 +173,7 @@ export function ApiKeyDetailDialog({
 										{apiKey.prefix}_{apiKey.start}…
 									</SheetDescription>
 								</div>
-								<Badge variant="secondary">
+								<Badge variant={isActive ? "green" : "secondary"}>
 									{isActive ? "Active" : "Inactive"}
 								</Badge>
 							</div>
@@ -198,7 +189,7 @@ export function ApiKeyDetailDialog({
 								{newSecret && (
 									<div className="rounded border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
 										<div className="mb-3 flex items-center gap-2">
-											<div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+											<div className="flex size-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
 												<CheckCircleIcon
 													className="text-green-600 dark:text-green-400"
 													size={14}
@@ -214,7 +205,7 @@ export function ApiKeyDetailDialog({
 												{newSecret}
 											</code>
 											<Button
-												className="absolute top-1.5 right-1.5 h-7 w-7 text-muted-foreground hover:text-foreground"
+												className="absolute top-1.5 right-1.5 size-7 text-muted-foreground hover:text-foreground"
 												onClick={handleCopy}
 												size="icon"
 												variant="ghost"
@@ -281,7 +272,7 @@ export function ApiKeyDetailDialog({
 															key={scope.value}
 														>
 															<div
-																className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
+																className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
 																	hasScope
 																		? "border-primary bg-primary text-primary-foreground"
 																		: "border-muted-foreground/30"
@@ -388,26 +379,15 @@ export function ApiKeyDetailDialog({
 			</Sheet>
 
 			{/* Delete Confirmation */}
-			<AlertDialog onOpenChange={setShowDeleteConfirm} open={showDeleteConfirm}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete API Key?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This action cannot be undone. Any applications using this key will
-							immediately lose access.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => deleteMutation.mutate({ id: apiKey.id })}
-						>
-							{deleteMutation.isPending ? "Deleting…" : "Delete"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteDialog
+				confirmLabel="Delete"
+				description="This action cannot be undone. Any applications using this key will immediately lose access."
+				isDeleting={deleteMutation.isPending}
+				isOpen={showDeleteConfirm}
+				onClose={() => setShowDeleteConfirm(false)}
+				onConfirm={() => deleteMutation.mutate({ id: apiKey.id })}
+				title="Delete API Key?"
+			/>
 		</>
 	);
 }

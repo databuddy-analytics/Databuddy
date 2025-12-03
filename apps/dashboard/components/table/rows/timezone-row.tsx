@@ -36,7 +36,7 @@ export function createTimezoneColumns(): ColumnDef<TimezoneEntry>[] {
 				const timezoneName = entry.name;
 				return (
 					<div className="flex items-center gap-2">
-						<ClockIcon className="h-4 w-4 text-primary" />
+						<ClockIcon className="size-4 text-primary" />
 						<div>
 							<div className="font-medium">{timezoneName}</div>
 						</div>

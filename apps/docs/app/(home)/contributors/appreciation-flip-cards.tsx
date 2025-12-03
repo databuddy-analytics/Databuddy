@@ -99,7 +99,7 @@ function FlipCard() {
 							initial={{ scale: 0.8, opacity: 0 }}
 							transition={{ delay: 0.2, duration: 0.5 }}
 						>
-							<HeartIcon className="h-8 w-8 text-purple-500" weight="duotone" />
+							<HeartIcon className="size-8 text-purple-500" weight="duotone" />
 						</motion.div>
 
 						<motion.h3
@@ -191,7 +191,7 @@ function FlipCard() {
 								transition={{ delay: 0.2, duration: 0.5 }}
 							>
 								<PaletteIcon
-									className="h-5 w-5 text-blue-500"
+									className="size-5 text-blue-500"
 									weight="duotone"
 								/>
 							</motion.div>

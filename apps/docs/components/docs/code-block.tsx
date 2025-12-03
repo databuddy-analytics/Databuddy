@@ -87,14 +87,14 @@ function CodeBlock({
 							</span>
 						)}
 					</div>
-					<CopyButton className="h-6 w-6" value={content} />
+					<CopyButton className="size-6" value={content} />
 				</div>
 			)}
 
 			{!filename && language === "text" && (
 				<div className="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover/code:opacity-100">
 					<CopyButton
-						className="h-7 w-7 bg-background/50 backdrop-blur-md"
+						className="size-7 bg-background/50 backdrop-blur-md"
 						value={content}
 					/>
 				</div>

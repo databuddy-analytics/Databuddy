@@ -154,20 +154,19 @@ function LoginPage() {
 									</Badge>
 								)}
 							</Button>
-							<Link
-								className="relative lg:col-span-2"
-								href="/login/magic"
-								passHref
-							>
+							<div className="relative lg:col-span-2">
 								<Button
+									asChild
 									className="w-full"
 									disabled={isLoading}
 									size="lg"
 									type="button"
 									variant="secondary"
 								>
-									<SparkleIcon className="size-4" />
-									Sign in with Magic Link
+									<Link href="/login/magic">
+										<SparkleIcon className="size-4" />
+										Sign in with Magic Link
+									</Link>
 								</Button>
 								{lastUsed === "magic" && (
 									<Badge
@@ -177,7 +176,7 @@ function LoginPage() {
 										Last used
 									</Badge>
 								)}
-							</Link>
+							</div>
 						</div>
 						<div className="relative flex w-full items-center justify-center gap-3">
 							<Separator className="flex-1 opacity-70" />
@@ -251,7 +250,7 @@ function LoginPage() {
 							<Button className="w-full" disabled={isLoading} type="submit">
 								{isLoading ? (
 									<>
-										<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
+										<SpinnerIcon className="mr-2 size-4 animate-spin" />
 										Signing in...
 									</>
 								) : (
@@ -263,7 +262,7 @@ function LoginPage() {
 				</div>
 			</div>
 			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
-				<p className="flex-1 text-nowrap text-[13px] text-muted-foreground">
+				<p className="flex-1 text-[13px] text-muted-foreground lg:text-nowrap">
 					Don&apos;t have an account?{" "}
 					<Link
 						className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
@@ -290,7 +289,7 @@ export default function Page() {
 				<div className="flex h-screen items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
-						<SpinnerIcon className="relative h-8 w-8 animate-spin text-primary" />
+						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>
 			}

@@ -9,6 +9,15 @@ export type FunnelStepAnalytics = {
 	avg_time_to_complete: number;
 };
 
+export type FunnelTimeSeriesPoint = {
+	date: string;
+	users: number;
+	conversions: number;
+	conversion_rate: number;
+	dropoffs: number;
+	avg_time: number;
+};
+
 export type FunnelAnalyticsData = {
 	overall_conversion_rate: number;
 	total_users_entered: number;
@@ -18,4 +27,5 @@ export type FunnelAnalyticsData = {
 	biggest_dropoff_step: number;
 	biggest_dropoff_rate: number;
 	steps_analytics: FunnelStepAnalytics[];
+	time_series?: FunnelTimeSeriesPoint[];
 };

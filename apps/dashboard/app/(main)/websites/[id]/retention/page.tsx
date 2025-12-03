@@ -12,7 +12,7 @@ const RetentionContentDynamic = dynamic(
 	{
 		loading: () => (
 			<div className="flex items-center justify-center p-8">
-				<SpinnerIcon className="h-6 w-6 animate-spin" />
+				<SpinnerIcon className="size-6 animate-spin" />
 			</div>
 		),
 		ssr: false,

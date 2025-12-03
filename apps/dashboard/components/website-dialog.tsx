@@ -244,7 +244,7 @@ export function WebsiteDialog({
 					>
 						{(createWebsiteMutation.isPending ||
 							updateWebsiteMutation.isPending) && (
-							<LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+							<LoaderCircle className="mr-2 size-4 animate-spin" />
 						)}
 						{isEditing ? "Save changes" : "Create website"}
 					</Button>

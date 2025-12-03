@@ -139,7 +139,7 @@ export function Footer() {
 									className="group flex items-center gap-3 text-muted-foreground hover:text-foreground"
 									href="mailto:support@databuddy.cc"
 								>
-									<IoMdMail className="h-5 w-5" />
+									<IoMdMail className="size-5" />
 									support@databuddy.cc
 								</Link>
 							</li>
@@ -150,7 +150,7 @@ export function Footer() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaDiscord className="h-5 w-5" />
+									<FaDiscord className="size-5" />
 									Discord
 								</Link>
 							</li>
@@ -161,7 +161,7 @@ export function Footer() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaGithub className="h-5 w-5" />
+									<FaGithub className="size-5" />
 									GitHub
 								</Link>
 							</li>
@@ -172,7 +172,7 @@ export function Footer() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaXTwitter className="h-5 w-5" />X
+									<FaXTwitter className="size-5" />X
 								</Link>
 							</li>
 						</ul>

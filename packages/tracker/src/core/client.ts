@@ -47,7 +47,12 @@ export class HttpClient {
 		options: RequestInit = {},
 		retryCount = 0
 	): Promise<T | null> {
-		if (retryCount === 0 && typeof navigator !== "undefined" && navigator.sendBeacon && options.keepalive) {
+		if (
+			retryCount === 0 &&
+			typeof navigator !== "undefined" &&
+			navigator.sendBeacon &&
+			options.keepalive
+		) {
 			try {
 				const blob = new Blob([JSON.stringify(data ?? {})], {
 					type: "application/json",

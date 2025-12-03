@@ -19,12 +19,12 @@ import type { AssistantModel } from "../types/model";
 import { MODEL_CONFIGS } from "../types/model";
 
 const modelIcons: Record<string, React.ReactNode> = {
-	chat: <StarIcon className="h-4 w-4 text-yellow-400" weight="duotone" />, // Use Star for default
+	chat: <StarIcon className="size-4 text-yellow-400" weight="duotone" />, // Use Star for default
 	agent: (
-		<FlaskIcon className="h-4 w-4 text-muted-foreground" weight="duotone" />
+		<FlaskIcon className="size-4 text-muted-foreground" weight="duotone" />
 	), // Flask for experimental/agent
 	"agent-max": (
-		<FlaskIcon className="h-4 w-4 text-purple-400" weight="duotone" />
+		<FlaskIcon className="size-4 text-purple-400" weight="duotone" />
 	), // Flask for max
 };
 
@@ -54,7 +54,7 @@ export function ModelSelector({
 				>
 					{modelIcons[selectedModel]}
 					<span className="mr-1 ml-2">{currentConfig.name}</span>
-					<CaretDownIcon className="h-3 w-3 opacity-50" weight="duotone" />
+					<CaretDownIcon className="size-3 opacity-50" weight="duotone" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -88,7 +88,7 @@ export function ModelSelector({
 						</div>
 						{selectedModel === config.id && (
 							<CheckIcon
-								className="ml-2 h-4 w-4 text-primary"
+								className="ml-2 size-4 text-primary"
 								weight="duotone"
 							/>
 						)}

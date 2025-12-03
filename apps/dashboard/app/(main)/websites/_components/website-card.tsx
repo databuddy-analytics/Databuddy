@@ -8,9 +8,8 @@ import {
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@phosphor-icons/react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import { memo, Suspense } from "react";
+import { memo } from "react";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import {
 	Card,
@@ -95,7 +94,7 @@ export const WebsiteCard = memo(
 			<Card className="flex h-full select-none flex-col gap-0 overflow-hidden bg-background p-0 transition-all duration-300 ease-in-out group-hover:border-primary/60 group-hover:shadow-primary/5 group-hover:shadow-xl motion-reduce:transform-none motion-reduce:transition-none">
 				<CardHeader className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					{activeUsers !== undefined && activeUsers > 0 && (
-						<div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-success text-xs font-medium tabular-nums backdrop-blur-sm">
+						<div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 font-medium text-success text-xs tabular-nums backdrop-blur-sm">
 							<span className="relative flex size-1.5">
 								<span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
 								<span className="relative inline-flex size-1.5 rounded-full bg-success" />
@@ -111,11 +110,11 @@ export const WebsiteCard = memo(
 						chartData.data.length > 0 ? (
 							<div className="h-28 space-y-2">
 								<div className="h-full transition-colors duration-300 [--chart-color:var(--color-primary)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
-										<MiniChart
-											data={chartData.data}
-											days={chartData.data.length}
-											id={website.id}
-										/>
+									<MiniChart
+										data={chartData.data}
+										days={chartData.data.length}
+										id={website.id}
+									/>
 								</div>
 							</div>
 						) : (

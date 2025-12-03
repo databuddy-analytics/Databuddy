@@ -25,12 +25,12 @@ import { InvitationList } from "./invitation-list";
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="h-8 w-8 rounded-full" />
+			<Skeleton className="size-8 rounded-full" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-48" />
 				<Skeleton className="h-3 w-32" />
 			</div>
-			<Skeleton className="h-7 w-7" />
+			<Skeleton className="size-7" />
 		</div>
 	);
 }
@@ -179,48 +179,38 @@ export function InvitationsView({
 						className="flex h-full flex-col"
 						onValueChange={setTab}
 						value={selectedTab}
+						variant="underline"
 					>
 						{/* Tabs */}
-						<div className="border-b px-5">
-							<TabsList className="h-10 w-full justify-start gap-2 bg-transparent p-0">
-								<TabsTrigger
-									className="h-10 rounded-none border-transparent border-b-2 bg-transparent px-3 data-[state=active]:border-primary data-[state=active]:shadow-none"
-									value="pending"
-								>
-									<ClockIcon className="mr-1.5" size={14} weight="duotone" />
-									Pending
-									{pendingCount > 0 && (
-										<span className="ml-1.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-amber-600 text-xs">
-											{pendingCount}
-										</span>
-									)}
-								</TabsTrigger>
-								<TabsTrigger
-									className="h-10 rounded-none border-transparent border-b-2 bg-transparent px-3 data-[state=active]:border-primary data-[state=active]:shadow-none"
-									value="expired"
-								>
-									<XIcon className="mr-1.5" size={14} weight="bold" />
-									Expired
-									{expiredCount > 0 && (
-										<span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
-											{expiredCount}
-										</span>
-									)}
-								</TabsTrigger>
-								<TabsTrigger
-									className="h-10 rounded-none border-transparent border-b-2 bg-transparent px-3 data-[state=active]:border-primary data-[state=active]:shadow-none"
-									value="accepted"
-								>
-									<CheckIcon className="mr-1.5" size={14} weight="bold" />
-									Accepted
-									{acceptedCount > 0 && (
-										<span className="ml-1.5 rounded-full bg-green-500/10 px-1.5 py-0.5 text-green-600 text-xs">
-											{acceptedCount}
-										</span>
-									)}
-								</TabsTrigger>
-							</TabsList>
-						</div>
+						<TabsList>
+							<TabsTrigger value="pending">
+								<ClockIcon className="size-3.5" weight="duotone" />
+								Pending
+								{pendingCount > 0 && (
+									<span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-amber-600 text-xs dark:text-amber-500">
+										{pendingCount}
+									</span>
+								)}
+							</TabsTrigger>
+							<TabsTrigger value="expired">
+								<XIcon className="size-3.5" weight="bold" />
+								Expired
+								{expiredCount > 0 && (
+									<span className="rounded-full bg-secondary px-1.5 py-0.5 text-secondary-foreground text-xs">
+										{expiredCount}
+									</span>
+								)}
+							</TabsTrigger>
+							<TabsTrigger value="accepted">
+								<CheckIcon className="size-3.5" weight="bold" />
+								Accepted
+								{acceptedCount > 0 && (
+									<span className="rounded-full bg-green-500/10 px-1.5 py-0.5 text-green-600 text-xs dark:text-green-500">
+										{acceptedCount}
+									</span>
+								)}
+							</TabsTrigger>
+						</TabsList>
 
 						{/* Content */}
 						<div className="flex-1 overflow-y-auto">

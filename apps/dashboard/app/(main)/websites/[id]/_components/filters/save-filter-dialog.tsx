@@ -26,7 +26,10 @@ import { Input } from "@/components/ui/input";
 import { getOperatorLabel } from "@/hooks/use-filters";
 
 const formSchema = z.object({
-	name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name is too long"),
+	name: z
+		.string()
+		.min(2, "Name must be at least 2 characters")
+		.max(100, "Name is too long"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -47,7 +50,10 @@ interface SaveFilterDialogProps {
 	onSave: (name: string) => void;
 	filters: DynamicQueryFilter[];
 	isLoading?: boolean;
-	validateName?: (name: string, excludeId?: string) => { type: string; message: string } | null;
+	validateName?: (
+		name: string,
+		excludeId?: string
+	) => { type: string; message: string } | null;
 	editingFilter?: EditingFilter;
 }
 
@@ -97,7 +103,10 @@ export function SaveFilterDialog({
 			<DialogContent className="max-w-md p-4">
 				<div className="mb-3 flex items-center gap-3">
 					<div className="rounded-full border bg-secondary p-2.5">
-						<FloppyDiskIcon className="size-4 text-accent-foreground" weight="duotone" />
+						<FloppyDiskIcon
+							className="size-4 text-accent-foreground"
+							weight="duotone"
+						/>
 					</div>
 					<div>
 						<DialogTitle className="font-medium text-base">
@@ -118,16 +127,27 @@ export function SaveFilterDialog({
 				) : (
 					<div className="space-y-1.5 rounded border bg-secondary/30 p-2">
 						{filters.slice(0, 4).map((filter, i) => (
-							<div className="flex items-center gap-1.5 text-xs" key={`${filter.field}-${i.toString()}`}>
-								<span className="font-medium">{getFieldLabel(filter.field)}</span>
-								<span className="text-muted-foreground">{getOperatorLabel(filter.operator)}</span>
+							<div
+								className="flex items-center gap-1.5 text-xs"
+								key={`${filter.field}-${i.toString()}`}
+							>
+								<span className="font-medium">
+									{getFieldLabel(filter.field)}
+								</span>
+								<span className="text-muted-foreground">
+									{getOperatorLabel(filter.operator)}
+								</span>
 								<span className="truncate font-mono">
-									{Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
+									{Array.isArray(filter.value)
+										? filter.value.join(", ")
+										: filter.value}
 								</span>
 							</div>
 						))}
 						{filters.length > 4 && (
-							<p className="text-muted-foreground text-xs">+{filters.length - 4} more</p>
+							<p className="text-muted-foreground text-xs">
+								+{filters.length - 4} more
+							</p>
 						)}
 					</div>
 				)}
@@ -165,7 +185,9 @@ export function SaveFilterDialog({
 							</Button>
 							<Button
 								className="flex-1"
-								disabled={isLoading || filters.length === 0 || !form.formState.isValid}
+								disabled={
+									isLoading || filters.length === 0 || !form.formState.isValid
+								}
 								type="submit"
 							>
 								{isLoading ? "Saving…" : isEditing ? "Update" : "Save"}

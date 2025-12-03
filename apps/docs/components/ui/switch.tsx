@@ -1,6 +1,6 @@
 'use client';
 
-import * as SwitchPrimitive from '@radix-ui/react-switch';
+import { Switch as SwitchPrimitive } from 'radix-ui';
 import type * as React from 'react';
 
 import { cn } from '@/lib/utils';
@@ -11,16 +11,16 @@ function Switch({
 }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
 	return (
 		<SwitchPrimitive.Root
+			data-slot="switch"
 			className={cn(
-				'peer inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80',
+				'peer inline-flex h-[1.15rem] disabled:data-[state=checked]:border-foreground overflow-hidden rounded-sm data-[state=checked]:border-blue-700 data-[state=unchecked]:badge-angled-rectangle-gradient data-[state=checked]:blue-angled-rectangle-gradient w-9 shrink-0 border border-accent-brighter items-center outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80',
 				className
 			)}
-			data-slot="switch"
 			{...props}
 		>
 			<SwitchPrimitive.Thumb
 				className={cn(
-					'pointer-events-none block size-4 rounded-full bg-background ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground'
+					'pointer-events-none block w-4 h-full bg-background rounded-sm ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%+2px)] data-[state=checked]:rotate-90 data-[state=unchecked]:translate-x-0 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground'
 				)}
 				data-slot="switch-thumb"
 			/>

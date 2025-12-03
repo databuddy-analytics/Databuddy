@@ -414,12 +414,12 @@ export default function AmbassadorForm() {
 						>
 							{isSubmitting ? (
 								<>
-									<SpinnerIcon className="h-4 w-4 animate-spin" />
+									<SpinnerIcon className="size-4 animate-spin" />
 									Submitting Application...
 								</>
 							) : (
 								<>
-									<PaperPlaneIcon className="h-4 w-4" weight="duotone" />
+									<PaperPlaneIcon className="size-4" weight="duotone" />
 									Submit Application
 								</>
 							)}

@@ -244,7 +244,7 @@ export default function RoadmapTimeline({ items }: Props) {
 									className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 ${statusConfig.borderColor} ${statusConfig.bgColor}`}
 								>
 									<StatusIcon
-										className={`h-6 w-6 ${statusConfig.color}`}
+										className={`size-6 ${statusConfig.color}`}
 										weight="duotone"
 									/>
 								</div>
@@ -314,13 +314,13 @@ export default function RoadmapTimeline({ items }: Props) {
 										{/* Dates */}
 										{item.completedDate && (
 											<div className="flex items-center gap-1">
-												<CheckCircleIcon className="h-3 w-3" />
+												<CheckCircleIcon className="size-3" />
 												<span>Completed {formatDate(item.completedDate)}</span>
 											</div>
 										)}
 										{item.targetDate && !item.completedDate && (
 											<div className="flex items-center gap-1">
-												<CalendarIcon className="h-3 w-3" />
+												<CalendarIcon className="size-3" />
 												<span>
 													Due {formatDate(item.targetDate)} (
 													{getTimeUntil(item.targetDate)})
@@ -330,7 +330,7 @@ export default function RoadmapTimeline({ items }: Props) {
 
 										{/* Category */}
 										<div className="flex items-center gap-1">
-											<TagIcon className="h-3 w-3" />
+											<TagIcon className="size-3" />
 											<span className="capitalize">
 												{item.category.replace("-", " ")}
 											</span>
@@ -339,7 +339,7 @@ export default function RoadmapTimeline({ items }: Props) {
 										{/* Assignees */}
 										{item.assignees && item.assignees.length > 0 && (
 											<div className="flex items-center gap-1">
-												<UsersIcon className="h-3 w-3" />
+												<UsersIcon className="size-3" />
 												<span>{item.assignees.join(", ")}</span>
 											</div>
 										)}
@@ -355,9 +355,9 @@ export default function RoadmapTimeline({ items }: Props) {
 													rel="noopener"
 													target="_blank"
 												>
-													<GitBranchIcon className="h-3 w-3" />
+													<GitBranchIcon className="size-3" />
 													Issue
-													<ArrowUpRightIcon className="h-3 w-3" />
+													<ArrowUpRightIcon className="size-3" />
 												</a>
 											)}
 											{item.githubPR && (
@@ -367,9 +367,9 @@ export default function RoadmapTimeline({ items }: Props) {
 													rel="noopener"
 													target="_blank"
 												>
-													<GitBranchIcon className="h-3 w-3" />
+													<GitBranchIcon className="size-3" />
 													Pull Request
-													<ArrowUpRightIcon className="h-3 w-3" />
+													<ArrowUpRightIcon className="size-3" />
 												</a>
 											)}
 										</div>

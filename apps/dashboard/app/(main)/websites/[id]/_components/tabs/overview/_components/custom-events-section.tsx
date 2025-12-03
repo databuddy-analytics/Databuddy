@@ -29,11 +29,11 @@ const cleanPropertyValue = (value: string): string =>
 	value.replace(JSON_QUOTE_REGEX, "$1");
 
 const createEventIndicator = () => (
-	<div className="h-2 w-2 shrink-0 rounded bg-primary" />
+	<div className="size-2 shrink-0 rounded bg-primary" />
 );
 
 const createDomainIndicator = () => (
-	<div className="h-2 w-2 shrink-0 rounded bg-blue-500" />
+	<div className="size-2 shrink-0 rounded bg-blue-500" />
 );
 
 const createPercentageBadge = (percentage: number) => (
@@ -298,13 +298,13 @@ export function CustomEventsSection({
 							<div className="flex items-center gap-2">
 								{isExpanded ? (
 									<CaretDownIcon
-										className="h-3 w-3 text-sidebar-foreground/60"
+										className="size-3 text-sidebar-foreground/60"
 										size={16}
 										weight="fill"
 									/>
 								) : (
 									<CaretRightIcon
-										className="h-3 w-3 text-sidebar-foreground/60"
+										className="size-3 text-sidebar-foreground/60"
 										size={16}
 										weight="fill"
 									/>

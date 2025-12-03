@@ -136,7 +136,7 @@ function createFallbackIcon(
 	return (
 		<div
 			className={cn(
-				"flex items-center justify-center rounded bg-muted font-medium text-muted-foreground text-xs",
+				"flex items-center justify-center rounded bg-secondary font-medium text-secondary-foreground text-xs",
 				className
 			)}
 			style={{ width: iconSize, height: iconSize }}
@@ -257,7 +257,7 @@ export function CountryFlag({
 				<div
 					className={cn("flex h-4 w-6 items-center justify-center", className)}
 				>
-					<div className="h-4 w-4 text-muted-foreground">🌐</div>
+					<div className="size-4 text-muted-foreground">🌐</div>
 				</div>
 			)
 		);

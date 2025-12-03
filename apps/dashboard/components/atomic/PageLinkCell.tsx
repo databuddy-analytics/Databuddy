@@ -23,7 +23,7 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 	path,
 	websiteDomain,
 	className,
-	iconClassName = "h-4 w-4 text-muted-foreground",
+	iconClassName = "size-4 text-muted-foreground",
 	textClassName = "text-sm",
 	maxLength = 35,
 }) => {
@@ -61,7 +61,7 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 			</span>
 			{isExternal && (
 				<ArrowSquareOutIcon
-					className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+					className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
 					weight="duotone"
 				/>
 			)}

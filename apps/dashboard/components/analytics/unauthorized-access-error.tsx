@@ -20,7 +20,7 @@ export function UnauthorizedAccessError() {
 				<div className="flex items-center gap-3">
 					<div className="rounded-full bg-red-100 p-2.5 dark:bg-red-900/30">
 						<WarningIcon
-							className="h-6 w-6 text-red-600 dark:text-red-400"
+							className="size-6 text-red-600 dark:text-red-400"
 							size={24}
 							weight="fill"
 						/>

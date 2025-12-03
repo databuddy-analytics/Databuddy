@@ -28,6 +28,7 @@ export type Funnel = {
 	description?: string | null;
 	steps: FunnelStep[];
 	filters?: FunnelFilter[];
+	ignoreHistoricData?: boolean;
 	isActive: boolean;
 	createdAt: string;
 	updatedAt: string;
@@ -61,6 +62,7 @@ export type CreateFunnelData = {
 	description?: string;
 	steps: FunnelStep[];
 	filters?: FunnelFilter[];
+	ignoreHistoricData?: boolean;
 };
 
 export type AutocompleteData = {

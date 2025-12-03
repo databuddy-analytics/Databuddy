@@ -193,12 +193,12 @@ export function OrganizationLogoUploader({
 						>
 							{isDeletingOrganizationLogo ? (
 								<>
-									<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
+									<div className="mr-2 size-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
 									Deleting...
 								</>
 							) : (
 								<>
-									<TrashIcon className="mr-2 h-3 w-3" size={12} />
+									<TrashIcon className="mr-2 size-3" size={12} />
 									Remove Logo
 								</>
 							)}
@@ -257,7 +257,7 @@ export function OrganizationLogoUploader({
 						>
 							{isUploadingOrganizationLogo ? (
 								<>
-									<div className="mr-2 h-3 w-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+									<div className="mr-2 size-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
 									Uploading...
 								</>
 							) : (

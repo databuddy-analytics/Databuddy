@@ -28,8 +28,10 @@ import {
 	createPageTimeColumns,
 	createReferrerColumns,
 } from "@/components/table/rows";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
 	calculatePercentChange,
@@ -121,6 +123,8 @@ export function WebsiteOverviewTab({
 	filters,
 	addFilter,
 }: Omit<FullTabProps, "isRefreshing" | "setIsRefreshing">) {
+	const { chartType, chartStepType } = useChartPreferences("overview-stats");
+	const isMobile = useMediaQuery("(max-width: 640px)");
 	const calculatePreviousPeriod = useCallback(
 		(currentRange: typeof dateRange) => {
 			const startDate = dayjs(currentRange.start_date);
@@ -473,9 +477,11 @@ export function WebsiteOverviewTab({
 		const entry = info.row.original as TechnologyData;
 		const IconComponent = type === "browser" ? BrowserIcon : OSIcon;
 		return (
-			<div className="flex items-center gap-3">
-				<IconComponent name={entry.name} size="md" />
-				<span className="font-medium">{entry.name}</span>
+			<div className="flex items-center gap-2 sm:gap-3">
+				<IconComponent className="shrink-0" name={entry.name} size="md" />
+				<span className="truncate font-medium text-sm sm:text-base">
+					{entry.name}
+				</span>
 			</div>
 		);
 	};
@@ -579,6 +585,7 @@ export function WebsiteOverviewTab({
 			header: "Browser",
 			cell: createTechnologyCell("browser"),
 			size: 180,
+			minSize: 120,
 		},
 		{
 			id: "visitors",
@@ -615,6 +622,7 @@ export function WebsiteOverviewTab({
 			header: "Operating System",
 			cell: createTechnologyCell("os"),
 			size: 200,
+			minSize: 140,
 		},
 		{
 			id: "visitors",
@@ -787,9 +795,9 @@ export function WebsiteOverviewTab({
 	}
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-3 sm:space-y-4">
 			<EventLimitIndicator />
-			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
 				{[
 					{
 						id: "pageviews-chart",
@@ -868,6 +876,8 @@ export function WebsiteOverviewTab({
 				].map((metric) => (
 					<StatCard
 						chartData={isLoading ? undefined : metric.chartData}
+						chartStepType={chartStepType}
+						chartType={chartType}
 						description={metric.description}
 						formatChartValue={metric.formatChartValue}
 						formatValue={metric.formatValue}
@@ -890,24 +900,30 @@ export function WebsiteOverviewTab({
 
 			{/* Chart */}
 			<div className="rounded border bg-sidebar">
-				<div className="flex flex-col items-start justify-between gap-3 border-b px-4 py-3 sm:flex-row">
-					<div>
-						<h2 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+				<div className="flex flex-col items-start justify-between gap-3 border-b px-3 py-2.5 sm:flex-row sm:px-4 sm:py-3">
+					<div className="min-w-0 flex-1">
+						<h2 className="font-semibold text-base text-sidebar-foreground tracking-tight sm:text-lg">
 							Traffic Trends
 						</h2>
-						<p className="text-sidebar-foreground/70 text-sm">
+						<p className="text-sidebar-foreground/70 text-xs sm:text-sm">
 							{dateRange.granularity === "hourly" ? "Hourly" : "Daily"} traffic
 							data
 						</p>
 						{dateRange.granularity === "hourly" && dateDiff > 7 && (
-							<div className="mt-1 flex items-center gap-1 text-amber-600 text-xs">
-								<WarningIcon size={16} weight="fill" />
-								<span>Large date ranges may affect performance</span>
+							<div className="mt-1 flex items-start gap-1 text-amber-600 text-xs">
+								<WarningIcon
+									className="mt-0.5 shrink-0"
+									size={14}
+									weight="fill"
+								/>
+								<span className="leading-relaxed">
+									Large date ranges may affect performance
+								</span>
 							</div>
 						)}
 					</div>
 				</div>
-				<div>
+				<div className="overflow-x-auto">
 					<MetricsChartWithAnnotations
 						className="rounded border-0"
 						data={chartData}
@@ -920,7 +936,7 @@ export function WebsiteOverviewTab({
 								| "weekly"
 								| "monthly",
 						}}
-						height={350}
+						height={isMobile ? 250 : 350}
 						isLoading={isLoading}
 						onRangeSelect={setDateRangeAction}
 						websiteId={websiteId}
@@ -929,7 +945,7 @@ export function WebsiteOverviewTab({
 			</div>
 
 			{/* Tables */}
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
 				<DataTable
 					description="Referrers and campaign data"
 					isLoading={isLoading}
@@ -945,7 +961,7 @@ export function WebsiteOverviewTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					tabs={pagesTabs as any}
-					title="Pages"
+					title="Pages"	
 				/>
 			</div>
 
@@ -956,7 +972,7 @@ export function WebsiteOverviewTab({
 			/>
 
 			{/* Technology */}
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
+			<div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2 2xl:grid-cols-3">
 				<DataTable
 					columns={deviceColumns}
 					data={analytics.device_types || []}

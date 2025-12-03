@@ -57,11 +57,11 @@ function SheetContent({
 			<SheetOverlay />
 			<SheetPrimitive.Content
 				className={cn(
-					'fixed z-50 p-4 sm:px-6 gap-4 overflow-y-auto flex flex-col bg-card shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
+					'fixed z-50 flex flex-col gap-0 bg-card shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
 					side === 'right' &&
-						'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
+						'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 m-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] border p-0 sm:max-w-lg',
 					side === 'left' &&
-						'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
+						'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 m-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] border p-0 sm:max-w-sm',
 					side === 'top' &&
 						'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b',
 					side === 'bottom' &&
@@ -84,8 +84,18 @@ function SheetContent({
 function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
 	return (
 		<div
-			className={cn('flex flex-col p-4 px-0', className)}
+			className={cn('shrink-0 border-b bg-secondary p-5', className)}
 			data-slot="sheet-header"
+			{...props}
+		/>
+	);
+}
+
+function SheetBody({ className, ...props }: React.ComponentProps<'div'>) {
+	return (
+		<div
+			className={cn('flex-1 overflow-y-auto p-5', className)}
+			data-slot="sheet-body"
 			{...props}
 		/>
 	);
@@ -94,7 +104,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
 function SheetFooter({ className, ...props }: React.ComponentProps<'div'>) {
 	return (
 		<div
-			className={cn('mt-auto flex flex-col gap-2 p-4', className)}
+			className={cn('angled-rectangle-gradient flex shrink-0 items-center justify-end gap-3 border-t bg-secondary px-5 py-4', className)}
 			data-slot="sheet-footer"
 			{...props}
 		/>
@@ -133,6 +143,7 @@ export {
 	SheetClose,
 	SheetContent,
 	SheetHeader,
+	SheetBody,
 	SheetFooter,
 	SheetTitle,
 	SheetDescription,

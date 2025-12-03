@@ -121,9 +121,9 @@ function ArrayNode({
 				type="button"
 			>
 				{isExpanded ? (
-					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+					<CaretDownIcon className="mr-1 size-4 text-muted-foreground" />
 				) : (
-					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+					<CaretRightIcon className="mr-1 size-4 text-muted-foreground" />
 				)}
 				{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 				<span className="font-semibold text-foreground/80">[</span>
@@ -195,9 +195,9 @@ function ObjectNode({
 				type="button"
 			>
 				{isExpanded ? (
-					<CaretDownIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+					<CaretDownIcon className="mr-1 size-4 text-muted-foreground" />
 				) : (
-					<CaretRightIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+					<CaretRightIcon className="mr-1 size-4 text-muted-foreground" />
 				)}
 				{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 				<span className="font-semibold text-foreground/80">{"{"}</span>

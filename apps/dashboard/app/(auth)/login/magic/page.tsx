@@ -48,7 +48,7 @@ export default function MagicLinkPage() {
 				<div className="relative mb-10 inline-flex h-16 w-16 items-center justify-center">
 					<div className="-inset-1 absolute animate-pulse rounded-full bg-radial from-accent-foreground to-transparent opacity-20 blur-md" />
 					<div className="relative">
-						<Sparkles className="h-8 w-8 animate-pulse text-foreground" />
+						<Sparkles className="size-8 animate-pulse text-foreground" />
 					</div>
 				</div>
 				<h1 className="font-medium text-2xl text-foreground">

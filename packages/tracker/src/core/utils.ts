@@ -3,6 +3,21 @@ import type { TrackerOptions } from "./types";
 
 declare const process: { env: { DATABUDDY_DEBUG: string | boolean } };
 
+export const isDebugMode = () => Boolean(process.env.DATABUDDY_DEBUG);
+
+export const isLocalhost = () => {
+	if (typeof window === "undefined") {
+		return false;
+	}
+	const hostname = window.location.hostname;
+	return (
+		hostname === "localhost" ||
+		hostname === "127.0.0.1" ||
+		hostname === "0.0.0.0" ||
+		hostname.endsWith(".local")
+	);
+};
+
 const DATA_ATTR_REGEX = /-./g;
 const NUMBER_REGEX = /^\d+$/;
 
@@ -43,7 +58,7 @@ export function isOptedOut(): boolean {
 
 export function getTrackerConfig(): TrackerOptions {
 	if (typeof window === "undefined") {
-		return {};
+		return { clientId: "" };
 	}
 	let script = document.currentScript as HTMLScriptElement;
 
@@ -62,7 +77,7 @@ export function getTrackerConfig(): TrackerOptions {
 	}
 
 	const globalConfig = window.databuddyConfig || {};
-	let config: TrackerOptions = { ...globalConfig };
+	let config: TrackerOptions = { clientId: "", ...globalConfig };
 
 	if (script) {
 		const dataAttributes: Record<string, any> = {};

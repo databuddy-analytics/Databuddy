@@ -35,7 +35,7 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 		<Button
 			aria-label="Toggle theme"
 			className={cn(
-				"relative hidden h-8 w-8 transition-all duration-200 md:flex",
+				"relative hidden size-8 transition-all duration-200 md:flex",
 				className
 			)}
 			onClick={switchTheme}

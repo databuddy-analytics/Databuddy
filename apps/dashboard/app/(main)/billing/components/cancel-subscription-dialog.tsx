@@ -53,7 +53,7 @@ export function CancelSubscriptionDialog({
 						type="button"
 					>
 						<div className="mb-2 flex items-center gap-3">
-							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+							<div className="flex size-8 items-center justify-center rounded-full bg-blue-100">
 								<CalendarIcon className="text-foreground" size={16} />
 							</div>
 							<div>
@@ -78,7 +78,7 @@ export function CancelSubscriptionDialog({
 						type="button"
 					>
 						<div className="mb-2 flex items-center gap-3">
-							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
+							<div className="flex size-8 items-center justify-center rounded-full bg-orange-100">
 								<LightningIcon className="text-orange-600" size={16} />
 							</div>
 							<div>

@@ -49,7 +49,7 @@ export function createLanguageColumns(
 				}
 				return (
 					<div className="flex items-center gap-2">
-						<TranslateIcon className="h-4 w-4 text-primary" />
+						<TranslateIcon className="size-4 text-primary" />
 						<div>
 							<div className="font-medium">{readableName}</div>
 							{code && code !== language && (

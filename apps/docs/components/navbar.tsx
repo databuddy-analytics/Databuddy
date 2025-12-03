@@ -81,16 +81,16 @@ export const Navbar = ({ stars }: NavbarProps) => {
 							onClick={toggleMobileMenu}
 							type="button"
 						>
-							<div className="relative h-6 w-6">
+							<div className="relative size-6">
 								<Menu
-									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
+									className={`absolute inset-0 size-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
 											? "rotate-90 scale-90 opacity-0"
 											: "rotate-0 scale-100 opacity-100"
 									}`}
 								/>
 								<X
-									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
+									className={`absolute inset-0 size-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
 											? "rotate-0 scale-100 opacity-100"
 											: "-rotate-90 scale-90 opacity-0"

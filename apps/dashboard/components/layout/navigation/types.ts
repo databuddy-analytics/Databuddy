@@ -8,6 +8,8 @@ export interface NavigationItem {
 	external?: boolean;
 	highlight?: boolean;
 	alpha?: boolean;
+	/** Custom tag text displayed in the same style as ALPHA */
+	tag?: string;
 	production?: boolean;
 	domain?: string;
 	disabled?: boolean;

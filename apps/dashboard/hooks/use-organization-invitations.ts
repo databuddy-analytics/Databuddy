@@ -35,7 +35,7 @@ export function useOrganizationInvitations(organizationId: string) {
 		data,
 		isLoading: queryLoading,
 		refetch,
-		error
+		error,
 	} = useQuery({
 		...orpc.organizations.getPendingInvitations.queryOptions({
 			input: { organizationId, includeExpired: true },

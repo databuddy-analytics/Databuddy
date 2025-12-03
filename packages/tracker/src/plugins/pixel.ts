@@ -16,7 +16,10 @@ function safeStringify(value: unknown): string {
 export function initPixelTracking(tracker: BaseTracker) {
 	tracker.options.enableBatching = false;
 
-	const sendToPixel = (endpoint: string, data: unknown): Promise<{ success: boolean }> => {
+	const sendToPixel = (
+		endpoint: string,
+		data: unknown
+	): Promise<{ success: boolean }> => {
 		const params = new URLSearchParams();
 
 		const flatten = (obj: Record<string, unknown>, prefix = "") => {

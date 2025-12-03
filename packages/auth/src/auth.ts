@@ -28,6 +28,12 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
 	}),
+	account: {
+		accountLinking: {
+			enabled: true,
+			trustedProviders: ["google", "github"],
+		},
+	},
 	databaseHooks: {
 		user: {
 			create: {
@@ -181,7 +187,7 @@ export const auth = betterAuth({
 		twoFactor(),
 		customSession(async ({ user: sessionUser, session }) => {
 			const [dbUser] = await db
-				.select({ role: user.role })
+				.select({ role: user.role, twoFactorEnabled: user.twoFactorEnabled })
 				.from(user)
 				.where(eq(user.id, session.userId))
 				.limit(1);
@@ -190,6 +196,7 @@ export const auth = betterAuth({
 				user: {
 					...sessionUser,
 					role: dbUser?.role,
+					twoFactorEnabled: dbUser?.twoFactorEnabled ?? false,
 				},
 				session,
 			};
@@ -235,5 +242,6 @@ export const websitesApi = {
 
 export type User = (typeof auth)["$Infer"]["Session"]["user"] & {
 	role?: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+	twoFactorEnabled?: boolean;
 };
 export type Session = (typeof auth)["$Infer"]["Session"];

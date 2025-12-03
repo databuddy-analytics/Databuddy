@@ -33,7 +33,7 @@ const getRetentionColor = (percentage: number | null): RetentionColor => {
 	}
 
 	const normalizedPct = Math.min(percentage, 100) / 100;
-	
+
 	if (normalizedPct >= 0.7) {
 		return { className: "bg-primary text-primary-foreground" };
 	}
@@ -87,7 +87,9 @@ export function RetentionCohortsGrid({
 			<div className="flex items-center justify-center py-16">
 				<div className="flex flex-col items-center gap-3">
 					<SpinnerIcon className="size-6 animate-spin text-primary" />
-					<span className="text-muted-foreground text-sm">Loading cohorts...</span>
+					<span className="text-muted-foreground text-sm">
+						Loading cohorts...
+					</span>
 				</div>
 			</div>
 		);
@@ -108,7 +110,7 @@ export function RetentionCohortsGrid({
 		<div className="w-full overflow-x-auto">
 			<table className="w-full border-collapse text-sm">
 				<thead>
-					<tr className="border-b border-border">
+					<tr className="border-border border-b">
 						<th className="w-20 bg-sidebar px-2 py-2.5 text-left font-semibold text-muted-foreground text-xs uppercase tracking-wider">
 							Cohort
 						</th>
@@ -133,7 +135,9 @@ export function RetentionCohortsGrid({
 						return (
 							<tr
 								className={`transition-colors hover:bg-accent/30 ${
-									rowIndex !== sortedCohorts.length - 1 ? "border-b border-border/50" : ""
+									rowIndex !== sortedCohorts.length - 1
+										? "border-border/50 border-b"
+										: ""
 								}`}
 								key={cohort.cohort}
 							>
@@ -151,11 +155,16 @@ export function RetentionCohortsGrid({
 									const { className } = getRetentionColor(percentage);
 
 									return (
-										<td className="px-1 py-1" key={`${cohort.cohort}-week-${index}`}>
+										<td
+											className="px-1 py-1"
+											key={`${cohort.cohort}-week-${index}`}
+										>
 											<div
 												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums transition-colors ${className}`}
 											>
-												{percentage !== null ? `${percentage.toFixed(0)}%` : "—"}
+												{percentage !== null
+													? `${percentage.toFixed(0)}%`
+													: "—"}
 											</div>
 										</td>
 									);

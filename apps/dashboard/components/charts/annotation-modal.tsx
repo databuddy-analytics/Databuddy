@@ -1,12 +1,8 @@
 "use client";
 
-import {
-	EyeIcon,
-	EyeSlashIcon,
-	PlusIcon,
-	XIcon,
-} from "@phosphor-icons/react";
+import { EyeIcon, EyeSlashIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,23 +94,16 @@ export function AnnotationModal(props: AnnotationModalProps) {
 		setValidationErrors([]);
 	}, [isOpen, mode]);
 
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
+	useHotkeys(
+		"escape",
+		() => {
+			if (isOpen) {
 				onClose();
-			} else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-				e.preventDefault();
-				handleSubmit();
 			}
-		};
-
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [isOpen, text]);
+		},
+		{ enabled: isOpen },
+		[isOpen, onClose]
+	);
 
 	const addTag = (tag: string) => {
 		if (tag && !selectedTags.includes(tag)) {

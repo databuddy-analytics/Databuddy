@@ -33,8 +33,8 @@ export default function CTA() {
 				{/* CTA grid */}
 				<div className="relative grid grid-cols-1 border-border border-t-[1.2px] md:grid-cols-3 md:grid-rows-1">
 					<div className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 hidden w-full select-none grid-cols-3 md:grid">
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 					</div>
 
 					{ctaItems.map((item) => {
@@ -59,12 +59,12 @@ export default function CTA() {
 							>
 								<div className="my-1 flex items-center gap-2">
 									{item.primary ? (
-										<div className="flex h-4 w-4 items-center justify-center rounded-sm bg-primary">
-											<ArrowRight className="h-2 w-2 text-primary-foreground" />
+										<div className="flex size-4 items-center justify-center rounded-sm bg-primary">
+											<ArrowRight className="size-2 text-primary-foreground" />
 										</div>
 									) : (
-										<div className="flex h-4 w-4 items-center justify-center rounded-sm border border-border">
-											<ArrowRight className="h-2 w-2 text-muted-foreground" />
+										<div className="flex size-4 items-center justify-center rounded-sm border border-border">
+											<ArrowRight className="size-2 text-muted-foreground" />
 										</div>
 									)}
 									<p className="text-muted-foreground text-xs">
@@ -82,7 +82,7 @@ export default function CTA() {
 											>
 												{item.title}
 											</p>
-											<ArrowRight className="h-4 w-4 text-muted-foreground transition-all group-hover:translate-x-1 group-hover:text-primary" />
+											<ArrowRight className="size-4 text-muted-foreground transition-all group-hover:translate-x-1 group-hover:text-primary" />
 										</div>
 									</div>
 									<p className="mt-2 text-left text-muted-foreground text-sm">
@@ -139,7 +139,7 @@ export default function CTA() {
 									}
 								>
 									Get started
-									<ArrowRight className="ml-2 h-4 w-4" />
+									<ArrowRight className="ml-2 size-4" />
 								</Link>
 							</div>
 

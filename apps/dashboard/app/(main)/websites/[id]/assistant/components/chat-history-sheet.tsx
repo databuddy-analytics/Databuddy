@@ -11,18 +11,9 @@ import {
 import { useAtom } from "jotai";
 import type React from "react";
 import { useEffect, useState } from "react";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -43,18 +34,18 @@ import { cn } from "@/lib/utils";
 import { websiteDataAtom, websiteIdAtom } from "@/stores/jotai/assistantAtoms";
 import { getChatDB } from "../lib/chat-db";
 
-interface ChatHistoryItem {
+type ChatHistoryItem = {
 	websiteId: string;
 	websiteName?: string;
 	lastUpdated: number;
 	messageCount: number;
 	lastMessage?: string;
-}
+};
 
-interface ChatHistorySheetProps {
+type ChatHistorySheetProps = {
 	isOpen: boolean;
 	onClose: () => void;
-}
+};
 
 function formatRelativeTime(timestamp: number): string {
 	const now = Date.now();
@@ -207,7 +198,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 					<div className="space-y-6 pt-6">
 						<div className="space-y-2">
 							<div className="relative">
-								<MagnifyingGlassIcon className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 transform text-muted-foreground" />
+								<MagnifyingGlassIcon className="-translate-y-1/2 absolute top-1/2 left-3 size-4 transform text-muted-foreground" />
 								<Input
 									className="rounded border-border/50 pl-9 focus:border-primary/50 focus:ring-primary/20"
 									onChange={(e) => setSearchQuery(e.target.value)}
@@ -226,7 +217,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 											key={`skeleton-${i + 1}`}
 										>
 											<div className="flex items-start gap-3">
-												<Skeleton className="h-8 w-8 rounded" />
+												<Skeleton className="size-8 rounded" />
 												<div className="flex-1 space-y-2">
 													<Skeleton className="h-4 w-24" />
 													<Skeleton className="h-3 w-full" />
@@ -238,7 +229,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 								</div>
 							) : filteredChats.length === 0 ? (
 								<div className="py-8 text-center">
-									<ChatIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+									<ChatIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
 									<p className="text-muted-foreground text-sm">
 										{searchQuery
 											? "No chats match your search"
@@ -272,7 +263,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 											type="button"
 										>
 											<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-												<ChatIcon className="h-5 w-5 text-primary" />
+												<ChatIcon className="size-5 text-primary" />
 											</div>
 											<div className="min-w-0 flex-1">
 												<div className="mb-1 flex items-center justify-between">
@@ -283,14 +274,14 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 													<DropdownMenu>
 														<DropdownMenuTrigger asChild>
 															<Button
-																className="h-7 w-7 opacity-0 group-hover:opacity-100"
+																className="size-7 opacity-0 group-hover:opacity-100"
 																onClick={(e: React.MouseEvent) =>
 																	e.stopPropagation()
 																}
 																size="icon"
 																variant="ghost"
 															>
-																<DotsThreeOutlineVerticalIcon className="h-4 w-4" />
+																<DotsThreeOutlineVerticalIcon className="size-4" />
 															</Button>
 														</DropdownMenuTrigger>
 														<DropdownMenuContent align="end">
@@ -303,7 +294,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 																	);
 																}}
 															>
-																<DownloadIcon className="mr-2 h-4 w-4" />
+																<DownloadIcon className="mr-2 size-4" />
 																Export Chat
 															</DropdownMenuItem>
 															<DropdownMenuSeparator />
@@ -314,7 +305,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 																	setDeleteConfirm(chat.websiteId);
 																}}
 															>
-																<TrashIcon className="mr-2 h-4 w-4" />
+																<TrashIcon className="mr-2 size-4" />
 																Delete
 															</DropdownMenuItem>
 														</DropdownMenuContent>
@@ -324,7 +315,7 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 													{chat.lastMessage}
 												</p>
 												<div className="mt-1 flex items-center gap-3 text-muted-foreground/80 text-xs">
-													<ClockIcon className="h-3 w-3" />
+													<ClockIcon className="size-3" />
 													<span>{formatRelativeTime(chat.lastUpdated)}</span>
 													<Badge className="px-1.5 py-0" variant="outline">
 														{chat.messageCount} msg
@@ -339,29 +330,14 @@ export function ChatHistorySheet({ isOpen, onClose }: ChatHistorySheetProps) {
 					</div>
 				</SheetContent>
 			</Sheet>
-			<AlertDialog
-				onOpenChange={() => setDeleteConfirm(null)}
-				open={!!deleteConfirm}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Are you sure?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This will permanently delete this chat history. This action cannot
-							be undone.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => deleteConfirm && handleDeleteChat(deleteConfirm)}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteDialog
+				confirmLabel="Delete"
+				description="This will permanently delete this chat history. This action cannot be undone."
+				isOpen={!!deleteConfirm}
+				onClose={() => setDeleteConfirm(null)}
+				onConfirm={() => deleteConfirm && handleDeleteChat(deleteConfirm)}
+				title="Delete Chat History"
+			/>
 		</>
 	);
 }

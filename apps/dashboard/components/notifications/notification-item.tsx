@@ -23,16 +23,16 @@ function getResourceIcon(resourceType: string) {
 	const type = resourceType.toLowerCase();
 
 	if (type.includes("document") || type.includes("file")) {
-		return <FileText className="h-4 w-4 text-primary" />;
+		return <FileText className="size-4 text-primary" />;
 	}
 	if (type.includes("database") || type.includes("db")) {
-		return <Database className="h-4 w-4 text-primary" />;
+		return <Database className="size-4 text-primary" />;
 	}
 	if (type.includes("table")) {
-		return <Table className="h-4 w-4 text-primary" />;
+		return <Table className="size-4 text-primary" />;
 	}
 	if (type.includes("folder") || type.includes("directory")) {
-		return <Folder className="h-4 w-4 text-primary" />;
+		return <Folder className="size-4 text-primary" />;
 	}
 }
 
@@ -67,27 +67,27 @@ export function NotificationItem({ notification }: NotificationItemProps) {
 			)}
 		>
 			<div className="flex items-start gap-3">
-				<div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+				<div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
 					{isAudit ? (
 						getResourceIcon(notification.details.resourceType)
 					) : isAnalytics ? (
 						notification.trend === "up" ? (
-							<TrendingUp className="h-4 w-4 text-green-500" />
+							<TrendingUp className="size-4 text-green-500" />
 						) : notification.trend === "down" ? (
-							<TrendingDown className="h-4 w-4 text-red-500" />
+							<TrendingDown className="size-4 text-red-500" />
 						) : (
-							<Minus className="h-4 w-4 text-primary" />
+							<Minus className="size-4 text-primary" />
 						)
 					) : isBilling ? (
 						notification.usageValue &&
 						notification.usageLimit &&
 						notification.usageValue / notification.usageLimit > 0.9 ? (
-							<AlertCircle className="h-4 w-4 text-red-500" />
+							<AlertCircle className="size-4 text-red-500" />
 						) : (
-							<MessageSquare className="h-4 w-4 text-primary" />
+							<MessageSquare className="size-4 text-primary" />
 						)
 					) : (
-						<Bell className="h-4 w-4 text-primary" />
+						<Bell className="size-4 text-primary" />
 					)}
 				</div>
 				<div className="flex-1 space-y-1">

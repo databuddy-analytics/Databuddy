@@ -180,8 +180,8 @@ function CardBrandLogo({ brand }: { brand: string }) {
 		return (
 			<div className="flex h-6 w-10 items-center justify-center">
 				<div className="relative flex">
-					<div className="h-5 w-5 rounded-full bg-[#eb001b]" />
-					<div className="-ml-2.5 h-5 w-5 rounded-full bg-[#f79e1b] mix-blend-hard-light" />
+					<div className="size-5 rounded-full bg-[#eb001b]" />
+					<div className="-ml-2.5 size-5 rounded-full bg-[#f79e1b] mix-blend-hard-light" />
 				</div>
 			</div>
 		);

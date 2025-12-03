@@ -20,6 +20,7 @@ export function NavigationItem({
 	icon: Icon,
 	href,
 	alpha,
+	tag,
 	isActive,
 	isRootLevel,
 	isExternal,
@@ -89,11 +90,16 @@ export function NavigationItem({
 			<div
 				aria-disabled="true"
 				className={cn(
-					"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+					"group flex items-center gap-3 px-4 py-2.5 text-sm",
 					"cursor-not-allowed text-sidebar-foreground/30"
 				)}
 			>
 				{content}
+				{tag && (
+					<span className="font-mono text-sidebar-foreground/30 text-xs uppercase">
+						{tag}
+					</span>
+				)}
 			</div>
 		);
 	}
@@ -104,7 +110,7 @@ export function NavigationItem({
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:text-sidebar-accent-foreground",
+				"group flex items-center gap-3 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
 				isActive
 					? "border-sidebar-ring border-r-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"
@@ -122,6 +128,11 @@ export function NavigationItem({
 						ALPHA
 					</span>
 				)}
+				{tag && (
+					<span className="font-mono text-sidebar-foreground/50 text-xs uppercase">
+						{tag}
+					</span>
+				)}
 				{badge && (
 					<span
 						className={cn(
@@ -129,7 +140,8 @@ export function NavigationItem({
 							badge.variant === "purple" && "bg-accent text-accent-foreground",
 							badge.variant === "blue" && "bg-accent text-accent-foreground",
 							badge.variant === "green" && "bg-accent text-accent-foreground",
-							badge.variant === "orange" && "bg-muted text-muted-foreground",
+							badge.variant === "orange" &&
+								"bg-amber-500/10 text-amber-600 dark:text-amber-500",
 							badge.variant === "red" && "bg-destructive/10 text-destructive"
 						)}
 					>
@@ -139,7 +151,7 @@ export function NavigationItem({
 				{isExternal && (
 					<ArrowSquareOutIcon
 						aria-hidden="true"
-						className="h-3 w-3 text-sidebar-ring opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+						className="size-3 text-sidebar-ring opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 						weight="duotone"
 					/>
 				)}

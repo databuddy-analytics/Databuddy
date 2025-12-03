@@ -409,7 +409,7 @@ export const CodeBlockFilename = ({
 			className="flex items-center gap-2 bg-secondary px-4 py-1.5 text-muted-foreground text-xs"
 			{...props}
 		>
-			{Icon && <Icon className="h-4 w-4 shrink-0" />}
+			{Icon && <Icon className="size-4 shrink-0" />}
 			<span className="flex-1 truncate">{children}</span>
 		</div>
 	);

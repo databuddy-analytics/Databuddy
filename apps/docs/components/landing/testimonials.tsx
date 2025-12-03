@@ -121,7 +121,7 @@ function TestimonialCardContent({
 			aria-hidden
 			className="text-muted-foreground transition-colors duration-300 group-hover:text-foreground"
 		>
-			<XLogoIcon className="h-4 w-4 sm:h-5 sm:w-5" weight="duotone" />
+			<XLogoIcon className="size-4 sm:h-5 sm:w-5" weight="duotone" />
 		</span>
 	) : null;
 
@@ -163,19 +163,19 @@ function TestimonialCardContent({
 			</div>
 
 			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute top-0 left-0 h-2 w-2">
+				<div className="absolute top-0 left-0 size-2">
 					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 				</div>
-				<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2">
+				<div className="-scale-x-[1] absolute top-0 right-0 size-2">
 					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 				</div>
-				<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2">
+				<div className="-scale-y-[1] absolute bottom-0 left-0 size-2">
 					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 				</div>
-				<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2">
+				<div className="-scale-[1] absolute right-0 bottom-0 size-2">
 					<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 					<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 				</div>

@@ -8,7 +8,9 @@ import { captureError, record, setAttributes } from "./tracing";
  * ClickHouse needs explicit nulls, not omitted fields
  */
 function stringifyEvent(event: unknown): string {
-	return JSON.stringify(event, (_key, value) => (value === undefined ? null : value));
+	return JSON.stringify(event, (_key, value) =>
+		value === undefined ? null : value
+	);
 }
 
 type BufferedEvent = {
@@ -229,7 +231,10 @@ export class EventProducer {
 						this.stats.errors += 1;
 						captureError(error, { message: `Flush failed for ${table}` });
 
-						if (this.buffer.length + events.length <= this.config.bufferHardMax) {
+						if (
+							this.buffer.length + events.length <=
+							this.config.bufferHardMax
+						) {
 							for (const event of events) {
 								this.buffer.push({ table, event });
 							}

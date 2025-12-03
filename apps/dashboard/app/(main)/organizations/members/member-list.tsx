@@ -4,19 +4,10 @@ import { CrownIcon, TrashIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useState } from "react";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
 	Select,
 	SelectContent,
@@ -31,26 +22,26 @@ import type {
 
 dayjs.extend(relativeTime);
 
-interface MemberToRemove {
+type MemberToRemove = {
 	id: string;
 	name: string;
-}
+};
 
-interface MemberListProps {
+type MemberListProps = {
 	members: OrganizationMember[];
 	onRemoveMember: (memberId: string) => void;
 	isRemovingMember: boolean;
 	onUpdateRole: (member: UpdateMemberData) => void;
 	isUpdatingMember: boolean;
 	organizationId: string;
-}
+};
 
-interface RoleSelectorProps {
+type RoleSelectorProps = {
 	member: OrganizationMember;
 	onUpdateRole: MemberListProps["onUpdateRole"];
 	isUpdatingMember: boolean;
 	organizationId: string;
-}
+};
 
 function RoleSelector({
 	member,
@@ -85,7 +76,7 @@ function RoleSelector({
 	);
 }
 
-interface MemberRowProps {
+type MemberRowProps = {
 	member: OrganizationMember;
 	onRemoveMember: MemberListProps["onRemoveMember"];
 	isRemovingMember: boolean;
@@ -93,7 +84,7 @@ interface MemberRowProps {
 	isUpdatingMember: boolean;
 	organizationId: string;
 	onConfirmRemove: (member: MemberToRemove) => void;
-}
+};
 
 function MemberRow({
 	member,
@@ -140,18 +131,17 @@ function MemberRow({
 
 			{member.role !== "owner" ? (
 				<Button
-					className="h-7 w-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+					className="size-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
 					disabled={isRemovingMember}
 					onClick={() =>
 						onConfirmRemove({ id: member.id, name: member.user.name })
 					}
-					size="sm"
 					variant="outline"
 				>
 					<TrashIcon size={14} />
 				</Button>
 			) : (
-				<div className="h-7 w-7" />
+				<div className="size-7" />
 			)}
 		</div>
 	);
@@ -170,7 +160,9 @@ export function MemberList({
 	);
 
 	const handleRemove = async () => {
-		if (!memberToRemove) return;
+		if (!memberToRemove) {
+			return;
+		}
 		await onRemoveMember(memberToRemove.id);
 		setMemberToRemove(null);
 	};
@@ -190,29 +182,16 @@ export function MemberList({
 				/>
 			))}
 
-			<AlertDialog
-				onOpenChange={(open) => !open && setMemberToRemove(null)}
-				open={!!memberToRemove}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Remove {memberToRemove?.name}?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This action cannot be undone. This will permanently remove the
-							member from the organization.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={handleRemove}
-						>
-							Remove
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteDialog
+				confirmLabel="Remove"
+				description={`This action cannot be undone. This will permanently remove ${memberToRemove?.name} from the organization.`}
+				isDeleting={isRemovingMember}
+				isOpen={!!memberToRemove}
+				itemName={memberToRemove?.name}
+				onClose={() => setMemberToRemove(null)}
+				onConfirm={handleRemove}
+				title="Remove Member"
+			/>
 		</>
 	);
 }

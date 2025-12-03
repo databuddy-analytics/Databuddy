@@ -115,7 +115,7 @@ function CompetitorCard({
 								.map((feature) => (
 									<div className="flex items-center gap-2" key={feature.name}>
 										<CheckIcon
-											className="h-4 w-4 shrink-0 text-primary"
+											className="size-4 shrink-0 text-primary"
 											weight="fill"
 										/>
 										<span className="text-muted-foreground text-xs leading-relaxed">
@@ -173,7 +173,7 @@ export default function ComparePage() {
 					href="/"
 				>
 					<ArrowLeftIcon
-						className="group-hover:-translate-x-0.5 h-4 w-4 transition-transform"
+						className="group-hover:-translate-x-0.5 size-4 transition-transform"
 						weight="fill"
 					/>
 					<span>Back to Home</span>
@@ -255,7 +255,7 @@ export default function ComparePage() {
 								>
 									View Live Demo
 									<ArrowLeftIcon
-										className="h-4 w-4 rotate-180 transition-transform group-hover:translate-x-1"
+										className="size-4 rotate-180 transition-transform group-hover:translate-x-1"
 										weight="fill"
 									/>
 								</Link>

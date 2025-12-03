@@ -61,7 +61,7 @@ const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
 					className="flex animate-pulse items-center space-x-4 rounded bg-sidebar-accent/20 p-3"
 					key={`skeleton-${itemIndex}`}
 				>
-					<Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+					<Skeleton className="size-6 shrink-0 rounded-full" />
 					<div className="flex-1 space-y-2">
 						<Skeleton className="h-4 w-full rounded" />
 						<div className="flex items-center space-x-2">

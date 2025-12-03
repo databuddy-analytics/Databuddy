@@ -81,7 +81,14 @@ export const CompileRequestSchema = t.Object({
 
 export type FilterType = {
 	field: string;
-	op: "eq" | "ne" | "contains" | "not_contains" | "starts_with" | "in" | "not_in";
+	op:
+		| "eq"
+		| "ne"
+		| "contains"
+		| "not_contains"
+		| "starts_with"
+		| "in"
+		| "not_in";
 	value: string | number | Array<string | number>;
 };
 

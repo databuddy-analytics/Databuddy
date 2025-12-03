@@ -28,7 +28,7 @@ type WebsitePageHeaderProps = {
 	hasError?: boolean;
 	errorMessage?: string;
 
-	onRefresh?: () => void;
+	onRefreshAction?: () => void;
 	onCreateAction?: () => void;
 	createActionLabel?: string;
 
@@ -51,7 +51,7 @@ export function WebsitePageHeader({
 	isRefreshing = false,
 	hasError = false,
 	errorMessage,
-	onRefresh,
+	onRefreshAction,
 	onCreateAction,
 	createActionLabel = "Create",
 	subtitle,
@@ -61,21 +61,29 @@ export function WebsitePageHeader({
 	docsUrl,
 }: WebsitePageHeaderProps) {
 	const renderSubtitle = () => {
-		if (isLoading) {
-			return <Skeleton className="h-4 w-48" />;
+		const showSubtitleSkeleton = isLoading && !description;
+
+		if (showSubtitleSkeleton) {
+			return (
+				<div className="h-5 sm:h-6">
+					<Skeleton className="h-4 w-48" />
+				</div>
+			);
 		}
 
 		if (subtitle) {
 			return typeof subtitle === "string" ? (
-				<p className="text-muted-foreground text-sm sm:text-base">{subtitle}</p>
+				<p className="h-5 truncate text-muted-foreground text-sm sm:h-6 sm:text-base">
+					{subtitle}
+				</p>
 			) : (
-				subtitle
+				<div className="h-5 sm:h-6">{subtitle}</div>
 			);
 		}
 
 		if (description) {
 			return (
-				<p className="text-muted-foreground text-sm sm:text-base">
+				<p className="h-5 truncate text-muted-foreground text-sm sm:h-6 sm:text-base">
 					{description}
 				</p>
 			);
@@ -97,9 +105,9 @@ export function WebsitePageHeader({
 								</Link>
 							</Button>
 						)}
-					<div className="rounded border border-primary/10 bg-primary/5 p-3">
-						{icon}
-					</div>
+						<div className="rounded border border-primary/10 bg-primary/5 p-3">
+							{icon}
+						</div>
 					</div>
 
 					<div className="flex-1">
@@ -122,11 +130,11 @@ export function WebsitePageHeader({
 							</Link>
 						</Button>
 					)}
-					{onRefresh && (
+					{onRefreshAction && (
 						<Button
 							className="cursor-pointer gap-2 transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
 							disabled={isRefreshing}
-							onClick={onRefresh}
+							onClick={onRefreshAction}
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
@@ -190,10 +198,10 @@ export function WebsitePageHeader({
 								</Link>
 							</Button>
 						)}
-						{onRefresh && (
+						{onRefreshAction && (
 							<Button
 								disabled={isRefreshing}
-								onClick={onRefresh}
+								onClick={onRefreshAction}
 								variant="secondary"
 							>
 								<ArrowClockwiseIcon
@@ -214,8 +222,8 @@ export function WebsitePageHeader({
 				</div>
 			</div>
 
-		{hasError && (
-			<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+			{hasError && (
+				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex flex-col items-center space-y-3 text-center">
 							<div className="rounded-full border border-destructive/10 bg-destructive/5 p-3">
@@ -230,14 +238,14 @@ export function WebsitePageHeader({
 										`There was an issue loading your ${title.toLowerCase()}. Please try refreshing the page.`}
 								</p>
 							</div>
-							{onRefresh && (
+							{onRefreshAction && (
 								<Button
 									className="cursor-pointer select-none gap-2 rounded transition-all duration-300 hover:border-primary/20 hover:bg-primary/10"
-									onClick={onRefresh}
+									onClick={onRefreshAction}
 									size="sm"
 									variant="outline"
 								>
-									<ArrowClockwiseIcon className="h-4 w-4" size={16} />
+									<ArrowClockwiseIcon className="size-4" size={16} />
 									Retry
 								</Button>
 							)}

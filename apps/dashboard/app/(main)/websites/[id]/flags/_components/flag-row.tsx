@@ -147,9 +147,9 @@ export function FlagRow({
 							variant="ghost"
 						>
 							{isExpanded ? (
-								<CaretUpIcon className="h-4 w-4" weight="fill" />
+								<CaretUpIcon className="size-4" weight="fill" />
 							) : (
-								<CaretDownIcon className="h-4 w-4" weight="fill" />
+								<CaretDownIcon className="size-4" weight="fill" />
 							)}
 						</Button>
 					)}

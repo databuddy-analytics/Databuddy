@@ -141,9 +141,9 @@ export const apikeysRouter = {
 					input.organizationId
 						? eq(apikey.organizationId, input.organizationId)
 						: and(
-							eq(apikey.userId, context.user.id),
-							isNull(apikey.organizationId)
-						)
+								eq(apikey.userId, context.user.id),
+								isNull(apikey.organizationId)
+							)
 				)
 				.orderBy(desc(apikey.createdAt));
 			return rows.map((r) => mapKey(r));

@@ -17,7 +17,6 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import React, { useCallback } from "react";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -60,14 +59,19 @@ function transformSessionEvents(
 			const timeA = new Date(a.time).getTime();
 			const timeB = new Date(b.time).getTime();
 			if (timeA !== timeB) return timeA - timeB;
-			return getEventSortPriority(a.event_name) - getEventSortPriority(b.event_name);
+			return (
+				getEventSortPriority(a.event_name) - getEventSortPriority(b.event_name)
+			);
 		});
 }
 
 function getReferrerInfo(session: Session): SessionReferrer {
 	if (session.referrer_parsed) {
 		return {
-			name: session.referrer_parsed.name || session.referrer_parsed.domain || "Unknown",
+			name:
+				session.referrer_parsed.name ||
+				session.referrer_parsed.domain ||
+				"Unknown",
 			domain: session.referrer_parsed.domain || null,
 		};
 	}
@@ -123,9 +127,7 @@ function SessionRowInternal({
 					</div>
 
 					{/* Session Name */}
-					<span className="truncate font-medium">
-						{sessionDisplayName}
-					</span>
+					<span className="truncate font-medium">{sessionDisplayName}</span>
 
 					{/* Location */}
 					<div className="flex items-center gap-1.5 overflow-hidden">
@@ -153,9 +155,7 @@ function SessionRowInternal({
 						) : (
 							<ArrowSquareOutIcon className="size-3.5 shrink-0 text-muted-foreground" />
 						)}
-						<span className="truncate">
-							{referrerInfo.name}
-						</span>
+						<span className="truncate">{referrerInfo.name}</span>
 					</div>
 
 					{/* Pages */}

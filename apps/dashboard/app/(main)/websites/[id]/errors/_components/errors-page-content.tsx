@@ -84,18 +84,20 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 
 	if (error) {
 		return (
-			<div className="p-4 text-center">
-				<div className="rounded border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
-					<div className="mx-auto mb-4 w-fit rounded-full border border-destructive/20 bg-destructive/10 p-3">
-						<BugIcon className="h-6 w-6 text-destructive" weight="duotone" />
+			<div className="p-4">
+				<div className="rounded border border-destructive/20 bg-destructive/5 p-6">
+					<div className="flex flex-col items-center text-center">
+						<div className="mb-4 flex size-12 items-center justify-center rounded bg-destructive/10">
+							<BugIcon className="size-6 text-destructive" weight="duotone" />
+						</div>
+						<h4 className="mb-2 font-semibold text-destructive">
+							Error loading data
+						</h4>
+						<p className="max-w-md text-destructive/80 text-sm">
+							There was an issue loading your error analytics. Please try
+							refreshing using the toolbar above.
+						</p>
 					</div>
-					<h4 className="mb-2 font-semibold text-destructive">
-						Error loading data
-					</h4>
-					<p className="mb-4 text-destructive/80 text-sm">
-						There was an issue loading your error analytics. Please try
-						refreshing using the toolbar above.
-					</p>
 				</div>
 			</div>
 		);
@@ -107,16 +109,21 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 				<ErrorsLoadingSkeleton />
 			) : (
 				<div className="space-y-4">
+					{/* Main Grid - Chart + Stats */}
 					<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 						<div className="lg:col-span-2">
 							<ErrorTrendsChart errorChartData={processedChartData} />
 						</div>
-						<div className="space-y-4">
+						<div className="flex flex-col gap-4">
 							<ErrorSummaryStats errorSummary={errorSummary} />
 							<TopErrorCard topError={topError} />
 						</div>
 					</div>
+
+					{/* Recent Errors */}
 					<RecentErrorsTable recentErrors={recentErrors} />
+
+					{/* Detailed Tables */}
 					<ErrorDataTable
 						isLoading={isLoading}
 						isRefreshing={isRefreshing}
@@ -138,84 +145,81 @@ function ErrorsLoadingSkeleton() {
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				{/* Error trends chart skeleton */}
 				<div className="lg:col-span-2">
-					<div className="rounded border bg-sidebar">
-						<div className="flex flex-col items-start justify-between gap-3 border-b p-4 sm:flex-row">
-							<div className="space-y-2">
-								<Skeleton className="h-5 w-32" />
-								<Skeleton className="h-4 w-48" />
-							</div>
-							<div className="flex gap-2">
-								<Skeleton className="h-8 w-20" />
-								<Skeleton className="h-8 w-20" />
-							</div>
-						</div>
-						<div className="p-4">
-							<Skeleton className="h-80 w-full" />
-						</div>
+					<div className="overflow-hidden rounded border bg-card p-4">
+						<Skeleton className="h-[400px] w-full" />
 					</div>
 				</div>
 
 				{/* Summary stats and top error card */}
-				<div className="space-y-4">
+				<div className="flex flex-col gap-4">
 					{/* Error summary stats skeleton */}
-					<div className="rounded border bg-sidebar p-4">
-						<div className="space-y-4">
-							<div className="space-y-2">
-								<Skeleton className="h-5 w-24" />
-								<Skeleton className="h-4 w-32" />
-							</div>
-							<div className="grid grid-cols-2 gap-4">
-								{[1, 2, 3, 4].map((num) => (
-									<div className="space-y-2" key={`summary-skeleton-${num}`}>
-										<Skeleton className="h-4 w-16" />
-										<Skeleton className="h-6 w-12" />
+					<div className="grid grid-cols-2 gap-2">
+						{[1, 2, 3, 4].map((num) => (
+							<div
+								className="overflow-hidden rounded border border-border bg-card"
+								key={`summary-skeleton-${num}`}
+							>
+								<div className="flex items-center gap-3 p-3">
+									<Skeleton className="size-8 rounded" />
+									<div className="space-y-1.5">
+										<Skeleton className="h-5 w-12" />
+										<Skeleton className="h-3 w-16" />
 									</div>
-								))}
+								</div>
+								<div className="border-border/50 border-t bg-accent/30 px-3 py-1.5">
+									<Skeleton className="h-2.5 w-24" />
+								</div>
 							</div>
-						</div>
+						))}
 					</div>
 
 					{/* Top error card skeleton */}
-					<div className="rounded border bg-sidebar p-4">
-						<div className="space-y-3">
-							<div className="space-y-2">
-								<Skeleton className="h-5 w-20" />
-								<Skeleton className="h-4 w-28" />
+					<div className="overflow-hidden rounded border border-border bg-card">
+						<div className="flex items-center gap-3 border-border/50 border-b p-4">
+							<Skeleton className="size-8 rounded" />
+							<div className="space-y-1.5">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-3 w-24" />
 							</div>
-							<div className="space-y-2">
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-3/4" />
-							</div>
-							<div className="flex items-center justify-between">
-								<Skeleton className="h-4 w-16" />
-								<Skeleton className="h-6 w-12 rounded-full" />
-							</div>
+							<Skeleton className="ml-auto h-5 w-16 rounded" />
+						</div>
+						<div className="space-y-3 p-4">
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-3/4" />
+							<Skeleton className="h-10 w-full rounded" />
+						</div>
+						<div className="grid grid-cols-2 gap-2 border-border/50 border-t bg-accent/20 p-3">
+							<Skeleton className="h-14 rounded" />
+							<Skeleton className="h-14 rounded" />
 						</div>
 					</div>
 				</div>
 			</div>
 
 			{/* Recent errors table skeleton */}
-			<div className="rounded border bg-sidebar">
-				<div className="border-b p-4">
-					<div className="space-y-2">
-						<Skeleton className="h-5 w-32" />
-						<Skeleton className="h-4 w-48" />
+			<div className="overflow-hidden rounded border border-border bg-card">
+				<div className="border-border/50 border-b p-4">
+					<div className="space-y-1.5">
+						<Skeleton className="h-5 w-28" />
+						<Skeleton className="h-3 w-40" />
 					</div>
 				</div>
-				<div className="space-y-3 p-4">
+				<div className="space-y-2 p-4">
 					{[1, 2, 3, 4, 5].map((rowNum) => (
 						<div
-							className="flex items-center justify-between"
+							className="flex items-center justify-between rounded border border-border/50 bg-accent/10 p-3"
 							key={`recent-error-skeleton-${rowNum}`}
 						>
 							<div className="flex items-center gap-3">
-								<Skeleton className="h-4 w-4" />
-								<Skeleton className="h-4 w-48" />
+								<Skeleton className="size-5 rounded" />
+								<div className="space-y-1.5">
+									<Skeleton className="h-4 w-48" />
+									<Skeleton className="h-3 w-32" />
+								</div>
 							</div>
-							<div className="flex items-center gap-4">
-								<Skeleton className="h-4 w-16" />
-								<Skeleton className="h-5 w-16 rounded-full" />
+							<div className="flex items-center gap-3">
+								<Skeleton className="h-3 w-16" />
+								<Skeleton className="h-5 w-14 rounded" />
 							</div>
 						</div>
 					))}
@@ -223,27 +227,27 @@ function ErrorsLoadingSkeleton() {
 			</div>
 
 			{/* Error data table skeleton */}
-			<div className="rounded border bg-sidebar">
-				<div className="border-b p-4">
-					<div className="space-y-2">
+			<div className="overflow-hidden rounded border border-border bg-card">
+				<div className="border-border/50 border-b p-4">
+					<div className="space-y-1.5">
 						<Skeleton className="h-5 w-24" />
-						<Skeleton className="h-4 w-32" />
+						<Skeleton className="h-3 w-32" />
 					</div>
 				</div>
-				<div className="space-y-3 p-4">
-					{[1, 2, 3, 4, 5, 6, 7, 8].map((rowNum) => (
+				<div className="space-y-2 p-4">
+					{[1, 2, 3, 4, 5, 6].map((rowNum) => (
 						<div
-							className="flex items-center justify-between"
+							className="flex items-center justify-between rounded border border-border/50 bg-accent/10 p-3"
 							key={`error-data-skeleton-${rowNum}`}
 						>
 							<div className="flex items-center gap-3">
-								<Skeleton className="h-4 w-4" />
-								<Skeleton className="h-4 w-32" />
+								<Skeleton className="size-4 rounded" />
+								<Skeleton className="h-4 w-40" />
 							</div>
-							<div className="flex items-center gap-4">
+							<div className="flex items-center gap-3">
 								<Skeleton className="h-4 w-12" />
 								<Skeleton className="h-4 w-12" />
-								<Skeleton className="h-5 w-12 rounded-full" />
+								<Skeleton className="h-5 w-12 rounded" />
 							</div>
 						</div>
 					))}

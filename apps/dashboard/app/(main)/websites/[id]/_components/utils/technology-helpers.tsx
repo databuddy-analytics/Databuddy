@@ -47,9 +47,9 @@ export const getDeviceTypeIcon = (
 	size: "sm" | "md" | "lg" = "md"
 ) => {
 	const sizeClasses = {
-		sm: "h-3 w-3",
-		md: "h-4 w-4",
-		lg: "h-5 w-5",
+		sm: "size-3",
+		md: "size-4",
+		lg: "size-5",
 	};
 
 	const typeLower = deviceType.toLowerCase();
@@ -189,7 +189,7 @@ export const TechnologyIcon = ({
 		);
 	}
 
-	return <Globe className="h-4 w-4 text-muted-foreground" />;
+	return <Globe className="size-4 text-muted-foreground" />;
 };
 
 // Percentage badge component

@@ -126,7 +126,7 @@ export default function ExportPage() {
 	if (!websiteData) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+				<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
 			</div>
 		);
 	}
@@ -161,8 +161,8 @@ export default function ExportPage() {
 									onClick={() => setSelectedFormat(format.value)}
 									type="button"
 								>
-									<div className="flex h-8 w-8 items-center justify-center rounded-md border bg-secondary-brighter">
-										<IconComponent className="h-5 w-5" />
+									<div className="flex size-8 items-center justify-center rounded-md border bg-secondary-brighter">
+										<IconComponent className="size-5" />
 									</div>
 									<div className="min-w-0 flex-1">
 										<div className="mb-1 flex items-center gap-2">
@@ -170,7 +170,7 @@ export default function ExportPage() {
 												{format.label}
 											</span>
 											{selectedFormat === format.value && (
-												<CheckIcon className="h-4 w-4 text-primary" />
+												<CheckIcon className="size-4 text-primary" />
 											)}
 										</div>
 										<p className="text-muted-foreground text-xs">

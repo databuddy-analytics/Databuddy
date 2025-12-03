@@ -231,7 +231,7 @@ function RegisterPageContent() {
 				>
 					{isLoading ? (
 						<>
-							<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
+							<SpinnerIcon className="mr-2 size-4 animate-spin" />
 							Sending...
 						</>
 					) : (
@@ -350,7 +350,7 @@ function RegisterPageContent() {
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<InfoIcon className="h-4 w-4 text-muted-foreground" />
+										<InfoIcon className="size-4 text-muted-foreground" />
 									</TooltipTrigger>
 									<TooltipContent>
 										<p>Password must be at</p>
@@ -381,9 +381,9 @@ function RegisterPageContent() {
 								variant="ghost"
 							>
 								{showPassword ? (
-									<EyeSlashIcon className="h-4 w-4" />
+									<EyeSlashIcon className="size-4" />
 								) : (
-									<EyeIcon className="h-4 w-4" />
+									<EyeIcon className="size-4" />
 								)}
 							</Button>
 						</div>
@@ -420,9 +420,9 @@ function RegisterPageContent() {
 								variant="ghost"
 							>
 								{showConfirmPassword ? (
-									<EyeSlashIcon className="h-4 w-4" />
+									<EyeSlashIcon className="size-4" />
 								) : (
-									<EyeIcon className="h-4 w-4" />
+									<EyeIcon className="size-4" />
 								)}
 							</Button>
 						</div>
@@ -501,7 +501,7 @@ function RegisterPageContent() {
 				>
 					{isLoading ? (
 						<>
-							<SpinnerIcon className="mr-2 h-4 w-4 animate-spin" />
+							<SpinnerIcon className="mr-2 size-4 animate-spin" />
 							<span className="hidden sm:inline">Creating account...</span>
 							<span className="sm:hidden">Creating...</span>
 						</>
@@ -562,7 +562,7 @@ export default function RegisterPage() {
 				<div className="flex h-screen items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
-						<SpinnerIcon className="relative h-8 w-8 animate-spin text-primary" />
+						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>
 			}

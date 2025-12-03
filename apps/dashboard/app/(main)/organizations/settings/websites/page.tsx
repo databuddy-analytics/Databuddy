@@ -13,7 +13,7 @@ function SkeletonRow() {
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
 			</div>
-			<Skeleton className="h-4 w-4" />
+			<Skeleton className="size-4" />
 		</div>
 	);
 }

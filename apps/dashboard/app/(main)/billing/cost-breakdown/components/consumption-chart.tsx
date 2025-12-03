@@ -1,7 +1,7 @@
 "use client";
 
 import type { UsageResponse } from "@databuddy/shared/types/billing";
-import { CalendarIcon, ChartBarIcon } from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import {
 	Bar,
@@ -21,6 +21,7 @@ type ViewMode = "daily" | "cumulative";
 
 import { METRIC_COLORS } from "@/components/charts/metrics-constants";
 import { EmptyState } from "@/components/empty-state";
+import { cn } from "@/lib/utils";
 
 const EVENT_TYPE_COLORS = {
 	event: METRIC_COLORS.pageviews.primary, // blue
@@ -119,14 +120,17 @@ export function ConsumptionChart({
 	if (isLoading) {
 		return (
 			<div className="flex h-full flex-col border-b">
-				<div className="border-b px-5 py-4">
-					<div className="flex items-center justify-between">
+				<div className="border-b px-4 py-3 sm:px-6 sm:py-4">
+					<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 						<Skeleton className="h-6 w-48" />
-						<Skeleton className="h-8 w-32" />
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-9 w-48" />
+							<Skeleton className="h-9 w-32" />
+						</div>
 					</div>
 				</div>
-				<div className="p-5">
-					<Skeleton className="h-[350px] w-full" />
+				<div className="bg-card p-4 sm:p-6">
+					<Skeleton className="h-[350px] w-full rounded" />
 				</div>
 			</div>
 		);
@@ -154,13 +158,14 @@ export function ConsumptionChart({
 
 	return (
 		<div className="flex h-fit flex-col border-b">
-			<div className="border-b px-5 py-4">
-				<div className="flex items-center justify-between">
+			<div className="border-b px-4 py-3 sm:px-6 sm:py-4">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex items-center gap-2">
-						<ChartBarIcon className="size-5" weight="duotone" />
-						<h2 className="font-semibold">Consumption Breakdown</h2>
+						<h2 className="font-medium text-foreground text-lg">
+							Consumption Breakdown
+						</h2>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2">
 						<DateRangePicker
 							className="w-auto"
 							maxDate={new Date()}
@@ -178,9 +183,9 @@ export function ConsumptionChart({
 								to: new Date(usageData.dateRange.endDate),
 							}}
 						/>
-						<div className="flex rounded border">
+						<div className="flex rounded border border-border">
 							<Button
-								className="rounded-r-none border-r"
+								className="rounded-r-none border-border border-r"
 								onClick={() => setViewMode("cumulative")}
 								size="sm"
 								variant={viewMode === "cumulative" ? "default" : "ghost"}
@@ -199,7 +204,7 @@ export function ConsumptionChart({
 					</div>
 				</div>
 			</div>
-			<div className="bg-card p-4">
+			<div className="dotted-bg bg-accent/30 p-4 sm:p-6">
 				<div className="h-[350px]">
 					<ResponsiveContainer height="100%" width="100%">
 						<BarChart
@@ -258,14 +263,13 @@ export function ConsumptionChart({
 								content={({ active, payload, label }) => {
 									if (active && payload && payload.length) {
 										return (
-											<div className="min-w-[200px] rounded border border-border/50 bg-card p-4">
-												<div className="mb-3 flex items-center gap-2 border-border/30 border-b pb-2">
-													<div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+											<div className="min-w-[200px] rounded border border-border bg-popover p-3 shadow-lg">
+												<div className="mb-2 flex items-center gap-2 border-border border-b pb-2">
 													<p className="font-semibold text-foreground text-sm">
 														{label}
 													</p>
 												</div>
-												<div className="space-y-2.5">
+												<div className="space-y-2">
 													{payload
 														.filter(
 															(entry) =>
@@ -286,12 +290,12 @@ export function ConsumptionChart({
 
 															return (
 																<div
-																	className="group flex items-center justify-between gap-3"
+																	className="flex items-center justify-between gap-3"
 																	key={index}
 																>
-																	<div className="flex items-center gap-2.5">
+																	<div className="flex items-center gap-2">
 																		<div
-																			className="h-3 w-3 rounded-full shadow-sm ring-2 ring-background"
+																			className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
 																			style={{ backgroundColor: color }}
 																		/>
 																		<span className="font-medium text-muted-foreground text-xs capitalize">
@@ -301,7 +305,7 @@ export function ConsumptionChart({
 																		</span>
 																	</div>
 																	<div className="text-right">
-																		<div className="font-bold text-foreground text-sm group-hover:text-primary">
+																		<div className="font-semibold text-foreground text-sm tabular-nums">
 																			{eventCount.toLocaleString()}
 																		</div>
 																		{overageCost > 0 && (
@@ -319,7 +323,12 @@ export function ConsumptionChart({
 									}
 									return null;
 								}}
-								cursor={false}
+								cursor={{
+									fill: "var(--muted)",
+									fillOpacity: 0.1,
+									stroke: "var(--primary)",
+									strokeOpacity: 0.2,
+								}}
 								wrapperStyle={{ outline: "none" }}
 							/>
 							<Legend
@@ -329,11 +338,12 @@ export function ConsumptionChart({
 									const isHidden = hiddenTypes[key];
 									return (
 										<span
-											className={`inline-flex select-none items-center font-medium text-xs capitalize leading-none transition-all duration-200 ${
+											className={cn(
+												"inline-flex select-none items-center font-medium text-xs capitalize leading-none transition-all duration-200",
 												isHidden
-													? "text-slate-600 line-through decoration-1 opacity-40"
+													? "text-muted-foreground line-through decoration-1 opacity-40"
 													: "text-muted-foreground opacity-100"
-											}`}
+											)}
 										>
 											{key.replace("_", " ")}
 										</span>

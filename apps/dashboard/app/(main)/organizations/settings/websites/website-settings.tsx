@@ -8,14 +8,16 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 import { FaviconImage } from "@/components/analytics/favicon-image";
+import { EmptyState } from "@/components/empty-state";
 import { RightSidebar } from "@/components/right-sidebar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WebsiteDialog } from "@/components/website-dialog";
 import type { Organization } from "@/hooks/use-organizations";
 import type { Website } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
-import { EmptyState } from "../../components/empty-state";
 
 function SkeletonRow() {
 	return (
@@ -25,7 +27,7 @@ function SkeletonRow() {
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
 			</div>
-			<Skeleton className="h-4 w-4" />
+			<Skeleton className="size-4" />
 		</div>
 	);
 }
@@ -110,6 +112,8 @@ export function WebsiteSettings({
 }: {
 	organization: Organization;
 }) {
+	const [showCreateDialog, setShowCreateDialog] = useState(false);
+
 	const { data, isLoading, isError, refetch } = useQuery({
 		...orpc.websites.list.queryOptions({
 			input: { organizationId: organization.id },
@@ -119,6 +123,7 @@ export function WebsiteSettings({
 	});
 
 	const websites = data ?? [];
+	const isEmpty = websites.length === 0;
 
 	if (isLoading) {
 		return <WebsitesSkeleton />;
@@ -126,44 +131,53 @@ export function WebsiteSettings({
 	if (isError) {
 		return <ErrorState onRetry={refetch} />;
 	}
-	if (websites.length === 0) {
-		return (
-			<EmptyState
-				description="Start tracking your website analytics by adding your first website. Get insights into visitors, pageviews, and performance."
-				icon={<GlobeIcon weight="duotone" />}
-				title="No websites yet"
-				variant="minimal"
-			/>
-		);
-	}
 
 	return (
-		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			{/* Websites List */}
-			<div className="flex flex-col border-b lg:border-b-0">
-				<div className="flex-1 divide-y overflow-y-auto">
-					{websites.map((website) => (
-						<WebsiteRow key={website.id} website={website} />
-					))}
+		<>
+			<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
+				{/* Websites List / Empty State */}
+				<div className="flex flex-col border-b lg:border-b-0">
+					{isEmpty ? (
+						<EmptyState
+							description="Start tracking your website analytics by adding your first website. Get insights into visitors, pageviews, and performance."
+							icon={<GlobeIcon weight="duotone" />}
+							title="No websites yet"
+							variant="minimal"
+						/>
+					) : (
+						<div className="flex-1 divide-y overflow-y-auto">
+							{websites.map((website) => (
+								<WebsiteRow key={website.id} website={website} />
+							))}
+						</div>
+					)}
 				</div>
+
+				{/* Sidebar */}
+				<RightSidebar className="gap-4 p-5">
+					<Button className="w-full" onClick={() => setShowCreateDialog(true)}>
+						<PlusIcon className="mr-2" size={16} />
+						Create New Website
+					</Button>
+					{!isEmpty && (
+						<RightSidebar.InfoCard
+							description={`Website${websites.length !== 1 ? "s" : ""}`}
+							icon={GlobeIcon}
+							title={String(websites.length)}
+						/>
+					)}
+					<RightSidebar.DocsLink />
+					<RightSidebar.Tip description="Click on a website to view its settings, manage tracking scripts, and configure analytics." />
+				</RightSidebar>
 			</div>
 
-			{/* Sidebar */}
-			<RightSidebar className="gap-4 p-5">
-				<Button asChild className="w-full">
-					<Link href="/websites">
-						<PlusIcon className="mr-2" size={16} />
-						Add New Website
-					</Link>
-				</Button>
-				<RightSidebar.InfoCard
-					description={`Website${websites.length !== 1 ? "s" : ""}`}
-					icon={GlobeIcon}
-					title={String(websites.length)}
-				/>
-				<RightSidebar.DocsLink />
-				<RightSidebar.Tip description="Click on a website to view its settings, manage tracking scripts, and configure analytics." />
-			</RightSidebar>
-		</div>
+			<WebsiteDialog
+				onOpenChange={setShowCreateDialog}
+				onSave={() => {
+					refetch();
+				}}
+				open={showCreateDialog}
+			/>
+		</>
 	);
 }

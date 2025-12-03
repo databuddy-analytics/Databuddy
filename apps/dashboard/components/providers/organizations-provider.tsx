@@ -1,4 +1,4 @@
-	"use client";
+"use client";
 
 import { authClient } from "@databuddy/auth/client";
 import { useQueries } from "@tanstack/react-query";

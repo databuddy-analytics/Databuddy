@@ -7,14 +7,13 @@ import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { getOperatorLabel } from "@/hooks/use-filters";
 import { useSavedFilters } from "@/hooks/use-saved-filters";
 import {
 	dynamicQueryFiltersAtom,
 	removeDynamicFilterAtom,
 } from "@/stores/jotai/filterAtoms";
-import { DeleteAllDialog } from "./delete-all-dialog";
-import { DeleteFilterDialog } from "./delete-filter-dialog";
 import { SaveFilterDialog } from "./save-filter-dialog";
 import { SavedFiltersMenu } from "./saved-filters-menu";
 
@@ -100,7 +99,11 @@ export function FiltersSection() {
 		(id: string) => {
 			const filter = savedFilters.find((f) => f.id === id);
 			if (filter) {
-				setDeleteDialog({ isOpen: true, filterId: id, filterName: filter.name });
+				setDeleteDialog({
+					isOpen: true,
+					filterId: id,
+					filterName: filter.name,
+				});
 			}
 		},
 		[savedFilters]
@@ -164,7 +167,7 @@ export function FiltersSection() {
 	if (filters.length === 0) return null;
 
 	return (
-		<div className="border-b bg-background angled-rectangle-gradient">
+		<div className="angled-rectangle-gradient border-b bg-background">
 			{editing && (
 				<div className="flex items-center justify-between gap-3 border-b bg-secondary/50 px-4 py-2">
 					<div className="flex items-center gap-2">
@@ -172,7 +175,10 @@ export function FiltersSection() {
 							<PencilIcon className="size-3 text-primary" weight="duotone" />
 						</div>
 						<span className="text-muted-foreground text-xs">
-							Editing <span className="font-medium text-foreground">"{editing.name}"</span>
+							Editing{" "}
+							<span className="font-medium text-foreground">
+								"{editing.name}"
+							</span>
 						</span>
 					</div>
 					<div className="flex items-center gap-1.5">
@@ -204,8 +210,12 @@ export function FiltersSection() {
 						key={`${filter.field}-${filter.operator}-${formatValue(filter.value)}-${index.toString()}`}
 					>
 						<span className="font-medium">{getFieldLabel(filter.field)}</span>
-						<span className="text-muted-foreground">{getOperatorLabel(filter.operator)}</span>
-						<span className="max-w-32 truncate font-mono">{formatValue(filter.value)}</span>
+						<span className="text-muted-foreground">
+							{getOperatorLabel(filter.operator)}
+						</span>
+						<span className="max-w-32 truncate font-mono">
+							{formatValue(filter.value)}
+						</span>
 						<button
 							aria-label={`Remove ${getFieldLabel(filter.field)} filter`}
 							className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
@@ -269,20 +279,24 @@ export function FiltersSection() {
 				validateName={(name: string) => validateFilterName(name, editing?.id)}
 			/>
 
-			<DeleteFilterDialog
-				filterName={deleteDialog.filterName}
+			<DeleteDialog
+				confirmLabel="Delete"
+				description={`Are you sure you want to delete "${deleteDialog.filterName}"? This action cannot be undone and the filter configuration will be permanently removed.`}
 				isDeleting={isDeleting}
 				isOpen={deleteDialog.isOpen}
 				onClose={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
 				onConfirm={handleConfirmDelete}
+				title="Delete Saved Filter"
 			/>
 
-			<DeleteAllDialog
-				filterCount={savedFilters.length}
+			<DeleteDialog
+				confirmLabel="Delete All"
+				description={`Are you sure you want to delete all ${savedFilters.length} saved filter${savedFilters.length === 1 ? "" : "s"}? This will permanently remove all your saved filter configurations and cannot be undone.`}
 				isDeleting={isDeletingAll}
 				isOpen={isDeleteAllOpen}
 				onClose={() => setIsDeleteAllOpen(false)}
 				onConfirm={handleConfirmDeleteAll}
+				title="Delete All Saved Filters"
 			/>
 		</div>
 	);

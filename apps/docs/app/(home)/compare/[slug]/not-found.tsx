@@ -58,7 +58,7 @@ export default function NotFound() {
 									href="/compare"
 								>
 									<ArrowLeftIcon
-										className="group-hover:-translate-x-0.5 h-4 w-4 transition-transform"
+										className="group-hover:-translate-x-0.5 size-4 transition-transform"
 										weight="fill"
 									/>
 									All Comparisons

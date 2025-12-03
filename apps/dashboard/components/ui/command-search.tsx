@@ -2,8 +2,9 @@
 
 import { CogIcon, LayoutDashboard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { DialogProps } from 'radix-ui';
+import type { DialogProps } from '@radix-ui/react-dialog';
 import * as React from 'react';
+import { useHotkeys } from 'react-hotkeys-hook';
 
 import {
 	CommandDialog,
@@ -72,17 +73,14 @@ export function CommandSearch({
 		[isControlled, controlledOpen, setControlledOpen]
 	);
 
-	React.useEffect(() => {
-		const down = (e: KeyboardEvent) => {
-			if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
-				e.preventDefault();
-				setOpen((prevOpen) => !prevOpen); // Corrected to use functional update
-			}
-		};
-
-		document.addEventListener('keydown', down);
-		return () => document.removeEventListener('keydown', down);
-	}, [setOpen]);
+	useHotkeys(
+		['mod+k', '/'],
+		() => {
+			setOpen((prevOpen) => !prevOpen);
+		},
+		{ preventDefault: true },
+		[setOpen]
+	);
 
 	// Combine static and dynamic search items
 	const allSearchGroups = React.useMemo(() => {
@@ -134,7 +132,7 @@ export function CommandSearch({
 									router.push(item.path);
 								}}
 							>
-								<item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+								<item.icon className="mr-2 size-4 text-muted-foreground" />
 								<span>{item.name}</span>{' '}
 								<span className="text-end text-muted-foreground text-xs">
 									{item.path}

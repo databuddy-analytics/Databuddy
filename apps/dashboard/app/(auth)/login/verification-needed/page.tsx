@@ -43,7 +43,7 @@ export default function VerificationNeededPage() {
 					<div className="absolute inset-0 animate-pulse rounded-full bg-warning/5" />
 					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-warning/20 to-warning/10 opacity-70 blur-md" />
 					<div className="relative rounded-full bg-gradient-to-tr from-warning to-warning/80 p-2.5">
-						<AlertCircle className="h-8 w-8 text-warning-foreground" />
+						<AlertCircle className="size-8 text-warning-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">
@@ -68,7 +68,7 @@ export default function VerificationNeededPage() {
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							<Loader2 className="mr-2 size-4 animate-spin" />
 							Sending...
 						</>
 					) : (
@@ -81,7 +81,7 @@ export default function VerificationNeededPage() {
 						type="button"
 						variant="outline"
 					>
-						<ChevronLeft className="mr-2 h-4 w-4" />
+						<ChevronLeft className="mr-2 size-4" />
 						Back to login
 					</Button>
 				</Link>

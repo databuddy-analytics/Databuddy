@@ -78,43 +78,6 @@ ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192
 `;
 
-// Legacy table - keeping for backwards compatibility during migration
-const CREATE_ERRORS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.errors (
-  id UUID,
-  client_id String,
-  event_id Nullable(String),
-  
-  anonymous_id String,
-  session_id String,
-  timestamp DateTime64(3, 'UTC'),
-  
-  path String,
-  
-  message String,
-  filename Nullable(String),
-  lineno Nullable(Int32),
-  colno Nullable(Int32),
-  stack Nullable(String),
-  error_type Nullable(String),
-  
-  ip Nullable(String),
-  user_agent Nullable(String),
-  browser_name Nullable(String),
-  browser_version Nullable(String),
-  os_name Nullable(String),
-  os_version Nullable(String),
-  device_type Nullable(String),
-  country Nullable(String),
-  region Nullable(String),
-  
-  created_at DateTime64(3, 'UTC')
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (client_id, timestamp, id)
-SETTINGS index_granularity = 8192
-`;
-
 /**
  * Lean error spans table - minimal structure
  * No geo/UA enrichment, just the error data
@@ -136,52 +99,59 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.error_spans (
   error_type LowCardinality(String) CODEC(ZSTD(1)),
   
   INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_error_type error_type TYPE bloom_filter(0.01) GRANULARITY 1
+  INDEX idx_error_type error_type TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_message message TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 1
 ) ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (client_id, error_type, path, timestamp)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
-// Legacy table - keeping for backwards compatibility during migration
-const CREATE_WEB_VITALS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals (
-  id UUID,
-  client_id String,
-  event_id Nullable(String),
+/**
+ * Hourly aggregated error stats
+ */
+const CREATE_ERROR_HOURLY_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.error_hourly (
+  client_id String CODEC(ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  error_type LowCardinality(String) CODEC(ZSTD(1)),
+  message_hash UInt64 CODEC(ZSTD(1)),
+  hour DateTime CODEC(Delta(4), ZSTD(1)),
   
-  anonymous_id String,
-  session_id String,
-  timestamp DateTime64(3, 'UTC'),
-  
-  path String,
-  
-  fcp Nullable(Int32),
-  lcp Nullable(Int32),
-  cls Nullable(Float32),
-  fid Nullable(Int32),
-  inp Nullable(Int32),
-  
-  ip Nullable(String),
-  user_agent Nullable(String),
-  browser_name Nullable(String),
-  browser_version Nullable(String),
-  os_name Nullable(String),
-  os_version Nullable(String),
-  device_type Nullable(String),
-  country Nullable(String),
-  region Nullable(String),
-  
-  created_at DateTime64(3, 'UTC')
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (client_id, timestamp, id)
+  error_count UInt64 CODEC(ZSTD(1)),
+  affected_users AggregateFunction(uniq, String),
+  affected_sessions AggregateFunction(uniq, String),
+  sample_message String CODEC(ZSTD(1))
+) ENGINE = AggregatingMergeTree
+PARTITION BY toYYYYMM(hour)
+ORDER BY (client_id, error_type, path, hour, message_hash)
+TTL toDateTime(hour) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192
 `;
 
 /**
+ * Materialized view for error hourly aggregation
+ */
+const CREATE_ERROR_HOURLY_MV = `
+CREATE MATERIALIZED VIEW IF NOT EXISTS ${ANALYTICS_DATABASE}.error_hourly_mv
+TO ${ANALYTICS_DATABASE}.error_hourly
+AS SELECT
+  client_id,
+  path,
+  error_type,
+  cityHash64(message) AS message_hash,
+  toStartOfHour(timestamp) AS hour,
+  count() AS error_count,
+  uniqState(anonymous_id) AS affected_users,
+  uniqState(session_id) AS affected_sessions,
+  any(message) AS sample_message
+FROM ${ANALYTICS_DATABASE}.error_spans
+GROUP BY client_id, path, error_type, message_hash, hour
+`;
+
+/**
  * Optimized Web Vitals table - minimal spans-oriented design
- * 
+ *
  * Rating computed at query time using standard thresholds:
  * - LCP: good < 2500, poor > 4000
  * - FCP: good < 1800, poor > 3000
@@ -211,8 +181,30 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
 /**
- * Materialized view for aggregated Web Vitals
- * Computes ratings at aggregation time using standard thresholds
+ * Hourly aggregated Web Vitals
+ */
+const CREATE_WEB_VITALS_HOURLY_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_hourly (
+  client_id String CODEC(ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  metric_name LowCardinality(String) CODEC(ZSTD(1)),
+  hour DateTime CODEC(Delta(4), ZSTD(1)),
+  
+  sample_count UInt64 CODEC(ZSTD(1)),
+  p75 Float64 CODEC(ZSTD(1)),
+  p50 Float64 CODEC(ZSTD(1)),
+  avg_value Float64 CODEC(ZSTD(1)),
+  min_value Float64 CODEC(ZSTD(1)),
+  max_value Float64 CODEC(ZSTD(1))
+) ENGINE = SummingMergeTree
+PARTITION BY toYYYYMM(hour)
+ORDER BY (client_id, metric_name, path, hour)
+TTL toDateTime(hour) + INTERVAL 1 YEAR
+SETTINGS index_granularity = 8192
+`;
+
+/**
+ * Materialized view for Web Vitals hourly aggregation
  */
 const CREATE_WEB_VITALS_HOURLY_MV = `
 CREATE MATERIALIZED VIEW IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_hourly_mv
@@ -225,26 +217,11 @@ AS SELECT
   count() AS sample_count,
   quantile(0.75)(metric_value) AS p75,
   quantile(0.50)(metric_value) AS p50,
-  avg(metric_value) AS avg_value
+  avg(metric_value) AS avg_value,
+  min(metric_value) AS min_value,
+  max(metric_value) AS max_value
 FROM ${ANALYTICS_DATABASE}.web_vitals_spans
 GROUP BY client_id, path, metric_name, hour
-`;
-
-const CREATE_WEB_VITALS_HOURLY_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.web_vitals_hourly (
-  client_id String CODEC(ZSTD(1)),
-  path String CODEC(ZSTD(1)),
-  metric_name LowCardinality(String) CODEC(ZSTD(1)),
-  hour DateTime CODEC(Delta(4), ZSTD(1)),
-  sample_count UInt64 CODEC(ZSTD(1)),
-  p75 Float64 CODEC(ZSTD(1)),
-  p50 Float64 CODEC(ZSTD(1)),
-  avg_value Float64 CODEC(ZSTD(1))
-) ENGINE = SummingMergeTree
-PARTITION BY toYYYYMM(hour)
-ORDER BY (client_id, metric_name, path, hour)
-TTL toDateTime(hour) + INTERVAL 1 YEAR
-SETTINGS index_granularity = 8192
 `;
 
 const CREATE_BLOCKED_TRAFFIC_TABLE = `
@@ -301,7 +278,6 @@ PARTITION BY toYYYYMM(event_time)
 ORDER BY (domain, event_time)
 SETTINGS index_granularity = 8192
 `;
-
 
 const CREATE_OTEL_TRACES_TABLE = `
 CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.otel_traces (
@@ -378,23 +354,6 @@ TTL toDateTime(Timestamp) + toIntervalDay(3)
 SETTINGS ttl_only_drop_parts = 1
 `;
 
-// Legacy table - keeping for backwards compatibility
-const CREATE_CUSTOM_EVENTS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_events (
-  id UUID,
-  client_id String,
-  event_name String,
-  anonymous_id String,
-  session_id String,
-  properties String,
-  
-  timestamp DateTime64(3, 'UTC') DEFAULT now()
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (client_id, timestamp, id)
-SETTINGS index_granularity = 8192
-`;
-
 /**
  * Lean custom event spans table
  * Uses JSON for flexible metadata
@@ -409,15 +368,52 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_event_spans (
   path String CODEC(ZSTD(1)),
   
   event_name LowCardinality(String) CODEC(ZSTD(1)),
-  properties JSON CODEC(ZSTD(1)),
+  properties String CODEC(ZSTD(1)),
   
   INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_event_name event_name TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (client_id, event_name, path, timestamp)
-TTL toDateTime(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+`;
+
+/**
+ * Hourly aggregated custom events
+ */
+const CREATE_CUSTOM_EVENTS_HOURLY_TABLE = `
+CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_events_hourly (
+  client_id String CODEC(ZSTD(1)),
+  path String CODEC(ZSTD(1)),
+  event_name LowCardinality(String) CODEC(ZSTD(1)),
+  hour DateTime CODEC(Delta(4), ZSTD(1)),
+  
+  event_count UInt64 CODEC(ZSTD(1)),
+  unique_users AggregateFunction(uniq, String),
+  unique_sessions AggregateFunction(uniq, String)
+) ENGINE = AggregatingMergeTree
+PARTITION BY toYYYYMM(hour)
+ORDER BY (client_id, event_name, path, hour)
+TTL toDateTime(hour) + INTERVAL 1 YEAR
+SETTINGS index_granularity = 8192
+`;
+
+/**
+ * Materialized view for custom events hourly aggregation
+ */
+const CREATE_CUSTOM_EVENTS_HOURLY_MV = `
+CREATE MATERIALIZED VIEW IF NOT EXISTS ${ANALYTICS_DATABASE}.custom_events_hourly_mv
+TO ${ANALYTICS_DATABASE}.custom_events_hourly
+AS SELECT
+  client_id,
+  path,
+  event_name,
+  toStartOfHour(timestamp) AS hour,
+  count() AS event_count,
+  uniqState(anonymous_id) AS unique_users,
+  uniqState(session_id) AS unique_sessions
+FROM ${ANALYTICS_DATABASE}.custom_event_spans
+GROUP BY client_id, path, event_name, hour
 `;
 
 const CREATE_CUSTOM_OUTGOING_LINKS_TABLE = `
@@ -437,35 +433,8 @@ ORDER BY (client_id, timestamp, id)
 SETTINGS index_granularity = 8192
 `;
 
-// Legacy type - keeping for backwards compatibility
-export type ErrorEvent = {
-	id: string;
-	client_id: string;
-	event_id?: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	message: string;
-	filename?: string;
-	lineno?: number;
-	colno?: number;
-	stack?: string;
-	error_type?: string;
-	ip?: string;
-	user_agent?: string;
-	browser_name?: string;
-	browser_version?: string;
-	os_name?: string;
-	os_version?: string;
-	device_type?: string;
-	country?: string;
-	region?: string;
-	created_at: number;
-}
-
 /**
- * Lean error span - no geo/UA enrichment
+ * Lean error span type
  */
 export type ErrorSpanRow = {
 	client_id: string;
@@ -479,47 +448,33 @@ export type ErrorSpanRow = {
 	colno?: number;
 	stack?: string;
 	error_type: string;
-}
+};
 
-// Legacy interface - keeping for backwards compatibility
-export type WebVitalsEvent = {
-	id: string;
+/**
+ * Error hourly aggregate type
+ */
+export type ErrorHourlyAggregate = {
 	client_id: string;
-	event_id?: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
 	path: string;
-	fcp?: number;
-	lcp?: number;
-	cls?: number;
-	fid?: number;
-	inp?: number;
-	ip?: string;
-	user_agent?: string;
-	browser_name?: string;
-	browser_version?: string;
-	os_name?: string;
-	os_version?: string;
-	device_type?: string;
-	country?: string;
-	region?: string;
-	created_at: number;
-}
+	error_type: string;
+	message_hash: number;
+	hour: number;
+	error_count: number;
+	affected_users: number;
+	affected_sessions: number;
+	sample_message: string;
+};
+
+/**
+ * Web Vitals metric names
+ * Rating computed at query time using standard thresholds
+ */
+export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
 
 /**
  * Spans-oriented Web Vitals
  * Each row = single metric measurement
- * Rating computed at query time using standard thresholds
  */
-export type WebVitalMetricName =
-	| "FCP"
-	| "LCP"
-	| "CLS"
-	| "INP"
-	| "TTFB"
-	| "FPS";
-
 export type WebVitalsSpan = {
 	client_id: string;
 	anonymous_id: string;
@@ -530,6 +485,9 @@ export type WebVitalsSpan = {
 	metric_value: number;
 };
 
+/**
+ * Web Vitals hourly aggregate type
+ */
 export type WebVitalsHourlyAggregate = {
 	client_id: string;
 	path: string;
@@ -539,6 +497,8 @@ export type WebVitalsHourlyAggregate = {
 	p75: number;
 	p50: number;
 	avg_value: number;
+	min_value: number;
+	max_value: number;
 };
 
 export type BlockedTraffic = {
@@ -567,7 +527,7 @@ export type BlockedTraffic = {
 	device_type?: string;
 	payload_size?: number;
 	created_at: number;
-}
+};
 
 export type EmailEvent = {
 	event_id: string;
@@ -578,94 +538,10 @@ export type EmailEvent = {
 	received_at: number;
 	ingestion_time: number;
 	metadata_json: string;
-}
-
-export type ObservabilityEvent = {
-	id: string;
-	service: string;
-	environment: string;
-	version?: string;
-	host?: string;
-	region?: string;
-	instance_id?: string;
-	trace_id?: string;
-	span_id?: string;
-	parent_span_id?: string;
-	span_kind?: string;
-	status_code?: string;
-	status_message?: string;
-	start_time: number;
-	end_time: number;
-	duration_ms?: number;
-	level: string;
-	category: string;
-	request_id?: string;
-	correlation_id?: string;
-	user_id?: string;
-	tenant_id?: string;
-	attributes: JSON;
-	events: JSON;
-}
-
-// OpenTelemetry trace span interface
-export type OTelTraces = {
-	Timestamp: number;
-	TraceId: string;
-	SpanId: string;
-	ParentSpanId: string;
-	TraceState: string;
-	SpanName: string;
-	SpanKind: string;
-	ServiceName: string;
-	ResourceAttributes: Record<string, string>;
-	ScopeName: string;
-	ScopeVersion: string;
-	SpanAttributes: Record<string, string>;
-	Duration: number;
-	StatusCode: string;
-	StatusMessage: string;
-	"Events.Timestamp": number[];
-	"Events.Name": string[];
-	"Events.Attributes": Record<string, string>[];
-	"Links.TraceId": string[];
-	"Links.SpanId": string[];
-	"Links.TraceState": string[];
-	"Links.Attributes": Record<string, string>[];
-}
-
-// OpenTelemetry logs interface
-export type OTelLogs = {
-	Timestamp: number;
-	TraceId: string;
-	SpanId: string;
-	TraceFlags: number;
-	SeverityText: string;
-	SeverityNumber: number;
-	ServiceName: string;
-	Body: string;
-	ResourceSchemaUrl: string;
-	ResourceAttributes: Record<string, string>;
-	ScopeSchemaUrl: string;
-	ScopeName: string;
-	ScopeVersion: string;
-	ScopeAttributes: Record<string, string>;
-	LogAttributes: Record<string, string>;
-}
-
-// Legacy type - keeping for backwards compatibility
-export type CustomEvent = {
-	id: string;
-	client_id: string;
-	event_name: string;
-	anonymous_id: string;
-	session_id: string;
-	properties: string;
-	timestamp: number;
-}
+};
 
 /**
  * Lean custom event span
- * properties is flexible JSON
  */
 export type CustomEventSpan = {
 	client_id: string;
@@ -675,7 +551,20 @@ export type CustomEventSpan = {
 	path: string;
 	event_name: string;
 	properties: Record<string, unknown>;
-}
+};
+
+/**
+ * Custom events hourly aggregate type
+ */
+export type CustomEventsHourlyAggregate = {
+	client_id: string;
+	path: string;
+	event_name: string;
+	hour: number;
+	event_count: number;
+	unique_users: number;
+	unique_sessions: number;
+};
 
 export type CustomOutgoingLink = {
 	id: string;
@@ -686,7 +575,7 @@ export type CustomOutgoingLink = {
 	text?: string;
 	properties: string;
 	timestamp: number;
-}
+};
 
 export type AnalyticsEvent = {
 	id: string;
@@ -751,7 +640,7 @@ export type AnalyticsEvent = {
 	properties: string;
 
 	created_at: number;
-}
+};
 
 /**
  * Initialize the ClickHouse schema by creating necessary database and tables
@@ -772,57 +661,57 @@ export async function initClickHouseSchema() {
 		});
 		console.info(`Created database: ${OBSERVABILITY_DATABASE}`);
 
-		// Create tables
+		// Create base tables first
 		const tables = [
 			{ name: "events", query: CREATE_EVENTS_TABLE },
-			{ name: "errors", query: CREATE_ERRORS_TABLE },
 			{ name: "error_spans", query: CREATE_ERROR_SPANS_TABLE },
-			{ name: "web_vitals", query: CREATE_WEB_VITALS_TABLE },
+			{ name: "error_hourly", query: CREATE_ERROR_HOURLY_TABLE },
 			{ name: "web_vitals_spans", query: CREATE_WEB_VITALS_SPANS_TABLE },
 			{ name: "web_vitals_hourly", query: CREATE_WEB_VITALS_HOURLY_TABLE },
+			{ name: "custom_event_spans", query: CREATE_CUSTOM_EVENT_SPANS_TABLE },
+			{
+				name: "custom_events_hourly",
+				query: CREATE_CUSTOM_EVENTS_HOURLY_TABLE,
+			},
 			{ name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
 			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
-			{ name: "custom_events", query: CREATE_CUSTOM_EVENTS_TABLE },
-			{ name: "custom_event_spans", query: CREATE_CUSTOM_EVENT_SPANS_TABLE },
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
 		];
 
 		// Materialized views (must be created after target tables)
 		const materializedViews = [
+			{ name: "error_hourly_mv", query: CREATE_ERROR_HOURLY_MV },
 			{ name: "web_vitals_hourly_mv", query: CREATE_WEB_VITALS_HOURLY_MV },
+			{
+				name: "custom_events_hourly_mv",
+				query: CREATE_CUSTOM_EVENTS_HOURLY_MV,
+			},
 		];
 
-		// Create observability tables separately
+		// Create observability tables
 		const observabilityTables = [
 			{ name: "otel_traces", query: CREATE_OTEL_TRACES_TABLE },
 			{ name: "otel_logs", query: CREATE_OTEL_LOGS_TABLE },
 		];
 
-		await Promise.all(
-			tables.map(async (table) => {
-				await clickHouse.command({
-					query: table.query,
-				});
-				console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
-			})
-		);
+		// Create base tables
+		for (const table of tables) {
+			await clickHouse.command({ query: table.query });
+			console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
+		}
 
 		// Create observability tables
-		await Promise.all(
-			observabilityTables.map(async (table) => {
-				await clickHouse.command({
-					query: table.query,
-				});
-				console.info(`Created table: ${OBSERVABILITY_DATABASE}.${table.name}`);
-			})
-		);
+		for (const table of observabilityTables) {
+			await clickHouse.command({ query: table.query });
+			console.info(`Created table: ${OBSERVABILITY_DATABASE}.${table.name}`);
+		}
 
 		// Create materialized views (after target tables exist)
 		for (const mv of materializedViews) {
-			await clickHouse.command({
-				query: mv.query,
-			});
-			console.info(`Created materialized view: ${ANALYTICS_DATABASE}.${mv.name}`);
+			await clickHouse.command({ query: mv.query });
+			console.info(
+				`Created materialized view: ${ANALYTICS_DATABASE}.${mv.name}`
+			);
 		}
 
 		console.info("ClickHouse schema initialization completed successfully");

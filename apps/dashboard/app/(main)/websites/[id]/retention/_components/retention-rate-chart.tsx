@@ -30,7 +30,13 @@ type TooltipPayload = {
 	payload: RetentionRate & { fullDate?: string };
 };
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayload[] }) {
+function CustomTooltip({
+	active,
+	payload,
+}: {
+	active?: boolean;
+	payload?: TooltipPayload[];
+}) {
 	if (!(active && payload?.length)) {
 		return null;
 	}
@@ -39,7 +45,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
 	const dateStr = data?.fullDate || data?.date;
 	const date = dayjs(dateStr).isValid() ? dayjs(dateStr) : null;
 
-	if (!date || !data) {
+	if (!(date && data)) {
 		return null;
 	}
 
@@ -114,7 +120,9 @@ export function RetentionRateChart({
 			<div className="flex h-full items-center justify-center">
 				<div className="flex flex-col items-center gap-3">
 					<SpinnerIcon className="size-6 animate-spin text-primary" />
-					<span className="text-muted-foreground text-sm">Loading chart...</span>
+					<span className="text-muted-foreground text-sm">
+						Loading chart...
+					</span>
 				</div>
 			</div>
 		);
@@ -124,7 +132,9 @@ export function RetentionRateChart({
 		return (
 			<EmptyState
 				description="No retention rate data available for the selected time period"
-				icon={<ChartLineIcon className="text-muted-foreground" weight="duotone" />}
+				icon={
+					<ChartLineIcon className="text-muted-foreground" weight="duotone" />
+				}
 				title="No data"
 				variant="minimal"
 			/>
@@ -137,7 +147,9 @@ export function RetentionRateChart({
 			<div className="flex items-center gap-4">
 				<div className="flex items-center gap-2">
 					<div className="size-2.5 rounded-full bg-primary" />
-					<span className="text-muted-foreground text-xs">Daily Retention Rate</span>
+					<span className="text-muted-foreground text-xs">
+						Daily Retention Rate
+					</span>
 				</div>
 			</div>
 

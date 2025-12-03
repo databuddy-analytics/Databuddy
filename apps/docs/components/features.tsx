@@ -108,7 +108,7 @@ export default function Features() {
 				{/* Why We Exist Section */}
 				<div className="border-border border-t-[1.2px] border-l-[1.2px] p-10 pb-2 md:border-t-0">
 					<div className="my-1 flex items-center gap-2">
-						<AlertTriangle className="h-4 w-4 text-muted-foreground" />
+						<AlertTriangle className="size-4 text-muted-foreground" />
 						<p className="text-muted-foreground">Why We Exist</p>
 					</div>
 					<div className="mt-2">
@@ -124,8 +124,8 @@ export default function Features() {
 
 				<div className="relative grid grid-cols-1 border-border border-t-[1.2px] md:grid-cols-3 md:grid-rows-1">
 					<div className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 hidden w-full select-none grid-cols-3 md:grid">
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 					</div>
 					{whyWeExist.map((item) => (
 						<div
@@ -135,7 +135,7 @@ export default function Features() {
 							key={item.id}
 						>
 							<div className="my-1 flex items-center gap-2">
-								<item.icon className="h-4 w-4 text-muted-foreground" />
+								<item.icon className="size-4 text-muted-foreground" />
 								<p className="text-muted-foreground">{item.label}</p>
 							</div>
 							<div className="mt-2">
@@ -158,7 +158,7 @@ export default function Features() {
 				{/* What You Get Section */}
 				<div className="border-border border-t-[1.2px] border-l-[1.2px] p-10 pb-2">
 					<div className="my-1 flex items-center gap-2">
-						<Package className="h-4 w-4 text-muted-foreground" />
+						<Package className="size-4 text-muted-foreground" />
 						<p className="text-muted-foreground">What You Get</p>
 					</div>
 					<div className="mt-2">
@@ -174,8 +174,8 @@ export default function Features() {
 
 				<div className="relative grid grid-cols-1 border-border border-t-[1.2px] md:grid-cols-3 md:grid-rows-1">
 					<div className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 hidden w-full select-none grid-cols-3 md:grid">
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
-						<Plus className="ml-auto h-8 w-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
+						<Plus className="ml-auto size-8 translate-x-[16.5px] translate-y-[.5px] text-muted-foreground" />
 					</div>
 					{whatYouGet.map((item) => (
 						<div
@@ -185,7 +185,7 @@ export default function Features() {
 							key={item.id}
 						>
 							<div className="my-1 flex items-center gap-2">
-								<item.icon className="h-4 w-4 text-muted-foreground" />
+								<item.icon className="size-4 text-muted-foreground" />
 								<p className="text-muted-foreground">{item.label}</p>
 							</div>
 							<div className="mt-2">
@@ -208,7 +208,7 @@ export default function Features() {
 				{/* For Who Section */}
 				<div className="border-border border-t-[1.2px] border-l-[1.2px] p-10 pb-2">
 					<div className="my-1 flex items-center gap-2">
-						<Users className="h-4 w-4 text-muted-foreground" />
+						<Users className="size-4 text-muted-foreground" />
 						<p className="text-muted-foreground">For Who?</p>
 					</div>
 					<div className="mt-2">

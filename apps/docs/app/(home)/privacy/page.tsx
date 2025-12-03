@@ -46,7 +46,7 @@ export default function PrivacyPage() {
 				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
-						<ShieldIcon className="h-7 w-7 text-primary" weight="duotone" />
+						<ShieldIcon className="size-7 text-primary" weight="duotone" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Privacy Policy
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
 				{/* Privacy-first highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldCheckIcon className="mr-2 h-5 w-5" weight="duotone" />
+						<ShieldCheckIcon className="mr-2 size-5" weight="duotone" />
 						Privacy-First Analytics
 					</h2>
 					<p className="mb-4 text-muted-foreground">
@@ -89,15 +89,15 @@ export default function PrivacyPage() {
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
-							<UserIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<UserIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">No User Tracking</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<CookieIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<CookieIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">No Cookies</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<ShieldIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">GDPR Compliant</span>
 						</div>
 					</div>
@@ -476,7 +476,7 @@ export default function PrivacyPage() {
 						</p>
 						<div className="mt-4 mb-6 rounded border bg-muted/50 p-5">
 							<p className="mb-3 flex items-center text-primary">
-								<EnvelopeIcon className="mr-2 h-5 w-5" weight="duotone" />
+								<EnvelopeIcon className="mr-2 size-5" weight="duotone" />
 								<a
 									className="hover:underline"
 									href="mailto:privacy@databuddy.cc"

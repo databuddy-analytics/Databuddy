@@ -46,7 +46,7 @@ export default function TermsPage() {
 				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
-						<ScalesIcon className="h-7 w-7 text-primary" weight="duotone" />
+						<ScalesIcon className="size-7 text-primary" weight="duotone" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Terms of Service
@@ -72,7 +72,7 @@ export default function TermsPage() {
 				{/* Fair terms highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldIcon className="mr-2 h-5 w-5" weight="duotone" />
+						<ShieldIcon className="mr-2 size-5" weight="duotone" />
 						Fair & Transparent Terms
 					</h2>
 					<p className="mb-4 text-muted-foreground">
@@ -82,15 +82,15 @@ export default function TermsPage() {
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
-							<FileTextIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<FileTextIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">Plain Language</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ScalesIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<ScalesIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">Fair Terms</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 h-4 w-4" weight="duotone" />
+							<ShieldIcon className="mr-2 size-4" weight="duotone" />
 							<span className="text-sm">User Protection</span>
 						</div>
 					</div>
@@ -207,7 +207,7 @@ export default function TermsPage() {
 						<div className="my-4 rounded border border-amber-500/20 bg-amber-500/10 p-4">
 							<p className="flex items-start text-sm">
 								<WarningIcon
-									className="mt-0.5 mr-2 h-4 w-4 shrink-0 text-amber-400"
+									className="mt-0.5 mr-2 size-4 shrink-0 text-amber-400"
 									weight="duotone"
 								/>
 								<span>
@@ -247,7 +247,7 @@ export default function TermsPage() {
 						<h2 className="mb-4 font-bold text-2xl">6. Billing and Payments</h2>
 
 						<h3 className="mb-3 flex items-center font-semibold text-xl">
-							<CreditCardIcon className="mr-2 h-5 w-5 text-primary" />
+							<CreditCardIcon className="mr-2 size-5 text-primary" />
 							Subscription Plans
 						</h3>
 						<p className="mb-4">

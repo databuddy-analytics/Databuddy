@@ -61,10 +61,9 @@ function stringify(obj: unknown): string {
 	return String(obj);
 }
 
-export function cacheable<T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>>(
-	fn: T,
-	options: CacheOptions | number
-) {
+export function cacheable<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+>(fn: T, options: CacheOptions | number) {
 	const {
 		expireInSec,
 		prefix = fn.name,
@@ -73,9 +72,12 @@ export function cacheable<T extends (...args: Parameters<T>) => Promise<Awaited<
 	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	const cachePrefix = `cacheable:${prefix}`;
-	const getKey = (...args: Parameters<T>) => `${cachePrefix}:${stringify(args)}`;
+	const getKey = (...args: Parameters<T>) =>
+		`${cachePrefix}:${stringify(args)}`;
 
-	const cachedFn = async (...args: Parameters<T>): Promise<Awaited<ReturnType<T>>> => {
+	const cachedFn = async (
+		...args: Parameters<T>
+	): Promise<Awaited<ReturnType<T>>> => {
 		if (shouldSkipRedis()) {
 			return fn(...args);
 		}
@@ -95,10 +97,12 @@ export function cacheable<T extends (...args: Parameters<T>) => Promise<Awaited<
 						const revalidation = fn(...args)
 							.then(async (fresh) => {
 								if (fresh != null && redisAvailable) {
-									await redis.setex(key, expireInSec, JSON.stringify(fresh)).catch(() => { });
+									await redis
+										.setex(key, expireInSec, JSON.stringify(fresh))
+										.catch(() => {});
 								}
 							})
-							.catch(() => { })
+							.catch(() => {})
 							.finally(() => activeRevalidations.delete(key));
 						activeRevalidations.set(key, revalidation);
 					}
@@ -108,10 +112,12 @@ export function cacheable<T extends (...args: Parameters<T>) => Promise<Awaited<
 
 			const result = await fn(...args);
 			if (result != null && redisAvailable) {
-				await redis.setex(key, expireInSec, JSON.stringify(result)).catch(() => {
-					redisAvailable = false;
-					lastRedisCheck = Date.now();
-				});
+				await redis
+					.setex(key, expireInSec, JSON.stringify(result))
+					.catch(() => {
+						redisAvailable = false;
+						lastRedisCheck = Date.now();
+					});
 			}
 			return result;
 		} catch {

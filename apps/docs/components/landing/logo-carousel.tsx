@@ -52,11 +52,11 @@ function LogoColumn({
 	return (
 		<motion.div
 			animate={{ opacity: 1, y: 0 }}
-			className={`relative h-14 w-28 overflow-hidden rounded bg-background/40 ${isLast ? "" : "border-border/20 border-r"} sm:h-16 sm:w-36 md:h-20 md:w-52 lg:h-24 lg:w-64`}
-			initial={{ opacity: 0, y: 20 }}
+			className={`relative h-8 w-20 overflow-hidden rounded ${isLast ? "" : "border-border/20 border-r"} sm:h-9 sm:w-24 md:h-10 md:w-32`}
+			initial={{ opacity: 0, y: 10 }}
 			transition={{
-				delay: columnIndex * 0.1,
-				duration: 0.5,
+				delay: columnIndex * 0.05,
+				duration: 0.3,
 				ease: [0.25, 0.1, 0.25, 1],
 			}}
 		>
@@ -83,17 +83,17 @@ function LogoColumn({
 					{currentLogo.src ? (
 						<a
 							aria-label={`Visit ${currentLogo.name}`}
-							className="inline-flex max-w-full items-center justify-center px-1 text-foreground/80 transition-colors hover:text-foreground"
+							className="inline-flex max-w-full items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
 							href={currentLogo.src}
 							rel="noopener"
 							target="_blank"
 						>
-							<span className="truncate font-bold text-xs tracking-wide sm:text-sm md:text-base lg:text-lg">
+							<span className="truncate font-medium text-[10px] sm:text-xs md:text-sm">
 								{currentLogo.name}
 							</span>
 						</a>
 					) : (
-						<span className="truncate px-1 font-bold text-xs tracking-wide sm:text-sm md:text-base lg:text-lg">
+						<span className="truncate font-medium text-[10px] text-muted-foreground sm:text-xs md:text-sm">
 							{currentLogo.name}
 						</span>
 					)}
@@ -164,14 +164,11 @@ export function LogoCarousel({ columns = 3, logos }: LogoCarouselProps) {
 
 	return (
 		<div
-			className="relative mx-auto flex justify-center gap-0 sm:gap-1 md:gap-2 lg:gap-4"
+			className="relative mx-auto flex justify-center"
 			onMouseEnter={() => setIsPaused(true)}
 			onMouseLeave={() => setIsPaused(false)}
 			role="tablist"
 		>
-			{/* gradient edges */}
-			<div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-background to-transparent sm:w-12" />
-			<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent sm:w-12" />
 			{logoColumns.map((columnLogos, index) => (
 				<LogoColumn
 					columnIndex={index}

@@ -1,4 +1,4 @@
-import { and, desc, eq, goals, inArray, isNull, sql } from "@databuddy/db";
+import { and, desc, eq, goals, inArray, isNull } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -7,14 +7,21 @@ import {
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
 } from "../lib/analytics-utils";
-import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
-const drizzleCache = createDrizzleCache({ redis, namespace: "goals" });
+const cache = createDrizzleCache({ redis, namespace: "goals" });
 
 const CACHE_TTL = 300;
-const ANALYTICS_CACHE_TTL = 600;
+const ANALYTICS_CACHE_TTL = 180;
+
+const filterSchema = z.object({
+	field: z.string(),
+	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+	value: z.union([z.string(), z.array(z.string())]),
+});
+
+type Filter = z.infer<typeof filterSchema>;
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -24,14 +31,33 @@ const getDefaultDateRange = () => {
 	return { startDate, endDate };
 };
 
+const getEffectiveStartDate = (
+	requestedStartDate: string,
+	createdAt: Date | null,
+	ignoreHistoricData: boolean
+): string => {
+	if (!(ignoreHistoricData && createdAt)) return requestedStartDate;
+
+	const createdDate = new Date(createdAt).toISOString().split("T")[0];
+	return new Date(requestedStartDate) > new Date(createdDate)
+		? requestedStartDate
+		: createdDate;
+};
+
+const invalidateGoalsCache = async (websiteId: string, goalId?: string) => {
+	const keys = [`list:${websiteId}`];
+	if (goalId) {
+		keys.push(`byId:${goalId}:${websiteId}`);
+	}
+	await Promise.all(keys.map((key) => cache.invalidateByKey(key)));
+};
+
 export const goalsRouter = {
 	list: publicProcedure
 		.input(z.object({ websiteId: z.string() }))
-		.handler(({ context, input }) => {
-			const cacheKey = `goals:list:${input.websiteId}`;
-
-			return drizzleCache.withCache({
-				key: cacheKey,
+		.handler(({ context, input }) =>
+			cache.withCache({
+				key: `list:${input.websiteId}`,
 				ttl: CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
@@ -44,21 +70,19 @@ export const goalsRouter = {
 						)
 						.orderBy(desc(goals.createdAt));
 				},
-			});
-		}),
+			})
+		),
 
 	getById: publicProcedure
 		.input(z.object({ id: z.string(), websiteId: z.string() }))
-		.handler(({ context, input }) => {
-			const cacheKey = `goals:byId:${input.id}:${input.websiteId}`;
-
-			return drizzleCache.withCache({
-				key: cacheKey,
+		.handler(({ context, input }) =>
+			cache.withCache({
+				key: `byId:${input.id}:${input.websiteId}`,
 				ttl: CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
 					await authorizeWebsiteAccess(context, input.websiteId, "read");
-					const result = await context.db
+					const [goal] = await context.db
 						.select()
 						.from(goals)
 						.where(
@@ -69,47 +93,47 @@ export const goalsRouter = {
 							)
 						)
 						.limit(1);
-					if (result.length === 0) {
-						throw new ORPCError("NOT_FOUND", {
-							message: "Goal not found",
-						});
+
+					if (!goal) {
+						throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
 					}
-					return result[0];
+					return goal;
 				},
-			});
-		}),
+			})
+		),
 
 	create: protectedProcedure
 		.input(
 			z.object({
 				websiteId: z.string(),
-				type: z.string(),
-				target: z.string(),
-				name: z.string(),
+				type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+				target: z.string().min(1),
+				name: z.string().min(1).max(100),
 				description: z.string().nullable().optional(),
-				filters: z.unknown().optional(),
+				filters: z.array(filterSchema).optional(),
+				ignoreHistoricData: z.boolean().optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeWebsiteAccess(context, input.websiteId, "update");
-			const goalId = crypto.randomUUID();
+
 			const [newGoal] = await context.db
 				.insert(goals)
 				.values({
-					id: goalId,
+					id: crypto.randomUUID(),
 					websiteId: input.websiteId,
 					type: input.type,
 					target: input.target,
 					name: input.name,
 					description: input.description,
 					filters: input.filters,
+					ignoreHistoricData: input.ignoreHistoricData ?? false,
 					isActive: true,
 					createdBy: context.user.id,
 				})
 				.returning();
 
-			await drizzleCache.invalidateByTables(["goals"]);
-
+			await invalidateGoalsCache(input.websiteId);
 			return newGoal;
 		}),
 
@@ -117,79 +141,60 @@ export const goalsRouter = {
 		.input(
 			z.object({
 				id: z.string(),
-				type: z.string().optional(),
-				target: z.string().optional(),
-				name: z.string().optional(),
+				type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
+				target: z.string().min(1).optional(),
+				name: z.string().min(1).max(100).optional(),
 				description: z.string().nullable().optional(),
-				filters: z.unknown().optional(),
+				filters: z.array(filterSchema).optional(),
+				ignoreHistoricData: z.boolean().optional(),
 				isActive: z.boolean().optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const existingGoal = await context.db
+			const [existingGoal] = await context.db
 				.select({ websiteId: goals.websiteId })
 				.from(goals)
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
-			if (existingGoal.length === 0) {
+
+			if (!existingGoal) {
 				throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(
-				context,
-				existingGoal[0].websiteId,
-				"update"
-			);
+
+			await authorizeWebsiteAccess(context, existingGoal.websiteId, "update");
+
 			const { id, ...updates } = input;
 			const [updatedGoal] = await context.db
 				.update(goals)
-				.set({
-					...updates,
-					updatedAt: new Date(),
-				})
+				.set({ ...updates, updatedAt: new Date() })
 				.where(and(eq(goals.id, id), isNull(goals.deletedAt)))
 				.returning();
 
-			await Promise.all([
-				drizzleCache.invalidateByTables(["goals"]),
-				drizzleCache.invalidateByKey(
-					`goals:byId:${id}:${existingGoal[0].websiteId}`
-				),
-			]);
-
+			await invalidateGoalsCache(existingGoal.websiteId, id);
 			return updatedGoal;
 		}),
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.handler(async ({ context, input }) => {
-			const existingGoal = await context.db
+			const [existingGoal] = await context.db
 				.select({ websiteId: goals.websiteId })
 				.from(goals)
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
 				.limit(1);
-			if (existingGoal.length === 0) {
+
+			if (!existingGoal) {
 				throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
 			}
-			await authorizeWebsiteAccess(
-				context,
-				existingGoal[0].websiteId,
-				"delete"
-			);
+
+			await authorizeWebsiteAccess(context, existingGoal.websiteId, "delete");
+
 			await context.db
 				.update(goals)
-				.set({
-					deletedAt: new Date(),
-					isActive: false,
-				})
+				.set({ deletedAt: new Date(), isActive: false })
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)));
 
-			await Promise.all([
-				drizzleCache.invalidateByTables(["goals"]),
-				drizzleCache.invalidateByKey(
-					`goals:byId:${input.id}:${existingGoal[0].websiteId}`
-				),
-			]);
-
+			await invalidateGoalsCache(existingGoal.websiteId, input.id);
 			return { success: true };
 		}),
 
@@ -202,65 +207,67 @@ export const goalsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `goals:analytics:${input.goalId}:${input.websiteId}:${startDate}:${endDate}`;
+			const [goal] = await context.db
+				.select()
+				.from(goals)
+				.where(
+					and(
+						eq(goals.id, input.goalId),
+						eq(goals.websiteId, input.websiteId),
+						isNull(goals.deletedAt)
+					)
+				)
+				.limit(1);
 
-			return drizzleCache.withCache({
+			if (!goal) {
+				throw new ORPCError("NOT_FOUND", { message: "Goal not found" });
+			}
+
+			const effectiveStartDate = getEffectiveStartDate(
+				startDate,
+				goal.createdAt,
+				goal.ignoreHistoricData
+			);
+
+			const cacheKey = `analytics:${input.goalId}:${effectiveStartDate}:${endDate}`;
+
+			return cache.withCache({
 				key: cacheKey,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(context, input.websiteId, "read");
-					const goal = await context.db
-						.select()
-						.from(goals)
-						.where(
-							and(
-								eq(goals.id, input.goalId),
-								eq(goals.websiteId, input.websiteId),
-								isNull(goals.deletedAt)
-							)
-						)
-						.limit(1);
-					if (goal.length === 0) {
-						throw new ORPCError("NOT_FOUND", {
-							message: "Goal not found",
-						});
-					}
-					const goalData = goal[0];
 					const steps: AnalyticsStep[] = [
 						{
 							step_number: 1,
-							type: goalData.type as "PAGE_VIEW" | "EVENT",
-							target: goalData.target,
-							name: goalData.name,
+							type: goal.type as "PAGE_VIEW" | "EVENT",
+							target: goal.target,
+							name: goal.name,
 						},
 					];
-					const filters =
-						(goalData.filters as Array<{
-							field: string;
-							operator: string;
-							value: string | string[];
-						}>) || [];
+
+					const filters = (goal.filters as Filter[]) || [];
 					const totalWebsiteUsers = await getTotalWebsiteUsers(
 						input.websiteId,
-						startDate,
+						effectiveStartDate,
 						endDate
 					);
-					const params: Record<string, unknown> = {
-						websiteId: input.websiteId,
-						startDate,
-						endDate: `${endDate} 23:59:59`,
-					};
+
 					return processGoalAnalytics(
 						steps,
 						filters,
-						params,
+						{
+							websiteId: input.websiteId,
+							startDate: effectiveStartDate,
+							endDate: `${endDate} 23:59:59`,
+						},
 						totalWebsiteUsers
 					);
 				},
@@ -271,113 +278,86 @@ export const goalsRouter = {
 		.input(
 			z.object({
 				websiteId: z.string(),
-				goalIds: z.array(z.string()),
+				goalIds: z.array(z.string()).min(1),
 				startDate: z.string().optional(),
 				endDate: z.string().optional(),
 			})
 		)
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `goals:bulkAnalytics:${input.websiteId}:${input.goalIds.sort().join(",")}:${startDate}:${endDate}`;
+			const goalsList = await context.db
+				.select()
+				.from(goals)
+				.where(
+					and(
+						eq(goals.websiteId, input.websiteId),
+						isNull(goals.deletedAt),
+						inArray(goals.id, input.goalIds)
+					)
+				)
+				.orderBy(desc(goals.createdAt));
 
-			return drizzleCache.withCache({
-				key: cacheKey,
-				ttl: ANALYTICS_CACHE_TTL,
-				tables: ["goals"],
-				queryFn: async () => {
-					await authorizeWebsiteAccess(context, input.websiteId, "read");
-					const goalsList = await context.db
-						.select()
-						.from(goals)
-						.where(
-							and(
-								eq(goals.websiteId, input.websiteId),
-								isNull(goals.deletedAt),
-								input.goalIds.length > 0
-									? inArray(goals.id, input.goalIds)
-									: sql`1=0`
-							)
-						)
-						.orderBy(desc(goals.createdAt));
-					const totalWebsiteUsers = await getTotalWebsiteUsers(
-						input.websiteId,
+			const baseTotalUsers = await getTotalWebsiteUsers(
+				input.websiteId,
+				startDate,
+				endDate
+			);
+
+			const results = await Promise.all(
+				goalsList.map(async (goal) => {
+					const effectiveStartDate = getEffectiveStartDate(
 						startDate,
-						endDate
+						goal.createdAt,
+						goal.ignoreHistoricData
 					);
 
-					const analyticsPromises = goalsList.map(async (goalData) => {
-						const steps: AnalyticsStep[] = [
-							{
-								step_number: 1,
-								type: goalData.type as "PAGE_VIEW" | "EVENT",
-								target: goalData.target,
-								name: goalData.name,
-							},
-						];
-						const localParams: Record<string, unknown> = {
-							websiteId: input.websiteId,
-							startDate,
-							endDate: `${endDate} 23:59:59`,
-						};
-						const filters =
-							(goalData.filters as Array<{
-								field: string;
-								operator: string;
-								value: string | string[];
-							}>) || [];
-						try {
-							const processedAnalytics = await processGoalAnalytics(
-								steps,
-								filters,
-								localParams,
-								totalWebsiteUsers
-							);
-							return { id: goalData.id, result: processedAnalytics };
-						} catch (error) {
-							logger.error("Failed to process goal analytics", {
-								goalId: goalData.id,
-								error: error instanceof Error ? error.message : String(error),
-							});
-							return {
-								id: goalData.id,
-								result: {
-									error: `Error processing goal ${goalData.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-								},
-							};
-						}
-					});
+					const steps: AnalyticsStep[] = [
+						{
+							step_number: 1,
+							type: goal.type as "PAGE_VIEW" | "EVENT",
+							target: goal.target,
+							name: goal.name,
+						},
+					];
 
-					const analyticsResultsArray = await Promise.all(analyticsPromises);
-					const analyticsResults: Record<
-						string,
-						| {
-							overall_conversion_rate: number;
-							total_users_entered: number;
-							total_users_completed: number;
-							avg_completion_time: number;
-							avg_completion_time_formatted: string;
-							steps_analytics: Array<{
-								step_number: number;
-								step_name: string;
-								users: number;
-								total_users: number;
-								conversion_rate: number;
-								dropoffs: number;
-								dropoff_rate: number;
-								avg_time_to_complete: number;
-							}>;
-						}
-						| { error: string }
-					> = {};
-					for (const { id, result } of analyticsResultsArray) {
-						analyticsResults[id] = result;
+					const filters = (goal.filters as Filter[]) || [];
+					const totalUsers = goal.ignoreHistoricData
+						? await getTotalWebsiteUsers(
+								input.websiteId,
+								effectiveStartDate,
+								endDate
+							)
+						: baseTotalUsers;
+
+					try {
+						const analytics = await processGoalAnalytics(
+							steps,
+							filters,
+							{
+								websiteId: input.websiteId,
+								startDate: effectiveStartDate,
+								endDate: `${endDate} 23:59:59`,
+							},
+							totalUsers
+						);
+						return { id: goal.id, result: analytics };
+					} catch (error) {
+						return {
+							id: goal.id,
+							result: {
+								error: `Failed to process: ${error instanceof Error ? error.message : "Unknown error"}`,
+							},
+						};
 					}
-					return analyticsResults;
-				},
-			});
+				})
+			);
+
+			return Object.fromEntries(results.map(({ id, result }) => [id, result]));
 		}),
 };

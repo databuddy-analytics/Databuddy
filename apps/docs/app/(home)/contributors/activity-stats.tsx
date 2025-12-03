@@ -48,7 +48,7 @@ function LanguageBar({ language }: { language: Language }) {
 		<div className="flex items-center justify-between py-3">
 			<div className="flex items-center gap-3">
 				<div
-					className="h-3 w-3 rounded-full"
+					className="size-3 rounded-full"
 					style={{ backgroundColor: color }}
 				/>
 				<span className="font-medium text-foreground text-sm">
@@ -80,7 +80,7 @@ function StatCard({
 	const cardContent = (
 		<div className="relative flex h-24 flex-col justify-center rounded border border-border bg-card/50 px-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 			<div className="flex items-center gap-3">
-				<Icon className={`h-5 w-5 ${color}`} weight="duotone" />
+				<Icon className={`size-5 ${color}`} weight="duotone" />
 				<div>
 					<div className="font-bold text-xl">{value.toLocaleString()}</div>
 					<div className="font-medium text-foreground text-sm">{label}</div>
@@ -92,19 +92,19 @@ function StatCard({
 
 	const corners = (
 		<div className="pointer-events-none absolute inset-0">
-			<div className="absolute top-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+			<div className="absolute top-0 left-0 size-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
 				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 			</div>
-			<div className="-scale-x-[1] absolute top-0 right-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+			<div className="-scale-x-[1] absolute top-0 right-0 size-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
 				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 			</div>
-			<div className="-scale-y-[1] absolute bottom-0 left-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+			<div className="-scale-y-[1] absolute bottom-0 left-0 size-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
 				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 			</div>
-			<div className="-scale-[1] absolute right-0 bottom-0 h-2 w-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
+			<div className="-scale-[1] absolute right-0 bottom-0 size-2 group-hover:animate-[cornerGlitch_0.6s_ease-in-out]">
 				<div className="absolute top-0 left-0.5 h-0.5 w-1.5 origin-left bg-foreground" />
 				<div className="absolute top-0 left-0 h-2 w-0.5 origin-top bg-foreground" />
 			</div>

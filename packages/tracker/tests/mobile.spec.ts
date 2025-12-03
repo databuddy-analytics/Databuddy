@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Mobile Tracking", () => {
 	// biome-ignore lint/correctness/noEmptyPattern: skip test if not mobile
-	test.beforeEach(({ }, testInfo) => {
+	test.beforeEach(({}, testInfo) => {
 		if (!testInfo.project.name.includes("mobile")) {
 			test.skip();
 		}
@@ -50,7 +50,8 @@ test.describe("Mobile Tracking", () => {
 		await page.evaluate(() => {
 			const btn = document.createElement("button");
 			btn.setAttribute("data-track", "mobile_tap");
-			btn.style.cssText = "width:100px;height:50px;position:fixed;top:100px;left:100px";
+			btn.style.cssText =
+				"width:100px;height:50px;position:fixed;top:100px;left:100px";
 			btn.innerText = "Tap";
 			document.body.appendChild(btn);
 
@@ -63,12 +64,18 @@ test.describe("Mobile Tracking", () => {
 		await page.addScriptTag({ url: "/dist/databuddy.js" });
 
 		await expect
-			.poll(async () => await page.evaluate(() => !!(window as never as { db: unknown }).db))
+			.poll(
+				async () =>
+					await page.evaluate(() => !!(window as never as { db: unknown }).db)
+			)
 			.toBeTruthy();
 
 		const requestPromise = page.waitForRequest((req) => {
 			const payload = req.postDataJSON?.();
-			return req.url().includes("basket.databuddy.cc") && payload?.name === "mobile_tap";
+			return (
+				req.url().includes("basket.databuddy.cc") &&
+				payload?.name === "mobile_tap"
+			);
 		});
 
 		await page.touchscreen.tap(150, 125);
@@ -91,19 +98,27 @@ test.describe("Mobile Tracking", () => {
 		await page.addScriptTag({ url: "/dist/databuddy.js" });
 
 		await expect
-			.poll(async () => await page.evaluate(() => !!(window as never as { db: unknown }).db))
+			.poll(
+				async () =>
+					await page.evaluate(() => !!(window as never as { db: unknown }).db)
+			)
 			.toBeTruthy();
 
 		page.on("request", (req) => {
 			const payload = req.postDataJSON?.();
-			if (req.url().includes("basket.databuddy.cc") && payload?.name?.startsWith("rapid_")) {
+			if (
+				req.url().includes("basket.databuddy.cc") &&
+				payload?.name?.startsWith("rapid_")
+			) {
 				sentEvents.push(payload.name);
 			}
 		});
 
 		await page.evaluate(() => {
 			for (let i = 0; i < 10; i++) {
-				(window as never as { db: { track: (name: string) => void } }).db.track(`rapid_${i}`);
+				(window as never as { db: { track: (name: string) => void } }).db.track(
+					`rapid_${i}`
+				);
 			}
 		});
 

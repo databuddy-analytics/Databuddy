@@ -66,7 +66,7 @@ export default function PrivacyPage() {
 	if (!websiteData) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+				<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
 			</div>
 		);
 	}
@@ -128,7 +128,7 @@ export default function PrivacyPage() {
 										size="sm"
 										variant="ghost"
 									>
-										<ClipboardIcon className="h-4 w-4" />
+										<ClipboardIcon className="size-4" />
 									</Button>
 								</code>
 							</div>

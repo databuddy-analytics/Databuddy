@@ -51,7 +51,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 			<div className="space-y-1">
 				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-green-500" />
+						<div className="size-2 rounded-full bg-green-500" />
 						<span className="text-muted-foreground text-xs">Added</span>
 					</div>
 					<span className="font-mono font-semibold text-foreground text-sm">
@@ -60,7 +60,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 				</div>
 				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-red-500" />
+						<div className="size-2 rounded-full bg-red-500" />
 						<span className="text-muted-foreground text-xs">Removed</span>
 					</div>
 					<span className="font-mono font-semibold text-foreground text-sm">

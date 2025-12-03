@@ -1,119 +1,38 @@
 "use client";
 
+import { LogoCarousel } from "./logo-carousel";
+
 const logos = [
 	{
-		id: 1,
 		name: "BETTER-AUTH",
 		src: "https://www.better-auth.com",
 		style: "font-medium font-geist",
 	},
-	{
-		id: 2,
-		name: "Rivo",
-		src: "https://rivo.gg",
-		style: "font-bold font-barlow",
-	},
-	{
-		id: 3,
-		name: "Confinity",
-		src: "https://www.confinity.com",
-		style: "font-semibold",
-	},
-	{
-		id: 4,
-		name: "Autumn",
-		src: "https://useautumn.com",
-		style: "font-bold",
-	},
-	{
-		id: 5,
-		name: "OpenCut",
-		src: "https://opencut.app",
-		style: "font-semibold",
-	},
-	{
-		id: 6,
-		name: "Call",
-		src: "https://joincall.co",
-		style: "font-semibold",
-	},
-	{
-		id: 7,
-		name: "Mail0",
-		src: "https://0.email",
-		style: "font-semibold",
-	},
-	{
-		id: 8,
-		name: "ServerStats",
-		src: "https://serverstats.bot",
-		style: "font-semibold",
-	},
-	{
-		id: 9,
-		name: "xpand",
-		src: "https://xpandconf.com",
-		style: "font-semibold",
-	},
-	{
-		id: 10,
-		name: "oss.now",
-		src: "https://oss.now/",
-		style: "font-semibold",
-	},
-	{
-		id: 11,
-		name: "Terabits",
-		src: "https://www.terabits.xyz",
-		style: "font-semibold",
-	},
-	{
-		id: 12,
-		name: "Dione",
-		src: "https://getdione.app",
-		style: "font-semibold",
-	},
-	{
-		id: 13,
-		name: "Kubiks",
-		src: "https://kubiks.ai/",
-		style: "font-semibold",
-	},
-	{
-		id: 14,
-		name: "Lindra",
-		src: "https://lindra.ai",
-		style: "font-semibold",
-	},
-	{
-		id: 15,
-		name: "Snowseo",
-		src: "https://snowseo.com",
-		style: "font-semibold",
-	},
-	{
-		id: 16,
-		name: "inbound",
-		src: "https://inbound.new/",
-		style: "font-semibold",
-	},
-	{
-		id: 17,
-		name: "Mantlz",
-		src: "https://mantlz.com",
-		style: "font-semibold",
-	},
-];
-
-import { LogoCarousel } from "./logo-carousel";
+	{ name: "Rivo", src: "https://rivo.gg", style: "font-bold font-barlow" },
+	{ name: "Confinity", src: "https://www.confinity.com" },
+	{ name: "Autumn", src: "https://useautumn.com", style: "font-bold" },
+	{ name: "OpenCut", src: "https://opencut.app" },
+	{ name: "Call", src: "https://joincall.co" },
+	{ name: "Mail0", src: "https://0.email" },
+	{ name: "ServerStats", src: "https://serverstats.bot" },
+	{ name: "xpand", src: "https://xpandconf.com" },
+	{ name: "oss.now", src: "https://oss.now/" },
+	{ name: "Terabits", src: "https://www.terabits.xyz" },
+	{ name: "Dione", src: "https://getdione.app" },
+	{ name: "Kubiks", src: "https://kubiks.ai/" },
+	{ name: "Lindra", src: "https://lindra.ai" },
+	{ name: "Snowseo", src: "https://snowseo.com" },
+	{ name: "inbound", src: "https://inbound.new/" },
+	{ name: "Mantlz", src: "https://mantlz.com" },
+].map((logo, i) => ({ id: i + 1, style: "font-semibold", ...logo }));
 
 export const TrustedBy = () => (
-	<div className="relative space-y-6 sm:space-y-8">
-		<h2 className="mx-auto max-w-md text-center font-medium text-foreground text-lg leading-tight tracking-tight sm:text-xl md:text-2xl">
-			Trusted by teams and developers worldwide
-		</h2>
-		<div className="relative [mask-image:linear-gradient(to_right,transparent,black_20%,black_80%,transparent)]">
-			<LogoCarousel columns={4} logos={logos} />
+	<div className="relative space-y-3 sm:space-y-4">
+		<p className="text-center text-muted-foreground text-xs sm:text-sm">
+			Trusted by teams worldwide
+		</p>
+		<div className="relative [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+			<LogoCarousel columns={5} logos={logos} />
 		</div>
 	</div>
 );

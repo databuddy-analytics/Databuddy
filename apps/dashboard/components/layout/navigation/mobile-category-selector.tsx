@@ -83,7 +83,7 @@ export function MobileCategorySelector({
 						<CaretDownIcon className="size-4" />
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent className="w-full min-w-(--radix-dropdown-menu-trigger-width)">
+				<DropdownMenuContent className="z-120 w-full min-w-(--radix-dropdown-menu-trigger-width)">
 					{categories.map((category) => {
 						const Icon = category.icon;
 						const isActive = activeCategory === category.id;

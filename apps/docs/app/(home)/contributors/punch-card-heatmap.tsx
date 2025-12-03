@@ -62,7 +62,7 @@ function CustomTooltip({
 			<div className="space-y-1">
 				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
-						<div className="h-2 w-2 rounded-full bg-primary" />
+						<div className="size-2 rounded-full bg-primary" />
 						<span className="text-muted-foreground text-xs">Commits</span>
 					</div>
 					<span className="font-mono font-semibold text-foreground text-sm">
@@ -336,12 +336,12 @@ export default function PunchCardHeatmap({ data }: Props) {
 							<div className="mt-4 flex items-center justify-center gap-2">
 								<span className="text-muted-foreground text-sm">Less</span>
 								<div className="flex gap-1">
-									<div className="h-3 w-3 rounded-sm bg-muted" />
-									<div className="h-3 w-3 rounded-sm bg-primary/20" />
-									<div className="h-3 w-3 rounded-sm bg-primary/40" />
-									<div className="h-3 w-3 rounded-sm bg-primary/60" />
-									<div className="h-3 w-3 rounded-sm bg-primary/80" />
-									<div className="h-3 w-3 rounded-sm bg-primary" />
+									<div className="size-3 rounded-sm bg-muted" />
+									<div className="size-3 rounded-sm bg-primary/20" />
+									<div className="size-3 rounded-sm bg-primary/40" />
+									<div className="size-3 rounded-sm bg-primary/60" />
+									<div className="size-3 rounded-sm bg-primary/80" />
+									<div className="size-3 rounded-sm bg-primary" />
 								</div>
 								<span className="text-muted-foreground text-sm">More</span>
 							</div>

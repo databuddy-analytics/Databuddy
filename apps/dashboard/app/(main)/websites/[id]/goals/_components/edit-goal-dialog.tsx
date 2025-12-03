@@ -2,14 +2,7 @@
 
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { GoalFilter } from "@databuddy/shared/types/api";
-import {
-	Eye,
-	MouseMiddleClick,
-	PencilIcon,
-	PlusIcon,
-	Target,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { PlusIcon, Target, TrashIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +16,15 @@ import {
 } from "@/components/ui/select";
 import {
 	Sheet,
+	SheetBody,
 	SheetContent,
 	SheetDescription,
+	SheetFooter,
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { operatorOptions, useFilters } from "@/hooks/use-filters";
+import { Switch } from "@/components/ui/switch";
+import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import type { AutocompleteData } from "@/hooks/use-funnels";
 import type { CreateGoalData, Goal } from "@/hooks/use-goals";
 import { AutocompleteInput } from "../../funnels/_components/funnel-components";
@@ -38,6 +34,16 @@ const defaultFilter: GoalFilter = {
 	operator: "equals",
 	value: "",
 } as const;
+
+interface GoalFormData {
+	id?: string;
+	name: string;
+	description: string | null;
+	type: string;
+	target: string;
+	filters: GoalFilter[];
+	ignoreHistoricData?: boolean;
+}
 
 interface EditGoalDialogProps {
 	isOpen: boolean;
@@ -56,63 +62,68 @@ export function EditGoalDialog({
 	isSaving,
 	autocompleteData,
 }: EditGoalDialogProps) {
-	const [formData, setFormData] = useState<
-		Goal | Omit<CreateGoalData, "websiteId"> | null
-	>(null);
+	const [formData, setFormData] = useState<GoalFormData | null>(null);
 	const isCreateMode = !goal;
 
 	useEffect(() => {
 		if (goal) {
+			// Ensure all filters have valid operators (default to "equals" if missing)
+			const sanitizedFilters = ((goal.filters as GoalFilter[]) || []).map(
+				(f) => ({
+					...f,
+					operator: f.operator || "equals",
+				})
+			);
 			setFormData({
-				...goal,
-				filters: goal.filters || [],
+				id: goal.id,
+				name: goal.name,
+				description: goal.description,
+				type: goal.type,
+				target: goal.target,
+				filters: sanitizedFilters,
+				ignoreHistoricData: goal.ignoreHistoricData ?? false,
 			});
 		} else {
-			// Initialize for create mode
 			setFormData({
 				name: "",
 				description: "",
-				type: "PAGE_VIEW" as const,
+				type: "PAGE_VIEW",
 				target: "",
 				filters: [],
+				ignoreHistoricData: false,
 			});
 		}
 	}, [goal]);
 
 	const handleSubmit = async () => {
-		if (!formData) {
-			return;
-		}
-		await onSave(formData);
+		if (!formData) return;
+		// Ensure all filters have valid operators (default to "equals" if missing)
+		const sanitizedFilters = formData.filters.map((f) => ({
+			...f,
+			operator: f.operator || "equals",
+		}));
+		await onSave({
+			...formData,
+			filters: sanitizedFilters,
+		} as Goal | Omit<CreateGoalData, "websiteId">);
 	};
 
 	const resetForm = useCallback(() => {
-		if (isCreateMode) {
-			setFormData({
-				name: "",
-				description: "",
-				type: "PAGE_VIEW" as const,
-				target: "",
-				filters: [],
-			});
-		}
-	}, [isCreateMode]);
+		setFormData({
+			name: "",
+			description: "",
+			type: "PAGE_VIEW",
+			target: "",
+			filters: [],
+			ignoreHistoricData: false,
+		});
+	}, []);
 
-	const updateGoal = useCallback(
-		(field: keyof Goal | keyof CreateGoalData, value: string) => {
-			if (!formData) {
-				return;
-			}
-			setFormData((prev) =>
-				prev
-					? {
-							...prev,
-							[field]: value,
-						}
-					: prev
-			);
+	const updateField = useCallback(
+		(field: keyof GoalFormData, value: string) => {
+			setFormData((prev) => (prev ? { ...prev, [field]: value } : prev));
 		},
-		[formData]
+		[]
 	);
 
 	const handleFiltersChange = useCallback((newFilters: GoalFilter[]) => {
@@ -127,9 +138,7 @@ export function EditGoalDialog({
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
-			if (!autocompleteData) {
-				return [];
-			}
+			if (!autocompleteData) return [];
 
 			switch (field) {
 				case "browser_name":
@@ -153,19 +162,11 @@ export function EditGoalDialog({
 		[autocompleteData]
 	);
 
-	const getStepSuggestions = useCallback(
-		(stepType: string): string[] => {
-			if (!autocompleteData) {
-				return [];
-			}
-
-			if (stepType === "PAGE_VIEW") {
-				return autocompleteData.pagePaths || [];
-			}
-			if (stepType === "EVENT") {
-				return autocompleteData.customEvents || [];
-			}
-
+	const getTargetSuggestions = useCallback(
+		(goalType: string): string[] => {
+			if (!autocompleteData) return [];
+			if (goalType === "PAGE_VIEW") return autocompleteData.pagePaths || [];
+			if (goalType === "EVENT") return autocompleteData.customEvents || [];
 			return [];
 		},
 		[autocompleteData]
@@ -173,223 +174,142 @@ export function EditGoalDialog({
 
 	const handleClose = useCallback(() => {
 		onClose();
-		if (isCreateMode) {
-			resetForm();
-		}
+		if (isCreateMode) resetForm();
 	}, [onClose, isCreateMode, resetForm]);
 
-	// Memoize form validation
 	const isFormValid = useMemo(() => {
-		if (!formData) {
-			return false;
-		}
-		return (
-			formData.name &&
-			formData.target &&
-			!(formData.filters || []).some((f) => !f.value || f.value === "")
-		);
+		if (!formData) return false;
+		const hasEmptyFilter = formData.filters.some((f) => !f.value);
+		return formData.name && formData.target && !hasEmptyFilter;
 	}, [formData]);
 
-	const getGoalIcon = (type: string) => {
-		switch (type) {
-			case "PAGE_VIEW":
-				return <Eye className="text-foreground" size={16} weight="duotone" />;
-			case "EVENT":
-				return (
-					<MouseMiddleClick
-						className="text-green-600"
-						size={16}
-						weight="duotone"
-					/>
-				);
-			default:
-				return (
-					<Target
-						className="text-muted-foreground"
-						size={16}
-						weight="duotone"
-					/>
-				);
-		}
-	};
-
-	if (!formData) {
-		return null;
-	}
+	if (!formData) return null;
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
-			<SheetContent
-				className="w-full overflow-y-auto p-4 sm:w-[60vw] sm:max-w-[1200px]"
-				side="right"
-			>
-				<SheetHeader className="space-y-3 border-border/50 border-b pb-6">
-					<div className="flex items-center gap-3">
-						<div className="rounded-xl border border-accent bg-accent/50 p-3">
-							{isCreateMode ? (
-								<Target
-									className="size-6 text-accent-foreground"
-									size={16}
-									weight="duotone"
-								/>
-							) : (
-								<PencilIcon
-									className="size-6 text-accent-foreground"
-									size={16}
-									weight="duotone"
-								/>
-							)}
+			<SheetContent side="right">
+				<SheetHeader>
+					<div className="flex items-start gap-4">
+						<div className="flex size-11 items-center justify-center rounded border bg-background">
+							<Target
+								className="text-accent-foreground"
+								size={22}
+								weight="fill"
+							/>
 						</div>
-						<div>
-							<SheetTitle className="font-semibold text-foreground text-xl">
-								{isCreateMode ? "Create New Goal" : "Edit Goal"}
+						<div className="min-w-0 flex-1">
+							<SheetTitle className="truncate text-lg">
+								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
 							</SheetTitle>
-							<SheetDescription className="mt-1 text-muted-foreground">
+							<SheetDescription className="text-xs">
 								{isCreateMode
-									? "Set up a new goal to track single-step conversions"
-									: "Update goal configuration and tracking settings"}
+									? "Track single-step conversions"
+									: "Update goal settings"}
 							</SheetDescription>
 						</div>
 					</div>
 				</SheetHeader>
 
-				<div className="space-y-6 pt-6">
-					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+				<SheetBody className="space-y-6">
+					{/* Basic Info */}
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
-							<Label
-								className="font-medium text-foreground text-sm"
-								htmlFor="edit-name"
-							>
-								Goal Name
-							</Label>
+							<Label htmlFor="goal-name">Name</Label>
 							<Input
-								className="rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50 focus:ring-primary/20"
-								id="edit-name"
-								onChange={(e) =>
-									setFormData((prev) =>
-										prev ? { ...prev, name: e.target.value } : prev
-									)
-								}
+								id="goal-name"
+								onChange={(e) => updateField("name", e.target.value)}
 								placeholder="e.g., Newsletter Signup"
 								value={formData.name}
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label
-								className="font-medium text-foreground text-sm"
-								htmlFor="edit-description"
-							>
-								Description
-							</Label>
+							<Label htmlFor="goal-description">Description</Label>
 							<Input
-								className="rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50 focus:ring-primary/20"
-								id="edit-description"
-								onChange={(e) =>
-									setFormData((prev) =>
-										prev ? { ...prev, description: e.target.value } : prev
-									)
-								}
-								placeholder="Optional description"
+								id="goal-description"
+								onChange={(e) => updateField("description", e.target.value)}
+								placeholder="Optional"
 								value={formData.description || ""}
 							/>
 						</div>
 					</div>
 
-					<div className="space-y-4">
-						<div className="flex items-center gap-2">
-							<Target
-								className="h-5 w-5 text-primary"
-								size={16}
-								weight="duotone"
-							/>
-							<Label className="font-semibold text-base text-foreground">
-								Goal Target
-							</Label>
-						</div>
+					{/* Goal Target Section */}
+					<section className="space-y-3">
+						<Label className="text-muted-foreground text-xs">Goal Target</Label>
 
-						<div className="group flex items-center gap-4 rounded-xl border p-4 transition-all duration-200 hover:border-primary/30 hover:bg-accent/5 hover:shadow-sm">
-							{/* Goal Number */}
-							<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary/20 bg-gradient-to-br from-primary to-primary/80 font-semibold text-primary-foreground text-sm shadow-sm transition-all duration-200 group-hover:shadow-md">
+						<div className="flex items-center gap-2 rounded border bg-card p-2.5">
+							{/* Step number */}
+							<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground font-semibold text-accent text-xs">
 								1
 							</div>
 
-							{/* Goal Icon */}
-							<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 transition-all duration-200 group-hover:bg-muted/70">
-								{getGoalIcon(formData?.type || "PAGE_VIEW")}
-							</div>
-
-							{/* Goal Fields */}
-							<div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
+							{/* Goal fields */}
+							<div className="flex flex-1 gap-2">
 								<Select
-									onValueChange={(value) => updateGoal("type", value)}
-									value={formData?.type}
+									onValueChange={(value) => updateField("type", value)}
+									value={formData.type}
 								>
-									<SelectTrigger className="rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50">
+									<SelectTrigger className="h-8 w-28 shrink-0 text-xs">
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent className="rounded-lg">
-										<SelectItem value="PAGE_VIEW">
-											<div className="flex items-center gap-2">
-												<Eye
-													className="text-foreground"
-													size={14}
-													weight="duotone"
-												/>
-												Page View
-											</div>
-										</SelectItem>
-										<SelectItem value="EVENT">
-											<div className="flex items-center gap-2">
-												<MouseMiddleClick
-													className="text-green-600"
-													size={14}
-													weight="duotone"
-												/>
-												Event
-											</div>
-										</SelectItem>
+									<SelectContent>
+										<SelectItem value="PAGE_VIEW">Page View</SelectItem>
+										<SelectItem value="EVENT">Event</SelectItem>
 									</SelectContent>
 								</Select>
 								<AutocompleteInput
-									className="rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50 focus:ring-primary/20"
-									onValueChange={(value) => updateGoal("target", value)}
+									className="flex-1"
+									inputClassName="h-8 text-xs"
+									onValueChange={(value) => updateField("target", value)}
 									placeholder={
-										formData?.type === "PAGE_VIEW" ? "/path" : "event_name"
+										formData.type === "PAGE_VIEW" ? "/path" : "event_name"
 									}
-									suggestions={getStepSuggestions(
-										formData?.type || "PAGE_VIEW"
-									)}
-									value={formData?.target || ""}
-								/>
-								<Input
-									className="rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50 focus:ring-primary/20"
-									onChange={(e) => updateGoal("name", e.target.value)}
-									placeholder="Goal name"
-									value={formData?.name || ""}
+									suggestions={getTargetSuggestions(formData.type)}
+									value={formData.target}
 								/>
 							</div>
 						</div>
-					</div>
+					</section>
 
-					<div className="space-y-4">
-						<div className="flex items-center gap-2">
-							<Target
-								className="h-5 w-5 text-primary"
-								size={16}
-								weight="duotone"
+					{/* Settings Section */}
+					<section className="space-y-3">
+						<Label className="text-muted-foreground text-xs">Settings</Label>
+						<div className="flex items-center justify-between rounded border bg-card p-3">
+							<div className="space-y-0.5">
+								<Label
+									className="font-medium text-sm"
+									htmlFor="ignore-historic"
+								>
+									Ignore historic data
+								</Label>
+								<p className="text-muted-foreground text-xs">
+									Only count events after this goal was created
+								</p>
+							</div>
+							<Switch
+								checked={formData.ignoreHistoricData ?? false}
+								id="ignore-historic"
+								onCheckedChange={(checked) =>
+									setFormData((prev) =>
+										prev ? { ...prev, ignoreHistoricData: checked } : prev
+									)
+								}
 							/>
-							<Label className="font-semibold text-base text-foreground">
-								Filters
-							</Label>
-							<span className="text-muted-foreground text-xs">(optional)</span>
 						</div>
+					</section>
 
-						{formData.filters && formData.filters.length > 0 && (
-							<div className="space-y-3">
+					{/* Filters Section */}
+					<section className="space-y-3">
+						<Label className="text-muted-foreground text-xs">
+							Filters (Optional)
+						</Label>
+
+						{formData.filters.length > 0 && (
+							<div className="space-y-2">
 								{formData.filters.map((filter, index) => (
 									<div
-										className="group flex items-center gap-3 rounded-lg border bg-muted/30 p-3 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm"
-										key={`filter-${index}-${filter.field}-${filter.operator}`}
+										className="flex items-center gap-2 rounded border bg-card p-2.5"
+										key={`filter-${index}`}
 									>
 										<Select
 											onValueChange={(value) =>
@@ -397,10 +317,10 @@ export function EditGoalDialog({
 											}
 											value={filter.field}
 										>
-											<SelectTrigger className="w-40 rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50">
+											<SelectTrigger className="h-8 w-28 text-xs">
 												<SelectValue />
 											</SelectTrigger>
-											<SelectContent className="rounded-lg">
+											<SelectContent>
 												{filterOptions.map((option) => (
 													<SelectItem key={option.value} value={option.value}>
 														{option.label}
@@ -413,13 +333,13 @@ export function EditGoalDialog({
 											onValueChange={(value) =>
 												updateFilter(index, "operator", value)
 											}
-											value={filter.operator}
+											value={filter.operator || "equals"}
 										>
-											<SelectTrigger className="w-32 rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50">
-												<SelectValue />
+											<SelectTrigger className="h-8 w-24 text-xs">
+												<SelectValue placeholder="equals" />
 											</SelectTrigger>
-											<SelectContent className="rounded-lg">
-												{operatorOptions.map((option) => (
+											<SelectContent>
+												{goalFunnelOperatorOptions.map((option) => (
 													<SelectItem key={option.value} value={option.value}>
 														{option.label}
 													</SelectItem>
@@ -428,22 +348,23 @@ export function EditGoalDialog({
 										</Select>
 
 										<AutocompleteInput
-											className="flex-1 rounded-lg border-border/50 transition-all duration-200 hover:border-border focus:border-primary/50 focus:ring-primary/20"
+											className="h-10 flex-1"
+											inputClassName="text-xs"
 											onValueChange={(value) =>
 												updateFilter(index, "value", value)
 											}
-											placeholder="Filter value"
+											placeholder="Value"
 											suggestions={getSuggestions(filter.field)}
 											value={(filter.value as string) || ""}
 										/>
 
 										<Button
-											className="h-8 w-8 rounded-lg p-0 transition-all duration-200 hover:scale-105 hover:bg-destructive/10 hover:text-destructive"
+											className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
 											onClick={() => removeFilter(index)}
-											size="sm"
+											size="icon"
 											variant="ghost"
 										>
-											<TrashIcon className="h-4 w-4" size={16} />
+											<TrashIcon size={14} />
 										</Button>
 									</div>
 								))}
@@ -451,51 +372,34 @@ export function EditGoalDialog({
 						)}
 
 						<Button
-							className="group rounded-lg border-2 border-primary/30 border-dashed transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
+							className="w-full"
 							onClick={() => addFilter()}
 							size="sm"
-							type="button"
 							variant="outline"
 						>
-							<PlusIcon
-								className="mr-2 h-4 w-4 transition-transform duration-300 group-hover:rotate-90"
-								size={16}
-							/>
+							<PlusIcon size={14} />
 							Add Filter
 						</Button>
-					</div>
+					</section>
+				</SheetBody>
 
-					<div className="flex justify-end gap-3 border-border/50 border-t pt-6">
-						<Button
-							className="rounded-lg transition-all duration-200 hover:bg-muted"
-							onClick={handleClose}
-							type="button"
-							variant="outline"
-						>
-							Cancel
-						</Button>
-						<Button
-							className="relative rounded-lg bg-linear-to-r from-primary to-primary/90 shadow-lg transition-all duration-200 hover:from-primary/90 hover:to-primary hover:shadow-xl"
-							disabled={!isFormValid || isSaving}
-							onClick={handleSubmit}
-						>
-							{isSaving && (
-								<div className="absolute left-3">
-									<div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-								</div>
-							)}
-							<span className={isSaving ? "ml-6" : ""}>
-								{isCreateMode
-									? isSaving
-										? "Creating..."
-										: "Create Goal"
-									: isSaving
-										? "Updating..."
-										: "Update Goal"}
-							</span>
-						</Button>
-					</div>
-				</div>
+				<SheetFooter>
+					<Button onClick={handleClose} variant="ghost">
+						Cancel
+					</Button>
+					<Button disabled={!isFormValid || isSaving} onClick={handleSubmit}>
+						{isSaving ? (
+							<>
+								<div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+								{isCreateMode ? "Creating…" : "Saving…"}
+							</>
+						) : isCreateMode ? (
+							"Create Goal"
+						) : (
+							"Save Changes"
+						)}
+					</Button>
+				</SheetFooter>
 			</SheetContent>
 		</Sheet>
 	);

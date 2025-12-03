@@ -1,4 +1,7 @@
-import { getCountryCode, getCountryName } from "@databuddy/shared/country-codes";
+import {
+	getCountryCode,
+	getCountryName,
+} from "@databuddy/shared/country-codes";
 import { referrers } from "@databuddy/shared/lists/referrers";
 import { mapScreenResolutionToDeviceType } from "./screen-resolution-to-device-type";
 import type { SimpleQueryConfig } from "./types";
@@ -24,11 +27,17 @@ function shouldParseReferrers(config: SimpleQueryConfig): boolean {
 	if (config.plugins?.parseReferrers) {
 		return true;
 	}
-	const name = (config as { type?: string; name?: string }).type || (config as { type?: string; name?: string }).name;
+	const name =
+		(config as { type?: string; name?: string }).type ||
+		(config as { type?: string; name?: string }).name;
 	return name ? REFERRER_QUERY_TYPES.includes(name) : false;
 }
 
-export function applyPlugins(data: DataRow[], config: SimpleQueryConfig, websiteDomain?: string | null): DataRow[] {
+export function applyPlugins(
+	data: DataRow[],
+	config: SimpleQueryConfig,
+	websiteDomain?: string | null
+): DataRow[] {
 	let result = data;
 
 	if (shouldParseReferrers(config)) {
@@ -38,7 +47,12 @@ export function applyPlugins(data: DataRow[], config: SimpleQueryConfig, website
 				return row;
 			}
 			const parsed = parseReferrer(url, websiteDomain);
-			return { ...row, name: parsed.name, referrer: url, domain: parsed.domain };
+			return {
+				...row,
+				name: parsed.name,
+				referrer: url,
+				domain: parsed.domain,
+			};
 		});
 	}
 
@@ -64,17 +78,25 @@ export function applyPlugins(data: DataRow[], config: SimpleQueryConfig, website
 	}
 
 	if (config.plugins?.deduplicateGeo) {
-		result = aggregateByKey(result, (r) => r.country_code || toStringFn(r.name));
+		result = aggregateByKey(
+			result,
+			(r) => r.country_code || toStringFn(r.name)
+		);
 	}
 
 	if (config.plugins?.mapDeviceTypes) {
-		result = aggregateByKey(result, (r) => mapScreenResolutionToDeviceType(toStringFn(r.name)));
+		result = aggregateByKey(result, (r) =>
+			mapScreenResolutionToDeviceType(toStringFn(r.name))
+		);
 	}
 
 	return result;
 }
 
-function aggregateByKey(rows: DataRow[], getKey: (row: DataRow) => string): DataRow[] {
+function aggregateByKey(
+	rows: DataRow[],
+	getKey: (row: DataRow) => string
+): DataRow[] {
 	const grouped = new Map<string, DataRow>();
 
 	for (const row of rows) {
@@ -85,7 +107,8 @@ function aggregateByKey(rows: DataRow[], getKey: (row: DataRow) => string): Data
 
 		const existing = grouped.get(key);
 		if (existing) {
-			existing.pageviews = toNumber(existing.pageviews) + toNumber(row.pageviews);
+			existing.pageviews =
+				toNumber(existing.pageviews) + toNumber(row.pageviews);
 			existing.visitors = toNumber(existing.visitors) + toNumber(row.visitors);
 		} else {
 			grouped.set(key, { ...row, name: key });
@@ -96,7 +119,10 @@ function aggregateByKey(rows: DataRow[], getKey: (row: DataRow) => string): Data
 	const total = result.reduce((sum, r) => sum + toNumber(r.visitors), 0);
 
 	for (const row of result) {
-		row.percentage = total > 0 ? Math.round((toNumber(row.visitors) / total) * 10_000) / 100 : 0;
+		row.percentage =
+			total > 0
+				? Math.round((toNumber(row.visitors) / total) * 10_000) / 100
+				: 0;
 	}
 
 	return result.sort((a, b) => toNumber(b.visitors) - toNumber(a.visitors));
@@ -109,16 +135,27 @@ function parseReferrer(referrerUrl: string, currentDomain?: string | null) {
 		const url = new URL(referrerUrl);
 		const hostname = url.hostname;
 
-		if (currentDomain && (hostname === currentDomain || hostname.endsWith(`.${currentDomain}`))) {
+		if (
+			currentDomain &&
+			(hostname === currentDomain || hostname.endsWith(`.${currentDomain}`))
+		) {
 			return direct;
 		}
 
 		const match = lookupReferrer(hostname);
 		if (match) {
-			return { type: match.type, name: match.name, url: referrerUrl, domain: hostname };
+			return {
+				type: match.type,
+				name: match.name,
+				url: referrerUrl,
+				domain: hostname,
+			};
 		}
 
-		const hasSearchParam = url.searchParams.has("q") || url.searchParams.has("query") || url.searchParams.has("search");
+		const hasSearchParam =
+			url.searchParams.has("q") ||
+			url.searchParams.has("query") ||
+			url.searchParams.has("search");
 		return {
 			type: hasSearchParam ? "search" : "unknown",
 			name: hostname,

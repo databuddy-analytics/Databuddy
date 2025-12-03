@@ -88,9 +88,9 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 							onClick={toggleMobileMenu}
 							type="button"
 						>
-							<div className="relative h-6 w-6">
+							<div className="relative size-6">
 								<ListIcon
-									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
+									className={`absolute inset-0 size-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
 											? "rotate-90 scale-90 opacity-0"
 											: "rotate-0 scale-100 opacity-100"
@@ -98,7 +98,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 									weight="duotone"
 								/>
 								<XIcon
-									className={`absolute inset-0 h-6 w-6 transition-all duration-300 ease-out ${
+									className={`absolute inset-0 size-6 transition-all duration-300 ease-out ${
 										isMobileMenuOpen
 											? "rotate-0 scale-100 opacity-100"
 											: "-rotate-90 scale-90 opacity-0"
@@ -134,7 +134,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 									>
 										<div className="flex items-center gap-2">
 											<section.Icon
-												className="h-4 w-4 text-foreground"
+												className="size-4 text-foreground"
 												weight="duotone"
 											/>
 											<h3 className="font-medium text-foreground text-sm">
@@ -148,7 +148,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 											transition={{ duration: 0.2 }}
 										>
 											<CaretDownIcon
-												className="h-4 w-4 text-muted-foreground"
+												className="size-4 text-muted-foreground"
 												weight="duotone"
 											/>
 										</motion.div>
@@ -188,7 +188,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 																>
 																	<div className="flex items-center gap-2">
 																		<item.icon
-																			className="h-4 w-4 shrink-0"
+																			className="size-4 shrink-0"
 																			weight="duotone"
 																		/>
 																		<span>{item.title}</span>

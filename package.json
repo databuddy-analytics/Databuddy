@@ -45,8 +45,8 @@
       "packages/*"
     ],
     "catalog": {
-      "react": "19.0.0",
-      "react-dom": "19.0.0",
+      "react": "19.2.1",
+      "react-dom": "19.2.1",
       "next": "^15.3.4",
       "typescript": "^5.9.3",
       "zod": "4.1.12",
@@ -77,8 +77,8 @@
       "@logtail/pino": "^0.5.5",
       "@biomejs/biome": "2.2.2",
       "@types/bun": "latest",
-      "@types/react": "19.0.0",
-      "@types/react-dom": "19.0.0",
+      "@types/react": "19.2.1",
+      "@types/react-dom": "19.2.1",
       "bun-types": "latest",
       "ultracite": "5.3.10",
       "turbo": "^2.5.2",
@@ -99,6 +99,7 @@
     "pg": "^8.16.3",
     "pg-pool": "^3.10.1",
     "prettier": "^3.6.2",
+    "react-hotkeys-hook": "^5.2.1",
     "zod": "^4.1.13"
   }
 }

@@ -34,10 +34,10 @@ function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
 		>
 			<FaviconImage
 				altText={`${website.name} favicon`}
-				className="h-6 w-6 shrink-0"
+				className="size-6 shrink-0"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="flex h-6 w-6 items-center justify-center rounded bg-secondary">
+					<div className="flex size-6 items-center justify-center rounded bg-secondary">
 						<GlobeIcon className="text-accent-foreground" size={12} />
 					</div>
 				}
@@ -198,7 +198,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 					variant={selectedWebsite && selectedSide ? "default" : "outline"}
 				>
 					{isTransferring ? (
-						<div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+						<div className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
 					) : (
 						<ArrowRightIcon
 							className={cn(
@@ -224,7 +224,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 						({organizationWebsites.length})
 					</span>
 				</div>
-				<div className="flex-1 space-y-1 overflow-y-auto">
+				<div className="flex-1 space-y-2 overflow-y-auto">
 					{organizationWebsites.length > 0 ? (
 						organizationWebsites.map((website) => (
 							<WebsiteItem

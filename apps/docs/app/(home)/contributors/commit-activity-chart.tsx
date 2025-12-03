@@ -61,7 +61,7 @@ const CustomTooltip = ({
 						key={entry.name}
 					>
 						<div className="flex items-center gap-2">
-							<div className="h-2 w-2 rounded-full bg-blue-500" />
+							<div className="size-2 rounded-full bg-blue-500" />
 							<span className="text-muted-foreground text-xs">Commits</span>
 						</div>
 						<span className="font-mono font-semibold text-foreground text-sm">

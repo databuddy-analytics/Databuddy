@@ -48,7 +48,14 @@ export const webVitalsEventSchema = z.object({
 });
 
 // New format (v2.x): individual vital metrics
-const webVitalMetricNames = ["FCP", "LCP", "CLS", "INP", "TTFB", "FPS"] as const;
+const webVitalMetricNames = [
+	"FCP",
+	"LCP",
+	"CLS",
+	"INP",
+	"TTFB",
+	"FPS",
+] as const;
 
 export const individualVitalSchema = z.object({
 	timestamp: timestampSchema,

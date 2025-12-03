@@ -93,5 +93,4 @@ test.describe("Network & Batching", () => {
 		expect(payload.find((e: any) => e.name === "event1")).toBeTruthy();
 		expect(payload.find((e: any) => e.name === "event2")).toBeTruthy();
 	});
-
 });

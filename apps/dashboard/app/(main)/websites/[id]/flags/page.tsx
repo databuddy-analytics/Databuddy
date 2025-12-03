@@ -30,14 +30,14 @@ const FlagsListSkeleton = () => (
 						<div className="flex-1 space-y-3">
 							<div className="flex items-center gap-3">
 								<div className="h-6 w-48 rounded-lg bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
+								<div className="size-4 rounded bg-muted" />
 							</div>
 							<div className="flex items-center gap-3">
 								<div className="h-5 w-16 rounded-full bg-muted" />
 								<div className="h-4 w-20 rounded bg-muted" />
 							</div>
 						</div>
-						<div className="h-8 w-8 rounded bg-muted" />
+						<div className="size-8 rounded bg-muted" />
 					</div>
 					<div className="space-y-3">
 						<div className="h-4 w-2/3 rounded bg-muted" />
@@ -45,7 +45,7 @@ const FlagsListSkeleton = () => (
 							<div className="mb-2 h-3 w-24 rounded bg-muted" />
 							<div className="flex gap-2">
 								<div className="h-8 w-32 rounded-lg bg-muted" />
-								<div className="h-4 w-4 rounded bg-muted" />
+								<div className="size-4 rounded bg-muted" />
 								<div className="h-8 w-28 rounded-lg bg-muted" />
 							</div>
 						</div>
@@ -108,7 +108,7 @@ export default function FlagsPage() {
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-2">
 							<FlagIcon
-								className="h-5 w-5 text-red-600"
+								className="size-5 text-red-600"
 								size={16}
 								weight="duotone"
 							/>
@@ -140,7 +140,7 @@ export default function FlagsPage() {
 				isLoading={isLoading}
 				isRefreshing={isRefreshing}
 				onCreateAction={handleCreateFlag}
-				onRefresh={handleRefresh}
+				onRefreshAction={handleRefresh}
 				subtitle={
 					isLoading
 						? undefined
@@ -150,7 +150,7 @@ export default function FlagsPage() {
 				websiteId={websiteId}
 				websiteName={website?.name || undefined}
 			/>
-			<div className="space-y-4 p-4 h-full">
+			<div className="h-full space-y-4 p-4">
 				{experimentFlag.isReady && flags && flags.length > 0 && (
 					<div className="flex items-center gap-2">
 						<FlagIcon
@@ -166,7 +166,7 @@ export default function FlagsPage() {
 						)}
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<InfoIcon className="h-4 w-4" weight="duotone" />
+								<InfoIcon className="size-4" weight="duotone" />
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
 								<div className="space-y-2">

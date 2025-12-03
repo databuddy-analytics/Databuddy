@@ -118,7 +118,7 @@ export function OrganizationProvider({
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-3 sm:gap-4">
 								<div className="rounded border border-accent bg-accent/50 p-2 sm:p-3">
-									<Skeleton className="h-5 w-5 sm:h-6 sm:w-6" />
+									<Skeleton className="size-5 sm:h-6 sm:w-6" />
 								</div>
 								<div>
 									<Skeleton className="h-6 w-32 sm:h-8 sm:w-48" />

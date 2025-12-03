@@ -13,7 +13,7 @@ export function LogoContent() {
 		<div className="group flex items-center gap-3">
 			<div className="relative shrink-0">
 				<Image
-					alt="DataBuddy Logo"
+					alt="Databuddy Logo"
 					className="drop-shadow-sm invert dark:invert-0"
 					height={32}
 					priority
@@ -39,7 +39,7 @@ export function Logo() {
 		<Link className="flex items-center gap-3" href="/">
 			<div className="relative shrink-0">
 				<Image
-					alt="DataBuddy Logo"
+					alt="Databuddy Logo"
 					className="drop-shadow-sm invert dark:invert-0"
 					height={32}
 					priority

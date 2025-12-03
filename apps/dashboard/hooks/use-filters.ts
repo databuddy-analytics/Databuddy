@@ -9,12 +9,25 @@ export const operatorOptions = [
 	{ value: "starts_with", label: "starts with" },
 ] as const;
 
+// Operator options for GoalFilter and FunnelFilter
+export const goalFunnelOperatorOptions = [
+	{ value: "equals", label: "equals" },
+	{ value: "not_equals", label: "does not equal" },
+	{ value: "contains", label: "contains" },
+	{ value: "in", label: "in" },
+	{ value: "not_in", label: "not in" },
+] as const;
+
 export const operatorLabels: Record<string, string> = {
 	eq: "=",
 	ne: "≠",
 	contains: "contains",
 	not_contains: "doesn't contain",
 	starts_with: "starts with",
+	equals: "=",
+	not_equals: "≠",
+	in: "in",
+	not_in: "not in",
 };
 
 export function getOperatorLabel(operator: string): string {
@@ -40,11 +53,20 @@ export function useFilters<T extends BaseFilterType>({
 }: UseFiltersProps<T>) {
 	const addFilter = useCallback(
 		(filter?: T) => {
-			if (filter) {
-				onFiltersChange([...filters, filter]);
-			} else if (defaultFilter) {
-				onFiltersChange([...filters, defaultFilter]);
-			}
+			const newFilter = filter || defaultFilter;
+			if (!newFilter) return;
+
+			// Check for duplicates: same field, operator, and value
+			const isDuplicate = filters.some(
+				(f) =>
+					f.field === newFilter.field &&
+					f.operator === newFilter.operator &&
+					JSON.stringify(f.value) === JSON.stringify(newFilter.value)
+			);
+
+			if (isDuplicate) return;
+
+			onFiltersChange([...filters, newFilter]);
 		},
 		[filters, onFiltersChange, defaultFilter]
 	);

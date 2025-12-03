@@ -5,7 +5,7 @@ export type DateRange = {
 	end_date: string;
 	granularity?: "hourly" | "daily";
 	timezone?: string;
-}
+};
 
 // Base interface for common session/profile structure
 export type BaseSessionData = {
@@ -58,4 +58,4 @@ export type SummaryMetricsData = {
 	avg_session_duration: number;
 	avg_session_duration_formatted: string;
 	pages_per_session: number;
-}
+};

@@ -31,7 +31,11 @@ type AuthContext = {
 };
 
 const AUTH_FAILED = new Response(
-	JSON.stringify({ success: false, error: "Authentication required", code: "AUTH_REQUIRED" }),
+	JSON.stringify({
+		success: false,
+		error: "Authentication required",
+		code: "AUTH_REQUIRED",
+	}),
 	{ status: 401, headers: { "Content-Type": "application/json" } }
 );
 
@@ -48,7 +52,12 @@ function getAccessibleWebsites(authCtx: AuthContext) {
 		return db
 			.select(select)
 			.from(websites)
-			.where(and(eq(websites.userId, authCtx.user.id), isNull(websites.organizationId)))
+			.where(
+				and(
+					eq(websites.userId, authCtx.user.id),
+					isNull(websites.organizationId)
+				)
+			)
 			.orderBy((t) => t.createdAt);
 	}
 
@@ -57,16 +66,27 @@ function getAccessibleWebsites(authCtx: AuthContext) {
 			const filter = authCtx.apiKey.organizationId
 				? eq(websites.organizationId, authCtx.apiKey.organizationId)
 				: authCtx.apiKey.userId
-					? and(eq(websites.userId, authCtx.apiKey.userId), isNull(websites.organizationId))
+					? and(
+							eq(websites.userId, authCtx.apiKey.userId),
+							isNull(websites.organizationId)
+						)
 					: eq(websites.id, "");
-			return db.select(select).from(websites).where(filter).orderBy((t) => t.createdAt);
+			return db
+				.select(select)
+				.from(websites)
+				.where(filter)
+				.orderBy((t) => t.createdAt);
 		}
 
 		const ids = getAccessibleWebsiteIds(authCtx.apiKey);
 		if (ids.length === 0) {
 			return [];
 		}
-		return db.select(select).from(websites).where(inArray(websites.id, ids)).orderBy((t) => t.createdAt);
+		return db
+			.select(select)
+			.from(websites)
+			.where(inArray(websites.id, ids))
+			.orderBy((t) => t.createdAt);
 	}
 
 	return [];
@@ -74,24 +94,46 @@ function getAccessibleWebsites(authCtx: AuthContext) {
 
 const MS_PER_DAY = 86_400_000;
 
-function getTimeUnit(granularity?: string, from?: string, to?: string): "hour" | "day" {
+function getTimeUnit(
+	granularity?: string,
+	from?: string,
+	to?: string
+): "hour" | "day" {
 	const isHourly = granularity === "hourly" || granularity === "hour";
 	if (isHourly && from && to) {
-		const days = Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / MS_PER_DAY);
+		const days = Math.ceil(
+			(new Date(to).getTime() - new Date(from).getTime()) / MS_PER_DAY
+		);
 		if (days > MAX_HOURLY_DAYS) {
-			throw new Error(`Hourly granularity only supports up to ${MAX_HOURLY_DAYS} days`);
+			throw new Error(
+				`Hourly granularity only supports up to ${MAX_HOURLY_DAYS} days`
+			);
 		}
 	}
 	return isHourly ? "hour" : "day";
 }
 
-type ParamInput = string | { name: string; start_date?: string; end_date?: string; granularity?: string; id?: string };
+type ParamInput =
+	| string
+	| {
+			name: string;
+			start_date?: string;
+			end_date?: string;
+			granularity?: string;
+			id?: string;
+	  };
 
 function parseParam(p: ParamInput) {
 	if (typeof p === "string") {
 		return { name: p, id: p };
 	}
-	return { name: p.name, id: p.id || p.name, start: p.start_date, end: p.end_date, granularity: p.granularity };
+	return {
+		name: p.name,
+		id: p.id || p.name,
+		start: p.start_date,
+		end: p.end_date,
+		granularity: p.granularity,
+	};
 }
 
 export const query = new Elysia({ prefix: "/v1/query" })
@@ -124,33 +166,57 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		})
 	)
 
-	.get("/types", ({ query: params, auth: ctx }: { query: { include_meta?: string }; auth: AuthContext }) => {
-		if (!ctx.isAuthenticated) {
-			return AUTH_FAILED;
+	.get(
+		"/types",
+		({
+			query: params,
+			auth: ctx,
+		}: {
+			query: { include_meta?: string };
+			auth: AuthContext;
+		}) => {
+			if (!ctx.isAuthenticated) {
+				return AUTH_FAILED;
+			}
+			const includeMeta = params.include_meta === "true";
+			const configs = Object.fromEntries(
+				Object.entries(QueryBuilders).map(([key, cfg]) => [
+					key,
+					{
+						allowedFilters:
+							cfg.allowedFilters ?? filterOptions.map((f) => f.value),
+						customizable: cfg.customizable,
+						defaultLimit: cfg.limit,
+						...(includeMeta && { meta: cfg.meta }),
+					},
+				])
+			);
+			return { success: true, types: Object.keys(QueryBuilders), configs };
 		}
-		const includeMeta = params.include_meta === "true";
-		const configs = Object.fromEntries(
-			Object.entries(QueryBuilders).map(([key, cfg]) => [
-				key,
-				{
-					allowedFilters: cfg.allowedFilters ?? filterOptions.map((f) => f.value),
-					customizable: cfg.customizable,
-					defaultLimit: cfg.limit,
-					...(includeMeta && { meta: cfg.meta }),
-				},
-			])
-		);
-		return { success: true, types: Object.keys(QueryBuilders), configs };
-	})
+	)
 
 	.post(
 		"/compile",
-		async ({ body, query: q }: { body: CompileRequestType; query: { website_id?: string; timezone?: string } }) => {
+		async ({
+			body,
+			query: q,
+		}: {
+			body: CompileRequestType;
+			query: { website_id?: string; timezone?: string };
+		}) => {
 			try {
-				const domain = q.website_id ? await getWebsiteDomain(q.website_id) : null;
-				return { success: true, ...compileQuery(body as QueryRequest, domain, q.timezone || "UTC") };
+				const domain = q.website_id
+					? await getWebsiteDomain(q.website_id)
+					: null;
+				return {
+					success: true,
+					...compileQuery(body as QueryRequest, domain, q.timezone || "UTC"),
+				};
 			} catch (e) {
-				return { success: false, error: e instanceof Error ? e.message : "Compilation failed" };
+				return {
+					success: false,
+					error: e instanceof Error ? e.message : "Compilation failed",
+				};
 			}
 		},
 		{ body: CompileRequestSchema }
@@ -158,29 +224,53 @@ export const query = new Elysia({ prefix: "/v1/query" })
 
 	.post(
 		"/",
-		({ body, query: q }: { body: DynamicQueryRequestType | DynamicQueryRequestType[]; query: { website_id?: string; timezone?: string } }) =>
+		({
+			body,
+			query: q,
+		}: {
+			body: DynamicQueryRequestType | DynamicQueryRequestType[];
+			query: { website_id?: string; timezone?: string };
+		}) =>
 			record("executeQuery", async () => {
 				const tz = q.timezone || "UTC";
 				const isBatch = Array.isArray(body);
-				setAttributes({ "query.is_batch": isBatch, "query.count": isBatch ? body.length : 1 });
+				setAttributes({
+					"query.is_batch": isBatch,
+					"query.count": isBatch ? body.length : 1,
+				});
 
 				if (isBatch) {
 					const cache = await getCachedWebsiteDomain([]);
 					const results = await Promise.all(
-						body.map((req) => runDynamicQuery(req, q.website_id, tz, cache).catch((e) => ({
-							success: false,
-							error: e instanceof Error ? e.message : "Query failed",
-						})))
+						body.map((req) =>
+							runDynamicQuery(req, q.website_id, tz, cache).catch((e) => ({
+								success: false,
+								error: e instanceof Error ? e.message : "Query failed",
+							}))
+						)
 					);
 					return { success: true, batch: true, results };
 				}
 
-				return { success: true, ...(await runDynamicQuery(body, q.website_id, tz)) };
+				return {
+					success: true,
+					...(await runDynamicQuery(body, q.website_id, tz)),
+				};
 			}),
-		{ body: t.Union([DynamicQueryRequestSchema, t.Array(DynamicQueryRequestSchema)]) }
+		{
+			body: t.Union([
+				DynamicQueryRequestSchema,
+				t.Array(DynamicQueryRequestSchema),
+			]),
+		}
 	);
 
-type QueryResult = { parameter: string; success: boolean; data: Record<string, unknown>[]; error?: string };
+type QueryResult = {
+	parameter: string;
+	success: boolean;
+	data: Record<string, unknown>[];
+	error?: string;
+};
 
 async function runDynamicQuery(
 	req: DynamicQueryRequestType,
@@ -190,7 +280,9 @@ async function runDynamicQuery(
 ) {
 	const from = req.startDate;
 	const to = req.endDate;
-	const domain = websiteId ? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId))) : null;
+	const domain = websiteId
+		? (domainCache?.[websiteId] ?? (await getWebsiteDomain(websiteId)))
+		: null;
 
 	type PreparedItem =
 		| { id: string; error: string }
@@ -215,7 +307,11 @@ async function runDynamicQuery(
 				type: name,
 				from: paramFrom,
 				to: paramTo,
-				timeUnit: getTimeUnit(granularity || req.granularity, paramFrom, paramTo),
+				timeUnit: getTimeUnit(
+					granularity || req.granularity,
+					paramFrom,
+					paramTo
+				),
 				filters: (req.filters || []) as Filter[],
 				limit: req.limit || 100,
 				offset: req.page ? (req.page - 1) * (req.limit || 100) : 0,
@@ -224,13 +320,23 @@ async function runDynamicQuery(
 		};
 	});
 
-	const valid = prepared.filter((p): p is { id: string; request: QueryRequest & { type: string } } => "request" in p);
-	const errors = prepared.filter((p): p is { id: string; error: string } => "error" in p);
+	const valid = prepared.filter(
+		(p): p is { id: string; request: QueryRequest & { type: string } } =>
+			"request" in p
+	);
+	const errors = prepared.filter(
+		(p): p is { id: string; error: string } => "error" in p
+	);
 
 	const resultMap = new Map<string, QueryResult>();
 
 	for (const e of errors) {
-		resultMap.set(e.id, { parameter: e.id, success: false, error: e.error, data: [] });
+		resultMap.set(e.id, {
+			parameter: e.id,
+			success: false,
+			error: e.error,
+			data: [],
+		});
 	}
 
 	if (valid.length > 0) {
@@ -242,14 +348,27 @@ async function runDynamicQuery(
 			const v = valid[i];
 			const r = results[i];
 			if (v) {
-				resultMap.set(v.id, { parameter: v.id, success: !r?.error, data: r?.data || [], error: r?.error });
+				resultMap.set(v.id, {
+					parameter: v.id,
+					success: !r?.error,
+					data: r?.data || [],
+					error: r?.error,
+				});
 			}
 		}
 	}
 
 	return {
 		queryId: req.id,
-		data: prepared.map((p) => resultMap.get(p.id) || { parameter: p.id, success: false, error: "Unknown", data: [] }),
+		data: prepared.map(
+			(p) =>
+				resultMap.get(p.id) || {
+					parameter: p.id,
+					success: false,
+					error: "Unknown",
+					data: [],
+				}
+		),
 		meta: {
 			parameters: req.parameters,
 			total_parameters: req.parameters.length,

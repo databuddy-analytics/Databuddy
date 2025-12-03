@@ -2,12 +2,33 @@ import type { BaseTracker } from "../core/tracker";
 import type { ErrorSpan } from "../core/types";
 import { logger } from "../core/utils";
 
+const extensionSchemes = [
+	"chrome-extension://",
+	"moz-extension://",
+	"safari-extension://",
+	"edge-extension://",
+] as const;
+
+const isExtensionSource = (candidate?: string | null) => {
+	if (!candidate) {
+		return false;
+	}
+
+	const normalized = candidate.toLowerCase();
+	return extensionSchemes.some((scheme) => normalized.includes(scheme));
+};
+
+const isScriptErrorMessage = (message?: string) =>
+	message?.trim().toLowerCase() === "script error.";
+
 export function initErrorTracking(tracker: BaseTracker) {
 	if (tracker.isServer()) {
 		return;
 	}
 
-	const trackError = (error: Omit<ErrorSpan, "timestamp" | "path" | "anonymousId" | "sessionId">) => {
+	const trackError = (
+		error: Omit<ErrorSpan, "timestamp" | "path" | "anonymousId" | "sessionId">
+	) => {
 		if (tracker.options.disabled || tracker.isLikelyBot || tracker.isServer()) {
 			return;
 		}
@@ -25,6 +46,17 @@ export function initErrorTracking(tracker: BaseTracker) {
 	};
 
 	const errorHandler = (event: ErrorEvent) => {
+		if (isScriptErrorMessage(event.message)) {
+			return;
+		}
+
+		if (
+			isExtensionSource(event.filename) ||
+			isExtensionSource(event.error?.stack)
+		) {
+			return;
+		}
+
 		trackError({
 			message: event.message || "Unknown Error",
 			filename: event.filename,
@@ -39,6 +71,10 @@ export function initErrorTracking(tracker: BaseTracker) {
 		const reason = event.reason;
 
 		if (reason instanceof Error) {
+			if (isExtensionSource(reason.stack)) {
+				return;
+			}
+
 			trackError({
 				message: reason.message,
 				stack: reason.stack,
@@ -51,7 +87,11 @@ export function initErrorTracking(tracker: BaseTracker) {
 		if (typeof reason === "object" && reason !== null) {
 			try {
 				message = JSON.stringify(reason);
-			} catch { }
+			} catch {}
+		}
+
+		if (isExtensionSource(reason?.stack)) {
+			return;
 		}
 
 		trackError({

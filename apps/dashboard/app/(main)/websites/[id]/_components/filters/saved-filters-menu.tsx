@@ -36,11 +36,19 @@ function getFieldLabel(field: string): string {
 	return filterOptions.find((o) => o.value === field)?.label ?? field;
 }
 
-function filtersMatch(a: DynamicQueryFilter[], b: DynamicQueryFilter[]): boolean {
+function filtersMatch(
+	a: DynamicQueryFilter[],
+	b: DynamicQueryFilter[]
+): boolean {
 	if (a.length !== b.length) return false;
 	return a.every((f1, i) => {
 		const f2 = b[i];
-		return f2 && f1.field === f2.field && f1.operator === f2.operator && JSON.stringify(f1.value) === JSON.stringify(f2.value);
+		return (
+			f2 &&
+			f1.field === f2.field &&
+			f1.operator === f2.operator &&
+			JSON.stringify(f1.value) === JSON.stringify(f2.value)
+		);
 	});
 }
 
@@ -58,7 +66,12 @@ export function SavedFiltersMenu({
 
 	if (isLoading || savedFilters.length === 0) {
 		return (
-			<Button className="h-7 gap-1.5 text-xs" disabled size="sm" variant="outline">
+			<Button
+				className="h-7 gap-1.5 text-xs"
+				disabled
+				size="sm"
+				variant="outline"
+			>
 				<BookmarkIcon className="size-3.5" weight="duotone" />
 				{isLoading ? "Loading…" : "No saved"}
 			</Button>
@@ -106,7 +119,12 @@ export function SavedFiltersMenu({
 								<div className="flex w-full items-center justify-between">
 									<div className="flex items-center gap-1.5">
 										<span className="font-medium text-sm">{saved.name}</span>
-										{isActive && <CheckIcon className="size-3.5 text-green-600" weight="bold" />}
+										{isActive && (
+											<CheckIcon
+												className="size-3.5 text-green-600"
+												weight="bold"
+											/>
+										)}
 									</div>
 									<div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
 										<button
@@ -152,14 +170,19 @@ export function SavedFiltersMenu({
 											className="rounded bg-secondary px-1.5 py-0.5 text-muted-foreground text-xs"
 											key={`${filter.field}-${i.toString()}`}
 										>
-											{getFieldLabel(filter.field)} {getOperatorLabel(filter.operator)}{" "}
+											{getFieldLabel(filter.field)}{" "}
+											{getOperatorLabel(filter.operator)}{" "}
 											<span className="font-mono">
-												{Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
+												{Array.isArray(filter.value)
+													? filter.value.join(", ")
+													: filter.value}
 											</span>
 										</span>
 									))}
 									{saved.filters.length > 2 && (
-										<span className="text-muted-foreground text-xs">+{saved.filters.length - 2}</span>
+										<span className="text-muted-foreground text-xs">
+											+{saved.filters.length - 2}
+										</span>
 									)}
 								</div>
 							</DropdownMenuItem>

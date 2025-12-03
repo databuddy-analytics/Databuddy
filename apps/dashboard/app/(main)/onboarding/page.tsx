@@ -51,16 +51,16 @@ function StepIndicator({
 				<div className="flex items-center" key={step.id}>
 					<div
 						className={cn(
-							"flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-300",
+							"flex size-8 items-center justify-center rounded-full border-2 transition-all duration-300",
 							step.completed
 								? "border-primary bg-primary text-primary-foreground"
 								: index === currentStep
 									? "border-primary bg-primary/10 text-primary"
-									: "border-muted bg-muted text-muted-foreground"
+									: "border-secondary bg-secondary text-secondary-foreground"
 						)}
 					>
 						{step.completed ? (
-							<CheckIcon className="h-4 w-4" weight="bold" />
+							<CheckIcon className="size-4" weight="bold" />
 						) : (
 							<span className="font-medium text-xs">{index + 1}</span>
 						)}
@@ -111,7 +111,7 @@ function OnboardingStepCard({
 					>
 						<step.icon
 							className={cn(
-								"h-6 w-6 transition-all duration-300",
+								"size-6 transition-all duration-300",
 								isActive || step.completed
 									? "text-primary"
 									: "text-muted-foreground"
@@ -127,7 +127,7 @@ function OnboardingStepCard({
 									className="bg-primary/10 text-primary"
 									variant="secondary"
 								>
-									<CheckIcon className="mr-1 h-3 w-3" />
+									<CheckIcon className="mr-1 size-3" />
 									Done
 								</Badge>
 							)}
@@ -152,7 +152,7 @@ function OnboardingStepCard({
 						size="sm"
 					>
 						{step.actionLabel || "Continue"}
-						<ArrowRightIcon className="ml-2 h-4 w-4" />
+						<ArrowRightIcon className="ml-2 size-4" />
 					</Button>
 				</CardContent>
 			)}
@@ -164,7 +164,7 @@ function WelcomeSection() {
 	return (
 		<div className="mb-8 space-y-4 text-center">
 			<div className="inline-flex items-center gap-2 rounded-full border border-accent bg-accent/50 px-4 py-2">
-				<SparkleIcon className="h-4 w-4 text-primary" weight="fill" />
+				<SparkleIcon className="size-4 text-primary" weight="fill" />
 				<span className="font-medium text-primary text-sm">
 					Welcome to Databuddy!
 				</span>
@@ -185,7 +185,7 @@ function CompletionSection() {
 		<Card className="border-primary/20 bg-primary/5">
 			<CardHeader className="text-center">
 				<div className="mx-auto mb-4 w-fit rounded-full border border-accent bg-accent/50 p-4">
-					<CheckIcon className="h-8 w-8 text-primary" weight="bold" />
+					<CheckIcon className="size-8 text-primary" weight="bold" />
 				</div>
 				<CardTitle className="text-xl">All Set!</CardTitle>
 				<CardDescription className="text-base">
@@ -196,11 +196,11 @@ function CompletionSection() {
 			<CardContent>
 				<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 					<Button className="rounded" size="lg">
-						<GlobeIcon className="mr-2 h-5 w-5" />
+						<GlobeIcon className="mr-2 size-5" />
 						View My Websites
 					</Button>
 					<Button className="rounded" size="lg" variant="outline">
-						<UsersIcon className="mr-2 h-5 w-5" />
+						<UsersIcon className="mr-2 size-5" />
 						Explore Dashboard
 					</Button>
 				</div>
@@ -302,7 +302,7 @@ export default function OnboardingPage() {
 							variant="ghost"
 						>
 							Skip for now
-							<ArrowRight className="ml-2 h-4 w-4" />
+							<ArrowRight className="ml-2 size-4" />
 						</Button>
 					</div>
 				</>

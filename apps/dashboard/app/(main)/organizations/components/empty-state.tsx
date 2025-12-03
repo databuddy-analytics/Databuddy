@@ -49,7 +49,7 @@ export function EmptyState({
 					<div className="flex flex-col items-center justify-center gap-2 text-muted-foreground text-xs sm:flex-row sm:gap-3 sm:text-sm">
 						{features.map((feature, index) => (
 							<div className="flex items-center gap-2" key={index}>
-								<div className="h-2 w-2 rounded-full bg-primary" />
+								<div className="size-2 rounded-full bg-primary" />
 								<span>{feature.label}</span>
 							</div>
 						))}

@@ -20,33 +20,33 @@ import { WebsiteCard } from "./_components/website-card";
 
 function LoadingSkeleton() {
 	return (
-			<div className="grid select-none gap-6 sm:grid-cols-2 lg:grid-cols-3">
-				{[1, 2, 3, 4, 5, 6].map((num) => (
-					<Card
-						className="animate-pulse overflow-hidden pt-0"
-						key={`website-skeleton-${num}`}
-					>
-						<CardHeader className="dotted-bg gap-0! border-b bg-accent px-3 pt-4 pb-0!">
-							<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
-						</CardHeader>
-						<CardContent className="px-4 py-3">
-							<div className="flex items-center gap-3">
-								<Skeleton className="size-7 shrink-0 rounded" />
-								<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-									<div className="flex flex-col gap-1">
-										<Skeleton className="h-3.5 w-24 rounded" />
-										<Skeleton className="h-3 w-32 rounded" />
-									</div>
-									<div className="flex flex-col items-end gap-1">
-										<Skeleton className="h-3 w-12 rounded" />
-										<Skeleton className="h-2.5 w-8 rounded" />
-									</div>
+		<div className="grid select-none gap-6 sm:grid-cols-2 lg:grid-cols-3">
+			{[1, 2, 3, 4, 5, 6].map((num) => (
+				<Card
+					className="animate-pulse overflow-hidden pt-0"
+					key={`website-skeleton-${num}`}
+				>
+					<CardHeader className="dotted-bg gap-0! border-b bg-accent px-3 pt-4 pb-0!">
+						<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
+					</CardHeader>
+					<CardContent className="px-4 py-3">
+						<div className="flex items-center gap-3">
+							<Skeleton className="size-7 shrink-0 rounded" />
+							<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+								<div className="flex flex-col gap-1">
+									<Skeleton className="h-3.5 w-24 rounded" />
+									<Skeleton className="h-3 w-32 rounded" />
+								</div>
+								<div className="flex flex-col items-end gap-1">
+									<Skeleton className="h-3 w-12 rounded" />
+									<Skeleton className="h-2.5 w-8 rounded" />
 								</div>
 							</div>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+						</div>
+					</CardContent>
+				</Card>
+			))}
+		</div>
 	);
 }
 
@@ -99,7 +99,7 @@ export default function WebsitesPage() {
 							size="default"
 						>
 							<div className="-translate-x-full absolute inset-0 bg-linear-to-r from-white/0 via-white/20 to-white/0 transition-transform duration-700 group-hover:translate-x-full" />
-							<PlusIcon className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
+							<PlusIcon className="relative z-10 size-4 transition-transform duration-300 group-hover:rotate-90" />
 							<span className="relative z-10 truncate">New Website</span>
 						</Button>
 					</>

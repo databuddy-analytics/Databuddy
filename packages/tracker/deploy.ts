@@ -153,7 +153,7 @@ async function uploadFile(
 	if (options.dryRun) {
 		console.log(
 			chalk.cyan(`[DRY RUN] Would upload ${chalk.bold(filename)}`) +
-			chalk.dim(` (${size.toFixed(2)} KB) to ${url}`)
+				chalk.dim(` (${size.toFixed(2)} KB) to ${url}`)
 		);
 		return { filename, status: "dry-run", size };
 	}

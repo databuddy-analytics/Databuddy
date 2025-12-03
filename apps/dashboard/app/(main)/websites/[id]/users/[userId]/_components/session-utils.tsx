@@ -11,7 +11,7 @@ export const getEventIconAndColor = (
 ) => {
 	if (hasProperties) {
 		return {
-			icon: <SparkleIcon className="h-4 w-4" />,
+			icon: <SparkleIcon className="size-4" />,
 			color: "text-accent-foreground",
 			bgColor: "bg-accent/20",
 			borderColor: "border-accent",
@@ -23,7 +23,7 @@ export const getEventIconAndColor = (
 		case "screen_view":
 		case "page_view":
 			return {
-				icon: <FileTextIcon className="h-4 w-4" />,
+				icon: <FileTextIcon className="size-4" />,
 				color: "text-primary",
 				bgColor: "bg-primary/10",
 				borderColor: "border-primary/20",
@@ -32,7 +32,7 @@ export const getEventIconAndColor = (
 		case "click":
 		case "player-page-tab":
 			return {
-				icon: <CursorClickIcon className="h-4 w-4" />,
+				icon: <CursorClickIcon className="size-4" />,
 				color: "text-secondary-foreground",
 				bgColor: "bg-secondary/50",
 				borderColor: "border-secondary",
@@ -40,11 +40,11 @@ export const getEventIconAndColor = (
 			};
 		default:
 			return {
-				icon: <LightningIcon className="h-4 w-4" />,
+				icon: <LightningIcon className="size-4" />,
 				color: "text-muted-foreground",
 				bgColor: "bg-muted/30",
 				borderColor: "border-muted",
-				badgeColor: "bg-muted text-muted-foreground border-muted",
+				badgeColor: "bg-secondary text-secondary-foreground border-secondary",
 			};
 	}
 };

@@ -92,5 +92,4 @@ test.describe("Privacy & Opt-out", () => {
 		await page.waitForTimeout(500);
 		expect(requestSent).toBe(false);
 	});
-
 });

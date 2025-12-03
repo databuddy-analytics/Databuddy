@@ -20,7 +20,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 			<Card className="w-full max-w-lg border-destructive/50 shadow-lg">
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2 text-destructive">
-						<WarningIcon className="h-6 w-6" size={24} weight="duotone" />
+						<WarningIcon className="size-6" size={24} weight="duotone" />
 						Something went wrong
 					</CardTitle>
 				</CardHeader>
@@ -33,7 +33,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 						{error.message || "An unknown error occurred."}
 					</pre>
 					<Button onClick={() => reset()} size="sm">
-						<ArrowClockwiseIcon className="mr-2 h-4 w-4" size={16} />
+						<ArrowClockwiseIcon className="mr-2 size-4" size={16} />
 						Try again
 					</Button>
 				</CardContent>

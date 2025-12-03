@@ -46,7 +46,7 @@ export default function MagicSentPage() {
 					<div className="absolute inset-0 animate-pulse rounded-full bg-info/5" />
 					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-info/20 to-info/10 opacity-70 blur-md" />
 					<div className="relative rounded-full bg-gradient-to-tr from-info to-info/80 p-2.5">
-						<MailCheck className="h-8 w-8 text-info-foreground" />
+						<MailCheck className="size-8 text-info-foreground" />
 					</div>
 				</div>
 				<h1 className="font-bold text-2xl text-foreground">Check your email</h1>
@@ -70,7 +70,7 @@ export default function MagicSentPage() {
 				>
 					{isLoading ? (
 						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							<Loader2 className="mr-2 size-4 animate-spin" />
 							Sending...
 						</>
 					) : (
@@ -83,7 +83,7 @@ export default function MagicSentPage() {
 						type="button"
 						variant="outline"
 					>
-						<ChevronLeft className="mr-2 h-4 w-4" />
+						<ChevronLeft className="mr-2 size-4" />
 						Back to login
 					</Button>
 				</Link>

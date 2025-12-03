@@ -26,7 +26,7 @@ export function SciFiCard({
 	} else {
 		bgClass = opacity === "reduced" ? "bg-foreground/20" : "bg-foreground";
 	}
-	const cornerSize = size === "sm" ? "h-0.5 w-0.5" : "h-2 w-2";
+	const cornerSize = size === "sm" ? "h-0.5 w-0.5" : "size-2";
 	const lineClasses =
 		size === "sm"
 			? { horizontal: "h-0.5 w-0.5", vertical: "h-0.5 w-0.5" }

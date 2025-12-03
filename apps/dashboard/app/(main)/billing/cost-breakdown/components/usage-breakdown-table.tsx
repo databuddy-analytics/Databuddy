@@ -10,15 +10,8 @@ import {
 	TableIcon,
 } from "@phosphor-icons/react";
 import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
 
 const EVENT_TYPE_CONFIG = {
@@ -67,16 +60,14 @@ export function UsageBreakdownTable({
 }: UsageBreakdownTableProps) {
 	if (isLoading) {
 		return (
-			<div className="h-full p-6">
-				<div className="space-y-4">
+			<div className="h-full border-b px-4 py-3 sm:px-6 sm:py-4">
+				<div className="space-y-3">
 					{Array.from({ length: 5 }).map((_, i) => (
-						<div className="flex items-center justify-between" key={i}>
-							<div className="flex items-center gap-3">
-								<Skeleton className="h-10 w-10 rounded" />
-								<div className="space-y-1">
-									<Skeleton className="h-4 w-32" />
-									<Skeleton className="h-3 w-48" />
-								</div>
+						<div className="flex items-center gap-4" key={i}>
+							<Skeleton className="size-10 shrink-0 rounded border" />
+							<div className="min-w-0 flex-1 space-y-1">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-3 w-48" />
 							</div>
 							<div className="space-y-1 text-right">
 								<Skeleton className="h-4 w-20" />
@@ -107,78 +98,88 @@ export function UsageBreakdownTable({
 
 	return (
 		<div className="h-full">
-			<Table>
-				<TableHeader>
-					<TableRow className="hover:bg-card">
-						<TableHead>Event Type</TableHead>
-						<TableHead>Usage</TableHead>
-						<TableHead>Cost</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{sortedBreakdown.map((item) => {
-						const config =
-							EVENT_TYPE_CONFIG[
-								item.event_category as keyof typeof EVENT_TYPE_CONFIG
-							];
+			<div className="border-b px-4 py-3 sm:px-6 sm:py-4">
+				<h2 className="font-medium text-foreground text-lg">
+					Usage by Event Type
+				</h2>
+			</div>
+			<div className="divide-y divide-border">
+				{sortedBreakdown.map((item) => {
+					const config =
+						EVENT_TYPE_CONFIG[
+							item.event_category as keyof typeof EVENT_TYPE_CONFIG
+						];
 
-						if (!config) {
-							return null;
-						}
+					if (!config) {
+						return null;
+					}
 
-						const overageCost = usageData
-							? calculateOverageCost(
-									item.event_count,
-									usageData.totalEvents,
-									overageInfo
-								)
+					const overageCost = usageData
+						? calculateOverageCost(
+								item.event_count,
+								usageData.totalEvents,
+								overageInfo
+							)
+						: 0;
+
+					const IconComponent = config.icon;
+					const percentage =
+						usageData && usageData.totalEvents > 0
+							? (item.event_count / usageData.totalEvents) * 100
 							: 0;
 
-						const IconComponent = config.icon;
-
-						return (
-							<TableRow key={item.event_category}>
-								<TableCell className="p-3">
-									<div className="flex items-center gap-3">
-										<div className="flex size-10 items-center justify-center rounded border bg-secondary">
-											<IconComponent
-												className="size-5 text-muted-foreground"
-												weight="duotone"
-											/>
-										</div>
-										<div className="min-w-0 flex-1">
-											<div className="font-medium">{config.name}</div>
-											<div className="text-muted-foreground text-sm">
-												{config.description}
-											</div>
-										</div>
+					return (
+						<div
+							className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50 sm:px-6 sm:py-4"
+							key={item.event_category}
+						>
+							<div className="flex size-10 shrink-0 items-center justify-center rounded border border-accent-foreground/10 bg-secondary">
+								<IconComponent
+									className="size-5 text-accent-foreground"
+									weight="duotone"
+								/>
+							</div>
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-2">
+									<div className="font-medium text-foreground">
+										{config.name}
 									</div>
-								</TableCell>
-								<TableCell>
-									<div className="font-medium">
-										{item.event_count.toLocaleString()}
-									</div>
-									<div className="text-muted-foreground text-sm">events</div>
-								</TableCell>
-								<TableCell>
-									<div className="font-medium text-muted-foreground">
-										{overageCost > 0 ? `$${overageCost.toFixed(2)}` : "—"}
-									</div>
-								</TableCell>
-							</TableRow>
-						);
-					})}
-				</TableBody>
-			</Table>
+									{overageCost > 0 && (
+										<Badge className="h-5 px-2" variant="destructive">
+											${overageCost.toFixed(2)}
+										</Badge>
+									)}
+								</div>
+								<div className="mt-0.5 flex items-center gap-2">
+									<span className="text-muted-foreground text-sm">
+										{config.description}
+									</span>
+									<span className="text-muted-foreground text-xs">
+										· {percentage.toFixed(1)}%
+									</span>
+								</div>
+							</div>
+							<div className="shrink-0 text-right">
+								<div className="font-semibold text-foreground tabular-nums">
+									{item.event_count.toLocaleString()}
+								</div>
+								<div className="text-muted-foreground text-xs">events</div>
+							</div>
+						</div>
+					);
+				})}
+			</div>
 
 			{sortedBreakdown.length === 0 && (
-				<div className="py-8 text-center">
+				<div className="py-12 text-center">
 					<TableIcon
-						className="mx-auto mb-4 h-12 w-12 text-muted-foreground"
+						className="mx-auto mb-4 size-12 text-muted-foreground"
 						weight="duotone"
 					/>
-					<h3 className="font-semibold text-lg">No Event Data</h3>
-					<p className="text-muted-foreground">
+					<h3 className="font-semibold text-foreground text-lg">
+						No Event Data
+					</h3>
+					<p className="mt-1 text-muted-foreground text-sm">
 						No events found for the selected period
 					</p>
 				</div>

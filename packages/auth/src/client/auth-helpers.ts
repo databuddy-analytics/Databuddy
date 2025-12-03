@@ -2,7 +2,7 @@
 
 import { authClient, signIn, signOut, signUp } from "./auth-client";
 
-interface TwoFactorResponse {
+type TwoFactorResponse = {
 	data?: {
 		totpURI?: string;
 		backupCodes?: string[];
@@ -11,7 +11,7 @@ interface TwoFactorResponse {
 	error?: {
 		message: string;
 	};
-}
+};
 
 /**
  * Helper function to sign in with email and password with simplified redirect handling

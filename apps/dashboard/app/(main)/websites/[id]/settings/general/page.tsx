@@ -5,17 +5,18 @@ import {
 	GearIcon,
 	PencilSimpleIcon,
 	TrashIcon,
+	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Label } from "@/components/ui/label";
 import { WebsiteDialog } from "@/components/website-dialog";
 import { useDeleteWebsite, useWebsite } from "@/hooks/use-websites";
 import { PageHeader } from "../../../_components/page-header";
 import { TOAST_MESSAGES } from "../../_components/shared/tracking-constants";
-import { DeleteWebsiteDialog } from "../_components/delete-dialog";
 
 export default function GeneralSettingsPage() {
 	const params = useParams();
@@ -56,7 +57,7 @@ export default function GeneralSettingsPage() {
 	if (!websiteData) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+				<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
 			</div>
 		);
 	}
@@ -158,13 +159,30 @@ export default function GeneralSettingsPage() {
 				open={showEditDialog}
 				website={websiteData}
 			/>
-			<DeleteWebsiteDialog
+			<DeleteDialog
+				confirmLabel="Delete Website"
+				description={`Are you sure you want to delete ${websiteData.name || websiteData.domain}?`}
 				isDeleting={deleteWebsiteMutation.isPending}
-				onConfirmDelete={handleDeleteWebsite}
-				onOpenChange={setShowDeleteDialog}
-				open={showDeleteDialog}
-				websiteData={websiteData}
-			/>
+				isOpen={showDeleteDialog}
+				itemName={websiteData.name || websiteData.domain}
+				onClose={() => setShowDeleteDialog(false)}
+				onConfirm={handleDeleteWebsite}
+				title="Delete Website"
+			>
+				<div className="rounded-md bg-secondary p-3 text-sm">
+					<div className="flex items-start gap-2">
+						<WarningCircleIcon className="size-5 shrink-0" />
+						<div className="space-y-1">
+							<p className="font-medium">Warning:</p>
+							<ul className="list-disc space-y-1 pl-4 text-xs">
+								<li>All analytics data will be permanently deleted</li>
+								<li>Tracking will stop immediately</li>
+								<li>All website settings will be lost</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</DeleteDialog>
 		</div>
 	);
 }

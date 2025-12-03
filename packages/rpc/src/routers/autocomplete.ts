@@ -166,12 +166,11 @@ export const autocompleteRouter = {
 
 						return categorizeAutocompleteResults(results);
 					} catch (error) {
-						logger.error("Failed to fetch autocomplete data", {
-							error: error instanceof Error ? error.message : String(error),
-							websiteId: input.websiteId,
-						});
+						logger.error(
+							`Failed to fetch autocomplete data for website ${input.websiteId}: ${error instanceof Error ? error.message : String(error)}`
+						);
 						throw new ORPCError("INTERNAL_SERVER_ERROR", {
-							message: "Failed to fetch autocomplete data",
+							message: `Failed to fetch autocomplete data for website ${input.websiteId}: ${error instanceof Error ? error.message : String(error)}`,
 						});
 					}
 				},

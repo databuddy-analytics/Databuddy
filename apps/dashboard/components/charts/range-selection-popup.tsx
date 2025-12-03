@@ -1,10 +1,7 @@
 "use client";
 
-import {
-	MagnifyingGlassPlusIcon,
-	NoteIcon,
-} from "@phosphor-icons/react";
-import { useEffect } from "react";
+import { MagnifyingGlassPlusIcon, NoteIcon } from "@phosphor-icons/react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 type RangeSelectionPopupProps = {
 	isOpen: boolean;
@@ -29,26 +26,38 @@ export function RangeSelectionPopup({
 		onCloseAction();
 	};
 
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onCloseAction();
-			} else if (e.key === "z" && !e.metaKey && !e.ctrlKey) {
+	useHotkeys(
+		"z",
+		(e) => {
+			if (!(e.metaKey || e.ctrlKey)) {
 				e.preventDefault();
 				handleZoom();
-			} else if (e.key === "a" && !e.metaKey && !e.ctrlKey) {
+			}
+		},
+		{ preventDefault: false, enabled: isOpen },
+		[dateRange, onZoomAction, onCloseAction]
+	);
+
+	useHotkeys(
+		"a",
+		(e) => {
+			if (!(e.metaKey || e.ctrlKey)) {
 				e.preventDefault();
 				onAddAnnotationAction();
 			}
-		};
+		},
+		{ preventDefault: false, enabled: isOpen },
+		[onAddAnnotationAction]
+	);
 
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [isOpen]);
+	useHotkeys(
+		"escape",
+		() => {
+			onCloseAction();
+		},
+		{ enabled: isOpen },
+		[onCloseAction]
+	);
 
 	if (!isOpen) {
 		return null;
@@ -79,7 +88,9 @@ export function RangeSelectionPopup({
 			/>
 			<div className="relative min-w-[180px] overflow-hidden rounded border bg-popover shadow-xl">
 				<div className="border-b bg-accent px-3 py-2">
-					<p className="font-medium text-foreground text-xs">{formatDateRange()}</p>
+					<p className="font-medium text-foreground text-xs">
+						{formatDateRange()}
+					</p>
 				</div>
 				<div className="p-1">
 					<button
@@ -87,18 +98,28 @@ export function RangeSelectionPopup({
 						onClick={handleZoom}
 						type="button"
 					>
-						<MagnifyingGlassPlusIcon className="size-4 text-muted-foreground" weight="duotone" />
+						<MagnifyingGlassPlusIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
 						<span className="flex-1 text-foreground">Zoom to range</span>
-						<kbd className="rounded border bg-accent px-1.5 py-0.5 font-mono text-[10px] text-foreground">Z</kbd>
+						<kbd className="rounded border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
+							Z
+						</kbd>
 					</button>
 					<button
 						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
 						onClick={onAddAnnotationAction}
 						type="button"
 					>
-						<NoteIcon className="size-4 text-muted-foreground" weight="duotone" />
+						<NoteIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
 						<span className="flex-1 text-foreground">Add annotation…</span>
-						<kbd className="rounded border bg-accent px-1.5 py-0.5 font-mono text-[10px] text-foreground">A</kbd>
+						<kbd className="rounded border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
+							A
+						</kbd>
 					</button>
 				</div>
 			</div>

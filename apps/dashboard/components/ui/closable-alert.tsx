@@ -54,7 +54,7 @@ export function ClosableAlert({
 				<div className="flex min-w-0 flex-1 items-center gap-2">
 					<Icon
 						className={cn(
-							'h-4 w-4 shrink-0',
+							'size-4 shrink-0',
 							isError ? 'text-destructive' : 'text-muted-foreground'
 						)}
 					/>
@@ -71,25 +71,25 @@ export function ClosableAlert({
 				<div className="ml-2 flex items-center gap-1">
 					{children && (
 						<Button
-							className="h-6 w-6 rounded p-0"
+							className="size-6 rounded p-0"
 							onClick={() => setIsExpanded(!isExpanded)}
 							size="sm"
 							variant="ghost"
 						>
 							{isExpanded ? (
-								<ChevronUp className="h-3 w-3" />
+								<ChevronUp className="size-3" />
 							) : (
-								<ChevronDown className="h-3 w-3" />
+								<ChevronDown className="size-3" />
 							)}
 						</Button>
 					)}
 					<Button
-						className="h-6 w-6 rounded p-0"
+						className="size-6 rounded p-0"
 						onClick={handleClose}
 						size="sm"
 						variant="ghost"
 					>
-						<X className="h-3 w-3" />
+						<X className="size-3" />
 					</Button>
 				</div>
 			</div>

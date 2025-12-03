@@ -1,6 +1,13 @@
 import { HttpClient } from "./client";
-import type { BaseEvent, CustomEventSpan, ErrorSpan, EventContext, TrackerOptions, WebVitalEvent } from "./types";
-import { generateUUIDv4, logger } from "./utils";
+import type {
+	BaseEvent,
+	CustomEventSpan,
+	ErrorSpan,
+	EventContext,
+	TrackerOptions,
+	WebVitalEvent,
+} from "./types";
+import { generateUUIDv4, isDebugMode, isLocalhost, logger } from "./utils";
 
 const HEADLESS_CHROME_REGEX = /\bHeadlessChrome\b/i;
 const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
@@ -78,7 +85,9 @@ export class BaseTracker {
 			initialRetryDelay: this.options.initialRetryDelay,
 		});
 
-		if (this.isServer()) { return; }
+		if (this.isServer()) {
+			return;
+		}
 
 		this.isLikelyBot = this.detectBot();
 		if (this.isLikelyBot) {
@@ -93,37 +102,50 @@ export class BaseTracker {
 	}
 
 	isServer(): boolean {
-		return typeof document === "undefined" || typeof window === "undefined" || typeof localStorage === "undefined";
+		return (
+			typeof document === "undefined" ||
+			typeof window === "undefined" ||
+			typeof localStorage === "undefined"
+		);
 	}
 
 	detectBot(): boolean {
-		if (this.isServer() || this.options.ignoreBotDetection) { return false; }
+		if (this.isServer() || this.options.ignoreBotDetection) {
+			return false;
+		}
 
 		const ua = navigator.userAgent || "";
-		const isHeadless = HEADLESS_CHROME_REGEX.test(ua) || PHANTOMJS_REGEX.test(ua);
+		const isHeadless =
+			HEADLESS_CHROME_REGEX.test(ua) || PHANTOMJS_REGEX.test(ua);
 
 		return Boolean(
 			navigator.webdriver ||
-			window.webdriver ||
-			isHeadless ||
-			window.callPhantom ||
-			window._phantom ||
-			window.selenium ||
-			document.documentElement.getAttribute("webdriver") === "true"
+				window.webdriver ||
+				isHeadless ||
+				window.callPhantom ||
+				window._phantom ||
+				window.selenium ||
+				document.documentElement.getAttribute("webdriver") === "true"
 		);
 	}
 
 	setupBotDetection() {
-		if (this.isServer()) { return; }
+		if (this.isServer()) {
+			return;
+		}
 
-		const handler = () => { this.hasInteracted = true; };
+		const handler = () => {
+			this.hasInteracted = true;
+		};
 		for (const event of ["mousemove", "scroll", "keydown"]) {
 			window.addEventListener(event, handler, { once: true, passive: true });
 		}
 	}
 
 	getOrCreateAnonymousId(): string {
-		if (this.isServer()) { return this.generateAnonymousId(); }
+		if (this.isServer()) {
+			return this.generateAnonymousId();
+		}
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const anonId = urlParams.get("anonId");
@@ -133,7 +155,9 @@ export class BaseTracker {
 		}
 
 		const storedId = localStorage.getItem("did");
-		if (storedId) { return storedId; }
+		if (storedId) {
+			return storedId;
+		}
 
 		const newId = this.generateAnonymousId();
 		localStorage.setItem("did", newId);
@@ -145,7 +169,9 @@ export class BaseTracker {
 	}
 
 	getOrCreateSessionId(): string {
-		if (this.isServer()) { return this.generateSessionId(); }
+		if (this.isServer()) {
+			return this.generateSessionId();
+		}
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionIdFromUrl = urlParams.get("sessionId");
@@ -180,10 +206,14 @@ export class BaseTracker {
 	}
 
 	getSessionStartTime(): number {
-		if (this.isServer()) { return Date.now(); }
+		if (this.isServer()) {
+			return Date.now();
+		}
 
 		const storedTime = sessionStorage.getItem("did_session_start");
-		if (storedTime) { return Number.parseInt(storedTime, 10); }
+		if (storedTime) {
+			return Number.parseInt(storedTime, 10);
+		}
 
 		const now = Date.now();
 		sessionStorage.setItem("did_session_start", now.toString());
@@ -195,12 +225,21 @@ export class BaseTracker {
 			return true;
 		}
 
+		if (!isDebugMode() && isLocalhost()) {
+			return true;
+		}
+
 		if (this.options.skipPatterns) {
 			const pathname = window.location.pathname;
 			for (const pattern of this.options.skipPatterns) {
-				if (pattern === pathname) { return true; }
+				if (pattern === pathname) {
+					return true;
+				}
 				const starIndex = pattern.indexOf("*");
-				if (starIndex !== -1 && pathname.startsWith(pattern.substring(0, starIndex))) {
+				if (
+					starIndex !== -1 &&
+					pathname.startsWith(pattern.substring(0, starIndex))
+				) {
 					return true;
 				}
 			}
@@ -209,14 +248,20 @@ export class BaseTracker {
 	}
 
 	protected getMaskedPath(): string {
-		if (this.isServer()) { return ""; }
+		if (this.isServer()) {
+			return "";
+		}
 
 		const pathname = window.location.pathname;
-		if (!this.options.maskPatterns) { return pathname; }
+		if (!this.options.maskPatterns) {
+			return pathname;
+		}
 
 		for (const pattern of this.options.maskPatterns) {
 			const starIndex = pattern.indexOf("*");
-			if (starIndex === -1) { continue; }
+			if (starIndex === -1) {
+				continue;
+			}
 
 			const prefix = pattern.substring(0, starIndex);
 			if (pathname.startsWith(prefix)) {
@@ -232,7 +277,9 @@ export class BaseTracker {
 	}
 
 	protected getUtmParams() {
-		if (this.isServer()) { return {}; }
+		if (this.isServer()) {
+			return {};
+		}
 
 		const urlParams = new URLSearchParams(window.location.search);
 		return {
@@ -245,7 +292,9 @@ export class BaseTracker {
 	}
 
 	getBaseContext(): EventContext {
-		if (this.isServer()) { return {} as EventContext; }
+		if (this.isServer()) {
+			return {} as EventContext;
+		}
 
 		let width: number | undefined = window.innerWidth;
 		let height: number | undefined = window.innerHeight;
@@ -257,10 +306,14 @@ export class BaseTracker {
 		let timezone: string | undefined;
 		try {
 			timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		} catch { }
+		} catch {}
 
 		return {
-			path: window.location.origin + this.getMaskedPath() + window.location.search + window.location.hash,
+			path:
+				window.location.origin +
+				this.getMaskedPath() +
+				window.location.search +
+				window.location.hash,
 			title: document.title,
 			referrer: document.referrer || "direct",
 			viewport_size: width && height ? `${width}x${height}` : undefined,
@@ -271,23 +324,37 @@ export class BaseTracker {
 	}
 
 	send(event: BaseEvent & { isForceSend?: boolean }): Promise<unknown> {
-		if (this.shouldSkipTracking()) { return Promise.resolve(); }
-		if (this.options.filter && !this.options.filter(event)) { return Promise.resolve(); }
+		if (this.shouldSkipTracking()) {
+			return Promise.resolve();
+		}
+		if (this.options.filter && !this.options.filter(event)) {
+			return Promise.resolve();
+		}
 
 		const samplingRate = this.options.samplingRate ?? 1.0;
-		if (samplingRate < 1.0 && Math.random() > samplingRate) { return Promise.resolve(); }
+		if (samplingRate < 1.0 && Math.random() > samplingRate) {
+			return Promise.resolve();
+		}
 
 		if (this.options.enableBatching && !event.isForceSend) {
 			return this.addToBatch(event);
 		}
 
-		return this.api.fetch("/", event, { keepalive: true }, { client_id: this.options.clientId });
+		return this.api.fetch(
+			"/",
+			event,
+			{ keepalive: true },
+			{ client_id: this.options.clientId }
+		);
 	}
 
 	addToBatch(event: BaseEvent): Promise<void> {
 		this.batchQueue.push(event);
 		if (this.batchTimer === null) {
-			this.batchTimer = setTimeout(() => this.flushBatch(), this.options.batchTimeout);
+			this.batchTimer = setTimeout(
+				() => this.flushBatch(),
+				this.options.batchTimeout
+			);
 		}
 		if (this.batchQueue.length >= (this.options.batchSize || 10)) {
 			this.flushBatch();
@@ -300,14 +367,21 @@ export class BaseTracker {
 			clearTimeout(this.batchTimer);
 			this.batchTimer = null;
 		}
-		if (this.batchQueue.length === 0 || this.isFlushing) { return; }
+		if (this.batchQueue.length === 0 || this.isFlushing) {
+			return;
+		}
 
 		this.isFlushing = true;
 		const batchEvents = [...this.batchQueue];
 		this.batchQueue = [];
 
 		try {
-			return await this.api.fetch("/batch", batchEvents, { keepalive: true }, { client_id: this.options.clientId });
+			return await this.api.fetch(
+				"/batch",
+				batchEvents,
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			);
 		} catch (_error) {
 			for (const evt of batchEvents) {
 				this.send({ ...evt, isForceSend: true });
@@ -319,14 +393,19 @@ export class BaseTracker {
 	}
 
 	sendVital(event: WebVitalEvent): Promise<void> {
-		if (this.shouldSkipTracking()) { return Promise.resolve(); }
+		if (this.shouldSkipTracking()) {
+			return Promise.resolve();
+		}
 		return this.addToVitalsQueue(event);
 	}
 
 	addToVitalsQueue(event: WebVitalEvent): Promise<void> {
 		this.vitalsQueue.push(event);
 		if (this.vitalsTimer === null) {
-			this.vitalsTimer = setTimeout(() => this.flushVitals(), this.options.batchTimeout);
+			this.vitalsTimer = setTimeout(
+				() => this.flushVitals(),
+				this.options.batchTimeout
+			);
 		}
 		if (this.vitalsQueue.length >= 6) {
 			this.flushVitals();
@@ -339,14 +418,21 @@ export class BaseTracker {
 			clearTimeout(this.vitalsTimer);
 			this.vitalsTimer = null;
 		}
-		if (this.vitalsQueue.length === 0 || this.isFlushingVitals) { return; }
+		if (this.vitalsQueue.length === 0 || this.isFlushingVitals) {
+			return;
+		}
 
 		this.isFlushingVitals = true;
 		const vitals = [...this.vitalsQueue];
 		this.vitalsQueue = [];
 
 		try {
-			return await this.api.fetch("/vitals", vitals, { keepalive: true }, { client_id: this.options.clientId });
+			return await this.api.fetch(
+				"/vitals",
+				vitals,
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			);
 		} catch {
 			return null;
 		} finally {
@@ -355,14 +441,19 @@ export class BaseTracker {
 	}
 
 	sendError(error: ErrorSpan): Promise<void> {
-		if (this.shouldSkipTracking()) { return Promise.resolve(); }
+		if (this.shouldSkipTracking()) {
+			return Promise.resolve();
+		}
 		return this.addToErrorsQueue(error);
 	}
 
 	addToErrorsQueue(error: ErrorSpan): Promise<void> {
 		this.errorsQueue.push(error);
 		if (this.errorsTimer === null) {
-			this.errorsTimer = setTimeout(() => this.flushErrors(), this.options.batchTimeout);
+			this.errorsTimer = setTimeout(
+				() => this.flushErrors(),
+				this.options.batchTimeout
+			);
 		}
 		if (this.errorsQueue.length >= 10) {
 			this.flushErrors();
@@ -375,14 +466,21 @@ export class BaseTracker {
 			clearTimeout(this.errorsTimer);
 			this.errorsTimer = null;
 		}
-		if (this.errorsQueue.length === 0 || this.isFlushingErrors) { return; }
+		if (this.errorsQueue.length === 0 || this.isFlushingErrors) {
+			return;
+		}
 
 		this.isFlushingErrors = true;
 		const errors = [...this.errorsQueue];
 		this.errorsQueue = [];
 
 		try {
-			return await this.api.fetch("/errors", errors, { keepalive: true }, { client_id: this.options.clientId });
+			return await this.api.fetch(
+				"/errors",
+				errors,
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			);
 		} catch {
 			return null;
 		} finally {
@@ -391,14 +489,19 @@ export class BaseTracker {
 	}
 
 	sendCustomEvent(event: CustomEventSpan): Promise<void> {
-		if (this.shouldSkipTracking()) { return Promise.resolve(); }
+		if (this.shouldSkipTracking()) {
+			return Promise.resolve();
+		}
 		return this.addToCustomEventsQueue(event);
 	}
 
 	addToCustomEventsQueue(event: CustomEventSpan): Promise<void> {
 		this.customEventsQueue.push(event);
 		if (this.customEventsTimer === null) {
-			this.customEventsTimer = setTimeout(() => this.flushCustomEvents(), this.options.batchTimeout);
+			this.customEventsTimer = setTimeout(
+				() => this.flushCustomEvents(),
+				this.options.batchTimeout
+			);
 		}
 		if (this.customEventsQueue.length >= 10) {
 			this.flushCustomEvents();
@@ -411,14 +514,21 @@ export class BaseTracker {
 			clearTimeout(this.customEventsTimer);
 			this.customEventsTimer = null;
 		}
-		if (this.customEventsQueue.length === 0 || this.isFlushingCustomEvents) { return; }
+		if (this.customEventsQueue.length === 0 || this.isFlushingCustomEvents) {
+			return;
+		}
 
 		this.isFlushingCustomEvents = true;
 		const events = [...this.customEventsQueue];
 		this.customEventsQueue = [];
 
 		try {
-			return await this.api.fetch("/events", events, { keepalive: true }, { client_id: this.options.clientId });
+			return await this.api.fetch(
+				"/events",
+				events,
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			);
 		} catch {
 			return null;
 		} finally {
@@ -432,9 +542,14 @@ export class BaseTracker {
 		}
 
 		try {
-			const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+			const blob = new Blob([JSON.stringify(data)], {
+				type: "application/json",
+			});
 			const baseUrl = this.options.apiUrl || "https://basket.databuddy.cc";
-			return navigator.sendBeacon(`${baseUrl}${endpoint}?client_id=${encodeURIComponent(this.options.clientId)}`, blob);
+			return navigator.sendBeacon(
+				`${baseUrl}${endpoint}?client_id=${encodeURIComponent(this.options.clientId)}`,
+				blob
+			);
 		} catch {
 			return false;
 		}
@@ -458,7 +573,7 @@ export class BaseTracker {
 		for (const callback of this.routeChangeCallbacks) {
 			try {
 				callback(path);
-			} catch { }
+			} catch {}
 		}
 	}
 

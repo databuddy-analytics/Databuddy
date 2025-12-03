@@ -203,20 +203,17 @@ export default function ReleasesTimeline({ data }: Props) {
 							<div className="flex gap-4">
 								{/* Timeline dot */}
 								<div
-									className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 ${
+									className={`relative flex size-8 shrink-0 items-center justify-center rounded-full border-2 ${
 										release.isPrerelease
 											? "border-orange-500 bg-orange-100"
 											: "border-green-500 bg-green-100"
 									}`}
 								>
 									{release.isPrerelease ? (
-										<TagIcon
-											className="h-4 w-4 text-orange-600"
-											weight="fill"
-										/>
+										<TagIcon className="size-4 text-orange-600" weight="fill" />
 									) : (
 										<RocketIcon
-											className="h-4 w-4 text-green-600"
+											className="size-4 text-green-600"
 											weight="fill"
 										/>
 									)}

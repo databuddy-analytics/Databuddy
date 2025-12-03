@@ -19,9 +19,5 @@ export function PlanStatusBadge({
 	if (isScheduled) {
 		return <Badge variant="secondary">Scheduled</Badge>;
 	}
-	return (
-		<Badge className="bg-primary/10 text-primary" variant="secondary">
-			Active
-		</Badge>
-	);
+	return <Badge variant="green">Active</Badge>;
 }

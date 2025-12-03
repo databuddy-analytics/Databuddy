@@ -87,7 +87,7 @@ export function FlagsList({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative max-w-sm flex-1">
-            <MagnifyingGlassIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+            <MagnifyingGlassIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
             <Input
               className="pl-9"
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -103,7 +103,7 @@ export function FlagsList({
               value={statusFilter}
             >
               <SelectTrigger className="w-36">
-                <FunnelSimpleIcon className="h-4 w-4 text-muted-foreground" />
+                <FunnelSimpleIcon className="size-4 text-muted-foreground" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>

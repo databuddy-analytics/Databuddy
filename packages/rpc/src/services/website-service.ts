@@ -306,7 +306,8 @@ export class WebsiteService {
 		organizationId: string | null,
 		userId: string
 	): Promise<Website> {
-		const transferredWebsite = await this.performDBOperation(async () => {
+		let transferredWebsite: Website | null;
+		try {
 			const [w] = await this.db
 				.update(websites)
 				.set({
@@ -315,8 +316,13 @@ export class WebsiteService {
 				})
 				.where(eq(websites.id, websiteId))
 				.returning();
-			return w ?? null;
-		});
+			transferredWebsite = w ?? null;
+		} catch (error) {
+			if (this.isUniqueConstraintError(error)) {
+				throw new DuplicateDomainError("this domain");
+			}
+			throw new Error(`DB operation failed: ${String(error)}`);
+		}
 
 		if (!transferredWebsite) {
 			throw new WebsiteNotFoundError();
@@ -346,7 +352,8 @@ export class WebsiteService {
 		targetOrganizationId: string,
 		userId: string
 	): Promise<Website> {
-		const transferredWebsite = await this.performDBOperation(async () => {
+		let transferredWebsite: Website | null;
+		try {
 			const [w] = await this.db
 				.update(websites)
 				.set({
@@ -355,8 +362,13 @@ export class WebsiteService {
 				})
 				.where(eq(websites.id, websiteId))
 				.returning();
-			return w ?? null;
-		});
+			transferredWebsite = w ?? null;
+		} catch (error) {
+			if (this.isUniqueConstraintError(error)) {
+				throw new DuplicateDomainError("this domain");
+			}
+			throw new Error(`DB operation failed: ${String(error)}`);
+		}
 
 		if (!transferredWebsite) {
 			throw new WebsiteNotFoundError();
@@ -379,5 +391,14 @@ export class WebsiteService {
 		await this.invalidateCaches(websiteId, userId);
 
 		return transferredWebsite;
+	}
+
+	private isUniqueConstraintError(error: unknown): boolean {
+		// PostgreSQL unique constraint violation code is 23505
+		if (error && typeof error === "object") {
+			const err = error as { code?: string; constraint?: string };
+			return err.code === "23505";
+		}
+		return false;
 	}
 }

@@ -1,6 +1,8 @@
 import type { IconProps } from "@phosphor-icons/react";
 import { BookOpenIcon } from "@phosphor-icons/react";
+import type { VariantProps } from "class-variance-authority";
 import type { ComponentType } from "react";
+import { Badge, type badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tip } from "@/components/ui/tip";
@@ -29,12 +31,29 @@ type SectionProps = {
 	className?: string;
 	title?: string;
 	border?: boolean;
+	badge?: {
+		label: string;
+		variant?: VariantProps<typeof badgeVariants>["variant"];
+	};
 };
 
-function Section({ children, className, title, border = false }: SectionProps) {
+function Section({
+	children,
+	className,
+	title,
+	border = false,
+	badge,
+}: SectionProps) {
 	return (
 		<div className={cn(border && "border-b", "p-5", className)}>
-			{title && <h3 className="mb-3 font-semibold">{title}</h3>}
+			{title && (
+				<div className="mb-3 flex items-center gap-2">
+					<h3 className="font-semibold">{title}</h3>
+					{badge && (
+						<Badge variant={badge.variant || "gray"}>{badge.label}</Badge>
+					)}
+				</div>
+			)}
 			{children}
 		</div>
 	);
@@ -45,6 +64,10 @@ type InfoCardProps = {
 	title: string;
 	description?: string;
 	className?: string;
+	badge?: {
+		label: string;
+		variant?: VariantProps<typeof badgeVariants>["variant"];
+	};
 };
 
 function InfoCard({
@@ -52,6 +75,7 @@ function InfoCard({
 	title,
 	description,
 	className,
+	badge,
 }: InfoCardProps) {
 	return (
 		<div
@@ -67,8 +91,13 @@ function InfoCard({
 					weight="duotone"
 				/>
 			</div>
-			<div className="min-w-0">
-				<p className="truncate font-semibold">{title}</p>
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-2">
+					<p className="truncate font-semibold">{title}</p>
+					{badge && (
+						<Badge variant={badge.variant || "gray"}>{badge.label}</Badge>
+					)}
+				</div>
 				{description && (
 					<p className="truncate text-muted-foreground text-sm">
 						{description}

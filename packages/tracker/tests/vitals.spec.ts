@@ -30,7 +30,10 @@ test.describe("Web Vitals Tracking", () => {
 		const vitalBatches: WebVitalEvent[][] = [];
 
 		page.on("request", (req) => {
-			if (req.url().includes("/basket.databuddy.cc/vitals") && req.method() === "POST") {
+			if (
+				req.url().includes("/basket.databuddy.cc/vitals") &&
+				req.method() === "POST"
+			) {
 				const payload = req.postDataJSON() as WebVitalEvent[];
 				vitalBatches.push(payload);
 			}
@@ -62,7 +65,9 @@ test.describe("Web Vitals Tracking", () => {
 				expect(typeof vital.metricValue).toBe("number");
 			}
 
-			console.table(allVitals.map((v) => ({ metric: v.metricName, value: v.metricValue })));
+			console.table(
+				allVitals.map((v) => ({ metric: v.metricName, value: v.metricValue }))
+			);
 		} else {
 			console.log("No vitals captured - this can happen in test environments");
 		}
@@ -72,7 +77,10 @@ test.describe("Web Vitals Tracking", () => {
 		const vitalBatches: WebVitalEvent[][] = [];
 
 		page.on("request", (req) => {
-			if (req.url().includes("/basket.databuddy.cc/vitals") && req.method() === "POST") {
+			if (
+				req.url().includes("/basket.databuddy.cc/vitals") &&
+				req.method() === "POST"
+			) {
 				const payload = req.postDataJSON() as WebVitalEvent[];
 				vitalBatches.push(payload);
 			}
@@ -107,7 +115,10 @@ test.describe("Web Vitals Tracking", () => {
 		const vitalBatches: WebVitalEvent[][] = [];
 
 		page.on("request", (req) => {
-			if (req.url().includes("/basket.databuddy.cc/vitals") && req.method() === "POST") {
+			if (
+				req.url().includes("/basket.databuddy.cc/vitals") &&
+				req.method() === "POST"
+			) {
 				const payload = req.postDataJSON() as WebVitalEvent[];
 				vitalBatches.push(payload);
 			}

@@ -31,7 +31,7 @@ function WebsiteCard({
 				domain={website.domain}
 				fallbackIcon={
 					<div className="rounded bg-primary/10 p-1">
-						<GlobeIcon className="h-3 w-3 text-primary" size={12} />
+						<GlobeIcon className="size-3 text-primary" size={12} />
 					</div>
 				}
 				size={16}

@@ -23,7 +23,11 @@ const QuerySchema = z.object({
 					"in",
 					"not_in",
 				]),
-				value: z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]),
+				value: z.union([
+					z.string(),
+					z.number(),
+					z.array(z.union([z.string(), z.number()])),
+				]),
 				target: z.string().optional(),
 				having: z.boolean().optional(),
 			})
@@ -36,22 +40,41 @@ const QuerySchema = z.object({
 	timezone: z.string().optional(),
 });
 
-function createBuilder(request: QueryRequest, websiteDomain?: string | null, timezone?: string) {
+function createBuilder(
+	request: QueryRequest,
+	websiteDomain?: string | null,
+	timezone?: string
+) {
 	const validated = QuerySchema.parse(request);
 	const config = QueryBuilders[validated.type];
 	if (!config) {
 		throw new Error(`Unknown query type: ${validated.type}`);
 	}
-	return new SimpleQueryBuilder(config, { ...validated, timezone: timezone ?? validated.timezone }, websiteDomain);
+	return new SimpleQueryBuilder(
+		config,
+		{ ...validated, timezone: timezone ?? validated.timezone },
+		websiteDomain
+	);
 }
 
-export const executeQuery = async (request: QueryRequest, websiteDomain?: string | null, timezone?: string) =>
-	createBuilder(request, websiteDomain, timezone).execute();
+export const executeQuery = async (
+	request: QueryRequest,
+	websiteDomain?: string | null,
+	timezone?: string
+) => createBuilder(request, websiteDomain, timezone).execute();
 
-export const compileQuery = (request: QueryRequest, websiteDomain?: string | null, timezone?: string) =>
-	createBuilder(request, websiteDomain, timezone).compile();
+export const compileQuery = (
+	request: QueryRequest,
+	websiteDomain?: string | null,
+	timezone?: string
+) => createBuilder(request, websiteDomain, timezone).compile();
 
-export { areQueriesCompatible, executeBatch, getCompatibleQueries, getSchemaGroups } from "./batch-executor";
+export {
+	areQueriesCompatible,
+	executeBatch,
+	getCompatibleQueries,
+	getSchemaGroups,
+} from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
 export * from "./types";

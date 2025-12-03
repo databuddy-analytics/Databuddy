@@ -10,7 +10,6 @@ import {
 	TerminalIcon,
 } from "@phosphor-icons/react";
 
-// Get icon for error type
 export const getErrorTypeIcon = (type: string) => {
 	if (!type) {
 		return <BugIcon className="h-3.5 w-3.5 text-primary" weight="duotone" />;

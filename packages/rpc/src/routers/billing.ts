@@ -11,63 +11,77 @@ import { logger } from "../lib/logger";
 import { protectedProcedure } from "../orpc";
 import { buildWebsiteFilter } from "../services/website-service";
 
+const DAYS_IN_MONTH = 30;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const EVENT_CATEGORIES = {
+	EVENT: "event",
+	ERROR: "error",
+	WEB_VITALS: "web_vitals",
+	CUSTOM_EVENT: "custom_event",
+	OUTGOING_LINK: "outgoing_link",
+} as const;
+
+type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
+
+interface EventSource {
+	table: string;
+	dateColumn: string;
+	category: EventCategory;
+}
+
+const EVENT_SOURCES: EventSource[] = [
+	{
+		table: "analytics.events",
+		dateColumn: "time",
+		category: EVENT_CATEGORIES.EVENT,
+	},
+	{
+		table: "analytics.error_spans",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.ERROR,
+	},
+	{
+		table: "analytics.web_vitals_spans",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.WEB_VITALS,
+	},
+	{
+		table: "analytics.custom_event_spans",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.CUSTOM_EVENT,
+	},
+	{
+		table: "analytics.outgoing_links",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.OUTGOING_LINK,
+	},
+];
+
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+	const startDate = new Date(Date.now() - DAYS_IN_MONTH * MILLISECONDS_PER_DAY)
 		.toISOString()
 		.split("T")[0];
 	return { startDate, endDate };
 };
 
-const getDailyUsageByTypeQuery = () => `
-	WITH all_events AS (
+const buildEventSourceQuery = (source: EventSource): string => `
 		SELECT 
-			toDate(time) as date,
-			'event' as event_category
-		FROM analytics.events 
+			toDate(${source.dateColumn}) as date,
+			'${source.category}' as event_category
+		FROM ${source.table}
 		WHERE client_id IN {websiteIds:Array(String)}
-			AND time >= parseDateTimeBestEffort({startDate:String})
-			AND time <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 
-			toDate(timestamp) as date,
-			'error' as event_category
-		FROM analytics.errors 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 
-			toDate(timestamp) as date,
-			'web_vitals' as event_category
-		FROM analytics.web_vitals 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 
-			toDate(timestamp) as date,
-			'custom_event' as event_category
-		FROM analytics.custom_events 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		
-		UNION ALL
-		
-		SELECT 
-			toDate(timestamp) as date,
-			'outgoing_link' as event_category
-		FROM analytics.outgoing_links 
-		WHERE client_id IN {websiteIds:Array(String)}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
+			AND ${source.dateColumn} >= parseDateTimeBestEffort({startDate:String})
+			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})`;
+
+const getDailyUsageByTypeQuery = (): string => {
+	const eventQueries = EVENT_SOURCES.map(buildEventSourceQuery).join(
+		"\n\t\tUNION ALL"
+	);
+
+	return `
+	WITH all_events AS (${eventQueries}
 	)
 	SELECT 
 		date,
@@ -75,8 +89,77 @@ const getDailyUsageByTypeQuery = () => `
 		count() as event_count
 	FROM all_events
 	GROUP BY date, event_category
-	ORDER BY date ASC, event_category ASC
-`;
+	ORDER BY date ASC, event_category ASC`;
+};
+
+const normalizeOrganizationId = (
+	organizationId: string | null | undefined
+): string | null => {
+	if (!organizationId || organizationId.trim().length === 0) {
+		return null;
+	}
+	return organizationId;
+};
+
+const aggregateUsageData = (
+	results: DailyUsageByTypeRow[]
+): {
+	dailyUsage: DailyUsageRow[];
+	eventTypeBreakdown: EventTypeBreakdown[];
+	totalEvents: number;
+} => {
+	const dailyUsageMap = new Map<string, number>();
+	const eventTypeBreakdownMap = new Map<string, number>();
+	let totalEvents = 0;
+
+	for (const row of results) {
+		const currentDaily = dailyUsageMap.get(row.date) || 0;
+		dailyUsageMap.set(row.date, currentDaily + row.event_count);
+
+		const currentTypeTotal = eventTypeBreakdownMap.get(row.event_category) || 0;
+		eventTypeBreakdownMap.set(
+			row.event_category,
+			currentTypeTotal + row.event_count
+		);
+
+		totalEvents += row.event_count;
+	}
+
+	const dailyUsage: DailyUsageRow[] = Array.from(dailyUsageMap.entries())
+		.map(([date, event_count]) => ({ date, event_count }))
+		.sort((a, b) => a.date.localeCompare(b.date));
+
+	const eventTypeBreakdown: EventTypeBreakdown[] = Array.from(
+		eventTypeBreakdownMap.entries()
+	)
+		.map(([event_category, event_count]) => ({
+			event_category,
+			event_count,
+		}))
+		.sort((a, b) => b.event_count - a.event_count);
+
+	return {
+		dailyUsage,
+		eventTypeBreakdown,
+		totalEvents,
+	};
+};
+
+const checkOrganizationPermission = async (
+	headers: Headers,
+	organizationId: string
+): Promise<void> => {
+	const { success } = await websitesApi.hasPermission({
+		headers,
+		body: { permissions: { website: ["read"] } },
+	});
+
+	if (!success) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Missing organization permissions.",
+		});
+	}
+};
 
 export const billingRouter = {
 	getUsage: protectedProcedure
@@ -95,22 +178,10 @@ export const billingRouter = {
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const organizationIdRaw = input.organizationId;
-			const organizationId =
-				organizationIdRaw && organizationIdRaw.trim().length > 0
-					? organizationIdRaw
-					: null;
+			const organizationId = normalizeOrganizationId(input.organizationId);
 
 			if (organizationId) {
-				const { success } = await websitesApi.hasPermission({
-					headers: context.headers,
-					body: { permissions: { website: ["read"] } },
-				});
-				if (!success) {
-					throw new ORPCError("FORBIDDEN", {
-						message: "Missing organization permissions.",
-					});
-				}
+				await checkOrganizationPermission(context.headers, organizationId);
 			}
 
 			try {
@@ -148,67 +219,37 @@ export const billingRouter = {
 					}
 				);
 
-				const dailyUsageMap = new Map<string, number>();
-				const eventTypeBreakdownMap = new Map<string, number>();
-				let totalEvents = 0;
-
-				for (const row of dailyUsageByTypeResults) {
-					const currentDaily = dailyUsageMap.get(row.date) || 0;
-					dailyUsageMap.set(row.date, currentDaily + row.event_count);
-
-					const currentTypeTotal =
-						eventTypeBreakdownMap.get(row.event_category) || 0;
-					eventTypeBreakdownMap.set(
-						row.event_category,
-						currentTypeTotal + row.event_count
-					);
-
-					totalEvents += row.event_count;
-				}
-
-				const dailyUsageResults: DailyUsageRow[] = Array.from(
-					dailyUsageMap.entries()
-				)
-					.map(([date, event_count]) => ({ date, event_count }))
-					.sort((a, b) => a.date.localeCompare(b.date));
-
-				const eventTypeBreakdownResults: EventTypeBreakdown[] = Array.from(
-					eventTypeBreakdownMap.entries()
-				)
-					.map(([event_category, event_count]) => ({
-						event_category,
-						event_count,
-					}))
-					.sort((a, b) => b.event_count - a.event_count);
+				const { dailyUsage, eventTypeBreakdown, totalEvents } =
+					aggregateUsageData(dailyUsageByTypeResults);
 
 				logger.info(
-					`Billing usage calculated for user ${context.user.id}: ${totalEvents} events across ${websiteIds.length} websites`,
 					{
 						userId: context.user.id,
 						organizationId,
 						websiteCount: websiteIds.length,
 						totalEvents,
 						dateRange: { startDate, endDate },
-					}
+					},
+					`Billing usage calculated for user ${context.user.id}: ${totalEvents} events across ${websiteIds.length} websites`
 				);
 
 				return {
 					totalEvents,
-					dailyUsage: dailyUsageResults,
+					dailyUsage,
 					dailyUsageByType: dailyUsageByTypeResults,
-					eventTypeBreakdown: eventTypeBreakdownResults,
+					eventTypeBreakdown,
 					websiteCount: websiteIds.length,
 					dateRange: { startDate, endDate },
 				};
 			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
+
 				logger.error(
-					`Failed to fetch billing usage for user ${context.user.id}: ${error instanceof Error ? error.message : String(error)}`,
-					{
-						error: error instanceof Error ? error.message : String(error),
-						userId: context.user.id,
-						organizationId,
-					}
+					{ error: errorMessage, userId: context.user.id, organizationId },
+					`Failed to fetch billing usage for user ${context.user.id}: ${errorMessage}`
 				);
+
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to fetch billing usage data",
 				});
