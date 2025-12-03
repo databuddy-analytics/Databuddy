@@ -84,6 +84,7 @@ export function DependencySelector({
               size="icon"
               onClick={() => removeDependency(index)}
               type="button"
+              aria-label="Remove dependency"
             >
               <X className="h-4 w-4" />
             </Button>

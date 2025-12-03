@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Trash, TrashIcon } from "@phosphor-icons/react";
+import { CalendarIcon, TrashIcon } from "@phosphor-icons/react";
 import { UseFormReturn, UseFormSetValue } from "react-hook-form";
 import type {
   FlagSchedule,
