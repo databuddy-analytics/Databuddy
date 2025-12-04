@@ -1,6 +1,14 @@
 "use client";
 
-import { CalendarIcon, LightningIcon } from "@phosphor-icons/react";
+import {
+	CalendarIcon,
+	CircleNotchIcon,
+	LightningIcon,
+	WarningCircleIcon,
+} from "@phosphor-icons/react";
+import dayjs from "dayjs";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,6 +28,8 @@ interface CancelSubscriptionDialogProps {
 	isLoading: boolean;
 }
 
+type CancelOption = "end_of_period" | "immediate" | null;
+
 export function CancelSubscriptionDialog({
 	open,
 	onOpenChange,
@@ -28,81 +38,134 @@ export function CancelSubscriptionDialog({
 	currentPeriodEnd,
 	isLoading,
 }: CancelSubscriptionDialogProps) {
+	const [selected, setSelected] = useState<CancelOption>(null);
+	const [confirming, setConfirming] = useState(false);
+
 	const periodEndDate = currentPeriodEnd
-		? new Date(currentPeriodEnd).toLocaleDateString()
+		? dayjs(currentPeriodEnd).format("MMMM D, YYYY")
 		: null;
 
+	const handleConfirm = async () => {
+		if (!selected) return;
+		setConfirming(true);
+		await onCancel(selected === "immediate");
+		setConfirming(false);
+		onOpenChange(false);
+		setSelected(null);
+	};
+
+	const handleClose = () => {
+		onOpenChange(false);
+		setSelected(null);
+	};
+
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="max-w-lg">
-				<DialogHeader className="space-y-3">
-					<DialogTitle className="text-xl">Cancel {planName}</DialogTitle>
+		<Dialog onOpenChange={handleClose} open={open}>
+			<DialogContent className="w-[95vw] max-w-md sm:w-full">
+				<DialogHeader>
+					<DialogTitle>Cancel {planName}</DialogTitle>
 					<DialogDescription>
-						Choose how you'd like to cancel your subscription
+						Choose when you'd like to cancel your subscription
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-3 py-4">
+				<div className="space-y-2">
+					{/* End of period option */}
 					<button
-						className="w-full cursor-pointer rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 disabled:cursor-default disabled:opacity-50"
-						disabled={isLoading}
-						onClick={() => {
-							onCancel(false);
-							onOpenChange(false);
-						}}
+						className={`w-full rounded border p-4 text-left transition-all ${
+							selected === "end_of_period"
+								? "border-primary bg-primary/5 ring-1 ring-primary"
+								: "hover:bg-accent/50"
+						} disabled:cursor-not-allowed disabled:opacity-50`}
+						disabled={isLoading || confirming}
+						onClick={() => setSelected("end_of_period")}
 						type="button"
 					>
-						<div className="mb-2 flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded-full bg-blue-100">
-								<CalendarIcon className="text-foreground" size={16} />
+						<div className="flex items-start gap-3">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-accent">
+								<CalendarIcon
+									className="text-accent-foreground"
+									size={20}
+									weight="duotone"
+								/>
 							</div>
-							<div>
-								<div className="font-medium">Cancel at period end</div>
-								<div className="text-muted-foreground text-sm">Recommended</div>
+							<div className="flex-1">
+								<div className="flex items-center gap-2">
+									<span className="font-medium">Cancel at period end</span>
+									<Badge variant="secondary">Recommended</Badge>
+								</div>
+								<p className="mt-1 text-muted-foreground text-sm">
+									{periodEndDate
+										? `Keep access until ${periodEndDate}`
+										: "Keep access until your billing period ends"}
+								</p>
 							</div>
 						</div>
-						<p className="ml-11 text-muted-foreground text-sm">
-							{periodEndDate
-								? `Keep access until ${periodEndDate}. No additional charges.`
-								: "Keep access until your current billing period ends. No additional charges."}
-						</p>
 					</button>
 
+					{/* Immediate option */}
 					<button
-						className="w-full cursor-pointer rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 disabled:cursor-default disabled:opacity-50"
-						disabled={isLoading}
-						onClick={() => {
-							onCancel(true);
-							onOpenChange(false);
-						}}
+						className={`w-full rounded border p-4 text-left transition-all ${
+							selected === "immediate"
+								? "border-destructive bg-destructive/5 ring-1 ring-destructive"
+								: "hover:bg-accent/50"
+						} disabled:cursor-not-allowed disabled:opacity-50`}
+						disabled={isLoading || confirming}
+						onClick={() => setSelected("immediate")}
 						type="button"
 					>
-						<div className="mb-2 flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded-full bg-orange-100">
-								<LightningIcon className="text-orange-600" size={16} />
+						<div className="flex items-start gap-3">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded border border-destructive/20 bg-destructive/10">
+								<LightningIcon
+									className="text-destructive"
+									size={20}
+									weight="duotone"
+								/>
 							</div>
-							<div>
-								<div className="font-medium">Cancel immediately</div>
-								<div className="text-muted-foreground text-sm">
-									Lose access now
-								</div>
+							<div className="flex-1">
+								<span className="font-medium">Cancel immediately</span>
+								<p className="mt-1 text-muted-foreground text-sm">
+									Lose access now. Any pending usage will be invoiced.
+								</p>
 							</div>
 						</div>
-						<p className="ml-11 text-muted-foreground text-sm">
-							Access ends immediately. You'll be invoiced for any pending usage
-							charges.
-						</p>
 					</button>
 				</div>
 
-				<DialogFooter>
+				{/* Warning for immediate cancellation */}
+				{selected === "immediate" && (
+					<div className="flex items-start gap-2 rounded border border-destructive/20 bg-destructive/5 p-3 text-sm">
+						<WarningCircleIcon
+							className="mt-0.5 shrink-0 text-destructive"
+							size={16}
+							weight="fill"
+						/>
+						<span className="text-destructive">
+							This action cannot be undone. You will lose access to all{" "}
+							{planName} features immediately.
+						</span>
+					</div>
+				)}
+
+				<DialogFooter className="flex-col gap-2 sm:flex-row">
 					<Button
-						className="cursor-pointer"
-						disabled={isLoading}
-						onClick={() => onOpenChange(false)}
+						className="w-full sm:w-auto"
+						disabled={isLoading || confirming}
+						onClick={handleClose}
 						variant="outline"
 					>
 						Keep subscription
+					</Button>
+					<Button
+						className="w-full sm:w-auto"
+						disabled={!selected || isLoading || confirming}
+						onClick={handleConfirm}
+						variant={selected === "immediate" ? "destructive" : "default"}
+					>
+						{confirming && (
+							<CircleNotchIcon className="mr-2 size-4 animate-spin" />
+						)}
+						{selected === "immediate" ? "Cancel now" : "Confirm cancellation"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

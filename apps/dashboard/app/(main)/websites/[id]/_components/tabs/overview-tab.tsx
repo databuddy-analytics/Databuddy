@@ -53,7 +53,7 @@ type ChartDataPoint = {
 	visitors?: number;
 	sessions?: number;
 	bounce_rate?: number;
-	avg_session_duration?: number;
+	median_session_duration?: number;
 	[key: string]: unknown;
 };
 
@@ -369,7 +369,7 @@ export function WebsiteOverviewTab({
 							unique_visitors: 0,
 							sessions: 0,
 							bounce_rate: 0,
-							avg_session_duration: 0,
+							median_session_duration: 0,
 							pages_per_session: 0,
 						}
 					);
@@ -390,7 +390,7 @@ export function WebsiteOverviewTab({
 						unique_visitors: 0,
 						sessions: 0,
 						bounce_rate: 0,
-						avg_session_duration: 0,
+						median_session_duration: 0,
 						pages_per_session: 0,
 					}
 				);
@@ -428,9 +428,9 @@ export function WebsiteOverviewTab({
 					...(visibleMetrics.bounce_rate && {
 						bounce_rate: event.bounce_rate as number,
 					}),
-					...(visibleMetrics.avg_session_duration && {
-						avg_session_duration: event.avg_session_duration as number,
-					}),
+				...(visibleMetrics.median_session_duration && {
+					median_session_duration: event.median_session_duration as number,
+				}),
 				})
 			),
 		[processedEventsData, dateRange.granularity, visibleMetrics]
@@ -467,7 +467,7 @@ export function WebsiteOverviewTab({
 			pagesPerSession: createChartSeries("pages_per_session"),
 			bounceRate: createChartSeries("bounce_rate"),
 			sessionDuration: createChartSeries(
-				"avg_session_duration",
+				"median_session_duration",
 				formatSessionDuration
 			),
 		};
@@ -676,7 +676,7 @@ export function WebsiteOverviewTab({
 			sessions: currentSummary.sessions || 0,
 			pageviews: currentSummary.pageviews || 0,
 			bounceRate: currentSummary.bounce_rate || 0,
-			sessionDuration: currentSummary.avg_session_duration || 0,
+			sessionDuration: currentSummary.median_session_duration || 0,
 			pagesPerSession: 0,
 		};
 		currentMetrics.pagesPerSession =
@@ -689,7 +689,7 @@ export function WebsiteOverviewTab({
 			sessions: previousSummary.sessions || 0,
 			pageviews: previousSummary.pageviews || 0,
 			bounceRate: previousSummary.bounce_rate || 0,
-			sessionDuration: previousSummary.avg_session_duration || 0,
+			sessionDuration: previousSummary.median_session_duration || 0,
 			pagesPerSession: 0,
 		};
 		previousMetrics.pagesPerSession =
@@ -840,9 +840,9 @@ export function WebsiteOverviewTab({
 					},
 					{
 						id: "session-duration-chart",
-						title: "Avg Duration",
+						title: "Session Duration",
 						value: (() => {
-							const duration = analytics.summary?.avg_session_duration;
+							const duration = analytics.summary?.median_session_duration;
 							if (!duration) {
 								return "0s";
 							}

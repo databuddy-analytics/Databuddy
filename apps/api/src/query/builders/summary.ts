@@ -32,14 +32,14 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					name: "bounce_rate",
 					type: "number",
 					label: "Bounce Rate",
-					description: "Percentage of single-page sessions",
+					description: "Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
 					unit: "%",
 				},
 				{
-					name: "avg_session_duration",
+					name: "median_session_duration",
 					type: "number",
-					label: "Avg Session Duration",
-					description: "Average session duration in seconds",
+					label: "Median Session Duration",
+					description: "Median time spent actively on pages",
 					unit: "seconds",
 				},
 				{
@@ -81,7 +81,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			const baseEventsQuery = helpers?.sessionAttributionCTE
 				? `base_events AS (
 					SELECT e.session_id, e.anonymous_id, e.event_name,
-						toTimeZone(e.time, {timezone:String}) as normalized_time
+						toTimeZone(e.time, {timezone:String}) as normalized_time,
+						e.time_on_page
 					FROM analytics.events e
 					${helpers.sessionAttributionJoin("e")}
 					WHERE e.client_id = {websiteId:String}
@@ -92,7 +93,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				),`
 				: `base_events AS (
 					SELECT session_id, anonymous_id, event_name,
-						toTimeZone(time, {timezone:String}) as normalized_time
+						toTimeZone(time, {timezone:String}) as normalized_time,
+						time_on_page
 					FROM analytics.events
 					WHERE client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
@@ -108,7 +110,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				session_agg AS (
 					SELECT session_id,
 						countIf(event_name = 'screen_view') as page_count,
-						dateDiff('second', min(normalized_time), max(normalized_time)) as duration
+						countIf(event_name != 'screen_view' AND event_name != 'page_exit') as engagement_count,
+						sumIf(time_on_page, event_name = 'page_exit' AND time_on_page > 0) as duration
 					FROM base_events
 					GROUP BY session_id
 				),
@@ -118,9 +121,9 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 						uniq(if(event_name = 'screen_view', anonymous_id, null)) as unique_visitors
 					FROM base_events
 				)
-				SELECT ea.pageviews, ea.unique_visitors, count() as sessions,
-					round(countIf(sa.page_count = 1) * 100.0 / nullIf(count(), 0), 2) as bounce_rate,
-					round(medianIf(sa.duration, sa.duration >= 0), 2) as avg_session_duration,
+				SELECT ea.pageviews, ea.unique_visitors, countIf(sa.page_count >= 1) as sessions,
+					round(countIf(sa.page_count = 1 AND sa.duration < 10 AND sa.engagement_count = 0) * 100.0 / nullIf(countIf(sa.page_count >= 1), 0), 2) as bounce_rate,
+					round(medianIf(sa.duration, sa.page_count >= 1 AND sa.duration >= 0), 2) as median_session_duration,
 					ea.total_events
 				FROM session_agg sa
 				CROSS JOIN event_agg ea
@@ -217,14 +220,14 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					name: "bounce_rate",
 					type: "number",
 					label: "Bounce Rate",
-					description: "Bounce rate for the period",
+					description: "Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
 					unit: "%",
 				},
 				{
-					name: "avg_session_duration",
+					name: "median_session_duration",
 					type: "number",
-					label: "Avg Session Duration",
-					description: "Average session duration",
+					label: "Median Session Duration",
+					description: "Median time spent actively on pages",
 					unit: "seconds",
 				},
 				{
@@ -272,7 +275,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			const baseEventsQuery = helpers?.sessionAttributionCTE
 				? `base_events AS (
 					SELECT e.session_id, e.anonymous_id, e.event_name,
-						toTimeZone(e.time, {timezone:String}) as normalized_time
+						toTimeZone(e.time, {timezone:String}) as normalized_time,
+						e.time_on_page
 					FROM analytics.events e
 					${helpers.sessionAttributionJoin("e")}
 					WHERE e.client_id = {websiteId:String}
@@ -282,7 +286,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				),`
 				: `base_events AS (
 					SELECT session_id, anonymous_id, event_name,
-						toTimeZone(time, {timezone:String}) as normalized_time
+						toTimeZone(time, {timezone:String}) as normalized_time,
+						time_on_page
 					FROM analytics.events
 					WHERE client_id = {websiteId:String}
 						AND ${dateFilter}
@@ -296,9 +301,10 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				${baseEventsQuery}
 				session_agg AS (
 					SELECT session_id,
-						${timeBucketFn}(min(normalized_time)) as time_bucket,
+						${timeBucketFn}(minIf(normalized_time, event_name = 'screen_view')) as time_bucket,
 						countIf(event_name = 'screen_view') as page_count,
-						dateDiff('second', min(normalized_time), max(normalized_time)) as duration
+						countIf(event_name != 'screen_view' AND event_name != 'page_exit') as engagement_count,
+						sumIf(time_on_page, event_name = 'page_exit' AND time_on_page > 0) as duration
 					FROM base_events
 					GROUP BY session_id
 				),
@@ -311,8 +317,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 				)
 				SELECT ${dateFormat} as date, ea.pageviews, ea.visitors,
 					count(sa.session_id) as sessions,
-					round(countIf(sa.page_count = 1) * 100.0 / nullIf(count(sa.session_id), 0), 2) as bounce_rate,
-					round(medianIf(sa.duration, sa.duration >= 0), 2) as avg_session_duration,
+					round(countIf(sa.page_count = 1 AND sa.duration < 10 AND sa.engagement_count = 0) * 100.0 / nullIf(count(sa.session_id), 0), 2) as bounce_rate,
+					round(medianIf(sa.duration, sa.duration >= 0), 2) as median_session_duration,
 					round(ea.pageviews * 1.0 / nullIf(count(sa.session_id), 0), 2) as pages_per_session
 				FROM event_agg ea
 				LEFT JOIN session_agg sa ON ea.time_bucket = sa.time_bucket

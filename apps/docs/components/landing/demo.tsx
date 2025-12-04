@@ -123,7 +123,7 @@ export default function DemoContainer() {
 
 				<iframe
 					allowFullScreen
-					className="h-[500px] w-full rounded border-0 bg-linear-to-b from-transparent to-background shadow-2xl grayscale sm:h-[600px] lg:h-[700px]"
+					className="h-[500px] w-full rounded border-0 bg-linear-to-b from-transparent to-background shadow-2xl sm:h-[600px] lg:h-[700px]"
 					loading="lazy"
 					ref={iframeRef}
 					src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"

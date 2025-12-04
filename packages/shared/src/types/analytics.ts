@@ -55,7 +55,7 @@ export type SummaryMetricsData = {
 	pageviews: number;
 	bounce_rate: number;
 	bounce_rate_pct: string;
-	avg_session_duration: number;
-	avg_session_duration_formatted: string;
+	median_session_duration: number;
+	median_session_duration_formatted: string;
 	pages_per_session: number;
 };

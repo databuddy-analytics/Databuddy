@@ -1,15 +1,17 @@
 "use client";
 
+import { CircleNotchIcon } from "@phosphor-icons/react";
 import type { CheckProductPreview } from "autumn-js";
 import { useCustomer } from "autumn-js/react";
-import { ArrowRight, Loader2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
+	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { getAttachContent } from "@/lib/autumn/attach-content";
@@ -48,28 +50,21 @@ export default function AttachDialog(params?: AttachDialogProps) {
 	}
 
 	const { open, setOpen, preview } = params;
-	const { items, due_today } = preview;
+	const { due_today } = preview;
 	const { title, message } = getAttachContent(preview);
 
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>
-			<DialogContent
-				className={cn("gap-0 overflow-hidden p-0 pt-4 text-foreground text-sm")}
-			>
-				<DialogTitle className={cn("mb-1 px-6")}>{title}</DialogTitle>
-				<div className={cn("mt-1 mb-4 px-6 text-muted-foreground")}>
-					{message}
-				</div>
-				{(items || optionsInput.length > 0) && (
-					<div className="mb-6 px-6">
-						{items?.map((item) => (
-							<PriceItem key={item.description}>
-								<span className="flex-1 truncate">{item.description}</span>
-								<span>{item.price}</span>
-							</PriceItem>
-						))}
+			<DialogContent className="w-[95vw] max-w-md sm:w-full">
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					<DialogDescription>{message}</DialogDescription>
+				</DialogHeader>
 
-						{optionsInput?.map((option, index) => (
+				{/* Options Input (if any configurable options) */}
+				{optionsInput.length > 0 && (
+					<div className="space-y-2">
+						{optionsInput.map((option, index) => (
 							<OptionsInput
 								index={index}
 								key={option.feature_name}
@@ -81,20 +76,22 @@ export default function AttachDialog(params?: AttachDialogProps) {
 					</div>
 				)}
 
-				<DialogFooter className="flex flex-col justify-between gap-x-4 border-t bg-secondary py-2 pr-3 pl-6 shadow-inner sm:flex-row">
-					{due_today && (
-						<TotalPrice>
-							<span>Due Today</span>
-							<span>
-								{new Intl.NumberFormat("en-US", {
-									style: "currency",
-									currency: due_today.currency,
-								}).format(getTotalPrice())}
-							</span>
-						</TotalPrice>
-					)}
+				{/* Due Today */}
+				{due_today && (
+					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2">
+						<span className="text-muted-foreground text-sm">Due today</span>
+						<span className="font-semibold">
+							{new Intl.NumberFormat("en-US", {
+								style: "currency",
+								currency: due_today.currency,
+							}).format(getTotalPrice())}
+						</span>
+					</div>
+				)}
+
+				<DialogFooter>
 					<Button
-						className="flex min-w-16 items-center gap-2"
+						className="w-full"
 						disabled={loading}
 						onClick={async () => {
 							setLoading(true);
@@ -108,13 +105,9 @@ export default function AttachDialog(params?: AttachDialogProps) {
 							setOpen(false);
 							setLoading(false);
 						}}
-						size="sm"
 					>
-						{loading ? (
-							<Loader2 className="size-4 animate-spin" />
-						) : (
-							<span className="flex gap-1 whitespace-nowrap">Confirm</span>
-						)}
+						{loading && <CircleNotchIcon className="mr-2 size-4 animate-spin" />}
+						Confirm Purchase
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -262,12 +255,11 @@ export const PricingDialogButton = ({
 	className?: string;
 }) => (
 	<Button
-		className={cn(className, "shadow-sm shadow-stone-400")}
+		className={cn(className)}
 		disabled={disabled}
 		onClick={onClick}
 		size={size}
 	>
 		{children}
-		<ArrowRight className="h-3!" />
 	</Button>
 );

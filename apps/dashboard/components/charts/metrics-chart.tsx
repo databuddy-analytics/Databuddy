@@ -163,7 +163,7 @@ const DEFAULT_METRICS = [
 	"visitors",
 	"sessions",
 	"bounce_rate",
-	"avg_session_duration",
+	"median_session_duration",
 ];
 
 export function MetricsChart({

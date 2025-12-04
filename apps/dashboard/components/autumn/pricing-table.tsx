@@ -135,7 +135,11 @@ export default function PricingTable({
 
 	const filteredProducts =
 		products?.filter(
-			(p) => p.id !== "free" && p.id !== "verification_fee" && intervalFilter(p)
+			(p) =>
+				p.id !== "free" &&
+				p.id !== "verification_fee" &&
+				!(p as Product & { is_add_on?: boolean }).is_add_on &&
+				intervalFilter(p)
 		) ?? [];
 
 	return (
@@ -151,7 +155,11 @@ export default function PricingTable({
 								disabled:
 									plan.scenario === "active" || plan.scenario === "scheduled",
 								onClick: async () => {
-									await attach({ productId: plan.id, dialog: AttachDialog });
+									await attach({
+										productId: plan.id,
+										dialog: AttachDialog,
+										...(plan.id === "hobby" && { reward: "SAVE80" }),
+									});
 								},
 							}}
 							isSelected={selectedPlan === plan.id}
@@ -382,11 +390,11 @@ function PricingCard({
 			<div className="p-5 pt-0">
 				<PricingCardButton
 					disabled={buttonProps?.disabled}
-					onClick={() => {
+					onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
 						if (isDowngrade) {
 							setShowDowngradeDialog(true);
 						} else {
-							buttonProps?.onClick?.();
+							buttonProps?.onClick?.(e);
 						}
 					}}
 					recommended={isRecommended}
@@ -401,7 +409,11 @@ function PricingCard({
 				onClose={() => setShowDowngradeDialog(false)}
 				onConfirm={async () => {
 					setShowDowngradeDialog(false);
-					await attach({ productId: product.id, dialog: AttachDialog });
+					await attach({
+						productId: product.id,
+						dialog: AttachDialog,
+						...(product.id === "hobby" && { reward: "SAVE80" }),
+					});
 				}}
 				productName={productDisplay?.name || name}
 			/>

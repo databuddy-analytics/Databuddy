@@ -1,7 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
 	const sessionCookie = getSessionCookie(request, {
 		cookiePrefix: "databuddy",
 	});
@@ -22,8 +22,9 @@ export const config = {
 		 * - _next/image (image optimization files)
 		 * - favicon.ico (favicon file)
 		 * - login (login page)
+		 * - demo (demo pages)
 		 * - public files (public folder)
 		 */
-		"/((?!api|_next/static|_next/image|favicon.ico|login|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+		"/((?!api|_next/static|_next/image|favicon.ico|login|demo|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };

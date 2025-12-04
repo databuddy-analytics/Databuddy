@@ -4,12 +4,17 @@ import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
 	CrownIcon,
+	PlusIcon,
+	PuzzlePieceIcon,
 	TrendUpIcon,
+	XIcon,
 } from "@phosphor-icons/react";
-import type { Product } from "autumn-js";
+import type { CustomerProduct, Product } from "autumn-js";
+import { useCustomer } from "autumn-js/react";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { useMemo } from "react";
+import AttachDialog from "@/components/autumn/attach-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,9 +25,28 @@ import { OverviewSkeleton } from "./components/overview-skeleton";
 import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
 
+type AddOnProduct = Product & { is_add_on?: boolean };
+
+function getAddOnStatus(addOn: Product, customerProduct?: CustomerProduct) {
+	const isCancelled =
+		customerProduct?.canceled_at &&
+		customerProduct?.current_period_end &&
+		dayjs(customerProduct.current_period_end).isAfter(dayjs());
+
+	const isActive =
+		!isCancelled &&
+		(addOn.scenario === "active" ||
+			addOn.scenario === "scheduled" ||
+			customerProduct?.status === "active" ||
+			customerProduct?.status === "scheduled");
+
+	return { isCancelled, isActive };
+}
+
 export default function BillingPage() {
 	const { products, usage, customer, isLoading, error, refetch } =
 		useBillingData();
+	const { attach } = useCustomer();
 	const {
 		onCancelClick,
 		onCancelConfirm,
@@ -32,6 +56,11 @@ export default function BillingPage() {
 		cancelTarget,
 		getSubscriptionStatusDetails,
 	} = useBilling(refetch);
+
+	const addOns = useMemo(
+		() => products?.filter((p) => (p as AddOnProduct).is_add_on) ?? [],
+		[products]
+	);
 
 	const { currentPlan, currentProduct, usageStats, statusDetails } =
 		useMemo(() => {
@@ -43,16 +72,14 @@ export default function BillingPage() {
 			});
 
 			const activePlan = activeCustomerProduct
-				? products?.find((p: Product) => p.id === activeCustomerProduct.id)
+				? products?.find((p) => p.id === activeCustomerProduct.id)
 				: products?.find(
-						(p: Product) =>
-							!p.scenario ||
-							(p.scenario !== "upgrade" && p.scenario !== "downgrade")
+						(p) => !p.scenario || !["upgrade", "downgrade"].includes(p.scenario)
 					);
 
 			const planStatusDetails = activeCustomerProduct
 				? getSubscriptionStatusDetails(
-						activeCustomerProduct as unknown as Parameters<
+						activeCustomerProduct as Parameters<
 							typeof getSubscriptionStatusDetails
 						>[0]
 					)
@@ -64,12 +91,7 @@ export default function BillingPage() {
 				usageStats: usage?.features ?? [],
 				statusDetails: planStatusDetails,
 			};
-		}, [
-			products,
-			usage?.features,
-			customer?.products,
-			getSubscriptionStatusDetails,
-		]);
+		}, [products, usage?.features, customer?.products, getSubscriptionStatusDetails]);
 
 	if (isLoading) {
 		return (
@@ -89,6 +111,7 @@ export default function BillingPage() {
 
 	const isFree = currentPlan?.id === "free" || currentPlan?.properties?.is_free;
 	const isCanceled = currentPlan?.scenario === "cancel";
+	const showAddOns = addOns.length > 0 && !isFree;
 
 	return (
 		<main className="min-h-0 flex-1 overflow-hidden">
@@ -97,16 +120,12 @@ export default function BillingPage() {
 					currentPeriodEnd={cancelTarget?.currentPeriodEnd}
 					isLoading={isLoading}
 					onCancel={onCancelConfirm}
-					onOpenChange={(open) => {
-						if (!open) {
-							onCancelDialogClose();
-						}
-					}}
+					onOpenChange={(open) => !open && onCancelDialogClose()}
 					open={showCancelDialog}
 					planName={cancelTarget?.name ?? ""}
 				/>
 
-				{/* Main Content */}
+				{/* Main Content - Usage Stats */}
 				<div className="shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">
 					{usageStats.length === 0 ? (
 						<EmptyState
@@ -127,7 +146,7 @@ export default function BillingPage() {
 
 				{/* Sidebar */}
 				<div className="flex w-full shrink-0 flex-col border-t bg-card lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l">
-					{/* Plan */}
+					{/* Current Plan */}
 					<div className="border-b p-5">
 						<div className="mb-3 flex items-center justify-between">
 							<h3 className="font-semibold">Current Plan</h3>
@@ -136,9 +155,7 @@ export default function BillingPage() {
 									currentProduct?.status === "scheduled" ? "outline" : "green"
 								}
 							>
-								{currentProduct?.status === "scheduled"
-									? "Scheduled"
-									: "Active"}
+								{currentProduct?.status === "scheduled" ? "Scheduled" : "Active"}
 							</Badge>
 						</div>
 						<div className="flex items-center gap-3">
@@ -170,13 +187,11 @@ export default function BillingPage() {
 
 					{/* Payment Method + Actions */}
 					<div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-1 lg:gap-0 lg:p-0">
-						{/* Payment Method */}
 						<div className="w-full lg:w-auto lg:border-b lg:p-5">
 							<h3 className="mb-3 font-semibold">Payment Method</h3>
 							<CreditCardDisplay customer={customer} />
 						</div>
 
-						{/* Actions */}
 						<div className="flex w-full flex-col gap-2 lg:w-auto lg:p-5">
 							{isCanceled ? (
 								<Button asChild className="w-full" variant="secondary">
@@ -213,6 +228,82 @@ export default function BillingPage() {
 							</Button>
 						</div>
 					</div>
+
+					{/* Enterprise Add-ons */}
+					{showAddOns && (
+						<div className="border-t p-5">
+							<div className="mb-3 flex items-center gap-2">
+								<PuzzlePieceIcon
+									className="text-muted-foreground"
+									size={16}
+									weight="duotone"
+								/>
+								<h3 className="font-semibold">Enterprise Add-ons</h3>
+							</div>
+							<div className="space-y-2">
+								{addOns.map((addOn) => {
+									const customerProduct = customer?.products?.find(
+										(cp) => cp.id === addOn.id
+									);
+									const { isCancelled, isActive } = getAddOnStatus(
+										addOn,
+										customerProduct
+									);
+									const priceDisplay = addOn.items[0]?.display;
+
+									return (
+										<div
+											className="flex items-center justify-between gap-3 rounded border bg-secondary/50 p-3"
+											key={addOn.id}
+										>
+											<div className="min-w-0 flex-1">
+												<div className="truncate font-medium text-sm">
+													{addOn.display?.name || addOn.name}
+												</div>
+												<div className="text-muted-foreground text-xs">
+													{isCancelled && customerProduct?.current_period_end
+														? `Access until ${dayjs(customerProduct.current_period_end).format("MMM D, YYYY")}`
+														: priceDisplay?.primary_text &&
+															`${priceDisplay.primary_text}${priceDisplay.secondary_text ? ` ${priceDisplay.secondary_text}` : ""}`}
+												</div>
+											</div>
+											{isCancelled ? (
+												<Badge variant="outline">Cancelled</Badge>
+											) : isActive ? (
+												<div className="flex items-center gap-2">
+													<Badge variant="green">Active</Badge>
+													<Button
+														onClick={() =>
+															onCancelClick(
+																addOn.id,
+																addOn.display?.name || addOn.name,
+																customerProduct?.current_period_end ?? undefined
+															)
+														}
+														size="sm"
+														variant="ghost"
+													>
+														<XIcon size={14} />
+													</Button>
+												</div>
+											) : (
+												<Button
+													onClick={() =>
+														attach({ productId: addOn.id, dialog: AttachDialog })
+													}
+													size="sm"
+													variant="outline"
+												>
+													<PlusIcon size={14} />
+													Add
+												</Button>
+											)}
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		</main>

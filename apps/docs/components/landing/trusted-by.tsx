@@ -19,9 +19,7 @@ const logos = [
 	{ name: "oss.now", src: "https://oss.now/" },
 	{ name: "Terabits", src: "https://www.terabits.xyz" },
 	{ name: "Dione", src: "https://getdione.app" },
-	{ name: "Kubiks", src: "https://kubiks.ai/" },
 	{ name: "Lindra", src: "https://lindra.ai" },
-	{ name: "Snowseo", src: "https://snowseo.com" },
 	{ name: "inbound", src: "https://inbound.new/" },
 	{ name: "Mantlz", src: "https://mantlz.com" },
 ].map((logo, i) => ({ id: i + 1, style: "font-semibold", ...logo }));

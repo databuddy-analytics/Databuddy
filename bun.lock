@@ -156,9 +156,9 @@
         "next": "^16.0.1",
         "next-themes": "^0.4.6",
         "nuqs": "^2.7.2",
-        "react": "19.2.0",
+        "react": "19.2.1",
         "react-day-picker": "8.10.1",
-        "react-dom": "^19.2.0",
+        "react-dom": "19.2.1",
         "react-hook-form": "^7.65.0",
         "react-resizable-panels": "^3.0.6",
         "recharts": "^3.3.0",
@@ -171,8 +171,8 @@
         "@eslint/eslintrc": "^3.3.1",
         "@tailwindcss/postcss": "^4.1.16",
         "@types/node": "^20.19.24",
-        "@types/react": "19.2.0",
-        "@types/react-dom": "19.2.0",
+        "@types/react": "19.2.1",
+        "@types/react-dom": "19.2.1",
         "eslint-config-next": "15.3.1",
         "tailwindcss": "^4.1.16",
         "tw-animate-css": "^1.4.0",
@@ -4292,15 +4292,9 @@
 
     "admin/@types/node": ["@types/node@20.19.25", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-ZsJzA5thDQMSQO788d7IocwwQbI8B5OPzmqNvpf3NY/+MHDAS759Wo0gd2WQeXYt5AAAQjzcrTVC6SKCuYgoCQ=="],
 
-    "admin/@types/react": ["@types/react@19.2.0", "", { "dependencies": { "csstype": "^3.0.2" } }, "sha512-1LOH8xovvsKsCBq1wnT4ntDUdCJKmnEakhsuoUSy6ExlHCkGP2hqnatagYTgFk6oeL0VU31u7SNjunPN+GchtA=="],
-
-    "admin/@types/react-dom": ["@types/react-dom@19.2.0", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-brtBs0MnE9SMx7px208g39lRmC5uHZs96caOJfTjFcYSLHNamvaSMfJNagChVNkup2SdtOxKX1FDBkRSJe1ZAg=="],
-
     "admin/drizzle-orm": ["drizzle-orm@0.44.7", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "bun-types", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "pg", "postgres", "sql.js", "sqlite3"] }, "sha512-quIpnYznjU9lHshEOAYLoZ9s3jweleHlZIAWR/jX9gAWNg/JhQ1wj0KGRf7/Zm+obRrYd9GjPVJg790QY9N5AQ=="],
 
     "admin/lucide-react": ["lucide-react@0.509.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-xCJHn6Uh5qF6PGml25vveCTrHJZcqS1G1MVzWZK54ZQsOiCVJk4fwY3oyo5EXS2S+aqvTpWYIfJN+PesJ0quxg=="],
-
-    "admin/react": ["react@19.2.0", "", {}, "sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ=="],
 
     "admin/react-day-picker": ["react-day-picker@8.10.1", "", { "peerDependencies": { "date-fns": "^2.28.0 || ^3.0.0", "react": "^16.8.0 || ^17.0.0 || ^18.0.0" } }, "sha512-TMx7fNbhLk15eqcMt+7Z7S2KF7mfTId/XJDjKE8f+IUcFn0l08/kI4FiYTL/0yuOLmEcbR4Fwe3GJf/NiiMnPA=="],
 
@@ -4757,6 +4751,8 @@
     "accepts/mime-types/mime-db": ["mime-db@1.52.0", "", {}, "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg=="],
 
     "admin/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+
+    "admin/react-day-picker/react": ["react@19.2.0", "", {}, "sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ=="],
 
     "admin/recharts/eventemitter3": ["eventemitter3@5.0.1", "", {}, "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA=="],
 

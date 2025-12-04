@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ssr";
 import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
 import { SciFiButton } from "./landing/scifi-btn";
 import { Wordmark } from "./landing/wordmark";
 import { LogoContent } from "./logo";
+import { Badge } from "./ui/badge";
 
 export function Footer() {
 	return (
-		<footer className="border-border border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+		<footer className="border-border border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
 			<div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
 				{/* CTA Section */}
 				<div className="mb-12 text-center">
@@ -194,6 +196,19 @@ export function Footer() {
 							href="/terms"
 						>
 							Terms of Service
+						</Link>
+						<span className="text-muted-foreground/50 text-xs">•</span>
+						<Link
+							className="inline-flex items-center gap-1.5"
+							href="/privacy#gdpr"
+						>
+							<Badge
+								className="inline-flex items-center gap-1.5 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/50 dark:text-green-400"
+								variant="outline"
+							>
+								<ShieldCheckIcon className="size-3" weight="duotone" />
+								<span className="text-xs font-medium">GDPR Compliant</span>
+							</Badge>
 						</Link>
 					</div>
 				</div>

@@ -6,7 +6,7 @@ export interface MetricVisibilityState {
 	visitors: boolean;
 	sessions: boolean;
 	bounce_rate: boolean;
-	avg_session_duration: boolean;
+	median_session_duration: boolean;
 }
 
 const defaultVisibleMetrics: MetricVisibilityState = {
@@ -14,7 +14,7 @@ const defaultVisibleMetrics: MetricVisibilityState = {
 	visitors: true,
 	sessions: false,
 	bounce_rate: false,
-	avg_session_duration: false,
+	median_session_duration: false,
 };
 
 export const metricVisibilityAtom = atomWithStorage<MetricVisibilityState>(

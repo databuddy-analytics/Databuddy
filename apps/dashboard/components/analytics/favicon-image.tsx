@@ -23,6 +23,7 @@ export function FaviconImage({
 	fallbackIcon,
 }: FaviconImageProps) {
 	const [error, setError] = useState(false);
+	const [loaded, setLoaded] = useState(false);
 
 	const hostname = domain
 		.replace(hostnameRegex, "")
@@ -40,34 +41,41 @@ export function FaviconImage({
 		hostname.includes("localhost") ||
 		hostname.includes("127.0.0.1");
 
-	if (invalid || error) {
-		return (
-			<div
-				className={`${className} flex items-center justify-center rounded-sm`}
-				style={{ width: size, height: size }}
-			>
-				{fallbackIcon || (
-					<GlobeIcon
-						aria-label={altText || "Website icon"}
-						className="text-muted"
-						size={size}
-						weight="duotone"
-					/>
-				)}
-			</div>
-		);
-	}
+	const showFallback = invalid || error || !loaded;
 
 	const isGitHub = hostname === "github.com";
 
-	return (
-		<Image
-			alt={altText || `${domain} favicon`}
-			className={`${className} ${isGitHub ? "dark:invert" : ""}`}
-			height={size}
-			onError={() => setError(true)}
-			src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`}
-			width={size}
+	const fallbackContent = fallbackIcon || (
+		<GlobeIcon
+			aria-label={altText || "Website icon"}
+			className="text-muted"
+			size={size}
+			weight="duotone"
 		/>
+	);
+
+	return (
+		<div
+			className={`${className} relative flex shrink-0 items-center justify-center rounded-sm`}
+			style={{ width: size, height: size, minWidth: size, minHeight: size }}
+		>
+			{showFallback && (
+				<div className={`absolute inset-0 flex items-center justify-center ${loaded ? "opacity-0" : "opacity-100"} transition-opacity`}>
+					{fallbackContent}
+				</div>
+			)}
+			{!invalid && (
+				<Image
+					alt={altText || `${domain} favicon`}
+					className={`${isGitHub ? "dark:invert" : ""} ${loaded ? "opacity-100" : "opacity-0"} transition-opacity`}
+					height={size}
+					onError={() => setError(true)}
+					onLoad={() => setLoaded(true)}
+					src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`}
+					style={{ width: size, height: size }}
+					width={size}
+				/>
+			)}
+		</div>
 	);
 }

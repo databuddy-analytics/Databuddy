@@ -6,7 +6,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { NotificationsPopover } from "@/components/notifications/notifications-popover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -102,7 +101,7 @@ export function CategorySidebar({
 								<button
 									className={cn(
 										isActive && !isLast && "border-accent",
-										"relative flex h-10 w-full items-center justify-center",
+										"relative flex h-10 w-full cursor-pointer items-center justify-center",
 										"focus:outline-none",
 										!isActive && "hover:bg-sidebar-accent-brighter",
 										isLast
@@ -140,12 +139,6 @@ export function CategorySidebar({
 				<div className="flex-1" />
 
 				<div className="space-y-2 border-t p-2 pb-4">
-					<div className="flex justify-center">
-						<div className="flex size-8 items-center justify-center">
-							<NotificationsPopover />
-						</div>
-					</div>
-
 					<div className="flex justify-center">
 						<div className="flex size-8 items-center justify-center">
 							<ThemeToggle />

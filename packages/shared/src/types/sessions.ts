@@ -15,7 +15,7 @@ export interface SessionReferrer {
 
 export interface SessionMetrics {
 	total_sessions: number;
-	avg_session_duration: number;
+	median_session_duration: number;
 	bounce_rate: number;
 	total_events: number;
 }
@@ -30,21 +30,21 @@ export interface SessionsByDevice {
 	name: string;
 	sessions: number;
 	visitors: number;
-	avg_session_duration: number;
+	median_session_duration: number;
 }
 
 export interface SessionsByBrowser {
 	name: string;
 	sessions: number;
 	visitors: number;
-	avg_session_duration: number;
+	median_session_duration: number;
 }
 
 export interface SessionTimeSeries {
 	date: string;
 	sessions: number;
 	visitors: number;
-	avg_session_duration: number;
+	median_session_duration: number;
 }
 
 export interface SessionFlow {

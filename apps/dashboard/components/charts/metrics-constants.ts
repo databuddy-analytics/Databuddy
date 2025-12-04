@@ -137,8 +137,8 @@ export type ChartDataRow = {
 	unique_visitors?: number;
 	sessions?: number;
 	bounce_rate?: number;
-	avg_session_duration?: number;
-	avg_session_duration_formatted?: string;
+	median_session_duration?: number;
+	median_session_duration_formatted?: string;
 	// Load time metrics
 	avg_load_time?: number;
 	p50_load_time?: number;
@@ -227,13 +227,13 @@ export const ANALYTICS_METRICS: MetricConfig[] = [
 		(value) => `${value.toFixed(1)}%`
 	),
 	createMetric(
-		"avg_session_duration",
+		"median_session_duration",
 		"Session Duration",
 		"session_duration",
 		TrendingUp,
 		(value, row) =>
-			typeof row.avg_session_duration_formatted === "string"
-				? row.avg_session_duration_formatted
+			typeof row.median_session_duration_formatted === "string"
+				? row.median_session_duration_formatted
 				: formatDuration(value)
 	),
 ];
