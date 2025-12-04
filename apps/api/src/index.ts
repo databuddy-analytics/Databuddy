@@ -25,7 +25,7 @@ import { health } from "./routes/health";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
 
-import { startFlagScheduler } from "./services/flag-scheduler";
+import { startFlagScheduler, stopFlagScheduler } from "./services/flag-scheduler";
 
 initTracing();
 setupUncaughtErrorHandlers();
@@ -174,6 +174,7 @@ export default {
 
 process.on("SIGINT", async () => {
 	logger.info("SIGINT received, shutting down gracefully...");
+	stopFlagScheduler();
 	await shutdownTracing().catch((error) =>
 		logger.error({ error }, "Shutdown error")
 	);
@@ -182,6 +183,7 @@ process.on("SIGINT", async () => {
 
 process.on("SIGTERM", async () => {
 	logger.info("SIGTERM received, shutting down gracefully...");
+	stopFlagScheduler();
 	await shutdownTracing().catch((error) =>
 		logger.error({ error }, "Shutdown error")
 	);
