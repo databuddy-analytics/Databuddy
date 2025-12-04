@@ -1,10 +1,46 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, flagSchedules, flags, isNull } from "@databuddy/db";
-import { flagScheduleSchema } from "@databuddy/shared/flags";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
+
+type FlagScheduleType = "enable" | "disable" | "update_rollout";
+
+type DbRolloutStep = {
+    scheduledAt: string;
+    executedAt?: string;
+    value: number | "enable" | "disable";
+};
+
+const rolloutStepSchema = z.object({
+    scheduledAt: z.string(),
+    executedAt: z.string().optional(),
+    value: z.union([
+        z.number().min(0).max(100),
+        z.literal("enable"),
+        z.literal("disable"),
+    ]),
+});
+
+const flagScheduleSchema = z.object({
+    id: z.string().optional(),
+    isEnabled: z.boolean(),
+    flagId: z.string(),
+    type: z.enum(["enable", "disable", "update_rollout"]),
+    scheduledAt: z.string().optional(),
+    rolloutSteps: z.array(rolloutStepSchema).optional(),
+});
+
+interface FlagScheduleUpdateData {
+    flagId: string;
+    type: FlagScheduleType;
+    isEnabled: boolean;
+    scheduledAt?: Date | null;
+    rolloutSteps?: DbRolloutStep[];
+    executedAt: null;
+    updatedAt: Date;
+}
 
 export const flagSchedulesRouter = {
     getByFlagId: protectedProcedure
@@ -94,18 +130,17 @@ export const flagSchedulesRouter = {
 
             const { id, ...updates } = input;
 
-            const updateData: any = { ...updates, updatedAt: new Date() };
-            if (updates.scheduledAt) {
-                updateData.scheduledAt = new Date(updates.scheduledAt);
-            }
-            updateData.executedAt = null;
-            if (updates.rolloutSteps) {
-                updateData.rolloutSteps = updates.rolloutSteps.map((step) => ({
-                    ...step,
-                    executedAt: null,
-                    scheduledAt: new Date(step.scheduledAt),
-                }));
-            }
+            const updateData: FlagScheduleUpdateData = {
+                ...updates,
+                updatedAt: new Date(),
+                executedAt: null,
+                scheduledAt: updates.scheduledAt ? new Date(updates.scheduledAt) : null,
+                rolloutSteps: updates.rolloutSteps?.map((step) => ({
+                    value: step.value,
+                    scheduledAt: step.scheduledAt,
+                    executedAt: undefined,
+                })),
+            };
 
             const [updated] = await context.db
                 .update(flagSchedules)

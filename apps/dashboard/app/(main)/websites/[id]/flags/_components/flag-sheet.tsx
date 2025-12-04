@@ -86,7 +86,7 @@ export function FlagSheet({
 
   const { data: schedule } = useQuery({
     ...orpc.flagSchedules.getByFlagId.queryOptions({
-      input: { flagId: flag!.id },
+      input: { flagId: flag?.id ?? "" },
     }),
     enabled: Boolean(flag?.id),
   });

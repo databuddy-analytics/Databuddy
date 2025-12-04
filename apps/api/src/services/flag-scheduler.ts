@@ -8,6 +8,11 @@ const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 let schedulerInterval: NodeJS.Timeout | null = null;
 
 export function startFlagScheduler() {
+    if (schedulerInterval) {
+        logger.warn("Flag scheduler already running, skipping start");
+        return;
+    }
+
     logger.info("Starting flag scheduler...");
 
     processSchedules();
@@ -92,9 +97,9 @@ interface ExecutableSchedule {
     type: string;
     userId?: string;
     __isStep?: boolean;
-    stepValue?: string | number;
+    stepValue?: number | "enable" | "disable";
     stepScheduledAt?: string;
-    rolloutSteps: { value: string | number; scheduledAt: string; executedAt?: string }[] | null;
+    rolloutSteps: { value: number | "enable" | "disable"; scheduledAt: string; executedAt?: string }[] | null;
 }
 
 async function executeSchedule(sched: ExecutableSchedule) {
@@ -108,7 +113,11 @@ async function executeSchedule(sched: ExecutableSchedule) {
             return;
         }
 
-        const updates: any = { updatedAt: new Date() };
+        const updates: {
+            updatedAt: Date;
+            status?: "active" | "inactive";
+            rolloutPercentage?: number;
+        } = { updatedAt: new Date() };
 
         if (sched.__isStep) {
             const value = sched.stepValue;
@@ -136,14 +145,14 @@ async function executeSchedule(sched: ExecutableSchedule) {
 
         if (sched.__isStep && sched.rolloutSteps) {
             const now = new Date();
-            const updatedRolloutSteps = sched.rolloutSteps.map((step: any) => {
+            const updatedRolloutSteps = sched.rolloutSteps.map((step) => {
                 if (step.executedAt || new Date(step.scheduledAt) <= now) {
                     return { ...step, executedAt: step.executedAt || new Date().toISOString() };
                 }
                 return step;
             });
 
-            const allStepsExecuted = updatedRolloutSteps.every((step: any) => step.executedAt);
+            const allStepsExecuted = updatedRolloutSteps.every((step) => step.executedAt);
 
             await db.update(flagSchedules).set({
                 rolloutSteps: updatedRolloutSteps,

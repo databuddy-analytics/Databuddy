@@ -3,7 +3,6 @@ import { cacheable } from "@databuddy/redis";
 import { Elysia, t } from "elysia";
 import { logger } from "@/lib/logger";
 import { record, setAttributes } from "@/lib/tracing";
-import type { TFlag } from "@databuddy/shared/flags";
 
 const flagQuerySchema = t.Object({
 	key: t.String(),
@@ -45,6 +44,26 @@ type FlagResult = {
 	payload: unknown;
 	reason: string;
 	variant?: string;
+};
+
+type Variant = {
+	key: string;
+	value: string | number;
+	weight?: number;
+	description?: string;
+	type: "string" | "number";
+};
+
+/** Flag type for evaluation - includes database fields not in the form schema */
+type EvaluableFlag = {
+	key: string;
+	type: "boolean" | "rollout" | "multivariant";
+	status: "active" | "inactive" | "archived";
+	defaultValue: boolean;
+	rolloutPercentage: number;
+	rules?: FlagRule[];
+	variants?: Variant[];
+	payload?: unknown;
 };
 
 const getCachedFlag = cacheable(
@@ -230,7 +249,7 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 }
 
 export function selectVariant(
-	flag: TFlag,
+	flag: EvaluableFlag,
 	context: UserContext
 ): { value: string | number | boolean; variant: string } {
 	if (!flag.variants || flag.variants.length === 0) {
@@ -241,8 +260,7 @@ export function selectVariant(
 	const hash = hashString(`${flag.key}:variant:${identifier}`);
 	const percentage = hash % 100;
 
-	// If no variants have explicit weights, use deterministic index-based selection
-	const hasAnyWeight = flag.variants.some((v) => typeof v?.weight === "number");
+	const hasAnyWeight = flag.variants.some((v: Variant) => typeof v?.weight === "number");
 
 	if (!hasAnyWeight) {
 		const idx = hash % flag.variants.length;
@@ -270,7 +288,7 @@ export function selectVariant(
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
-export function evaluateFlag(flag: any, context: UserContext): FlagResult {
+export function evaluateFlag(flag: EvaluableFlag, context: UserContext): FlagResult {
 	if (flag.rules && Array.isArray(flag.rules) && flag.rules.length > 0) {
 		for (const rule of flag.rules as FlagRule[]) {
 			if (evaluateRule(rule, context)) {
@@ -284,7 +302,7 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 		}
 	}
 
-	if (flag.type === "multivariant" && flag.variants?.length > 0) {
+	if (flag.type === "multivariant" && flag.variants && flag.variants.length > 0) {
 		const { value, variant } = selectVariant(flag, context);
 		return {
 			enabled: true, // Variants are always "enabled"
@@ -377,7 +395,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						};
 					}
 
-					const result = evaluateFlag(flag, context);
+					const result = evaluateFlag(flag as unknown as EvaluableFlag, context);
 					setAttributes({
 						"flag.found": true,
 						"flag.type": flag.type,
@@ -443,7 +461,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					const enabledFlags: Record<string, FlagResult> = {};
 
 					for (const flag of allFlags) {
-						const result = evaluateFlag(flag, context);
+						const result = evaluateFlag(flag as unknown as EvaluableFlag, context);
 						if (result.enabled) {
 							enabledFlags[flag.key] = result;
 						}
