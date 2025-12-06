@@ -229,25 +229,23 @@ export function AgentMessages({
 					isLastMessage && hasError && message.role === "assistant";
 
 				return (
-					<div className="group" key={message.id}>
-						<Message from={message.role}>
-							<MessageContent
-								className={cn(message.role === "assistant" ? "w-full" : "")}
-							>
-								{message.parts?.map((part, partIndex) =>
-									renderMessagePart(
-										part,
-										partIndex,
-										message.id,
-										isLastMessage,
-										isStreaming
-									)
-								)}
+					<Message from={message.role} key={message.id}>
+						<MessageContent
+							className={cn(message.role === "assistant" ? "w-full" : "")}
+						>
+							{message.parts?.map((part, partIndex) =>
+								renderMessagePart(
+									part,
+									partIndex,
+									message.id,
+									isLastMessage,
+									isStreaming
+								)
+							)}
 
-								{showError && <ErrorMessage />}
-							</MessageContent>
-						</Message>
-					</div>
+							{showError && <ErrorMessage />}
+						</MessageContent>
+					</Message>
 				);
 			})}
 
