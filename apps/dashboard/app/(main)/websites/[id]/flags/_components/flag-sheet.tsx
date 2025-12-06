@@ -314,7 +314,7 @@ export function FlagSheet({
           </div>
         </SheetHeader>
 
-        <div className="space-y-8">
+        <div className="space-y-8 mt-4">
           <Form {...form}>
             <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
               {/* Basic Information */}

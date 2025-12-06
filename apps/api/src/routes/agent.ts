@@ -1,16 +1,10 @@
 import { auth, websitesApi } from "@databuddy/auth";
 import { smoothStream } from "ai";
 import { Elysia, t } from "elysia";
-import {
-    type AppContext,
-    buildAppContext,
-    type createAgent,
-    reflectionAgentHaiku,
-    reflectionAgentMax,
-    triageAgent,
-} from "../ai";
 import { record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
+import { buildAppContext, type AppContext } from "@/ai/config";
+import { reflectionAgentHaiku, reflectionAgentMax, triageAgent, type createAgent } from "@/ai/agents";
 
 const AgentRequestSchema = t.Object({
     websiteId: t.String(),
