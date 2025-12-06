@@ -12,6 +12,7 @@ import { useSetAtom } from "jotai";
 import {
 	Conversation,
 	ConversationContent,
+	ConversationEmptyState,
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -122,7 +123,9 @@ function AgentPageContentInner({
 								statusText={chatStatus.displayMessage ?? undefined}
 							/>
 						) : (
-							<WelcomeState onPromptSelect={setInputValue} />
+							<ConversationEmptyState>
+								<WelcomeState onPromptSelect={setInputValue} />
+							</ConversationEmptyState>
 						)}
 					</ConversationContent>
 					<ConversationScrollButton />
