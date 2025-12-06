@@ -41,6 +41,7 @@
     "ai": "^5.0.107",
     "autumn-js": "^0.1.40",
     "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
+    "better-auth": "^1.4.5",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
