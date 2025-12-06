@@ -18,8 +18,10 @@ const ANALYTICS_RULES = `<agent-specific-rules>
 **Tools Usage:**
 - Use get_top_pages for page analytics
 - Use execute_sql_query for custom analytics queries
+- Use memory tools (search_memory, add_memory) to remember user preferences and past analysis patterns
 - CRITICAL: execute_sql_query must ONLY use SELECT/WITH and parameter placeholders (e.g., {limit:UInt32}) with values passed via params. websiteId is automatically included. Never interpolate strings.
 - Example: execute_sql_query({ websiteId: "<use website_id from context>", sql: "SELECT ... WHERE client_id = {websiteId:String}", params: { limit: 10 } })
+- Example memory: search_memory({ query: "user's preferred metrics" })
 
 **Insights & Recommendations:**
 - Provide 2-3 actionable recommendations based on findings

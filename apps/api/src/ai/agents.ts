@@ -2,8 +2,10 @@ import { Agent } from "@ai-sdk-tools/agents";
 import {
     extendedMemoryConfig,
     maxMemoryConfig,
+    memoryTools,
     minimalMemoryConfig,
     standardMemoryConfig,
+    withUserProfile,
 } from "./config/memory";
 import { models } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
@@ -20,49 +22,61 @@ const analyticsTools = {
     get_top_pages: getTopPagesTool,
     execute_sql_query: executeSqlQueryTool,
     web_search: webSearchTool,
+    ...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
 } as const;
 
 /**
- * Analytics specialist agent.
+ * Tools available to triage agent.
+ */
+const triageTools = {
+    web_search: webSearchTool,
+    ...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
+} as const;
+
+/**
+ * Creates an analytics specialist agent with user-specific memory.
  * Handles website traffic analysis, user behavior, and performance metrics.
  * Uses standard memory for typical analytical conversations.
  */
-export const analyticsAgent = new Agent({
-    name: "analytics",
-    model: models.analytics,
-    temperature: 0.3,
-    instructions: buildAnalyticsInstructions,
-    tools: analyticsTools,
-    memory: standardMemoryConfig,
-    modelSettings: {
-        failureMode: {
-            maxAttempts: 2,
+export function createAnalyticsAgent(userId: string) {
+    return new Agent({
+        name: "analytics",
+        model: withUserProfile(models.analytics, userId),
+        temperature: 0.3,
+        instructions: buildAnalyticsInstructions,
+        tools: analyticsTools,
+        memory: standardMemoryConfig,
+        modelSettings: {
+            failureMode: {
+                maxAttempts: 2,
+            },
         },
-    },
-    maxTurns: 10,
-});
+        maxTurns: 10,
+    });
+}
 
 /**
- * Reflection orchestrator agent.
+ * Creates a reflection orchestrator agent with user-specific memory.
  * Reviews responses, decides next steps, and handles complex multi-step reasoning.
  * Memory allocation scales with model capability.
  */
 export const createReflectionAgent = (
+    userId: string,
     variant: "standard" | "haiku" | "max" = "standard"
 ) => {
     const config = {
         standard: {
-            model: models.advanced,
+            model: withUserProfile(models.advanced, userId),
             maxTurns: 15,
             memory: extendedMemoryConfig, // 30 messages for Sonnet
         },
         haiku: {
-            model: models.analytics,
+            model: withUserProfile(models.analytics, userId),
             maxTurns: 15,
             memory: standardMemoryConfig, // 20 messages for Haiku
         },
         max: {
-            model: models.advanced,
+            model: withUserProfile(models.advanced, userId),
             maxTurns: 20,
             memory: maxMemoryConfig, // 40 messages for deep investigations
         },
@@ -77,31 +91,35 @@ export const createReflectionAgent = (
                 maxAttempts: 2,
             },
         },
-        handoffs: [analyticsAgent],
+        handoffs: [createAnalyticsAgent(userId)],
         ...config,
     });
 };
 
 /**
- * Triage agent that routes user requests to the appropriate specialist.
+ * Creates a triage agent with user-specific memory.
+ * Routes user requests to the appropriate specialist.
  * This is the main entry point for all agent interactions.
  * Uses minimal memory since it only routes and doesn't need long context.
  */
-export const triageAgent = new Agent({
-    name: "triage",
-    model: models.triage,
-    temperature: 0.1,
-    instructions: buildTriageInstructions,
-    memory: minimalMemoryConfig,
-    modelSettings: {
-        toolChoice: {
-            type: "tool",
-            toolName: "handoff_to_agent",
+export function createTriageAgent(userId: string) {
+    return new Agent({
+        name: "triage",
+        model: withUserProfile(models.triage, userId),
+        temperature: 0.1,
+        instructions: buildTriageInstructions,
+        tools: triageTools,
+        memory: minimalMemoryConfig,
+        modelSettings: {
+            toolChoice: {
+                type: "tool",
+                toolName: "handoff_to_agent",
+            },
+            failureMode: {
+                maxAttempts: 2,
+            },
         },
-        failureMode: {
-            maxAttempts: 2,
-        },
-    },
-    handoffs: [analyticsAgent],
-    maxTurns: 1,
-});
+        handoffs: [createAnalyticsAgent(userId)],
+        maxTurns: 1,
+    });
+}

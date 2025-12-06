@@ -1,7 +1,7 @@
 import { auth, websitesApi } from "@databuddy/auth";
 import { smoothStream } from "ai";
 import { Elysia, t } from "elysia";
-import { createReflectionAgent, triageAgent } from "../ai/agents";
+import { createReflectionAgent, createTriageAgent } from "../ai/agents";
 import { buildAppContext } from "../ai/config/context";
 import { record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
@@ -146,24 +146,31 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
                     let maxRounds = 5;
                     let maxSteps = 20;
 
+                    if (!user?.id) {
+                        return new Response(JSON.stringify({ error: "User ID required" }), {
+                            status: 401,
+                            headers: { "Content-Type": "application/json" },
+                        });
+                    }
+
                     switch (modelType) {
                         case "basic":
-                            agent = triageAgent;
+                            agent = createTriageAgent(user.id);
                             maxRounds = 1;
                             maxSteps = 5;
                             break;
                         case "agent":
-                            agent = createReflectionAgent("haiku");
+                            agent = createReflectionAgent(user.id, "haiku");
                             maxRounds = 5;
                             maxSteps = 20;
                             break;
                         case "agent-max":
-                            agent = createReflectionAgent("max");
+                            agent = createReflectionAgent(user.id, "max");
                             maxRounds = 10;
                             maxSteps = 40;
                             break;
                         default:
-                            agent = createReflectionAgent("haiku");
+                            agent = createReflectionAgent(user.id, "haiku");
                     }
 
                     return agent.toUIMessageStream({

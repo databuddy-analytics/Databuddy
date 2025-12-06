@@ -1,5 +1,6 @@
 import { RedisProvider } from "@ai-sdk-tools/memory/redis";
 import { redis } from "@databuddy/redis";
+import { supermemoryTools, withSupermemory } from "@supermemory/tools/ai-sdk";
 import type { RedisClientType } from "redis";
 
 /**
@@ -51,6 +52,27 @@ export const maxMemoryConfig = {
 	},
 } as const;
 
-/** @deprecated Use specific memory configs instead */
-export const defaultMemoryConfig = standardMemoryConfig;
+/**
+ * Supermemory configuration for enhanced memory management.
+ * User Profiles: Automatic personalization with user context
+ * Memory Tools: Agent-based memory operations (search, add, fetch)
+ * Enhanced Analytics: Agents can remember user preferences and analysis patterns
+ */
+export const supermemoryApiKey = process.env.SUPERMEMORY_API_KEY;
 
+/**
+ * Supermemory tools for agent-based memory operations.
+ * Includes search_memory, add_memory, and other memory management tools.
+ */
+export const memoryTools = supermemoryApiKey ? supermemoryTools(supermemoryApiKey) : {};
+
+/**
+ * Wraps a model with user profile context for personalization.
+ * Automatically injects user-specific context into every LLM call.
+ */
+export function withUserProfile(model: any, userId: string) {
+	if (!supermemoryApiKey) {
+		return model;
+	}
+	return withSupermemory(model, userId);
+}
