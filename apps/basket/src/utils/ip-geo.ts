@@ -12,7 +12,8 @@ interface GeoIPReader extends Reader {
 	city(ip: string): City;
 }
 
-const CDN_URL = "https://cdn.databuddy.cc/GeoLite2-City.mmdb";
+// Geolocation database from DB-IP, db-ip.com
+const CDN_URL = "https://cdn.databuddy.cc/mmdb/dbip-city-lite-2025-12.mmdb.gz";
 
 let reader: GeoIPReader | null = null;
 let isLoading = false;
