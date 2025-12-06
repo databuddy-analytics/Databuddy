@@ -1,6 +1,7 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
-import { tool } from "ai";
+import { generateText, tool } from "ai";
 import { z } from "zod";
+import { models } from "../config/models";
 
 /**
  * Web search tool using Firecrawl for scraping and crawling websites.
@@ -26,5 +27,41 @@ export const webSearchTool = tool({
         });
 
         return crawlResponse;
+    },
+});
+
+/**
+ * Competitor analysis tool using Perplexity for real-time web search and analysis.
+ * Provides grounded insights with citations about competitors and market trends.
+ */
+export const competitorAnalysisTool = tool({
+    description:
+        "Analyze competitors, market trends, and industry insights using real-time web search with citations",
+    inputSchema: z.object({
+        query: z
+            .string()
+            .min(1)
+            .max(500)
+            .describe(
+                "The competitor analysis query (e.g., 'competitors to example.com in analytics space')"
+            ),
+        context: z
+            .string()
+            .optional()
+            .describe("Additional context about what you're analyzing"),
+    }),
+    execute: async ({ query, context }) => {
+        const fullQuery = context ? `${query}. Context: ${context}` : query;
+
+        const result = await generateText({
+            model: models.perplexity,
+            prompt: fullQuery,
+        });
+
+        return {
+            analysis: result.text || "",
+            sources: (result as any).sources || [],
+            query: fullQuery,
+        };
     },
 });

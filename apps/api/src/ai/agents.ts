@@ -13,7 +13,7 @@ import { buildReflectionInstructions } from "./prompts/reflection";
 import { buildTriageInstructions } from "./prompts/triage";
 import { executeSqlQueryTool } from "./tools/execute-sql-query";
 import { getTopPagesTool } from "./tools/get-top-pages";
-import { webSearchTool } from "./tools/web-search";
+import { competitorAnalysisTool, webSearchTool } from "./tools/web-search";
 
 /**
  * Tools available to analytics agents.
@@ -22,6 +22,7 @@ const analyticsTools = {
     get_top_pages: getTopPagesTool,
     execute_sql_query: executeSqlQueryTool,
     web_search: webSearchTool,
+    competitor_analysis: competitorAnalysisTool,
     ...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
 } as const;
 
@@ -30,6 +31,7 @@ const analyticsTools = {
  */
 const triageTools = {
     web_search: webSearchTool,
+    competitor_analysis: competitorAnalysisTool,
     ...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
 } as const;
 
