@@ -1,19 +1,17 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
 import type { UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
 	Message,
-	MessageAvatar,
 	MessageContent,
+	MessageResponse,
 } from "@/components/ai-elements/message";
 import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { Response } from "@/components/ai-elements/response";
 import {
 	Tool,
 	ToolContent,
@@ -22,7 +20,6 @@ import {
 	ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 type AgentMessagesProps = {
@@ -33,20 +30,6 @@ type AgentMessagesProps = {
 };
 
 type MessagePart = UIMessage["parts"][number];
-
-function isReasoningPart(part: MessagePart): boolean {
-	return (
-		part.type === "reasoning" ||
-		part.type === "step-start" ||
-		part.type === "data-step-start" ||
-		part.type?.includes("reasoning") ||
-		part.type?.includes("step")
-	);
-}
-
-function isTextPart(part: MessagePart): boolean {
-	return part.type === "text";
-}
 
 function isToolPart(part: MessagePart): boolean {
 	return part.type?.startsWith("tool") ?? false;
@@ -191,7 +174,7 @@ function renderMessagePart(
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
 
-	if (isReasoningPart(part)) {
+	if (part.type === "reasoning") {
 		return (
 			<ReasoningMessage
 				isStreaming={isCurrentlyStreaming}
@@ -201,16 +184,16 @@ function renderMessagePart(
 		);
 	}
 
-	if (isTextPart(part)) {
+	if (part.type === "text") {
 		const textPart = part as { text: string };
 		if (!textPart.text?.trim()) {
 			return null;
 		}
 
 		return (
-			<Response isAnimating={isCurrentlyStreaming} key={key}>
+			<MessageResponse isAnimating={isCurrentlyStreaming} key={key}>
 				{textPart.text}
-			</Response>
+			</MessageResponse>
 		);
 	}
 
@@ -248,7 +231,9 @@ export function AgentMessages({
 				return (
 					<div className="group" key={message.id}>
 						<Message from={message.role}>
-							<MessageContent className="max-w-[80%]" variant="flat">
+							<MessageContent
+								className={cn(message.role === "assistant" ? "w-full" : "")}
+							>
 								{message.parts?.map((part, partIndex) =>
 									renderMessagePart(
 										part,
@@ -261,11 +246,6 @@ export function AgentMessages({
 
 								{showError && <ErrorMessage />}
 							</MessageContent>
-
-							{message.role === "user" && <UserAvatar />}
-							{message.role === "assistant" && (
-								<AssistantAvatar hasError={hasError} />
-							)}
 						</Message>
 					</div>
 				);
@@ -317,37 +297,5 @@ function StreamingIndicator({ statusText }: { statusText?: string }) {
 				</div>
 			</div>
 		</div>
-	);
-}
-
-function UserAvatar() {
-	const { data: session, isPending } = authClient.useSession();
-	const user = session?.user;
-
-	if (isPending) {
-		return <Skeleton className="size-8 shrink-0 rounded-full" />;
-	}
-
-	return (
-		<MessageAvatar
-			name={user?.name || user?.email || "User"}
-			src={user?.image || ""}
-		/>
-	);
-}
-
-function AssistantAvatar({ hasError = false }: { hasError?: boolean }) {
-	return (
-		<Avatar className="size-8 shrink-0 ring-1 ring-border">
-			<AvatarImage alt="Databunny" src="/databunny.webp" />
-			<AvatarFallback
-				className={cn(
-					"bg-primary/10 font-semibold text-primary",
-					hasError && "bg-destructive/10 text-destructive"
-				)}
-			>
-				DB
-			</AvatarFallback>
-		</Avatar>
 	);
 }
