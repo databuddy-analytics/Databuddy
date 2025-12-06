@@ -1,13 +1,8 @@
 import { auth, websitesApi } from "@databuddy/auth";
 import { smoothStream } from "ai";
 import { Elysia, t } from "elysia";
-import type { createAgent } from "../ai/agents/factory";
-import {
-    reflectionAgentHaiku,
-    reflectionAgentMax,
-} from "../ai/agents/reflection";
-import { triageAgent } from "../ai/agents/triage";
-import { type AppContext, buildAppContext } from "../ai/config/context";
+import { createReflectionAgent, triageAgent } from "../ai/agents";
+import { buildAppContext } from "../ai/config/context";
 import { record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 
@@ -144,10 +139,10 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
                     // Select agent based on model preference
                     // basic: triageAgent (simple routing)
-                    // agent: reflectionAgentHaiku (reflection with haiku model)
-                    // agent-max: reflectionAgentMax (reflection with sonnet, increased limits)
+                    // agent: reflectionAgent with haiku model
+                    // agent-max: reflectionAgent with max capabilities
                     const modelType = body.model ?? "agent";
-                    let agent: ReturnType<typeof createAgent<AppContext>>;
+                    let agent: ReturnType<typeof createReflectionAgent>;
                     let maxRounds = 5;
                     let maxSteps = 20;
 
@@ -158,17 +153,17 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
                             maxSteps = 5;
                             break;
                         case "agent":
-                            agent = reflectionAgentHaiku;
+                            agent = createReflectionAgent("haiku");
                             maxRounds = 5;
                             maxSteps = 20;
                             break;
                         case "agent-max":
-                            agent = reflectionAgentMax;
+                            agent = createReflectionAgent("max");
                             maxRounds = 10;
                             maxSteps = 40;
                             break;
                         default:
-                            agent = reflectionAgentHaiku;
+                            agent = createReflectionAgent("haiku");
                     }
 
                     return agent.toUIMessageStream({
