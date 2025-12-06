@@ -79,7 +79,7 @@ function AgentPageContentInner({
 		<div className="relative flex flex-1 overflow-hidden">
 			<div
 				className={cn(
-					"flex flex-1 flex-col",
+					"flex flex-1 flex-col overflow-hidden",
 					"transition-all duration-300 ease-in-out",
 					false
 				)}
@@ -114,7 +114,7 @@ function AgentPageContentInner({
 				</div>
 
 				<Conversation className="flex-1">
-					<ConversationContent className="mx-auto w-full max-w-2xl pb-[150px]">
+					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
 						{hasMessages ? (
 							<AgentMessages
 								hasError={hasError}
