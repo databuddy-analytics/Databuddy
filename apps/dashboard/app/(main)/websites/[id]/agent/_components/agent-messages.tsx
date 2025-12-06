@@ -3,6 +3,12 @@
 import type { UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
+	ChainOfThought,
+	ChainOfThoughtContent,
+	ChainOfThoughtHeader,
+	ChainOfThoughtStep,
+} from "@/components/ai-elements/chain-of-thought";
+import {
 	Message,
 	MessageContent,
 	MessageResponse,
@@ -12,13 +18,6 @@ import {
 	ReasoningContent,
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import {
-	Tool,
-	ToolContent,
-	ToolHeader,
-	ToolInput,
-	ToolOutput,
-} from "@/components/ai-elements/tool";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +29,6 @@ type AgentMessagesProps = {
 };
 
 type MessagePart = UIMessage["parts"][number];
-
-function isToolPart(part: MessagePart): boolean {
-	return part.type?.startsWith("tool") ?? false;
-}
 
 function getReasoningText(part: MessagePart): string {
 	const reasoning = part as {
@@ -49,43 +44,44 @@ function getReasoningText(part: MessagePart): string {
 	);
 }
 
-function getToolState(part: MessagePart) {
-	const tool = part as { errorText?: string; output?: unknown };
-	if (tool.errorText) {
-		return "output-error";
-	}
-	if (tool.output !== undefined) {
-		return "output-available";
-	}
-	return "input-available";
-}
-
-function formatToolOutput(output: unknown, toolName?: string) {
+function formatToolOutput(output: unknown) {
 	if (output === undefined) {
 		return null;
 	}
 
-	if (
-		toolName === "web_search" &&
-		typeof output === "object" &&
-		output !== null
-	) {
-		const webData = output as { data?: unknown[] };
-		if (Array.isArray(webData.data)) {
-			return {
-				summary: `Scraped ${webData.data.length} page(s)`,
-				results: webData.data.map((page, index) => ({
-					page: index + 1,
-					...(typeof page === "object" ? page : { content: page }),
-				})),
-			};
-		}
+	console.log(output);
+
+	if (typeof output === "object" && "data" in output) {
+		return <p>Found {output.data.length} results.</p>;
 	}
 
-	if (typeof output === "string" || typeof output === "object") {
-		return output as string | Record<string, unknown>;
+	if (typeof output === "object" && "pages" in output) {
+		return <p>Found {output.pages.length} results.</p>;
 	}
-	return String(output);
+
+	if (typeof output === "object" && "errorText" in output) {
+		return <p>Error: {output.errorText}</p>;
+	}
+
+	if (typeof output === "string") {
+		const obj = JSON.parse(output);
+
+		if ("data" in obj) {
+			return <p>Found {obj.data.length} results.</p>;
+		}
+
+		if ("pages" in obj) {
+			return <p>Found {obj.pages.length} results.</p>;
+		}
+
+		if ("errorText" in obj) {
+			return <p>Error: {obj.errorText}</p>;
+		}
+
+		return <p>Found 0 results.</p>;
+	}
+
+	return <p>Found 0 results.</p>;
 }
 
 function ReasoningMessage({
@@ -111,61 +107,36 @@ function ReasoningMessage({
 	);
 }
 
-function ToolMessage({
-	part,
-	partIndex,
-	isStreaming,
-}: {
-	part: MessagePart;
-	partIndex: number;
-	isStreaming: boolean;
-}) {
-	const toolPart = part as {
-		toolCallId?: string;
-		toolName?: string;
-		input?: unknown;
-		output?: unknown;
-		errorText?: string;
-	};
+function groupConsecutiveToolCalls(parts: MessagePart[]) {
+	const grouped: Array<MessagePart | MessagePart[]> = [];
+	let currentToolGroup: MessagePart[] = [];
 
-	const state = getToolState(part);
-	const isRunning = state === "input-available";
-	const hasCompleted = state === "output-available" || state === "output-error";
-
-	const [hasBeenStreaming, setHasBeenStreaming] = useState(
-		isStreaming && isRunning
-	);
-
-	useEffect(() => {
-		if (isStreaming && isRunning) {
-			setHasBeenStreaming(true);
+	for (const part of parts) {
+		if (part.type?.includes("tool")) {
+			currentToolGroup.push(part);
+		} else {
+			if (currentToolGroup.length > 0) {
+				grouped.push(
+					currentToolGroup.length === 1 ? currentToolGroup[0] : currentToolGroup
+				);
+				currentToolGroup = [];
+			}
+			grouped.push(part);
 		}
-	}, [isStreaming, isRunning]);
+	}
 
-	const shouldBeOpen = hasBeenStreaming || hasCompleted;
+	// Don't forget the last group
+	if (currentToolGroup.length > 0) {
+		grouped.push(
+			currentToolGroup.length === 1 ? currentToolGroup[0] : currentToolGroup
+		);
+	}
 
-	return (
-		<Tool defaultOpen={shouldBeOpen}>
-			<ToolHeader
-				state={state}
-				type={
-					(toolPart.toolName as `tool-${string}`) ??
-					(`tool-${partIndex}` as const)
-				}
-			/>
-			<ToolContent>
-				{toolPart.input !== undefined && <ToolInput input={toolPart.input} />}
-				<ToolOutput
-					errorText={toolPart.errorText}
-					output={formatToolOutput(toolPart.output, toolPart.toolName)}
-				/>
-			</ToolContent>
-		</Tool>
-	);
+	return grouped;
 }
 
 function renderMessagePart(
-	part: MessagePart,
+	part: MessagePart | MessagePart[],
 	partIndex: number,
 	messageId: string,
 	isLastMessage: boolean,
@@ -173,6 +144,26 @@ function renderMessagePart(
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
+
+	// Handle grouped tool calls
+	if (Array.isArray(part)) {
+		return (
+			<ChainOfThought className="my-4" defaultOpen key={key}>
+				<ChainOfThoughtHeader>Running {part.length} tools</ChainOfThoughtHeader>
+				<ChainOfThoughtContent>
+					{part.map((toolPart, idx) => (
+						<ChainOfThoughtStep
+							key={`${key}-tool-${idx}`}
+							label={`Running ${toolPart.type}`}
+							status="complete"
+						>
+							{formatToolOutput(toolPart.output)}
+						</ChainOfThoughtStep>
+					))}
+				</ChainOfThoughtContent>
+			</ChainOfThought>
+		);
+	}
 
 	if (part.type === "reasoning") {
 		return (
@@ -197,14 +188,19 @@ function renderMessagePart(
 		);
 	}
 
-	if (isToolPart(part)) {
+	console.log(part);
+
+	if (part.type?.includes("tool")) {
 		return (
-			<ToolMessage
-				isStreaming={isCurrentlyStreaming}
-				key={key}
-				part={part}
-				partIndex={partIndex}
-			/>
+			<ChainOfThought defaultOpen key={key}>
+				<ChainOfThoughtHeader />
+				<ChainOfThoughtContent>
+					<ChainOfThoughtStep
+						label={`Running ${part.type}`}
+						status="complete"
+					/>
+				</ChainOfThoughtContent>
+			</ChainOfThought>
 		);
 	}
 
@@ -228,12 +224,16 @@ export function AgentMessages({
 				const showError =
 					isLastMessage && hasError && message.role === "assistant";
 
+				const groupedParts = message.parts
+					? groupConsecutiveToolCalls(message.parts)
+					: [];
+
 				return (
 					<Message from={message.role} key={message.id}>
 						<MessageContent
 							className={cn(message.role === "assistant" ? "w-full" : "")}
 						>
-							{message.parts?.map((part, partIndex) =>
+							{groupedParts.map((part, partIndex) =>
 								renderMessagePart(
 									part,
 									partIndex,
