@@ -143,11 +143,8 @@ function ToolMessage({
 
 	const shouldBeOpen = hasBeenStreaming || hasCompleted;
 
-	const toolKey =
-		(toolPart.toolCallId as `tool-${string}`) ?? (`tool-${partIndex}` as const);
-
 	return (
-		<Tool defaultOpen={shouldBeOpen} key={toolKey}>
+		<Tool defaultOpen={shouldBeOpen}>
 			<ToolHeader
 				state={state}
 				type={
