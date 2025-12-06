@@ -154,7 +154,10 @@ function NotFoundState({
 			<Header onBack={onBack} />
 			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
 				<div className="flex size-16 items-center justify-center rounded-full bg-secondary">
-					<UserIcon className="size-8 text-secondary-foreground" weight="duotone" />
+					<UserIcon
+						className="size-8 text-secondary-foreground"
+						weight="duotone"
+					/>
 				</div>
 				<div className="text-center">
 					<p className="font-semibold text-foreground text-lg">

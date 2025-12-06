@@ -9,11 +9,12 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
+    "@better-auth/sso": "^1.4.5",
     "@databuddy/db": "*",
     "@databuddy/email": "*",
     "@databuddy/redis": "*",
     "@databuddy/shared": "*",
-    "better-auth": "^1.4.3",
+    "better-auth": "^1.4.5",
     "drizzle-kit": "^0.31.5",
     "pg": "^8.16.3",
     "prettier": "^3.6.2",

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
 import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
 import { SciFiButton } from "./landing/scifi-btn";
@@ -207,7 +207,7 @@ export function Footer() {
 								variant="outline"
 							>
 								<ShieldCheckIcon className="size-3" weight="duotone" />
-								<span className="text-xs font-medium">GDPR Compliant</span>
+								<span className="font-medium text-xs">GDPR Compliant</span>
 							</Badge>
 						</Link>
 					</div>

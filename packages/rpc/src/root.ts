@@ -1,4 +1,5 @@
 import { annotationsRouter } from "./routers/annotations";
+import { agentRouter } from "./routers/agent";
 import { apikeysRouter } from "./routers/apikeys";
 import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";
@@ -12,6 +13,7 @@ import { goalsRouter } from "./routers/goals";
 import { miniChartsRouter } from "./routers/mini-charts";
 import { organizationsRouter } from "./routers/organizations";
 import { preferencesRouter } from "./routers/preferences";
+import { ssoRouter } from "./routers/sso";
 import { websitesRouter } from "./routers/websites";
 
 export const appRouter = {
@@ -27,9 +29,11 @@ export const appRouter = {
 	flagSchedules: flagSchedulesRouter,
 	assistant: assistantRouter,
 	chat: chatRouter,
+	agent: agentRouter,
 	organizations: organizationsRouter,
 	billing: billingRouter,
 	export: exportRouter,
+	sso: ssoRouter,
 };
 
 export type AppRouter = typeof appRouter;

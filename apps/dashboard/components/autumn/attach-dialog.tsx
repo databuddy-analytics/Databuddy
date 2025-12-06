@@ -106,7 +106,9 @@ export default function AttachDialog(params?: AttachDialogProps) {
 							setLoading(false);
 						}}
 					>
-						{loading && <CircleNotchIcon className="mr-2 size-4 animate-spin" />}
+						{loading && (
+							<CircleNotchIcon className="mr-2 size-4 animate-spin" />
+						)}
 						Confirm Purchase
 					</Button>
 				</DialogFooter>

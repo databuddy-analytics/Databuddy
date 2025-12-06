@@ -9,7 +9,6 @@ export * from "./journey";
 export * from "./metrics";
 export * from "./pages";
 export * from "./parameters";
-export * from "./performance";
 export * from "./query";
 export * from "./realtime";
 export * from "./sessions";

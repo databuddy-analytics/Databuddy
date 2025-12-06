@@ -1,3 +1,4 @@
+import { sso } from "@better-auth/sso";
 import { db, eq, inArray, user, websites } from "@databuddy/db";
 import {
 	InvitationEmail,
@@ -8,7 +9,6 @@ import {
 } from "@databuddy/email";
 import { getRedisCache } from "@databuddy/redis";
 import { betterAuth } from "better-auth";
-
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import {
 	customSession,
@@ -182,6 +182,12 @@ export const auth = betterAuth({
 					subject: "Login to Databuddy",
 					react: MagicLinkEmail({ url }),
 				});
+			},
+		}),
+		sso({
+			organizationProvisioning: {
+				disabled: false,
+				defaultRole: "member",
 			},
 		}),
 		twoFactor(),

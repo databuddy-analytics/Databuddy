@@ -2,10 +2,17 @@ import { CaretDownIcon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import type { useAccordionStates } from "@/hooks/use-persistent-state";
+import { FEATURE_METADATA } from "@/types/features";
 import { NavigationItem } from "./navigation-item";
 import type { NavigationSection as NavigationSectionType } from "./types";
+
+interface FeatureState {
+	isLocked: boolean;
+	lockedPlanName: string | null;
+}
 
 type NavigationSectionProps = {
 	title: string;
@@ -17,74 +24,32 @@ type NavigationSectionProps = {
 	accordionStates: ReturnType<typeof useAccordionStates>;
 };
 
-const buildCurrentUrl = (
-	pathname: string,
-	searchParams: URLSearchParams | null
-) => {
-	const search = searchParams ? `?${searchParams.toString()}` : "";
-	return `${pathname}${search}`;
-};
-
 const buildFullPath = (basePath: string, itemHref: string) =>
 	itemHref === "" ? basePath : `${basePath}${itemHref}`;
 
-const checkRootLevelMatch = (
-	item: NavigationSectionType["items"][0],
-	pathname: string,
-	searchParams: URLSearchParams | null
-) => {
-	if (item.href.includes("?")) {
-		const currentUrl = buildCurrentUrl(pathname, searchParams);
-		return currentUrl === item.href;
-	}
-	return pathname === item.href;
-};
-
-const checkSandboxMatch = (
-	item: NavigationSectionType["items"][0],
-	pathname: string
-) => {
-	const fullPath = buildFullPath("/sandbox", item.href);
-	return pathname === fullPath;
-};
-
-const checkDemoMatch = (
-	item: NavigationSectionType["items"][0],
-	pathname: string,
-	currentWebsiteId: string | null | undefined
-) => {
-	const fullPath = buildFullPath(`/demo/${currentWebsiteId}`, item.href);
-	return pathname === fullPath;
-};
-
-const checkWebsiteMatch = (
-	item: NavigationSectionType["items"][0],
-	pathname: string,
-	currentWebsiteId: string | null | undefined
-) => {
-	const fullPath = buildFullPath(`/websites/${currentWebsiteId}`, item.href);
-	return pathname === fullPath;
-};
-
-const getPathInfo = (
+const isItemActive = (
 	item: NavigationSectionType["items"][0],
 	pathname: string,
 	searchParams: URLSearchParams | null,
 	currentWebsiteId?: string | null
-) => {
+): boolean => {
 	if (item.rootLevel) {
-		return { isActive: checkRootLevelMatch(item, pathname, searchParams) };
+		if (item.href.includes("?")) {
+			const search = searchParams ? `?${searchParams.toString()}` : "";
+			return `${pathname}${search}` === item.href;
+		}
+		return pathname === item.href;
 	}
 
 	if (currentWebsiteId === "sandbox") {
-		return { isActive: checkSandboxMatch(item, pathname) };
+		return pathname === buildFullPath("/sandbox", item.href);
 	}
 
 	if (pathname.startsWith("/demo")) {
-		return { isActive: checkDemoMatch(item, pathname, currentWebsiteId) };
+		return pathname === buildFullPath(`/demo/${currentWebsiteId}`, item.href);
 	}
 
-	return { isActive: checkWebsiteMatch(item, pathname, currentWebsiteId) };
+	return pathname === buildFullPath(`/websites/${currentWebsiteId}`, item.href);
 };
 
 export const NavigationSection = memo(function NavigationSectionComponent({
@@ -97,28 +62,39 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	className,
 }: NavigationSectionProps) {
 	const { getAccordionState, toggleAccordion } = accordionStates;
-	const isExpanded = getAccordionState(title, true); // Default to expanded
+	const isExpanded = getAccordionState(title, true);
 	const searchParams = useSearchParams();
+	const { isFeatureEnabled, isLoading } = useBillingContext();
 
 	const visibleItems = items.filter((item) => {
 		if (item.production === false && process.env.NODE_ENV === "production") {
 			return false;
 		}
-
 		const isDemo = pathname.startsWith("/demo");
-		if (item.hideFromDemo && isDemo) {
-			return false;
-		}
-		if (item.showOnlyOnDemo && !isDemo) {
-			return false;
-		}
-
+		if (item.hideFromDemo && isDemo) return false;
+		if (item.showOnlyOnDemo && !isDemo) return false;
 		return true;
 	});
 
-	if (visibleItems.length === 0) {
-		return null;
-	}
+	// Compute locked states once per section (optimistic while loading)
+	const featureStates = useMemo(() => {
+		const states: Record<string, FeatureState> = {};
+		if (isLoading) return states;
+
+		for (const item of visibleItems) {
+			if (item.gatedFeature) {
+				const locked = !isFeatureEnabled(item.gatedFeature);
+				states[item.name] = {
+					isLocked: locked,
+					lockedPlanName:
+						FEATURE_METADATA[item.gatedFeature]?.minPlan?.toUpperCase() ?? null,
+				};
+			}
+		}
+		return states;
+	}, [visibleItems, isFeatureEnabled, isLoading]);
+
+	if (visibleItems.length === 0) return null;
 
 	return (
 		<>
@@ -137,14 +113,12 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 			>
 				<Icon className="size-5 shrink-0 text-sidebar-ring" weight="fill" />
 				<span className="flex-1 truncate text-sm">{title}</span>
-				<div className="shrink-0">
-					<CaretDownIcon
-						className={clsx(
-							"size-4 text-sidebar-foreground/60 transition-transform duration-200",
-							isExpanded ? "rotate-180" : ""
-						)}
-					/>
-				</div>
+				<CaretDownIcon
+					className={clsx(
+						"size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-200",
+						isExpanded && "rotate-180"
+					)}
+				/>
 			</button>
 
 			<MotionConfig
@@ -160,13 +134,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 						>
 							<motion.div className="text-sm">
 								{visibleItems.map((item) => {
-									const { isActive } = getPathInfo(
-										item,
-										pathname,
-										searchParams,
-										currentWebsiteId
-									);
-
+									const state = featureStates[item.name];
 									return (
 										<div key={item.name}>
 											<NavigationItem
@@ -177,9 +145,16 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 												domain={item.domain}
 												href={item.href}
 												icon={item.icon}
-												isActive={isActive}
+												isActive={isItemActive(
+													item,
+													pathname,
+													searchParams,
+													currentWebsiteId
+												)}
 												isExternal={item.external}
+												isLocked={state?.isLocked ?? false}
 												isRootLevel={!!item.rootLevel}
+												lockedPlanName={state?.lockedPlanName ?? null}
 												name={item.name}
 												production={item.production}
 												sectionName={title}

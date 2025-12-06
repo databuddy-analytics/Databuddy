@@ -32,8 +32,14 @@ import {
 } from "@/components/ui/dialog";
 import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
 import { cn } from "@/lib/utils";
+import {
+	FEATURE_METADATA,
+	type GatedFeatureId,
+	PLAN_FEATURES,
+	PLAN_IDS,
+	type PlanId,
+} from "@/types/features";
 
-// Plan icons - matches billing page
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	free: SparkleIcon,
 	hobby: RocketLaunchIcon,
@@ -46,7 +52,35 @@ function getPlanIcon(planId: string) {
 	return PLAN_ICONS[planId] || CrownIcon;
 }
 
-// Skeleton - matches billing design
+function getNewFeaturesForPlan(planId: string): GatedFeatureId[] {
+	const plan = planId as PlanId;
+	const planFeatures = PLAN_FEATURES[plan];
+	if (!planFeatures) return [];
+
+	if (plan === PLAN_IDS.FREE) {
+		return Object.entries(planFeatures)
+			.filter(([, enabled]) => enabled)
+			.map(([feature]) => feature as GatedFeatureId);
+	}
+
+	const tierOrder: PlanId[] = [
+		PLAN_IDS.FREE,
+		PLAN_IDS.HOBBY,
+		PLAN_IDS.PRO,
+		PLAN_IDS.SCALE,
+	];
+	const currentIndex = tierOrder.indexOf(plan);
+	const previousPlan = tierOrder[currentIndex - 1];
+	const previousFeatures = PLAN_FEATURES[previousPlan] ?? {};
+
+	return Object.entries(planFeatures)
+		.filter(
+			([feature, enabled]) =>
+				enabled && !previousFeatures[feature as GatedFeatureId]
+		)
+		.map(([feature]) => feature as GatedFeatureId);
+}
+
 function PricingTableSkeleton() {
 	return (
 		<div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -80,7 +114,6 @@ function PricingTableSkeleton() {
 	);
 }
 
-// Context
 const PricingTableContext = createContext<{
 	products: Product[];
 	selectedPlan?: string | null;
@@ -90,7 +123,6 @@ function usePricingTableCtx() {
 	return useContext(PricingTableContext);
 }
 
-// Main component
 export default function PricingTable({
 	productDetails,
 	selectedPlan,
@@ -126,54 +158,42 @@ export default function PricingTable({
 		);
 	}
 
-	const intervalFilter = (product: Product) => {
-		if (!product.properties?.interval_group) {
-			return true;
-		}
-		return true;
-	};
-
 	const filteredProducts =
 		products?.filter(
 			(p) =>
 				p.id !== "free" &&
 				p.id !== "verification_fee" &&
-				!(p as Product & { is_add_on?: boolean }).is_add_on &&
-				intervalFilter(p)
+				!(p as Product & { is_add_on?: boolean }).is_add_on
 		) ?? [];
 
 	return (
-		<div>
-			{/* Cards Grid */}
-			<PricingTableContext.Provider
-				value={{ products: products ?? [], selectedPlan }}
-			>
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{filteredProducts.map((plan) => (
-						<PricingCard
-							buttonProps={{
-								disabled:
-									plan.scenario === "active" || plan.scenario === "scheduled",
-								onClick: async () => {
-									await attach({
-										productId: plan.id,
-										dialog: AttachDialog,
-										...(plan.id === "hobby" && { reward: "SAVE80" }),
-									});
-								},
-							}}
-							isSelected={selectedPlan === plan.id}
-							key={plan.id}
-							productId={plan.id}
-						/>
-					))}
-				</div>
-			</PricingTableContext.Provider>
-		</div>
+		<PricingTableContext.Provider
+			value={{ products: products ?? [], selectedPlan }}
+		>
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{filteredProducts.map((plan) => (
+					<PricingCard
+						buttonProps={{
+							disabled:
+								plan.scenario === "active" || plan.scenario === "scheduled",
+							onClick: async () => {
+								await attach({
+									productId: plan.id,
+									dialog: AttachDialog,
+									...(plan.id === "hobby" && { reward: "SAVE80" }),
+								});
+							},
+						}}
+						isSelected={selectedPlan === plan.id}
+						key={plan.id}
+						productId={plan.id}
+					/>
+				))}
+			</div>
+		</PricingTableContext.Provider>
 	);
 }
 
-// Downgrade Confirm Dialog
 function DowngradeConfirmDialog({
 	isOpen,
 	onClose,
@@ -238,7 +258,6 @@ function DowngradeConfirmDialog({
 	);
 }
 
-// Pricing Card
 function PricingCard({
 	productId,
 	className,
@@ -255,9 +274,7 @@ function PricingCard({
 	const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
 	const product = products.find((p) => p.id === productId);
 
-	if (!product) {
-		return null;
-	}
+	if (!product) return null;
 
 	const { name, display: productDisplay } = product;
 	const { buttonText: defaultButtonText } = getPricingTableContent(product);
@@ -265,7 +282,6 @@ function PricingCard({
 	const Icon = getPlanIcon(product.id);
 	const isDowngrade = product.scenario === "downgrade";
 
-	// Find current active product
 	const currentProduct = products.find(
 		(p) => p.scenario === "active" || p.scenario === "scheduled"
 	);
@@ -283,7 +299,6 @@ function PricingCard({
 		? { primary_text: "Free", secondary_text: "forever" }
 		: product.items[0]?.display;
 
-	// Support levels
 	const supportLevels: Record<string, string> = {
 		free: "Community Support",
 		hobby: "Email Support",
@@ -303,11 +318,15 @@ function PricingCard({
 		? { display: { primary_text: supportLevels[product.id] } }
 		: null;
 
-	const featureItems = [
+	// Autumn billing features (usage limits, etc.)
+	const billingItems = [
 		...(product.properties?.is_free ? product.items : product.items.slice(1)),
 		...extraFeatures,
 		...(supportItem ? [supportItem] : []),
 	];
+
+	// Gated features new to this plan
+	const newGatedFeatures = getNewFeaturesForPlan(product.id);
 
 	return (
 		<div
@@ -318,7 +337,6 @@ function PricingCard({
 				className
 			)}
 		>
-			{/* Recommended Badge */}
 			{isRecommended && (
 				<Badge className="absolute top-3 right-3 bg-primary text-primary-foreground">
 					<StarIcon className="mr-1" size={12} weight="fill" />
@@ -349,14 +367,16 @@ function PricingCard({
 				</div>
 			</div>
 
-			{/* Price */}
 			<div className="dotted-bg border-y bg-accent px-5 py-4">
 				{product.id === "hobby" ? (
-					<div className="flex items-baseline gap-2">
-						<span className="text-muted-foreground line-through">$9.99</span>
-						<span className="font-semibold text-2xl text-green-600">$2.00</span>
-						<span className="text-muted-foreground text-sm">/month</span>
-						<Badge variant="secondary">Limited time</Badge>
+					<div className="flex flex-col gap-1">
+						<div className="flex items-baseline gap-1">
+							<span className="font-semibold text-2xl">$2</span>
+							<span className="text-muted-foreground text-sm">first month</span>
+						</div>
+						<span className="text-muted-foreground text-xs">
+							then $10/month
+						</span>
 					</div>
 				) : (
 					<div className="flex items-baseline gap-1">
@@ -372,21 +392,39 @@ function PricingCard({
 				)}
 			</div>
 
-			{/* Features */}
 			<div className="flex-1 p-5">
 				{product.display?.everything_from && (
 					<p className="mb-3 text-muted-foreground text-sm">
 						Everything from {product.display.everything_from}, plus:
 					</p>
 				)}
-				<div className="space-y-3">
-					{featureItems.map((item) => (
+
+				{/* Billing features (usage limits) */}
+				<div className="space-y-2.5">
+					{billingItems.map((item) => (
 						<FeatureItem item={item} key={item.display?.primary_text} />
 					))}
 				</div>
+
+				{/* Gated features new to this plan */}
+				{newGatedFeatures.length > 0 && (
+					<div className="mt-4 space-y-2.5 border-t pt-4">
+						<span className="text-muted-foreground text-xs uppercase">
+							Features Included
+						</span>
+						{newGatedFeatures.map((featureId) => {
+							const meta = FEATURE_METADATA[featureId];
+							return (
+								<GatedFeatureItem
+									key={featureId}
+									name={meta?.name ?? featureId}
+								/>
+							);
+						})}
+					</div>
+				)}
 			</div>
 
-			{/* Button */}
 			<div className="p-5 pt-0">
 				<PricingCardButton
 					disabled={buttonProps?.disabled}
@@ -421,7 +459,6 @@ function PricingCard({
 	);
 }
 
-// Feature Item
 function FeatureItem({ item }: { item: ProductItem }) {
 	const featureItem = item as ProductItem & {
 		tiers?: { to: number | "inf"; amount: number }[];
@@ -459,7 +496,18 @@ function FeatureItem({ item }: { item: ProductItem }) {
 	);
 }
 
-// Button
+function GatedFeatureItem({ name }: { name: string }) {
+	return (
+		<div className="flex items-center gap-2 text-sm">
+			<CheckIcon
+				className="size-4 shrink-0 text-accent-foreground"
+				weight="bold"
+			/>
+			<span>{name}</span>
+		</div>
+	);
+}
+
 function PricingCardButton({
 	recommended,
 	children,
@@ -498,5 +546,4 @@ function PricingCardButton({
 	);
 }
 
-// Exports for external use
 export { PricingCard, FeatureItem as PricingFeatureItem };

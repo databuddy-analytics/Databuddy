@@ -1,0 +1,12 @@
+import { redirect } from "next/navigation";
+import { generateId } from "ai";
+
+type Props = {
+	params: Promise<{ id: string }>;
+};
+
+export default async function AgentIndexPage(props: Props) {
+	const { id } = await props.params;
+	const newChatId = generateId();
+	redirect(`/websites/${id}/agent/${newChatId}`);
+}

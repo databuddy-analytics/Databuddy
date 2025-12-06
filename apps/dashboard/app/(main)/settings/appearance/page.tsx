@@ -31,6 +31,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	CHART_LOCATION_DESCRIPTIONS,
 	CHART_LOCATION_LABELS,
 	CHART_LOCATIONS,
@@ -245,12 +250,23 @@ export default function AppearanceSettingsPage() {
 										}
 										value={globalPrefs.chartStepType}
 									>
-										<SelectTrigger
-											className={cn("h-8 w-28", isGlobalBar && "opacity-50")}
-											size="sm"
-										>
-											<SelectValue />
-										</SelectTrigger>
+										{/* Tooltip should only be shown if the chart is a bar */}
+										<Tooltip open={isGlobalBar ? undefined : false}>
+											<TooltipTrigger asChild>
+												<SelectTrigger
+													className={cn(
+														"h-8 w-28",
+														isGlobalBar && "opacity-50"
+													)}
+													size="sm"
+												>
+													<SelectValue />
+												</SelectTrigger>
+											</TooltipTrigger>
+											<TooltipContent>
+												<p>Bar charts do not support style</p>
+											</TooltipContent>
+										</Tooltip>
 										<SelectContent>
 											{STEP_TYPE_OPTIONS.map(({ id, name }) => (
 												<SelectItem key={id} value={id}>
@@ -285,7 +301,7 @@ export default function AppearanceSettingsPage() {
 							{/* Granular Settings */}
 							{showGranular && (
 								<div className="border-t">
-									<div className="grid grid-cols-[1fr_5.5rem_7.5rem] gap-3 border-b bg-accent/30 px-4 py-2">
+									<div className="grid grid-cols-[1fr_6.5rem_7.5rem] gap-3 border-b bg-accent/30 px-4 py-2">
 										<span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
 											Location
 										</span>
@@ -308,7 +324,7 @@ export default function AppearanceSettingsPage() {
 										return (
 											<button
 												className={cn(
-													"grid w-full grid-cols-[1fr_5.5rem_7.5rem] items-center gap-3 px-4 py-2.5 text-left transition-colors",
+													"grid w-full grid-cols-[1fr_6.5rem_7.5rem] items-center gap-3 px-4 py-2.5 text-left transition-colors",
 													i < CHART_LOCATIONS.length - 1 && "border-b",
 													isActive && "bg-accent/50"
 												)}
@@ -339,7 +355,7 @@ export default function AppearanceSettingsPage() {
 													value={prefs.chartType}
 												>
 													<SelectTrigger
-														className="h-7"
+														className="h-7 w-full"
 														onClick={(e) => e.stopPropagation()}
 														size="sm"
 													>
@@ -368,13 +384,24 @@ export default function AppearanceSettingsPage() {
 													}
 													value={prefs.chartStepType}
 												>
-													<SelectTrigger
-														className={cn("h-7", isBar && "opacity-50")}
-														onClick={(e) => e.stopPropagation()}
-														size="sm"
-													>
-														<SelectValue />
-													</SelectTrigger>
+													{/* Tooltip should only be shown if the chart is a bar */}
+													<Tooltip open={isBar ? undefined : false}>
+														<TooltipTrigger asChild>
+															<SelectTrigger
+																className={cn(
+																	"h-7 w-full",
+																	isBar && "opacity-50"
+																)}
+																onClick={(e) => e.stopPropagation()}
+																size="sm"
+															>
+																<SelectValue />
+															</SelectTrigger>
+														</TooltipTrigger>
+														<TooltipContent>
+															<p>Bar charts do not support style</p>
+														</TooltipContent>
+													</Tooltip>
 													<SelectContent>
 														{STEP_TYPE_OPTIONS.map(({ id, name }) => (
 															<SelectItem key={id} value={id}>

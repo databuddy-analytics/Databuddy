@@ -4,6 +4,8 @@ import { TargetIcon, TrendDownIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { FeatureGate } from "@/components/feature-gate";
+import { GATED_FEATURES } from "@/components/providers/billing-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -153,77 +155,79 @@ export default function GoalsPage() {
 	}
 
 	return (
-		<div className="relative flex h-full flex-col">
-			<WebsitePageHeader
-				createActionLabel="Create Goal"
-				description="Track key conversions and measure success"
-				hasError={!!goalsError}
-				icon={
-					<TargetIcon
-						className="size-6 text-accent-foreground"
-						weight="duotone"
-					/>
-				}
-				isLoading={goalsLoading}
-				isRefreshing={isRefreshing}
-				onCreateAction={() => {
-					setEditingGoal(null);
-					setIsDialogOpen(true);
-				}}
-				onRefreshAction={handleRefresh}
-				subtitle={
-					goalsLoading
-						? undefined
-						: `${goals.length} goal${goals.length !== 1 ? "s" : ""}`
-				}
-				title="Goals"
-				websiteId={websiteId}
-			/>
-
-			{goalsLoading ? (
-				<GoalsListSkeleton />
-			) : (
-				<GoalsList
-					analyticsLoading={analyticsLoading}
-					goalAnalytics={goalAnalytics}
-					goals={goals}
+		<FeatureGate feature={GATED_FEATURES.GOALS}>
+			<div className="relative flex h-full flex-col">
+				<WebsitePageHeader
+					createActionLabel="Create Goal"
+					description="Track key conversions and measure success"
+					hasError={!!goalsError}
+					icon={
+						<TargetIcon
+							className="size-6 text-accent-foreground"
+							weight="duotone"
+						/>
+					}
 					isLoading={goalsLoading}
-					onCreateGoal={() => {
+					isRefreshing={isRefreshing}
+					onCreateAction={() => {
 						setEditingGoal(null);
 						setIsDialogOpen(true);
 					}}
-					onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
-					onEditGoal={(goal) => {
-						setEditingGoal(goal);
-						setIsDialogOpen(true);
-					}}
+					onRefreshAction={handleRefresh}
+					subtitle={
+						goalsLoading
+							? undefined
+							: `${goals.length} goal${goals.length !== 1 ? "s" : ""}`
+					}
+					title="Goals"
+					websiteId={websiteId}
 				/>
-			)}
 
-			{isDialogOpen && (
-				<EditGoalDialog
-					autocompleteData={autocompleteQuery.data}
-					goal={editingGoal}
-					isOpen={isDialogOpen}
-					isSaving={isCreating || isUpdating}
-					onClose={() => {
-						setIsDialogOpen(false);
-						setEditingGoal(null);
-					}}
-					onSave={handleSaveGoal}
-				/>
-			)}
+				{goalsLoading ? (
+					<GoalsListSkeleton />
+				) : (
+					<GoalsList
+						analyticsLoading={analyticsLoading}
+						goalAnalytics={goalAnalytics}
+						goals={goals}
+						isLoading={goalsLoading}
+						onCreateGoal={() => {
+							setEditingGoal(null);
+							setIsDialogOpen(true);
+						}}
+						onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
+						onEditGoal={(goal) => {
+							setEditingGoal(goal);
+							setIsDialogOpen(true);
+						}}
+					/>
+				)}
 
-			{deletingGoalId && (
-				<DeleteDialog
-					confirmLabel="Delete Goal"
-					description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."
-					isOpen={!!deletingGoalId}
-					onClose={() => setDeletingGoalId(null)}
-					onConfirm={() => deletingGoalId && handleDeleteGoal(deletingGoalId)}
-					title="Delete Goal"
-				/>
-			)}
-		</div>
+				{isDialogOpen && (
+					<EditGoalDialog
+						autocompleteData={autocompleteQuery.data}
+						goal={editingGoal}
+						isOpen={isDialogOpen}
+						isSaving={isCreating || isUpdating}
+						onClose={() => {
+							setIsDialogOpen(false);
+							setEditingGoal(null);
+						}}
+						onSave={handleSaveGoal}
+					/>
+				)}
+
+				{deletingGoalId && (
+					<DeleteDialog
+						confirmLabel="Delete Goal"
+						description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."
+						isOpen={!!deletingGoalId}
+						onClose={() => setDeletingGoalId(null)}
+						onConfirm={() => deletingGoalId && handleDeleteGoal(deletingGoalId)}
+						title="Delete Goal"
+					/>
+				)}
+			</div>
+		</FeatureGate>
 	);
 }

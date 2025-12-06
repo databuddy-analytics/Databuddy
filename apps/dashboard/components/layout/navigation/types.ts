@@ -1,4 +1,5 @@
 import type { Icon } from "@phosphor-icons/react";
+import type { GatedFeatureId } from "@/types/features";
 
 export interface NavigationItem {
 	name: string;
@@ -19,6 +20,8 @@ export interface NavigationItem {
 		text: string;
 		variant: "purple" | "blue" | "green" | "orange" | "red";
 	};
+	/** Feature gate - if set, item will show locked state when feature is not enabled */
+	gatedFeature?: GatedFeatureId;
 }
 
 export interface NavigationSection {

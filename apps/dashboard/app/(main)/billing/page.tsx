@@ -27,6 +27,19 @@ import { useBilling, useBillingData } from "./hooks/use-billing";
 
 type AddOnProduct = Product & { is_add_on?: boolean };
 
+function isSSOProduct(product: Product): boolean {
+	const id = product.id.toLowerCase();
+	if (id === "sso" || id.includes("sso")) {
+		return true;
+	}
+	const name = product.name.toLowerCase();
+	if (name.includes("single sign-on")) {
+		return true;
+	}
+	const displayName = product.display?.name?.toLowerCase() ?? "";
+	return displayName.includes("single sign-on");
+}
+
 function getAddOnStatus(addOn: Product, customerProduct?: CustomerProduct) {
 	const isCancelled =
 		customerProduct?.canceled_at &&
@@ -57,10 +70,11 @@ export default function BillingPage() {
 		getSubscriptionStatusDetails,
 	} = useBilling(refetch);
 
-	const addOns = useMemo(
-		() => products?.filter((p) => (p as AddOnProduct).is_add_on) ?? [],
-		[products]
-	);
+	const addOns = useMemo(() => {
+		const allAddOns =
+			products?.filter((p) => (p as AddOnProduct).is_add_on) ?? [];
+		return allAddOns.filter((p) => !isSSOProduct(p));
+	}, [products]);
 
 	const { currentPlan, currentProduct, usageStats, statusDetails } =
 		useMemo(() => {
@@ -74,7 +88,8 @@ export default function BillingPage() {
 			const activePlan = activeCustomerProduct
 				? products?.find((p) => p.id === activeCustomerProduct.id)
 				: products?.find(
-						(p) => !p.scenario || !["upgrade", "downgrade"].includes(p.scenario)
+						(p) =>
+							!(p.scenario && ["upgrade", "downgrade"].includes(p.scenario))
 					);
 
 			const planStatusDetails = activeCustomerProduct
@@ -91,7 +106,12 @@ export default function BillingPage() {
 				usageStats: usage?.features ?? [],
 				statusDetails: planStatusDetails,
 			};
-		}, [products, usage?.features, customer?.products, getSubscriptionStatusDetails]);
+		}, [
+			products,
+			usage?.features,
+			customer?.products,
+			getSubscriptionStatusDetails,
+		]);
 
 	if (isLoading) {
 		return (
@@ -155,7 +175,9 @@ export default function BillingPage() {
 									currentProduct?.status === "scheduled" ? "outline" : "green"
 								}
 							>
-								{currentProduct?.status === "scheduled" ? "Scheduled" : "Active"}
+								{currentProduct?.status === "scheduled"
+									? "Scheduled"
+									: "Active"}
 							</Badge>
 						</div>
 						<div className="flex items-center gap-3">
@@ -289,7 +311,10 @@ export default function BillingPage() {
 											) : (
 												<Button
 													onClick={() =>
-														attach({ productId: addOn.id, dialog: AttachDialog })
+														attach({
+															productId: addOn.id,
+															dialog: AttachDialog,
+														})
 													}
 													size="sm"
 													variant="outline"

@@ -1,9 +1,9 @@
 "use client";
 
-import { BugIcon, GearIcon, XIcon } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
-import { useAtom } from "jotai";
+import { BugIcon, GearIcon, XIcon } from "@phosphor-icons/react";
 import type { PrimitiveAtom, WritableAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import {
@@ -43,7 +43,9 @@ function RadioSettingGroup({ setting }: { setting: RadioSetting<string> }) {
 	return (
 		<div>
 			<h3 className="mb-1 font-medium text-sm">{setting.title}</h3>
-			<p className="mb-3 text-muted-foreground text-xs">{setting.description}</p>
+			<p className="mb-3 text-muted-foreground text-xs">
+				{setting.description}
+			</p>
 			<RadioGroup className="gap-2" onValueChange={setValue} value={value}>
 				{setting.options.map((option) => {
 					const OptionIcon = option.icon;
@@ -54,15 +56,24 @@ function RadioSettingGroup({ setting }: { setting: RadioSetting<string> }) {
 							htmlFor={inputId}
 							key={option.value}
 						>
-							<RadioGroupItem className="mt-0.5" id={inputId} value={option.value} />
+							<RadioGroupItem
+								className="mt-0.5"
+								id={inputId}
+								value={option.value}
+							/>
 							<div className="flex-1 space-y-1">
 								<div className="flex items-center gap-2">
 									<OptionIcon className="size-4" weight="duotone" />
-									<Label className="cursor-pointer font-medium" htmlFor={inputId}>
+									<Label
+										className="cursor-pointer font-medium"
+										htmlFor={inputId}
+									>
 										{option.label}
 									</Label>
 								</div>
-								<p className="text-muted-foreground text-xs">{option.description}</p>
+								<p className="text-muted-foreground text-xs">
+									{option.description}
+								</p>
 							</div>
 						</label>
 					);
@@ -106,7 +117,7 @@ export function DevToolsDrawer() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isLocalhost]);
 
-	if (!mounted || !isLocalhost) {
+	if (!(mounted && isLocalhost)) {
 		return null;
 	}
 
@@ -135,7 +146,9 @@ export function DevToolsDrawer() {
 								</Button>
 							</DrawerClose>
 						</div>
-						<DrawerDescription>Development settings and quick toggles</DrawerDescription>
+						<DrawerDescription>
+							Development settings and quick toggles
+						</DrawerDescription>
 					</DrawerHeader>
 
 					<div className="overflow-y-auto p-4 pb-8">
@@ -153,9 +166,13 @@ export function DevToolsDrawer() {
 							<div className="rounded bg-muted/50 p-3">
 								<p className="text-muted-foreground text-xs">
 									<span className="font-medium">Tip:</span> Press{" "}
-									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">⌘</kbd>{" "}
-									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">.</kbd> to
-									toggle this drawer
+									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+										⌘
+									</kbd>{" "}
+									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+										.
+									</kbd>{" "}
+									to toggle this drawer
 								</p>
 							</div>
 						</div>

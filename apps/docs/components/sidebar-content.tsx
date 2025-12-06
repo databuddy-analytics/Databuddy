@@ -1,6 +1,7 @@
 import {
 	AtomIcon,
 	BookOpenIcon,
+	CalendarIcon,
 	ChartBarIcon,
 	CodeIcon,
 	CreditCardIcon,
@@ -8,7 +9,6 @@ import {
 	FileTextIcon,
 	FlagIcon,
 	GlobeIcon,
-	CalendarIcon,
 	GoogleLogoIcon,
 	type IconWeight,
 	KeyIcon,

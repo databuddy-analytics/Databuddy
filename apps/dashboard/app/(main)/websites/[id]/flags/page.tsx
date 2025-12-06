@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
+import { FeatureGate } from "@/components/feature-gate";
+import { GATED_FEATURES } from "@/components/providers/billing-provider";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -124,7 +126,7 @@ export default function FlagsPage() {
 	}
 
 	return (
-		<>
+		<FeatureGate feature={GATED_FEATURES.FEATURE_FLAGS}>
 			<WebsitePageHeader
 				createActionLabel="Create Flag"
 				description="Control feature rollouts and A/B testing"
@@ -204,6 +206,6 @@ export default function FlagsPage() {
 					</Suspense>
 				)}
 			</div>
-		</>
+		</FeatureGate>
 	);
 }

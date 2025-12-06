@@ -70,6 +70,19 @@ export function getAssistantMessagesPerDay(items: RawItem[]): number | null {
 
 export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 	return raw.map((plan) => {
+		if (plan.id === "enterprise") {
+			return {
+				id: plan.id,
+				name: plan.name,
+				priceMonthly: 0,
+				includedEventsMonthly: 0,
+				eventTiers: null,
+				websitesIncluded: "inf",
+				websitesOveragePerUnit: null,
+				assistantMessagesPerDay: null,
+			};
+		}
+
 		const priceMonthly = getPriceMonthly(plan.items);
 		const { included: includedEventsMonthly, tiers: eventTiers } =
 			getEventsInfo(plan.items);

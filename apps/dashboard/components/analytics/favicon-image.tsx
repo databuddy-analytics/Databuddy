@@ -60,7 +60,9 @@ export function FaviconImage({
 			style={{ width: size, height: size, minWidth: size, minHeight: size }}
 		>
 			{showFallback && (
-				<div className={`absolute inset-0 flex items-center justify-center ${loaded ? "opacity-0" : "opacity-100"} transition-opacity`}>
+				<div
+					className={`absolute inset-0 flex items-center justify-center ${loaded ? "opacity-0" : "opacity-100"} transition-opacity`}
+				>
 					{fallbackContent}
 				</div>
 			)}

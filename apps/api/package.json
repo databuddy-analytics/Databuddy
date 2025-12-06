@@ -16,12 +16,17 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@ai-sdk-tools/agents": "^1.2.0",
+    "@ai-sdk-tools/artifacts": "^1.2.0",
+    "@ai-sdk-tools/memory": "^1.2.0",
+    "@ai-sdk/openai": "^2.0.77",
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@elysiajs/cors": "^1.4.0",
+    "@openrouter/ai-sdk-provider": "^1.4.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.208.0",
     "@opentelemetry/instrumentation-http": "^0.55.0",
@@ -39,6 +44,7 @@
     "elysia": "^1.4.16",
     "jszip": "^3.10.1",
     "keypal": "^0.1.0",
+    "redis": "^5.10.0",
     "zod": "catalog:"
   }
 }

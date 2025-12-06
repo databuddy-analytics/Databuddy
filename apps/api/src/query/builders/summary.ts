@@ -32,7 +32,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					name: "bounce_rate",
 					type: "number",
 					label: "Bounce Rate",
-					description: "Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
+					description:
+						"Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
 					unit: "%",
 				},
 				{
@@ -220,7 +221,8 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					name: "bounce_rate",
 					type: "number",
 					label: "Bounce Rate",
-					description: "Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
+					description:
+						"Percentage of non-engaged sessions (single pageview, < 10s duration, no interactions)",
 					unit: "%",
 				},
 				{

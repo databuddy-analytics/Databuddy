@@ -1,4 +1,4 @@
-import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, LockSimpleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -13,6 +13,8 @@ interface NavigationItemProps extends Omit<NavigationItemType, "icon"> {
 	isExternal?: boolean;
 	currentWebsiteId?: string | null;
 	sectionName?: string;
+	isLocked?: boolean;
+	lockedPlanName?: string | null;
 }
 
 export function NavigationItem({
@@ -30,38 +32,27 @@ export function NavigationItem({
 	disabled,
 	sectionName,
 	badge,
+	isLocked = false,
+	lockedPlanName,
 }: NavigationItemProps) {
 	const pathname = usePathname();
 
 	const fullPath = useMemo(() => {
-		if (isRootLevel) {
-			return href;
-		}
+		if (isRootLevel) return href;
 		if (currentWebsiteId === "sandbox") {
 			return href === "" ? "/sandbox" : `/sandbox${href}`;
 		}
-
 		if (pathname.startsWith("/demo/")) {
 			return href === ""
 				? `/demo/${currentWebsiteId}`
 				: `/demo/${currentWebsiteId}${href}`;
 		}
-
 		return `/websites/${currentWebsiteId}${href}`;
 	}, [href, isRootLevel, currentWebsiteId, pathname]);
-
-	const LinkComponent = isExternal ? "a" : Link;
 
 	if (production === false && process.env.NODE_ENV === "production") {
 		return null;
 	}
-
-	const linkProps = isExternal
-		? { href, target: "_blank", rel: "noopener noreferrer" }
-		: {
-				href: fullPath,
-				prefetch: true,
-			};
 
 	const content = (
 		<>
@@ -70,29 +61,42 @@ export function NavigationItem({
 					className="rounded"
 					domain={domain}
 					fallbackIcon={
-						<Icon
-							aria-hidden="true"
-							className="size-5 shrink-0"
-							weight="duotone"
-						/>
+						<Icon aria-hidden className="size-5 shrink-0" weight="duotone" />
 					}
 					size={20}
 				/>
 			) : (
-				<Icon aria-hidden="true" className="size-4 shrink-0" />
+				<Icon aria-hidden className="size-4 shrink-0" />
 			)}
 			<span className="flex-1">{name}</span>
 		</>
 	);
 
+	if (isLocked) {
+		return (
+			<div
+				aria-disabled
+				className="group flex cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/40 text-sm"
+				title={lockedPlanName ? `Requires ${lockedPlanName} plan` : undefined}
+			>
+				{content}
+				<div className="flex items-center gap-1.5">
+					<LockSimpleIcon aria-hidden className="size-3" />
+					{lockedPlanName && (
+						<span className="rounded bg-sidebar-accent px-1.5 py-0.5 font-medium text-[10px] text-sidebar-foreground/50 uppercase">
+							{lockedPlanName}
+						</span>
+					)}
+				</div>
+			</div>
+		);
+	}
+
 	if (disabled) {
 		return (
 			<div
-				aria-disabled="true"
-				className={cn(
-					"group flex items-center gap-3 px-4 py-2.5 text-sm",
-					"cursor-not-allowed text-sidebar-foreground/30"
-				)}
+				aria-disabled
+				className="group flex cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/30 text-sm"
 			>
 				{content}
 				{tag && (
@@ -104,15 +108,20 @@ export function NavigationItem({
 		);
 	}
 
+	const LinkComponent = isExternal ? "a" : Link;
+	const linkProps = isExternal
+		? { href, target: "_blank", rel: "noopener noreferrer" }
+		: { href: fullPath, prefetch: true };
+
 	return (
 		<LinkComponent
 			{...linkProps}
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex items-center gap-3 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
+				"group flex items-center gap-3 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground border-r-2 border-transparent",
 				isActive
-					? "border-sidebar-ring border-r-2 bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+					? "border-sidebar-ring bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"
 			)}
 			data-nav-href={href}
@@ -150,7 +159,7 @@ export function NavigationItem({
 				)}
 				{isExternal && (
 					<ArrowSquareOutIcon
-						aria-hidden="true"
+						aria-hidden
 						className="size-3 text-sidebar-ring opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 						weight="duotone"
 					/>

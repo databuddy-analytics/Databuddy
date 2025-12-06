@@ -249,6 +249,45 @@ export const twoFactor = pgTable(
 	]
 );
 
+export const ssoProvider = pgTable(
+	"sso_provider",
+	{
+		id: text().primaryKey().notNull(),
+		issuer: text().notNull(),
+		oidcConfig: text("oidc_config"),
+		samlConfig: text("saml_config"),
+		userId: text("user_id"),
+		providerId: text("provider_id").notNull(),
+		organizationId: text("organization_id"),
+		domain: text().notNull(),
+		domainVerified: boolean("domain_verified"),
+	},
+	(table) => [
+		uniqueIndex("sso_provider_provider_id_unique").using(
+			"btree",
+			table.providerId.asc().nullsLast().op("text_ops")
+		),
+		index("sso_provider_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("sso_provider_domain_idx").using(
+			"btree",
+			table.domain.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "sso_provider_user_id_user_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "sso_provider_organization_id_organization_id_fk",
+		}).onDelete("cascade"),
+	]
+);
+
 export const userPreferences = pgTable(
 	"user_preferences",
 	{

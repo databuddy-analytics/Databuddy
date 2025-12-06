@@ -428,9 +428,9 @@ export function WebsiteOverviewTab({
 					...(visibleMetrics.bounce_rate && {
 						bounce_rate: event.bounce_rate as number,
 					}),
-				...(visibleMetrics.median_session_duration && {
-					median_session_duration: event.median_session_duration as number,
-				}),
+					...(visibleMetrics.median_session_duration && {
+						median_session_duration: event.median_session_duration as number,
+					}),
 				})
 			),
 		[processedEventsData, dateRange.granularity, visibleMetrics]
@@ -961,7 +961,7 @@ export function WebsiteOverviewTab({
 					minHeight={350}
 					onAddFilter={onAddFilter}
 					tabs={pagesTabs as any}
-					title="Pages"	
+					title="Pages"
 				/>
 			</div>
 

@@ -1,9 +1,10 @@
-import { and, annotations, desc, eq, isNull } from "@databuddy/db";
+import { and, annotations, desc, eq, isNull, websites } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
+import { getCacheAuthContext } from "../utils/cache-keys";
 
 const annotationsCache = createDrizzleCache({
 	redis,
@@ -40,11 +41,13 @@ export const annotationsRouter = {
 				chartContext: chartContextSchema,
 			})
 		)
-		.handler(({ context, input }) => {
-			const cacheKey = `annotations:list:${input.websiteId}:${input.chartType}`;
+		.handler(async ({ context, input }) => {
+			const authContext = await getCacheAuthContext(context, {
+				websiteId: input.websiteId,
+			});
 
 			return annotationsCache.withCache({
-				key: cacheKey,
+				key: `annotations:list:${input.websiteId}:${input.chartType}:${authContext}`,
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
@@ -68,11 +71,24 @@ export const annotationsRouter = {
 	// Get annotation by ID
 	getById: publicProcedure
 		.input(z.object({ id: z.string() }))
-		.handler(({ context, input }) => {
-			const cacheKey = `annotations:byId:${input.id}`;
+		.handler(async ({ context, input }) => {
+			const annotation = await context.db.query.annotations.findFirst({
+				where: and(eq(annotations.id, input.id), isNull(annotations.deletedAt)),
+				columns: { websiteId: true },
+			});
+
+			if (!annotation) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Annotation not found",
+				});
+			}
+
+			const authContext = await getCacheAuthContext(context, {
+				websiteId: annotation.websiteId,
+			});
 
 			return annotationsCache.withCache({
-				key: cacheKey,
+				key: `annotations:byId:${input.id}:${authContext}`,
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
@@ -90,15 +106,15 @@ export const annotationsRouter = {
 						});
 					}
 
-					const annotation = result[0];
-					if (!annotation) {
+					const annotationResult = result[0];
+					if (!annotationResult) {
 						throw new ORPCError("NOT_FOUND", {
 							message: "Annotation not found",
 						});
 					}
-					await authorizeWebsiteAccess(context, annotation.websiteId, "read");
+					await authorizeWebsiteAccess(context, annotationResult.websiteId, "read");
 
-					return annotation;
+					return annotationResult;
 				},
 			});
 		}),

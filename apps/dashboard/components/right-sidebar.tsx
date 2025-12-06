@@ -146,7 +146,7 @@ function SidebarSkeleton({ className }: { className?: string }) {
 	return (
 		<aside
 			className={cn(
-				"flex w-full shrink-0 flex-col gap-4 border-t bg-card p-5 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l",
+				"flex w-full shrink-0 flex-col gap-4 border-t border-l bg-card p-5 lg:h-full lg:w-auto lg:overflow-y-auto lg:border-t-0 lg:border-l",
 				className
 			)}
 		>

@@ -1,15 +1,19 @@
 "use client";
 
 import { WarningIcon } from "@phosphor-icons/react";
+import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import { orpc } from "@/lib/orpc";
 
 export function EventLimitIndicator() {
-	const router = useRouter();
+	const pathname = usePathname();
+	const isDemoRoute = pathname?.startsWith("/demo/");
+
 	const { data } = useQuery({
 		...orpc.organizations.getUsage.queryOptions(),
+		enabled: !isDemoRoute,
 	});
 
 	if (!data || data.unlimited) {
@@ -18,12 +22,17 @@ export function EventLimitIndicator() {
 
 	const balance = data.balance ?? 0;
 	const planLimit = data.includedUsage ?? 0;
+	const overageAllowed = data.overageAllowed ?? false;
 
 	// Balance > Plan limit = Bonus credits, show remaining
 	// Balance < Plan limit = Normal usage, balance is remaining
 	// Balance < 0 = Overage
 
 	if (balance < 0) {
+		// Don't show overage warning if user is allowed to have overage
+		if (overageAllowed) {
+			return null;
+		}
 		// Overage state
 		const overage = Math.abs(balance);
 		return (
@@ -40,14 +49,16 @@ export function EventLimitIndicator() {
 					</div>
 				</div>
 				{data.canUserUpgrade ? (
-					<Button
-						className="h-6 px-2 text-xs"
-						onClick={() => router.push("/billing?tab=plans")}
-						size="sm"
-						variant="ghost"
+					<Link
+						className={buttonVariants({
+							variant: "ghost",
+							size: "sm",
+							className: "h-6 px-2 text-xs",
+						})}
+						href="/billing/plans"
 					>
 						Upgrade
-					</Button>
+					</Link>
 				) : (
 					<span className="text-muted-foreground text-xs">Contact owner</span>
 				)}
@@ -86,14 +97,16 @@ export function EventLimitIndicator() {
 				</div>
 			</div>
 			{data.canUserUpgrade ? (
-				<Button
-					className="h-6 px-2 text-xs"
-					onClick={() => router.push("/billing?tab=plans")}
-					size="sm"
-					variant="ghost"
+				<Link
+					className={buttonVariants({
+						variant: "ghost",
+						size: "sm",
+						className: "h-6 px-2 text-xs",
+					})}
+					href="/billing/plans"
 				>
 					Upgrade
-				</Button>
+				</Link>
 			) : (
 				<span className="text-muted-foreground text-xs">Contact owner</span>
 			)}

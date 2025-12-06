@@ -1,10 +1,11 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery, eq, websites } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
+import { getCacheAuthContext } from "../utils/cache-keys";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
 
@@ -142,16 +143,18 @@ export const autocompleteRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const cacheKey = `autocomplete:${input.websiteId}:${startDate}:${endDate}`;
+			const authContext = await getCacheAuthContext(context, {
+				websiteId: input.websiteId,
+			});
 
 			return drizzleCache.withCache({
-				key: cacheKey,
+				key: `autocomplete:${input.websiteId}:${startDate}:${endDate}:${authContext}`,
 				ttl: CACHE_TTL,
 				tables: ["websites"],
 				queryFn: async () => {

@@ -2,7 +2,7 @@
 
 import type { InferSelectModel, websites } from "@databuddy/db";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle } from "lucide-react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -244,7 +244,10 @@ export function WebsiteDialog({
 					>
 						{(createWebsiteMutation.isPending ||
 							updateWebsiteMutation.isPending) && (
-							<LoaderCircle className="mr-2 size-4 animate-spin" />
+							<CircleNotchIcon
+								className="mr-2 size-4 animate-spin"
+								weight="duotone"
+							/>
 						)}
 						{isEditing ? "Save changes" : "Create website"}
 					</Button>

@@ -25,6 +25,6 @@ export const config = {
 		 * - demo (demo pages)
 		 * - public files (public folder)
 		 */
-		"/((?!api|_next/static|_next/image|favicon.ico|login|demo|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+		"/((?!api|_next/static|_next/image|favicon.ico|login|register|demo|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };

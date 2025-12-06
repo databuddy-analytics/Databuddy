@@ -44,7 +44,9 @@ const getEffectiveStartDate = (
 	createdAt: Date | null,
 	ignoreHistoricData: boolean
 ): string => {
-	if (!(ignoreHistoricData && createdAt)) return requestedStartDate;
+	if (!(ignoreHistoricData && createdAt)) {
+		return requestedStartDate;
+	}
 
 	const createdDate = new Date(createdAt).toISOString().split("T")[0];
 	return new Date(requestedStartDate) > new Date(createdDate)

@@ -452,7 +452,6 @@ export default function AccountSettingsPage() {
 													</div>
 													{connectedAccount ? (
 														<div className="flex items-center gap-2">
-															<Badge variant="green">Connected</Badge>
 															<Button
 																className="size-7"
 																disabled={isOnlyAccount}
@@ -467,6 +466,7 @@ export default function AccountSettingsPage() {
 															>
 																<LinkBreakIcon className="size-4" />
 															</Button>
+															<Badge variant="green">Connected</Badge>
 														</div>
 													) : (
 														<Button

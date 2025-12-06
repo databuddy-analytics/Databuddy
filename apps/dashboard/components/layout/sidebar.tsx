@@ -202,9 +202,9 @@ export function Sidebar() {
 				/>
 			</div>
 
-			{isMobileOpen && (
+			{isMobileOpen ? (
 				<button
-					className="fixed inset-0 z-[90] bg-black/20 md:hidden"
+					className="fixed inset-0 z-40 bg-black/20 md:hidden"
 					onClick={closeSidebar}
 					onKeyDown={(e) => {
 						if (e.key === "Escape") {
@@ -214,12 +214,12 @@ export function Sidebar() {
 					tabIndex={0}
 					type="button"
 				/>
-			)}
+			) : null}
 
 			<nav
 				aria-hidden={!isMobileOpen}
 				className={cn(
-					"fixed inset-y-0 z-[100] w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
+					"fixed inset-y-0 z-50 w-56 bg-sidebar sm:w-60 md:w-64 lg:w-72",
 					"border-r transition-transform duration-200 ease-out",
 					"left-0 md:left-12",
 					"pt-12 md:pt-0",
@@ -230,7 +230,7 @@ export function Sidebar() {
 			>
 				<Button
 					aria-label="Close sidebar"
-					className="absolute top-3 right-3 z-110 size-8 p-0 md:hidden"
+					className="absolute top-3 right-3 size-8 p-0 md:hidden"
 					data-track="sidebar-close"
 					onClick={closeSidebar}
 					size="sm"

@@ -2,7 +2,7 @@ import Redis from "ioredis";
 
 let redisInstance: Redis | null = null;
 
-export function getRedisCache(): Redis {
+export function getRedisCache() {
 	if (!redisInstance) {
 		const url = process.env.REDIS_URL;
 		if (!url) {

@@ -537,6 +537,29 @@
     letter-spacing: 0.025em;
   }
 
+  /* Code element styling for better contrast */
+  code {
+    @apply bg-muted text-foreground;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    padding: 0.125rem 0.25rem;
+    border-radius: calc(var(--radius) - 2px);
+  }
+
+  /* Pre elements containing code */
+  pre {
+    @apply bg-muted text-foreground;
+    font-family: var(--font-mono);
+    padding: 1rem;
+    border-radius: var(--radius);
+    overflow-x: auto;
+  }
+
+  pre code {
+    @apply bg-transparent p-0;
+    font-size: inherit;
+  }
+
 }
 
 /* ==========================================================================

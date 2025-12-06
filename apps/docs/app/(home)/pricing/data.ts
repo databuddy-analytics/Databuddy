@@ -31,6 +31,9 @@ export type RawItem =
 			price?: number;
 			tiers?: Array<{ to: number | "inf"; amount: number }>;
 			usage_model: "pay_per_use";
+	  }
+	| {
+			type: "enterprise";
 	  };
 
 export type RawPlan = { id: string; name: string; items: RawItem[] };
@@ -91,7 +94,7 @@ export const RAW_PLANS: RawPlan[] = [
 			{
 				type: "price",
 				interval: "month",
-				price: 9.99,
+				price: 10,
 				feature_id: null,
 				feature: null,
 			},
@@ -156,7 +159,7 @@ export const RAW_PLANS: RawPlan[] = [
 			{
 				type: "price",
 				interval: "month",
-				price: 29.99,
+				price: 50,
 				feature_id: null,
 				feature: null,
 			},
@@ -170,7 +173,7 @@ export const RAW_PLANS: RawPlan[] = [
 					type: "single_use",
 					display: { singular: "event", plural: "events" },
 				},
-				included_usage: 500_000,
+				included_usage: 1_000_000,
 				interval: "month",
 				tiers: [
 					{ to: 2_000_000, amount: 0.000_035 },
@@ -213,66 +216,8 @@ export const RAW_PLANS: RawPlan[] = [
 		],
 	},
 	{
-		id: "scale",
-		name: "Scale",
-		items: [
-			{
-				type: "price",
-				interval: "month",
-				price: 99.99,
-				feature_id: null,
-				feature: null,
-			},
-			{
-				type: "priced_feature",
-				feature_id: "events",
-				feature_type: "single_use",
-				feature: {
-					id: "events",
-					name: "Events",
-					type: "single_use",
-					display: { singular: "event", plural: "events" },
-				},
-				included_usage: 3_000_000,
-				interval: "month",
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				usage_model: "pay_per_use",
-			},
-			{
-				type: "feature",
-				feature_id: "assistant_message",
-				feature_type: "single_use",
-				feature: {
-					id: "assistant_message",
-					name: "Assistant Message",
-					type: "single_use",
-					display: {
-						singular: "assistant message",
-						plural: "assistant messages",
-					},
-				},
-				included_usage: 250,
-				interval: "day",
-			},
-			{
-				type: "feature",
-				feature_id: "websites",
-				feature_type: "single_use",
-				feature: {
-					id: "websites",
-					name: "Websites",
-					type: "single_use",
-					display: { singular: "website", plural: "websites" },
-				},
-				included_usage: "inf",
-				interval: null,
-			},
-		],
+		id: "enterprise",
+		name: "Enterprise",
+		items: [{ type: "enterprise" }],
 	},
 ];

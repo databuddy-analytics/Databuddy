@@ -2,6 +2,7 @@ import { websitesApi } from "@databuddy/auth";
 import {
 	and,
 	chQuery,
+	db,
 	eq,
 	inArray,
 	isNull,
@@ -31,6 +32,7 @@ import {
 	WebsiteService,
 } from "../services/website-service";
 import { authorizeWebsiteAccess } from "../utils/auth";
+import { getCacheAuthContext } from "../utils/cache-keys";
 import { invalidateWebsiteCaches } from "../utils/cache-invalidation";
 
 const websiteCache = createDrizzleCache({ redis, namespace: "websites" });
@@ -350,13 +352,38 @@ export const websitesRouter = {
 
 	getById: publicProcedure
 		.input(z.object({ id: z.string() }))
-		.handler(({ context, input }) => {
-			const getByIdCacheKey = `getById:${input.id}`;
+		.handler(async ({ context, input }) => {
+			const authContext = await getCacheAuthContext(context, {
+				websiteId: input.id,
+			});
+
 			return websiteCache.withCache({
-				key: getByIdCacheKey,
+				key: `getById:${input.id}:${authContext}`,
 				ttl: CACHE_DURATION,
 				tables: ["websites"],
-				queryFn: () => authorizeWebsiteAccess(context, input.id, "read"),
+				queryFn: async () => {
+					const website = await authorizeWebsiteAccess(
+						context,
+						input.id,
+						"read"
+					);
+
+					const isPublicAccess = authContext === "public";
+
+					if (isPublicAccess) {
+						return {
+							id: website.id,
+							domain: website.domain,
+							name: website.name,
+							status: website.status,
+							isPublic: website.isPublic,
+							createdAt: website.createdAt,
+							updatedAt: website.updatedAt,
+						};
+					}
+
+					return website;
+				},
 			});
 		}),
 

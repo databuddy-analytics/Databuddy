@@ -5,7 +5,7 @@ import { useAtom } from "jotai";
 import { useParams, usePathname } from "next/navigation";
 import { useRef } from "react";
 import { toast } from "sonner";
-import NotFound from "@/app/not-found";
+import { WebsiteErrorState } from "@/components/website-error-state";
 import { useTrackingSetup } from "@/hooks/use-tracking-setup";
 import { useWebsite } from "@/hooks/use-websites";
 import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
@@ -20,9 +20,11 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	const { id } = useParams();
 	const pathname = usePathname();
 	const queryClient = useQueryClient();
+	const isDemoRoute = pathname?.startsWith("/demo/");
 	const {
 		isLoading: isWebsiteLoading,
 		isError: isWebsiteError,
+		error: websiteError,
 		data: websiteData,
 	} = useWebsite(id as string);
 	const { isTrackingSetup, isTrackingSetupLoading } = useTrackingSetup(
@@ -38,6 +40,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		"/databunny",
 		"/settings",
 		"/users",
+		"/agent",
 	];
 
 	const isAssistantPage = noToolbarPages.some((page) =>
@@ -45,17 +48,19 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	);
 
 	if (!id) {
-		return <NotFound />;
+		return <WebsiteErrorState error={{ data: { code: "NOT_FOUND" } }} />;
 	}
 
 	if (!isWebsiteLoading && isWebsiteError) {
-		return <NotFound />;
+		return (
+			<WebsiteErrorState error={websiteError} websiteId={id as string} />
+		);
 	}
 
 	const websiteId = id as string;
 	const isToolbarLoading =
-		isWebsiteLoading || isTrackingSetupLoading || isTrackingSetup === null;
-	const isToolbarDisabled = !isTrackingSetup || isToolbarLoading;
+		isWebsiteLoading || (!isDemoRoute && (isTrackingSetupLoading || isTrackingSetup === null));
+	const isToolbarDisabled = !isDemoRoute && (!isTrackingSetup || isToolbarLoading);
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
@@ -100,7 +105,8 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			>
 				{isAssistantPage ? (
 					children
-				) : websiteData &&
+				) : !isDemoRoute &&
+					websiteData &&
 					!isTrackingSetupLoading &&
 					isTrackingSetup !== null &&
 					isTrackingSetup === false ? (
