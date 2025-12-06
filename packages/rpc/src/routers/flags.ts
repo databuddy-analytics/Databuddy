@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
-import { flagFormSchema, variantSchema, } from "@databuddy/shared/flags";
+import { flagFormSchema, userRuleSchema, variantSchema, } from "@databuddy/shared/flags";
 import { getScopeCondition, handleFlagUpdateDependencyCascading } from "@databuddy/shared/flags/utils";
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 const CACHE_DURATION = 60;
@@ -54,26 +54,6 @@ const invalidateFlagCache = async (
 		flagsCache.invalidateByKey(`byId:${id}:${scope}`),
 	]);
 };
-
-const userRuleSchema = z.object({
-	type: z.enum(["user_id", "email", "property"]),
-	operator: z.enum([
-		"equals",
-		"contains",
-		"starts_with",
-		"ends_with",
-		"in",
-		"not_in",
-		"exists",
-		"not_exists",
-	]),
-	field: z.string().optional(),
-	value: z.string().optional(),
-	values: z.array(z.string()).optional(),
-	enabled: z.boolean(),
-	batch: z.boolean().default(false),
-	batchValues: z.array(z.string()).optional(),
-});
 
 const listFlagsSchema = z
 	.object({
@@ -135,7 +115,21 @@ const updateFlagSchema = z.object({
 	variants: z.array(variantSchema).optional(),
 	dependencies: z.array(z.string()).optional(),
 	forceCancelScheduledRollout: z.boolean().optional(),
-}).passthrough();
+}).passthrough().superRefine((data, ctx) => {
+	if (data.type === "multivariant" && data.variants) {
+		const hasAnyWeight = data.variants.some((v) => typeof v.weight === "number");
+		if (hasAnyWeight) {
+			const totalWeight = data.variants.reduce((sum, v) => sum + (typeof v.weight === "number" ? v.weight : 0), 0);
+			if (totalWeight !== 100) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["variants"],
+					message: "When specifying weights, they must sum to 100%",
+				});
+			}
+		}
+	}
+});
 
 const checkCircularDependency = async (
 	context: Context,

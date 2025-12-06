@@ -4,33 +4,14 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
+import { flagScheduleSchema, FlagScheduleType } from "@databuddy/shared/flags";
 
-type FlagScheduleType = "enable" | "disable" | "update_rollout";
 
 type DbRolloutStep = {
     scheduledAt: string;
     executedAt?: string;
     value: number | "enable" | "disable";
 };
-
-const rolloutStepSchema = z.object({
-    scheduledAt: z.string(),
-    executedAt: z.string().optional(),
-    value: z.union([
-        z.number().min(0).max(100),
-        z.literal("enable"),
-        z.literal("disable"),
-    ]),
-});
-
-const flagScheduleSchema = z.object({
-    id: z.string().optional(),
-    isEnabled: z.boolean(),
-    flagId: z.string(),
-    type: z.enum(["enable", "disable", "update_rollout"]),
-    scheduledAt: z.string().optional(),
-    rolloutSteps: z.array(rolloutStepSchema).optional(),
-});
 
 interface FlagScheduleUpdateData {
     flagId: string;

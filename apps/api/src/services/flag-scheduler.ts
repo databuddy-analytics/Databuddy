@@ -145,9 +145,10 @@ async function executeSchedule(sched: ExecutableSchedule) {
 
         if (sched.__isStep && sched.rolloutSteps) {
             const now = new Date();
+            const nowIso = new Date().toISOString();
             const updatedRolloutSteps = sched.rolloutSteps.map((step) => {
                 if (step.executedAt || new Date(step.scheduledAt) <= now) {
-                    return { ...step, executedAt: step.executedAt || new Date().toISOString() };
+                    return { ...step, executedAt: step.executedAt || nowIso };
                 }
                 return step;
             });

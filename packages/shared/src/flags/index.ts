@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 
-const userRuleSchema = z.object({
+export const userRuleSchema = z.object({
     type: z.enum(["user_id", "email", "property"]),
     operator: z.enum([
         "equals",
