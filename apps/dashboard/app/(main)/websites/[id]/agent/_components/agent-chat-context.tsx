@@ -1,22 +1,24 @@
 "use client";
 
-import { createContext, useContext } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { createContext, useContext } from "react";
 
-interface AgentChatContextValue {
+type AgentChatContextValue = {
 	chatId: string;
 	setChatId: (id: string) => void;
-}
+};
 
 const AgentChatContext = createContext<AgentChatContextValue | null>(null);
+
+type AgentChatProviderProps = {
+	chatId: string;
+	children: React.ReactNode;
+};
 
 export function AgentChatProvider({
 	chatId,
 	children,
-}: {
-	chatId: string;
-	children: React.ReactNode;
-}) {
+}: AgentChatProviderProps) {
 	const params = useParams();
 	const router = useRouter();
 	const websiteId = params.id as string;
@@ -47,4 +49,3 @@ export function useSetAgentChatId(): (id: string) => void {
 	}
 	return context.setChatId;
 }
-

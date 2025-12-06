@@ -1,7 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { PaperclipIcon, WarningIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon, PaperclipIcon } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
 import Image from "next/image";
 import {
@@ -9,8 +9,19 @@ import {
 	MessageAvatar,
 	MessageContent,
 } from "@/components/ai-elements/message";
+import {
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import { Response } from "@/components/ai-elements/response";
-import { ToolOutput } from "@/components/ai-elements/tool";
+import {
+	Tool,
+	ToolContent,
+	ToolHeader,
+	ToolInput,
+	ToolOutput,
+} from "@/components/ai-elements/tool";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -19,6 +30,7 @@ type AgentMessagesProps = {
 	messages: UIMessage[];
 	isStreaming?: boolean;
 	hasError?: boolean;
+	statusText?: string;
 };
 
 function getTextContent(message: UIMessage): string {
@@ -47,10 +59,20 @@ function extractToolParts(parts: UIMessage["parts"]) {
 	}>;
 }
 
+function extractReasoningParts(parts: UIMessage["parts"]) {
+	return parts.filter(
+		(part) =>
+			part.type === "reasoning" ||
+			part.type === "step-start" ||
+			part.type === "data-step-start"
+	) as Array<{ type: string; text?: string; content?: string }>;
+}
+
 export function AgentMessages({
 	messages,
 	isStreaming = false,
 	hasError = false,
+	statusText,
 }: AgentMessagesProps) {
 	if (messages.length === 0) {
 		return null;
@@ -64,53 +86,56 @@ export function AgentMessages({
 				const textContent = getTextContent(message);
 				const fileParts = extractFileParts(message.parts);
 				const toolParts = extractToolParts(message.parts);
+				const reasoningParts = extractReasoningParts(message.parts);
 				const hasToolErrors = toolParts.some((tool) => tool.errorText);
 				const showError = isLastMessage && hasError && isAssistant;
 
 				return (
 					<div className="group" key={message.id}>
-						{/* Render tool parts (including errors) */}
 						{toolParts.length > 0 && (
 							<Message from={message.role}>
-								<MessageContent className="max-w-[80%]">
-									<div className="space-y-2">
-										{toolParts.map((toolPart) => (
-											<div key={toolPart.toolCallId}>
-												{toolPart.errorText && (
-													<div className="rounded border border-destructive/20 bg-destructive/5 p-3">
-														<div className="flex items-start gap-2">
-															<WarningIcon
-																className="mt-0.5 size-4 shrink-0 text-destructive"
-																weight="fill"
-															/>
-															<div className="min-w-0 flex-1">
-																<p className="mb-1 font-medium text-destructive text-sm">
-																	Tool Error: {toolPart.toolName}
-																</p>
-																<p className="text-destructive/80 text-xs">
-																	{toolPart.errorText}
-																</p>
-															</div>
-														</div>
-													</div>
-												)}
-												{!toolPart.errorText &&
-													toolPart.output !== undefined && (
-														<ToolOutput
-															errorText={toolPart.errorText}
-															output={
-																typeof toolPart.output === "string" ||
-																typeof toolPart.output === "object"
+								<MessageContent className="max-w-[80%] space-y-3">
+									{toolParts.map((toolPart, index) => {
+										const state = toolPart.errorText
+											? "output-error"
+											: toolPart.output !== undefined
+												? "output-available"
+												: "input-available";
+										const safeKey =
+											(toolPart.toolCallId as `tool-${string}` | undefined) ??
+											(`tool-${index}` as const);
+										const input =
+											(toolPart as { input?: unknown }).input ?? undefined;
+
+										return (
+											<Tool key={safeKey} open={false}>
+												<ToolHeader
+													state={state}
+													type={
+														(toolPart.toolName as
+															| `tool-${string}`
+															| undefined) ?? ("tool" as `tool-${string}`)
+													}
+												/>
+												<ToolContent>
+													{input !== undefined && <ToolInput input={input} />}
+													<ToolOutput
+														errorText={toolPart.errorText}
+														output={
+															toolPart.output === undefined
+																? null
+																: typeof toolPart.output === "string" ||
+																		typeof toolPart.output === "object"
 																	? (toolPart.output as
 																			| string
 																			| Record<string, unknown>)
 																	: String(toolPart.output)
-															}
-														/>
-													)}
-											</div>
-										))}
-									</div>
+														}
+													/>
+												</ToolContent>
+											</Tool>
+										);
+									})}
 								</MessageContent>
 								{message.role === "assistant" && (
 									<AgentMessageAvatar hasError={hasToolErrors} />
@@ -118,7 +143,31 @@ export function AgentMessages({
 							</Message>
 						)}
 
-						{/* Render file attachments */}
+						{reasoningParts.length > 0 && (
+							<Message from={message.role}>
+								<MessageContent
+									className="max-w-[80%] space-y-2"
+									variant="flat"
+								>
+									<Reasoning isStreaming={isStreaming} open={false}>
+										<ReasoningTrigger />
+										{reasoningParts.map((reasoning, idx) => {
+											const text =
+												reasoning.text ||
+												reasoning.content ||
+												"Thinking through the request.";
+											return (
+												<ReasoningContent key={`reasoning-${idx}`}>
+													{text}
+												</ReasoningContent>
+											);
+										})}
+									</Reasoning>
+								</MessageContent>
+								{message.role === "assistant" && <AgentMessageAvatar />}
+							</Message>
+						)}
+
 						{fileParts.length > 0 && (
 							<Message from={message.role}>
 								<MessageContent className="max-w-[80%]">
@@ -177,7 +226,6 @@ export function AgentMessages({
 							</Message>
 						)}
 
-						{/* Render text content */}
 						{textContent && !showError && (
 							<Message from={message.role}>
 								<MessageContent className="max-w-[80%]" variant="flat">
@@ -194,7 +242,6 @@ export function AgentMessages({
 							</Message>
 						)}
 
-						{/* Render error state */}
 						{showError && (
 							<Message from="assistant">
 								<MessageContent className="max-w-[80%]">
@@ -214,6 +261,17 @@ export function AgentMessages({
 					</div>
 				);
 			})}
+
+			{isStreaming && (
+				<Message className="flex items-start gap-2 py-2" from="assistant">
+					<div className="flex size-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+						<CircleNotchIcon className="size-4 animate-spin" weight="duotone" />
+					</div>
+					<MessageContent className="max-w-[80%] bg-secondary px-3 py-2 text-muted-foreground text-xs">
+						{statusText || "Generating…"}
+					</MessageContent>
+				</Message>
+			)}
 		</>
 	);
 }

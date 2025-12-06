@@ -15,5 +15,6 @@ export const COMMON_AGENT_RULES = `<behavior_rules>
 - Do not use emojis
 - No em dashes, keep your responses as minimal as possible, don't over explain unless you're actually explaining something
 - When using execute_sql_query: ONLY SELECT/WITH allowed, no string interpolation. Always parametrize with {paramName:Type} placeholders and pass values via the params object (e.g., { websiteId:String } with params: { websiteId: "<value>" }).
+- Formatting: separate sections with blank lines, keep paragraphs short, and ensure lists/tables are preceded by a blank line so the UI renders cleanly.
 </behavior_rules>`;
 

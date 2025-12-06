@@ -4,15 +4,12 @@ import {
 	ArrowRightIcon,
 	BrainIcon,
 	ChartBarIcon,
-	ClockIcon,
 	LightningIcon,
-	RobotIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
+import type { ChatStatus } from "ai";
 import { useSetAtom } from "jotai";
-import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
 import { AgentChatProvider } from "./agent-chat-context";
@@ -24,6 +21,7 @@ import {
 	ConversationScrollButton,
 } from "./conversation";
 import { useAgentChat } from "./hooks";
+import { useChatStatus } from "./hooks/use-chat-status";
 import { NewChatButton } from "./new-chat-button";
 
 type AgentPageContentProps = {
@@ -71,8 +69,8 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const [showSidebar] = useState(false);
-	const { messages, isLoading, hasError } = useAgentChat();
+	const { messages, isLoading, hasError, status } = useAgentChat();
+	const chatStatus = useChatStatus(messages, status as ChatStatus);
 
 	const hasMessages = messages.length > 0;
 
@@ -109,14 +107,6 @@ function AgentPageContentInner({
 							</p>
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
-							<Button
-								onClick={() => setShowSidebar(!showSidebar)}
-								size="icon"
-								title="Chat history"
-								variant="ghost"
-							>
-								<ClockIcon className="size-4" weight="duotone" />
-							</Button>
 							<NewChatButton />
 						</div>
 					</div>
@@ -130,6 +120,7 @@ function AgentPageContentInner({
 									hasError={hasError}
 									isStreaming={isLoading}
 									messages={messages}
+									statusText={chatStatus.displayMessage ?? undefined}
 								/>
 							) : (
 								<WelcomeState onPromptSelect={setInputValue} />
@@ -151,9 +142,12 @@ function WelcomeState({
 }) {
 	return (
 		<div className="flex min-h-[400px] flex-col items-center justify-center py-8">
-			<div className="mb-6 flex size-20 items-center justify-center rounded-full border bg-linear-to-br from-primary/10 to-accent/10">
-				<RobotIcon className="size-10 text-primary" weight="duotone" />
-			</div>
+			<Avatar className="size-10">
+				<AvatarImage alt="Databunny avatar" src="/databunny.webp" />
+				<AvatarFallback className="bg-primary/10 font-semibold text-primary">
+					DB
+				</AvatarFallback>
+			</Avatar>
 
 			<div className="mb-8 max-w-md text-center">
 				<h3 className="mb-2 font-semibold text-xl">Meet Databunny</h3>
@@ -192,7 +186,6 @@ function WelcomeState({
 								"transition-all hover:border-solid hover:bg-accent/30",
 								"disabled:cursor-not-allowed disabled:opacity-50"
 							)}
-							disabled
 							key={prompt.text}
 							onClick={() => onPromptSelect(prompt.text)}
 							type="button"

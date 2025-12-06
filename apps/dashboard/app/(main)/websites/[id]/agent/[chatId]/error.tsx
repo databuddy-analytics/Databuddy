@@ -11,8 +11,7 @@ export default function AgentError({
 	reset: () => void;
 }) {
 	useEffect(() => {
-		// Log the error to an error reporting service
-		console.error("Agent page error:", error);
+		throw new Error(error.message);
 	}, [error]);
 
 	return (
