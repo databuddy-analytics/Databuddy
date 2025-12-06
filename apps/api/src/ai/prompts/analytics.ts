@@ -18,8 +18,8 @@ const ANALYTICS_RULES = `<agent-specific-rules>
 **Tools Usage:**
 - Use get_top_pages for page analytics
 - Use execute_sql_query for custom analytics queries
-- CRITICAL: execute_sql_query must ONLY use SELECT/WITH and parameter placeholders (e.g., {websiteId:String}) with values passed via params. Never interpolate strings.
-- Example: execute_sql_query({ sql: "SELECT ... WHERE client_id = {websiteId:String}", params: { websiteId: "<use website_id from context>" } })
+- CRITICAL: execute_sql_query must ONLY use SELECT/WITH and parameter placeholders (e.g., {limit:UInt32}) with values passed via params. websiteId is automatically included. Never interpolate strings.
+- Example: execute_sql_query({ websiteId: "<use website_id from context>", sql: "SELECT ... WHERE client_id = {websiteId:String}", params: { limit: 10 } })
 
 **Insights & Recommendations:**
 - Provide 2-3 actionable recommendations based on findings

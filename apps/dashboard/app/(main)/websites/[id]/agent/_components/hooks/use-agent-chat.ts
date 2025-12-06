@@ -50,18 +50,10 @@ export function useAgentChat() {
         [websiteId, stableChatId]
     );
 
-    // Use useChat from SDK - it's the single source of truth
-    const { messages: sdkMessages, status: sdkStatus } = useChat<UIMessage>({
+    const { messages, status } = useChat<UIMessage>({
         id: stableChatId,
         transport,
     });
-
-    // Simply use SDK messages directly - no complex syncing needed
-    const messages = sdkMessages;
-
-    // Map SDK status to our status type
-    const mappedStatus = sdkStatus === "ready" ? "idle" : sdkStatus as "idle" | "submitted" | "streaming" | "error";
-    const status = mappedStatus;
 
     const {
         sendMessage: sdkSendMessage,

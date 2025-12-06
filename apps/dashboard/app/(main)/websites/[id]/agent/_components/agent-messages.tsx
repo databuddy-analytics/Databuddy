@@ -77,10 +77,28 @@ function getToolState(part: MessagePart) {
 	return "input-available";
 }
 
-function formatToolOutput(output: unknown) {
+function formatToolOutput(output: unknown, toolName?: string) {
 	if (output === undefined) {
 		return null;
 	}
+
+	if (
+		toolName === "web_search" &&
+		typeof output === "object" &&
+		output !== null
+	) {
+		const webData = output as { data?: unknown[] };
+		if (Array.isArray(webData.data)) {
+			return {
+				summary: `Scraped ${webData.data.length} page(s)`,
+				results: webData.data.map((page, index) => ({
+					page: index + 1,
+					...(typeof page === "object" ? page : { content: page }),
+				})),
+			};
+		}
+	}
+
 	if (typeof output === "string" || typeof output === "object") {
 		return output as string | Record<string, unknown>;
 	}
@@ -156,7 +174,7 @@ function ToolMessage({
 				{toolPart.input !== undefined && <ToolInput input={toolPart.input} />}
 				<ToolOutput
 					errorText={toolPart.errorText}
-					output={formatToolOutput(toolPart.output)}
+					output={formatToolOutput(toolPart.output, toolPart.toolName)}
 				/>
 			</ToolContent>
 		</Tool>

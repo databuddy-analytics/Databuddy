@@ -9,7 +9,18 @@ import { models } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
 import { buildReflectionInstructions } from "./prompts/reflection";
 import { buildTriageInstructions } from "./prompts/triage";
-import { analyticsTools } from "./tools";
+import { executeSqlQueryTool } from "./tools/execute-sql-query";
+import { getTopPagesTool } from "./tools/get-top-pages";
+import { webSearchTool } from "./tools/web-search";
+
+/**
+ * Tools available to analytics agents.
+ */
+const analyticsTools = {
+    get_top_pages: getTopPagesTool,
+    execute_sql_query: executeSqlQueryTool,
+    web_search: webSearchTool,
+} as const;
 
 /**
  * Analytics specialist agent.

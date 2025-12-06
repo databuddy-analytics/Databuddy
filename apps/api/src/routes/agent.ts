@@ -188,5 +188,5 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
                 }
             });
         },
-        { body: AgentRequestSchema }
+        { body: AgentRequestSchema, idleTimeout: 60_000 }
     );
