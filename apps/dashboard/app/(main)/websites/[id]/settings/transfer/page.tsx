@@ -233,11 +233,14 @@ function TransferPageContent() {
 						<Alert className="border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
 							<WarningIcon className="size-4" />
 							<AlertDescription className="text-xs">
-								<strong className="font-semibold">Important:</strong> This
-								action is irreversible. All data, settings, and analytics will
-								be transferred to{" "}
-								<strong className="font-semibold">{selectedOrg?.name}</strong>.
-								Ensure you have the necessary permissions on both organizations.
+								<div>
+									<strong className="font-semibold">Important:</strong> This
+									action is irreversible. All data, settings, and analytics will
+									be transferred to{" "}
+									<strong className="font-semibold">{selectedOrg?.name}</strong>
+									. Ensure you have the necessary permissions on both
+									organizations.
+								</div>
 							</AlertDescription>
 						</Alert>
 					</section>

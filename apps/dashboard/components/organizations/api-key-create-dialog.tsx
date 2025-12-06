@@ -238,7 +238,10 @@ export function ApiKeyCreateDialog({
 					</div>
 				</SheetHeader>
 
-				<form className="flex flex-1 flex-col" onSubmit={onSubmit}>
+				<form
+					className="flex flex-1 flex-col overflow-y-auto"
+					onSubmit={onSubmit}
+				>
 					<SheetBody className="space-y-6">
 						{/* Name Section */}
 						<section className="space-y-3">
