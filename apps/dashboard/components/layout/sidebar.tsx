@@ -1,5 +1,6 @@
 "use client";
 
+import { useFlags } from "@databuddy/sdk/react";
 import { ListIcon, XIcon } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -74,6 +75,8 @@ export function Sidebar() {
 		}
 	}, [isMobileOpen, closeSidebar, openSidebar]);
 
+	const { isEnabled } = useFlags();
+
 	const getNavigationConfig = useMemo((): NavigationConfig => {
 		const baseConfig = getContextConfig(pathname);
 
@@ -115,7 +118,13 @@ export function Sidebar() {
 		}
 
 		return {
-			navigation: navSections,
+			navigation: navSections.filter((section) => {
+				if (section.flag) {
+					const flagState = isEnabled(section.flag);
+					return flagState.isReady && flagState.enabled;
+				}
+				return true;
+			}),
 			header: headerComponent,
 			currentWebsiteId: currentId,
 		};
@@ -128,6 +137,7 @@ export function Sidebar() {
 		currentWebsite,
 		websites,
 		isLoadingWebsites,
+		isEnabled,
 	]);
 
 	useEffect(() => {
@@ -265,6 +275,7 @@ export function Sidebar() {
 													: "border-transparent"
 									)}
 									currentWebsiteId={currentWebsiteId}
+									flag={section.flag}
 									icon={section.icon}
 									items={section.items}
 									key={section.title}

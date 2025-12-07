@@ -1,3 +1,4 @@
+import { useFlags } from "@databuddy/sdk/react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
@@ -9,10 +10,10 @@ import { FEATURE_METADATA } from "@/types/features";
 import { NavigationItem } from "./navigation-item";
 import type { NavigationSection as NavigationSectionType } from "./types";
 
-interface FeatureState {
+type FeatureState = {
 	isLocked: boolean;
 	lockedPlanName: string | null;
-}
+};
 
 type NavigationSectionProps = {
 	title: string;
@@ -22,6 +23,7 @@ type NavigationSectionProps = {
 	currentWebsiteId?: string | null;
 	className?: string;
 	accordionStates: ReturnType<typeof useAccordionStates>;
+	flag?: string;
 };
 
 const buildFullPath = (basePath: string, itemHref: string) =>
@@ -60,26 +62,46 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 	currentWebsiteId,
 	accordionStates,
 	className,
+	flag,
 }: NavigationSectionProps) {
 	const { getAccordionState, toggleAccordion } = accordionStates;
 	const isExpanded = getAccordionState(title, true);
 	const searchParams = useSearchParams();
 	const { isFeatureEnabled, isLoading } = useBillingContext();
+	const { isEnabled } = useFlags();
+
+	if (flag) {
+		const flagState = isEnabled(flag);
+		if (!(flagState.isReady && flagState.enabled)) {
+			return null;
+		}
+	}
 
 	const visibleItems = items.filter((item) => {
 		if (item.production === false && process.env.NODE_ENV === "production") {
 			return false;
 		}
 		const isDemo = pathname.startsWith("/demo");
-		if (item.hideFromDemo && isDemo) return false;
-		if (item.showOnlyOnDemo && !isDemo) return false;
+		if (item.hideFromDemo && isDemo) {
+			return false;
+		}
+		if (item.showOnlyOnDemo && !isDemo) {
+			return false;
+		}
+		if (item.flag) {
+			const flagState = isEnabled(item.flag);
+			if (!(flagState.isReady && flagState.enabled)) {
+				return false;
+			}
+		}
 		return true;
 	});
 
-	// Compute locked states once per section (optimistic while loading)
 	const featureStates = useMemo(() => {
 		const states: Record<string, FeatureState> = {};
-		if (isLoading) return states;
+		if (isLoading) {
+			return states;
+		}
 
 		for (const item of visibleItems) {
 			if (item.gatedFeature) {
@@ -94,7 +116,9 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 		return states;
 	}, [visibleItems, isFeatureEnabled, isLoading]);
 
-	if (visibleItems.length === 0) return null;
+	if (visibleItems.length === 0) {
+		return null;
+	}
 
 	return (
 		<>
@@ -125,7 +149,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 				transition={{ duration: 0.2, type: "tween", ease: "easeOut" }}
 			>
 				<AnimatePresence initial={false}>
-					{isExpanded && (
+					{isExpanded ? (
 						<motion.div
 							animate={{ opacity: 1, height: "auto" }}
 							className="overflow-hidden"
@@ -165,7 +189,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 								})}
 							</motion.div>
 						</motion.div>
-					)}
+					) : null}
 				</AnimatePresence>
 			</MotionConfig>
 		</>

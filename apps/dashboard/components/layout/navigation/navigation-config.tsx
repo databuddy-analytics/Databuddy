@@ -56,11 +56,13 @@ const createNavItem = (
 const createNavSection = (
 	title: string,
 	icon: any,
-	items: NavigationSection["items"]
+	items: NavigationSection["items"],
+	options: Partial<NavigationSection> = {}
 ): NavigationSection => ({
 	title,
 	icon,
 	items,
+	...options,
 });
 
 export const filterCategoriesForRoute = (
@@ -278,12 +280,19 @@ export const websiteNavigation: NavigationSection[] = [
 		// 	gatedFeature: GATED_FEATURES.AI_AGENT,
 		// }),
 	]),
-	createNavSection("Pulse", HeartbeatIcon, [
-		createNavItem("Monitors", ChartLineUpIcon, "/pulse", {
-			rootLevel: false,
-			alpha: true,
-		}),
-	]),
+	createNavSection(
+		"Pulse",
+		HeartbeatIcon,
+		[
+			createNavItem("Monitors", ChartLineUpIcon, "/pulse", {
+				rootLevel: false,
+				alpha: true,
+			}),
+		],
+		{
+			flag: "pulse",
+		}
+	),
 ];
 
 export const websiteSettingsNavigation: NavigationSection[] = [

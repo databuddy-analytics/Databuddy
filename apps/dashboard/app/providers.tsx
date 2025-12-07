@@ -83,15 +83,20 @@ function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
 		gcTime: 5 * 60 * 1000, // 5 minutes
 	});
 
+	const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+	const clientId =
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ?? "OXmNQsViBT-FOS_wZCTHc";
+
+	const user = session?.user
+		? { userId: session.user.id, email: session.user.email }
+		: undefined;
+
 	return (
 		<FlagsProvider
-			clientId="3ed1fce1-5a56-4cb6-a977-66864f6d18e3"
+			apiUrl={apiUrl}
+			clientId={clientId}
 			isPending={isPending}
-			user={
-				session?.user
-					? { userId: session.user.id, email: session.user.email }
-					: undefined
-			}
+			user={user}
 		>
 			{children}
 		</FlagsProvider>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useFlags } from "@databuddy/sdk/react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -32,6 +33,7 @@ export function MobileCategorySelector({
 }: MobileCategorySelectorProps) {
 	const pathname = usePathname();
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
+	const { isEnabled } = useFlags();
 
 	const { categories, defaultCategory } = useMemo(() => {
 		const baseConfig = getContextConfig(pathname);
@@ -52,10 +54,16 @@ export function MobileCategorySelector({
 		const filteredCategories = filterCategoriesForRoute(
 			config.categories,
 			pathname
-		);
+		).filter((category) => {
+			if (category.flag) {
+				const flagState = isEnabled(category.flag);
+				return flagState.isReady && flagState.enabled;
+			}
+			return true;
+		});
 
 		return { categories: filteredCategories, defaultCategory: defaultCat };
-	}, [pathname, websites, isLoadingWebsites]);
+	}, [pathname, websites, isLoadingWebsites, isEnabled]);
 
 	const activeCategory = selectedCategory || defaultCategory;
 	const currentCategory = categories.find((cat) => cat.id === activeCategory);
@@ -70,12 +78,12 @@ export function MobileCategorySelector({
 						variant="secondary"
 					>
 						<div className="flex items-center gap-2">
-							{currentCategory?.icon && (
+							{currentCategory?.icon ? (
 								<currentCategory.icon
 									className="size-4 text-sidebar-foreground"
 									weight="duotone"
 								/>
-							)}
+							) : null}
 							<span className="text-sidebar-foreground text-sm">
 								{currentCategory?.name || "Select Category"}
 							</span>
@@ -91,7 +99,9 @@ export function MobileCategorySelector({
 							<DropdownMenuItem
 								className={cn(
 									"flex cursor-pointer items-center gap-2",
-									isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+									isActive
+										? "bg-sidebar-accent text-sidebar-accent-foreground"
+										: ""
 								)}
 								key={category.id}
 								onClick={() => onCategoryChangeAction?.(category.id)}
