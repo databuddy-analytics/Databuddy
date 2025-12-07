@@ -6,6 +6,7 @@ import type {
 	CustomOutgoingLink,
 	ErrorHourlyAggregate,
 	ErrorSpanRow,
+	UptimeMonitor,
 	WebVitalsHourlyAggregate,
 	WebVitalsSpan,
 } from "@databuddy/db";
@@ -20,6 +21,7 @@ export const Analytics = {
 	custom_events_hourly: "analytics.custom_events_hourly",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
+	uptime_monitor: "uptime.uptime_monitor",
 } as const;
 
 export type AnalyticsTable = (typeof Analytics)[keyof typeof Analytics];
@@ -34,4 +36,5 @@ export type TableFieldsMap = {
 	"analytics.custom_events_hourly": keyof CustomEventsHourlyAggregate;
 	"analytics.blocked_traffic": keyof BlockedTraffic;
 	"analytics.outgoing_links": keyof CustomOutgoingLink;
+	"uptime.uptime_monitor": keyof UptimeMonitor;
 };

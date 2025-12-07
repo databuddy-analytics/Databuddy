@@ -9,7 +9,7 @@ const CONFIG = {
     timeout: 30_000,
     maxRedirects: 10,
     maxRetries: 3,
-    region: process.env.PROBE_REGION || "default",
+    region: process.env.PROBE_REGION || process.env.RAILWAY_REPLICA_REGION || "default",
     env: process.env.NODE_ENV || "prod",
 } as const;
 

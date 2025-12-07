@@ -58,7 +58,7 @@ const app = new Elysia().post("/", async ({ headers }) => {
                     {
                         site_id: data.site_id,
                         url: data.url,
-                        timestamp: new Date(data.timestamp),
+                        timestamp: new Date(data.timestamp).toISOString(),
                         status: data.status,
                         http_code: data.http_code,
                         ttfb_ms: data.ttfb_ms,
@@ -71,7 +71,9 @@ const app = new Elysia().post("/", async ({ headers }) => {
                         redirect_count: data.redirect_count,
                         probe_region: data.probe_region,
                         probe_ip: data.probe_ip,
-                        ssl_expiry: data.ssl_expiry ? new Date(data.ssl_expiry) : null,
+                        ssl_expiry: data.ssl_expiry
+                            ? new Date(data.ssl_expiry).toISOString()
+                            : null,
                         ssl_valid: data.ssl_valid,
                         env: data.env,
                         check_type: data.check_type,
@@ -83,7 +85,7 @@ const app = new Elysia().post("/", async ({ headers }) => {
             });
         } catch (error) {
             console.error("Failed to store uptime data in ClickHouse:", error);
-            // Continue execution even if ClickHouse insert fails
+            // continue execution even if clickhouse insert fails
         }
 
         console.log(
