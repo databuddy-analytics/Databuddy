@@ -402,7 +402,10 @@ export function EditFunnelDialog({
 																}
 																value={step.type}
 															>
-																<SelectTrigger className="h-8 text-xs">
+																<SelectTrigger
+																	className="w-full text-xs"
+																	size="sm"
+																>
 																	<SelectValue />
 																</SelectTrigger>
 																<SelectContent>
@@ -413,7 +416,8 @@ export function EditFunnelDialog({
 																</SelectContent>
 															</Select>
 															<AutocompleteInput
-																className="h-8 text-xs"
+																className="text-xs"
+																inputClassName="h-8"
 																onValueChange={(value) =>
 																	updateStep(index, "target", value)
 																}
@@ -545,7 +549,7 @@ export function EditFunnelDialog({
 										</Select>
 
 										<AutocompleteInput
-											className="h-8 flex-1 text-xs"
+											className="flex-1 text-xs"
 											onValueChange={(value) =>
 												updateFilter(index, "value", value)
 											}
