@@ -1,7 +1,7 @@
 import { clickHouse } from "./client";
 
 const ANALYTICS_DATABASE = "analytics";
-const OBSERVABILITY_DATABASE = "observability";
+const UPTIME_DATABASE = "uptime";
 
 const CREATE_DATABASE = `
 CREATE DATABASE IF NOT EXISTS ${ANALYTICS_DATABASE}
@@ -279,80 +279,6 @@ ORDER BY (domain, event_time)
 SETTINGS index_granularity = 8192
 `;
 
-const CREATE_OTEL_TRACES_TABLE = `
-CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.otel_traces (
-    Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    TraceId String CODEC(ZSTD(1)),
-    TenantId String CODEC(ZSTD(1)),
-    SpanId String CODEC(ZSTD(1)),
-    ParentSpanId String CODEC(ZSTD(1)),
-    TraceState String CODEC(ZSTD(1)),
-    SpanName LowCardinality(String) CODEC(ZSTD(1)),
-    SpanKind LowCardinality(String) CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    SpanAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    Duration Int64 CODEC(ZSTD(1)),
-    StatusCode LowCardinality(String) CODEC(ZSTD(1)),
-    StatusMessage String CODEC(ZSTD(1)),
-    Events Nested(
-        Timestamp DateTime64(9),
-        Name LowCardinality(String),
-        Attributes Map(LowCardinality(String), String)
-    ),
-    Links Nested(
-        TraceId String,
-        SpanId String,
-        TraceState String,
-        Attributes Map(LowCardinality(String), String)
-    ),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_duration Duration TYPE minmax GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SpanName, toUnixTimestamp(Timestamp), TraceId)
-TTL toDateTime(Timestamp) + toIntervalDay(3)
-SETTINGS ttl_only_drop_parts = 1
-`;
-
-const CREATE_OTEL_LOGS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${OBSERVABILITY_DATABASE}.otel_logs (
-    Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    TraceId String CODEC(ZSTD(1)),
-    TenantId String CODEC(ZSTD(1)),
-    SpanId String CODEC(ZSTD(1)),
-    TraceFlags UInt32 CODEC(ZSTD(1)),
-    SeverityText LowCardinality(String) CODEC(ZSTD(1)),
-    SeverityNumber Int32 CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    Body String CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SeverityText, toUnixTimestamp(Timestamp), TraceId)
-TTL toDateTime(Timestamp) + toIntervalDay(3)
-SETTINGS ttl_only_drop_parts = 1
-`;
 
 /**
  * Lean custom event spans table
@@ -430,6 +356,37 @@ CREATE TABLE IF NOT EXISTS ${ANALYTICS_DATABASE}.outgoing_links (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (client_id, timestamp, id)
+SETTINGS index_granularity = 8192
+`;
+
+const CREATE_UPTIME_TABLE = `
+CREATE TABLE IF NOT EXISTS ${UPTIME_DATABASE}.uptime_monitor (
+    site_id String CODEC(ZSTD(1)),
+    url String CODEC(ZSTD(1)),
+    timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+    status UInt8 CODEC(Delta(1)),
+    http_code UInt16 CODEC(Delta(16)),
+    ttfb_ms UInt32 CODEC(Delta(32)),
+    total_ms UInt32 CODEC(Delta(32)),
+    attempt UInt8 DEFAULT 1 CODEC(Delta(1)),
+    failure_streak UInt16 DEFAULT 0 CODEC(Delta(16)),
+    response_bytes UInt32 DEFAULT 0 CODEC(Delta(32)),
+    content_hash String CODEC(ZSTD(1)),
+    redirect_count UInt8 DEFAULT 0 CODEC(Delta(1)),
+    probe_region LowCardinality(String) DEFAULT 'default',
+    probe_ip String CODEC(ZSTD(1)),
+    ssl_expiry DateTime64(3, 'UTC') DEFAULT NULL,
+    ssl_valid UInt8 DEFAULT 1 CODEC(Delta(1)),
+    env LowCardinality(String) DEFAULT 'prod',
+    check_type LowCardinality(String) DEFAULT 'http',
+    user_agent String DEFAULT 'uptime-monitor',
+    error String DEFAULT '' CODEC(ZSTD(1)),
+    INDEX idx_site_id site_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_status status TYPE minmax GRANULARITY 1,
+    INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (site_id, timestamp)
 SETTINGS index_granularity = 8192
 `;
 
@@ -577,6 +534,29 @@ export type CustomOutgoingLink = {
   timestamp: number;
 };
 
+export type UptimeMonitor = {
+  site_id: string;
+  url: string;
+  timestamp: number;
+  status: number;
+  http_code: number;
+  ttfb_ms: number;
+  total_ms: number;
+  attempt: number;
+  failure_streak: number;
+  response_bytes: number;
+  content_hash: string;
+  redirect_count: number;
+  probe_region: string;
+  probe_ip: string;
+  ssl_expiry?: number;
+  ssl_valid: number;
+  env: string;
+  check_type: string;
+  user_agent: string;
+  error: string;
+};
+
 export type AnalyticsEvent = {
   id: string;
   client_id: string;
@@ -656,11 +636,10 @@ export async function initClickHouseSchema() {
     });
     console.info(`Created database: ${ANALYTICS_DATABASE}`);
 
-    // Create the observability database
     await clickHouse.command({
-      query: `CREATE DATABASE IF NOT EXISTS ${OBSERVABILITY_DATABASE}`,
+      query: `CREATE DATABASE IF NOT EXISTS ${UPTIME_DATABASE}`,
     });
-    console.info(`Created database: ${OBSERVABILITY_DATABASE}`);
+    console.info(`Created database: ${UPTIME_DATABASE}`);
 
     // Create base tables first
     const tables = [
@@ -689,10 +668,9 @@ export async function initClickHouseSchema() {
       },
     ];
 
-    // Create observability tables
-    const observabilityTables = [
-      { name: "otel_traces", query: CREATE_OTEL_TRACES_TABLE },
-      { name: "otel_logs", query: CREATE_OTEL_LOGS_TABLE },
+    // Uptime tables
+    const uptimeTables = [
+      { name: "uptime_monitor", query: CREATE_UPTIME_TABLE },
     ];
 
     // Create base tables
@@ -701,10 +679,10 @@ export async function initClickHouseSchema() {
       console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
     }
 
-    // Create observability tables
-    for (const table of observabilityTables) {
+    // Create uptime tables
+    for (const table of uptimeTables) {
       await clickHouse.command({ query: table.query });
-      console.info(`Created table: ${OBSERVABILITY_DATABASE}.${table.name}`);
+      console.info(`Created table: ${UPTIME_DATABASE}.${table.name}`);
     }
 
     // Create materialized views (after target tables exist)
@@ -723,8 +701,8 @@ export async function initClickHouseSchema() {
         database: ANALYTICS_DATABASE,
         tables: tables.map((t) => t.name),
         materialized_views: materializedViews.map((mv) => mv.name),
-        observability_database: OBSERVABILITY_DATABASE,
-        observability_tables: observabilityTables.map((t) => t.name),
+        uptime_database: UPTIME_DATABASE,
+        uptime_tables: uptimeTables.map((t) => t.name),
       },
     };
   } catch (error) {
