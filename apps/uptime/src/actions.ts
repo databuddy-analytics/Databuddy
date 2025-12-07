@@ -347,6 +347,7 @@ export async function checkUptime(
             ),
         ]);
 
+        // return the full data for debugging, but later it'll be fire & forget, we won't need to.
         return {
             success: true,
             data: {
@@ -374,6 +375,7 @@ export async function checkUptime(
             },
         };
     } catch (error) {
+        // for now we'll just error, but ideally i wanna add axiom OTEL and error logging here
         console.error(
             "Uptime check failed:",
             JSON.stringify({ siteId, url, error })
