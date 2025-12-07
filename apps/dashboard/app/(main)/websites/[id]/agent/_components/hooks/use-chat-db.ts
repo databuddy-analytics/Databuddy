@@ -48,7 +48,8 @@ const runStoreRequest = async <T>(
 		const request = callback(store);
 
 		request.onsuccess = () => resolve(request.result);
-		request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+		request.onerror = () =>
+			reject(request.error ?? new Error("IndexedDB request failed"));
 	});
 
 const listChats = async (websiteId: string): Promise<ChatRecord[]> => {

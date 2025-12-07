@@ -1,5 +1,5 @@
-import { annotationsRouter } from "./routers/annotations";
 import { agentRouter } from "./routers/agent";
+import { annotationsRouter } from "./routers/annotations";
 import { apikeysRouter } from "./routers/apikeys";
 import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";

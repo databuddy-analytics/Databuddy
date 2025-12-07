@@ -11,7 +11,7 @@ type TableDef = {
 	description: string;
 	keyColumns: string[];
 	additionalInfo?: string;
-}
+};
 
 /**
  * Analytics tables - main event tracking and user behavior
@@ -85,9 +85,10 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"downlink (Float32) - Download speed",
 			"properties (String) - JSON string with custom properties",
 
-			"created_at (DateTime64)"
+			"created_at (DateTime64)",
 		],
-		additionalInfo: "Partitioned by month (toYYYYMM(time)), ordered by (client_id, time, id)"
+		additionalInfo:
+			"Partitioned by month (toYYYYMM(time)), ordered by (client_id, time, id)",
 	},
 	{
 		name: "analytics.error_spans",
@@ -103,9 +104,10 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"lineno (Int32) - Line number",
 			"colno (Int32) - Column number",
 			"stack (String) - Stack trace",
-			"error_type (String) - Error type/name"
+			"error_type (String) - Error type/name",
 		],
-		additionalInfo: "Has bloom filter indexes on session_id, error_type, and message"
+		additionalInfo:
+			"Has bloom filter indexes on session_id, error_type, and message",
 	},
 	{
 		name: "analytics.error_hourly",
@@ -119,9 +121,9 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"error_count (UInt64) - Total errors in hour",
 			"affected_users (AggregateFunction) - Unique users affected",
 			"affected_sessions (AggregateFunction) - Unique sessions affected",
-			"sample_message (String) - Example error message"
+			"sample_message (String) - Example error message",
 		],
-		additionalInfo: "AggregatingMergeTree with 1 year TTL"
+		additionalInfo: "AggregatingMergeTree with 1 year TTL",
 	},
 	{
 		name: "analytics.web_vitals_spans",
@@ -133,7 +135,7 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"timestamp (DateTime64)",
 			"path (String)",
 			"metric_name (String) - One of: FCP, LCP, CLS, INP, TTFB, FPS",
-			"metric_value (Float64) - Metric value"
+			"metric_value (Float64) - Metric value",
 		],
 		additionalInfo: `Rating thresholds (computed at query time):
 - LCP: good < 2500ms, poor > 4000ms
@@ -141,7 +143,7 @@ const ANALYTICS_TABLES: TableDef[] = [
 - CLS: good < 0.1, poor > 0.25
 - INP: good < 200ms, poor > 500ms
 - TTFB: good < 800ms, poor > 1800ms
-- FPS: good > 55, poor < 30`
+- FPS: good > 55, poor < 30`,
 	},
 	{
 		name: "analytics.web_vitals_hourly",
@@ -156,13 +158,14 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"p50 (Float64) - Median",
 			"avg_value (Float64)",
 			"min_value (Float64)",
-			"max_value (Float64)"
+			"max_value (Float64)",
 		],
-		additionalInfo: "SummingMergeTree with 1 year TTL"
+		additionalInfo: "SummingMergeTree with 1 year TTL",
 	},
 	{
 		name: "analytics.custom_event_spans",
-		description: "Custom tracked events (e.g., button clicks, form submissions)",
+		description:
+			"Custom tracked events (e.g., button clicks, form submissions)",
 		keyColumns: [
 			"client_id (String)",
 			"anonymous_id (String)",
@@ -170,9 +173,9 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"timestamp (DateTime64)",
 			"path (String) - Page where event occurred",
 			"event_name (String) - Custom event name",
-			"properties (String) - JSON string with event properties"
+			"properties (String) - JSON string with event properties",
 		],
-		additionalInfo: "Has bloom filter indexes on session_id and event_name"
+		additionalInfo: "Has bloom filter indexes on session_id and event_name",
 	},
 	{
 		name: "analytics.custom_events_hourly",
@@ -184,9 +187,9 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"hour (DateTime)",
 			"event_count (UInt64)",
 			"unique_users (AggregateFunction) - Unique users who triggered event",
-			"unique_sessions (AggregateFunction) - Unique sessions with event"
+			"unique_sessions (AggregateFunction) - Unique sessions with event",
 		],
-		additionalInfo: "AggregatingMergeTree with 1 year TTL"
+		additionalInfo: "AggregatingMergeTree with 1 year TTL",
 	},
 	{
 		name: "analytics.outgoing_links",
@@ -199,18 +202,20 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"href (String) - Link URL",
 			"text (String) - Link text",
 			"properties (String) - JSON string",
-			"timestamp (DateTime64)"
-		]
-	}
+			"timestamp (DateTime64)",
+		],
+	},
 ];
 
 /**
  * Generates comprehensive schema documentation for LLM consumption
  */
 export function generateSchemaDocumentation(): string {
-	const analyticsDoc = ANALYTICS_TABLES.map(table => {
-		const columns = table.keyColumns.map(col => `  - ${col}`).join("\n");
-		const info = table.additionalInfo ? `\n  Note: ${table.additionalInfo}` : "";
+	const analyticsDoc = ANALYTICS_TABLES.map((table) => {
+		const columns = table.keyColumns.map((col) => `  - ${col}`).join("\n");
+		const info = table.additionalInfo
+			? `\n  Note: ${table.additionalInfo}`
+			: "";
 		return `\n### ${table.name}\n${table.description}\n${columns}${info}`;
 	}).join("\n");
 

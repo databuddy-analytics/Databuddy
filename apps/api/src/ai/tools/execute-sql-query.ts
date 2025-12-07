@@ -16,7 +16,9 @@ export const executeSqlQueryTool = tool({
 	description:
 		"Executes a validated, read-only ClickHouse SQL query against analytics data. Only SELECT and WITH statements are allowed for security. IMPORTANT: Use parameterized queries with {paramName:Type} syntax (e.g., {limit:UInt32}). The websiteId is automatically included as a parameter. Never use string interpolation or concatenation.",
 	inputSchema: z.object({
-		websiteId: z.string().describe("The website ID to query - automatically added to params"),
+		websiteId: z
+			.string()
+			.describe("The website ID to query - automatically added to params"),
 		sql: z
 			.string()
 			.describe(
@@ -34,11 +36,10 @@ export const executeSqlQueryTool = tool({
 			throw new Error(SQL_VALIDATION_ERROR);
 		}
 
-		const result = await executeTimedQuery(
-			"Execute SQL Tool",
-			sql,
-			{ websiteId, ...(params ?? {}) }
-		);
+		const result = await executeTimedQuery("Execute SQL Tool", sql, {
+			websiteId,
+			...(params ?? {}),
+		});
 
 		return result;
 	},

@@ -119,7 +119,7 @@ export function NavigationItem({
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex items-center gap-3 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground border-r-2 border-transparent",
+				"group flex items-center gap-3 border-transparent border-r-2 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
 				isActive
 					? "border-sidebar-ring bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"

@@ -64,7 +64,9 @@ export const supermemoryApiKey = process.env.SUPERMEMORY_API_KEY;
  * Supermemory tools for agent-based memory operations.
  * Includes search_memory, add_memory, and other memory management tools.
  */
-export const memoryTools = supermemoryApiKey ? supermemoryTools(supermemoryApiKey) : {};
+export const memoryTools = supermemoryApiKey
+	? supermemoryTools(supermemoryApiKey)
+	: {};
 
 /**
  * Wraps a model with user profile context for personalization.

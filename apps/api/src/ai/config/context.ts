@@ -11,7 +11,7 @@ export type AppContext = {
 	chatId: string;
 	requestHeaders?: Headers;
 	[key: string]: unknown;
-}
+};
 
 /**
  * Builds the application context for agent execution.

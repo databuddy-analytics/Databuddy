@@ -396,10 +396,7 @@ function OptionToggle({
 			onClick={onToggle}
 			type="button"
 		>
-			<Switch
-				checked={isEnabled}
-				className="shrink-0"
-			/>
+			<Switch checked={isEnabled} className="shrink-0" />
 			<div className="min-w-0 flex-1">
 				<span className="font-medium text-sm">{option.title}</span>
 				<p className="text-muted-foreground text-xs">{option.description}</p>

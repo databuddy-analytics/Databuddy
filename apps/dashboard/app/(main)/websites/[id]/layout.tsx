@@ -52,15 +52,15 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	}
 
 	if (!isWebsiteLoading && isWebsiteError) {
-		return (
-			<WebsiteErrorState error={websiteError} websiteId={id as string} />
-		);
+		return <WebsiteErrorState error={websiteError} websiteId={id as string} />;
 	}
 
 	const websiteId = id as string;
 	const isToolbarLoading =
-		isWebsiteLoading || (!isDemoRoute && (isTrackingSetupLoading || isTrackingSetup === null));
-	const isToolbarDisabled = !isDemoRoute && (!isTrackingSetup || isToolbarLoading);
+		isWebsiteLoading ||
+		(!isDemoRoute && (isTrackingSetupLoading || isTrackingSetup === null));
+	const isToolbarDisabled =
+		!isDemoRoute && (!isTrackingSetup || isToolbarLoading);
 
 	const handleRefresh = async () => {
 		setIsRefreshing(true);

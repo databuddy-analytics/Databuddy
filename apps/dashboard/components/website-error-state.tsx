@@ -1,17 +1,27 @@
 "use client";
 
 import {
+	ArrowLeftIcon,
+	CommandIcon,
+	HouseIcon,
+	LockIcon,
+	MagnifyingGlassIcon,
+	WarningCircleIcon,
+} from "@phosphor-icons/react";
+import { Command as CommandPrimitive } from "cmdk";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import {
 	billingNavigation,
 	organizationNavigation,
 	personalNavigation,
 	resourcesNavigation,
 } from "@/components/layout/navigation/navigation-config";
-import type { NavigationItem, NavigationSection } from "@/components/layout/navigation/types";
-import { ArrowLeftIcon, CommandIcon, HouseIcon, LockIcon, MagnifyingGlassIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { Command as CommandPrimitive } from "cmdk";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import type {
+	NavigationItem,
+	NavigationSection,
+} from "@/components/layout/navigation/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -89,7 +99,11 @@ function getErrorType(error: unknown): {
 			case "NOT_FOUND":
 				return { type: "not_found", message: errorMessage, code: "NOT_FOUND" };
 			case "UNAUTHORIZED":
-				return { type: "unauthorized", message: errorMessage, code: "UNAUTHORIZED" };
+				return {
+					type: "unauthorized",
+					message: errorMessage,
+					code: "UNAUTHORIZED",
+				};
 			case "FORBIDDEN":
 				return { type: "forbidden", message: errorMessage, code: "FORBIDDEN" };
 			default:
@@ -104,7 +118,11 @@ function getErrorType(error: unknown): {
 		messageLower.includes("sign in") ||
 		messageLower.includes("login")
 	) {
-		return { type: "unauthorized", message: errorMessage, code: "UNAUTHORIZED" };
+		return {
+			type: "unauthorized",
+			message: errorMessage,
+			code: "UNAUTHORIZED",
+		};
 	}
 
 	if (
@@ -243,7 +261,11 @@ export function WebsiteErrorState({
 					)}
 					<Button
 						asChild
-						className={canGoBack ? "flex-1 bg-primary hover:bg-primary/90" : "w-full bg-primary hover:bg-primary/90"}
+						className={
+							canGoBack
+								? "flex-1 bg-primary hover:bg-primary/90"
+								: "w-full bg-primary hover:bg-primary/90"
+						}
 						variant="default"
 					>
 						<Link href={isDemoRoute ? "/" : "/websites"}>
@@ -261,18 +283,18 @@ export function WebsiteErrorState({
 					{isDemoRoute ? (
 						<>
 							<Button
-								onClick={() => router.push("/auth/sign-in")}
-								variant="default"
-								size="lg"
 								className="flex-1 bg-primary hover:bg-primary/90"
+								onClick={() => router.push("/auth/sign-in")}
+								size="lg"
+								variant="default"
 							>
 								Sign In
 							</Button>
 							<Button
-								onClick={() => router.push("/")}
-								variant="outline"
-								size="lg"
 								className="flex-1"
+								onClick={() => router.push("/")}
+								size="lg"
+								variant="outline"
 							>
 								Go to Homepage
 							</Button>
@@ -280,20 +302,20 @@ export function WebsiteErrorState({
 					) : (
 						<>
 							<Button
-								onClick={() => router.push("/websites")}
-								variant="default"
-								size="lg"
 								className="flex-1 bg-primary hover:bg-primary/90"
+								onClick={() => router.push("/websites")}
+								size="lg"
+								variant="default"
 							>
 								<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
 								Back to Websites
 							</Button>
 							{type === "unauthorized" && (
 								<Button
-									onClick={() => router.push("/auth/sign-in")}
-									variant="outline"
-									size="lg"
 									className="flex-1"
+									onClick={() => router.push("/auth/sign-in")}
+									size="lg"
+									variant="outline"
 								>
 									Sign In
 								</Button>
@@ -307,18 +329,18 @@ export function WebsiteErrorState({
 		return (
 			<div className="flex w-full max-w-xs flex-col gap-4 sm:flex-row">
 				<Button
-					onClick={() => router.refresh()}
-					variant="default"
-					size="lg"
 					className="flex-1 bg-primary hover:bg-primary/90"
+					onClick={() => router.refresh()}
+					size="lg"
+					variant="default"
 				>
 					Try Again
 				</Button>
 				<Button
-					onClick={() => router.push(isDemoRoute ? "/" : "/websites")}
-					variant="outline"
-					size="lg"
 					className="flex-1"
+					onClick={() => router.push(isDemoRoute ? "/" : "/websites")}
+					size="lg"
+					variant="outline"
 				>
 					{isDemoRoute ? "Go to Homepage" : "Back to Websites"}
 				</Button>
@@ -332,13 +354,14 @@ export function WebsiteErrorState({
 	return (
 		<div className="flex min-h-full flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
 			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center rounded border-none bg-transparent shadow-none">
-				<CardContent className="flex flex-col items-center justify-center text-center px-6 sm:px-8 lg:px-12 py-12 sm:py-14">
+				<CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center sm:px-8 sm:py-14 lg:px-12">
 					<div
 						aria-hidden="true"
 						className={cn(
 							"flex size-12 items-center justify-center rounded-2xl",
 							type === "not_found" && "bg-accent",
-							(type === "unauthorized" || type === "forbidden") && "bg-orange-500/10",
+							(type === "unauthorized" || type === "forbidden") &&
+								"bg-orange-500/10",
 							type === "unknown" && "bg-destructive/10"
 						)}
 						role="img"
@@ -348,7 +371,8 @@ export function WebsiteErrorState({
 							className={cn(
 								"size-6",
 								type === "not_found" && "text-muted-foreground",
-								(type === "unauthorized" || type === "forbidden") && "text-orange-500 dark:text-orange-400",
+								(type === "unauthorized" || type === "forbidden") &&
+									"text-orange-500 dark:text-orange-400",
 								type === "unknown" && "text-destructive"
 							)}
 							size={24}
@@ -356,11 +380,11 @@ export function WebsiteErrorState({
 						/>
 					</div>
 
-					<div className="mt-6 space-y-4 max-w-sm w-full">
+					<div className="mt-6 w-full max-w-sm space-y-4">
 						<h1 className="font-semibold text-foreground text-lg">
 							{getTitle()}
 						</h1>
-						<p className="text-muted-foreground text-sm leading-relaxed text-balance">
+						<p className="text-balance text-muted-foreground text-sm leading-relaxed">
 							{getDescription()}
 						</p>
 					</div>
@@ -384,7 +408,9 @@ export function WebsiteErrorState({
 						<Dialog onOpenChange={setOpen} open={open}>
 							<DialogHeader className="sr-only">
 								<DialogTitle>Search</DialogTitle>
-								<DialogDescription>Search for pages and settings</DialogDescription>
+								<DialogDescription>
+									Search for pages and settings
+								</DialogDescription>
 							</DialogHeader>
 							<DialogContent
 								className="gap-0 overflow-hidden p-0 sm:max-w-xl"
@@ -418,14 +444,16 @@ export function WebsiteErrorState({
 										</kbd>
 									</div>
 
-									<CommandPrimitive.List className="max-h-80 overflow-y-auto scroll-py-2 p-2">
+									<CommandPrimitive.List className="max-h-80 scroll-py-2 overflow-y-auto p-2">
 										<CommandPrimitive.Empty className="flex flex-col items-center justify-center gap-2 py-12 text-center">
 											<MagnifyingGlassIcon
 												className="size-8 text-muted-foreground/50"
 												weight="duotone"
 											/>
 											<div>
-												<p className="font-medium text-muted-foreground text-sm">No results found</p>
+												<p className="font-medium text-muted-foreground text-sm">
+													No results found
+												</p>
 												<p className="text-muted-foreground/70 text-xs">
 													Try searching for something else
 												</p>
@@ -444,11 +472,18 @@ export function WebsiteErrorState({
 													value={`${item.name} ${item.path}`}
 												>
 													<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors group-data-[selected=true]:bg-background">
-														<ItemIcon className="size-4 text-muted-foreground" weight="duotone" />
+														<ItemIcon
+															className="size-4 text-muted-foreground"
+															weight="duotone"
+														/>
 													</div>
 													<div className="min-w-0 flex-1">
-														<p className="truncate font-medium text-sm leading-tight">{item.name}</p>
-														<p className="truncate text-muted-foreground text-xs">{item.path}</p>
+														<p className="truncate font-medium text-sm leading-tight">
+															{item.name}
+														</p>
+														<p className="truncate text-muted-foreground text-xs">
+															{item.path}
+														</p>
 													</div>
 												</CommandPrimitive.Item>
 											);
@@ -469,4 +504,3 @@ export function WebsiteErrorState({
 		</div>
 	);
 }
-

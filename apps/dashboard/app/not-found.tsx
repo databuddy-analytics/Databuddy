@@ -1,17 +1,25 @@
 "use client";
 
 import {
+	ArrowLeftIcon,
+	CommandIcon,
+	HouseIcon,
+	MagnifyingGlassIcon,
+} from "@phosphor-icons/react";
+import { Command as CommandPrimitive } from "cmdk";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import {
 	billingNavigation,
 	organizationNavigation,
 	personalNavigation,
 	resourcesNavigation,
 } from "@/components/layout/navigation/navigation-config";
-import type { NavigationItem, NavigationSection } from "@/components/layout/navigation/types";
-import { ArrowLeftIcon, CommandIcon, HouseIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { Command as CommandPrimitive } from "cmdk";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import type {
+	NavigationItem,
+	NavigationSection,
+} from "@/components/layout/navigation/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -89,7 +97,7 @@ export default function NotFound() {
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6 lg:p-8">
 			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center rounded border-none bg-transparent shadow-none">
-				<CardContent className="flex flex-col items-center justify-center text-center px-6 sm:px-8 lg:px-12 py-12 sm:py-14">
+				<CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center sm:px-8 sm:py-14 lg:px-12">
 					<div
 						aria-hidden="true"
 						className="flex size-12 items-center justify-center rounded-2xl bg-accent"
@@ -103,11 +111,11 @@ export default function NotFound() {
 						/>
 					</div>
 
-					<div className="mt-6 space-y-4 max-w-sm w-full">
+					<div className="mt-6 w-full max-w-sm space-y-4">
 						<h1 className="font-semibold text-foreground text-lg">
 							Page Not Found
 						</h1>
-						<p className="text-muted-foreground text-sm leading-relaxed text-balance">
+						<p className="text-balance text-muted-foreground text-sm leading-relaxed">
 							We&apos;ve lost this page in the data stream.
 						</p>
 					</div>
@@ -128,7 +136,9 @@ export default function NotFound() {
 					<Dialog onOpenChange={setOpen} open={open}>
 						<DialogHeader className="sr-only">
 							<DialogTitle>Search</DialogTitle>
-							<DialogDescription>Search for pages and settings</DialogDescription>
+							<DialogDescription>
+								Search for pages and settings
+							</DialogDescription>
 						</DialogHeader>
 						<DialogContent
 							className="gap-0 overflow-hidden p-0 sm:max-w-xl"
@@ -162,14 +172,16 @@ export default function NotFound() {
 									</kbd>
 								</div>
 
-								<CommandPrimitive.List className="max-h-80 overflow-y-auto scroll-py-2 p-2">
+								<CommandPrimitive.List className="max-h-80 scroll-py-2 overflow-y-auto p-2">
 									<CommandPrimitive.Empty className="flex flex-col items-center justify-center gap-2 py-12 text-center">
 										<MagnifyingGlassIcon
 											className="size-8 text-muted-foreground/50"
 											weight="duotone"
 										/>
 										<div>
-											<p className="font-medium text-muted-foreground text-sm">No results found</p>
+											<p className="font-medium text-muted-foreground text-sm">
+												No results found
+											</p>
 											<p className="text-muted-foreground/70 text-xs">
 												Try searching for something else
 											</p>
@@ -188,11 +200,18 @@ export default function NotFound() {
 												value={`${item.name} ${item.path}`}
 											>
 												<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors group-data-[selected=true]:bg-background">
-													<ItemIcon className="size-4 text-muted-foreground" weight="duotone" />
+													<ItemIcon
+														className="size-4 text-muted-foreground"
+														weight="duotone"
+													/>
 												</div>
 												<div className="min-w-0 flex-1">
-													<p className="truncate font-medium text-sm leading-tight">{item.name}</p>
-													<p className="truncate text-muted-foreground text-xs">{item.path}</p>
+													<p className="truncate font-medium text-sm leading-tight">
+														{item.name}
+													</p>
+													<p className="truncate text-muted-foreground text-xs">
+														{item.path}
+													</p>
 												</div>
 											</CommandPrimitive.Item>
 										);
@@ -215,7 +234,11 @@ export default function NotFound() {
 						)}
 						<Button
 							asChild
-							className={canGoBack ? "flex-1 bg-primary hover:bg-primary/90" : "w-full bg-primary hover:bg-primary/90"}
+							className={
+								canGoBack
+									? "flex-1 bg-primary hover:bg-primary/90"
+									: "w-full bg-primary hover:bg-primary/90"
+							}
 							variant="default"
 						>
 							<Link href="/websites">

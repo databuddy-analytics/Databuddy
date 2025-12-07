@@ -5,9 +5,8 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
 	reactStrictMode: true,
-	// biome-ignore lint/suspicious/useAwait: "headers is async"
 	async headers() {
-		return [
+		return await [
 			{
 				source: "/(.*)",
 				headers: [
@@ -69,31 +68,30 @@ const config = {
 	images: {
 		remotePatterns: [
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "icons.duckduckgo.com",
 			},
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "images.marblecms.com",
 			},
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "lh3.googleusercontent.com",
 			},
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "avatars.githubusercontent.com",
 			},
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "pbs.twimg.com",
 			},
 			{
-				protocol: "https",
+				protocol: "https" as const,
 				hostname: "api.producthunt.com",
 			},
 		],
-		formats: ["image/webp", "image/avif"],
 		minimumCacheTTL: 60 * 60 * 24 * 30,
 	},
 

@@ -79,7 +79,7 @@ User: "How many visitors did I have yesterday?"
  * Builds the instruction prompt for the reflection agent.
  */
 export function buildReflectionInstructions(ctx: AppContext): string {
-   return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Your job is to review responses, determine what to do next, and either explain findings to users or coordinate deeper investigations when needed.
+	return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Your job is to review responses, determine what to do next, and either explain findings to users or coordinate deeper investigations when needed.
 
 <background-data>
 ${formatContextForLLM(ctx)}
@@ -103,4 +103,3 @@ ${COMMON_AGENT_RULES}
 - Be data-driven but acknowledge limitations (small samples, short time periods, data gaps)
 </important-notes>`;
 }
-
