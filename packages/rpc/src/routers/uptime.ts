@@ -35,7 +35,8 @@ const granularityEnum = z.enum([
     "day",
 ]);
 
-const UPTIME_DESTINATION = process.env.UPTIME_DESTINATION || "https://uptime.databuddy.cc";
+const UPTIME_DESTINATION =
+    process.env.UPTIME_DESTINATION || "https://uptime.databuddy.cc";
 
 export const uptimeRouter = {
     getSchedule: protectedProcedure
@@ -53,7 +54,7 @@ export const uptimeRouter = {
                     client.schedules.get(input.scheduleId).catch(() => null),
                 ]);
 
-                if (!dbSchedule) {
+                if (!(dbSchedule && qstashSchedule)) {
                     recordORPCError({
                         code: "NOT_FOUND",
                         message: "Schedule not found in database",
@@ -97,19 +98,25 @@ export const uptimeRouter = {
         .handler(async ({ context, input }) => {
             await authorizeWebsiteAccess(context, input.websiteId, "update");
 
-            let qstashScheduleId: string | null = null;
-
             try {
-                const schedule = await client.schedules.create({
+                const { scheduleId } = await client.schedules.create({
                     destination: UPTIME_DESTINATION,
                     cron: CRON_GRANULARITIES[input.granularity],
                     body: JSON.stringify({ websiteId: input.websiteId }),
                 });
 
-                qstashScheduleId = schedule.scheduleId;
+                if (!scheduleId) {
+                    recordORPCError({
+                        code: "INTERNAL_SERVER_ERROR",
+                        message: "Failed to create uptime schedule",
+                    });
+                    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                        message: "Failed to create uptime schedule",
+                    });
+                }
 
                 await db.insert(uptimeSchedules).values({
-                    id: schedule.scheduleId,
+                    id: scheduleId,
                     websiteId: input.websiteId,
                     granularity: input.granularity,
                     cron: CRON_GRANULARITIES[input.granularity],
@@ -118,7 +125,7 @@ export const uptimeRouter = {
 
                 logger.info(
                     {
-                        scheduleId: schedule.scheduleId,
+                        scheduleId,
                         websiteId: input.websiteId,
                         granularity: input.granularity,
                         userId: context.user.id,
@@ -127,22 +134,11 @@ export const uptimeRouter = {
                 );
 
                 return {
-                    scheduleId: schedule.scheduleId,
+                    scheduleId,
                     granularity: input.granularity,
                     cron: CRON_GRANULARITIES[input.granularity],
                 };
             } catch (error) {
-                if (qstashScheduleId) {
-                    try {
-                        await client.schedules.delete(qstashScheduleId);
-                    } catch (cleanupError) {
-                        logger.error(
-                            { scheduleId: qstashScheduleId, error: cleanupError },
-                            "Failed to cleanup QStash schedule"
-                        );
-                    }
-                }
-
                 logger.error(
                     { websiteId: input.websiteId, error },
                     "Error creating schedule"
@@ -183,7 +179,9 @@ export const uptimeRouter = {
 
                 const [qstashResult] = await Promise.allSettled([
                     client.schedules.delete(input.scheduleId),
-                    db.delete(uptimeSchedules).where(eq(uptimeSchedules.id, input.scheduleId)),
+                    db
+                        .delete(uptimeSchedules)
+                        .where(eq(uptimeSchedules.id, input.scheduleId)),
                 ]);
 
                 if (qstashResult.status === "rejected") {
