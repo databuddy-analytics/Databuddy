@@ -59,7 +59,15 @@ export async function lookupWebsite(
     }
 }
 
-async function pingWebsite(url: string): Promise<FetchSuccess | FetchFailure> {
+function normalizeUrl(url: string): string {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+    }
+    return `https://${url}`;
+}
+
+async function pingWebsite(originalUrl: string): Promise<FetchSuccess | FetchFailure> {
+    const url = normalizeUrl(originalUrl);
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), CONFIG.timeout);
     const start = performance.now();
@@ -130,7 +138,7 @@ async function pingWebsite(url: string): Promise<FetchSuccess | FetchFailure> {
                     : error.message;
         }
 
-        console.error("Ping failed:", JSON.stringify({ url, error: message }));
+        console.error("Ping failed:", JSON.stringify({ url: originalUrl, error: message }));
 
         return {
             ok: false,
@@ -292,11 +300,12 @@ export async function checkUptime(
     maxRetries: number = CONFIG.maxRetries
 ): Promise<ActionResult<UptimeData>> {
     try {
+        const normalizedUrl = normalizeUrl(url);
         const timestamp = Date.now();
 
         // gather all the data we need in parallel
         const [pingResult, lastBeat, probe] = await Promise.all([
-            pingWebsite(url),
+            pingWebsite(normalizedUrl),
             getLastHeartbeat(siteId),
             getProbeMetadata(),
         ]);
@@ -309,13 +318,13 @@ export async function checkUptime(
 
         // site is down - minimal data
         if (!pingResult.ok) {
-            const cert = await checkCertificate(url);
+            const cert = await checkCertificate(normalizedUrl);
 
             return {
                 success: true,
                 data: {
                     site_id: siteId,
-                    url,
+                    url: normalizedUrl,
                     timestamp,
                     status,
                     http_code: pingResult.statusCode,
@@ -341,7 +350,7 @@ export async function checkUptime(
 
         // site is up - full enrichment
         const [cert, contentHash] = await Promise.all([
-            checkCertificate(url),
+            checkCertificate(normalizedUrl),
             Promise.resolve(
                 createHash("sha256").update(pingResult.content).digest("hex")
             ),
@@ -352,7 +361,7 @@ export async function checkUptime(
             success: true,
             data: {
                 site_id: siteId,
-                url,
+                url: normalizedUrl,
                 timestamp,
                 status,
                 http_code: pingResult.statusCode,
