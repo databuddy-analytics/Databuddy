@@ -437,32 +437,32 @@ SETTINGS index_granularity = 8192
  * Lean error span type
  */
 export type ErrorSpanRow = {
-	client_id: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	message: string;
-	filename?: string;
-	lineno?: number;
-	colno?: number;
-	stack?: string;
-	error_type: string;
+  client_id: string;
+  anonymous_id: string;
+  session_id: string;
+  timestamp: number;
+  path: string;
+  message: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  stack?: string;
+  error_type: string;
 };
 
 /**
  * Error hourly aggregate type
  */
 export type ErrorHourlyAggregate = {
-	client_id: string;
-	path: string;
-	error_type: string;
-	message_hash: number;
-	hour: number;
-	error_count: number;
-	affected_users: number;
-	affected_sessions: number;
-	sample_message: string;
+  client_id: string;
+  path: string;
+  error_type: string;
+  message_hash: number;
+  hour: number;
+  error_count: number;
+  affected_users: number;
+  affected_sessions: number;
+  sample_message: string;
 };
 
 /**
@@ -476,262 +476,263 @@ export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
  * Each row = single metric measurement
  */
 export type WebVitalsSpan = {
-	client_id: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	metric_name: WebVitalMetricName;
-	metric_value: number;
+  client_id: string;
+  anonymous_id: string;
+  session_id: string;
+  timestamp: number;
+  path: string;
+  metric_name: WebVitalMetricName;
+  metric_value: number;
 };
 
 /**
  * Web Vitals hourly aggregate type
  */
 export type WebVitalsHourlyAggregate = {
-	client_id: string;
-	path: string;
-	metric_name: WebVitalMetricName;
-	hour: number;
-	sample_count: number;
-	p75: number;
-	p50: number;
-	avg_value: number;
-	min_value: number;
-	max_value: number;
+  client_id: string;
+  path: string;
+  metric_name: WebVitalMetricName;
+  hour: number;
+  sample_count: number;
+  p75: number;
+  p50: number;
+  avg_value: number;
+  min_value: number;
+  max_value: number;
 };
 
 export type BlockedTraffic = {
-	id: string;
-	client_id?: string;
-	timestamp: number;
-	path?: string;
-	url?: string;
-	referrer?: string;
-	method: string;
-	origin?: string;
-	ip: string;
-	user_agent?: string;
-	accept_header?: string;
-	language?: string;
-	block_reason: string;
-	block_category: string;
-	bot_name?: string;
-	country?: string;
-	region?: string;
-	city?: string;
-	browser_name?: string;
-	browser_version?: string;
-	os_name?: string;
-	os_version?: string;
-	device_type?: string;
-	payload_size?: number;
-	created_at: number;
+  id: string;
+  client_id?: string;
+  timestamp: number;
+  path?: string;
+  url?: string;
+  referrer?: string;
+  method: string;
+  origin?: string;
+  ip: string;
+  user_agent?: string;
+  accept_header?: string;
+  language?: string;
+  block_reason: string;
+  block_category: string;
+  bot_name?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  browser_name?: string;
+  browser_version?: string;
+  os_name?: string;
+  os_version?: string;
+  device_type?: string;
+  payload_size?: number;
+  created_at: number;
 };
 
 export type EmailEvent = {
-	event_id: string;
-	email_hash: string;
-	domain: string;
-	labels: string[];
-	event_time: number;
-	received_at: number;
-	ingestion_time: number;
-	metadata_json: string;
+  event_id: string;
+  email_hash: string;
+  domain: string;
+  labels: string[];
+  event_time: number;
+  received_at: number;
+  ingestion_time: number;
+  metadata_json: string;
 };
 
 /**
  * Lean custom event span
  */
 export type CustomEventSpan = {
-	client_id: string;
-	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	event_name: string;
-	properties: Record<string, unknown>;
+  client_id: string;
+  anonymous_id: string;
+  session_id: string;
+  timestamp: number;
+  path: string;
+  event_name: string;
+  properties: Record<string, unknown>;
 };
 
 /**
  * Custom events hourly aggregate type
  */
 export type CustomEventsHourlyAggregate = {
-	client_id: string;
-	path: string;
-	event_name: string;
-	hour: number;
-	event_count: number;
-	unique_users: number;
-	unique_sessions: number;
+  client_id: string;
+  path: string;
+  event_name: string;
+  hour: number;
+  event_count: number;
+  unique_users: number;
+  unique_sessions: number;
 };
 
 export type CustomOutgoingLink = {
-	id: string;
-	client_id: string;
-	anonymous_id: string;
-	session_id: string;
-	href: string;
-	text?: string;
-	properties: string;
-	timestamp: number;
+  id: string;
+  client_id: string;
+  anonymous_id: string;
+  session_id: string;
+  href: string;
+  text?: string;
+  properties: string;
+  timestamp: number;
 };
 
 export type AnalyticsEvent = {
-	id: string;
-	client_id: string;
-	event_name: string;
-	anonymous_id: string;
-	time: number;
-	session_id: string;
+  id: string;
+  client_id: string;
+  event_name: string;
+  anonymous_id: string;
+  time: number;
+  session_id: string;
 
-	event_type?: "track" | "error" | "web_vitals";
-	event_id?: string;
-	session_start_time?: number;
-	timestamp?: number;
+  event_type?: "track" | "error" | "web_vitals";
+  event_id?: string;
+  session_start_time?: number;
+  timestamp?: number;
 
-	referrer?: string;
-	url: string;
-	path: string;
-	title?: string;
+  referrer?: string;
+  url: string;
+  path: string;
+  title?: string;
 
-	ip: string;
-	user_agent: string;
-	browser_name?: string;
-	browser_version?: string;
-	os_name?: string;
-	os_version?: string;
-	device_type?: string;
-	device_brand?: string;
-	device_model?: string;
-	country?: string;
-	region?: string;
-	city?: string;
+  ip: string;
+  user_agent: string;
+  browser_name?: string;
+  browser_version?: string;
+  os_name?: string;
+  os_version?: string;
+  device_type?: string;
+  device_brand?: string;
+  device_model?: string;
+  country?: string;
+  region?: string;
+  city?: string;
 
-	screen_resolution?: string;
-	viewport_size?: string;
-	language?: string;
-	timezone?: string;
+  screen_resolution?: string;
+  viewport_size?: string;
+  language?: string;
+  timezone?: string;
 
-	connection_type?: string;
-	rtt?: number;
-	downlink?: number;
+  connection_type?: string;
+  rtt?: number;
+  downlink?: number;
 
-	time_on_page?: number;
-	scroll_depth?: number;
-	interaction_count?: number;
-	page_count: number;
+  time_on_page?: number;
+  scroll_depth?: number;
+  interaction_count?: number;
+  page_count: number;
 
-	utm_source?: string;
-	utm_medium?: string;
-	utm_campaign?: string;
-	utm_term?: string;
-	utm_content?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_term?: string;
+  utm_content?: string;
 
-	load_time?: number;
-	dom_ready_time?: number;
-	dom_interactive?: number;
-	ttfb?: number;
-	connection_time?: number;
-	render_time?: number;
-	redirect_time?: number;
-	domain_lookup_time?: number;
+  load_time?: number;
+  dom_ready_time?: number;
+  dom_interactive?: number;
+  ttfb?: number;
+  connection_time?: number;
+  render_time?: number;
+  redirect_time?: number;
+  domain_lookup_time?: number;
 
-	properties: string;
+  properties: string;
 
-	created_at: number;
+  created_at: number;
 };
 
 /**
  * Initialize the ClickHouse schema by creating necessary database and tables
  */
 export async function initClickHouseSchema() {
-	try {
-		console.info("Initializing ClickHouse schema...");
+  try {
+    console.info("Initializing ClickHouse schema...");
 
-		// Create the analytics database
-		await clickHouse.command({
-			query: CREATE_DATABASE,
-		});
-		console.info(`Created database: ${ANALYTICS_DATABASE}`);
+    // Create the analytics database
+    console.log(process.env.CLICKHOUSE_URL)
+    await clickHouse.command({
+      query: CREATE_DATABASE,
+    });
+    console.info(`Created database: ${ANALYTICS_DATABASE}`);
 
-		// Create the observability database
-		await clickHouse.command({
-			query: `CREATE DATABASE IF NOT EXISTS ${OBSERVABILITY_DATABASE}`,
-		});
-		console.info(`Created database: ${OBSERVABILITY_DATABASE}`);
+    // Create the observability database
+    await clickHouse.command({
+      query: `CREATE DATABASE IF NOT EXISTS ${OBSERVABILITY_DATABASE}`,
+    });
+    console.info(`Created database: ${OBSERVABILITY_DATABASE}`);
 
-		// Create base tables first
-		const tables = [
-			{ name: "events", query: CREATE_EVENTS_TABLE },
-			{ name: "error_spans", query: CREATE_ERROR_SPANS_TABLE },
-			{ name: "error_hourly", query: CREATE_ERROR_HOURLY_TABLE },
-			{ name: "web_vitals_spans", query: CREATE_WEB_VITALS_SPANS_TABLE },
-			{ name: "web_vitals_hourly", query: CREATE_WEB_VITALS_HOURLY_TABLE },
-			{ name: "custom_event_spans", query: CREATE_CUSTOM_EVENT_SPANS_TABLE },
-			{
-				name: "custom_events_hourly",
-				query: CREATE_CUSTOM_EVENTS_HOURLY_TABLE,
-			},
-			{ name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
-			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
-			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
-		];
+    // Create base tables first
+    const tables = [
+      { name: "events", query: CREATE_EVENTS_TABLE },
+      { name: "error_spans", query: CREATE_ERROR_SPANS_TABLE },
+      { name: "error_hourly", query: CREATE_ERROR_HOURLY_TABLE },
+      { name: "web_vitals_spans", query: CREATE_WEB_VITALS_SPANS_TABLE },
+      { name: "web_vitals_hourly", query: CREATE_WEB_VITALS_HOURLY_TABLE },
+      { name: "custom_event_spans", query: CREATE_CUSTOM_EVENT_SPANS_TABLE },
+      {
+        name: "custom_events_hourly",
+        query: CREATE_CUSTOM_EVENTS_HOURLY_TABLE,
+      },
+      { name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
+      { name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
+      { name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
+    ];
 
-		// Materialized views (must be created after target tables)
-		const materializedViews = [
-			{ name: "error_hourly_mv", query: CREATE_ERROR_HOURLY_MV },
-			{ name: "web_vitals_hourly_mv", query: CREATE_WEB_VITALS_HOURLY_MV },
-			{
-				name: "custom_events_hourly_mv",
-				query: CREATE_CUSTOM_EVENTS_HOURLY_MV,
-			},
-		];
+    // Materialized views (must be created after target tables)
+    const materializedViews = [
+      { name: "error_hourly_mv", query: CREATE_ERROR_HOURLY_MV },
+      { name: "web_vitals_hourly_mv", query: CREATE_WEB_VITALS_HOURLY_MV },
+      {
+        name: "custom_events_hourly_mv",
+        query: CREATE_CUSTOM_EVENTS_HOURLY_MV,
+      },
+    ];
 
-		// Create observability tables
-		const observabilityTables = [
-			{ name: "otel_traces", query: CREATE_OTEL_TRACES_TABLE },
-			{ name: "otel_logs", query: CREATE_OTEL_LOGS_TABLE },
-		];
+    // Create observability tables
+    const observabilityTables = [
+      { name: "otel_traces", query: CREATE_OTEL_TRACES_TABLE },
+      { name: "otel_logs", query: CREATE_OTEL_LOGS_TABLE },
+    ];
 
-		// Create base tables
-		for (const table of tables) {
-			await clickHouse.command({ query: table.query });
-			console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
-		}
+    // Create base tables
+    for (const table of tables) {
+      await clickHouse.command({ query: table.query });
+      console.info(`Created table: ${ANALYTICS_DATABASE}.${table.name}`);
+    }
 
-		// Create observability tables
-		for (const table of observabilityTables) {
-			await clickHouse.command({ query: table.query });
-			console.info(`Created table: ${OBSERVABILITY_DATABASE}.${table.name}`);
-		}
+    // Create observability tables
+    for (const table of observabilityTables) {
+      await clickHouse.command({ query: table.query });
+      console.info(`Created table: ${OBSERVABILITY_DATABASE}.${table.name}`);
+    }
 
-		// Create materialized views (after target tables exist)
-		for (const mv of materializedViews) {
-			await clickHouse.command({ query: mv.query });
-			console.info(
-				`Created materialized view: ${ANALYTICS_DATABASE}.${mv.name}`
-			);
-		}
+    // Create materialized views (after target tables exist)
+    for (const mv of materializedViews) {
+      await clickHouse.command({ query: mv.query });
+      console.info(
+        `Created materialized view: ${ANALYTICS_DATABASE}.${mv.name}`
+      );
+    }
 
-		console.info("ClickHouse schema initialization completed successfully");
-		return {
-			success: true,
-			message: "ClickHouse schema initialized successfully",
-			details: {
-				database: ANALYTICS_DATABASE,
-				tables: tables.map((t) => t.name),
-				materialized_views: materializedViews.map((mv) => mv.name),
-				observability_database: OBSERVABILITY_DATABASE,
-				observability_tables: observabilityTables.map((t) => t.name),
-			},
-		};
-	} catch (error) {
-		console.error("Error initializing ClickHouse schema:", error);
-		return {
-			success: false,
-			message: "Failed to initialize ClickHouse schema",
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
+    console.info("ClickHouse schema initialization completed successfully");
+    return {
+      success: true,
+      message: "ClickHouse schema initialized successfully",
+      details: {
+        database: ANALYTICS_DATABASE,
+        tables: tables.map((t) => t.name),
+        materialized_views: materializedViews.map((mv) => mv.name),
+        observability_database: OBSERVABILITY_DATABASE,
+        observability_tables: observabilityTables.map((t) => t.name),
+      },
+    };
+  } catch (error) {
+    console.error("Error initializing ClickHouse schema:", error);
+    return {
+      success: false,
+      message: "Failed to initialize ClickHouse schema",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

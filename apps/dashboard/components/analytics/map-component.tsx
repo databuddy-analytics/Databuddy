@@ -358,7 +358,7 @@ export function MapComponent({
 			className="relative flex h-full w-full flex-col overflow-hidden rounded border bg-card"
 			style={{ height }}
 		>
-			{passedIsLoading && (
+			{Boolean(passedIsLoading) && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
 					<div className="flex flex-col items-center gap-3">
 						<div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -369,7 +369,7 @@ export function MapComponent({
 				</div>
 			)}
 
-			{countriesGeoData && (
+			{Boolean(countriesGeoData) && (
 				<MapContainer
 					attributionControl={false}
 					center={[40, 3]}

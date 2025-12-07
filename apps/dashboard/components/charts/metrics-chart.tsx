@@ -350,7 +350,7 @@ export function MetricsChart({
 							{annotations.length} annotation
 							{annotations.length !== 1 ? "s" : ""} on this chart
 						</span>
-						{onToggleAnnotations && (
+						{Boolean(onToggleAnnotations) && (
 							<div className="flex items-center gap-2">
 								<Label
 									className="text-muted-foreground text-xs"
@@ -494,7 +494,7 @@ export function MetricsChart({
 								/>
 							)}
 
-							{showAnnotations &&
+							{Boolean(showAnnotations) &&
 								annotations.map((annotation, index) => {
 									const startDate = getChartDisplayDate(
 										annotation.xValue,
@@ -577,12 +577,12 @@ export function MetricsChart({
 									);
 								})}
 
-							{showLegend && (
+							{Boolean(showLegend) && (
 								<Legend
 									align="center"
 									formatter={(label) => {
 										const metric = metrics.find((m) => m.label === label);
-										const isHidden = metric && hiddenMetrics[metric.key];
+										const isHidden = metric ? hiddenMetrics[metric.key] : false;
 										return (
 											<span
 												className={`cursor-pointer text-xs ${
@@ -651,7 +651,7 @@ export function MetricsChart({
 			</div>
 
 			{/* Range Selection Popup */}
-			{showRangePopup && selectedDateRange && (
+			{Boolean(showRangePopup) && selectedDateRange && (
 				<RangeSelectionPopup
 					dateRange={selectedDateRange}
 					isOpen={showRangePopup}
@@ -664,7 +664,7 @@ export function MetricsChart({
 				/>
 			)}
 
-			{showAnnotationModal && selectedDateRange && (
+			{Boolean(showAnnotationModal) && selectedDateRange && (
 				<AnnotationModal
 					dateRange={selectedDateRange}
 					isOpen={showAnnotationModal}
