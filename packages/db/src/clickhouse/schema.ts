@@ -369,6 +369,7 @@ CREATE TABLE IF NOT EXISTS ${UPTIME_DATABASE}.uptime_monitor (
     ttfb_ms UInt32 CODEC(ZSTD(1)),
     total_ms UInt32 CODEC(ZSTD(1)),
     attempt UInt8 DEFAULT 1 CODEC(ZSTD(1)),
+    retries UInt8 DEFAULT 0 CODEC(ZSTD(1)),
     failure_streak UInt16 DEFAULT 0 CODEC(ZSTD(1)),
     response_bytes UInt32 DEFAULT 0 CODEC(ZSTD(1)),
     content_hash String CODEC(ZSTD(1)),

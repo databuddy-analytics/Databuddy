@@ -1,0 +1,12 @@
+{
+  "name": "@databuddy/uptime",
+  "version": "1.0.0",
+  "packageManager": "bun@1.3.4",
+  "scripts": {
+    "dev": "bun --watch run src/index.ts"
+  },
+  "dependencies": {
+    "@databuddy/db": "workspace:*",
+    "elysia": "^1.4.18"
+  }
+}
