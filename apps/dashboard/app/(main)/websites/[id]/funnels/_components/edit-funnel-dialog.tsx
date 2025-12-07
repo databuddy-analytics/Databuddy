@@ -369,7 +369,7 @@ export function EditFunnelDialog({
 											<Draggable
 												draggableId={`step-${index}`}
 												index={index}
-												key={`step-${index}`}
+												key={`step-${index}-${step.name}-${step.target}-${step.type}`}
 											>
 												{(provided, snapshot) => (
 													<div
