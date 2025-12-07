@@ -102,7 +102,10 @@ export const uptimeRouter = {
                 const { scheduleId } = await client.schedules.create({
                     destination: UPTIME_DESTINATION,
                     cron: CRON_GRANULARITIES[input.granularity],
-                    body: JSON.stringify({ websiteId: input.websiteId }),
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Website-Id": input.websiteId,
+                    }
                 });
 
                 if (!scheduleId) {
