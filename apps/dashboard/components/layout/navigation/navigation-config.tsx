@@ -28,6 +28,7 @@ import {
 	ReceiptIcon,
 	RepeatIcon,
 	RoadHorizonIcon,
+	RobotIcon,
 	ShieldCheckIcon,
 	SpeakerHighIcon,
 	TargetIcon,
@@ -273,12 +274,13 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.FEATURE_FLAGS,
 		}),
-		// createNavItem("AI Agent", RobotIcon, "/agent", {
-		// 	alpha: true,
-		// 	rootLevel: false,
-		// 	tag: "WIP",
-		// 	gatedFeature: GATED_FEATURES.AI_AGENT,
-		// }),
+		createNavItem("AI Agent", RobotIcon, "/agent", {
+			alpha: true,
+			rootLevel: false,
+			tag: "WIP",
+			flag: "agent",
+			gatedFeature: GATED_FEATURES.AI_AGENT,
+		}),
 	]),
 	createNavSection(
 		"Pulse",

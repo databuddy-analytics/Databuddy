@@ -15,6 +15,7 @@
   "dependencies": {
     "csv-parse": "^6.1.0",
     "zod": "catalog:",
-    "@databuddy/db": "workspace:*"
+    "@databuddy/db": "workspace:*",
+    "drizzle-orm": "catalog:"
   }
 }
