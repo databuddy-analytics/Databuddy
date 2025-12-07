@@ -52,7 +52,7 @@ export function AgentInput() {
 
 	return (
 		<div className="shrink-0 border-t bg-sidebar/30 backdrop-blur-sm">
-			<div className="mx-auto max-w-2xl p-4">
+			<div className="mx-auto max-w-4xl p-4">
 				<div className="relative">
 					<AgentCommandMenu />
 
