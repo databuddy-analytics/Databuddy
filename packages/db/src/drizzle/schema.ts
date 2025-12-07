@@ -777,3 +777,30 @@ export const annotations = pgTable(
 			.onDelete("restrict"),
 	]
 );
+
+
+export const uptimeSchedules = pgTable(
+	"uptime_schedules",
+	{
+		id: text().primaryKey().notNull(),
+		websiteId: text("website_id").notNull(),
+		granularity: text("granularity").notNull(),
+		cron: text().notNull(),
+		isPaused: boolean("is_paused").default(false).notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("uptime_schedules_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "uptime_schedules_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	]
+);

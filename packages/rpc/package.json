@@ -16,6 +16,7 @@
     "@orpc/otel": "^1.11.2",
     "@orpc/server": "^1.11.2",
     "@types/jszip": "^3.4.1",
+    "@upstash/qstash": "^2.8.4",
     "ai": "^5.0.93",
     "autumn-js": "^0.0.101",
     "dayjs": "^1.11.19",
