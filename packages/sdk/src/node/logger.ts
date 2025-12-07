@@ -6,19 +6,11 @@ export interface Logger {
 }
 
 export function createLogger(debug = false): Logger {
-	try {
-		const pino = require("pino");
-		return pino({
-			level: debug ? "debug" : "info",
-			name: "databuddy",
-		});
-	} catch {
-		return createConsoleLogger(debug);
-	}
+	return createConsoleLogger(debug);
 }
 
 function createConsoleLogger(debug: boolean): Logger {
-	const noop = () => {};
+	const noop = () => { };
 
 	return {
 		info(msg: string, data?: Record<string, unknown>) {
@@ -38,14 +30,14 @@ function createConsoleLogger(debug: boolean): Logger {
 		},
 		debug: debug
 			? (msg: string, data?: Record<string, unknown>) => {
-					console.debug(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
-				}
+				console.debug(`[Databuddy] ${msg}`, data ? JSON.stringify(data) : "");
+			}
 			: noop,
 	};
 }
 
 export function createNoopLogger(): Logger {
-	const noop = () => {};
+	const noop = () => { };
 	return {
 		info: noop,
 		error: noop,
