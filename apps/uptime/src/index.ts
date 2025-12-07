@@ -1,4 +1,4 @@
-import { clickHouse } from "@databuddy/db";
+import { clickHouse, formatClickhouseDate } from "@databuddy/db";
 import Elysia from "elysia";
 import { checkUptime, lookupWebsite } from "./actions";
 
@@ -58,7 +58,7 @@ const app = new Elysia().post("/", async ({ headers }) => {
                     {
                         site_id: data.site_id,
                         url: data.url,
-                        timestamp: new Date(data.timestamp).toISOString(),
+                        timestamp: formatClickhouseDate(new Date(data.timestamp)),
                         status: data.status,
                         http_code: data.http_code,
                         ttfb_ms: data.ttfb_ms,
@@ -72,7 +72,7 @@ const app = new Elysia().post("/", async ({ headers }) => {
                         probe_region: data.probe_region,
                         probe_ip: data.probe_ip,
                         ssl_expiry: data.ssl_expiry
-                            ? new Date(data.ssl_expiry).toISOString()
+                            ? formatClickhouseDate(new Date(data.ssl_expiry))
                             : null,
                         ssl_valid: data.ssl_valid,
                         env: data.env,
