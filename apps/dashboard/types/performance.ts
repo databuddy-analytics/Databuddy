@@ -1,4 +1,4 @@
-export interface PerformanceEntry {
+export type PerformanceEntry = {
 	name: string;
 	visitors: number;
 	// Load time metrics
@@ -30,7 +30,7 @@ export interface PerformanceEntry {
 	_uniqueKey?: string;
 }
 
-export interface PerformanceSummary {
+export type PerformanceSummary = {
 	avgLoadTime: number;
 	fastPages: number;
 	slowPages: number;

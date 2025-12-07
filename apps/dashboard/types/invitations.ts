@@ -9,7 +9,7 @@ export type InvitationPageStatus =
 	| "expired"
 	| "already-accepted";
 
-export interface InvitationData {
+export type InvitationData = {
 	organizationName: string;
 	organizationSlug: string;
 	inviterEmail: string;
