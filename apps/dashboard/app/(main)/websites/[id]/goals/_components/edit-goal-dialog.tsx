@@ -249,7 +249,7 @@ export function EditGoalDialog({
 									onValueChange={(value) => updateField("type", value)}
 									value={formData.type}
 								>
-									<SelectTrigger className="h-8 w-28 shrink-0 text-xs">
+									<SelectTrigger className="w-28 shrink-0 text-xs" size="sm">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -348,7 +348,7 @@ export function EditGoalDialog({
 										</Select>
 
 										<AutocompleteInput
-											className="h-10 flex-1"
+											className="h-9 flex-1"
 											inputClassName="text-xs"
 											onValueChange={(value) =>
 												updateFilter(index, "value", value)
