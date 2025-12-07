@@ -278,6 +278,12 @@ export const websiteNavigation: NavigationSection[] = [
 		// 	gatedFeature: GATED_FEATURES.AI_AGENT,
 		// }),
 	]),
+	createNavSection("Pulse", HeartbeatIcon, [
+		createNavItem("Monitors", ChartLineUpIcon, "/pulse", {
+			rootLevel: false,
+			alpha: true,
+		}),
+	]),
 ];
 
 export const websiteSettingsNavigation: NavigationSection[] = [

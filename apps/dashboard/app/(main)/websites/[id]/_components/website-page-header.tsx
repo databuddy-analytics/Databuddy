@@ -97,14 +97,14 @@ export function WebsitePageHeader({
 			<div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
 				<div className="flex items-center gap-3">
 					<div className="flex items-center gap-3">
-						{showBackButton && (
+						{showBackButton ? (
 							<Button asChild size="sm" variant="ghost">
 								<Link href={`/websites/${websiteId}`}>
 									<ArrowLeftIcon size={16} />
 									<span className="xs:inline hidden">Back</span>
 								</Link>
 							</Button>
-						)}
+						) : null}
 						<div className="rounded border border-primary/10 bg-primary/5 p-3">
 							{icon}
 						</div>
@@ -117,7 +117,7 @@ export function WebsitePageHeader({
 				</div>
 
 				<div className="flex items-center gap-3">
-					{docsUrl && (
+					{docsUrl ? (
 						<Button asChild variant="outline">
 							<Link
 								className="cursor-pointer gap-2 transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
@@ -129,8 +129,8 @@ export function WebsitePageHeader({
 								<span className="xs:inline hidden">Docs</span>
 							</Link>
 						</Button>
-					)}
-					{onRefreshAction && (
+					) : null}
+					{onRefreshAction ? (
 						<Button
 							className="cursor-pointer gap-2 transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
 							disabled={isRefreshing}
@@ -143,7 +143,7 @@ export function WebsitePageHeader({
 							/>
 							<span className="xs:inline hidden">Refresh</span>
 						</Button>
-					)}
+					) : null}
 					{additionalActions}
 				</div>
 			</div>
@@ -156,14 +156,14 @@ export function WebsitePageHeader({
 				<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 					<div className="space-y-2">
 						<div className="flex items-center gap-3">
-							{showBackButton && (
+							{showBackButton ? (
 								<Button asChild className="mr-2" size="sm" variant="ghost">
 									<Link href={`/websites/${websiteId}`}>
 										<ArrowLeftIcon size={16} />
 										Back
 									</Link>
 								</Button>
-							)}
+							) : null}
 							<div className="rounded-lg border border-accent-foreground/10 bg-secondary p-2.5">
 								{cloneElement(icon, {
 									...icon.props,
@@ -185,7 +185,7 @@ export function WebsitePageHeader({
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						{docsUrl && (
+						{docsUrl ? (
 							<Button asChild variant="outline">
 								<Link
 									className="cursor-pointer select-none gap-2 border-border/50"
@@ -197,8 +197,8 @@ export function WebsitePageHeader({
 									Documentation
 								</Link>
 							</Button>
-						)}
-						{onRefreshAction && (
+						) : null}
+						{onRefreshAction ? (
 							<Button
 								disabled={isRefreshing}
 								onClick={onRefreshAction}
@@ -210,19 +210,19 @@ export function WebsitePageHeader({
 								/>
 								Refresh Data
 							</Button>
-						)}
-						{onCreateAction && (
+						) : null}
+						{onCreateAction ? (
 							<Button onClick={onCreateAction}>
 								<PlusIcon size={16} />
 								{createActionLabel}
 							</Button>
-						)}
+						) : null}
 						{additionalActions}
 					</div>
 				</div>
 			</div>
 
-			{hasError && (
+			{hasError ? (
 				<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 					<CardContent className="pt-6">
 						<div className="flex flex-col items-center space-y-3 text-center">
@@ -238,7 +238,7 @@ export function WebsitePageHeader({
 										`There was an issue loading your ${title.toLowerCase()}. Please try refreshing the page.`}
 								</p>
 							</div>
-							{onRefreshAction && (
+							{onRefreshAction ? (
 								<Button
 									className="cursor-pointer select-none gap-2 rounded transition-all duration-300 hover:border-primary/20 hover:bg-primary/10"
 									onClick={onRefreshAction}
@@ -248,11 +248,11 @@ export function WebsitePageHeader({
 									<ArrowClockwiseIcon className="size-4" size={16} />
 									Retry
 								</Button>
-							)}
+							) : null}
 						</div>
 					</CardContent>
 				</Card>
-			)}
+			) : null}
 		</div>
 	);
 }

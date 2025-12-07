@@ -39,6 +39,37 @@ const UPTIME_DESTINATION =
     process.env.UPTIME_DESTINATION || "https://uptime.databuddy.cc";
 
 export const uptimeRouter = {
+    getScheduleByWebsiteId: protectedProcedure
+        .input(
+            z.object({
+                websiteId: z.string().min(1, "Website ID is required"),
+            })
+        )
+        .handler(async ({ context, input }) => {
+            await authorizeWebsiteAccess(context, input.websiteId, "read");
+
+            try {
+                const schedule = await db.query.uptimeSchedules.findFirst({
+                    where: eq(uptimeSchedules.websiteId, input.websiteId),
+                    orderBy: (table, { desc }) => [desc(table.createdAt)],
+                });
+
+                return schedule || null;
+            } catch (error) {
+                logger.error(
+                    { websiteId: input.websiteId, error },
+                    "Error fetching schedule by website ID"
+                );
+                recordORPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to fetch schedule",
+                });
+                throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                    message: "Failed to fetch schedule",
+                });
+            }
+        }),
+
     getSchedule: protectedProcedure
         .input(
             z.object({
@@ -98,6 +129,21 @@ export const uptimeRouter = {
         .handler(async ({ context, input }) => {
             await authorizeWebsiteAccess(context, input.websiteId, "update");
 
+            // Check if a schedule already exists for this website
+            const existingSchedule = await db.query.uptimeSchedules.findFirst({
+                where: eq(uptimeSchedules.websiteId, input.websiteId),
+            });
+
+            if (existingSchedule) {
+                recordORPCError({
+                    code: "CONFLICT",
+                    message: "A monitor already exists for this website",
+                });
+                throw new ORPCError("CONFLICT", {
+                    message: "A monitor already exists for this website. Please delete the existing monitor before creating a new one.",
+                });
+            }
+
             try {
                 const { scheduleId } = await client.schedules.create({
                     destination: UPTIME_DESTINATION,
@@ -156,6 +202,112 @@ export const uptimeRouter = {
             }
         }),
 
+    updateSchedule: protectedProcedure
+        .input(
+            z.object({
+                scheduleId: z.string().min(1, "Schedule ID is required"),
+                granularity: granularityEnum,
+            })
+        )
+        .handler(async ({ context, input }) => {
+            try {
+                const schedule = await db.query.uptimeSchedules.findFirst({
+                    where: eq(uptimeSchedules.id, input.scheduleId),
+                });
+
+                if (!schedule) {
+                    recordORPCError({
+                        code: "NOT_FOUND",
+                        message: "Schedule not found",
+                    });
+                    throw new ORPCError("NOT_FOUND", {
+                        message: "Schedule not found",
+                    });
+                }
+
+                await authorizeWebsiteAccess(context, schedule.websiteId, "update");
+
+                // Delete old schedule from QStash first
+                try {
+                    await client.schedules.delete(input.scheduleId);
+                } catch (error) {
+                    logger.error(
+                        { scheduleId: input.scheduleId, error },
+                        "Failed to delete old QStash schedule during update"
+                    );
+                    recordORPCError({
+                        code: "INTERNAL_SERVER_ERROR",
+                        message: "Failed to delete old QStash schedule",
+                    });
+                    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                        message: "Failed to delete old QStash schedule. Please try again.",
+                    });
+                }
+
+                // Delete from database only if QStash deletion succeeded
+                await db.delete(uptimeSchedules).where(eq(uptimeSchedules.id, input.scheduleId));
+
+                const { scheduleId: newScheduleId } = await client.schedules.create({
+                    destination: UPTIME_DESTINATION,
+                    cron: CRON_GRANULARITIES[input.granularity],
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Website-Id": schedule.websiteId,
+                    }
+                });
+
+                if (!newScheduleId) {
+                    recordORPCError({
+                        code: "INTERNAL_SERVER_ERROR",
+                        message: "Failed to create updated uptime schedule",
+                    });
+                    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                        message: "Failed to create updated uptime schedule",
+                    });
+                }
+
+                await db.insert(uptimeSchedules).values({
+                    id: newScheduleId,
+                    websiteId: schedule.websiteId,
+                    granularity: input.granularity,
+                    cron: CRON_GRANULARITIES[input.granularity],
+                    isPaused: schedule.isPaused,
+                });
+
+                logger.info(
+                    {
+                        oldScheduleId: input.scheduleId,
+                        newScheduleId,
+                        websiteId: schedule.websiteId,
+                        granularity: input.granularity,
+                        userId: context.user.id,
+                    },
+                    "Uptime schedule updated"
+                );
+
+                return {
+                    scheduleId: newScheduleId,
+                    granularity: input.granularity,
+                    cron: CRON_GRANULARITIES[input.granularity],
+                };
+            } catch (error) {
+                if (error instanceof ORPCError) {
+                    throw error;
+                }
+                logger.error(
+                    { scheduleId: input.scheduleId, error },
+                    "Error updating schedule"
+                );
+                recordORPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to update schedule",
+                });
+                throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                    message: "Failed to update schedule",
+                });
+            }
+        }),
+
     deleteSchedule: protectedProcedure
         .input(
             z.object({
@@ -180,19 +332,25 @@ export const uptimeRouter = {
 
                 await authorizeWebsiteAccess(context, schedule.websiteId, "update");
 
-                const [qstashResult] = await Promise.allSettled([
-                    client.schedules.delete(input.scheduleId),
-                    db
-                        .delete(uptimeSchedules)
-                        .where(eq(uptimeSchedules.id, input.scheduleId)),
-                ]);
-
-                if (qstashResult.status === "rejected") {
+                try {
+                    await client.schedules.delete(input.scheduleId);
+                } catch (error) {
                     logger.error(
-                        { scheduleId: input.scheduleId, error: qstashResult.reason },
+                        { scheduleId: input.scheduleId, error },
                         "Failed to delete QStash schedule"
                     );
+                    recordORPCError({
+                        code: "INTERNAL_SERVER_ERROR",
+                        message: "Failed to delete QStash schedule",
+                    });
+                    throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                        message: "Failed to delete QStash schedule. Please try again.",
+                    });
                 }
+
+                await db
+                    .delete(uptimeSchedules)
+                    .where(eq(uptimeSchedules.id, input.scheduleId));
 
                 const verifyDeleted = await db.query.uptimeSchedules.findFirst({
                     where: eq(uptimeSchedules.id, input.scheduleId),

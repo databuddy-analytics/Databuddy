@@ -41,6 +41,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		"/settings",
 		"/users",
 		"/agent",
+		"/pulse",
 	];
 
 	const isAssistantPage = noToolbarPages.some((page) =>

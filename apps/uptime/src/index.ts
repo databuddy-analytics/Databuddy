@@ -1,3 +1,4 @@
+import { clickHouse } from "@databuddy/db";
 import Elysia from "elysia";
 import { checkUptime, lookupWebsite } from "./actions";
 
@@ -49,6 +50,42 @@ const app = new Elysia().post("/", async ({ headers }) => {
 
         const { data } = result;
 
+        // TO-DO: migrate this to use redpanda & vector instead of clickhouse.
+        try {
+            await clickHouse.insert({
+                table: "uptime.uptime_monitor",
+                values: [
+                    {
+                        site_id: data.site_id,
+                        url: data.url,
+                        timestamp: new Date(data.timestamp),
+                        status: data.status,
+                        http_code: data.http_code,
+                        ttfb_ms: data.ttfb_ms,
+                        total_ms: data.total_ms,
+                        attempt: data.attempt,
+                        retries: data.retries,
+                        failure_streak: data.failure_streak,
+                        response_bytes: data.response_bytes,
+                        content_hash: data.content_hash,
+                        redirect_count: data.redirect_count,
+                        probe_region: data.probe_region,
+                        probe_ip: data.probe_ip,
+                        ssl_expiry: data.ssl_expiry ? new Date(data.ssl_expiry) : null,
+                        ssl_valid: data.ssl_valid,
+                        env: data.env,
+                        check_type: data.check_type,
+                        user_agent: data.user_agent,
+                        error: data.error,
+                    },
+                ],
+                format: "JSONEachRow",
+            });
+        } catch (error) {
+            console.error("Failed to store uptime data in ClickHouse:", error);
+            // Continue execution even if ClickHouse insert fails
+        }
+
         console.log(
             JSON.stringify({
                 message: "Uptime check complete",
@@ -72,7 +109,6 @@ const app = new Elysia().post("/", async ({ headers }) => {
         return {
             success: false,
             message: "Internal server error",
-            error: error instanceof Error ? error.message : "Unknown error",
         };
     }
 });
