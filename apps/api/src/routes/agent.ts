@@ -5,6 +5,7 @@ import { createReflectionAgent, createTriageAgent } from "../ai/agents";
 import { buildAppContext } from "../ai/config/context";
 import { record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
+import { QueryBuilders } from "../query/builders";
 
 const AgentRequestSchema = t.Object({
 	websiteId: t.String(),
@@ -135,6 +136,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						...appContext,
 						chatId,
 						requestHeaders: request.headers,
+						availableQueryTypes: Object.keys(QueryBuilders),
 					};
 
 					// Select agent based on model preference

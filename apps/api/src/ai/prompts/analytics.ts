@@ -17,11 +17,13 @@ const ANALYTICS_RULES = `<agent-specific-rules>
 
 **Tools Usage:**
 - Use get_top_pages for page analytics
-- Use execute_sql_query for custom analytics queries
+- Use execute_query_builder for pre-built analytics queries (PREFERRED - use this for common queries like traffic, sessions, pages, devices, geo, errors, performance, etc.)
+- Use execute_sql_query ONLY for custom SQL queries that aren't covered by query builders
 - Use competitor_analysis for real-time competitor insights, market trends, and industry analysis with citations
 - Use memory tools (search_memory, add_memory) to remember user preferences and past analysis patterns
 - CRITICAL: execute_sql_query must ONLY use SELECT/WITH and parameter placeholders (e.g., {limit:UInt32}) with values passed via params. websiteId is automatically included. Never interpolate strings.
-- Example: execute_sql_query({ websiteId: "<use website_id from context>", sql: "SELECT ... WHERE client_id = {websiteId:String}", params: { limit: 10 } })
+- Example query builder: execute_query_builder({ websiteId: "<use website_id from context>", type: "traffic", from: "2024-01-01", to: "2024-01-31", timeUnit: "day" })
+- Example custom SQL: execute_sql_query({ websiteId: "<use website_id from context>", sql: "SELECT ... WHERE client_id = {websiteId:String}", params: { limit: 10 } })
 - Example competitor analysis: competitor_analysis({ query: "competitors to example.com in web analytics", context: "Our website tracks user behavior and performance metrics" })
 - Example memory: search_memory({ query: "user's preferred metrics" })
 

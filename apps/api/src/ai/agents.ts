@@ -11,6 +11,7 @@ import { models } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
 import { buildReflectionInstructions } from "./prompts/reflection";
 import { buildTriageInstructions } from "./prompts/triage";
+import { executeQueryBuilderTool } from "./tools/execute-query-builder";
 import { executeSqlQueryTool } from "./tools/execute-sql-query";
 import { getTopPagesTool } from "./tools/get-top-pages";
 import { competitorAnalysisTool, webSearchTool } from "./tools/web-search";
@@ -20,6 +21,7 @@ import { competitorAnalysisTool, webSearchTool } from "./tools/web-search";
  */
 const analyticsTools = {
 	get_top_pages: getTopPagesTool,
+	execute_query_builder: executeQueryBuilderTool,
 	execute_sql_query: executeSqlQueryTool,
 	web_search: webSearchTool,
 	competitor_analysis: competitorAnalysisTool,
