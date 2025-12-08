@@ -1,19 +1,24 @@
 "use client";
 
+import { useChat } from "@ai-sdk-tools/store";
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import type { UIMessage } from "ai";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEnterSubmit } from "@/hooks/use-enter-submit";
 import { cn } from "@/lib/utils";
 import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
-import { useAgentChat, useAgentCommands } from "./hooks";
+import { useAgentCommands } from "./hooks";
+import { useAgentChat } from "./hooks/use-agent-chat";
 
 export function AgentInput() {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [isFocused, setIsFocused] = useState(false);
-	const { sendMessage, stop, isLoading } = useAgentChat();
+	const { status, stop } = useChat<UIMessage>();
+	const { sendMessage } = useAgentChat();
+	const isLoading = status === "streaming" || status === "submitted";
+
 	const { input, handleInputChange, handleKeyDown, showCommands } =
 		useAgentCommands();
 	const chatId = useAgentChatId();
@@ -61,12 +66,10 @@ export function AgentInput() {
 							<Input
 								className={cn(
 									"h-12 pr-24 pl-4 text-base",
-									isFocused && "ring-2 ring-primary/20"
+									"focus:ring-2 focus:ring-primary/20"
 								)}
 								disabled={isLoading}
-								onBlur={() => setIsFocused(false)}
 								onChange={handleChange}
-								onFocus={() => setIsFocused(true)}
 								onKeyDown={handleKey}
 								placeholder="Ask the agent to analyze your data..."
 								ref={inputRef}

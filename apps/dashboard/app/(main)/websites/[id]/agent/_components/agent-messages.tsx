@@ -1,5 +1,6 @@
 "use client";
 
+import { useChat } from "@ai-sdk-tools/store";
 import type { UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
@@ -20,13 +21,7 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-
-type AgentMessagesProps = {
-	messages: UIMessage[];
-	isStreaming?: boolean;
-	hasError?: boolean;
-	statusText?: string;
-};
+import { useChatStatus } from "./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -207,12 +202,13 @@ function renderMessagePart(
 	return null;
 }
 
-export function AgentMessages({
-	messages,
-	isStreaming = false,
-	hasError = false,
-	statusText,
-}: AgentMessagesProps) {
+export function AgentMessages() {
+	const { messages, status } = useChat<UIMessage>();
+	const chatStatus = useChatStatus();
+	const isLoading = status === "streaming" || status === "submitted";
+	const hasError = status === "error";
+	const isStreaming = isLoading;
+
 	if (messages.length === 0) {
 		return null;
 	}
@@ -250,7 +246,9 @@ export function AgentMessages({
 			})}
 
 			{isStreaming && messages.at(-1)?.role !== "assistant" && (
-				<StreamingIndicator statusText={statusText} />
+				<StreamingIndicator
+					statusText={chatStatus.displayMessage ?? undefined}
+				/>
 			)}
 		</>
 	);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useChat } from "@ai-sdk-tools/store";
 import {
 	ArrowRightIcon,
 	BrainIcon,
@@ -7,7 +8,7 @@ import {
 	LightningIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
-import type { ChatStatus } from "ai";
+import type { UIMessage } from "ai";
 import { useSetAtom } from "jotai";
 import {
 	Conversation,
@@ -21,8 +22,6 @@ import { agentInputAtom } from "./agent-atoms";
 import { AgentChatProvider } from "./agent-chat-context";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
-import { useAgentChat } from "./hooks";
-import { useChatStatus } from "./hooks/use-chat-status";
 import { NewChatButton } from "./new-chat-button";
 
 type AgentPageContentProps = {
@@ -70,8 +69,7 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const { messages, isLoading, hasError, status } = useAgentChat();
-	const chatStatus = useChatStatus(messages, status as ChatStatus);
+	const { messages } = useChat<UIMessage>();
 
 	const hasMessages = messages.length > 0;
 
@@ -116,12 +114,7 @@ function AgentPageContentInner({
 				<Conversation className="flex-1">
 					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
 						{hasMessages ? (
-							<AgentMessages
-								hasError={hasError}
-								isStreaming={isLoading}
-								messages={messages}
-								statusText={chatStatus.displayMessage ?? undefined}
-							/>
+							<AgentMessages />
 						) : (
 							<ConversationEmptyState>
 								<WelcomeState onPromptSelect={setInputValue} />
