@@ -1,8 +1,6 @@
 "use client";
 
-import { useChat, useChatActions } from "@ai-sdk-tools/store";
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
-import type { UIMessage } from "ai";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useRef } from "react";
@@ -13,16 +11,14 @@ import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
 import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
-import { useAgentCommands } from "./hooks";
-import { useAgentChatTransport } from "./hooks/use-agent-chat";
+import { useAgentCommands } from "./hooks/use-agent-commands";
+import { useChatActions } from "./hooks/use-chat-actions";
 
 export function AgentInput() {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const params = useParams();
 	const chatId = params.chatId as string;
-	const transport = useAgentChatTransport();
-	const { status } = useChat<UIMessage>({ id: chatId, transport });
-	const { sendMessage, stop } = useChatActions();
+	const { status, sendMessage, stop } = useChatActions(chatId);
 	const isLoading = status === "streaming" || status === "submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
 	const { handleInputChange, handleKeyDown, showCommands } = useAgentCommands();

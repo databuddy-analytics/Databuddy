@@ -18,8 +18,6 @@ export default async function AgentPage(props: Props) {
 		const chat = await rpcClient.agent.getMessages({ chatId, websiteId: id });
 		initialMessages = (chat?.messages ?? []) as UIMessage[];
 	} catch {
-		// If authorization fails, we'll start with empty messages
-		// The client will handle authentication when sending new messages
 		initialMessages = [];
 	}
 
