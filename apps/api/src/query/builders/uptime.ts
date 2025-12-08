@@ -81,7 +81,10 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						avg(total_ms) as avg_response_time,
 						quantile(0.50)(total_ms) as p50_response_time,
 						quantile(0.95)(total_ms) as p95_response_time,
-						max(total_ms) as max_response_time
+						max(total_ms) as max_response_time,
+						avg(ttfb_ms) as avg_ttfb,
+						quantile(0.50)(ttfb_ms) as p50_ttfb,
+						quantile(0.95)(ttfb_ms) as p95_ttfb
 					FROM ${UPTIME_TABLE}
 					WHERE 
 						site_id = {websiteId:String}

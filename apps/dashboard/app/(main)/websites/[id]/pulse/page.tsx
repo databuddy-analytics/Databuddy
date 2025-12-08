@@ -25,6 +25,7 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { WebsitePageHeader } from "../_components/website-page-header";
+import { LatencyChart } from "./_components/latency-chart";
 import { MonitorDialog } from "./_components/monitor-dialog";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
@@ -72,7 +73,6 @@ export default function PulsePage() {
 	const [isPausing, setIsPausing] = useState(false);
 	const hasMonitor = !!schedule;
 
-	// Fetch uptime analytics data
 	const uptimeQueries = useMemo(
 		() => [
 			{
@@ -89,9 +89,33 @@ export default function PulsePage() {
 				id: "uptime-ssl-status",
 				parameters: ["uptime_ssl_status"],
 			},
+			{
+				id: "uptime-latency",
+				parameters: ["uptime_time_series"],
+				granularity: dateRange.granularity,
+			},
+			{
+				id: "uptime-heatmap",
+				parameters: ["uptime_time_series"],
+				granularity: "daily" as const,
+			},
 		],
 		[dateRange.granularity]
 	);
+
+	const batchDateRange = useMemo(() => {
+		const heatmapStartDate = dayjs().subtract(89, "day").startOf("day");
+		const userStartDate = dayjs(dateRange.start_date);
+		const startDate = heatmapStartDate.isBefore(userStartDate)
+			? heatmapStartDate
+			: userStartDate;
+
+		return {
+			start_date: startDate.format("YYYY-MM-DD"),
+			end_date: dateRange.end_date,
+			granularity: dateRange.granularity,
+		};
+	}, [dateRange]);
 
 	const {
 		isLoading: isLoadingUptime,
@@ -99,41 +123,8 @@ export default function PulsePage() {
 		refetch: refetchUptimeData,
 	} = useBatchDynamicQuery(
 		websiteId as string,
-		dateRange,
+		batchDateRange,
 		uptimeQueries,
-		{
-			enabled: hasMonitor,
-		}
-	);
-
-	const heatmapDateRange = useMemo(
-		() => ({
-			start_date: dayjs().subtract(89, "day").startOf("day").format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
-		}),
-		[]
-	);
-
-	const heatmapQueries = useMemo(
-		() => [
-			{
-				id: "uptime-heatmap",
-				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
-			},
-		],
-		[]
-	);
-
-	const {
-		getDataForQuery: getHeatmapData,
-		refetch: refetchHeatmapData,
-		isLoading: isLoadingHeatmap,
-	} = useBatchDynamicQuery(
-		websiteId as string,
-		heatmapDateRange,
-		heatmapQueries,
 		{
 			enabled: hasMonitor,
 		}
@@ -148,7 +139,27 @@ export default function PulsePage() {
 	const sslStatus =
 		getDataForQuery("uptime-ssl-status", "uptime_ssl_status")?.[0] || {};
 	const heatmapData =
-		getHeatmapData("uptime-heatmap", "uptime_time_series") || [];
+		getDataForQuery("uptime-heatmap", "uptime_time_series") || [];
+	const latencyTimeSeries =
+		getDataForQuery("uptime-latency", "uptime_time_series") || [];
+
+	const latencyChartData = useMemo(() => {
+		return latencyTimeSeries.map(
+			(point: {
+				date: string;
+				p50_response_time?: number;
+				p95_response_time?: number;
+				p50_ttfb?: number;
+				p95_ttfb?: number;
+			}) => ({
+				date: point.date,
+				"Response Time (p50)": point.p50_response_time ?? 0,
+				"Response Time (p95)": point.p95_response_time ?? 0,
+				"TTFB (p50)": point.p50_ttfb ?? 0,
+				"TTFB (p95)": point.p95_ttfb ?? 0,
+			})
+		);
+	}, [latencyTimeSeries]);
 
 	const handleCreateMonitor = () => {
 		setEditingSchedule(null);
@@ -167,7 +178,7 @@ export default function PulsePage() {
 
 	const handleTogglePause = async () => {
 		if (!schedule) return;
-		
+
 		setIsPausing(true);
 		try {
 			if (schedule.isPaused) {
@@ -199,7 +210,6 @@ export default function PulsePage() {
 			await Promise.all([
 				refetchSchedule(),
 				refetchUptimeData(),
-				refetchHeatmapData(),
 			]);
 		} catch (error) {
 			console.error("Failed to refresh:", error);
@@ -208,7 +218,6 @@ export default function PulsePage() {
 		}
 	};
 
-	// Determine current status based on the most recent check
 	const latestCheck = recentChecks[0];
 	const currentStatus = latestCheck
 		? latestCheck.status === 1
@@ -218,7 +227,6 @@ export default function PulsePage() {
 				: "down"
 		: "unknown";
 
-	// Format SSL expiry
 	const sslExpiryDate = sslStatus.ssl_expiry
 		? dayjs(sslStatus.ssl_expiry)
 		: null;
@@ -227,7 +235,6 @@ export default function PulsePage() {
 		: null;
 	const isSslValid = sslStatus.ssl_valid === 1;
 
-	// Build header subtitle with status
 	const headerSubtitle = schedule ? (
 		<div className="flex items-center gap-2">
 			<Badge
@@ -261,7 +268,6 @@ export default function PulsePage() {
 		</div>
 	) : undefined;
 
-	// Build header actions
 	const headerActions = schedule ? (
 		<>
 			<Button
@@ -317,7 +323,6 @@ export default function PulsePage() {
 					</div>
 				) : schedule ? (
 					<>
-						{/* Overview Stats */}
 						<div className="border-b bg-sidebar">
 							<div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
 								<StatCard
@@ -370,7 +375,14 @@ export default function PulsePage() {
 							<UptimeHeatmap
 								data={heatmapData}
 								days={90}
-								isLoading={isLoadingHeatmap}
+								isLoading={isLoadingUptime}
+							/>
+						</div>
+
+						<div className="border-b bg-sidebar">
+							<LatencyChart
+								data={latencyChartData}
+								isLoading={isLoadingUptime}
 							/>
 						</div>
 
