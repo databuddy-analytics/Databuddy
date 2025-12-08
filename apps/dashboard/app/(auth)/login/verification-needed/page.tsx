@@ -3,14 +3,13 @@
 import { authClient } from "@databuddy/auth/client";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 export default function VerificationNeededPage() {
-	const searchParams = useSearchParams();
-	const email = searchParams.get("email") || "";
+	const [email] = useQueryState("email", parseAsString.withDefault(""));
 	const [isLoading, setIsLoading] = useState(false);
 
 	const sendVerificationEmail = async () => {

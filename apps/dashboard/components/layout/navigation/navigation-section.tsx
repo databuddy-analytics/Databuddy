@@ -2,7 +2,7 @@ import { useFlags } from "@databuddy/sdk/react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { memo, useMemo } from "react";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import type { useAccordionStates } from "@/hooks/use-persistent-state";
@@ -66,9 +66,16 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 }: NavigationSectionProps) {
 	const { getAccordionState, toggleAccordion } = accordionStates;
 	const isExpanded = getAccordionState(title, true);
-	const searchParams = useSearchParams();
+	const currentPathname = usePathname();
 	const { isFeatureEnabled, isLoading } = useBillingContext();
 	const { isEnabled } = useFlags();
+
+	const searchParams = useMemo(() => {
+		if (typeof window === "undefined") {
+			return null;
+		}
+		return new URLSearchParams(window.location.search);
+	}, [currentPathname]);
 
 	if (flag) {
 		const flagState = isEnabled(flag);
@@ -97,7 +104,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 		return true;
 	});
 
-	const featureStates = useMemo(() => {
+	const featureStates = (() => {
 		const states: Record<string, FeatureState> = {};
 		if (isLoading) {
 			return states;
@@ -114,7 +121,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 			}
 		}
 		return states;
-	}, [visibleItems, isFeatureEnabled, isLoading]);
+	})();
 
 	if (visibleItems.length === 0) {
 		return null;
@@ -140,7 +147,7 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 				<CaretDownIcon
 					className={clsx(
 						"size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-200",
-						isExpanded && "rotate-180"
+						isExpanded ? "rotate-180" : ""
 					)}
 				/>
 			</button>

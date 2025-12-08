@@ -4,6 +4,7 @@ import { RootProvider } from "fumadocs-ui/provider";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Manrope } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { SITE_URL } from "./util/constants";
@@ -101,15 +102,17 @@ export default function Layout({ children }: { children: ReactNode }) {
 			/>
 			<body>
 				<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-					<RootProvider>
-						<main>{children}</main>
-						<Toaster
-							closeButton
-							duration={1500}
-							position="top-center"
-							richColors
-						/>
-					</RootProvider>
+					<NuqsAdapter>
+						<RootProvider>
+							<main>{children}</main>
+							<Toaster
+								closeButton
+								duration={1500}
+								position="top-center"
+								richColors
+							/>
+						</RootProvider>
+					</NuqsAdapter>
 				</ThemeProvider>
 			</body>
 		</html>

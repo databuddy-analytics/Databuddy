@@ -3,14 +3,13 @@
 import { signIn } from "@databuddy/auth/client";
 import { ChevronLeft, Loader2, MailCheck } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 export default function MagicSentPage() {
-	const searchParams = useSearchParams();
-	const email = searchParams.get("email") || "";
+	const [email] = useQueryState("email", parseAsString.withDefault(""));
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleResend = async (e: React.MouseEvent) => {

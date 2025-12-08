@@ -12,7 +12,8 @@ import {
 	SpinnerIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,8 @@ import VisuallyHidden from "@/components/ui/visuallyhidden";
 
 function RegisterPageContent() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
-	const selectedPlan = searchParams.get("plan");
-	const callbackUrl = searchParams.get("callback");
+	const [selectedPlan] = useQueryState("plan", parseAsString);
+	const [callbackUrl] = useQueryState("callback", parseAsString);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: "",

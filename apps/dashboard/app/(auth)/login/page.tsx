@@ -10,7 +10,8 @@ import {
 	SpinnerIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +22,17 @@ import { Separator } from "@/components/ui/separator";
 
 function LoginPage() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
+	const [callback] = useQueryState(
+		"callback",
+		parseAsString.withDefault("/websites")
+	);
 	const [isLoading, setIsLoading] = useState(false);
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [lastUsed, setLastUsed] = useState<string | null>(null);
 
-	const defaultCallbackUrl = searchParams.get("callback") || "/websites";
+	const defaultCallbackUrl = callback;
 
 	useEffect(() => {
 		setLastUsed(localStorage.getItem("lastUsedLogin"));
@@ -37,7 +41,7 @@ function LoginPage() {
 	const handleSocialLogin = (provider: "github" | "google") => {
 		setIsLoading(true);
 
-		const callbackUrl = searchParams.get("callback");
+		const callbackUrl = callback;
 		const finalCallbackUrl = callbackUrl || defaultCallbackUrl;
 
 		signIn.social({
@@ -77,7 +81,7 @@ function LoginPage() {
 			fetchOptions: {
 				onSuccess: () => {
 					localStorage.setItem("lastUsedLogin", "email");
-					const callbackUrl = searchParams.get("callback");
+					const callbackUrl = callback;
 					if (callbackUrl) {
 						router.push(callbackUrl);
 					}
