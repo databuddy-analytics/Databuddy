@@ -1,13 +1,13 @@
 "use client";
 
-import { ShieldCheckIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
+import { CCPAIcon } from "./icons/ccpa";
+import { GDPRIcon } from "./icons/gdpr";
 import { SciFiButton } from "./landing/scifi-btn";
 import { Wordmark } from "./landing/wordmark";
 import { LogoContent } from "./logo";
-import { Badge } from "./ui/badge";
 
 export function Footer() {
 	return (
@@ -181,35 +181,39 @@ export function Footer() {
 					</div>
 				</div>
 
-				{/* Legal Links Row */}
 				<div className="mt-6">
-					<div className="flex flex-wrap items-center gap-4">
-						<Link
-							className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-							href="/privacy"
-						>
-							Privacy Policy
-						</Link>
-						<span className="text-muted-foreground/50 text-xs">•</span>
-						<Link
-							className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-							href="/terms"
-						>
-							Terms of Service
-						</Link>
-						<span className="text-muted-foreground/50 text-xs">•</span>
-						<Link
-							className="inline-flex items-center gap-1.5"
-							href="/privacy#gdpr"
-						>
-							<Badge
-								className="inline-flex items-center gap-1.5 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/50 dark:text-green-400"
-								variant="outline"
+					<div className="flex flex-col gap-4">
+						<div className="flex items-center gap-4">
+							<Link
+								aria-label="CCPA Compliance"
+								className="text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+								href="/"
 							>
-								<ShieldCheckIcon className="size-3" weight="duotone" />
-								<span className="font-medium text-xs">GDPR Compliant</span>
-							</Badge>
-						</Link>
+								<CCPAIcon className="size-8" />
+							</Link>
+							<Link
+								aria-label="GDPR Compliance"
+								className="text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+								href="/"
+							>
+								<GDPRIcon className="size-10" />
+							</Link>
+						</div>
+						<div className="flex flex-wrap items-center gap-4">
+							<Link
+								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+								href="/privacy"
+							>
+								Privacy Policy
+							</Link>
+							<span className="text-muted-foreground/50 text-xs">•</span>
+							<Link
+								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+								href="/terms"
+							>
+								Terms of Service
+							</Link>
+						</div>
 					</div>
 				</div>
 
