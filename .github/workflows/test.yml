@@ -103,6 +103,8 @@ jobs:
           # Other API keys (use dummy values for tests)
           EMAIL_API_KEY: test-email-api-key
           IP_HASH_SALT: test-ip-hash-salt
+
+          UPSTASH_QSTASH_TOKEN: test-upstash-qstash-token
           
         run: bun run test:coverage
 
