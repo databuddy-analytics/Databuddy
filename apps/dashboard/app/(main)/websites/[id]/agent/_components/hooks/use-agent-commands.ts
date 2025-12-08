@@ -1,3 +1,4 @@
+import { useChatActions } from "@ai-sdk-tools/store";
 import { useAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 import type { AgentCommand } from "../agent-atoms";
@@ -8,14 +9,13 @@ import {
 	showCommandsAtom,
 } from "../agent-atoms";
 import { filterCommands } from "../agent-commands";
-import { useAgentChat } from "./use-agent-chat";
 
 export function useAgentCommands() {
 	const [input, setInput] = useAtom(agentInputAtom);
 	const [showCommands, setShowCommands] = useAtom(showCommandsAtom);
 	const [commandQuery, setCommandQuery] = useAtom(commandQueryAtom);
 	const [selectedIndex, setSelectedIndex] = useAtom(selectedCommandIndexAtom);
-	const { sendMessage } = useAgentChat();
+	const { sendMessage } = useChatActions();
 
 	const filteredCommands = useMemo(
 		() => filterCommands(commandQuery),
@@ -44,7 +44,10 @@ export function useAgentCommands() {
 
 	const executeCommand = useCallback(
 		(command: AgentCommand) => {
-			sendMessage(command.title, { toolChoice: command.toolName });
+			sendMessage({
+				text: command.title,
+				metadata: { toolChoice: command.toolName },
+			});
 			setInput("");
 			setShowCommands(false);
 			setCommandQuery("");

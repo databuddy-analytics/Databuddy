@@ -1,5 +1,4 @@
-import { useChat } from "@ai-sdk-tools/store";
-import type { UIMessage } from "ai";
+import type { ChatStatus, UIMessage } from "ai";
 import { useMemo } from "react";
 import type { AgentStatus } from "../agent-atoms";
 import { getStatusMessage, getToolMessage } from "../agent-commands";
@@ -26,9 +25,10 @@ function getTextContent(message: UIMessage): string {
 		.join("");
 }
 
-export function useChatStatus(): ChatStatusResult {
-	const { messages, status } = useChat<UIMessage>();
-
+export function useChatStatus(
+	messages: UIMessage[],
+	status: ChatStatus
+): ChatStatusResult {
 	return useMemo(() => {
 		const isLoading = status === "streaming" || status === "submitted";
 		const agentStatus: AgentStatus = isLoading ? "generating" : "idle";

@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
 import { useSetAtom } from "jotai";
+import { useParams } from "next/navigation";
 import {
 	Conversation,
 	ConversationContent,
@@ -22,6 +23,7 @@ import { agentInputAtom } from "./agent-atoms";
 import { AgentChatProvider } from "./agent-chat-context";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
 import { NewChatButton } from "./new-chat-button";
 
 type AgentPageContentProps = {
@@ -69,7 +71,10 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const { messages } = useChat<UIMessage>();
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { messages } = useChat<UIMessage>({ id: chatId, transport });
 
 	const hasMessages = messages.length > 0;
 

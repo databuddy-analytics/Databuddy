@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk-tools/store";
 import type { UIMessage } from "ai";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
 	ChainOfThought,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
 import { useChatStatus } from "./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
@@ -203,11 +205,13 @@ function renderMessagePart(
 }
 
 export function AgentMessages() {
-	const { messages, status } = useChat<UIMessage>();
-	const chatStatus = useChatStatus();
-	const isLoading = status === "streaming" || status === "submitted";
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { messages, status } = useChat<UIMessage>({ id: chatId, transport });
 	const hasError = status === "error";
-	const isStreaming = isLoading;
+	const chatStatus = useChatStatus(messages, status);
+	const isStreaming = status === "streaming" || status === "submitted";
 
 	if (messages.length === 0) {
 		return null;

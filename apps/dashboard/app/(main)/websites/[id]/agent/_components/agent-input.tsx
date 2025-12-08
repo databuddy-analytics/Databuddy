@@ -1,27 +1,32 @@
 "use client";
 
-import { useChat } from "@ai-sdk-tools/store";
+import { useChat, useChatActions } from "@ai-sdk-tools/store";
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
+import { useAtom } from "jotai";
+import { useParams } from "next/navigation";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEnterSubmit } from "@/hooks/use-enter-submit";
 import { cn } from "@/lib/utils";
+import { agentInputAtom } from "./agent-atoms";
 import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
 import { useAgentCommands } from "./hooks";
-import { useAgentChat } from "./hooks/use-agent-chat";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
 
 export function AgentInput() {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const { status, stop } = useChat<UIMessage>();
-	const { sendMessage } = useAgentChat();
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { status } = useChat<UIMessage>({ id: chatId, transport });
+	const { sendMessage, stop } = useChatActions();
 	const isLoading = status === "streaming" || status === "submitted";
-
-	const { input, handleInputChange, handleKeyDown, showCommands } =
-		useAgentCommands();
-	const chatId = useAgentChatId();
+	const [input, setInput] = useAtom(agentInputAtom);
+	const { handleInputChange, handleKeyDown, showCommands } = useAgentCommands();
+	const currentChatId = useAgentChatId();
 	const setChatId = useSetAgentChatId();
 	const { formRef, onKeyDown: handleEnterSubmit } = useEnterSubmit();
 
@@ -30,10 +35,15 @@ export function AgentInput() {
 		if (!input.trim() || isLoading) {
 			return;
 		}
-		if (chatId) {
-			setChatId(chatId);
+		if (currentChatId) {
+			setChatId(currentChatId);
 		}
-		sendMessage(input.trim());
+
+		sendMessage({
+			text: input.trim(),
+		});
+
+		setInput("");
 	};
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

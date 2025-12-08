@@ -1,15 +1,15 @@
 "use client";
 
+import { useChatActions } from "@ai-sdk-tools/store";
 import { PlusIcon } from "@phosphor-icons/react";
 import { generateId } from "ai";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useAgentChat } from "./hooks/use-agent-chat";
 
 export function NewChatButton() {
 	const router = useRouter();
 	const { id } = useParams();
-	const { reset } = useAgentChat();
+	const { reset } = useChatActions();
 
 	const handleNewChat = () => {
 		reset();
