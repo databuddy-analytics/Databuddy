@@ -5,7 +5,7 @@ import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
 const CONFIG = {
-    userAgent: "databuddy-uptime-monitor/1.0",
+    userAgent: "databuddy-pulse/1.0",
     timeout: 30_000,
     maxRedirects: 10,
     maxRetries: 3,
