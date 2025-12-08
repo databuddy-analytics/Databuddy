@@ -1,0 +1,253 @@
+---
+title: Getting Started with Pulse
+description: Set up your first uptime monitor in minutes
+---
+
+import { Step, Steps } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
+
+This guide will help you set up your first uptime monitor with Databuddy Pulse in just a few minutes.
+
+<Steps>
+<Step>
+
+## Create Your First Monitor
+
+1. Go to [app.databuddy.cc](https://app.databuddy.cc)
+2. Navigate to the **Pulse** section in your dashboard
+3. Click **Create Monitor**
+4. Enter your website URL or endpoint
+5. Choose your check type (HTTP/S, Ping, or Port)
+
+</Step>
+<Step>
+
+## Configure Monitor Settings
+
+Set up your monitor with the following options:
+
+- **Check Interval:** Choose between 1-minute (Pro) or 5-minute (Free) intervals
+- **Protocol:** HTTP/HTTPS, Ping, or Port checks
+- **Locations:** Select multiple check locations for redundancy
+- **Alert Rules:** Configure N-out-of-M rules to reduce false positives
+
+</Step>
+<Step>
+
+## Set Up Alerting
+
+Configure how you want to be notified:
+
+1. **Email Alerts:** Get notified instantly when downtime is detected
+2. **Webhooks:** Integrate with Slack, PagerDuty, or your custom system
+3. **API Access:** Use our REST API for custom integrations
+
+<Callout type="info">
+  **Pro Tip:** Use webhooks to trigger automated incident response workflows in your CI/CD pipeline.
+</Callout>
+
+</Step>
+<Step>
+
+## Monitor Your Status
+
+Once configured, your monitor will start checking immediately:
+
+1. **View Real-Time Status** - See current uptime status in your dashboard
+2. **Check Response Times** - Monitor latency across all check locations
+3. **Review Incident History** - Track downtime events and resolution times
+4. **Integrate with Analytics** - See uptime data alongside your RUM metrics
+
+<Callout type="success">
+  Your monitor is now active! You'll receive alerts the moment an issue is detected.
+</Callout>
+
+</Step>
+</Steps>
+
+## Monitor Types
+
+### HTTP/HTTPS Monitors
+
+Perfect for monitoring web applications and APIs:
+
+- **Status Code Checks:** Verify your endpoint returns expected status codes
+- **Response Time Monitoring:** Track latency and performance
+- **SSL Certificate Monitoring:** Get alerts before certificates expire
+- **Keyword Matching:** Verify specific content appears in responses
+
+### Ping Monitors
+
+Monitor server availability and network connectivity:
+
+- **ICMP Ping:** Check basic network connectivity
+- **Response Time Tracking:** Monitor latency to your servers
+- **Packet Loss Detection:** Identify network issues
+
+### Port Monitors
+
+Verify specific ports are accessible:
+
+- **TCP Port Checks:** Ensure services are listening on expected ports
+- **Connection Timeout Monitoring:** Detect slow or unresponsive services
+- **Service Availability:** Monitor databases, Redis, and other services
+
+## Alert Configuration
+
+### N-out-of-M Rules
+
+Reduce false positives by requiring multiple failures before alerting:
+
+- **Example:** Alert only if 2 out of 3 locations fail
+- **Benefit:** Filters out transient network issues
+- **Result:** Only real problems trigger alerts
+
+### Multi-Location Checks
+
+Monitor from multiple geographic locations:
+
+- **Global Coverage:** Check from US, EU, and Asia-Pacific regions
+- **Redundancy:** Ensure issues aren't location-specific
+- **Accuracy:** Get a true picture of your service availability
+
+## Webhook Integration
+
+Set up automated workflows with webhooks:
+
+<CodeBlock
+  language="json"
+  filename="webhook-payload-example.json"
+  code={`{
+  "event": "monitor.down",
+  "monitor": {
+    "id": "mon_123",
+    "name": "Production API",
+    "url": "https://api.example.com",
+    "status": "down"
+  },
+  "incident": {
+    "id": "inc_456",
+    "started_at": "2024-01-15T10:30:00Z",
+    "duration": 120
+  },
+  "check": {
+    "location": "us-east-1",
+    "response_time": null,
+    "status_code": null,
+    "error": "Connection timeout"
+  }
+}`}
+/>
+
+### Slack Integration
+
+<CodeBlock
+  language="bash"
+  filename="slack-webhook.sh"
+  code={`curl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK/URL \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "text": "🚨 Monitor {{monitor.name}} is DOWN",
+    "blocks": [
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "*Monitor:* {{monitor.name}}\\n*URL:* {{monitor.url}}\\n*Status:* {{monitor.status}}"
+        }
+      }
+    ]
+  }'`}
+/>
+
+### PagerDuty Integration
+
+<CodeBlock
+  language="bash"
+  filename="pagerduty-webhook.sh"
+  code={`curl -X POST https://events.pagerduty.com/v2/enqueue \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "routing_key": "YOUR_ROUTING_KEY",
+    "event_action": "trigger",
+    "payload": {
+      "summary": "Monitor {{monitor.name}} is DOWN",
+      "source": "{{monitor.url}}",
+      "severity": "critical"
+    }
+  }'`}
+/>
+
+## API Integration
+
+Use our REST API to programmatically manage monitors:
+
+<CodeBlock
+  language="bash"
+  filename="create-monitor.sh"
+  code={`curl -X POST https://api.databuddy.cc/v1/monitors \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Production API",
+    "url": "https://api.example.com/health",
+    "type": "http",
+    "interval": 60,
+    "locations": ["us-east-1", "eu-west-1"],
+    "alert_rules": {
+      "n_out_of_m": {
+        "n": 2,
+        "m": 3
+      }
+    }
+  }'`}
+/>
+
+## Best Practices
+
+1. **Start with Critical Endpoints** - Monitor your most important services first
+2. **Use Multiple Locations** - Ensure checks aren't affected by regional issues
+3. **Configure N-out-of-M Rules** - Reduce false positives from transient issues
+4. **Set Up Webhooks** - Automate incident response workflows
+5. **Monitor Response Times** - Track performance trends, not just uptime
+6. **Review Incident History** - Learn from past incidents to prevent future ones
+
+## What's Next?
+
+<Cards>
+  <Card title="Monitor Dashboard" href="/docs/pulse/dashboard">
+    Learn how to navigate your Pulse dashboard and interpret metrics
+  </Card>
+  <Card title="API Reference" href="/docs/api">
+    Explore the full REST API for programmatic monitor management
+  </Card>
+  <Card title="Webhook Guide" href="/docs/pulse/webhooks">
+    Set up advanced webhook integrations and automation
+  </Card>
+  <Card title="Alert Configuration" href="/docs/pulse/alerts">
+    Configure intelligent alerting rules and notification channels
+  </Card>
+</Cards>
+
+## Troubleshooting
+
+**Not receiving alerts?**
+
+1. **Check Alert Settings** - Verify your email/webhook configuration
+2. **Review Alert Rules** - Ensure N-out-of-M rules aren't too strict
+3. **Test Webhooks** - Use the test button in dashboard to verify webhook delivery
+4. **Check Spam Folder** - Email alerts might be filtered
+
+**False positives?**
+
+1. **Increase N-out-of-M** - Require more failures before alerting
+2. **Add More Locations** - More check locations provide better accuracy
+3. **Review Check Intervals** - Longer intervals reduce transient noise
+4. **Check Network Conditions** - Verify your endpoint isn't rate-limiting checks
+
+<Callout type="info">
+  Need help? Join our [Discord community](https://discord.gg/JTk7a38tCZ) or
+  [contact support](mailto:support@databuddy.cc).
+</Callout>

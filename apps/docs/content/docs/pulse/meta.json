@@ -1,0 +1,6 @@
+{
+  "title": "Pulse",
+  "description": "Proactive reliability monitoring for modern developers",
+  "icon": "Activity",
+  "pages": ["index", "getting-started"]
+}
