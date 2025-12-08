@@ -4,16 +4,14 @@ import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
 import { TIMEZONES } from "../lists/timezones";
 
-// Initialize dayjs plugins
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 dayjs.extend(relativeTimePlugin);
 
-// Default format constants
 const DEFAULT_DATE_FORMAT = "MMM D, YYYY";
 const DEFAULT_TIME_FORMAT = "h:mm A";
 
-interface DateFormatOptions {
+type DateFormatOptions = {
 	timezone?: string;
 	dateFormat?: string;
 	timeFormat?: string;
