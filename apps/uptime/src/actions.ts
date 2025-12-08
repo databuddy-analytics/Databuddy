@@ -6,7 +6,7 @@ import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
 const CONFIG = {
-    userAgent: "databuddy-pulse/1.0",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Databuddy-Pulse/1.0",
     timeout: 30_000,
     maxRedirects: 10,
     maxRetries: 3,
