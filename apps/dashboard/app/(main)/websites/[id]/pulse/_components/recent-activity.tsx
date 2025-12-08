@@ -67,10 +67,12 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 					<TableHeader>
 						<TableRow className="hover:bg-transparent">
 							<TableHead className="text-balance text-left">Status</TableHead>
-							<TableHead className="text-balance text-left">Time</TableHead>
-							<TableHead className="text-balance text-left">Region</TableHead>
-							<TableHead className="text-balance text-left">IP</TableHead>
-							<TableHead className="text-balance text-left">Duration</TableHead>
+							<TableHead className="text-balance text-center">Time</TableHead>
+							<TableHead className="text-balance text-center">Region</TableHead>
+							<TableHead className="text-balance text-center">IP</TableHead>
+							<TableHead className="text-balance text-center">
+								Duration
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -120,18 +122,18 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 											</div>
 										</div>
 									</TableCell>
-									<TableCell className="text-left text-muted-foreground text-xs">
+									<TableCell className="text-center text-muted-foreground text-xs">
 										{dayjs(check.timestamp).format("MMM D, HH:mm:ss")}
 									</TableCell>
-									<TableCell className="text-left text-muted-foreground text-xs">
+									<TableCell className="text-center text-muted-foreground text-xs">
 										<Badge className="font-mono text-[10px]" variant="outline">
 											{check.probe_region || "Global"}
 										</Badge>
 									</TableCell>
-									<TableCell className="text-left font-mono text-muted-foreground text-xs">
+									<TableCell className="text-center font-mono text-muted-foreground text-xs">
 										{check.probe_ip || "—"}
 									</TableCell>
-									<TableCell className="text-left font-mono text-xs">
+									<TableCell className="text-center font-mono text-xs">
 										<span
 											className={cn(
 												check.total_ms < 200 && "text-emerald-600",
