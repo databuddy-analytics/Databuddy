@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { connect } from "node:tls";
-import { chQuery, db, eq, websites } from "@databuddy/db";
+import { chQuery } from "@databuddy/db";
+import { getWebsiteById } from "@databuddy/services/websites";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
@@ -41,9 +42,7 @@ export async function lookupWebsite(
     id: string
 ): Promise<ActionResult<{ id: string; domain: string }>> {
     try {
-        const site = await db.query.websites.findFirst({
-            where: eq(websites.id, id),
-        });
+        const site = await getWebsiteById(id);
 
         if (!site) {
             return { success: false, error: `Website ${id} not found` };

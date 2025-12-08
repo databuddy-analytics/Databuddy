@@ -1,0 +1,13 @@
+{
+  "name": "@databuddy/services",
+  "version": "1.0.0",
+  "exports": {
+    "./websites": "./src/websites.ts"
+  },
+  "dependencies": {
+    "@databuddy/db": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -8,7 +8,7 @@ import type { Filter, SimpleQueryConfig } from "../types";
  * - site_id: Website identifier
  * - url: Monitored URL
  * - timestamp: Check timestamp
- * - status: 1 = up, 0 = down
+ * - status: 1 = up, 0 = down, 2 = pending
  * - http_code: HTTP response code
  * - ttfb_ms: Time to first byte (ms)
  * - total_ms: Total response time (ms)
@@ -25,9 +25,9 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 			sql: `
 				SELECT 
 					COUNT(*) as total_checks,
-					sum(status) as successful_checks,
-					COUNT(*) - sum(status) as failed_checks,
-					round((sum(status) / COUNT(*)) * 100, 2) as uptime_percentage,
+					countIf(status = 1) as successful_checks,
+					countIf(status = 0) as failed_checks,
+					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantile(0.50)(total_ms) as p50_response_time,
 					quantile(0.75)(total_ms) as p75_response_time,
@@ -73,9 +73,9 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					SELECT 
 						${timeGroup} as date,
 						COUNT(*) as total_checks,
-						sum(status) as successful_checks,
-						COUNT(*) - sum(status) as failed_checks,
-						round((sum(status) / COUNT(*)) * 100, 2) as uptime_percentage,
+						countIf(status = 1) as successful_checks,
+						countIf(status = 0) as failed_checks,
+						if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 						avg(total_ms) as avg_response_time,
 						quantile(0.50)(total_ms) as p50_response_time,
 						quantile(0.95)(total_ms) as p95_response_time,
@@ -230,9 +230,9 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 				SELECT 
 					probe_region as region,
 					COUNT(*) as total_checks,
-					sum(status) as successful_checks,
-					COUNT(*) - sum(status) as failed_checks,
-					round((sum(status) / COUNT(*)) * 100, 2) as uptime_percentage,
+					countIf(status = 1) as successful_checks,
+					countIf(status = 0) as failed_checks,
+					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantile(0.95)(total_ms) as p95_response_time
 				FROM ${UPTIME_TABLE}
