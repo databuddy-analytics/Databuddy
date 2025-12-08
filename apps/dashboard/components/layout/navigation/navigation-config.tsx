@@ -279,7 +279,7 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			tag: "WIP",
 			flag: "agent",
-			gatedFeature: GATED_FEATURES.AI_AGENT,
+			// gatedFeature: GATED_FEATURES.AI_AGENT,
 		}),
 	]),
 	createNavSection(
