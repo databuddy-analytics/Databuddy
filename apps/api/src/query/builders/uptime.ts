@@ -208,8 +208,8 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		customSql: (websiteId: string, startDate: string, endDate: string) => ({
 			sql: `
 				SELECT 
-					any(ssl_expiry) as ssl_expiry,
-					min(ssl_valid) as ssl_valid,
+					argMax(ssl_expiry, timestamp) as ssl_expiry,
+					argMax(ssl_valid, timestamp) as ssl_valid,
 					COUNT(*) as total_checks,
 					sum(CASE WHEN ssl_valid = 0 THEN 1 ELSE 0 END) as invalid_ssl_checks
 				FROM ${UPTIME_TABLE}
@@ -217,7 +217,6 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					site_id = {websiteId:String}
 					AND timestamp >= toDateTime({startDate:String})
 					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					AND ssl_expiry IS NOT NULL
 				GROUP BY site_id
 			`,
 			params: { websiteId, startDate, endDate },

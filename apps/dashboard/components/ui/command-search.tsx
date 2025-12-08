@@ -249,7 +249,7 @@ function SearchResultItem({
 	return (
 		<CommandPrimitive.Item
 			className={cn(
-				"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none transition-colors",
+				"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none  ",
 				"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
 				item.disabled && "pointer-events-none opacity-50"
 			)}
@@ -257,7 +257,7 @@ function SearchResultItem({
 			onSelect={() => onSelect(item)}
 			value={`${item.name} ${item.path}`}
 		>
-			<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors group-data-[selected=true]:bg-background">
+			<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent   group-data-[selected=true]:bg-background">
 				<ItemIcon className="size-4 text-muted-foreground" weight="duotone" />
 			</div>
 

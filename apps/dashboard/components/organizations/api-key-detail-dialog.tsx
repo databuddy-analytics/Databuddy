@@ -268,7 +268,7 @@ export function ApiKeyDetailDialog({
 													const hasScope = apiKey.scopes.includes(scope.value);
 													return (
 														<div
-															className="flex items-center gap-2 rounded px-3 py-2.5 text-sm transition-colors"
+															className="flex items-center gap-2 rounded px-3 py-2.5 text-sm  "
 															key={scope.value}
 														>
 															<div

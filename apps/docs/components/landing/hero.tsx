@@ -22,7 +22,7 @@ export default function Hero() {
 					{/* Text Content */}
 					<div className="order-2 flex flex-col items-center gap-8 text-center lg:order-1 lg:items-start lg:gap-10 lg:text-left">
 						<div className="fade-in slide-in-from-bottom-4 animate-in self-center duration-700 lg:self-start">
-							<div className="group inline-flex cursor-default items-center rounded-full border border-border/50 bg-background/60 px-4 py-1.5 font-medium text-muted-foreground text-xs shadow-sm backdrop-blur-md transition-colors hover:bg-background/80 hover:text-foreground">
+							<div className="group inline-flex cursor-default items-center rounded-full border border-border/50 bg-background/60 px-4 py-1.5 font-medium text-muted-foreground text-xs shadow-sm backdrop-blur-md   hover:bg-background/80 hover:text-foreground">
 								<span className="mr-1.5 opacity-70">Rejected by</span>
 								<YCLogo className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px] grayscale transition-all group-hover:grayscale-0" />
 								<span className="font-semibold tracking-tight">Combinator</span>
@@ -76,7 +76,7 @@ export default function Hero() {
 			<div className="mx-auto w-full border-t bg-secondary/30 px-4 py-4 sm:px-6 lg:px-8">
 				<div className="flex justify-center">
 					<a
-						className="text-muted-foreground text-sm underline underline-offset-4 transition-colors hover:text-foreground"
+						className="text-muted-foreground text-sm underline underline-offset-4   hover:text-foreground"
 						href={CHATGPT_PROMPT_URL}
 						rel="noopener noreferrer"
 						target="_blank"

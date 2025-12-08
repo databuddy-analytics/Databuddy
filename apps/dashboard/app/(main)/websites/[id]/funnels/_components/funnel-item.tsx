@@ -127,14 +127,14 @@ export function FunnelItem({
 	return (
 		<div
 			className={cn(
-				"border-border border-b transition-colors",
+				"border-border border-b",
 				className,
 				isExpanded && "bg-accent/30"
 			)}
 		>
 			{/* Main row */}
 			<div
-				className="group flex cursor-pointer select-none items-center transition-colors hover:bg-accent/50"
+				className="group flex cursor-pointer select-none items-center   hover:bg-accent/50"
 				onClick={handleClick}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {

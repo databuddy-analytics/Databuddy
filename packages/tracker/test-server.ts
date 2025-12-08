@@ -5,14 +5,14 @@ const PORT = 3033;
 const BASE_DIR = import.meta.dir;
 
 serve({
-	port: PORT,
-	async fetch(req) {
-		const url = new URL(req.url);
-		console.log(`[Test Server] Request: ${req.method} ${url.pathname}`);
+    port: PORT,
+    async fetch(req) {
+        const url = new URL(req.url);
+        console.log(`[Test Server] Request: ${req.method} ${url.pathname}`);
 
-		if (url.pathname === "/test") {
-			return new Response(
-				`<!DOCTYPE html>
+        if (url.pathname === "/test") {
+            return new Response(
+                `<!DOCTYPE html>
                 <html lang="en">
                 <head>
                     <meta charset="UTF-8">
@@ -24,15 +24,15 @@ serve({
                     <p>Some content to trigger vitals</p>
                 </body>
                 </html>`,
-				{
-					headers: { "Content-Type": "text/html" },
-				}
-			);
-		}
+                {
+                    headers: { "Content-Type": "text/html" },
+                }
+            );
+        }
 
-		if (url.pathname === "/") {
-			return new Response(
-				`
+        if (url.pathname === "/") {
+            return new Response(
+                `
         <!DOCTYPE html>
         <html lang="en">
           <head>
@@ -92,7 +92,7 @@ serve({
             </p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-blue-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-blue-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-blue-400 flex items-center gap-2">
                         <span>🖱️</span> Events
                     </h2>
@@ -107,7 +107,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-red-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-red-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center gap-2">
                         <span>⚠️</span> Errors
                     </h2>
@@ -118,7 +118,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-yellow-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-yellow-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-yellow-400 flex items-center gap-2">
                         <span>⚡</span> Web Vitals
                     </h2>
@@ -130,7 +130,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-purple-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-purple-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-purple-400 flex items-center gap-2">
                         <span>🛡️</span> Privacy & State
                     </h2>
@@ -240,25 +240,25 @@ serve({
           </body>
         </html>
       `,
-				{
-					headers: { "Content-Type": "text/html" },
-				}
-			);
-		}
+                {
+                    headers: { "Content-Type": "text/html" },
+                }
+            );
+        }
 
-		if (url.pathname.startsWith("/dist/")) {
-			const filePath = join(BASE_DIR, url.pathname);
-			console.log(`[Test Server] Serving file: ${filePath}`);
-			const file = BunFile(filePath);
-			if (await file.exists()) {
-				return new Response(file);
-			}
-			console.error(`[Test Server] File not found: ${filePath}`);
-			return new Response(`File not found: ${filePath}`, { status: 404 });
-		}
+        if (url.pathname.startsWith("/dist/")) {
+            const filePath = join(BASE_DIR, url.pathname);
+            console.log(`[Test Server] Serving file: ${filePath}`);
+            const file = BunFile(filePath);
+            if (await file.exists()) {
+                return new Response(file);
+            }
+            console.error(`[Test Server] File not found: ${filePath}`);
+            return new Response(`File not found: ${filePath}`, { status: 404 });
+        }
 
-		return new Response("Not Found", { status: 404 });
-	},
+        return new Response("Not Found", { status: 404 });
+    },
 });
 
 console.log(`Test server running on http://localhost:${PORT}`);

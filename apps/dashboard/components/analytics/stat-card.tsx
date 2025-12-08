@@ -481,7 +481,7 @@ export function StatCard({
 	const cardContent = (
 		<Card
 			className={cn(
-				"group gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary",
+				"group gap-0 overflow-hidden border bg-card py-0   hover:border-primary",
 				className
 			)}
 			id={id}

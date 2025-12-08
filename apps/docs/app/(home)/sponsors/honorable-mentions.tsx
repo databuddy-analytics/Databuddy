@@ -49,7 +49,7 @@ function MentionCard({ mention }: { mention: HonorableMention }) {
 					</div>
 
 					{/* Name */}
-					<h3 className="mb-2 text-center font-semibold text-foreground text-lg transition-colors group-hover:text-primary">
+					<h3 className="mb-2 text-center font-semibold text-foreground text-lg   group-hover:text-primary">
 						{mention.name}
 					</h3>
 
