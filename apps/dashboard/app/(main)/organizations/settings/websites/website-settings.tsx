@@ -74,17 +74,17 @@ interface WebsiteRowProps {
 function WebsiteRow({ website }: WebsiteRowProps) {
 	return (
 		<Link
-			className="group grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4   hover:bg-muted/50"
+			className="group grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4 hover:bg-muted/50"
 			href={`/websites/${website.id}`}
 		>
 			<FaviconImage
 				altText={`${website.name} favicon`}
-				className="h-10 w-10  "
+				className="h-10 w-10"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="flex h-10 w-10 items-center justify-center rounded border bg-background   group-hover:border-primary/30 group-hover:bg-primary/5">
+					<div className="flex h-10 w-10 items-center justify-center rounded border bg-background group-hover:border-primary/30 group-hover:bg-primary/5">
 						<GlobeIcon
-							className="text-muted-foreground   group-hover:text-primary"
+							className="text-muted-foreground group-hover:text-primary"
 							size={18}
 							weight="duotone"
 						/>

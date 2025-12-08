@@ -75,7 +75,7 @@ function PrimitiveNode({
 	const indentClass = indentClasses[Math.min(level, indentClasses.length - 1)];
 	return (
 		<div
-			className={`flex items-center rounded px-2 py-1 font-mono   hover:bg-muted/20 ${indentClass}`}
+			className={`flex items-center rounded px-2 py-1 font-mono hover:bg-muted/20 ${indentClass}`}
 		>
 			{name && <span className={`mr-2 ${getKeyColor()}`}>{name}:</span>}
 			<span className={getValueColor(value)}>{formatValue(value)}</span>
@@ -116,7 +116,7 @@ function ArrayNode({
 		<div className="font-mono">
 			<button
 				aria-expanded={isExpanded}
-				className={`flex w-full items-center rounded px-2 py-1 text-left   hover:bg-muted/20 ${indentClass}`}
+				className={`flex w-full items-center rounded px-2 py-1 text-left hover:bg-muted/20 ${indentClass}`}
 				onClick={() => setIsExpanded(!isExpanded)}
 				type="button"
 			>
@@ -190,7 +190,7 @@ function ObjectNode({
 		<div className="font-mono">
 			<button
 				aria-expanded={isExpanded}
-				className={`flex w-full items-center rounded px-2 py-1 text-left   hover:bg-muted/20 ${indentClass}`}
+				className={`flex w-full items-center rounded px-2 py-1 text-left hover:bg-muted/20 ${indentClass}`}
 				onClick={() => setIsExpanded(!isExpanded)}
 				type="button"
 			>

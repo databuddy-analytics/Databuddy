@@ -134,7 +134,7 @@ export function ApiKeyList({
 											</div>
 										</TableCell>
 										<TableCell className="p-3">
-											<code className="rounded bg-accent-brighter px-2 py-1 font-mono text-accent-foreground text-xs   hover:bg-accent-brighter/70">
+											<code className="rounded bg-accent-brighter px-2 py-1 font-mono text-accent-foreground text-xs hover:bg-accent-brighter/70">
 												{k.prefix}-{k.start}
 											</code>
 										</TableCell>

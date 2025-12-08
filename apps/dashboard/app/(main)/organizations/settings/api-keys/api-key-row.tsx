@@ -37,7 +37,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 	return (
 		<button
 			className={cn(
-				"group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left   hover:bg-accent",
+				"group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left hover:bg-accent",
 				!isActive && "opacity-60"
 			)}
 			onClick={onSelect}
@@ -46,7 +46,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 			{/* Icon */}
 			<div
 				className={cn(
-					"flex size-10 items-center justify-center rounded border bg-background  ",
+					"flex size-10 items-center justify-center rounded border bg-background",
 					isActive
 						? "group-hover:border-primary/30 group-hover:bg-primary/5"
 						: "border-dashed"
@@ -54,7 +54,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 			>
 				{isActive ? (
 					<KeyIcon
-						className="text-muted-foreground   group-hover:text-primary"
+						className="text-muted-foreground group-hover:text-primary"
 						size={18}
 						weight="duotone"
 					/>

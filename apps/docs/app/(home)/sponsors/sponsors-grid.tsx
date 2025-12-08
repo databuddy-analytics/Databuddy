@@ -58,7 +58,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 					</div>
 
 					{/* Name */}
-					<h3 className="mb-3 text-center font-semibold text-foreground text-lg   group-hover:text-primary sm:text-xl">
+					<h3 className="mb-3 text-center font-semibold text-foreground text-lg group-hover:text-primary sm:text-xl">
 						{sponsor.name}
 					</h3>
 

@@ -85,7 +85,7 @@ const features = [
 
 const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
 	<div
-		className="border-border/50 border-b   last:border-b-0 hover:bg-muted/30"
+		className="border-border/50 border-b last:border-b-0 hover:bg-muted/30"
 		key={feature.name}
 	>
 		{/* Desktop layout */}

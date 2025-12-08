@@ -44,7 +44,7 @@ export default function FAQ() {
 					<Accordion className="w-full" collapsible type="single">
 						{faqs.map((faq) => (
 							<AccordionItem
-								className="border-l-4 border-l-transparent bg-background/50   duration-200 hover:border-l-primary/20 hover:bg-background/80"
+								className="border-l-4 border-l-transparent bg-background/50 duration-200 hover:border-l-primary/20 hover:bg-background/80"
 								key={faq.question}
 								value={faq.question}
 							>

@@ -94,7 +94,7 @@ export function QueryTypeSelector({
 									</div>
 									<div
 										className={
-											"size-3 shrink-0 rounded-full border border-primary bg-primary  "
+											"size-3 shrink-0 rounded-full border border-primary bg-primary"
 										}
 									/>
 								</div>
@@ -136,7 +136,7 @@ export function QueryTypeSelector({
 										</div>
 										<div
 											className={
-												"size-3 shrink-0 rounded-full border border-muted-foreground/30  "
+												"size-3 shrink-0 rounded-full border border-muted-foreground/30"
 											}
 										/>
 									</div>

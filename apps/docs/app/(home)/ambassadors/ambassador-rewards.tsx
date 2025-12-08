@@ -80,7 +80,7 @@ function RewardCard({ reward }: { reward: Reward }) {
 							<reward.icon
 								className={`size-8 ${
 									reward.highlight ? "text-primary" : "text-muted-foreground"
-								}   duration-300 group-hover:text-foreground`}
+								} duration-300 group-hover:text-foreground`}
 								weight="duotone"
 							/>
 							{reward.soon && (
@@ -103,7 +103,7 @@ function RewardCard({ reward }: { reward: Reward }) {
 					{/* Content */}
 					<div className="flex-1">
 						<h3
-							className={`mb-2 font-semibold text-lg   group-hover:text-primary ${
+							className={`mb-2 font-semibold text-lg group-hover:text-primary ${
 								reward.highlight ? "text-foreground" : "text-foreground"
 							}`}
 						>

@@ -218,7 +218,7 @@ export function FiltersSection() {
 						</span>
 						<button
 							aria-label={`Remove ${getFieldLabel(filter.field)} filter`}
-							className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground   hover:bg-background hover:text-foreground"
+							className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
 							onClick={() => handleRemoveFilter(index)}
 							type="button"
 						>

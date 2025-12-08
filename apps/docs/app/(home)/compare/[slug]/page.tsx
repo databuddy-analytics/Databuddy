@@ -194,7 +194,7 @@ const FeatureRow = ({
 	feature: ComparisonFeature;
 	competitorName: string;
 }) => (
-	<div className="border-border/50 border-b   last:border-b-0 hover:bg-muted/30">
+	<div className="border-border/50 border-b last:border-b-0 hover:bg-muted/30">
 		{/* Desktop layout */}
 		<div className="hidden grid-cols-4 gap-4 p-6 md:grid">
 			<div className="font-medium text-foreground text-sm">{feature.name}</div>

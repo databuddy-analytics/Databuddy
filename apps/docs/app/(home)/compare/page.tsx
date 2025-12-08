@@ -54,7 +54,7 @@ function CompetitorCard({
 					{/* Header */}
 					<div className="mb-4 flex items-start justify-between">
 						<div className="flex-1">
-							<h3 className="mb-2 font-semibold text-foreground text-xl   group-hover:text-primary">
+							<h3 className="mb-2 font-semibold text-foreground text-xl group-hover:text-primary">
 								vs {competitor.name}
 							</h3>
 							<p className="text-muted-foreground text-sm leading-relaxed">
@@ -136,7 +136,7 @@ function CompetitorCard({
 					{/* CTA */}
 					<div className="mt-auto">
 						<div className="rounded border border-border/50 bg-muted/20 p-3 text-center">
-							<span className="font-medium text-foreground text-sm   group-hover:text-primary">
+							<span className="font-medium text-foreground text-sm group-hover:text-primary">
 								View Full Comparison →
 							</span>
 						</div>

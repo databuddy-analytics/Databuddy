@@ -112,7 +112,7 @@ export default async function PostPage({
 						<SciFiCard>
 							<div className="relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
 								<WarningCircleIcon
-									className="mx-auto mb-4 h-12 w-12 text-muted-foreground   duration-300 group-hover:text-foreground sm:h-16 sm:w-16"
+									className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16"
 									weight="duotone"
 								/>
 								<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">

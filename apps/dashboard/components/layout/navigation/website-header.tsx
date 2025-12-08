@@ -53,14 +53,14 @@ export function WebsiteHeader({
 
 			{showBackButton && (
 				<Link
-					className="group flex h-10 items-center gap-2 border-b px-3   hover:bg-accent"
+					className="group flex h-10 items-center gap-2 border-b px-3 hover:bg-accent"
 					href="/websites"
 				>
 					<CaretLeftIcon
 						className="group-hover:-translate-x-0.5 size-3 text-sidebar-accent-foreground/80 transition-transform group-hover:text-sidebar-accent-foreground"
 						weight="fill"
 					/>
-					<span className="font-semibold text-sidebar-accent-foreground/80 text-xs   group-hover:text-sidebar-accent-foreground">
+					<span className="font-semibold text-sidebar-accent-foreground/80 text-xs group-hover:text-sidebar-accent-foreground">
 						Back to Websites
 					</span>
 				</Link>

@@ -50,7 +50,7 @@ export function PlansComparisonTable({ plans }: Props) {
 					</thead>
 					<tbody>
 						{/* Price row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Price / month
 							</td>
@@ -79,7 +79,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* Events row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Included events / month
 							</td>
@@ -95,7 +95,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* Assistant messages row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Assistant messages / day
 							</td>
@@ -115,7 +115,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* Tiered overage row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Tiered overage
 							</td>
@@ -133,7 +133,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* Support row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Support
 							</td>
@@ -157,7 +157,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							})}
 						</tr>
 						{/* SSO row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								SSO (SAML/OIDC)
 							</td>
@@ -171,7 +171,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* Audit logs row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								Audit Logs
 							</td>
@@ -185,7 +185,7 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						{/* White glove row */}
-						<tr className="border-border border-t   hover:bg-card/10">
+						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
 								White Glove Onboarding
 							</td>

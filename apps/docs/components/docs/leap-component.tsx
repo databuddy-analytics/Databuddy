@@ -56,7 +56,7 @@ export const LeapComponent = () => {
 
 				<div className="flex w-full flex-col gap-2 sm:flex-row">
 					<input
-						className="leap-prompt-input flex-1 rounded border border-input bg-background px-3 py-2 text-foreground text-sm   placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+						className="leap-prompt-input flex-1 rounded border border-input bg-background px-3 py-2 text-foreground text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
 						placeholder="What do you want to build with Databuddy analytics?"
 						type="text"
 					/>
@@ -73,7 +73,7 @@ export const LeapComponent = () => {
 					<span className="text-muted-foreground">Examples:</span>
 					{examples.map((example) => (
 						<button
-							className="border-muted-foreground/50 border-b border-dotted px-1 text-muted-foreground   hover:border-purple-400 hover:text-purple-400 focus:border-purple-400 focus:text-purple-400 focus:outline-none"
+							className="border-muted-foreground/50 border-b border-dotted px-1 text-muted-foreground hover:border-purple-400 hover:text-purple-400 focus:border-purple-400 focus:text-purple-400 focus:outline-none"
 							key={example}
 							onClick={() => handleExample(example)}
 							type="button"

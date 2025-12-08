@@ -292,7 +292,7 @@ export function TableContent<TData extends { name: string | number }>({
 									{row.getVisibleCells().map((cell, cellIndex) => (
 										<TableCell
 											className={cn(
-												"px-2 py-2 font-medium text-accent-foreground/80 text-sm  ",
+												"px-2 py-2 font-medium text-accent-foreground/80 text-sm",
 												cellIndex === 0 &&
 													"font-semibold text-sidebar-foreground",
 												(cell.column.columnDef.meta as any)?.className
@@ -315,7 +315,7 @@ export function TableContent<TData extends { name: string | number }>({
 																? "Collapse row"
 																: "Expand row"
 														}
-														className="shrink-0 rounded p-0.5   hover:bg-sidebar-accent/60"
+														className="shrink-0 rounded p-0.5 hover:bg-sidebar-accent/60"
 														onClick={(e) => {
 															e.stopPropagation();
 															toggleRowExpansion(row.id);
@@ -346,7 +346,7 @@ export function TableContent<TData extends { name: string | number }>({
 									expandedRow === row.id &&
 									subRows.map((subRow, subIndex) => (
 										<TableRow
-											className="border-border/50 bg-accent   hover:bg-accent/10"
+											className="border-border/50 bg-accent hover:bg-accent/10"
 											key={`${row.id}-sub-${subIndex}`}
 										>
 											{renderSubRow ? (

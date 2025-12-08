@@ -14,7 +14,7 @@ export default function DemoPage() {
 			{/* Floating Navigation Header */}
 			<div className="absolute top-4 right-4 left-4 z-50 flex items-center justify-between">
 				<Link
-					className="group flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm   hover:bg-card"
+					className="group flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm hover:bg-card"
 					href="/"
 				>
 					<ArrowLeftIcon
@@ -33,7 +33,7 @@ export default function DemoPage() {
 					</div>
 
 					<Link
-						className="group flex items-center gap-2 rounded border border-border bg-primary/90 px-4 py-2 font-medium text-primary-foreground text-sm shadow-lg backdrop-blur-sm   hover:bg-primary"
+						className="group flex items-center gap-2 rounded border border-border bg-primary/90 px-4 py-2 font-medium text-primary-foreground text-sm shadow-lg backdrop-blur-sm hover:bg-primary"
 						href="https://app.databuddy.cc/login"
 						rel="noopener"
 						target="_blank"

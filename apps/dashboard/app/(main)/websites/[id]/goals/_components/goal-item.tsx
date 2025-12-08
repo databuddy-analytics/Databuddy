@@ -92,9 +92,9 @@ export function GoalItem({
 	const completions = analytics?.total_users_completed ?? 0;
 
 	return (
-		<div className={cn("border-border border-b  ", className)}>
+		<div className={cn("border-border border-b", className)}>
 			{/* Main row */}
-			<div className="group flex items-center   hover:bg-accent/50">
+			<div className="group flex items-center hover:bg-accent/50">
 				<div className="flex flex-1 items-center gap-4 px-4 py-3 sm:px-6 sm:py-4">
 					{/* Type icon */}
 					<GoalTypeIcon type={goal.type} />

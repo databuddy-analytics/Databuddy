@@ -473,7 +473,7 @@ export function FlagSheet({
 																	<button
 																		aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
 																		className={cn(
-																			"flex-1 rounded border px-3 py-2 text-sm  ",
+																			"flex-1 rounded border px-3 py-2 text-sm",
 																			{
 																				"border-primary bg-primary text-primary-foreground":
 																					currentValue === preset,

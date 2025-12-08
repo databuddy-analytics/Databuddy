@@ -85,7 +85,7 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 			/>
 			<span
 				className={cn(
-					"font-medium text-sm   duration-200",
+					"font-medium text-sm duration-200",
 					checked
 						? "text-primary"
 						: "text-muted-foreground group-hover:text-foreground"

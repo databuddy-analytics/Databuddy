@@ -130,7 +130,7 @@ export default function AppearanceSettingsPage() {
 							return (
 								<button
 									className={cn(
-										"flex flex-col items-center gap-2 rounded border p-4  ",
+										"flex flex-col items-center gap-2 rounded border p-4",
 										isActive
 											? "border-primary bg-primary/5"
 											: "border-border hover:bg-accent"
@@ -324,7 +324,7 @@ export default function AppearanceSettingsPage() {
 										return (
 											<button
 												className={cn(
-													"grid w-full grid-cols-[1fr_6.5rem_7.5rem] items-center gap-3 px-4 py-2.5 text-left  ",
+													"grid w-full grid-cols-[1fr_6.5rem_7.5rem] items-center gap-3 px-4 py-2.5 text-left",
 													i < CHART_LOCATIONS.length - 1 && "border-b",
 													isActive && "bg-accent/50"
 												)}

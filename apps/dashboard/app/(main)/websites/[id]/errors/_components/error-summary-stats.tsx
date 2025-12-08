@@ -42,7 +42,7 @@ function ErrorStatCard({
 	const styles = variantStyles[variant];
 
 	return (
-		<div className="group overflow-hidden rounded border border-border bg-card   hover:border-primary/50">
+		<div className="group overflow-hidden rounded border border-border bg-card hover:border-primary/50">
 			<div className="flex items-center gap-3 p-3">
 				<div
 					className={cn(

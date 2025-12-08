@@ -545,7 +545,7 @@ export function MetricsChart({
 								</span>
 								<button
 									aria-label="Dismiss tip"
-									className="text-muted-foreground   hover:text-foreground"
+									className="text-muted-foreground hover:text-foreground"
 									onClick={() => setTipDismissed(true)}
 									type="button"
 								>

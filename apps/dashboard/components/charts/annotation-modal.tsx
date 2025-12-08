@@ -250,7 +250,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 							<div className="flex flex-wrap gap-1.5">
 								{selectedTags.map((tag) => (
 									<Badge
-										className="cursor-pointer gap-1 px-2 py-0.5 text-xs   hover:bg-destructive hover:text-destructive-foreground"
+										className="cursor-pointer gap-1 px-2 py-0.5 text-xs hover:bg-destructive hover:text-destructive-foreground"
 										key={tag}
 										onClick={() => removeTag(tag)}
 										variant="secondary"

@@ -221,7 +221,7 @@ export function DateRangePicker({
 										return (
 											<button
 												className={cn(
-													"flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm  ",
+													"flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm",
 													isActive
 														? "bg-primary text-primary-foreground"
 														: "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -297,7 +297,7 @@ export function DateRangePicker({
 									return (
 										<button
 											className={cn(
-												"shrink-0 rounded px-2.5 py-1.5 font-medium text-xs  ",
+												"shrink-0 rounded px-2.5 py-1.5 font-medium text-xs",
 												isActive
 													? "bg-primary text-primary-foreground"
 													: "bg-secondary text-muted-foreground"

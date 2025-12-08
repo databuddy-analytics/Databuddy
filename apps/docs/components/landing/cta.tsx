@@ -46,7 +46,7 @@ export default function CTA() {
 						return (
 							<Link
 								className={cn(
-									"group flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-l-[1.2px] p-10   hover:bg-muted/50 md:min-h-[240px] md:border-t-0"
+									"group flex transform-gpu flex-col justify-center border-border border-t-[1.2px] border-l-[1.2px] p-10 hover:bg-muted/50 md:min-h-[240px] md:border-t-0"
 								)}
 								href={href}
 								key={item.title}
@@ -76,7 +76,7 @@ export default function CTA() {
 										<div className="flex items-center gap-3">
 											<p
 												className={cn(
-													"max-w-lg font-medium text-foreground text-lg tracking-tight   group-hover:text-primary",
+													"max-w-lg font-medium text-foreground text-lg tracking-tight group-hover:text-primary",
 													item.primary && "text-primary"
 												)}
 											>

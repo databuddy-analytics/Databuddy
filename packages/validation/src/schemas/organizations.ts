@@ -1,10 +1,21 @@
 import z from "zod";
 
+const HTML_TAG_REGEX = /<[^>]*>/g;
+const MALICIOUS_URL_REGEX = /(https?:\/\/|www\.)[^\s]+/gi;
+
 export const organizationNameSchema = z
 	.string()
 	.min(1, "Organization name is required")
 	.max(100, "Organization name must be less than 100 characters")
-	.trim();
+	.trim()
+	.refine(
+		(name) => !HTML_TAG_REGEX.test(name),
+		"Organization name cannot contain HTML tags"
+	)
+	.refine(
+		(name) => !MALICIOUS_URL_REGEX.test(name),
+		"Organization name cannot contain URLs or website addresses"
+	);
 
 export const organizationSlugSchema = z
 	.string()

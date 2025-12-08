@@ -265,14 +265,14 @@ function LoginPage() {
 				<p className="flex-1 text-[13px] text-muted-foreground lg:text-nowrap">
 					Don&apos;t have an account?{" "}
 					<Link
-						className="font-medium text-accent-foreground   duration-200 hover:text-accent-foreground/80"
+						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 						href="/register"
 					>
 						Sign up
 					</Link>
 				</p>
 				<Link
-					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60   duration-200 hover:text-accent-foreground"
+					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
 					href="/login/forgot"
 				>
 					Forgot password?

@@ -59,7 +59,7 @@ export function PricingTiersTooltip({
 			<HoverCardTrigger asChild>
 				<button
 					className={cn(
-						"inline-flex cursor-help items-center gap-1 text-muted-foreground text-xs   hover:text-foreground",
+						"inline-flex cursor-help items-center gap-1 text-muted-foreground text-xs hover:text-foreground",
 						!showText && "rounded-full p-1 hover:bg-muted/50",
 						className
 					)}

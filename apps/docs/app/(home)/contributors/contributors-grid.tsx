@@ -42,7 +42,7 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
 					</Avatar>
 
 					{/* Username */}
-					<h3 className="mb-2 font-semibold text-foreground text-lg   group-hover:text-primary">
+					<h3 className="mb-2 font-semibold text-foreground text-lg group-hover:text-primary">
 						@{contributor.login}
 					</h3>
 

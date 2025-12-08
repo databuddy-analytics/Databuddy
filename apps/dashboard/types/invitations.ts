@@ -21,4 +21,4 @@ export type InvitationData = {
 	role: string;
 	inviterId: string;
 	teamId?: string;
-}
+};

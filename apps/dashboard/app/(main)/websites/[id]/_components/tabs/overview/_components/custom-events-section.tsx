@@ -291,7 +291,7 @@ export function CustomEventsSection({
 						<button
 							aria-controls={`property-${propertyId}`}
 							aria-expanded={isExpanded}
-							className="flex w-full items-center justify-between rounded border border-sidebar-border/30 bg-sidebar-accent/20 px-3 py-2.5   hover:bg-sidebar-accent/50"
+							className="flex w-full items-center justify-between rounded border border-sidebar-border/30 bg-sidebar-accent/20 px-3 py-2.5 hover:bg-sidebar-accent/50"
 							onClick={() => toggleProperty(propertyId)}
 							type="button"
 						>
@@ -334,7 +334,7 @@ export function CustomEventsSection({
 							>
 								{propertyValues.map((valueItem, index) => (
 									<div
-										className="flex items-center justify-between border-sidebar-border/10 border-b px-3 py-2   last:border-b-0 hover:bg-sidebar-accent/20"
+										className="flex items-center justify-between border-sidebar-border/10 border-b px-3 py-2 last:border-b-0 hover:bg-sidebar-accent/20"
 										key={`${propertyKey}-${valueItem.value}-${index}`}
 									>
 										<span

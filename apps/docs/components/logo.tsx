@@ -24,7 +24,7 @@ export function LogoContent() {
 			<div className="flex items-center">
 				<span
 					className={`
-          ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider   duration-200`}
+          ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider duration-200`}
 				>
 					DATABUDDY
 				</span>
@@ -48,7 +48,7 @@ export function Logo() {
 				/>
 			</div>
 			<div className="flex items-center">
-				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider   duration-200">
+				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider duration-200">
 					DATABUDDY
 				</span>
 			</div>

@@ -246,7 +246,7 @@ function FlipCard() {
 									</motion.div>
 
 									{/* Name - Bigger */}
-									<h4 className="mb-2 text-center font-semibold text-foreground text-sm   group-hover/contributor:text-primary">
+									<h4 className="mb-2 text-center font-semibold text-foreground text-sm group-hover/contributor:text-primary">
 										{contributor.name}
 									</h4>
 

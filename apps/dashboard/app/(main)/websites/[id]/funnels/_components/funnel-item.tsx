@@ -134,7 +134,7 @@ export function FunnelItem({
 		>
 			{/* Main row */}
 			<div
-				className="group flex cursor-pointer select-none items-center   hover:bg-accent/50"
+				className="group flex cursor-pointer select-none items-center hover:bg-accent/50"
 				onClick={handleClick}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {

@@ -9,8 +9,7 @@ export const PULSE_PLAN_IDS = {
 	BUSINESS: "pulse_business",
 } as const;
 
-export type PulsePlanId =
-	(typeof PULSE_PLAN_IDS)[keyof typeof PULSE_PLAN_IDS];
+export type PulsePlanId = (typeof PULSE_PLAN_IDS)[keyof typeof PULSE_PLAN_IDS];
 
 /** Plan tier hierarchy (index = tier level, higher = more features) */
 export const PULSE_PLAN_HIERARCHY: PulsePlanId[] = [
@@ -255,7 +254,8 @@ export const PULSE_FEATURE_METADATA: Record<
 	},
 	[PULSE_GATED_FEATURES.N_OUT_OF_M_FALSE_POSITIVE_REDUCTION]: {
 		name: "N-out-of-M False Positive Reduction",
-		description: "Reduce false positives by requiring N failures out of M checks",
+		description:
+			"Reduce false positives by requiring N failures out of M checks",
 		upgradeMessage:
 			"Upgrade to Business for N-out-of-M false positive reduction",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,

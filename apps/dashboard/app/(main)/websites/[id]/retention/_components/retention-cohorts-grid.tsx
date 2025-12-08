@@ -134,7 +134,7 @@ export function RetentionCohortsGrid({
 
 						return (
 							<tr
-								className={`  hover:bg-accent/30 ${
+								className={`hover:bg-accent/30 ${
 									rowIndex !== sortedCohorts.length - 1
 										? "border-border/50 border-b"
 										: ""
@@ -160,7 +160,7 @@ export function RetentionCohortsGrid({
 											key={`${cohort.cohort}-week-${index}`}
 										>
 											<div
-												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums   ${className}`}
+												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums ${className}`}
 											>
 												{percentage !== null
 													? `${percentage.toFixed(0)}%`

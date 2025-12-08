@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { $ } from "bun";
 import chalk from "chalk";
 
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Docker = require("dockerode");
 

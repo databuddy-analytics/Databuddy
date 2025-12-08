@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { RightSidebar } from "@/components/right-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RightSidebar } from "@/components/right-sidebar";
 import { UnsavedChangesFooter } from "../_components/settings-section";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 
@@ -287,7 +287,7 @@ export default function AccountSettingsPage() {
 								<p className="text-muted-foreground text-xs">
 									Upload a photo to personalize your account
 								</p>
-							</div>	
+							</div>
 							{isLoading ? (
 								<div className="flex items-center gap-4">
 									<Skeleton className="size-20 rounded-full" />

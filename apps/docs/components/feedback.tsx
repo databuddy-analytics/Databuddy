@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "./ui/button";
 
 const rateButtonVariants = cva(
-	"inline-flex items-center gap-2 rounded border px-3 py-2 font-medium text-sm   disabled:cursor-not-allowed [&_svg]:size-4",
+	"inline-flex items-center gap-2 rounded border px-3 py-2 font-medium text-sm disabled:cursor-not-allowed [&_svg]:size-4",
 	{
 		variants: {
 			active: {

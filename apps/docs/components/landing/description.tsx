@@ -128,7 +128,7 @@ export const Description = () => {
 							{data.map((item, index) => (
 								<motion.div
 									animate={item.isActive ? "active" : "inactive"}
-									className="cursor-pointer font-normal text-lg   duration-200 hover:opacity-80 xl:text-xl"
+									className="cursor-pointer font-normal text-lg duration-200 hover:opacity-80 xl:text-xl"
 									key={`title-${item.title}`}
 									onClick={() => setCurrentIndex(index)}
 									variants={titleVariants}

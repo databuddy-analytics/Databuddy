@@ -144,7 +144,7 @@ function StepIndicator({
 		<div className="flex items-start gap-3">
 			<div
 				className={cn(
-					"flex size-8 shrink-0 items-center justify-center rounded border font-semibold text-sm  ",
+					"flex size-8 shrink-0 items-center justify-center rounded border font-semibold text-sm",
 					isComplete
 						? "border-success/30 bg-success/10 text-success"
 						: isActive
@@ -354,7 +354,7 @@ function InstallationStep({
 			<div className="flex items-center gap-2 pt-2">
 				<span className="text-muted-foreground text-xs">Website ID:</span>
 				<button
-					className="group flex items-center gap-1.5 rounded bg-accent px-2 py-1 font-mono text-xs   hover:bg-accent-brighter"
+					className="group flex items-center gap-1.5 rounded bg-accent px-2 py-1 font-mono text-xs hover:bg-accent-brighter"
 					onClick={() =>
 						onCopyCode(websiteId, "website-id", "Website ID copied!")
 					}
@@ -434,7 +434,7 @@ function ConfigurationStep({
 			<Collapsible onOpenChange={setBasicOpen} open={basicOpen}>
 				<CollapsibleTrigger asChild>
 					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3   hover:bg-accent"
+						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
 						type="button"
 					>
 						<div className="flex items-center gap-3">
@@ -477,7 +477,7 @@ function ConfigurationStep({
 			<Collapsible onOpenChange={setAdvancedOpen} open={advancedOpen}>
 				<CollapsibleTrigger asChild>
 					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3   hover:bg-accent"
+						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
 						type="button"
 					>
 						<div className="flex items-center gap-3">

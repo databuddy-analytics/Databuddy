@@ -101,7 +101,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 						<>
 							<button
 								aria-label="Hide card details"
-								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/90 tabular-nums tracking-[0.2em]   hover:text-white"
+								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/90 tabular-nums tracking-[0.2em] hover:text-white"
 								onClick={() => setShowCardDetails(false)}
 								type="button"
 							>
@@ -133,7 +133,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 						<>
 							<button
 								aria-label="Show card details"
-								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/25 tabular-nums tracking-[0.2em]   hover:text-white/40"
+								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/25 tabular-nums tracking-[0.2em] hover:text-white/40"
 								onClick={() => setShowCardDetails(true)}
 								type="button"
 							>

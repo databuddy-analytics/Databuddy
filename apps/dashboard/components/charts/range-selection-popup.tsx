@@ -94,7 +94,7 @@ export function RangeSelectionPopup({
 				</div>
 				<div className="p-1">
 					<button
-						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm   hover:bg-accent"
+						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm hover:bg-accent"
 						onClick={handleZoom}
 						type="button"
 					>
@@ -108,7 +108,7 @@ export function RangeSelectionPopup({
 						</kbd>
 					</button>
 					<button
-						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm   hover:bg-accent"
+						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm hover:bg-accent"
 						onClick={onAddAnnotationAction}
 						type="button"
 					>

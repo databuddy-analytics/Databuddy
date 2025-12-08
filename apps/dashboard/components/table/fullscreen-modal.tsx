@@ -85,7 +85,7 @@ export function FullScreenModal<TData extends { name: string | number }>({
 				<div className="flex items-center gap-2">
 					<button
 						aria-label="Close full screen"
-						className="ml-2 flex items-center justify-center rounded bg-sidebar-accent/60 p-2 text-sidebar-foreground   hover:bg-sidebar-accent"
+						className="ml-2 flex items-center justify-center rounded bg-sidebar-accent/60 p-2 text-sidebar-foreground hover:bg-sidebar-accent"
 						onClick={onClose}
 						style={{ minWidth: 40, minHeight: 40 }}
 						tabIndex={0}

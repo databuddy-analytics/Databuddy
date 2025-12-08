@@ -80,7 +80,7 @@ function ProtocolSelector({
 			<div className="grid grid-cols-2 gap-2">
 				{protocols.map(({ type, label, icon: Icon, badge }) => (
 					<button
-						className={`flex flex-col items-center gap-1.5 rounded border p-3   ${
+						className={`flex flex-col items-center gap-1.5 rounded border p-3 ${
 							value === type
 								? "border-primary bg-primary/5"
 								: "hover:border-muted-foreground/50"

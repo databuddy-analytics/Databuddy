@@ -2,8 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeQuery, QueryBuilders } from "../../query";
-import { createToolLogger } from "./utils/logger";
 import type { QueryRequest } from "../../query/types";
+import { createToolLogger } from "./utils/logger";
 
 const QueryBuilderInputSchema = z.object({
 	websiteId: z.string().describe("The website ID to query"),
@@ -22,8 +22,20 @@ const QueryBuilderInputSchema = z.object({
 		.array(
 			z.object({
 				field: z.string(),
-				op: z.enum(["eq", "ne", "contains", "not_contains", "starts_with", "in", "not_in"]),
-				value: z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]),
+				op: z.enum([
+					"eq",
+					"ne",
+					"contains",
+					"not_contains",
+					"starts_with",
+					"in",
+					"not_in",
+				]),
+				value: z.union([
+					z.string(),
+					z.number(),
+					z.array(z.union([z.string(), z.number()])),
+				]),
 				target: z.string().optional(),
 				having: z.boolean().optional(),
 			})
@@ -32,9 +44,17 @@ const QueryBuilderInputSchema = z.object({
 		.describe("Filters to apply to the query"),
 	groupBy: z.array(z.string()).optional().describe("Fields to group by"),
 	orderBy: z.string().optional().describe("Field to order by"),
-	limit: z.number().min(1).max(1000).optional().describe("Maximum number of results"),
+	limit: z
+		.number()
+		.min(1)
+		.max(1000)
+		.optional()
+		.describe("Maximum number of results"),
 	offset: z.number().min(0).optional().describe("Number of results to skip"),
-	timezone: z.string().optional().describe("Timezone for date operations (default: UTC)"),
+	timezone: z
+		.string()
+		.optional()
+		.describe("Timezone for date operations (default: UTC)"),
 	websiteDomain: z
 		.string()
 		.optional()
@@ -52,7 +72,9 @@ type QueryBuilderInput = z.infer<typeof QueryBuilderInputSchema>;
 export const executeQueryBuilderTool = tool({
 	description: `Executes a pre-built analytics query using the query builder system. Available query types: ${Object.keys(QueryBuilders).join(", ")}. This is the preferred method for common analytics queries as it provides type safety and automatic optimization. Use execute_sql_query only when you need custom SQL that isn't covered by these builders.`,
 	inputSchema: QueryBuilderInputSchema,
-	execute: async (input: QueryBuilderInput): Promise<{
+	execute: async (
+		input: QueryBuilderInput
+	): Promise<{
 		data: unknown[];
 		executionTime: number;
 		rowCount: number;

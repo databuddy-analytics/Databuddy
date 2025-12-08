@@ -280,7 +280,7 @@ export function ApiKeyCreateDialog({
 										const isSelected = globalScopes.includes(scope.value);
 										return (
 											<button
-												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm  "
+												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
 												key={scope.value}
 												onClick={() => toggleGlobalScope(scope.value)}
 												type="button"
@@ -388,7 +388,7 @@ export function ApiKeyCreateDialog({
 															);
 															return (
 																<button
-																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs   ${
+																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${
 																		isSelected
 																			? "bg-primary/20 text-foreground"
 																			: "hover:bg-muted"

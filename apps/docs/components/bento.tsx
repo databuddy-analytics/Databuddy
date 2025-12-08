@@ -363,7 +363,7 @@ const SessionsFeature = () => {
 					{sessions.map((session) => (
 						<motion.div
 							animate={{ opacity: 1, y: 0 }}
-							className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-sm  "
+							className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-sm"
 							exit={{ y: -60 }}
 							initial={{ opacity: 0, y: 60 }}
 							key={session.id}
@@ -378,7 +378,7 @@ const SessionsFeature = () => {
 									{session.flag}
 								</div>
 								<div className="flex flex-col gap-1">
-									<span className="font-medium font-mono text-accent-foreground text-xs   group-hover:text-foreground">
+									<span className="font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
 										{session.path}
 									</span>
 									<span className="font-mono text-muted-foreground text-xs">
@@ -447,7 +447,7 @@ const ErrorTrackingFeature = () => (
 				{[40, 70, 30, 80, 50, 90, 60, 40, 65, 85, 45, 75].map((h, i) => (
 					<motion.div
 						animate={{ height: `${h}%` }}
-						className="flex-1 rounded-t-[1px] bg-accent-foreground   duration-300 hover:bg-accent-foreground/50"
+						className="flex-1 rounded-t-[1px] bg-accent-foreground duration-300 hover:bg-accent-foreground/50"
 						initial={{ height: 0 }}
 						key={i}
 						transition={{ duration: 0.5, delay: i * 0.05 }}
@@ -496,7 +496,7 @@ const FeatureFlagsFeature = () => {
 							)}
 						</div>
 						<div className="flex min-w-0 flex-col gap-0.5">
-							<span className="truncate font-medium font-mono text-accent-foreground text-xs   group-hover:text-foreground">
+							<span className="truncate font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
 								{flag.name}
 							</span>
 							<span className="font-medium font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
@@ -706,7 +706,7 @@ const CustomEventsFeature = () => {
 					{events.map((event) => (
 						<motion.div
 							animate={{ opacity: 1, y: 0 }}
-							className="flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-xs  "
+							className="flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-xs"
 							exit={{ y: -60 }}
 							initial={{ opacity: 0, y: 60 }}
 							key={event.id}
@@ -717,10 +717,10 @@ const CustomEventsFeature = () => {
 							}}
 						>
 							<div className="flex items-center gap-3">
-								<div className="rounded-md border border-border bg-background p-2 text-muted-foreground  ">
+								<div className="rounded-md border border-border bg-background p-2 text-muted-foreground">
 									<CursorClick className="size-3" weight="fill" />
 								</div>
-								<span className="font-mono text-muted-foreground  ">
+								<span className="font-mono text-muted-foreground">
 									{event.name}
 								</span>
 							</div>

@@ -128,7 +128,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 							{contents.map((section, sectionIndex) => (
 								<div key={section.title}>
 									<button
-										className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left   hover:bg-muted/50 active:bg-muted/70"
+										className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-muted/50 active:bg-muted/70"
 										onClick={() => toggleSection(sectionIndex)}
 										type="button"
 									>

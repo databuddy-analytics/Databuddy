@@ -26,7 +26,7 @@ function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
 	return (
 		<button
 			className={cn(
-				"flex w-full items-center gap-3 rounded border bg-card px-3 py-2 text-left  ",
+				"flex w-full items-center gap-3 rounded border bg-card px-3 py-2 text-left",
 				selected ? "bg-accent" : "hover:bg-accent"
 			)}
 			onClick={onClick}

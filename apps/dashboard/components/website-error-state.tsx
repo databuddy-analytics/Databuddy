@@ -464,14 +464,14 @@ export function WebsiteErrorState({
 											return (
 												<CommandPrimitive.Item
 													className={cn(
-														"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none  ",
+														"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none",
 														"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
 													)}
 													key={item.path}
 													onSelect={() => handleSelect(item)}
 													value={`${item.name} ${item.path}`}
 												>
-													<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent   group-data-[selected=true]:bg-background">
+													<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent group-data-[selected=true]:bg-background">
 														<ItemIcon
 															className="size-4 text-muted-foreground"
 															weight="duotone"

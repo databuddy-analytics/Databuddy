@@ -76,7 +76,7 @@ export function HelpDialog({ open, onOpenChangeAction }: HelpDialogProps) {
 				) : (
 					<div className="space-y-2">
 						<Button
-							className="h-auto w-full justify-start p-4 text-left   hover:bg-accent"
+							className="h-auto w-full justify-start p-4 text-left hover:bg-accent"
 							onClick={() => setShowShortcuts(true)}
 							variant="ghost"
 						>
@@ -111,7 +111,7 @@ export function HelpDialog({ open, onOpenChangeAction }: HelpDialogProps) {
 									className="block"
 								>
 									<Button
-										className="h-auto w-full justify-start p-4 text-left   hover:bg-accent"
+										className="h-auto w-full justify-start p-4 text-left hover:bg-accent"
 										variant="ghost"
 									>
 										<div className="flex items-start gap-4">

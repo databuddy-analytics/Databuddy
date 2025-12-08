@@ -35,7 +35,7 @@ export default function CustomSidebar() {
 			<aside className="flex h-full w-[268px] flex-col overflow-y-auto border-border border-t border-r bg-background lg:w-[286px]">
 				<div className="flex h-full flex-col">
 					<button
-						className="flex w-full items-center justify-start gap-3 border-border border-b px-5 py-3 text-muted-foreground   hover:bg-muted/50 hover:text-foreground"
+						className="flex w-full items-center justify-start gap-3 border-border border-b px-5 py-3 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
 						onClick={handleSearch}
 						type="button"
 					>
@@ -50,7 +50,7 @@ export default function CustomSidebar() {
 							{contents.map((item, index) => (
 								<div key={item.title}>
 									<button
-										className="flex w-full items-center gap-3 border-border border-b px-5 py-2.5 text-left font-medium text-foreground text-sm   hover:bg-muted/50"
+										className="flex w-full items-center gap-3 border-border border-b px-5 py-2.5 text-left font-medium text-foreground text-sm hover:bg-muted/50"
 										onClick={() => {
 											if (currentOpen === index) {
 												setCurrentOpen(-1);
@@ -98,7 +98,7 @@ export default function CustomSidebar() {
 																) : (
 																	<AsideLink
 																		activeClassName="!bg-muted !text-foreground font-medium"
-																		className="flex items-center gap-3 px-6 py-2 text-muted-foreground text-sm   hover:bg-muted/50 hover:text-foreground"
+																		className="flex items-center gap-3 px-6 py-2 text-muted-foreground text-sm hover:bg-muted/50 hover:text-foreground"
 																		href={listItem.href || "#"}
 																		startWith="/docs"
 																		title={listItem.title}

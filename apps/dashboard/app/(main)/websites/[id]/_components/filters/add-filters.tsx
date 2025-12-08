@@ -113,7 +113,7 @@ function ValueSuggestions({
 					filteredSuggestions.map((suggestion) => (
 						<button
 							className={cn(
-								"cursor-pointer rounded border px-2 py-1 text-xs   hover:bg-accent",
+								"cursor-pointer rounded border px-2 py-1 text-xs hover:bg-accent",
 								selectedValue === suggestion
 									? "border-primary bg-primary/10 text-primary"
 									: "border-border"
@@ -296,7 +296,7 @@ function FilterDialogContent({
 			</div>
 
 			<button
-				className="mb-3 flex cursor-pointer items-center gap-1.5 text-muted-foreground text-xs   hover:text-foreground"
+				className="mb-3 flex cursor-pointer items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
 				onClick={handleBack}
 				type="button"
 			>

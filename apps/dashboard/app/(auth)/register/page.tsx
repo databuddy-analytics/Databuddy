@@ -456,7 +456,7 @@ function RegisterPageContent() {
 							<span className="hidden sm:inline">
 								I agree to the{" "}
 								<Link
-									className="font-medium text-accent-foreground   duration-200 hover:text-accent-foreground/80"
+									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
@@ -464,7 +464,7 @@ function RegisterPageContent() {
 								</Link>{" "}
 								and{" "}
 								<Link
-									className="font-medium text-accent-foreground   duration-200 hover:text-accent-foreground/80"
+									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/privacy"
 									target="_blank"
 								>
@@ -539,7 +539,7 @@ function RegisterPageContent() {
 					<p className="text-muted-foreground text-sm">
 						Already have an account?{" "}
 						<Link
-							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground   duration-200 hover:text-accent-foreground/60"
+							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground duration-200 hover:text-accent-foreground/60"
 							href={
 								callbackUrl
 									? `/login?callback=${encodeURIComponent(callbackUrl)}`

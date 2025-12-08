@@ -152,7 +152,7 @@ export default function ExportPage() {
 							const IconComponent = format.icon;
 							return (
 								<button
-									className={`flex items-start gap-3 rounded-md border p-4 text-left   hover:border-primary/50 ${
+									className={`flex items-start gap-3 rounded-md border p-4 text-left hover:border-primary/50 ${
 										selectedFormat === format.value
 											? "bg-secondary"
 											: "border-border"

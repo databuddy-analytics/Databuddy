@@ -52,7 +52,7 @@ function RadioSettingGroup({ setting }: { setting: RadioSetting<string> }) {
 					const inputId = `${setting.id}-${option.value}`;
 					return (
 						<label
-							className="flex cursor-pointer items-start gap-3 rounded border p-3   hover:bg-accent [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+							className="flex cursor-pointer items-start gap-3 rounded border p-3 hover:bg-accent [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
 							htmlFor={inputId}
 							key={option.value}
 						>

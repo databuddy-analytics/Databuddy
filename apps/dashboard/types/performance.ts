@@ -28,7 +28,7 @@ export type PerformanceEntry = {
 	country_code?: string;
 	country_name?: string;
 	_uniqueKey?: string;
-}
+};
 
 export type PerformanceSummary = {
 	avgLoadTime: number;
@@ -42,4 +42,4 @@ export type PerformanceSummary = {
 	avgCLS?: number;
 	avgFID?: number;
 	avgINP?: number;
-}
+};

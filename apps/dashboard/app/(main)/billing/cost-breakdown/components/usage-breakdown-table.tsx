@@ -130,7 +130,7 @@ export function UsageBreakdownTable({
 
 					return (
 						<div
-							className="group flex items-center gap-4 px-4 py-3   hover:bg-accent/50 sm:px-6 sm:py-4"
+							className="group flex items-center gap-4 px-4 py-3 hover:bg-accent/50 sm:px-6 sm:py-4"
 							key={item.event_category}
 						>
 							<div className="flex size-10 shrink-0 items-center justify-center rounded border border-accent-foreground/10 bg-secondary">

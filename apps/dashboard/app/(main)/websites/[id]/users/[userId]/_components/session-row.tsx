@@ -113,7 +113,7 @@ function SessionRowInternal({
 		<Collapsible onOpenChange={handleToggle} open={isExpanded}>
 			<CollapsibleTrigger asChild>
 				<div
-					className={`group grid cursor-pointer grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 px-3 py-2 text-sm   hover:bg-accent/50 lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px] ${
+					className={`group grid cursor-pointer grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 px-3 py-2 text-sm hover:bg-accent/50 lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px] ${
 						isExpanded ? "bg-accent/30" : ""
 					}`}
 				>

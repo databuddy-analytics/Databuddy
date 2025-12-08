@@ -35,7 +35,7 @@ function StatCard({
 	const cardContent = (
 		<div className="relative flex h-32 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-36 lg:h-40">
 			<Icon
-				className="mb-2 size-6 text-muted-foreground   duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8"
+				className="mb-2 size-6 text-muted-foreground duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8"
 				weight="duotone"
 			/>
 			<div className="text-center">

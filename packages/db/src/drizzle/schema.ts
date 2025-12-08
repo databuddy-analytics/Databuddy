@@ -778,7 +778,6 @@ export const annotations = pgTable(
 	]
 );
 
-
 export const uptimeSchedules = pgTable(
 	"uptime_schedules",
 	{

@@ -70,7 +70,7 @@ function OrganizationRow({
 	return (
 		<button
 			className={cn(
-				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left   hover:bg-accent",
+				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left hover:bg-accent",
 				isProcessing && "pointer-events-none opacity-60"
 			)}
 			onClick={onClick}
@@ -82,7 +82,7 @@ function OrganizationRow({
 				</div>
 			)}
 
-			<Avatar className="size-10  ">
+			<Avatar className="size-10">
 				<AvatarImage
 					alt={organization.name}
 					src={organization.logo ?? undefined}

@@ -119,7 +119,7 @@ function TestimonialCardContent({
 	const socialIcon = testimonial.link?.includes("x.com") ? (
 		<span
 			aria-hidden
-			className="text-muted-foreground   duration-300 group-hover:text-foreground"
+			className="text-muted-foreground duration-300 group-hover:text-foreground"
 		>
 			<XLogoIcon className="size-4 sm:h-5 sm:w-5" weight="duotone" />
 		</span>
@@ -130,7 +130,7 @@ function TestimonialCardContent({
 			{/* Subtle gradient overlay on hover */}
 			<div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
-			<p className="relative z-10 text-pretty px-4 pt-4 font-normal text-muted-foreground text-sm leading-relaxed tracking-tight   duration-300 group-hover:text-foreground sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg lg:px-7 lg:pt-7">
+			<p className="relative z-10 text-pretty px-4 pt-4 font-normal text-muted-foreground text-sm leading-relaxed tracking-tight duration-300 group-hover:text-foreground sm:px-5 sm:pt-5 sm:text-base md:px-6 md:pt-6 md:text-lg lg:px-7 lg:pt-7">
 				"{testimonial.description}"
 			</p>
 			<div className="relative z-10 flex h-[60px] w-full items-center gap-1 border-border/50 border-t bg-background/40 backdrop-blur-md sm:h-[65px] md:h-[70px] lg:h-[75px]">
@@ -155,7 +155,7 @@ function TestimonialCardContent({
 				{socialIcon ? (
 					<>
 						<div className="w h-full bg-border/50" />
-						<div className="flex h-full w-[50px] items-center justify-center   hover:bg-primary/5 sm:w-[60px] md:w-[70px] lg:w-[80px]">
+						<div className="flex h-full w-[50px] items-center justify-center hover:bg-primary/5 sm:w-[60px] md:w-[70px] lg:w-[80px]">
 							{socialIcon}
 						</div>
 					</>

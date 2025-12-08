@@ -5,6 +5,7 @@ import {
 	MagicLinkEmail,
 	OtpEmail,
 	ResetPasswordEmail,
+	sanitizeEmailText,
 	VerificationEmail,
 } from "@databuddy/email";
 import { getRedisCache } from "@databuddy/redis";
@@ -226,14 +227,16 @@ export const auth = betterAuth({
 				invitation,
 			}) => {
 				const invitationLink = `https://app.databuddy.cc/invitations/${invitation.id}`;
+				const safeOrganizationName = sanitizeEmailText(organization.name);
+				const safeInviterName = sanitizeEmailText(inviter.user.name ?? "");
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
 					from: "noreply@databuddy.cc",
 					to: email,
-					subject: `You're invited to join ${organization.name}`,
+					subject: `You're invited to join ${safeOrganizationName}`,
 					react: InvitationEmail({
-						inviterName: inviter.user.name,
-						organizationName: organization.name,
+						inviterName: safeInviterName,
+						organizationName: safeOrganizationName,
 						invitationLink,
 					}),
 				});

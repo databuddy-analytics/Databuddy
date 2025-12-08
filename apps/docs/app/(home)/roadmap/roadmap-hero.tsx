@@ -110,7 +110,7 @@ export default function RoadmapHero({ stats }: Props) {
 					</p>
 					<div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
 						<a
-							className="inline-flex items-center justify-center rounded bg-primary px-6 py-3 font-medium text-primary-foreground   hover:bg-primary/90"
+							className="inline-flex items-center justify-center rounded bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
 							href="https://github.com/databuddy-analytics/Databuddy/discussions"
 							rel="noopener"
 							target="_blank"
@@ -118,7 +118,7 @@ export default function RoadmapHero({ stats }: Props) {
 							Join Discussion
 						</a>
 						<a
-							className="inline-flex items-center justify-center rounded border border-border bg-background px-6 py-3 font-medium   hover:bg-accent hover:text-accent-foreground"
+							className="inline-flex items-center justify-center rounded border border-border bg-background px-6 py-3 font-medium hover:bg-accent hover:text-accent-foreground"
 							href="https://github.com/databuddy-analytics/Databuddy/issues/new"
 							rel="noopener"
 							target="_blank"

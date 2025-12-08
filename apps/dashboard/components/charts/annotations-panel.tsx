@@ -112,7 +112,7 @@ export function AnnotationsPanel({
 
 										return (
 											<div
-												className="group rounded border bg-card   hover:border-primary"
+												className="group rounded border bg-card hover:border-primary"
 												key={annotation.id}
 											>
 												{/* Annotation Header */}
