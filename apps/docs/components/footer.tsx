@@ -183,20 +183,20 @@ export function Footer() {
 
 				<div className="mt-6">
 					<div className="flex flex-col gap-4">
-						<div className="flex items-center gap-4">
+						<div className="flex items-center gap-6">
 							<Link
 								aria-label="CCPA Compliance"
-								className="text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+								className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
 								href="/"
 							>
-								<CCPAIcon className="size-8" />
+								<CCPAIcon className="size-9" />
 							</Link>
 							<Link
 								aria-label="GDPR Compliance"
-								className="text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+								className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
 								href="/"
 							>
-								<GDPRIcon className="size-10" />
+								<GDPRIcon className="size-11" />
 							</Link>
 						</div>
 						<div className="flex flex-wrap items-center gap-4">
