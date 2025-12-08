@@ -286,7 +286,7 @@ export const websiteNavigation: NavigationSection[] = [
 		"Pulse",
 		HeartbeatIcon,
 		[
-			createNavItem("Monitors", ChartLineUpIcon, "/pulse", {
+			createNavItem("Uptime", ChartLineUpIcon, "/pulse", {
 				rootLevel: false,
 				alpha: true,
 			}),
