@@ -23,6 +23,7 @@ type Check = {
 	total_ms: number;
 	http_code: number;
 	probe_region: string;
+	probe_ip?: string;
 	error?: string;
 };
 
@@ -42,10 +43,10 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 				</div>
 				<div className="p-4">
 					<div className="space-y-4">
-						{[...Array(5)].map((_, i) => (
+						{[...new Array(5)].map((_, i) => (
 							<div
-								key={i}
 								className="h-10 w-full animate-pulse rounded bg-muted"
+								key={i}
 							/>
 						))}
 					</div>
@@ -65,69 +66,72 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 				<Table>
 					<TableHeader>
 						<TableRow className="hover:bg-transparent">
-							<TableHead className="w-[50px]"></TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>Time</TableHead>
-							<TableHead>Region</TableHead>
-							<TableHead className="text-right">Duration</TableHead>
+							<TableHead className="text-balance text-left">Status</TableHead>
+							<TableHead className="text-balance text-left">Time</TableHead>
+							<TableHead className="text-balance text-left">Region</TableHead>
+							<TableHead className="text-balance text-left">IP</TableHead>
+							<TableHead className="text-balance text-left">Duration</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{checks.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={5} className="h-24 text-center">
+								<TableCell className="h-24 text-center" colSpan={5}>
 									No recent checks found.
 								</TableCell>
 							</TableRow>
 						) : (
 							checks.map((check, i) => (
 								<TableRow key={`${check.timestamp}-${i}`}>
-									<TableCell>
-										{check.status === 1 ? (
-											<CheckCircleIcon
-												size={18}
-												className="text-emerald-500"
-												weight="fill"
-											/>
-										) : check.status === 2 ? (
-											<WarningCircleIcon
-												size={18}
-												className="text-amber-500"
-												weight="fill"
-											/>
-										) : (
-											<XCircleIcon
-												size={18}
-												className="text-red-500"
-												weight="fill"
-											/>
-										)}
-									</TableCell>
-									<TableCell>
-										<div className="flex flex-col">
-											<span className="font-medium text-sm">
-												{check.status === 1
-													? "Operational"
-													: check.status === 2
-														? "Pending"
-														: "Downtime"}
-											</span>
-											{check.status !== 1 && check.error && (
-												<span className="max-w-[150px] truncate text-destructive text-xs">
-													{check.error}
-												</span>
+									<TableCell className="items-left flex text-balance text-left">
+										<div className="flex items-center justify-center gap-2">
+											{check.status === 1 ? (
+												<CheckCircleIcon
+													className="text-emerald-500"
+													size={18}
+													weight="fill"
+												/>
+											) : check.status === 2 ? (
+												<WarningCircleIcon
+													className="text-amber-500"
+													size={18}
+													weight="fill"
+												/>
+											) : (
+												<XCircleIcon
+													className="text-red-500"
+													size={18}
+													weight="fill"
+												/>
 											)}
+											<div className="flex flex-col">
+												<span className="font-medium text-sm">
+													{check.status === 1
+														? "Operational"
+														: check.status === 2
+															? "Pending"
+															: "Downtime"}
+												</span>
+												{check.status !== 1 && check.error && (
+													<span className="max-w-[150px] truncate text-destructive text-xs">
+														{check.error}
+													</span>
+												)}
+											</div>
 										</div>
 									</TableCell>
-									<TableCell className="text-muted-foreground text-xs">
+									<TableCell className="text-left text-muted-foreground text-xs">
 										{dayjs(check.timestamp).format("MMM D, HH:mm:ss")}
 									</TableCell>
-									<TableCell className="text-muted-foreground text-xs">
-										<Badge variant="outline" className="font-mono text-[10px]">
+									<TableCell className="text-left text-muted-foreground text-xs">
+										<Badge className="font-mono text-[10px]" variant="outline">
 											{check.probe_region || "Global"}
 										</Badge>
 									</TableCell>
-									<TableCell className="text-right font-mono text-xs">
+									<TableCell className="text-left font-mono text-muted-foreground text-xs">
+										{check.probe_ip || "—"}
+									</TableCell>
+									<TableCell className="text-left font-mono text-xs">
 										<span
 											className={cn(
 												check.total_ms < 200 && "text-emerald-600",

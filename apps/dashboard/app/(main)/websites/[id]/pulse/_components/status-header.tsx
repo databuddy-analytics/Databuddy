@@ -93,7 +93,8 @@ export function StatusHeader({
 	};
 
 	const isOperational =
-		!schedule.isPaused && (currentStatus === "up" || currentStatus === "unknown");
+		!schedule.isPaused &&
+		(currentStatus === "up" || currentStatus === "unknown");
 	const isDown = !schedule.isPaused && currentStatus === "down";
 	const isPaused = schedule.isPaused;
 
@@ -146,13 +147,13 @@ export function StatusHeader({
 
 				<div className="flex items-center gap-2">
 					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleTogglePause}
+						className="h-8 gap-2 text-xs"
 						disabled={
 							isPausing || pauseMutation.isPending || resumeMutation.isPending
 						}
-						className="h-8 gap-2 text-xs"
+						onClick={handleTogglePause}
+						size="sm"
+						variant="outline"
 					>
 						{schedule.isPaused ? (
 							<>
@@ -167,17 +168,17 @@ export function StatusHeader({
 						)}
 					</Button>
 					<Button
-						variant="outline"
-						size="sm"
-						onClick={onEdit}
 						className="h-8 gap-2 text-xs"
+						onClick={onEdit}
+						size="sm"
+						variant="outline"
 					>
 						<PencilIcon size={14} weight="duotone" />
 						Configure
 					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button variant="ghost" size="icon" className="h-8 w-8">
+							<Button className="h-8 w-8" size="icon" variant="ghost">
 								<CircleIcon className="size-4" weight="bold" />
 								<span className="sr-only">More options</span>
 							</Button>
@@ -187,7 +188,7 @@ export function StatusHeader({
 								className="text-destructive focus:text-destructive"
 								onClick={onDelete}
 							>
-								<TrashIcon size={16} className="mr-2" />
+								<TrashIcon className="mr-2" size={16} />
 								Delete Monitor
 							</DropdownMenuItem>
 						</DropdownMenuContent>

@@ -1,9 +1,13 @@
 "use client";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import dayjs from "dayjs";
 import { useMemo } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type UptimeHeatmapProps = {
 	data: {
@@ -22,18 +26,26 @@ export function UptimeHeatmap({
 	isLoading = false,
 }: UptimeHeatmapProps) {
 	const heatmapData = useMemo(() => {
-		const result = [];
+		const result: {
+			date: Date;
+			dateStr: string;
+			hasData: boolean;
+			uptime: number;
+			totalChecks: number;
+			failedChecks: number;
+		}[] = [];
 		const today = dayjs().endOf("day");
-		
+
 		// Generate last X days
 		for (let i = days - 1; i >= 0; i--) {
 			const date = today.subtract(i, "day");
 			const dateStr = date.format("YYYY-MM-DD");
-			
+
 			// Find data for this day
-			const dayData = data.find(d => dayjs(d.date).format("YYYY-MM-DD") === dateStr);
-			
-			
+			const dayData = data.find(
+				(d) => dayjs(d.date).format("YYYY-MM-DD") === dateStr
+			);
+
 			result.push({
 				date: date.toDate(),
 				dateStr,
@@ -46,14 +58,18 @@ export function UptimeHeatmap({
 		return result;
 	}, [data, days]);
 
-	// Calculate overall stats for the period
 	const periodStats = useMemo(() => {
-		const daysWithData = heatmapData.filter(d => d.hasData);
-		if (daysWithData.length === 0) return { uptime: 0 };
-		
-		const totalUptime = daysWithData.reduce((acc, curr) => acc + curr.uptime, 0);
+		const daysWithData = heatmapData.filter((d) => d.hasData);
+		if (daysWithData.length === 0) {
+			return { uptime: 0 };
+		}
+
+		const totalUptime = daysWithData.reduce(
+			(acc, curr) => acc + curr.uptime,
+			0
+		);
 		return {
-			uptime: totalUptime / daysWithData.length
+			uptime: totalUptime / daysWithData.length,
 		};
 	}, [heatmapData]);
 
@@ -64,33 +80,41 @@ export function UptimeHeatmap({
 					Uptime History
 				</h3>
 				<span className="text-muted-foreground text-sm">
-					Last {days} days: {periodStats.uptime > 0 ? `${periodStats.uptime.toFixed(2)}%` : "No data"}
+					Last {days} days:{" "}
+					{periodStats.uptime > 0
+						? `${periodStats.uptime.toFixed(2)}%`
+						: "No data"}
 				</span>
 			</div>
-			
+
 			<div className="p-4">
 				<div className="flex h-16 w-full gap-[2px] sm:gap-1">
 					{isLoading
-						? [...Array(days)].map((_, i) => (
+						? [...new Array(days)].map((_, i) => (
 								<div
-									key={i}
 									className="h-full flex-1 animate-pulse rounded-sm bg-secondary"
+									key={i}
 								/>
 							))
 						: heatmapData.map((day) => {
 								const getColorClass = () => {
-									if (!day.hasData) return "bg-secondary";
-									if (day.uptime >= 99.9)
+									if (!day.hasData) {
+										return "bg-secondary";
+									}
+									if (day.uptime >= 99.9) {
 										return "bg-emerald-500 hover:bg-emerald-600";
-									if (day.uptime >= 98)
+									}
+									if (day.uptime >= 98) {
 										return "bg-emerald-400 hover:bg-emerald-500";
-									if (day.uptime >= 95)
+									}
+									if (day.uptime >= 95) {
 										return "bg-emerald-300 hover:bg-emerald-400";
-									if (day.uptime >= 90)
+									}
+									if (day.uptime >= 90) {
 										return "bg-amber-400 hover:bg-amber-500";
+									}
 									return "bg-red-500 hover:bg-red-600";
 								};
-
 								return (
 									<Tooltip key={day.dateStr}>
 										<TooltipTrigger asChild>
@@ -101,8 +125,8 @@ export function UptimeHeatmap({
 												)}
 											/>
 										</TooltipTrigger>
-										<TooltipContent>
-											<div className="text-xs">
+										<TooltipContent className="max-w-[200px]">
+											<div className="space-y-1 text-xs">
 												<p className="font-semibold">
 													{dayjs(day.date).format("MMM D, YYYY")}
 												</p>
@@ -119,13 +143,13 @@ export function UptimeHeatmap({
 														No data recorded
 													</p>
 												)}
-											</div>	
+											</div>
 										</TooltipContent>
 									</Tooltip>
 								);
 							})}
 				</div>
-				
+
 				<div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
 					<span>{days} days ago</span>
 					<span>Today</span>

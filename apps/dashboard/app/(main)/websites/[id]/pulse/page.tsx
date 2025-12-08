@@ -1,14 +1,10 @@
 "use client";
 
 import {
-	CheckCircleIcon,
-	ClockIcon,
 	HeartbeatIcon,
 	PauseIcon,
 	PencilIcon,
 	PlayIcon,
-	ShieldCheckIcon,
-	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -16,16 +12,14 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { StatCard } from "@/components/analytics/stat-card";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { WebsitePageHeader } from "../_components/website-page-header";
-import { LatencyChart } from "./_components/latency-chart";
 import { MonitorDialog } from "./_components/monitor-dialog";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
@@ -73,93 +67,66 @@ export default function PulsePage() {
 	const [isPausing, setIsPausing] = useState(false);
 	const hasMonitor = !!schedule;
 
+	// Fetch uptime analytics data
 	const uptimeQueries = useMemo(
 		() => [
-			{
-				id: "uptime-overview",
-				parameters: ["uptime_overview"],
-				granularity: dateRange.granularity,
-			},
 			{
 				id: "uptime-recent-checks",
 				parameters: ["uptime_recent_checks"],
 				limit: 20,
 			},
-			{
-				id: "uptime-ssl-status",
-				parameters: ["uptime_ssl_status"],
-			},
-			{
-				id: "uptime-latency",
-				parameters: ["uptime_time_series"],
-				granularity: dateRange.granularity,
-			},
+		],
+		[]
+	);
+
+	const {
+		isLoading: isLoadingUptime,
+		getDataForQuery,
+		refetch: refetchUptimeData,
+	} = useBatchDynamicQuery(websiteId as string, dateRange, uptimeQueries, {
+		enabled: hasMonitor,
+	});
+
+	const heatmapDateRange = useMemo(
+		() => ({
+			start_date: dayjs()
+				.subtract(89, "day")
+				.startOf("day")
+				.format("YYYY-MM-DD"),
+			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
+			granularity: "daily" as const,
+		}),
+		[]
+	);
+
+	const heatmapQueries = useMemo(
+		() => [
 			{
 				id: "uptime-heatmap",
 				parameters: ["uptime_time_series"],
 				granularity: "daily" as const,
 			},
 		],
-		[dateRange.granularity]
+		[]
 	);
 
-	const batchDateRange = useMemo(() => {
-		const heatmapStartDate = dayjs().subtract(89, "day").startOf("day");
-		const userStartDate = dayjs(dateRange.start_date);
-		const startDate = heatmapStartDate.isBefore(userStartDate)
-			? heatmapStartDate
-			: userStartDate;
-
-		return {
-			start_date: startDate.format("YYYY-MM-DD"),
-			end_date: dateRange.end_date,
-			granularity: dateRange.granularity,
-		};
-	}, [dateRange]);
-
 	const {
-		isLoading: isLoadingUptime,
-		getDataForQuery,
-		refetch: refetchUptimeData,
+		getDataForQuery: getHeatmapData,
+		refetch: refetchHeatmapData,
+		isLoading: isLoadingHeatmap,
 	} = useBatchDynamicQuery(
 		websiteId as string,
-		batchDateRange,
-		uptimeQueries,
+		heatmapDateRange,
+		heatmapQueries,
 		{
 			enabled: hasMonitor,
 		}
 	);
 
-	const uptimeOverview = getDataForQuery(
-		"uptime-overview",
-		"uptime_overview"
-	)?.[0];
 	const recentChecks =
 		getDataForQuery("uptime-recent-checks", "uptime_recent_checks") || [];
-	const sslStatus =
-		getDataForQuery("uptime-ssl-status", "uptime_ssl_status")?.[0] || {};
 	const heatmapData =
-		getDataForQuery("uptime-heatmap", "uptime_time_series") || [];
-	const latencyTimeSeries =
-		getDataForQuery("uptime-latency", "uptime_time_series") || [];
-
-	const latencyChartData = useMemo(() => {
-		return latencyTimeSeries.map(
-			(point: {
-				date: string;
-				p50_response_time?: number;
-				p95_response_time?: number;
-				p50_ttfb?: number;
-				p95_ttfb?: number;
-			}) => ({
-				date: point.date,
-				"Response Time (p50)": point.p50_response_time ?? 0,
-				"Response Time (p95)": point.p95_response_time ?? 0,
-				"TTFB (p50)": point.p50_ttfb ?? 0,
-				"TTFB (p95)": point.p95_ttfb ?? 0,
-			})
-		);
-	}, [latencyTimeSeries]);
+		getHeatmapData("uptime-heatmap", "uptime_time_series") || [];
 
 	const handleCreateMonitor = () => {
 		setEditingSchedule(null);
@@ -177,7 +144,9 @@ export default function PulsePage() {
 	};
 
 	const handleTogglePause = async () => {
-		if (!schedule) return;
+		if (!schedule) {
+			return;
+		}
 
 		setIsPausing(true);
 		try {
@@ -210,6 +179,7 @@ export default function PulsePage() {
 			await Promise.all([
 				refetchSchedule(),
 				refetchUptimeData(),
+				refetchHeatmapData(),
 			]);
 		} catch (error) {
 			console.error("Failed to refresh:", error);
@@ -218,6 +188,7 @@ export default function PulsePage() {
 		}
 	};
 
+	// Determine current status based on the most recent check
 	const latestCheck = recentChecks[0];
 	const currentStatus = latestCheck
 		? latestCheck.status === 1
@@ -227,22 +198,21 @@ export default function PulsePage() {
 				: "down"
 		: "unknown";
 
-	const sslExpiryDate = sslStatus.ssl_expiry
-		? dayjs(sslStatus.ssl_expiry)
-		: null;
-	const daysToExpiry = sslExpiryDate
-		? sslExpiryDate.diff(dayjs(), "day")
-		: null;
-	const isSslValid = sslStatus.ssl_valid === 1;
-
+	// Build header subtitle with status
 	const headerSubtitle = schedule ? (
 		<div className="flex items-center gap-2">
 			<Badge
-				variant={schedule.isPaused ? "secondary" : currentStatus === "down" ? "destructive" : "default"}
 				className={
 					!schedule.isPaused && currentStatus === "up"
-						? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+						? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
 						: ""
+				}
+				variant={
+					schedule.isPaused
+						? "secondary"
+						: currentStatus === "down"
+							? "destructive"
+							: "default"
 				}
 			>
 				{schedule.isPaused
@@ -257,26 +227,29 @@ export default function PulsePage() {
 			<span className="text-muted-foreground text-sm">
 				{granularityLabels[schedule.granularity] || schedule.granularity}
 			</span>
-			{latestCheck && (
+			{latestCheck ? (
 				<>
 					<span className="text-muted-foreground">•</span>
 					<span className="text-muted-foreground text-sm">
 						Last checked {dayjs(latestCheck.timestamp).fromNow()}
 					</span>
 				</>
+			) : (
+				<span className="text-muted-foreground text-sm">No checks yet</span>
 			)}
 		</div>
 	) : undefined;
 
+	// Build header actions
 	const headerActions = schedule ? (
 		<>
 			<Button
-				variant="outline"
-				size="sm"
-				onClick={handleTogglePause}
 				disabled={
 					isPausing || pauseMutation.isPending || resumeMutation.isPending
 				}
+				onClick={handleTogglePause}
+				size="sm"
+				variant="outline"
 			>
 				{schedule.isPaused ? (
 					<>
@@ -290,7 +263,7 @@ export default function PulsePage() {
 					</>
 				)}
 			</Button>
-			<Button variant="outline" size="sm" onClick={handleEditMonitor}>
+			<Button onClick={handleEditMonitor} size="sm" variant="outline">
 				<PencilIcon size={16} weight="duotone" />
 				Configure
 			</Button>
@@ -300,6 +273,7 @@ export default function PulsePage() {
 	return (
 		<div className="relative flex h-full flex-col">
 			<WebsitePageHeader
+				additionalActions={headerActions}
 				description="Monitor your website's uptime and availability"
 				icon={
 					<HeartbeatIcon
@@ -308,81 +282,27 @@ export default function PulsePage() {
 						weight="duotone"
 					/>
 				}
+				isRefreshing={isRefreshing}
+				onRefreshAction={handleRefresh}
+				subtitle={headerSubtitle}
 				title="Uptime"
 				websiteId={websiteId as string}
 				websiteName={website?.name || undefined}
-				subtitle={headerSubtitle}
-				onRefreshAction={handleRefresh}
-				isRefreshing={isRefreshing}
-				additionalActions={headerActions}
 			/>
 			<div className="flex-1 overflow-y-auto">
 				{isLoadingSchedule ? (
 					<div className="flex h-full items-center justify-center p-4">
-						<div className="text-muted-foreground text-sm">Loading monitor...</div>
+						<div className="text-muted-foreground text-sm">
+							Loading monitor...
+						</div>
 					</div>
 				) : schedule ? (
 					<>
 						<div className="border-b bg-sidebar">
-							<div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
-								<StatCard
-									description="Uptime percentage"
-									icon={CheckCircleIcon}
-									isLoading={isLoadingUptime}
-									title="Uptime"
-									value={`${uptimeOverview?.uptime_percentage ?? 0}%`}
-								/>
-								<StatCard
-									description="Average response time"
-									formatValue={(v) => `${Math.round(v)}ms`}
-									icon={ClockIcon}
-									isLoading={isLoadingUptime}
-									title="Avg Latency"
-									value={uptimeOverview?.avg_response_time ?? 0}
-								/>
-								<StatCard
-									description="Total checks performed"
-									icon={HeartbeatIcon}
-									isLoading={isLoadingUptime}
-									title="Total Checks"
-									value={uptimeOverview?.total_checks ?? 0}
-								/>
-								{sslExpiryDate ? (
-									<StatCard
-										description={
-											daysToExpiry !== null
-												? `Expires in ${daysToExpiry} days`
-												: "Certificate valid"
-										}
-										icon={isSslValid ? ShieldCheckIcon : WarningCircleIcon}
-										isLoading={isLoadingUptime}
-										title="SSL Certificate"
-										value={isSslValid ? "Valid" : "Invalid"}
-									/>
-								) : (
-									<StatCard
-										description="No SSL info available"
-										icon={ShieldCheckIcon}
-										isLoading={isLoadingUptime}
-										title="SSL Certificate"
-										value="Unknown"
-									/>
-								)}
-							</div>
-						</div>
-
-						<div className="border-b bg-sidebar">
 							<UptimeHeatmap
 								data={heatmapData}
 								days={90}
-								isLoading={isLoadingUptime}
-							/>
-						</div>
-
-						<div className="border-b bg-sidebar">
-							<LatencyChart
-								data={latencyChartData}
-								isLoading={isLoadingUptime}
+								isLoading={isLoadingHeatmap}
 							/>
 						</div>
 
