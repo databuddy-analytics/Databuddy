@@ -8,7 +8,7 @@ import type { Filter, SimpleQueryConfig } from "../types";
  * - site_id: Website identifier
  * - url: Monitored URL
  * - timestamp: Check timestamp
- * - status: 1 = up, 0 = down, 2 = pending
+ * - status: 1 = up, 0 = down, 2 = pending (retry logic - excluded from uptime)
  * - http_code: HTTP response code
  * - ttfb_ms: Time to first byte (ms)
  * - total_ms: Total response time (ms)
@@ -27,6 +27,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					COUNT(*) as total_checks,
 					countIf(status = 1) as successful_checks,
 					countIf(status = 0) as failed_checks,
+					countIf(status = 2) as pending_checks,
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantile(0.50)(total_ms) as p50_response_time,
@@ -75,6 +76,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						COUNT(*) as total_checks,
 						countIf(status = 1) as successful_checks,
 						countIf(status = 0) as failed_checks,
+						countIf(status = 2) as pending_checks,
 						if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 						avg(total_ms) as avg_response_time,
 						quantile(0.50)(total_ms) as p50_response_time,
@@ -232,6 +234,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					COUNT(*) as total_checks,
 					countIf(status = 1) as successful_checks,
 					countIf(status = 0) as failed_checks,
+					countIf(status = 2) as pending_checks,
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantile(0.95)(total_ms) as p95_response_time
