@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RightSidebar } from "@/components/right-sidebar";
 import { UnsavedChangesFooter } from "../_components/settings-section";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 
@@ -275,18 +276,18 @@ export default function AccountSettingsPage() {
 	const isLoading = isSessionLoading || isAccountsLoading;
 
 	return (
-		<div className="flex h-full flex-col lg:grid lg:grid-cols-[1fr_18rem]">
+		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 			<div className="flex min-h-0 flex-1 flex-col">
 				<div className="flex-1 overflow-y-auto">
 					{/* Row 1: Profile Photo + Account Status */}
 					<div className="grid grid-cols-1 lg:contents">
-						<section className="border-b px-5 py-6 lg:border-r">
+						<section className="border-b px-5 py-6">
 							<div className="mb-4">
 								<h3 className="font-semibold text-sm">Profile Photo</h3>
 								<p className="text-muted-foreground text-xs">
 									Upload a photo to personalize your account
 								</p>
-							</div>
+							</div>	
 							{isLoading ? (
 								<div className="flex items-center gap-4">
 									<Skeleton className="size-20 rounded-full" />
@@ -322,7 +323,7 @@ export default function AccountSettingsPage() {
 
 					{/* Row 2: Basic Info + Connected Apps */}
 					<div className="grid grid-cols-1 lg:contents">
-						<section className="border-b px-5 py-6 lg:border-r">
+						<section className="border-b px-5 py-6">
 							<div className="mb-4">
 								<h3 className="font-semibold text-sm">Basic Information</h3>
 								<p className="text-muted-foreground text-xs">
@@ -364,7 +365,7 @@ export default function AccountSettingsPage() {
 
 					{/* Row 3: Security */}
 					<div className="grid grid-cols-1 lg:contents">
-						<section className="border-b px-5 py-6 lg:border-r">
+						<section className="border-b px-5 py-6">
 							<div className="mb-4">
 								<h3 className="font-semibold text-sm">Security</h3>
 								<p className="text-muted-foreground text-xs">
@@ -415,7 +416,7 @@ export default function AccountSettingsPage() {
 
 					{/* Row 4: Connected Identities */}
 					<div className="grid grid-cols-1 lg:contents">
-						<section className="px-5 py-6 lg:border-r">
+						<section className="px-5 py-6">
 							<div className="mb-4">
 								<h3 className="font-semibold text-sm">Connected Identities</h3>
 								<p className="text-muted-foreground text-xs">
@@ -511,13 +512,8 @@ export default function AccountSettingsPage() {
 				/>
 			</div>
 
-			{/* Right Sidebar - synced with main content */}
-			<div className="hidden border-l lg:block">
-				{/* Account Status - synced with Profile Photo row */}
-				<section className="border-b px-4 py-6">
-					<h4 className="mb-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
-						Account Status
-					</h4>
+			<RightSidebar className="gap-0 p-0">
+				<RightSidebar.Section border title="Account Status">
 					{isLoading ? (
 						<div className="space-y-2.5">
 							<Skeleton className="h-5 w-full" />
@@ -554,13 +550,9 @@ export default function AccountSettingsPage() {
 							</div>
 						</div>
 					)}
-				</section>
+				</RightSidebar.Section>
 
-				{/* Connected Apps - synced with Basic Info row */}
-				<section className="border-b px-4 py-6">
-					<h4 className="mb-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
-						Connected Apps
-					</h4>
+				<RightSidebar.Section border title="Connected Apps">
 					{isAccountsLoading ? (
 						<div className="space-y-2">
 							<Skeleton className="h-5 w-full" />
@@ -583,18 +575,12 @@ export default function AccountSettingsPage() {
 							})}
 						</div>
 					)}
-				</section>
+				</RightSidebar.Section>
 
-				{/* Tips - fills remaining space */}
-				<section className="px-4 py-6">
-					<div className="rounded border border-dashed bg-accent/30 p-3">
-						<p className="text-muted-foreground text-xs">
-							Keep your email up to date to ensure you receive important
-							notifications about your account.
-						</p>
-					</div>
-				</section>
-			</div>
+				<RightSidebar.Section>
+					<RightSidebar.Tip description="Keep your email up to date to ensure you receive important notifications about your account." />
+				</RightSidebar.Section>
+			</RightSidebar>
 
 			{/* Dialogs */}
 			<ChangePasswordDialog
