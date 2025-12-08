@@ -163,6 +163,32 @@ export const uptimeRouter = {
                 isPaused: false,
             });
 
+            try {
+                await client.publish({
+                    url: UPTIME_DESTINATION,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Website-Id": input.websiteId,
+                    },
+                });
+                logger.info(
+                    {
+                        scheduleId,
+                        websiteId: input.websiteId,
+                    },
+                    "Uptime schedule triggered manually after creation"
+                );
+            } catch (error) {
+                logger.error(
+                    {
+                        scheduleId,
+                        websiteId: input.websiteId,
+                        error,
+                    },
+                    "Failed to trigger uptime schedule manually after creation"
+                );
+            }
+
             logger.info(
                 {
                     scheduleId,
