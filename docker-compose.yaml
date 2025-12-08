@@ -10,9 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U databuddy -d databuddy"]
+      test: [ "CMD-SHELL", "pg_isready -U databuddy -d databuddy" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,15 +35,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8123/ping",
-        ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,7 +50,7 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
