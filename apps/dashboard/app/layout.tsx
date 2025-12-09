@@ -1,10 +1,8 @@
 import "./globals.css";
 
 import { Databuddy } from "@databuddy/sdk/react";
-import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import Providers from "./providers";
 
@@ -132,15 +130,7 @@ export default function RootLayout({
 			/>
 			<body className="flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
 				<Providers>
-					<Suspense
-						fallback={
-							<div className="flex h-full items-center justify-center p-8">
-								<SpinnerIcon className="size-8 animate-spin text-primary" />
-							</div>
-						}
-					>
-						<main className="flex-1">{children}</main>
-					</Suspense>
+					<main className="flex-1">{children}</main>
 				</Providers>
 				<Toaster />
 			</body>
