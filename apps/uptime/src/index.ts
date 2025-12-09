@@ -42,7 +42,7 @@ const CURRENT_SIGNING_KEY = process.env.QSTASH_CURRENT_SIGNING_KEY;
 const NEXT_SIGNING_KEY = process.env.QSTASH_NEXT_SIGNING_KEY;
 
 if (!CURRENT_SIGNING_KEY || !NEXT_SIGNING_KEY) {
-    throw new Error("QSTASH_CURRENT_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required");
+    throw new Error("QSTASH_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required");
 }
 
 const receiver = new Receiver({
