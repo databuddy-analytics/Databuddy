@@ -23,6 +23,7 @@ import { WebsitePageHeader } from "../_components/website-page-header";
 import { MonitorDialog } from "./_components/monitor-dialog";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
+import { UptimeOverview } from "./_components/uptime-overview";
 
 dayjs.extend(relativeTime);
 
@@ -298,6 +299,8 @@ export default function PulsePage() {
 					</div>
 				) : schedule ? (
 					<>
+						<UptimeOverview />
+
 						<div className="border-b bg-sidebar">
 							<UptimeHeatmap
 								data={heatmapData}
