@@ -18,12 +18,12 @@ export const openrouter = createOpenRouter({
  */
 
 const modelNames = {
-	// triage: "anthropic/claude-haiku-4.5",
-	// analytics: "anthropic/claude-haiku-4.5",
-	triage: "z-ai/glm-4.6",
-	analytics: "z-ai/glm-4.6",
-	// advanced: "anthropic/claude-sonnet-4.5",
-	advanced: "z-ai/glm-4.6",
+	triage: "anthropic/claude-haiku-4.5",
+	analytics: "anthropic/claude-haiku-4.5",
+	// triage: "z-ai/glm-4.6",
+	// analytics: "z-ai/glm-4.6",
+	advanced: "anthropic/claude-sonnet-4.5",
+	// advanced: "z-ai/glm-4.6",
 	perplexity: "perplexity/sonar-pro",
 } as const;
 

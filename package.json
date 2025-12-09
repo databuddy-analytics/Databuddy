@@ -5,14 +5,14 @@
     "@biomejs/biome": "^2.3.8",
     "@types/bun": "latest",
     "@types/dockerode": "^3.3.47",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.10.2",
     "chalk": "^5.6.2",
     "dockerode": "^4.0.9",
     "dotenv-cli": "^10.0.0",
-    "knip": "^5.71.0",
+    "knip": "^5.72.0",
     "turbo": "^2.6.3",
     "typescript": "^5.9.3",
-    "ultracite": "^6.3.9"
+    "ultracite": "^6.3.10"
   },
   "engines": {
     "node": ">=20"

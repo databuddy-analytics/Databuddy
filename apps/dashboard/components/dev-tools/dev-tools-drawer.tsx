@@ -595,7 +595,7 @@ function AppearanceSettings() {
 												value={prefs.chartStepType}
 											>
 												<SelectTrigger
-													className={cn("h-6 w-20", isBar && "opacity-50")}
+													className={cn("h-6 w-20", isBar ? "opacity-50" : "")}
 													onClick={(e) => e.stopPropagation()}
 													size="sm"
 												>
