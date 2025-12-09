@@ -71,12 +71,12 @@ function CodeBlock({
 
 	return (
 		<SciFiCard
-			className="group/code relative my-4 w-full overflow-hidden rounded border border-border bg-[#101010] text-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/20"
+			className="group/code relative my-4 w-full overflow-hidden rounded border border-border bg-muted/50 dark:bg-[#101010] text-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/20"
 			cornerOpacity="opacity-0 group-hover/code:opacity-100"
 			variant="primary"
 		>
 			{(language !== "text" || filename) && (
-				<div className="flex items-center justify-between border-white/5 border-b bg-white/5 px-4 py-2.5">
+				<div className="flex items-center justify-between border-foreground/5 border-b bg-foreground/5 px-4 py-2.5">
 					<div className="flex items-center gap-3">
 						{filename && (
 							<span className="font-medium text-foreground/80 text-xs tracking-tight">
@@ -106,9 +106,9 @@ function CodeBlock({
 				{highlightedCode ? (
 					<div
 						className={cn(
-							"overflow-x-auto font-mono text-[13px] leading-relaxed",
+							"overflow-x-auto font-mono! text-[13px] leading-relaxed",
 							"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-							"[&>pre>code]:block [&>pre>code]:w-full",
+							"[&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:p-4",
 							"[&_.line]:min-h-5",
 							className
 						)}
@@ -135,7 +135,7 @@ function InlineCode({ className, ...props }: React.ComponentProps<"code">) {
 	return (
 		<code
 			className={cn(
-				"relative rounded border border-accent bg-accent/50 px-1.5 py-0.5 font-medium font-mono text-primary text-sm",
+				"relative rounded border border-accent bg-accent/50 px-1.5 py-0.5 font-medium font-mono! text-primary text-sm",
 				className
 			)}
 			{...props}
