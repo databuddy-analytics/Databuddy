@@ -106,9 +106,9 @@ function CodeBlock({
 				{highlightedCode ? (
 					<div
 						className={cn(
-							"overflow-x-auto font-mono! text-[13px] leading-relaxed",
+							"font-mono! text-[13px] leading-relaxed",
 							"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-							"[&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:p-4",
+							"[&>pre>code]:overflow-x-auto [&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:p-4",
 							"[&_.line]:min-h-5",
 							className
 						)}
@@ -117,7 +117,7 @@ function CodeBlock({
 				) : (
 					<pre
 						className={cn(
-							"overflow-x-auto p-4 font-mono text-foreground text-sm leading-relaxed",
+							"overflow-x-auto p-4 font-mono! text-foreground text-sm leading-relaxed",
 							"[&>code]:block [&>code]:w-full [&>code]:p-0 [&>code]:text-inherit",
 							className
 						)}
