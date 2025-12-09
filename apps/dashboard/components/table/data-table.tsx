@@ -18,7 +18,7 @@ const DEFAULT_MIN_HEIGHT = 200;
 const FULLSCREEN_HEIGHT = "h-[92vh]";
 const FULLSCREEN_WIDTH = "w-[92vw]";
 
-type TabConfig<TData> = {
+export type TabConfig<TData> = {
 	id: string;
 	label: string;
 	data: TData[];
