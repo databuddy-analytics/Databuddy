@@ -8,6 +8,12 @@
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/services": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.208.0",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/sdk-node": "^0.208.0",
+    "@opentelemetry/sdk-trace-node": "^2.2.0",
+    "@opentelemetry/semantic-conventions": "^1.38.0",
     "@upstash/qstash": "^2.8.4",
     "elysia": "^1.4.18"
   }
