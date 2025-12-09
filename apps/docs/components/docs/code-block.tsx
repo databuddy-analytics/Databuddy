@@ -6,7 +6,9 @@ import html from "shiki/langs/html.mjs";
 import json from "shiki/langs/json.mjs";
 import jsx from "shiki/langs/jsx.mjs";
 import markdown from "shiki/langs/markdown.mjs";
+import bash from "shiki/langs/bash.mjs";
 import tsx from "shiki/langs/tsx.mjs";
+import http from "shiki/langs/http.mjs";
 import githubLight from "shiki/themes/github-light.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { SciFiCard } from "@/components/scifi-card";
@@ -22,7 +24,7 @@ interface CodeBlockProps extends React.ComponentProps<"div"> {
 
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper, githubLight],
-	langs: [tsx, jsx, html, css, json, markdown],
+	langs: [tsx, jsx, html, css, json, markdown, bash, http],
 	engine: createJavaScriptRegexEngine(),
 });
 
