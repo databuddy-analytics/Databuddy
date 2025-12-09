@@ -324,7 +324,7 @@ export function FlagSheet({
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 									<FormField
 										control={form.control}
-										name="name"
+										name="flag.name"
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>Flag Name</FormLabel>
@@ -811,12 +811,12 @@ export function FlagSheet({
                       <FormMessage>{rolloutStepsErrors}</FormMessage>
                     )}
                   </div>
-                </div>
+                </section>
               )}
 
               {/* Variants Editor */}
               {showVariants && (
-                <div className="space-y-4">
+                <section className="space-y-4">
                   <FormField
                     control={form.control}
                     name="flag.variants"
