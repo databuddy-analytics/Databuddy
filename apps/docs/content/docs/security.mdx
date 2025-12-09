@@ -31,13 +31,13 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 <CodeBlock 
   language="javascript"
   code={`// All users get anonymous IDs - no personal data
-{
-  anonymousId: "anon_abc123...",      // Random UUID
-  sessionId: "sess_xyz789...",        // Session identifier
-  event: "page_view",                 // What happened
-  path: "/dashboard",                 // Where it happened
-  // No names, emails, or personal data
-}`}
+  {
+    anonymousId: "anon_abc123...",      // Random UUID
+    sessionId: "sess_xyz789...",        // Session identifier
+    event: "page_view",                 // What happened
+    path: "/dashboard",                 // Where it happened
+    // No names, emails, or personal data
+  }`}
 />
 
 ### Local Data Storage
@@ -66,21 +66,21 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
   language="tsx"
   code={`import { Databuddy } from "@databuddy/sdk/react";
 
-function App() {
-  return (
-    <>
-      {/* No consent needed - privacy-first by design */}
-      <Databuddy
-        clientId="your-client-id"
-        trackScreenViews={true}
-        trackPerformance={true}
-        trackSessions={true}
-      />
+  function App() {
+    return (
+      <>
+        {/* No consent needed - privacy-first by design */}
+        <Databuddy
+          clientId="your-client-id"
+          trackScreenViews={true}
+          trackPerformance={true}
+          trackSessions={true}
+        />
 
-      {/* No cookie banner needed! */}
-    </>
-  );
-}`}
+        {/* No cookie banner needed! */}
+      </>
+    );
+  }`}
 />
 
 **Why No Consent Needed:**
@@ -99,19 +99,19 @@ function App() {
   language="tsx"
   filename="Minimal Tracking Setup"
   code={`// Essential analytics only
-<Databuddy
-  clientId="your-client-id"
-  // Basic page tracking
-  trackScreenViews={true}
-  // Disable everything else
-  trackPerformance={false}
-  trackWebVitals={false}
-  trackSessions={false}
-  trackOutgoingLinks={false}
-  trackScrollDepth={false}
-  trackEngagement={false}
-  trackErrors={false}
-/>`}
+  <Databuddy
+    clientId="your-client-id"
+    // Basic page tracking
+    trackScreenViews={true}
+    // Disable everything else
+    trackPerformance={false}
+    trackWebVitals={false}
+    trackSessions={false}
+    trackOutgoingLinks={false}
+    trackScrollDepth={false}
+    trackEngagement={false}
+    trackErrors={false}
+  />`}
 />
 
 ### Development vs Production
@@ -121,13 +121,13 @@ function App() {
   filename="Environment Configuration"
   code={`const isProd = process.env.NODE_ENV === "production";
 
-<Databuddy
-  clientId="your-client-id"
-  disabled={!isProd} // No tracking in development
-  // Production-only features
-  trackPerformance={isProd}
-  trackWebVitals={isProd}
-/>;`}
+  <Databuddy
+    clientId="your-client-id"
+    disabled={!isProd} // No tracking in development
+    // Production-only features
+    trackPerformance={isProd}
+    trackWebVitals={isProd}
+  />;`}
 />
 
 ## 🔐 Security Features
@@ -163,38 +163,38 @@ Since Databuddy only collects anonymous data, users don't need to request data d
   language="tsx"
   filename="Optional Opt-Out Component"
   code={`function PrivacyControls() {
-  const [trackingEnabled, setTrackingEnabled] = useState(true);
+    const [trackingEnabled, setTrackingEnabled] = useState(true);
 
-  const handleOptOut = () => {
-    // Clear local anonymous ID
-    localStorage.removeItem("databuddy_anon_id");
+    const handleOptOut = () => {
+      // Clear local anonymous ID
+      localStorage.removeItem("databuddy_anon_id");
 
-    // Disable tracking
-    setTrackingEnabled(false);
+      // Disable tracking
+      setTrackingEnabled(false);
 
-    // Store preference
-    localStorage.setItem("databuddy_opt_out", "true");
-  };
+      // Store preference
+      localStorage.setItem("databuddy_opt_out", "true");
+    };
 
-  return (
-    <div>
-      <p>
-        Analytics helps us improve our website. No personal data is collected.
-      </p>
+    return (
+      <div>
+        <p>
+          Analytics helps us improve our website. No personal data is collected.
+        </p>
 
-      <label>
-        <input
-          type="checkbox"
-          checked={trackingEnabled}
-          onChange={(e) => setTrackingEnabled(e.target.checked)}
-        />
-        Enable anonymous analytics
-      </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={trackingEnabled}
+            onChange={(e) => setTrackingEnabled(e.target.checked)}
+          />
+          Enable anonymous analytics
+        </label>
 
-      <button onClick={handleOptOut}>Disable analytics</button>
-    </div>
-  );
-}`}
+        <button onClick={handleOptOut}>Disable analytics</button>
+      </div>
+    );
+  }`}
 />
 
 ### Why Data Deletion Isn't Needed
@@ -212,12 +212,12 @@ Since Databuddy only collects anonymous data, users don't need to request data d
   language="javascript"
   filename="Respect Browser Privacy Settings"
   code={`// Check Do Not Track setting
-const respectDNT = navigator.doNotTrack === "1";
+  const respectDNT = navigator.doNotTrack === "1";
 
-<Databuddy
-  clientId="your-client-id"
-  disabled={respectDNT} // Respect browser privacy setting
-/>;`}
+  <Databuddy
+    clientId="your-client-id"
+    disabled={respectDNT} // Respect browser privacy setting
+  />;`}
 />
 
 ## 📋 Privacy Best Practices
@@ -228,18 +228,18 @@ const respectDNT = navigator.doNotTrack === "1";
   language="tsx"
   filename="Privacy Notice Component"
   code={`// Clear privacy notice
-function PrivacyNotice() {
-  return (
-    <div className="privacy-notice">
-      <h3>We respect your privacy</h3>
-      <p>
-        We collect anonymous usage data to improve our website. No personal
-        information is collected. You can opt out anytime.
-      </p>
-      <a href="/privacy-policy">Read our privacy policy</a>
-    </div>
-  );
-}`}
+  function PrivacyNotice() {
+    return (
+      <div className="privacy-notice">
+        <h3>We respect your privacy</h3>
+        <p>
+          We collect anonymous usage data to improve our website. No personal
+          information is collected. You can opt out anytime.
+        </p>
+        <a href="/privacy-policy">Read our privacy policy</a>
+      </div>
+    );
+  }`}
 />
 
 ### 2. Provide Controls (Optional)
@@ -248,29 +248,29 @@ function PrivacyNotice() {
   language="tsx"
   filename="Privacy Dashboard Component"
   code={`// Optional privacy dashboard (not required since data is anonymous)
-function PrivacyDashboard() {
-  return (
-    <div>
-      <h2>Analytics Preferences</h2>
-
+  function PrivacyDashboard() {
+    return (
       <div>
-        <h3>Anonymous Data Collection</h3>
-        <p>Help us improve our website with anonymous usage statistics.</p>
-        <Toggle label="Page views" />
-        <Toggle label="Performance metrics" />
-        <Toggle label="Error tracking" />
-      </div>
+        <h2>Analytics Preferences</h2>
 
-      <div>
-        <h3>Your Privacy</h3>
-        <p>✅ No personal data is collected</p>
-        <p>✅ No cookies are used for tracking</p>
-        <p>✅ Cannot identify individual users</p>
-        <button onClick={clearLocalData}>Clear local preferences</button>
+        <div>
+          <h3>Anonymous Data Collection</h3>
+          <p>Help us improve our website with anonymous usage statistics.</p>
+          <Toggle label="Page views" />
+          <Toggle label="Performance metrics" />
+          <Toggle label="Error tracking" />
+        </div>
+
+        <div>
+          <h3>Your Privacy</h3>
+          <p>✅ No personal data is collected</p>
+          <p>✅ No cookies are used for tracking</p>
+          <p>✅ Cannot identify individual users</p>
+          <button onClick={clearLocalData}>Clear local preferences</button>
+        </div>
       </div>
-    </div>
-  );
-}`}
+    );
+  }`}
 />
 
 ### 3. Honor Preferences
@@ -279,14 +279,14 @@ function PrivacyDashboard() {
   language="tsx"
   filename="Respect User Preferences"
   code={`// Respect user choices
-const privacySettings = getUserPrivacySettings();
+  const privacySettings = getUserPrivacySettings();
 
-<Databuddy
-  clientId="your-client-id"
-  trackScreenViews={privacySettings.allowPageViews}
-  trackPerformance={privacySettings.allowPerformance}
-  trackErrors={privacySettings.allowErrors}
-/>;`}
+  <Databuddy
+    clientId="your-client-id"
+    trackScreenViews={privacySettings.allowPageViews}
+    trackPerformance={privacySettings.allowPerformance}
+    trackErrors={privacySettings.allowErrors}
+  />;`}
 />
 
 ## ⚖️ Legal Compliance
@@ -333,7 +333,7 @@ No personal data or cookies are used.
 <meta
   http-equiv="Content-Security-Policy"
   content="script-src 'self' https://app.databuddy.cc; 
-               connect-src 'self' https://basket.databuddy.cc;"
+    connect-src 'self' https://basket.databuddy.cc;"
 />`}
 />
 
@@ -343,18 +343,18 @@ No personal data or cookies are used.
   language="tsx"
   filename="Secure Environment Configuration"
   code={`// Environment-specific settings
-const config = {
-  development: {
-    clientId: process.env.NEXT_PUBLIC_DATABUDDY_DEV_ID,
-    disabled: true, // No tracking in development
-  },
-  production: {
-    clientId: process.env.NEXT_PUBLIC_DATABUDDY_PROD_ID,
-    disabled: false,
-  },
-}[process.env.NODE_ENV];
+  const config = {
+    development: {
+      clientId: process.env.NEXT_PUBLIC_DATABUDDY_DEV_ID,
+      disabled: true, // No tracking in development
+    },
+    production: {
+      clientId: process.env.NEXT_PUBLIC_DATABUDDY_PROD_ID,
+      disabled: false,
+    },
+  }[process.env.NODE_ENV];
 
-<Databuddy {...config} />;`}
+  <Databuddy {...config} />;`}
 />
 
 ## 🆘 Support & Questions

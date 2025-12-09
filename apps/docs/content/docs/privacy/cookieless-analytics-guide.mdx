@@ -17,9 +17,9 @@ The era of third-party cookies is ending. This comprehensive guide explains cook
   language="javascript"
   filename="Traditional Cookie-Based Approach"
   code={`// Traditional approach - uses cookies
-document.cookie = "user_id=12345; expires=Thu, 18 Dec 2025 12:00:00 UTC; path=/";
-ga('create', 'UA-XXXXX-Y', 'auto');
-ga('send', 'pageview');`}
+  document.cookie = "user_id=12345; expires=Thu, 18 Dec 2025 12:00:00 UTC; path=/";
+  ga('create', 'UA-XXXXX-Y', 'auto');
+  ga('send', 'pageview');`}
 />
 
 ### Cookieless Tracking Approach
@@ -27,11 +27,11 @@ ga('send', 'pageview');`}
   language="javascript"
   filename="Cookieless Analytics Approach"
   code={`// Cookieless approach - no persistent identifiers
-databuddy.track('page_view', {
-  page: window.location.pathname,
-  referrer: document.referrer,
-  // No user ID or persistent tracking
-});`}
+  databuddy.track('page_view', {
+    page: window.location.pathname,
+    referrer: document.referrer,
+    // No user ID or persistent tracking
+  });`}
 />
 
 ## Why Cookieless Analytics Matters

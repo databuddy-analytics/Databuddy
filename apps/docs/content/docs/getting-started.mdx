@@ -55,12 +55,12 @@ For any website, use the script tag method:
 <CodeBlock
   language="html"
   code={`<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-client-id="your-client-id-here"
-  data-track-screen-views="true"
-  data-track-performance="true"
-  async
-></script>`}
+    src="https://cdn.databuddy.cc/databuddy.js"
+    data-client-id="your-client-id-here"
+    data-track-screen-views="true"
+    data-track-performance="true"
+    async
+  ></script>`}
 />
 
 </Tab>
@@ -81,27 +81,27 @@ Add the `<Databuddy />` component to your root layout:
   filename="app/layout.tsx"
   code={`import { Databuddy } from "@databuddy/sdk/react";
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <head />
-      <body>
-        <Databuddy
-          clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-          trackScreenViews
-          trackPerformance
-          trackWebVitals={true} // Default is false, explicitly enable for quick start
-          trackErrors={true} // Default is false, explicitly enable for quick start
-        />
-        {children}
-      </body>
-    </html>
-  );
-}`}
+  export default function RootLayout({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) {
+    return (
+      <html lang="en">
+        <head />
+        <body>
+          <Databuddy
+            clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+            trackScreenViews
+            trackPerformance
+            trackWebVitals={true} // Default is false, explicitly enable for quick start
+            trackErrors={true} // Default is false, explicitly enable for quick start
+          />
+          {children}
+        </body>
+      </html>
+    );
+  }`}
 />
 
 **Environment Variables:**
@@ -121,25 +121,25 @@ Add the script to your HTML before the closing `</body>` tag:
   language="html"
   filename="index.html"
   code={`<!DOCTYPE html>
-<html>
-  <head>
-    <title>My Website</title>
-  </head>
-  <body>
-    <!-- Your content -->
+  <html>
+    <head>
+      <title>My Website</title>
+    </head>
+    <body>
+      <!-- Your content -->
 
-    <!-- Databuddy Analytics -->
-    <script
-      src="https://cdn.databuddy.cc/databuddy.js"
-      data-client-id="your-client-id-here"
-      data-track-screen-views="true"
-      data-track-performance="true"
-      data-track-web-vitals="true"
-      data-track-errors="true"
-      async
-    ></script>
-  </body>
-</html>`}
+      <!-- Databuddy Analytics -->
+      <script
+        src="https://cdn.databuddy.cc/databuddy.js"
+        data-client-id="your-client-id-here"
+        data-track-screen-views="true"
+        data-track-performance="true"
+        data-track-web-vitals="true"
+        data-track-errors="true"
+        async
+      ></script>
+    </body>
+  </html>`}
 />
 
 </Tab>
@@ -182,18 +182,18 @@ Check that analytics are working correctly:
   language="tsx"
   filename="Recommended Configuration"
   code={`<Databuddy
-  clientId="your-client-id"
-  // Core tracking (recommended for all sites)
-  trackScreenViews={true} // Track page/route changes
-  trackPerformance={true} // Track loading times
-  trackWebVitals={true} // Track Core Web Vitals
-  trackErrors={true} // Track JavaScript errors
-  // Optional tracking (enable as needed)
-  trackSessions={true} // Track user sessions
-  trackOutgoingLinks={false} // Track external link clicks
-  trackScrollDepth={false} // Track scroll behavior
-  trackEngagement={false} // Track user engagement
-/>`}
+    clientId="your-client-id"
+    // Core tracking (recommended for all sites)
+    trackScreenViews={true} // Track page/route changes
+    trackPerformance={true} // Track loading times
+    trackWebVitals={true} // Track Core Web Vitals
+    trackErrors={true} // Track JavaScript errors
+    // Optional tracking (enable as needed)
+    trackSessions={true} // Track user sessions
+    trackOutgoingLinks={false} // Track external link clicks
+    trackScrollDepth={false} // Track scroll behavior
+    trackEngagement={false} // Track user engagement
+  />`}
 />
 
 </Tab>
@@ -203,18 +203,18 @@ Check that analytics are working correctly:
   language="html"
   filename="Recommended Configuration"
   code={`<script
-      src="https://cdn.databuddy.cc/databuddy.js"
-      data-client-id="your-client-id"
-      data-track-screen-views="true"
-      data-track-performance="true"
-      data-track-web-vitals="true"
-      data-track-errors="true"
-      data-track-sessions="true"
-      data-track-outgoing-links="false"
-      data-enable-batching="true"
-      data-batch-size="10"
-      async
-></script>`}
+    src="https://cdn.databuddy.cc/databuddy.js"
+    data-client-id="your-client-id"
+    data-track-screen-views="true"
+    data-track-performance="true"
+    data-track-web-vitals="true"
+    data-track-errors="true"
+    data-track-sessions="true"
+    data-track-outgoing-links="false"
+    data-enable-batching="true"
+    data-batch-size="10"
+    async
+  ></script>`}
 />
 
 <Callout type="info">
@@ -265,55 +265,55 @@ Track custom events with rich properties for comprehensive analytics:
   filename="Custom Events with Rich Properties"
   code={`import { useEffect } from "react";
 
-function SignupForm() {
-  const handleSignup = (plan: string) => {
-    // Track conversion event with detailed context
-    window.databuddy?.track("signup_completed", {
-      source: "landing_page",
-      plan: plan,
-      trial_days: plan === "pro" ? 14 : 7,
-      form_type: "in    line",
-      utm_source: new URLSearchParams(window.location.search).get("utm_source"),
-      referrer_domain: document.referrer
-        ? new URL(document.referrer).hostname
-        : null,
-    });
-  };
+  function SignupForm() {
+    const handleSignup = (plan: string) => {
+      // Track conversion event with detailed context
+      window.databuddy?.track("signup_completed", {
+        source: "landing_page",
+        plan: plan,
+        trial_days: plan === "pro" ? 14 : 7,
+        form_type: "in    line",
+        utm_source: new URLSearchParams(window.location.search).get("utm_source"),
+        referrer_domain: document.referrer
+          ? new URL(document.referrer).hostname
+          : null,
+      });
+    };
 
-  const handleFormInteraction = (fieldName: string) => {
-    // Track form engagement
-    window.databuddy?.track("form_field_focused", {
-      form_type: "signup",
-      field_name: fieldName,
-      page: window.location.pathname,
-      user_agent_mobile: /Mobile|Android/i.test(navigator.userAgent),
-    });
-  };
+    const handleFormInteraction = (fieldName: string) => {
+      // Track form engagement
+      window.databuddy?.track("form_field_focused", {
+        form_type: "signup",
+        field_name: fieldName,
+        page: window.location.pathname,
+        user_agent_mobile: /Mobile|Android/i.test(navigator.userAgent),
+      });
+    };
 
-  useEffect(() => {
-    // Track form view with context
-    window.databuddy?.track("signup_form_viewed", {
-      page: window.location.pathname,
-      form_position: "hero_section",
-      visit_source: document.referrer || "direct",
-      viewport_width: window.innerWidth,
-    });
-  }, []);
+    useEffect(() => {
+      // Track form view with context
+      window.databuddy?.track("signup_form_viewed", {
+        page: window.location.pathname,
+        form_position: "hero_section",
+        visit_source: document.referrer || "direct",
+        viewport_width: window.innerWidth,
+      });
+    }, []);
 
-  return (
-    <form onSubmit={() => handleSignup("free")}>
-      <input
-        type="email"
-        onFocus={() => handleFormInteraction("email")}
-        placeholder="Enter your email"
-      />
-      <button type="submit">Sign Up Free</button>
-      <button type="button" onClick={() => handleSignup("pro")}>
-        Start Pro Trial
-      </button>
-    </form>
-  );
-}`}
+    return (
+      <form onSubmit={() => handleSignup("free")}>
+        <input
+          type="email"
+          onFocus={() => handleFormInteraction("email")}
+          placeholder="Enter your email"
+        />
+        <button type="submit">Sign Up Free</button>
+        <button type="button" onClick={() => handleSignup("pro")}>
+          Start Pro Trial
+        </button>
+      </form>
+    );
+  }`}
 />
 
 </Tab>
@@ -323,46 +323,46 @@ function SignupForm() {
   language="html"
   filename="Custom Events with Detailed Properties"
   code={`<script>
-  // Track button clicks with comprehensive context
-  function trackSignup(plan) {
-    db.track("signup_completed", {
-      source: "landing_page",
-      plan: plan,
-      trial_days: plan === "pro" ? 14 : 7,
-      button_position: "hero",
-      page_scroll_depth: Math.round(
-        (window.pageYOffset / document.body.scrollHeight) * 100
-      ),
-      session_page_count: sessionStorage.getItem("page_count") || 1,
-    });
-  }
+    // Track button clicks with comprehensive context
+    function trackSignup(plan) {
+      db.track("signup_completed", {
+        source: "landing_page",
+        plan: plan,
+        trial_days: plan === "pro" ? 14 : 7,
+        button_position: "hero",
+        page_scroll_depth: Math.round(
+          (window.pageYOffset / document.body.scrollHeight) * 100
+        ),
+        session_page_count: sessionStorage.getItem("page_count") || 1,
+      });
+    }
 
-  // Track feature usage with user context
-  function trackFeatureUsed(feature, context) {
-    db.track("feature_used", {
-      feature: feature,
-      page: window.location.pathname,
-      user_tier: context?.tier || "free",
-      feature_category: context?.category || "general",
-      previous_page: document.referrer || "direct",
-      time_on_page: Date.now() - window.pageLoadTime,
-    });
-  }
+    // Track feature usage with user context
+    function trackFeatureUsed(feature, context) {
+      db.track("feature_used", {
+        feature: feature,
+        page: window.location.pathname,
+        user_tier: context?.tier || "free",
+        feature_category: context?.category || "general",
+        previous_page: document.referrer || "direct",
+        time_on_page: Date.now() - window.pageLoadTime,
+      });
+    }
 
-  // Track product interactions
-  function trackProductView(productId, category) {
-    db.track("product_viewed", {
-      product_id: productId,
-      product_category: category,
-      view_source: "product_grid",
-      page: window.location.pathname,
-      user_returning: localStorage.getItem("returning_user") === "true",
-    });
-  }
+    // Track product interactions
+    function trackProductView(productId, category) {
+      db.track("product_viewed", {
+        product_id: productId,
+        product_category: category,
+        view_source: "product_grid",
+        page: window.location.pathname,
+        user_returning: localStorage.getItem("returning_user") === "true",
+      });
+    }
 
-  // Store page load time for time-on-page calculations
-  window.pageLoadTime = Date.now();
-</script>
+    // Store page load time for time-on-page calculations
+    window.pageLoadTime = Date.now();
+  </script>
 
 <button onclick="trackSignup('free')">Sign Up Free</button>
 <button onclick="trackSignup('pro')">Start Pro Trial</button>

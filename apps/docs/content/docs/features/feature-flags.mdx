@@ -21,47 +21,47 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
 <CodeBlock language="tsx" filename="app.tsx">
 {`'use client';
 
-import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
-import { useSession } from '@databuddy/auth/client';
+  import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
+  import { useSession } from '@databuddy/auth/client';
 
-function App() {
-  const { data: session, isPending } = useSession();
+  function App() {
+    const { data: session, isPending } = useSession();
 
-  return (
-    <FlagsProvider
-      clientId="your-website-id"
-      apiUrl="https://api.databuddy.cc"
-      isPending={isPending}
-      user={session?.user ? {
-        userId: session.user.id,
-        email: session.user.email,
-        properties: {
-          plan: session.user.plan || 'free',
-          role: session.user.role || 'user',
-          organization: session.user.organizationId,
-          region: 'us-east', // or from user location
-        }
-      } : undefined}
-    >
-      <MyComponent />
-    </FlagsProvider>
-  );
-}
+    return (
+      <FlagsProvider
+        clientId="your-website-id"
+        apiUrl="https://api.databuddy.cc"
+        isPending={isPending}
+        user={session?.user ? {
+          userId: session.user.id,
+          email: session.user.email,
+          properties: {
+            plan: session.user.plan || 'free',
+            role: session.user.role || 'user',
+            organization: session.user.organizationId,
+            region: 'us-east', // or from user location
+          }
+        } : undefined}
+      >
+        <MyComponent />
+      </FlagsProvider>
+    );
+  }
 
-function MyComponent() {
-  const { isEnabled } = useFlags();
+  function MyComponent() {
+    const { isEnabled } = useFlags();
 
-  const newDashboardFlag = isEnabled('new-dashboard');
-  const betaFeaturesFlag = isEnabled('beta-features');
+    const newDashboardFlag = isEnabled('new-dashboard');
+    const betaFeaturesFlag = isEnabled('beta-features');
 
-  return (
-    <div>
-      {newDashboardFlag.isReady && newDashboardFlag.enabled && <NewDashboard />}
-      {betaFeaturesFlag.isReady && betaFeaturesFlag.enabled && <BetaFeatures />}
-      <button>Click me</button>
-    </div>
-  );
-}`}
+    return (
+      <div>
+        {newDashboardFlag.isReady && newDashboardFlag.enabled && <NewDashboard />}
+        {betaFeaturesFlag.isReady && betaFeaturesFlag.enabled && <BetaFeatures />}
+        <button>Click me</button>
+      </div>
+    );
+  }`}
 </CodeBlock>
 </Tab>
 
@@ -69,35 +69,35 @@ function MyComponent() {
 <CodeBlock language="tsx" filename="app.tsx">
 {`'use client';
 
-import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
+  import { FlagsProvider, useFlags } from '@databuddy/sdk/react';
 
-function App() {
-  return (
-    <FlagsProvider
-      clientId="your-client-id"
-      apiUrl="https://api.databuddy.cc"
-      user={{
-        userId: "user-123",
-        email: "user@example.com"
-      }}
-    >
-      <MyComponent />
-    </FlagsProvider>
-  );
-}
+  function App() {
+    return (
+      <FlagsProvider
+        clientId="your-client-id"
+        apiUrl="https://api.databuddy.cc"
+        user={{
+          userId: "user-123",
+          email: "user@example.com"
+        }}
+      >
+        <MyComponent />
+      </FlagsProvider>
+    );
+  }
 
-function MyComponent() {
-  const { isEnabled } = useFlags();
+  function MyComponent() {
+    const { isEnabled } = useFlags();
 
-  const newFeatureFlag = isEnabled('new-feature');
+    const newFeatureFlag = isEnabled('new-feature');
 
-  return (
-    <div>
-      {newFeatureFlag.isReady && newFeatureFlag.enabled && <NewFeature />}
-      <button>Click me</button>
-    </div>
-  );
-}`}
+    return (
+      <div>
+        {newFeatureFlag.isReady && newFeatureFlag.enabled && <NewFeature />}
+        <button>Click me</button>
+      </div>
+    );
+  }`}
 </CodeBlock>
 </Tab>
 
@@ -130,55 +130,55 @@ const showNewUI = isEnabled('new-ui-rollout');`}
 ## Configuration
 
 <CodeBlock language="tsx" filename="provider.tsx">
-{`<FlagsProvider
-  clientId="your-website-id"
-  apiUrl="https://api.databuddy.cc"
-  user={{
-    userId: currentUser.id,
-    email: currentUser.email,
-    properties: {
-      plan: currentUser.plan || 'free',
-      role: currentUser.role || 'user',
-      organization: currentUser.organizationId,
-      region: currentUser.region || 'us-east',
-      signupDate: currentUser.createdAt,
-      featureUsage: {
-        reportsViewed: currentUser.reportsViewed || 0,
-        dashboardsCreated: currentUser.dashboardsCreated || 0,
+  {`<FlagsProvider
+    clientId="your-website-id"
+    apiUrl="https://api.databuddy.cc"
+    user={{
+      userId: currentUser.id,
+      email: currentUser.email,
+      properties: {
+        plan: currentUser.plan || 'free',
+        role: currentUser.role || 'user',
+        organization: currentUser.organizationId,
+        region: currentUser.region || 'us-east',
+        signupDate: currentUser.createdAt,
+        featureUsage: {
+          reportsViewed: currentUser.reportsViewed || 0,
+          dashboardsCreated: currentUser.dashboardsCreated || 0,
+        }
       }
-    }
-  }}
-  isPending={isLoadingSession} // from useSession hook
-  debug={process.env.NODE_ENV === 'development'}
-  autoFetch={true} // default: true
->
-  <App />
-</FlagsProvider>`}
+    }}
+    isPending={isLoadingSession} // from useSession hook
+    debug={process.env.NODE_ENV === 'development'}
+    autoFetch={true} // default: true
+  >
+    <App />
+  </FlagsProvider>`}
 </CodeBlock>
 
 ## Hook API
 
 <CodeBlock language="tsx">
-{`const {
-  isEnabled,
-  fetchAllFlags,
-  updateUser,
-  refresh
-} = useFlags();
+  {`const {
+    isEnabled,
+    fetchAllFlags,
+    updateUser,
+    refresh
+  } = useFlags();
 
-// Get flag state with loading information
-const featureFlag = isEnabled('my-feature');
-// Returns: { enabled: boolean, isLoading: boolean, isReady: boolean }
+  // Get flag state with loading information
+  const featureFlag = isEnabled('my-feature');
+  // Returns: { enabled: boolean, isLoading: boolean, isReady: boolean }
 
-// Conditional rendering - clean and predictable
-{featureFlag.isReady && featureFlag.enabled && <NewFeature />}
+  // Conditional rendering - clean and predictable
+  {featureFlag.isReady && featureFlag.enabled && <NewFeature />}
 
-// Show loading states explicitly
-{featureFlag.isLoading && <LoadingSpinner />}
-{!featureFlag.isReady && <Skeleton />}
+  // Show loading states explicitly
+  {featureFlag.isLoading && <LoadingSpinner />}
+  {!featureFlag.isReady && <Skeleton />}
 
-// Refresh all flags
-await fetchAllFlags();`}
+  // Refresh all flags
+  await fetchAllFlags();`}
 </CodeBlock>
 
 ## Flag States
@@ -220,15 +220,15 @@ The `isPending` prop is crucial for preventing race conditions and ensuring cons
 - **Better Performance**: Reduces redundant flag evaluations during session transitions
 
 <CodeBlock language="tsx">
-{`// ❌ Bad: No isPending - flags evaluate with wrong user context
-<FlagsProvider user={undefined}>
-  <App /> // Shows anonymous features briefly, then switches
-</FlagsProvider>
+  {`// ❌ Bad: No isPending - flags evaluate with wrong user context
+  <FlagsProvider user={undefined}>
+    <App /> // Shows anonymous features briefly, then switches
+  </FlagsProvider>
 
-// ✅ Good: Waits for session before evaluating flags
-<FlagsProvider isPending={isPending} user={session?.user ? {...} : undefined}>
-  <App /> // Shows correct features immediately
-</FlagsProvider>`}
+  // ✅ Good: Waits for session before evaluating flags
+  <FlagsProvider isPending={isPending} user={session?.user ? {...} : undefined}>
+    <App /> // Shows correct features immediately
+  </FlagsProvider>`}
 </CodeBlock>
 
 ## User Targeting
@@ -250,25 +250,25 @@ Custom properties enable sophisticated targeting strategies:
 - **Time-based**: `signupDate > '2024-01-01'` → Target new vs. existing users
 
 <CodeBlock language="tsx">
-{`<FlagsProvider
-  user={{
-    userId: "user-123",
-    email: "user@example.com",
-    properties: {
-      plan: 'premium',
-      region: 'us-east'
-    }
-  }}
->`}
+  {`<FlagsProvider
+    user={{
+      userId: "user-123",
+      email: "user@example.com",
+      properties: {
+        plan: 'premium',
+        region: 'us-east'
+      }
+    }}
+  >`}
 </CodeBlock>
 
 ## Debug Mode
 
 <CodeBlock language="tsx">
-{`<FlagsProvider
-  debug={true}
-  // ... other props
->`}
+  {`<FlagsProvider
+    debug={true}
+    // ... other props
+  >`}
 </CodeBlock>
 
 Enable debug mode to see flag evaluation in the browser console.
@@ -290,41 +290,41 @@ Enable debug mode to see flag evaluation in the browser console.
 6. **Update User Context** after profile changes to refresh flag evaluation
 
 <CodeBlock language="tsx">
-{`// ✅ Recommended: Check isReady before rendering features
-function FeatureComponent() {
-  const { isEnabled } = useFlags();
-  const featureFlag = isEnabled('new-feature');
+  {`// ✅ Recommended: Check isReady before rendering features
+  function FeatureComponent() {
+    const { isEnabled } = useFlags();
+    const featureFlag = isEnabled('new-feature');
 
-  // Always check isReady to avoid flash of wrong content
-  if (!featureFlag.isReady) return <Skeleton />;
-  return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
-}
+    // Always check isReady to avoid flash of wrong content
+    if (!featureFlag.isReady) return <Skeleton />;
+    return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
+  }
 
-// ✅ Show loading states explicitly
-function FeatureWithLoading() {
-  const { isEnabled } = useFlags();
-  const featureFlag = isEnabled('new-feature');
+  // ✅ Show loading states explicitly
+  function FeatureWithLoading() {
+    const { isEnabled } = useFlags();
+    const featureFlag = isEnabled('new-feature');
 
-  if (featureFlag.isLoading) return <LoadingSpinner />;
-  if (!featureFlag.isReady) return <Skeleton />;
-  return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
-}
+    if (featureFlag.isLoading) return <LoadingSpinner />;
+    if (!featureFlag.isReady) return <Skeleton />;
+    return featureFlag.enabled ? <NewFeature /> : <OldFeature />;
+  }
 
-// ✅ Multiple flags in one component
-function Dashboard() {
-  const { isEnabled } = useFlags();
-  const darkMode = isEnabled('dark-mode');
-  const newLayout = isEnabled('new-layout');
+  // ✅ Multiple flags in one component
+  function Dashboard() {
+    const { isEnabled } = useFlags();
+    const darkMode = isEnabled('dark-mode');
+    const newLayout = isEnabled('new-layout');
 
-  // Both flags must be ready before rendering
-  if (!darkMode.isReady || !newLayout.isReady) return <Skeleton />;
+    // Both flags must be ready before rendering
+    if (!darkMode.isReady || !newLayout.isReady) return <Skeleton />;
 
-  return (
-    <div className={darkMode.enabled ? 'dark' : ''}>
-      {newLayout.enabled ? <NewLayout /> : <OldLayout />}
-    </div>
-  );
-}`}
+    return (
+      <div className={darkMode.enabled ? 'dark' : ''}>
+        {newLayout.enabled ? <NewLayout /> : <OldLayout />}
+      </div>
+    );
+  }`}
 </CodeBlock>
 
 ---
