@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { connect } from "node:tls";
 import { chQuery } from "@databuddy/db";
 import { getWebsiteById } from "@databuddy/services/websites";
-import { record } from "./lib/tracing";
+import { captureError, record } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
@@ -402,6 +402,7 @@ export async function checkUptime(
                 },
             };
         } catch (error) {
+            captureError(error);
             // for now we'll just error, but ideally i wanna add axiom OTEL and error logging here
             console.error(
                 "Uptime check failed:",
