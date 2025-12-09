@@ -9,6 +9,7 @@ import {
 	showCommandsAtom,
 } from "../agent-atoms";
 import { filterCommands } from "../agent-commands";
+import { useManualInvoke } from "./use-manual-invoke";
 
 export function useAgentCommands() {
 	const [input, setInput] = useAtom(agentInputAtom);
@@ -16,6 +17,7 @@ export function useAgentCommands() {
 	const [commandQuery, setCommandQuery] = useAtom(commandQueryAtom);
 	const [selectedIndex, setSelectedIndex] = useAtom(selectedCommandIndexAtom);
 	const { sendMessage } = useChatActions();
+	const { invokeWithDefaults, isLoading: isInvoking } = useManualInvoke();
 
 	const filteredCommands = useMemo(
 		() => filterCommands(commandQuery),
@@ -43,17 +45,40 @@ export function useAgentCommands() {
 	);
 
 	const executeCommand = useCallback(
-		(command: AgentCommand) => {
-			sendMessage({
-				text: command.title,
-				metadata: { toolChoice: command.toolName },
-			});
+		async (command: AgentCommand) => {
+			// Handle manual invoke commands differently
+			if (command.manualInvoke) {
+				try {
+					const result = await invokeWithDefaults(command.toolName);
+					// Send the result as a message to display in chat
+					sendMessage({
+						text: `Executed ${command.title}. Results: ${result.meta?.rowCount ?? 0} rows in ${result.meta?.executionTime ?? 0}ms`,
+						metadata: {
+							manualInvoke: true,
+							toolName: command.toolName,
+							result: result.data,
+							meta: result.meta,
+						},
+					});
+				} catch (error) {
+					sendMessage({
+						text: `Failed to execute ${command.title}: ${error instanceof Error ? error.message : "Unknown error"}`,
+						metadata: { error: true },
+					});
+				}
+			} else {
+				// Regular AI-assisted command
+				sendMessage({
+					text: command.title,
+					metadata: { toolChoice: command.toolName },
+				});
+			}
 			setInput("");
 			setShowCommands(false);
 			setCommandQuery("");
 			setSelectedIndex(0);
 		},
-		[sendMessage, setCommandQuery, setInput, setSelectedIndex, setShowCommands]
+		[invokeWithDefaults, sendMessage, setCommandQuery, setInput, setSelectedIndex, setShowCommands]
 	);
 
 	const navigateUp = useCallback(() => {
@@ -128,5 +153,6 @@ export function useAgentCommands() {
 		navigateUp,
 		navigateDown,
 		selectCurrent,
+		isInvoking,
 	};
 }

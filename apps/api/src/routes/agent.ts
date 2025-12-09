@@ -4,8 +4,9 @@ import { Elysia, t } from "elysia";
 import { createReflectionAgent, createTriageAgent } from "../ai/agents";
 import { buildAppContext } from "../ai/config/context";
 import { record, setAttributes } from "../lib/tracing";
-import { validateWebsite } from "../lib/website-utils";
-import { QueryBuilders } from "../query/builders";
+import { getWebsiteDomain, validateWebsite } from "../lib/website-utils";
+import { executeQuery, QueryBuilders } from "../query/builders";
+import type { QueryRequest } from "../query/types";
 
 const AgentRequestSchema = t.Object({
 	websiteId: t.String(),
@@ -28,6 +29,58 @@ const AgentRequestSchema = t.Object({
 	model: t.Optional(
 		t.Union([t.Literal("basic"), t.Literal("agent"), t.Literal("agent-max")])
 	),
+});
+
+/**
+ * Schema for manual tool invocation requests.
+ * Allows users to directly invoke analytics queries without going through the AI agent.
+ */
+const InvokeRequestSchema = t.Object({
+	websiteId: t.String(),
+	tool: t.String({
+		description: "The tool/query type to invoke",
+	}),
+	params: t.Object({
+		from: t.String({ description: "Start date in ISO format (e.g., 2024-01-01)" }),
+		to: t.String({ description: "End date in ISO format (e.g., 2024-01-31)" }),
+		timeUnit: t.Optional(
+			t.Union([
+				t.Literal("minute"),
+				t.Literal("hour"),
+				t.Literal("day"),
+				t.Literal("week"),
+				t.Literal("month"),
+			])
+		),
+		filters: t.Optional(
+			t.Array(
+				t.Object({
+					field: t.String(),
+					op: t.Union([
+						t.Literal("eq"),
+						t.Literal("ne"),
+						t.Literal("contains"),
+						t.Literal("not_contains"),
+						t.Literal("starts_with"),
+						t.Literal("in"),
+						t.Literal("not_in"),
+					]),
+					value: t.Union([
+						t.String(),
+						t.Number(),
+						t.Array(t.Union([t.String(), t.Number()])),
+					]),
+					target: t.Optional(t.String()),
+					having: t.Optional(t.Boolean()),
+				})
+			)
+		),
+		groupBy: t.Optional(t.Array(t.String())),
+		orderBy: t.Optional(t.String()),
+		limit: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+		offset: t.Optional(t.Number({ minimum: 0 })),
+	}),
+	timezone: t.Optional(t.String()),
 });
 
 type UIMessage = {
@@ -205,4 +258,122 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 			});
 		},
 		{ body: AgentRequestSchema, idleTimeout: 60_000 }
-	);
+	)
+	.post(
+		"/invoke",
+		async function agentInvoke({ body, user, request }) {
+			return record("agentInvoke", async () => {
+				setAttributes({
+					"agent.website_id": body.websiteId,
+					"agent.user_id": user?.id ?? "unknown",
+					"agent.tool": body.tool,
+				});
+
+				try {
+					const websiteValidation = await validateWebsite(body.websiteId);
+					if (!(websiteValidation.success && websiteValidation.website)) {
+						return {
+							success: false,
+							error: websiteValidation.error ?? "Website not found",
+						};
+					}
+
+					const { website } = websiteValidation;
+
+					let authorized = website.isPublic;
+					if (!authorized) {
+						if (website.organizationId) {
+							const { success } = await websitesApi.hasPermission({
+								headers: request.headers,
+								body: { permissions: { website: ["read"] } },
+							});
+							authorized = success;
+						} else {
+							authorized = website.userId === user?.id;
+						}
+					}
+
+					if (!authorized) {
+						return {
+							success: false,
+							error: "Unauthorized",
+						};
+					}
+
+					// Validate the tool exists
+					const availableTools = Object.keys(QueryBuilders);
+					if (!availableTools.includes(body.tool)) {
+						return {
+							success: false,
+							error: `Unknown tool: ${body.tool}. Available tools: ${availableTools.join(", ")}`,
+							availableTools,
+						};
+					}
+
+					// Get website domain for the query
+					const websiteDomain = await getWebsiteDomain(body.websiteId);
+
+					// Build and execute the query
+					const queryRequest: QueryRequest = {
+						projectId: body.websiteId,
+						type: body.tool,
+						from: body.params.from,
+						to: body.params.to,
+						timeUnit: body.params.timeUnit,
+						filters: body.params.filters,
+						groupBy: body.params.groupBy,
+						orderBy: body.params.orderBy,
+						limit: body.params.limit,
+						offset: body.params.offset,
+						timezone: body.timezone ?? "UTC",
+					};
+
+					const startTime = Date.now();
+					const data = await executeQuery(
+						queryRequest,
+						websiteDomain,
+						queryRequest.timezone
+					);
+					const executionTime = Date.now() - startTime;
+
+					return {
+						success: true,
+						tool: body.tool,
+						data,
+						meta: {
+							rowCount: data.length,
+							executionTime,
+							timezone: queryRequest.timezone,
+							from: body.params.from,
+							to: body.params.to,
+						},
+					};
+				} catch (error) {
+					console.error("Agent invoke error:", error);
+					return {
+						success: false,
+						error: error instanceof Error ? error.message : "Unknown error",
+					};
+				}
+			});
+		},
+		{ body: InvokeRequestSchema }
+	)
+	.get("/tools", async function listTools({ user }) {
+		if (!user?.id) {
+			return {
+				success: false,
+				error: "Authentication required",
+			};
+		}
+
+		const tools = Object.keys(QueryBuilders).map((key) => ({
+			name: key,
+			description: `Execute ${key} analytics query`,
+		}));
+
+		return {
+			success: true,
+			tools,
+		};
+	});

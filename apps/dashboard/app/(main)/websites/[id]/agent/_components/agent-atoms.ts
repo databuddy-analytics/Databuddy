@@ -20,6 +20,8 @@ export type AgentCommand = {
 	toolName: string;
 	toolParams?: Record<string, unknown>;
 	keywords: string[];
+	/** Whether this command should be invoked directly without AI */
+	manualInvoke?: boolean;
 };
 
 export const agentMessagesAtom = atom<UIMessage[]>([]);
