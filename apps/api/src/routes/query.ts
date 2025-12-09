@@ -67,9 +67,9 @@ function getAccessibleWebsites(authCtx: AuthContext) {
 				? eq(websites.organizationId, authCtx.apiKey.organizationId)
 				: authCtx.apiKey.userId
 					? and(
-							eq(websites.userId, authCtx.apiKey.userId),
-							isNull(websites.organizationId)
-						)
+						eq(websites.userId, authCtx.apiKey.userId),
+						isNull(websites.organizationId)
+					)
 					: eq(websites.id, "");
 			return db
 				.select(select)
@@ -116,12 +116,12 @@ function getTimeUnit(
 type ParamInput =
 	| string
 	| {
-			name: string;
-			start_date?: string;
-			end_date?: string;
-			granularity?: string;
-			id?: string;
-	  };
+		name: string;
+		start_date?: string;
+		end_date?: string;
+		granularity?: string;
+		id?: string;
+	};
 
 function parseParam(p: ParamInput) {
 	if (typeof p === "string") {
@@ -358,17 +358,33 @@ async function runDynamicQuery(
 		}
 	}
 
+	// Build results array, separating errors from successes
+	const allResults = prepared.map(
+		(p) =>
+			resultMap.get(p.id) || {
+				parameter: p.id,
+				success: false,
+				error: "Unknown",
+				data: [],
+			}
+	);
+
+	// Sort: successes first, then errors (at the bottom)
+	const sortedResults = allResults.sort((a, b) => {
+		const aIsError = !a.success;
+		const bIsError = !b.success;
+		if (!aIsError && bIsError) {
+			return -1; // a (success) comes before b (error)
+		}
+		if (aIsError && !bIsError) {
+			return 1; // b (success) comes before a (error)
+		}
+		return 0; // maintain original order for same type
+	});
+
 	return {
 		queryId: req.id,
-		data: prepared.map(
-			(p) =>
-				resultMap.get(p.id) || {
-					parameter: p.id,
-					success: false,
-					error: "Unknown",
-					data: [],
-				}
-		),
+		data: sortedResults,
 		meta: {
 			parameters: req.parameters,
 			total_parameters: req.parameters.length,
