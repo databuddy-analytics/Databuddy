@@ -70,18 +70,18 @@ Get all websites you have access to through your authentication method.
 <CodeBlock 
   language="json"
   code={`{
-  "success": true,
-  "websites": [
-    {
-      "id": "web_123",
-      "name": "My Website",
-      "domain": "example.com",
-      "isPublic": false,
-      "createdAt": "2024-01-01T00:00:00.000Z"
-    }
-  ],
-  "total": 1
-}`}
+    "success": true,
+    "websites": [
+      {
+        "id": "web_123",
+        "name": "My Website",
+        "domain": "example.com",
+        "isPublic": false,
+        "createdAt": "2024-01-01T00:00:00.000Z"
+      }
+    ],
+    "total": 1
+  }`}
 />
 
 ### Get Available Query Types
@@ -101,49 +101,49 @@ Get all available query types and their configurations.
 <CodeBlock 
   language="json"
   code={`{
-  "success": true,
-  "types": ["summary", "pages", "traffic", "devices", "geo", "errors", "performance", "sessions", "custom_events", "profiles", "links", "engagement"],
-  "configs": {
-    "summary": {
-      "allowedFilters": ["date", "country", "device", "browser"],
-      "customizable": true,
-      "defaultLimit": 100
-    },
-    "pages": {
-      "allowedFilters": ["date", "path"],
-      "customizable": true,
-      "defaultLimit": 50
-    },
-    "browser_name": {
-      "allowedFilters": ["date", "browser", "country"],
-      "customizable": true,
-      "defaultLimit": 100,
-      "meta": {
-        "title": "Browser Usage",
-        "description": "Website traffic breakdown by browser type showing which browsers your visitors use most.",
-        "category": "Technology",
-        "tags": ["browsers", "technology", "devices", "compatibility"],
-        "output_fields": [
-          {
-            "name": "name",
-            "type": "string",
-            "label": "Browser Name",
-            "description": "The browser name (Chrome, Firefox, Safari, etc.)"
-          },
-          {
-            "name": "pageviews",
-            "type": "number",
-            "label": "Pageviews",
-            "description": "Total pageviews from this browser"
-          }
-        ],
-        "default_visualization": "pie",
-        "supports_granularity": ["hour", "day"],
-        "version": "1.0"
+    "success": true,
+    "types": ["summary", "pages", "traffic", "devices", "geo", "errors", "performance", "sessions", "custom_events", "profiles", "links", "engagement"],
+    "configs": {
+      "summary": {
+        "allowedFilters": ["date", "country", "device", "browser"],
+        "customizable": true,
+        "defaultLimit": 100
+      },
+      "pages": {
+        "allowedFilters": ["date", "path"],
+        "customizable": true,
+        "defaultLimit": 50
+      },
+      "browser_name": {
+        "allowedFilters": ["date", "browser", "country"],
+        "customizable": true,
+        "defaultLimit": 100,
+        "meta": {
+          "title": "Browser Usage",
+          "description": "Website traffic breakdown by browser type showing which browsers your visitors use most.",
+          "category": "Technology",
+          "tags": ["browsers", "technology", "devices", "compatibility"],
+          "output_fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "label": "Browser Name",
+              "description": "The browser name (Chrome, Firefox, Safari, etc.)"
+            },
+            {
+              "name": "pageviews",
+              "type": "number",
+              "label": "Pageviews",
+              "description": "Total pageviews from this browser"
+            }
+          ],
+          "default_visualization": "pie",
+          "supports_granularity": ["hour", "day"],
+          "version": "1.0"
+        }
       }
     }
-  }
-}`}
+  }`}
 />
 
 ### Execute Dynamic Analytics Query
@@ -166,24 +166,24 @@ Execute analytics queries with advanced parameter support, including batch proce
 <CodeBlock 
   language="json"
   code={`{
-  "id": "my-query-123",
-  "parameters": ["summary", "pages", "browser_name"],
-  "limit": 100,
-  "page": 1,
-  "filters": [
-    {
-      "field": "country",
-      "op": "in",
-      "value": ["US", "CA"]
-    },
-    {
-      "field": "device_type",
-      "op": "eq",
-      "value": "desktop"
-    }
-  ],
-  "granularity": "daily"
-}`}
+    "id": "my-query-123",
+    "parameters": ["summary", "pages", "browser_name"],
+    "limit": 100,
+    "page": 1,
+    "filters": [
+      {
+        "field": "country",
+        "op": "in",
+        "value": ["US", "CA"]
+      },
+      {
+        "field": "device_type",
+        "op": "eq",
+        "value": "desktop"
+      }
+    ],
+    "granularity": "daily"
+  }`}
 />
 
 **Advanced Parameter Objects:**
@@ -191,25 +191,25 @@ Execute analytics queries with advanced parameter support, including batch proce
 <CodeBlock 
   language="json"
   code={`{
-  "id": "advanced-query",
-  "parameters": [
-    "summary",
-    {
-      "name": "pages",
-      "start_date": "2024-01-01",
-      "end_date": "2024-01-07",
-      "granularity": "hourly",
-      "id": "pages-last-week"
-    },
-    {
-      "name": "browser_name",
-      "start_date": "2024-01-15",
-      "end_date": "2024-01-31",
-      "id": "browsers-recent"
-    }
-  ],
-  "limit": 50
-}`}
+    "id": "advanced-query",
+    "parameters": [
+      "summary",
+      {
+        "name": "pages",
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-07",
+        "granularity": "hourly",
+        "id": "pages-last-week"
+      },
+      {
+        "name": "browser_name",
+        "start_date": "2024-01-15",
+        "end_date": "2024-01-31",
+        "id": "browsers-recent"
+      }
+    ],
+    "limit": 50
+  }`}
 />
 
 **Batch Query Request:**
@@ -217,24 +217,24 @@ Execute analytics queries with advanced parameter support, including batch proce
 <CodeBlock 
   language="json"
   code={`[
-  {
-    "id": "query-1",
-    "parameters": ["summary", "pages"],
-    "limit": 100
-  },
-  {
-    "id": "query-2", 
-    "parameters": ["browser_name", "os_name"],
-    "limit": 50,
-    "filters": [
-      {
-        "field": "country",
-        "op": "eq",
-        "value": "US"
-      }
-    ]
-  }
-]`}
+    {
+      "id": "query-1",
+      "parameters": ["summary", "pages"],
+      "limit": 100
+    },
+    {
+      "id": "query-2", 
+      "parameters": ["browser_name", "os_name"],
+      "limit": 50,
+      "filters": [
+        {
+          "field": "country",
+          "op": "eq",
+          "value": "US"
+        }
+      ]
+    }
+  ]`}
 />
 
 **Available Query Types:**
@@ -268,41 +268,41 @@ Execute analytics queries with advanced parameter support, including batch proce
 <CodeBlock 
   language="json"
   code={`{
-  "success": true,
-  "queryId": "my-query-123",
-  "data": [
-    {
-      "parameter": "summary",
-      "success": true,
-      "data": [
-        {
-          "date": "2024-01-01",
-          "pageviews": 1250,
-          "visitors": 890,
-          "sessions": 1100
-        }
-      ]
-    },
-    {
-      "parameter": "pages",
-      "success": true,
-      "data": [
-        {
-          "path": "/",
-          "pageviews": 450,
-          "visitors": 320
-        }
-      ]
+    "success": true,
+    "queryId": "my-query-123",
+    "data": [
+      {
+        "parameter": "summary",
+        "success": true,
+        "data": [
+          {
+            "date": "2024-01-01",
+            "pageviews": 1250,
+            "visitors": 890,
+            "sessions": 1100
+          }
+        ]
+      },
+      {
+        "parameter": "pages",
+        "success": true,
+        "data": [
+          {
+            "path": "/",
+            "pageviews": 450,
+            "visitors": 320
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "parameters": ["summary", "pages"],
+      "total_parameters": 2,
+      "page": 1,
+      "limit": 100,
+      "filters_applied": 2
     }
-  ],
-  "meta": {
-    "parameters": ["summary", "pages"],
-    "total_parameters": 2,
-    "page": 1,
-    "limit": 100,
-    "filters_applied": 2
-  }
-}`}
+  }`}
 />
 
 **Batch Query Response:**
@@ -310,21 +310,21 @@ Execute analytics queries with advanced parameter support, including batch proce
 <CodeBlock 
   language="json"
   code={`{
-  "success": true,
-  "batch": true,
-  "results": [
-    {
-      "success": true,
-      "queryId": "query-1",
-      "data": [...]
-    },
-    {
-      "success": true,
-      "queryId": "query-2", 
-      "data": [...]
-    }
-  ]
-}`}
+    "success": true,
+    "batch": true,
+    "results": [
+      {
+        "success": true,
+        "queryId": "query-1",
+        "data": [...]
+      },
+      {
+        "success": true,
+        "queryId": "query-2", 
+        "data": [...]
+      }
+    ]
+  }`}
 />
 
 ### Compile Query (Advanced)
@@ -344,21 +344,21 @@ Compile a query to see the generated SQL without executing it. Useful for debugg
 <CodeBlock 
   language="json"
   code={`{
-  "projectId": "web_123",
-  "type": "summary",
-  "from": "2024-01-01",
-  "to": "2024-01-31",
-  "timeUnit": "day",
-  "filters": [
-    {
-      "field": "country",
-      "op": "in",
-      "value": ["US", "CA"]
-    }
-  ],
-  "limit": 100,
-  "offset": 0
-}`}
+    "projectId": "web_123",
+    "type": "summary",
+    "from": "2024-01-01",
+    "to": "2024-01-31",
+    "timeUnit": "day",
+    "filters": [
+      {
+        "field": "country",
+        "op": "in",
+        "value": ["US", "CA"]
+      }
+    ],
+    "limit": 100,
+    "offset": 0
+  }`}
 />
 
 **Response:**
@@ -366,15 +366,15 @@ Compile a query to see the generated SQL without executing it. Useful for debugg
 <CodeBlock 
   language="json"
   code={`{
-  "success": true,
-  "sql": "SELECT toDate(time) as date, count(*) as pageviews, count(distinct anonymous_id) as visitors FROM analytics.events WHERE time >= '2024-01-01' AND time <= '2024-01-31' AND country IN ('US', 'CA') GROUP BY date ORDER BY date LIMIT 100",
-  "parameters": {
-    "projectId": "web_123",
-    "from": "2024-01-01",
-    "to": "2024-01-31",
-    "filters": [{"field": "country", "op": "in", "value": ["US", "CA"]}]
-  }
-}`}
+    "success": true,
+    "sql": "SELECT toDate(time) as date, count(*) as pageviews, count(distinct anonymous_id) as visitors FROM analytics.events WHERE time >= '2024-01-01' AND time <= '2024-01-31' AND country IN ('US', 'CA') GROUP BY date ORDER BY date LIMIT 100",
+    "parameters": {
+      "projectId": "web_123",
+      "from": "2024-01-01",
+      "to": "2024-01-31",
+      "filters": [{"field": "country", "op": "in", "value": ["US", "CA"]}]
+    }
+  }`}
 />
 
 ## AI Assistant
@@ -393,15 +393,15 @@ Use natural language to query your analytics data with streaming responses.
 <CodeBlock 
   language="json"
   code={`{
-  "websiteId": "web_123",
-  "message": "Show me the top pages by pageviews last week",
-  "context": {
-    "dateRange": {
-      "start": "2024-01-01",
-      "end": "2024-01-07"
+    "websiteId": "web_123",
+    "message": "Show me the top pages by pageviews last week",
+    "context": {
+      "dateRange": {
+        "start": "2024-01-01",
+        "end": "2024-01-07"
+      }
     }
-  }
-}`}
+  }`}
 />
 
 **Response (Server-Sent Events):**
@@ -431,13 +431,13 @@ Export analytics data in various formats (CSV, JSON).
 <CodeBlock 
   language="json"
   code={`{
-  "websiteId": "web_123",
-  "type": "summary",
-  "format": "csv",
-  "startDate": "2024-01-01",
-  "endDate": "2024-01-31",
-  "timezone": "UTC"
-}`}
+    "websiteId": "web_123",
+    "type": "summary",
+    "format": "csv",
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31",
+    "timezone": "UTC"
+  }`}
 />
 
 **Response:**
@@ -459,17 +459,17 @@ Track custom events programmatically using the basket endpoint.
 <CodeBlock 
   language="json"
   code={`{
-  "type": "custom",
-  "name": "purchase",
-  "anonymousId": "anon_user_123",
-  "sessionId": "session_456",
-  "timestamp": 1704067200000,
-  "properties": {
-    "value": 99.99,
-    "currency": "USD",
-    "product_id": "prod_123"
-  }
-}`}
+    "type": "custom",
+    "name": "purchase",
+    "anonymousId": "anon_user_123",
+    "sessionId": "session_456",
+    "timestamp": 1704067200000,
+    "properties": {
+      "value": 99.99,
+      "currency": "USD",
+      "product_id": "prod_123"
+    }
+  }`}
 />
 
 **Minimal Custom Event (without session/user tracking):**
@@ -477,12 +477,12 @@ Track custom events programmatically using the basket endpoint.
 <CodeBlock 
   language="json"
   code={`{
-  "type": "custom",
-  "name": "newsletter_signup",
-  "properties": {
-    "source": "footer_form"
-  }
-}`}
+    "type": "custom",
+    "name": "newsletter_signup",
+    "properties": {
+      "source": "footer_form"
+    }
+  }`}
 />
 
 **Batch Custom Events Request:**
@@ -495,30 +495,30 @@ Track custom events programmatically using the basket endpoint.
 <CodeBlock 
   language="json"
   code={`[
-  {
-    "type": "custom",
-    "name": "purchase",
-    "anonymousId": "anon_user_123",
-    "sessionId": "session_456",
-    "timestamp": 1704067200000,
-    "properties": {
-      "value": 99.99,
-      "currency": "USD",
-      "product_id": "prod_123"
+    {
+      "type": "custom",
+      "name": "purchase",
+      "anonymousId": "anon_user_123",
+      "sessionId": "session_456",
+      "timestamp": 1704067200000,
+      "properties": {
+        "value": 99.99,
+        "currency": "USD",
+        "product_id": "prod_123"
+      }
+    },
+    {
+      "type": "custom",
+      "name": "signup",
+      "anonymousId": "anon_user_124",
+      "sessionId": "session_457",
+      "timestamp": 1704067260000,
+      "properties": {
+        "plan": "premium",
+        "source": "landing_page"
+      }
     }
-  },
-  {
-    "type": "custom",
-    "name": "signup",
-    "anonymousId": "anon_user_124",
-    "sessionId": "session_457",
-    "timestamp": 1704067260000,
-    "properties": {
-      "plan": "premium",
-      "source": "landing_page"
-    }
-  }
-]`}
+  ]`}
 />
 
 **Required Fields:**
@@ -536,9 +536,9 @@ Track custom events programmatically using the basket endpoint.
 <CodeBlock 
   language="json"
   code={`{
-  "status": "success",
-  "type": "custom"
-}`}
+    "status": "success",
+    "type": "custom"
+  }`}
 />
 
 **Batch Response:**
@@ -546,22 +546,22 @@ Track custom events programmatically using the basket endpoint.
 <CodeBlock 
   language="json"
   code={`{
-  "status": "success",
-  "batch": true,
-  "processed": 2,
-  "results": [
-    {
-      "status": "success",
-      "type": "custom",
-      "eventId": "evt_12345"
-    },
-    {
-      "status": "success", 
-      "type": "custom",
-      "eventId": "evt_12346"
-    }
-  ]
-}`}
+    "status": "success",
+    "batch": true,
+    "processed": 2,
+    "results": [
+      {
+        "status": "success",
+        "type": "custom",
+        "eventId": "evt_12345"
+      },
+      {
+        "status": "success", 
+        "type": "custom",
+        "eventId": "evt_12346"
+      }
+    ]
+  }`}
 />
 
 ## Health Check
@@ -580,13 +580,13 @@ Check the health status of the API and its dependencies.
 <CodeBlock 
   language="json"
   code={`{
-  "clickhouse": true,
-  "database": true,
-  "redis": true,
-  "success": true,
-  "version": "1.0.0",
-  "timestamp": "2024-01-01T12:00:00.000Z"
-}`}
+    "clickhouse": true,
+    "database": true,
+    "redis": true,
+    "success": true,
+    "version": "1.0.0",
+    "timestamp": "2024-01-01T12:00:00.000Z"
+  }`}
 />
 
 ## Rate Limits
@@ -626,10 +626,10 @@ All errors follow a consistent format:
 <CodeBlock 
   language="json"
   code={`{
-  "success": false,
-  "error": "Website not found or access denied",
-  "code": "WEBSITE_NOT_FOUND"
-}`}
+    "success": false,
+    "error": "Website not found or access denied",
+    "code": "WEBSITE_NOT_FOUND"
+  }`}
 />
 
 **Common Error Codes:**

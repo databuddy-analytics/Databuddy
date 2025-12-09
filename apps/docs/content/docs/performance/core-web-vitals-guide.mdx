@@ -38,21 +38,21 @@ LCP measures how long it takes for the largest content element to become visible
 <CodeBlock 
   language="javascript"
   code={`// Databuddy automatically tracks LCP
-databuddy.track('core_web_vital', {
-  metric: 'LCP',
-  value: lcpValue,
-  element: lcpElement
-});`}
+  databuddy.track('core_web_vital', {
+    metric: 'LCP',
+    value: lcpValue,
+    element: lcpElement
+  });`}
 />
 
 **Using JavaScript:**
 <CodeBlock 
   language="javascript"
   code={`new PerformanceObserver((entryList) => {
-  for (const entry of entryList.getEntries()) {
-    console.log('LCP candidate:', entry.startTime, entry.element);
-  }
-}).observe({entryTypes: ['largest-contentful-paint']});`}
+    for (const entry of entryList.getEntries()) {
+      console.log('LCP candidate:', entry.startTime, entry.element);
+    }
+  }).observe({entryTypes: ['largest-contentful-paint']});`}
 />
 
 ### LCP Optimization Strategies
@@ -62,14 +62,14 @@ databuddy.track('core_web_vital', {
   language="html"
   filename="Image Optimization"
   code={`<!-- Use modern image formats -->
-<picture>
-  <source srcset="hero.avif" type="image/avif">
-  <source srcset="hero.webp" type="image/webp">
-  <img src="hero.jpg" alt="Hero image" loading="eager">
-</picture>
+  <picture>
+    <source srcset="hero.avif" type="image/avif">
+    <source srcset="hero.webp" type="image/webp">
+    <img src="hero.jpg" alt="Hero image" loading="eager">
+  </picture>
 
-<!-- Preload critical images -->
-<link rel="preload" as="image" href="hero.jpg">`}
+  <!-- Preload critical images -->
+  <link rel="preload" as="image" href="hero.jpg">`}
 />
 
 #### 2. Optimize Server Response Time
@@ -83,10 +83,10 @@ databuddy.track('core_web_vital', {
   language="html"
   filename="Remove Render-Blocking Resources"
   code={`<!-- async non-critical CSS -->
-<link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
 
-<!-- async JavaScript -->
-<script src="script.js" async></script>`}
+  <!-- async JavaScript -->
+  <script src="script.js" async></script>`}
 />
 
 #### 4. Optimize Critical Rendering Path
@@ -94,13 +94,13 @@ databuddy.track('core_web_vital', {
   language="html"
   filename="Critical Rendering Path"
   code={`<!-- Inline critical CSS -->
-<style>
-  /* Critical above-the-fold styles */
-  .hero { display: block; }
-</style>
+  <style>
+    /* Critical above-the-fold styles */
+    .hero { display: block; }
+  </style>
 
-<!-- Preconnect to external domains -->
-<link rel="preconnect" href="https://fonts.googleapis.com">`}
+  <!-- Preconnect to external domains -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">`}
 />
 
 ## 2. First Input Delay (FID)
@@ -119,22 +119,22 @@ FID measures the time from when a user first interacts with your page (clicks a 
 <CodeBlock 
   language="javascript"
   code={`// Databuddy tracks FID automatically
-databuddy.track('core_web_vital', {
-  metric: 'FID',
-  value: fidValue,
-  eventType: eventType
-});`}
+  databuddy.track('core_web_vital', {
+    metric: 'FID',
+    value: fidValue,
+    eventType: eventType
+  });`}
 />
 
 **Using JavaScript:**
 <CodeBlock 
   language="javascript"
   code={`new PerformanceObserver((entryList) => {
-  for (const entry of entryList.getEntries()) {
-    const FID = entry.processingStart - entry.startTime;
-    console.log('FID:', FID);
-  }
-}).observe({entryTypes: ['first-input']});`}
+    for (const entry of entryList.getEntries()) {
+      const FID = entry.processingStart - entry.startTime;
+      console.log('FID:', FID);
+    }
+  }).observe({entryTypes: ['first-input']});`}
 />
 
 ### FID Optimization Strategies
