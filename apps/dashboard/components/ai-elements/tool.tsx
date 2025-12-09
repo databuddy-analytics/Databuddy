@@ -1,15 +1,16 @@
 "use client";
 
+import type { ToolUIPart } from "ai";
 import {
-	ArrowDownIcon,
 	CheckCircleIcon,
+	ChevronDownIcon,
 	CircleIcon,
 	ClockIcon,
 	WrenchIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react";
-import type { ToolUIPart } from "ai";
+} from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
+import { isValidElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
 	Collapsible,
@@ -23,46 +24,43 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
 	<Collapsible
-		className={cn(
-			"not-prose mb-4 w-full overflow-hidden rounded-lg border border-border/70 bg-card",
-			className
-		)}
-		open={false}
+		className={cn("not-prose mb-4 w-full rounded-md border", className)}
 		{...props}
 	/>
 );
 
 export type ToolHeaderProps = {
+	title?: string;
 	type: ToolUIPart["type"];
 	state: ToolUIPart["state"];
 	className?: string;
 };
 
 const getStatusBadge = (status: ToolUIPart["state"]) => {
-	const labels = {
+	const labels: Record<ToolUIPart["state"], string> = {
 		"input-streaming": "Pending",
 		"input-available": "Running",
+		// @ts-expect-error state only available in AI SDK v6
+		"approval-requested": "Awaiting Approval",
+		"approval-responded": "Responded",
 		"output-available": "Completed",
 		"output-error": "Error",
-	} as const;
+		"output-denied": "Denied",
+	};
 
-	const icons = {
-		"input-streaming": (
-			<CircleIcon className="size-4 text-muted-foreground" weight="fill" />
-		),
-		"input-available": (
-			<ClockIcon className="size-4 text-foreground" weight="duotone" />
-		),
-		"output-available": (
-			<CheckCircleIcon className="size-4 text-success" weight="duotone" />
-		),
-		"output-error": (
-			<XCircleIcon className="size-4 text-destructive" weight="duotone" />
-		),
-	} as const;
+	const icons: Record<ToolUIPart["state"], ReactNode> = {
+		"input-streaming": <CircleIcon className="size-4" />,
+		"input-available": <ClockIcon className="size-4 animate-pulse" />,
+		// @ts-expect-error state only available in AI SDK v6
+		"approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
+		"approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
+		"output-available": <CheckCircleIcon className="size-4 text-green-600" />,
+		"output-error": <XCircleIcon className="size-4 text-red-600" />,
+		"output-denied": <XCircleIcon className="size-4 text-orange-600" />,
+	};
 
 	return (
-		<Badge className="gap-1.5 rounded-full text-[11px]" variant="secondary">
+		<Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
 			{icons[status]}
 			{labels[status]}
 		</Badge>
@@ -71,28 +69,26 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
 
 export const ToolHeader = ({
 	className,
+	title,
 	type,
 	state,
 	...props
 }: ToolHeaderProps) => (
 	<CollapsibleTrigger
 		className={cn(
-			"group flex w-full items-center justify-between gap-4 bg-muted/50 px-3 py-2",
+			"flex w-full items-center justify-between gap-4 p-3",
 			className
 		)}
 		{...props}
 	>
 		<div className="flex items-center gap-2">
-			<WrenchIcon className="size-4 text-muted-foreground" weight="duotone" />
-			<span className="font-medium text-foreground text-sm capitalize">
-				{type}
+			<WrenchIcon className="size-4 text-muted-foreground" />
+			<span className="font-medium text-sm">
+				{title ?? type.split("-").slice(1).join("-")}
 			</span>
 			{getStatusBadge(state)}
 		</div>
-		<ArrowDownIcon
-			className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
-			weight="duotone"
-		/>
+		<ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
 	</CollapsibleTrigger>
 );
 
@@ -101,7 +97,7 @@ export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
 	<CollapsibleContent
 		className={cn(
-			"border-border/60 border-t bg-card text-foreground outline-none",
+			"data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
 			className
 		)}
 		{...props}
@@ -113,14 +109,11 @@ export type ToolInputProps = ComponentProps<"div"> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-	<div
-		className={cn("space-y-2 overflow-hidden p-4 text-sm", className)}
-		{...props}
-	>
+	<div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
 		<h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 			Parameters
 		</h4>
-		<div className="rounded-md border border-border/60 bg-muted/50">
+		<div className="rounded-md bg-muted/50">
 			<CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
 		</div>
 	</div>
@@ -143,7 +136,7 @@ export const ToolOutput = ({
 
 	let Output = <div>{output as ReactNode}</div>;
 
-	if (typeof output === "object") {
+	if (typeof output === "object" && !isValidElement(output)) {
 		Output = (
 			<CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
 		);
@@ -152,16 +145,16 @@ export const ToolOutput = ({
 	}
 
 	return (
-		<div className={cn("space-y-2 p-4 text-sm", className)} {...props}>
+		<div className={cn("space-y-2 p-4", className)} {...props}>
 			<h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 				{errorText ? "Error" : "Result"}
 			</h4>
 			<div
 				className={cn(
-					"overflow-x-auto rounded-md border text-xs [&_table]:w-full",
+					"overflow-x-auto rounded-md text-xs [&_table]:w-full",
 					errorText
-						? "border-destructive/50 bg-destructive/10 text-destructive"
-						: "border-border/60 bg-muted/50 text-foreground"
+						? "bg-destructive/10 text-destructive"
+						: "bg-muted/50 text-foreground"
 				)}
 			>
 				{errorText && <div>{errorText}</div>}

@@ -1,79 +1,218 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { CircleNotchIcon, PaperclipIcon } from "@phosphor-icons/react";
+import { useChat } from "@ai-sdk-tools/store";
 import type { UIMessage } from "ai";
-import Image from "next/image";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+	ChainOfThought,
+	ChainOfThoughtContent,
+	ChainOfThoughtHeader,
+	ChainOfThoughtStep,
+} from "@/components/ai-elements/chain-of-thought";
 import {
 	Message,
-	MessageAvatar,
 	MessageContent,
+	MessageResponse,
 } from "@/components/ai-elements/message";
 import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { Response } from "@/components/ai-elements/response";
-import {
-	Tool,
-	ToolContent,
-	ToolHeader,
-	ToolInput,
-	ToolOutput,
-} from "@/components/ai-elements/tool";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
+import { useChatStatus } from "./hooks/use-chat-status";
 
-type AgentMessagesProps = {
-	messages: UIMessage[];
-	isStreaming?: boolean;
-	hasError?: boolean;
-	statusText?: string;
-};
+type MessagePart = UIMessage["parts"][number];
 
-function getTextContent(message: UIMessage): string {
-	if (!message.parts) {
-		return "";
+function getReasoningText(part: MessagePart): string {
+	const reasoning = part as {
+		text?: string;
+		content?: string;
+	};
+
+	return (
+		reasoning.text ||
+		reasoning.content ||
+		JSON.stringify(part, null, 2) ||
+		"Thinking through the request."
+	);
+}
+
+function formatToolOutput(output: unknown) {
+	if (output === undefined) {
+		return null;
 	}
-	return message.parts
-		.filter(
-			(part): part is { type: "text"; text: string } => part.type === "text"
-		)
-		.map((part) => part.text)
-		.join("");
+
+	console.log(output);
+
+	if (typeof output === "object" && "data" in output) {
+		return <p>Found {output.data.length} results.</p>;
+	}
+
+	if (typeof output === "object" && "pages" in output) {
+		return <p>Found {output.pages.length} results.</p>;
+	}
+
+	if (typeof output === "object" && "errorText" in output) {
+		return <p>Error: {output.errorText}</p>;
+	}
+
+	if (typeof output === "string") {
+		const obj = JSON.parse(output);
+
+		if ("data" in obj) {
+			return <p>Found {obj.data.length} results.</p>;
+		}
+
+		if ("pages" in obj) {
+			return <p>Found {obj.pages.length} results.</p>;
+		}
+
+		if ("errorText" in obj) {
+			return <p>Error: {obj.errorText}</p>;
+		}
+
+		return <p>Found 0 results.</p>;
+	}
+
+	return <p>Found 0 results.</p>;
 }
 
-function extractFileParts(parts: UIMessage["parts"]) {
-	return parts.filter((part) => part.type === "file");
+function ReasoningMessage({
+	part,
+	isStreaming,
+}: {
+	part: MessagePart;
+	isStreaming: boolean;
+}) {
+	const [hasBeenStreaming, setHasBeenStreaming] = useState(isStreaming);
+
+	useEffect(() => {
+		if (isStreaming) {
+			setHasBeenStreaming(true);
+		}
+	}, [isStreaming]);
+
+	return (
+		<Reasoning defaultOpen={hasBeenStreaming} isStreaming={isStreaming}>
+			<ReasoningTrigger />
+			<ReasoningContent>{getReasoningText(part)}</ReasoningContent>
+		</Reasoning>
+	);
 }
 
-function extractToolParts(parts: UIMessage["parts"]) {
-	return parts.filter((part) => part.type?.startsWith("tool")) as Array<{
-		type: string;
-		toolCallId?: string;
-		toolName?: string;
-		output?: unknown;
-		errorText?: string;
-	}>;
+function groupConsecutiveToolCalls(parts: MessagePart[]) {
+	const grouped: Array<MessagePart | MessagePart[]> = [];
+	let currentToolGroup: MessagePart[] = [];
+
+	for (const part of parts) {
+		if (part.type?.includes("tool")) {
+			currentToolGroup.push(part);
+		} else {
+			if (currentToolGroup.length > 0) {
+				grouped.push(
+					currentToolGroup.length === 1 ? currentToolGroup[0] : currentToolGroup
+				);
+				currentToolGroup = [];
+			}
+			grouped.push(part);
+		}
+	}
+
+	// Don't forget the last group
+	if (currentToolGroup.length > 0) {
+		grouped.push(
+			currentToolGroup.length === 1 ? currentToolGroup[0] : currentToolGroup
+		);
+	}
+
+	return grouped;
 }
 
-function extractReasoningParts(parts: UIMessage["parts"]) {
-	return parts.filter(
-		(part) =>
-			part.type === "reasoning" ||
-			part.type === "step-start" ||
-			part.type === "data-step-start"
-	) as Array<{ type: string; text?: string; content?: string }>;
+function renderMessagePart(
+	part: MessagePart | MessagePart[],
+	partIndex: number,
+	messageId: string,
+	isLastMessage: boolean,
+	isStreaming: boolean
+) {
+	const key = `${messageId}-${partIndex}`;
+	const isCurrentlyStreaming = isLastMessage && isStreaming;
+
+	// Handle grouped tool calls
+	if (Array.isArray(part)) {
+		return (
+			<ChainOfThought className="my-4" defaultOpen key={key}>
+				<ChainOfThoughtHeader>Running {part.length} tools</ChainOfThoughtHeader>
+				<ChainOfThoughtContent>
+					{part.map((toolPart, idx) => (
+						<ChainOfThoughtStep
+							key={`${key}-tool-${idx}`}
+							label={`Running ${toolPart.type}`}
+							status="complete"
+						>
+							{formatToolOutput(toolPart.output)}
+						</ChainOfThoughtStep>
+					))}
+				</ChainOfThoughtContent>
+			</ChainOfThought>
+		);
+	}
+
+	if (part.type === "reasoning") {
+		return (
+			<ReasoningMessage
+				isStreaming={isCurrentlyStreaming}
+				key={key}
+				part={part}
+			/>
+		);
+	}
+
+	if (part.type === "text") {
+		const textPart = part as { text: string };
+		if (!textPart.text?.trim()) {
+			return null;
+		}
+
+		return (
+			<MessageResponse isAnimating={isCurrentlyStreaming} key={key}>
+				{textPart.text}
+			</MessageResponse>
+		);
+	}
+
+	console.log(part);
+
+	if (part.type?.includes("tool")) {
+		return (
+			<ChainOfThought defaultOpen key={key}>
+				<ChainOfThoughtHeader />
+				<ChainOfThoughtContent>
+					<ChainOfThoughtStep
+						label={`Running ${part.type}`}
+						status="complete"
+					/>
+				</ChainOfThoughtContent>
+			</ChainOfThought>
+		);
+	}
+
+	return null;
 }
 
-export function AgentMessages({
-	messages,
-	isStreaming = false,
-	hasError = false,
-	statusText,
-}: AgentMessagesProps) {
+export function AgentMessages() {
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { messages, status } = useChat<UIMessage>({ id: chatId, transport });
+	const hasError = status === "error";
+	const chatStatus = useChatStatus(messages, status);
+	const isStreaming = status === "streaming" || status === "submitted";
+
 	if (messages.length === 0) {
 		return null;
 	}
@@ -82,251 +221,81 @@ export function AgentMessages({
 		<>
 			{messages.map((message, index) => {
 				const isLastMessage = index === messages.length - 1;
-				const isAssistant = message.role === "assistant";
-				const textContent = getTextContent(message);
-				const fileParts = extractFileParts(message.parts);
-				const toolParts = extractToolParts(message.parts);
-				const reasoningParts = extractReasoningParts(message.parts);
-				const hasToolErrors = toolParts.some((tool) => tool.errorText);
-				const showError = isLastMessage && hasError && isAssistant;
+				const showError =
+					isLastMessage && hasError && message.role === "assistant";
+
+				const groupedParts = message.parts
+					? groupConsecutiveToolCalls(message.parts)
+					: [];
 
 				return (
-					<div className="group" key={message.id}>
-						{toolParts.length > 0 && (
-							<Message from={message.role}>
-								<MessageContent className="max-w-[80%] space-y-3">
-									{toolParts.map((toolPart, index) => {
-										const state = toolPart.errorText
-											? "output-error"
-											: toolPart.output !== undefined
-												? "output-available"
-												: "input-available";
-										const safeKey =
-											(toolPart.toolCallId as `tool-${string}` | undefined) ??
-											(`tool-${index}` as const);
-										const input =
-											(toolPart as { input?: unknown }).input ?? undefined;
+					<Message from={message.role} key={message.id}>
+						<MessageContent
+							className={cn(message.role === "assistant" ? "w-full" : "")}
+						>
+							{groupedParts.map((part, partIndex) =>
+								renderMessagePart(
+									part,
+									partIndex,
+									message.id,
+									isLastMessage,
+									isStreaming
+								)
+							)}
 
-										return (
-											<Tool key={safeKey} open={false}>
-												<ToolHeader
-													state={state}
-													type={
-														(toolPart.toolName as
-															| `tool-${string}`
-															| undefined) ?? ("tool" as `tool-${string}`)
-													}
-												/>
-												<ToolContent>
-													{input !== undefined && <ToolInput input={input} />}
-													<ToolOutput
-														errorText={toolPart.errorText}
-														output={
-															toolPart.output === undefined
-																? null
-																: typeof toolPart.output === "string" ||
-																		typeof toolPart.output === "object"
-																	? (toolPart.output as
-																			| string
-																			| Record<string, unknown>)
-																	: String(toolPart.output)
-														}
-													/>
-												</ToolContent>
-											</Tool>
-										);
-									})}
-								</MessageContent>
-								{message.role === "assistant" && (
-									<AgentMessageAvatar hasError={hasToolErrors} />
-								)}
-							</Message>
-						)}
-
-						{reasoningParts.length > 0 && (
-							<Message from={message.role}>
-								<MessageContent
-									className="max-w-[80%] space-y-2"
-									variant="flat"
-								>
-									<Reasoning isStreaming={isStreaming} open={false}>
-										<ReasoningTrigger />
-										{reasoningParts.map((reasoning, idx) => {
-											const text =
-												reasoning.text ||
-												reasoning.content ||
-												"Thinking through the request.";
-											return (
-												<ReasoningContent key={`reasoning-${idx}`}>
-													{text}
-												</ReasoningContent>
-											);
-										})}
-									</Reasoning>
-								</MessageContent>
-								{message.role === "assistant" && <AgentMessageAvatar />}
-							</Message>
-						)}
-
-						{fileParts.length > 0 && (
-							<Message from={message.role}>
-								<MessageContent className="max-w-[80%]">
-									<div className="mb-2 flex flex-wrap gap-2">
-										{fileParts.map((part) => {
-											if (part.type !== "file") {
-												return null;
-											}
-
-											const file = part as {
-												type: "file";
-												url?: string;
-												mediaType?: string;
-												filename?: string;
-											};
-
-											const fileKey = `${file.url}-${file.filename}`;
-											const isImage = file.mediaType?.startsWith("image/");
-
-											if (isImage && file.url) {
-												return (
-													<div
-														className="relative overflow-hidden rounded border"
-														key={fileKey}
-													>
-														<Image
-															alt={file.filename || "attachment"}
-															className="max-h-48 max-w-xs object-cover"
-															height={192}
-															src={file.url}
-															unoptimized
-															width={300}
-														/>
-													</div>
-												);
-											}
-
-											return (
-												<div
-													className="flex items-center gap-2 rounded border bg-muted/50 px-3 py-2"
-													key={fileKey}
-												>
-													<PaperclipIcon
-														className="size-4 shrink-0 text-muted-foreground"
-														weight="duotone"
-													/>
-													<span className="font-medium text-sm">
-														{file.filename || "Unknown file"}
-													</span>
-												</div>
-											);
-										})}
-									</div>
-								</MessageContent>
-								{message.role === "user" && <UserMessageAvatar />}
-							</Message>
-						)}
-
-						{textContent && !showError && (
-							<Message from={message.role}>
-								<MessageContent className="max-w-[80%]" variant="flat">
-									{isLastMessage && isStreaming ? (
-										<Response isAnimating>{textContent}</Response>
-									) : (
-										<Response>{textContent}</Response>
-									)}
-								</MessageContent>
-								{message.role === "user" && <UserMessageAvatar />}
-								{message.role === "assistant" && (
-									<AgentMessageAvatar hasError={hasError} />
-								)}
-							</Message>
-						)}
-
-						{showError && (
-							<Message from="assistant">
-								<MessageContent className="max-w-[80%]">
-									<div className="space-y-2">
-										<p className="font-medium text-destructive text-sm">
-											Failed to generate response
-										</p>
-										<p className="text-muted-foreground text-xs">
-											There was an error processing your request. Please try
-											again.
-										</p>
-									</div>
-								</MessageContent>
-								<AgentMessageAvatar hasError />
-							</Message>
-						)}
-					</div>
+							{showError && <ErrorMessage />}
+						</MessageContent>
+					</Message>
 				);
 			})}
 
-			{isStreaming && (
-				<Message className="flex items-start gap-2 py-2" from="assistant">
-					<div className="flex size-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-						<CircleNotchIcon className="size-4 animate-spin" weight="duotone" />
-					</div>
-					<MessageContent className="max-w-[80%] bg-secondary px-3 py-2 text-muted-foreground text-xs">
-						{statusText || "Generating…"}
-					</MessageContent>
-				</Message>
+			{isStreaming && messages.at(-1)?.role !== "assistant" && (
+				<StreamingIndicator
+					statusText={chatStatus.displayMessage ?? undefined}
+				/>
 			)}
 		</>
 	);
 }
 
-function UserMessageAvatar() {
-	const { data: session, isPending } = authClient.useSession();
-	const user = session?.user;
-
-	if (isPending) {
-		return <Skeleton className="size-8 shrink-0 rounded-full" />;
-	}
-
+function ErrorMessage() {
 	return (
-		<MessageAvatar
-			name={user?.name || user?.email || "User"}
-			src={user?.image || ""}
-		/>
+		<div className="space-y-2">
+			<p className="font-medium text-destructive text-sm">
+				Failed to generate response
+			</p>
+			<p className="text-muted-foreground text-xs">
+				There was an error processing your request. Please try again.
+			</p>
+		</div>
 	);
 }
 
-function AgentMessageAvatar({ hasError = false }: { hasError?: boolean }) {
+function StreamingIndicator({ statusText }: { statusText?: string }) {
 	return (
-		<Avatar className="size-8 shrink-0 ring-1 ring-border">
-			<AvatarImage alt="Databunny" src="/databunny.webp" />
-			<AvatarFallback
-				className={cn(
-					"bg-primary/10 font-semibold text-primary",
-					hasError && "bg-destructive/10 text-destructive"
-				)}
-			>
-				DB
-			</AvatarFallback>
-		</Avatar>
-	);
-}
+		<div
+			className="fade-in group w-full animate-in duration-300"
+			data-role="assistant"
+		>
+			<div className="flex w-full items-start justify-start gap-2">
+				<Avatar className="size-8 shrink-0 animate-pulse ring-1 ring-border">
+					<AvatarImage alt="Databunny" src="/databunny.webp" />
+					<AvatarFallback className="bg-primary/10 font-semibold text-primary">
+						DB
+					</AvatarFallback>
+				</Avatar>
 
-export function MessagesLoadingSkeleton() {
-	return (
-		<div className="space-y-4">
-			<Message from="user">
-				<MessageContent className="max-w-[80%]">
-					<Skeleton className="h-4 w-32" />
-				</MessageContent>
-				<Skeleton className="size-8 shrink-0 rounded-full" />
-			</Message>
-			<Message from="assistant">
-				<Skeleton className="size-8 shrink-0 rounded-full" />
-				<MessageContent className="max-w-[80%]">
-					<div className="space-y-2">
-						<Skeleton className="h-4 w-full" />
-						<Skeleton className="h-4 w-3/4" />
-						<Skeleton className="h-4 w-1/2" />
+				<div className="flex w-full flex-col gap-2">
+					<div className="flex items-center gap-1 text-muted-foreground text-sm">
+						<span className="animate-pulse">{statusText || "Thinking"}</span>
+						<span className="inline-flex">
+							<span className="animate-bounce [animation-delay:0ms]">.</span>
+							<span className="animate-bounce [animation-delay:150ms]">.</span>
+							<span className="animate-bounce [animation-delay:300ms]">.</span>
+						</span>
 					</div>
-				</MessageContent>
-			</Message>
+				</div>
+			</div>
 		</div>
 	);
 }

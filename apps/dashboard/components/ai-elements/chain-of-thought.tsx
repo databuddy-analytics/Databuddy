@@ -7,8 +7,8 @@ import {
 	DotIcon,
 	type LucideIcon,
 } from "lucide-react";
-import type { ComponentProps } from "react";
-import { createContext, memo, useContext } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { createContext, memo, useContext, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
 	Collapsible,
@@ -57,8 +57,13 @@ export const ChainOfThought = memo(
 			onChange: onOpenChange,
 		});
 
+		const chainOfThoughtContext = useMemo(
+			() => ({ isOpen, setIsOpen }),
+			[isOpen, setIsOpen]
+		);
+
 		return (
-			<ChainOfThoughtContext.Provider value={{ isOpen, setIsOpen }}>
+			<ChainOfThoughtContext.Provider value={chainOfThoughtContext}>
 				<div
 					className={cn("not-prose max-w-prose space-y-4", className)}
 					{...props}
@@ -82,7 +87,7 @@ export const ChainOfThoughtHeader = memo(
 			<Collapsible onOpenChange={setIsOpen} open={isOpen}>
 				<CollapsibleTrigger
 					className={cn(
-						"flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+						"flex w-full items-center gap-2 text-muted-foreground text-sm hover:text-foreground",
 						className
 					)}
 					{...props}
@@ -105,8 +110,8 @@ export const ChainOfThoughtHeader = memo(
 
 export type ChainOfThoughtStepProps = ComponentProps<"div"> & {
 	icon?: LucideIcon;
-	label: string;
-	description?: string;
+	label: ReactNode;
+	description?: ReactNode;
 	status?: "complete" | "active" | "pending";
 };
 
@@ -140,7 +145,7 @@ export const ChainOfThoughtStep = memo(
 					<Icon className="size-4" />
 					<div className="-mx-px absolute top-7 bottom-0 left-1/2 w-px bg-border" />
 				</div>
-				<div className="flex-1 space-y-2">
+				<div className="flex-1 space-y-2 overflow-hidden">
 					<div>{label}</div>
 					{description && (
 						<div className="text-muted-foreground text-xs">{description}</div>

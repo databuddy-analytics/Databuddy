@@ -1,4 +1,4 @@
-import { and, annotations, desc, eq, isNull, websites } from "@databuddy/db";
+import { and, annotations, desc, eq, isNull } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -112,7 +112,11 @@ export const annotationsRouter = {
 							message: "Annotation not found",
 						});
 					}
-					await authorizeWebsiteAccess(context, annotationResult.websiteId, "read");
+					await authorizeWebsiteAccess(
+						context,
+						annotationResult.websiteId,
+						"read"
+					);
 
 					return annotationResult;
 				},

@@ -1,5 +1,5 @@
-import { annotationsRouter } from "./routers/annotations";
 import { agentRouter } from "./routers/agent";
+import { annotationsRouter } from "./routers/annotations";
 import { apikeysRouter } from "./routers/apikeys";
 import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";
@@ -14,6 +14,7 @@ import { miniChartsRouter } from "./routers/mini-charts";
 import { organizationsRouter } from "./routers/organizations";
 import { preferencesRouter } from "./routers/preferences";
 import { ssoRouter } from "./routers/sso";
+import { uptimeRouter } from "./routers/uptime";
 import { websitesRouter } from "./routers/websites";
 
 export const appRouter = {
@@ -34,6 +35,7 @@ export const appRouter = {
 	billing: billingRouter,
 	export: exportRouter,
 	sso: ssoRouter,
+	uptime: uptimeRouter,
 };
 
 export type AppRouter = typeof appRouter;

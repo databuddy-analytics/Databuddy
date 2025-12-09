@@ -1,8 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import type { Customer, CustomerFeature, Product } from "autumn-js";
 import { useCustomer, usePricingTable } from "autumn-js/react";
-import { useQuery } from "@tanstack/react-query";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { orpc } from "@/lib/orpc";
@@ -20,8 +20,8 @@ import {
 	isPlanAiCapabilityEnabled,
 	isPlanFeatureEnabled,
 	PLAN_CAPABILITIES,
-	type PlanCapabilities,
 	PLAN_IDS,
+	type PlanCapabilities,
 	type PlanId,
 } from "@/types/features";
 
@@ -85,15 +85,15 @@ export function BillingProvider({
 		if (propWebsiteId) return propWebsiteId;
 
 		const isDemoRoute = pathname?.startsWith("/demo/");
-		
+
 		if (isDemoRoute) {
-		const routeId = params?.id;
+			const routeId = params?.id;
 			if (typeof routeId === "string" && routeId) {
-			return routeId;
+				return routeId;
 			}
 		}
 
-		return undefined;
+		return;
 	}, [propWebsiteId, params?.id, pathname]);
 
 	const {
@@ -208,7 +208,8 @@ export function BillingProvider({
 		return {
 			customer: customer ?? null,
 			products: products ?? [],
-			isLoading: isCustomerLoading || isProductsLoading || isBillingContextLoading,
+			isLoading:
+				isCustomerLoading || isProductsLoading || isBillingContextLoading,
 			hasActiveSubscription: billingContext?.hasActiveSubscription ?? false,
 			currentPlanId,
 			isFree,
@@ -271,12 +272,8 @@ export function useGatedFeature(feature: GatedFeatureId) {
 }
 
 export function useAiCapability(capability: AiCapabilityId) {
-	const {
-		isAiCapabilityEnabled,
-		currentPlanId,
-		isFree,
-		canUserUpgrade,
-	} = useBillingContext();
+	const { isAiCapabilityEnabled, currentPlanId, isFree, canUserUpgrade } =
+		useBillingContext();
 	const isEnabled = isAiCapabilityEnabled(capability);
 	const minPlan = getMinimumPlanForAiCapability(capability);
 

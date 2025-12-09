@@ -49,7 +49,6 @@
     { "path": "../../packages/db" },
     { "path": "../../packages/env" },
     { "path": "../../packages/redis" },
-    { "path": "../../packages/rpc" },
     { "path": "../../packages/sdk" },
     { "path": "../../packages/shared" },
     { "path": "../../packages/validation" }

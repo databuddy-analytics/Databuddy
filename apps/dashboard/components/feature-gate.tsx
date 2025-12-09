@@ -69,10 +69,8 @@ export function FeatureGate({
 
 	const metadata = FEATURE_METADATA[feature];
 	const minPlanFromMatrix = getMinimumPlanForFeature(feature);
-	const requiredPlan =
-		minPlanFromMatrix ?? metadata?.minPlan ?? PLAN_IDS.PRO;
-	const planConfig =
-		PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
+	const requiredPlan = minPlanFromMatrix ?? metadata?.minPlan ?? PLAN_IDS.PRO;
+	const planConfig = PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
 	const currentConfig =
 		PLAN_CONFIG[currentPlanId ?? PLAN_IDS.FREE] ?? PLAN_CONFIG[PLAN_IDS.FREE];
 	const PlanIcon = planConfig.icon;

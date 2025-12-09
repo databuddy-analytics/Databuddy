@@ -33,8 +33,10 @@ import {
 } from "@/components/ui/select";
 import {
   Sheet,
+	SheetBody,
   SheetContent,
   SheetDescription,
+	SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -286,55 +288,56 @@ export function FlagSheet({
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-  return (
-    <Sheet onOpenChange={onCloseAction} open={isOpen}>
-      <SheetContent
-        className="w-full overflow-y-auto p-4 sm:w-[90vw] sm:max-w-[800px] md:w-[70vw] lg:w-[30vw]"
-        side="right"
-      >
-        <SheetHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
-              <FlagIcon
-                className="size-6 text-accent-foreground"
-                weight="fill"
-              />
-            </div>
-            <div>
-              <SheetTitle className="font-semibold text-foreground text-xl">
-                {isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
-              </SheetTitle>
-              <SheetDescription className="mt-1 text-muted-foreground">
-                {isEditing
-                  ? "Update flag configuration and settings"
-                  : "Set up a new feature flag for controlled rollouts"}
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+	return (
+		<Sheet onOpenChange={onCloseAction} open={isOpen}>
+			<SheetContent side="right">
+				<SheetHeader>
+					<div className="flex items-center gap-4">
+						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+							<FlagIcon
+								className="text-accent-foreground"
+								size={22}
+								weight="fill"
+							/>
+						</div>
+						<div>
+							<SheetTitle className="text-lg">
+								{isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
+							</SheetTitle>
+							<SheetDescription>
+								{isEditing
+									? "Update flag configuration and settings"
+									: "Set up a new feature flag for controlled rollouts"}
+							</SheetDescription>
+						</div>
+					</div>
+				</SheetHeader>
 
-        <div className="space-y-8 mt-4">
-          <Form {...form}>
-            <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
-              {/* Basic Information */}
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="flag.name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Flag Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="New Dashboard Feature"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+				<Form {...form}>
+					<form
+						className="flex flex-1 flex-col overflow-y-auto"
+						onSubmit={form.handleSubmit(onSubmit)}
+					>
+						<SheetBody className="space-y-6">
+							{/* Basic Information */}
+							<section className="space-y-3">
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+									<FormField
+										control={form.control}
+										name="name"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>Flag Name</FormLabel>
+												<FormControl>
+													<Input
+														placeholder="New Dashboard Feature"
+														{...field}
+													/>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
 
                   <FormField
                     control={form.control}
@@ -406,10 +409,10 @@ export function FlagSheet({
                     </FormItem>
                   )}
                 />
-              </div>
+              </section>
 
               {/* Configuration */}
-              <div className="space-y-4">
+              <section className="space-y-3">
                 <div className="flex gap-8">
                   <FormField
                     control={form.control}
@@ -586,11 +589,11 @@ export function FlagSheet({
                     />
                   )}
                 </div>
-              </div>
+              </section>
 
               {/* Rollout Percentage */}
               {showRolloutPercentage && (
-                <div className="space-y-4">
+                <section className="space-y-3">
                   <FormField
                     control={form.control}
                     name="flag.rolloutPercentage"
@@ -615,7 +618,7 @@ export function FlagSheet({
                                   {[0, 25, 50, 75, 100].map((preset) => (
                                     <button
                                       aria-label={`Set rollout to ${preset}% ${preset === 0 ? "(disabled)" : preset === 100 ? "(enabled)" : ""}`}
-                                      className={`rounded border px-3 py-2 text-sm transition-colors ${currentValue === preset
+                                      className={`rounded border px-3 py-2 text-sm ${currentValue === preset
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-border hover:border-primary/50"
                                         }`}
@@ -829,11 +832,11 @@ export function FlagSheet({
                       </FormItem>
                     )}
                   />
-                </div>
+                </section>
               )}
 
               {/* User Targeting Rules */}
-              <div className="space-y-4">
+              <section className="space-y-3">
                 <FormField
                   control={form.control}
                   name="flag.rules"
@@ -858,7 +861,8 @@ export function FlagSheet({
                     </FormItem>
                   )}
                 />
-              </div>
+              </section>
+						</SheetBody>
 
               {/* Dependencies */}
               <div className="space-y-4">
@@ -889,18 +893,23 @@ export function FlagSheet({
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 border-t pt-6">
-                <Button onClick={onCloseAction} type="button" variant="ghost">
-                  Cancel
-                </Button>
-                <Button disabled={isLoading} type="submit">
-                  {isLoading ? "Saving..." : isEditing ? "Update" : "Create"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
+						<SheetFooter>
+							<Button onClick={onCloseAction} type="button" variant="ghost">
+								Cancel
+							</Button>
+							<Button disabled={isLoading} type="submit">
+								{isLoading
+									? isEditing
+										? "Updating..."
+										: "Creating..."
+									: isEditing
+										? "Update Flag"
+										: "Create Flag"}
+							</Button>
+						</SheetFooter>
+					</form>
+				</Form>
+			</SheetContent>
+		</Sheet>
+	);
 }

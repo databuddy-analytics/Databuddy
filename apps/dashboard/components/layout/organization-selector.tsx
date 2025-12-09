@@ -218,7 +218,7 @@ export function OrganizationSelector() {
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					align="start"
-					className="z-110 w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
+					className="w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
 					sideOffset={0}
 				>
 					<DropdownMenuItem

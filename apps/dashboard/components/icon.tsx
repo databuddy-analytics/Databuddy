@@ -266,7 +266,7 @@ export function CountryFlag({
 	return (
 		<span
 			aria-label={`${country} flag`}
-			className={cn(`fi fi-${country.toLowerCase()}`, className)}
+			className={cn(`fi shrink-0 fi-${country.toLowerCase()}`, className)}
 			style={{
 				fontSize: iconSize,
 				lineHeight: 1,

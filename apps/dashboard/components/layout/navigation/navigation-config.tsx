@@ -28,6 +28,7 @@ import {
 	ReceiptIcon,
 	RepeatIcon,
 	RoadHorizonIcon,
+	RobotIcon,
 	ShieldCheckIcon,
 	SpeakerHighIcon,
 	TargetIcon,
@@ -56,11 +57,13 @@ const createNavItem = (
 const createNavSection = (
 	title: string,
 	icon: any,
-	items: NavigationSection["items"]
+	items: NavigationSection["items"],
+	options: Partial<NavigationSection> = {}
 ): NavigationSection => ({
 	title,
 	icon,
 	items,
+	...options,
 });
 
 export const filterCategoriesForRoute = (
@@ -271,13 +274,27 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.FEATURE_FLAGS,
 		}),
-		// createNavItem("AI Agent", RobotIcon, "/agent", {
-		// 	alpha: true,
-		// 	rootLevel: false,
-		// 	tag: "WIP",
-		// 	gatedFeature: GATED_FEATURES.AI_AGENT,
-		// }),
+		createNavItem("AI Agent", RobotIcon, "/agent", {
+			alpha: true,
+			rootLevel: false,
+			tag: "WIP",
+			flag: "agent",
+			// gatedFeature: GATED_FEATURES.AI_AGENT,
+		}),
 	]),
+	createNavSection(
+		"Pulse",
+		HeartbeatIcon,
+		[
+			createNavItem("Uptime", ChartLineUpIcon, "/pulse", {
+				rootLevel: false,
+				alpha: true,
+			}),
+		],
+		{
+			flag: "pulse",
+		}
+	),
 ];
 
 export const websiteSettingsNavigation: NavigationSection[] = [

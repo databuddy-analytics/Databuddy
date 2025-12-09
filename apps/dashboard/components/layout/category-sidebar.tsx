@@ -1,5 +1,6 @@
 "use client";
 
+import { useFlags } from "@databuddy/sdk/react";
 import { InfoIcon } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -45,6 +46,7 @@ export function CategorySidebar({
 	const pathname = usePathname();
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
 	const [helpOpen, setHelpOpen] = useState(false);
+	const { isEnabled } = useFlags();
 
 	const { categories, defaultCategory } = useMemo(() => {
 		const baseConfig = getContextConfig(pathname);
@@ -65,10 +67,16 @@ export function CategorySidebar({
 		const filteredCategories = filterCategoriesForRoute(
 			config.categories,
 			pathname
-		);
+		).filter((category) => {
+			if (category.flag) {
+				const flagState = isEnabled(category.flag);
+				return flagState.isReady && flagState.enabled;
+			}
+			return true;
+		});
 
 		return { categories: filteredCategories, defaultCategory: defaultCat };
-	}, [pathname, websites, isLoadingWebsites]);
+	}, [pathname, websites, isLoadingWebsites, isEnabled]);
 
 	const activeCategory = selectedCategory || defaultCategory;
 

@@ -1,22 +1,28 @@
 "use client";
 
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { useAtom } from "jotai";
+import { useParams } from "next/navigation";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEnterSubmit } from "@/hooks/use-enter-submit";
 import { cn } from "@/lib/utils";
+import { agentInputAtom } from "./agent-atoms";
 import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
-import { useAgentChat, useAgentCommands } from "./hooks";
+import { useAgentCommands } from "./hooks/use-agent-commands";
+import { useChatActions } from "./hooks/use-chat-actions";
 
 export function AgentInput() {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [isFocused, setIsFocused] = useState(false);
-	const { sendMessage, stop, isLoading } = useAgentChat();
-	const { input, handleInputChange, handleKeyDown, showCommands } =
-		useAgentCommands();
-	const chatId = useAgentChatId();
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const { status, sendMessage, stop } = useChatActions(chatId);
+	const isLoading = status === "streaming" || status === "submitted";
+	const [input, setInput] = useAtom(agentInputAtom);
+	const { handleInputChange, handleKeyDown, showCommands } = useAgentCommands();
+	const currentChatId = useAgentChatId();
 	const setChatId = useSetAgentChatId();
 	const { formRef, onKeyDown: handleEnterSubmit } = useEnterSubmit();
 
@@ -25,10 +31,15 @@ export function AgentInput() {
 		if (!input.trim() || isLoading) {
 			return;
 		}
-		if (chatId) {
-			setChatId(chatId);
+		if (currentChatId) {
+			setChatId(currentChatId);
 		}
-		sendMessage(input.trim());
+
+		sendMessage({
+			text: input.trim(),
+		});
+
+		setInput("");
 	};
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +63,7 @@ export function AgentInput() {
 
 	return (
 		<div className="shrink-0 border-t bg-sidebar/30 backdrop-blur-sm">
-			<div className="mx-auto max-w-2xl p-4">
+			<div className="mx-auto max-w-4xl p-4">
 				<div className="relative">
 					<AgentCommandMenu />
 
@@ -61,12 +72,10 @@ export function AgentInput() {
 							<Input
 								className={cn(
 									"h-12 pr-24 pl-4 text-base",
-									isFocused && "ring-2 ring-primary/20"
+									"focus:ring-2 focus:ring-primary/20"
 								)}
 								disabled={isLoading}
-								onBlur={() => setIsFocused(false)}
 								onChange={handleChange}
-								onFocus={() => setIsFocused(true)}
 								onKeyDown={handleKey}
 								placeholder="Ask the agent to analyze your data..."
 								ref={inputRef}

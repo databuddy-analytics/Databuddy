@@ -108,6 +108,10 @@ export async function setPasswordForOAuthUser(newPassword: string) {
 			headers: await headers(),
 		});
 
+		await auth.api.revokeOtherSessions({
+			headers: await headers(),
+		});
+
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {

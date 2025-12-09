@@ -6,15 +6,7 @@ export interface Logger {
 }
 
 export function createLogger(debug = false): Logger {
-	try {
-		const pino = require("pino");
-		return pino({
-			level: debug ? "debug" : "info",
-			name: "databuddy",
-		});
-	} catch {
-		return createConsoleLogger(debug);
-	}
+	return createConsoleLogger(debug);
 }
 
 function createConsoleLogger(debug: boolean): Logger {

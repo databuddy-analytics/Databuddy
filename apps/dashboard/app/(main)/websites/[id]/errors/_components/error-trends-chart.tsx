@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowCounterClockwiseIcon, BugIcon } from "@phosphor-icons/react";
-import { motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import {
@@ -113,12 +112,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 
 	if (!errorChartData.length) {
 		return (
-			<motion.div
-				animate={{ opacity: 1, y: 0 }}
-				className="flex h-full flex-col rounded border border-border bg-card"
-				initial={{ opacity: 0, y: 20 }}
-				transition={{ duration: 0.5 }}
-			>
+			<div className="flex h-full flex-col rounded border border-border bg-card">
 				<div className="flex items-center gap-3 border-border/50 border-b p-4">
 					<div className="flex size-8 items-center justify-center rounded bg-accent ring-1 ring-border">
 						<BugIcon
@@ -142,7 +136,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 						title="No error trend data"
 					/>
 				</div>
-			</motion.div>
+			</div>
 		);
 	}
 
@@ -155,12 +149,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		affectedUsersMetric?.color || METRIC_COLORS.session_duration.primary;
 
 	return (
-		<motion.div
-			animate={{ opacity: 1, y: 0 }}
-			className="flex h-full flex-col overflow-hidden rounded border border-border bg-card"
-			initial={{ opacity: 0, y: 20 }}
-			transition={{ duration: 0.5 }}
-		>
+		<div className="flex h-full flex-col overflow-hidden rounded border border-border bg-card">
 			{/* Header */}
 			<div className="flex items-center justify-between border-border/50 border-b p-4">
 				<div className="flex items-center gap-3">
@@ -196,32 +185,22 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 
 			{/* Summary Stats */}
 			<div className="grid grid-cols-2 gap-3 border-border/50 border-b bg-accent/20 p-3">
-				<motion.div
-					animate={{ opacity: 1 }}
-					className="space-y-0.5"
-					initial={{ opacity: 0 }}
-					transition={{ delay: 0.2 }}
-				>
+				<div className="space-y-0.5">
 					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
 						Total Errors
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
 						{totalErrors.toLocaleString()}
 					</p>
-				</motion.div>
-				<motion.div
-					animate={{ opacity: 1 }}
-					className="space-y-0.5"
-					initial={{ opacity: 0 }}
-					transition={{ delay: 0.3 }}
-				>
+				</div>
+				<div className="space-y-0.5">
 					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
 						Affected Users
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
 						{totalAffectedUsers.toLocaleString()}
 					</p>
-				</motion.div>
+				</div>
 			</div>
 
 			{/* Chart */}
@@ -359,6 +338,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 					</ResponsiveContainer>
 				</div>
 			</div>
-		</motion.div>
+		</div>
 	);
 };

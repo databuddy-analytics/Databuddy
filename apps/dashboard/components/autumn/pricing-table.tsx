@@ -55,7 +55,9 @@ function getPlanIcon(planId: string) {
 function getNewFeaturesForPlan(planId: string): GatedFeatureId[] {
 	const plan = planId as PlanId;
 	const planFeatures = PLAN_FEATURES[plan];
-	if (!planFeatures) return [];
+	if (!planFeatures) {
+		return [];
+	}
 
 	if (plan === PLAN_IDS.FREE) {
 		return Object.entries(planFeatures)
@@ -159,12 +161,7 @@ export default function PricingTable({
 	}
 
 	const filteredProducts =
-		products?.filter(
-			(p) =>
-				p.id !== "free" &&
-				p.id !== "verification_fee" &&
-				!(p as Product & { is_add_on?: boolean }).is_add_on
-		) ?? [];
+		products?.filter((p) => ["hobby", "pro", "scale"].includes(p.id)) ?? [];
 
 	return (
 		<PricingTableContext.Provider

@@ -92,7 +92,7 @@ serve({
             </p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-blue-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-blue-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-blue-400 flex items-center gap-2">
                         <span>🖱️</span> Events
                     </h2>
@@ -107,7 +107,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-red-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-red-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center gap-2">
                         <span>⚠️</span> Errors
                     </h2>
@@ -118,7 +118,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-yellow-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-yellow-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-yellow-400 flex items-center gap-2">
                         <span>⚡</span> Web Vitals
                     </h2>
@@ -130,7 +130,7 @@ serve({
                     </div>
                 </div>
 
-                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-purple-500/50 transition-colors">
+                <div class="bg-card p-6 rounded-xl border border-slate-700 shadow-lg hover:border-purple-500/50  ">
                     <h2 class="text-xl font-semibold mb-4 text-purple-400 flex items-center gap-2">
                         <span>🛡️</span> Privacy & State
                     </h2>

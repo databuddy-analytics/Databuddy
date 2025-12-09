@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { generateId } from "ai";
+import { redirect } from "next/navigation";
 
 type Props = {
 	params: Promise<{ id: string }>;

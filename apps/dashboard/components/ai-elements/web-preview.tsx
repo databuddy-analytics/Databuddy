@@ -2,7 +2,7 @@
 
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -107,7 +107,7 @@ export const WebPreviewNavigationButton = ({
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<Button
-					className="size-8 p-0 hover:text-foreground"
+					className="h-8 w-8 p-0 hover:text-foreground"
 					disabled={disabled}
 					onClick={onClick}
 					size="sm"
@@ -133,6 +133,17 @@ export const WebPreviewUrl = ({
 	...props
 }: WebPreviewUrlProps) => {
 	const { url, setUrl } = useWebPreview();
+	const [inputValue, setInputValue] = useState(url);
+
+	// Sync input value with context URL when it changes externally
+	useEffect(() => {
+		setInputValue(url);
+	}, [url]);
+
+	const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		setInputValue(event.target.value);
+		onChange?.(event);
+	};
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
 		if (event.key === "Enter") {
@@ -145,10 +156,10 @@ export const WebPreviewUrl = ({
 	return (
 		<Input
 			className="h-8 flex-1 text-sm"
-			onChange={onChange}
+			onChange={onChange ?? handleChange}
 			onKeyDown={handleKeyDown}
 			placeholder="Enter URL..."
-			value={value ?? url}
+			value={value ?? inputValue}
 			{...props}
 		/>
 	);
@@ -211,7 +222,7 @@ export const WebPreviewConsole = ({
 					Console
 					<ChevronDownIcon
 						className={cn(
-							"size-4 transition-transform duration-200",
+							"h-4 w-4 transition-transform duration-200",
 							consoleOpen && "rotate-180"
 						)}
 					/>

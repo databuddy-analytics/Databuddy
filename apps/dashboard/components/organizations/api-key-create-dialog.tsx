@@ -238,7 +238,10 @@ export function ApiKeyCreateDialog({
 					</div>
 				</SheetHeader>
 
-				<form className="flex flex-1 flex-col" onSubmit={onSubmit}>
+				<form
+					className="flex flex-1 flex-col overflow-y-auto"
+					onSubmit={onSubmit}
+				>
 					<SheetBody className="space-y-6">
 						{/* Name Section */}
 						<section className="space-y-3">
@@ -277,7 +280,7 @@ export function ApiKeyCreateDialog({
 										const isSelected = globalScopes.includes(scope.value);
 										return (
 											<button
-												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm transition-colors"
+												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
 												key={scope.value}
 												onClick={() => toggleGlobalScope(scope.value)}
 												type="button"
@@ -385,7 +388,7 @@ export function ApiKeyCreateDialog({
 															);
 															return (
 																<button
-																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
+																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${
 																		isSelected
 																			? "bg-primary/20 text-foreground"
 																			: "hover:bg-muted"

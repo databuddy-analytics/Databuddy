@@ -2,7 +2,6 @@ import { websitesApi } from "@databuddy/auth";
 import {
 	and,
 	chQuery,
-	db,
 	eq,
 	inArray,
 	isNull,
@@ -32,8 +31,8 @@ import {
 	WebsiteService,
 } from "../services/website-service";
 import { authorizeWebsiteAccess } from "../utils/auth";
-import { getCacheAuthContext } from "../utils/cache-keys";
 import { invalidateWebsiteCaches } from "../utils/cache-invalidation";
+import { getCacheAuthContext } from "../utils/cache-keys";
 
 const websiteCache = createDrizzleCache({ redis, namespace: "websites" });
 const CACHE_DURATION = 60; // seconds

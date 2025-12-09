@@ -163,7 +163,7 @@ function TabsTrigger({
 			<TabsPrimitive.Trigger
 				className={cn(
 					"relative flex flex-1 cursor-pointer items-center justify-center gap-1.5 bg-transparent px-3 py-2",
-					"font-medium text-muted-foreground text-sm transition-colors",
+					"font-medium text-muted-foreground text-sm  ",
 					"hover:text-foreground",
 					"data-[state=active]:text-foreground",
 					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",

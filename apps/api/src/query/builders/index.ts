@@ -10,6 +10,7 @@ import { ProfilesBuilders } from "./profiles";
 import { SessionsBuilders } from "./sessions";
 import { SummaryBuilders } from "./summary";
 import { TrafficBuilders } from "./traffic";
+import { UptimeBuilders } from "./uptime";
 import { VitalsBuilders } from "./vitals";
 
 export const QueryBuilders = {
@@ -26,6 +27,7 @@ export const QueryBuilders = {
 	...LinksBuilders,
 	...EngagementBuilders,
 	...VitalsBuilders,
+	...UptimeBuilders,
 };
 
 export type QueryType = keyof typeof QueryBuilders;

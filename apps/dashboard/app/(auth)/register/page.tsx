@@ -12,7 +12,8 @@ import {
 	SpinnerIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,8 @@ import VisuallyHidden from "@/components/ui/visuallyhidden";
 
 function RegisterPageContent() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
-	const selectedPlan = searchParams.get("plan");
-	const callbackUrl = searchParams.get("callback");
+	const [selectedPlan] = useQueryState("plan", parseAsString);
+	const [callbackUrl] = useQueryState("callback", parseAsString);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: "",
@@ -456,7 +456,7 @@ function RegisterPageContent() {
 							<span className="hidden sm:inline">
 								I agree to the{" "}
 								<Link
-									className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
+									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
@@ -464,7 +464,7 @@ function RegisterPageContent() {
 								</Link>{" "}
 								and{" "}
 								<Link
-									className="font-medium text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/80"
+									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/privacy"
 									target="_blank"
 								>
@@ -539,7 +539,7 @@ function RegisterPageContent() {
 					<p className="text-muted-foreground text-sm">
 						Already have an account?{" "}
 						<Link
-							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground transition-colors duration-200 hover:text-accent-foreground/60"
+							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground duration-200 hover:text-accent-foreground/60"
 							href={
 								callbackUrl
 									? `/login?callback=${encodeURIComponent(callbackUrl)}`

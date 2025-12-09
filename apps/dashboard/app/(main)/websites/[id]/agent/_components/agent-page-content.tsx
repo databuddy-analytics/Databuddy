@@ -1,5 +1,6 @@
 "use client";
 
+import { useChat } from "@ai-sdk-tools/store";
 import {
 	ArrowRightIcon,
 	BrainIcon,
@@ -7,21 +8,22 @@ import {
 	LightningIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
-import type { ChatStatus } from "ai";
+import type { UIMessage } from "ai";
 import { useSetAtom } from "jotai";
+import { useParams } from "next/navigation";
+import {
+	Conversation,
+	ConversationContent,
+	ConversationEmptyState,
+	ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
 import { AgentChatProvider } from "./agent-chat-context";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
-import {
-	Conversation,
-	ConversationContent,
-	ConversationScrollButton,
-} from "./conversation";
-import { useAgentChat } from "./hooks";
-import { useChatStatus } from "./hooks/use-chat-status";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
 import { NewChatButton } from "./new-chat-button";
 
 type AgentPageContentProps = {
@@ -69,8 +71,10 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const { messages, isLoading, hasError, status } = useAgentChat();
-	const chatStatus = useChatStatus(messages, status as ChatStatus);
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { messages } = useChat<UIMessage>({ id: chatId, transport });
 
 	const hasMessages = messages.length > 0;
 
@@ -78,7 +82,7 @@ function AgentPageContentInner({
 		<div className="relative flex flex-1 overflow-hidden">
 			<div
 				className={cn(
-					"flex flex-1 flex-col",
+					"flex flex-1 flex-col overflow-hidden",
 					"transition-all duration-300 ease-in-out",
 					false
 				)}
@@ -113,19 +117,14 @@ function AgentPageContentInner({
 				</div>
 
 				<Conversation className="flex-1">
-					<ConversationContent className="pb-[150px]">
-						<div className="mx-auto w-full max-w-2xl">
-							{hasMessages ? (
-								<AgentMessages
-									hasError={hasError}
-									isStreaming={isLoading}
-									messages={messages}
-									statusText={chatStatus.displayMessage ?? undefined}
-								/>
-							) : (
+					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
+						{hasMessages ? (
+							<AgentMessages />
+						) : (
+							<ConversationEmptyState>
 								<WelcomeState onPromptSelect={setInputValue} />
-							)}
-						</div>
+							</ConversationEmptyState>
+						)}
 					</ConversationContent>
 					<ConversationScrollButton />
 				</Conversation>

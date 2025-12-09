@@ -9,7 +9,6 @@ import {
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,22 +28,29 @@ type OrganizationsListProps = {
 };
 
 function EmptyState() {
+	const [showCreateOrganizationDialog, setShowCreateOrganizationDialog] =
+		useState(false);
+
 	return (
-		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-				<BuildingsIcon className="text-primary" size={28} weight="duotone" />
-			</div>
-			<h3 className="mb-1 font-semibold text-lg">No organizations yet</h3>
-			<p className="mb-6 max-w-sm text-muted-foreground text-sm">
-				Create your first organization to collaborate with your team
-			</p>
-			<Button asChild>
-				<Link href="/organizations/new">
-					<PlusIcon className="mr-2" size={16} />
+		<>
+			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
+				<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+					<BuildingsIcon className="text-primary" size={28} weight="duotone" />
+				</div>
+				<h3 className="mb-1 font-semibold text-lg">No organizations yet</h3>
+				<p className="mb-6 max-w-sm text-muted-foreground text-sm">
+					Create your first organization to collaborate with your team
+				</p>
+				<Button onClick={() => setShowCreateOrganizationDialog(true)}>
 					Create Organization
-				</Link>
-			</Button>
-		</div>
+				</Button>
+			</div>
+
+			<CreateOrganizationDialog
+				isOpen={showCreateOrganizationDialog}
+				onClose={() => setShowCreateOrganizationDialog(false)}
+			/>
+		</>
 	);
 }
 
@@ -64,7 +70,7 @@ function OrganizationRow({
 	return (
 		<button
 			className={cn(
-				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent",
+				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left hover:bg-accent",
 				isProcessing && "pointer-events-none opacity-60"
 			)}
 			onClick={onClick}
@@ -76,7 +82,7 @@ function OrganizationRow({
 				</div>
 			)}
 
-			<Avatar className="size-10 transition-colors">
+			<Avatar className="size-10">
 				<AvatarImage
 					alt={organization.name}
 					src={organization.logo ?? undefined}

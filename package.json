@@ -2,22 +2,25 @@
   "name": "databuddy",
   "module": "index.ts",
   "devDependencies": {
-    "@biomejs/biome": "^2.3.7",
+    "@biomejs/biome": "^2.3.8",
     "@types/bun": "latest",
-    "@types/node": "^24.10.1",
+    "@types/dockerode": "^3.3.47",
+    "@types/node": "^24.10.2",
     "chalk": "^5.6.2",
+    "dockerode": "^4.0.9",
     "dotenv-cli": "^10.0.0",
-    "knip": "^5.70.2",
-    "turbo": "^2.6.1",
+    "knip": "^5.72.0",
+    "turbo": "^2.6.3",
     "typescript": "^5.9.3",
-    "ultracite": "^6.3.6"
+    "ultracite": "^6.3.10"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "bun@1.2.19",
+  "packageManager": "bun@1.3.4",
   "private": true,
   "scripts": {
+    "setup": "bun run setup.ts",
     "build": "dotenv -- turbo run build",
     "dev": "dotenv -- turbo run dev",
     "start": "dotenv -- turbo run start",
@@ -36,7 +39,7 @@
     "db:seed": "dotenv -- sh -c 'cd packages/db && bun run db:seed \"$@\"' --",
     "email:dev": "dotenv -- sh -c 'cd packages/email && bun run dev'",
     "sdk:build": "cd packages/sdk && bun run build",
-    "dashboard:dev": "dotenv -- cd apps/dashboard; bun run dev"
+    "dev:dashboard": "turbo dev --filter @databuddy/dashboard --filter @databuddy/api"
   },
   "type": "module",
   "workspaces": {
@@ -56,7 +59,7 @@
       "dayjs": "^1.11.13",
       "elysia": "^1.3.4",
       "pino": "^9.7.0",
-      "@phosphor-icons/react": "^2.1.10",
+      "@phosphor-icons/react": "latest",
       "@radix-ui/react-dialog": "^1.1.14",
       "@radix-ui/react-popover": "^1.1.14",
       "@radix-ui/react-slot": "^1.2.3",
@@ -89,17 +92,17 @@
   "dependencies": {
     "@ai-sdk-tools/cache": "^1.2.0",
     "@axiomhq/pino": "^1.3.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.67.1",
-    "@orpc/client": "^1.11.3",
-    "@orpc/server": "^1.11.3",
-    "@orpc/tanstack-query": "^1.11.3",
+    "@opentelemetry/auto-instrumentations-node": "^0.67.2",
+    "@orpc/client": "^1.12.2",
+    "@orpc/server": "^1.12.2",
+    "@orpc/tanstack-query": "^1.12.2",
     "dayjs": "^1.11.19",
     "dotted-map": "^2.2.3",
-    "framer-motion": "^12.23.24",
+    "framer-motion": "^12.23.25",
     "jszip": "^3.10.1",
     "pg": "^8.16.3",
     "pg-pool": "^3.10.1",
-    "prettier": "^3.6.2",
+    "prettier": "^3.7.4",
     "react-hotkeys-hook": "^5.2.1",
     "zod": "^4.1.13"
   }

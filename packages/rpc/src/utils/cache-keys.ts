@@ -11,27 +11,26 @@ import type { Context } from "../orpc";
  * @returns A string representing the auth context: "public", user ID, or "anonymous"
  */
 export async function getCacheAuthContext(
-    context: Context,
-    options: {
-        websiteId?: string;
-        organizationId?: string;
-    }
+	context: Context,
+	options: {
+		websiteId?: string;
+		organizationId?: string;
+	}
 ): Promise<string> {
-    const { websiteId, organizationId } = options;
+	const { websiteId, organizationId } = options;
 
-    if (websiteId) {
-        const website = await context.db.query.websites.findFirst({
-            where: eq(websites.id, websiteId),
-            columns: { isPublic: true },
-        });
+	if (websiteId) {
+		const website = await context.db.query.websites.findFirst({
+			where: eq(websites.id, websiteId),
+			columns: { isPublic: true },
+		});
 
-        return website?.isPublic ? "public" : context.user?.id ?? "anonymous";
-    }
+		return website?.isPublic ? "public" : (context.user?.id ?? "anonymous");
+	}
 
-    if (organizationId) {
-        return context.user?.id ?? "anonymous";
-    }
+	if (organizationId) {
+		return context.user?.id ?? "anonymous";
+	}
 
-    return context.user?.id ?? "anonymous";
+	return context.user?.id ?? "anonymous";
 }
-
