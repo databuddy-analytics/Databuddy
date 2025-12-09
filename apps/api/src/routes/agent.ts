@@ -139,12 +139,19 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						availableQueryTypes: Object.keys(QueryBuilders),
 					};
 
+					const agentContext = {
+						websiteId: body.websiteId,
+						websiteDomain: website.domain ?? "unknown",
+						timezone: body.timezone ?? "UTC",
+						requestHeaders: request.headers,
+					};
+
 					// Select agent based on model preference
 					// basic: triageAgent (simple routing)
 					// agent: reflectionAgent with haiku model
 					// agent-max: reflectionAgent with max capabilities
 					const modelType = body.model ?? "agent";
-					let agent: ReturnType<typeof createReflectionAgent>;
+					let agent: ReturnType<typeof createTriageAgent> | ReturnType<typeof createReflectionAgent>;
 					let maxRounds = 5;
 					let maxSteps = 20;
 
@@ -157,22 +164,22 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					switch (modelType) {
 						case "basic":
-							agent = createTriageAgent(user.id);
+							agent = createTriageAgent(user.id, agentContext);
 							maxRounds = 1;
 							maxSteps = 5;
 							break;
 						case "agent":
-							agent = createReflectionAgent(user.id, "haiku");
+							agent = createReflectionAgent(user.id, agentContext, "haiku");
 							maxRounds = 5;
 							maxSteps = 20;
 							break;
 						case "agent-max":
-							agent = createReflectionAgent(user.id, "max");
+							agent = createReflectionAgent(user.id, agentContext, "max");
 							maxRounds = 10;
 							maxSteps = 40;
 							break;
 						default:
-							agent = createReflectionAgent(user.id, "haiku");
+							agent = createReflectionAgent(user.id, agentContext, "haiku");
 					}
 
 					return agent.toUIMessageStream({

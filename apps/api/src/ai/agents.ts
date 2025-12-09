@@ -1,4 +1,5 @@
 import { Agent } from "@ai-sdk-tools/agents";
+import type { AppContext } from "./config/context";
 import {
 	extendedMemoryConfig,
 	maxMemoryConfig,
@@ -11,22 +12,45 @@ import { models } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
 import { buildReflectionInstructions } from "./prompts/reflection";
 import { buildTriageInstructions } from "./prompts/triage";
+import { createAnnotationTools } from "./tools/annotations";
 import { executeQueryBuilderTool } from "./tools/execute-query-builder";
 import { executeSqlQueryTool } from "./tools/execute-sql-query";
+import { createFunnelTools } from "./tools/funnels";
 import { getTopPagesTool } from "./tools/get-top-pages";
 import { competitorAnalysisTool, webSearchTool } from "./tools/web-search";
 
 /**
- * Tools available to analytics agents.
+ * Creates analytics tools with context-aware funnels tools.
  */
-const analyticsTools = {
-	get_top_pages: getTopPagesTool,
-	execute_query_builder: executeQueryBuilderTool,
-	execute_sql_query: executeSqlQueryTool,
-	web_search: webSearchTool,
-	competitor_analysis: competitorAnalysisTool,
-	...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
-} as const;
+function createAnalyticsTools(context: {
+	userId: string;
+	websiteId: string;
+	websiteDomain: string;
+	timezone: string;
+	requestHeaders?: Headers;
+}) {
+	const appContext: AppContext = {
+		userId: context.userId,
+		websiteId: context.websiteId,
+		websiteDomain: context.websiteDomain,
+		timezone: context.timezone,
+		currentDateTime: new Date().toISOString(),
+		chatId: crypto.randomUUID(),
+		requestHeaders: context.requestHeaders,
+	};
+	const funnelTools = createFunnelTools(appContext);
+	const annotationTools = createAnnotationTools(appContext);
+	return {
+		get_top_pages: getTopPagesTool,
+		execute_query_builder: executeQueryBuilderTool,
+		execute_sql_query: executeSqlQueryTool,
+		web_search: webSearchTool,
+		competitor_analysis: competitorAnalysisTool,
+		...funnelTools,
+		...annotationTools,
+		...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
+	} as const;
+}
 
 /**
  * Tools available to triage agent.
@@ -42,13 +66,26 @@ const triageTools = {
  * Handles website traffic analysis, user behavior, and performance metrics.
  * Uses standard memory for typical analytical conversations.
  */
-export function createAnalyticsAgent(userId: string) {
+export function createAnalyticsAgent(
+	userId: string,
+	context: {
+		websiteId: string;
+		websiteDomain: string;
+		timezone: string;
+		requestHeaders?: Headers;
+	}
+) {
+	const tools = createAnalyticsTools({
+		userId,
+		...context,
+	});
+
 	return new Agent({
 		name: "analytics",
 		model: withUserProfile(models.analytics, userId),
 		temperature: 0.3,
 		instructions: buildAnalyticsInstructions,
-		tools: analyticsTools,
+		tools,
 		memory: standardMemoryConfig,
 		modelSettings: {
 			failureMode: {
@@ -66,6 +103,12 @@ export function createAnalyticsAgent(userId: string) {
  */
 export const createReflectionAgent = (
 	userId: string,
+	context: {
+		websiteId: string;
+		websiteDomain: string;
+		timezone: string;
+		requestHeaders?: Headers;
+	},
 	variant: "standard" | "haiku" | "max" = "standard"
 ) => {
 	const config = {
@@ -95,7 +138,7 @@ export const createReflectionAgent = (
 				maxAttempts: 2,
 			},
 		},
-		handoffs: [createAnalyticsAgent(userId)],
+		handoffs: [createAnalyticsAgent(userId, context)],
 		...config,
 	});
 };
@@ -106,7 +149,15 @@ export const createReflectionAgent = (
  * This is the main entry point for all agent interactions.
  * Uses minimal memory since it only routes and doesn't need long context.
  */
-export function createTriageAgent(userId: string) {
+export function createTriageAgent(
+	userId: string,
+	context: {
+		websiteId: string;
+		websiteDomain: string;
+		timezone: string;
+		requestHeaders?: Headers;
+	}
+) {
 	return new Agent({
 		name: "triage",
 		model: withUserProfile(models.triage, userId),
@@ -123,7 +174,7 @@ export function createTriageAgent(userId: string) {
 				maxAttempts: 2,
 			},
 		},
-		handoffs: [createAnalyticsAgent(userId)],
+		handoffs: [createAnalyticsAgent(userId, context)],
 		maxTurns: 1,
 	});
 }
