@@ -55,8 +55,6 @@ import { DependencySelector } from "./dependency-selector";
 import { VariantEditor } from "./variant-editor";
 import { ScheduleManager } from "./schedule-manager";
 import {
-  flagScheduleSchema,
-  flagFormSchema,
   FlagWithScheduleForm,
   flagWithScheduleSchema,
 } from "@databuddy/shared/flags";
