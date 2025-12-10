@@ -1,12 +1,6 @@
-FROM oven/bun:1.3.0-debian AS build
+FROM oven/bun:1.3.4-slim AS build
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-	python3 \
-	make \
-	g++ \
-	&& rm -rf /var/lib/apt/lists/*
 
 COPY package.json package.json
 COPY apps/uptime/package.json ./apps/uptime/package.json
