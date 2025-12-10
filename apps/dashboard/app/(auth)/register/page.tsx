@@ -53,12 +53,12 @@ function RegisterPageContent() {
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
-	const trackSignUp = async (
+	const trackSignUp = (
 		method: "email" | "social",
 		provider?: "github" | "google"
 	) => {
 		try {
-			await track("signup_completed", {
+			track("signup_completed", {
 				method: method === "social" ? `${method}_${provider}` : method,
 				plan: selectedPlan || undefined,
 			});
