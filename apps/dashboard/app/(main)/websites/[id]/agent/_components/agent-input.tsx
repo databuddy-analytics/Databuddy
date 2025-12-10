@@ -4,7 +4,6 @@ import { useChatActions } from "@ai-sdk-tools/store";
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
 import type { ChatStatus } from "ai";
 import { useAtom } from "jotai";
-import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEnterSubmit } from "@/hooks/use-enter-submit";
@@ -15,14 +14,13 @@ import { AgentCommandMenu } from "./agent-command-menu";
 import { useAgentCommands } from "./hooks/use-agent-commands";
 
 export function AgentInput({ status }: { status: ChatStatus }) {
-	const inputRef = useRef<HTMLInputElement>(null);
 	const { sendMessage, stop } = useChatActions();
 	const isLoading = status === "streaming" || status === "submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
-	const { handleInputChange, handleKeyDown, showCommands } = useAgentCommands();
+	const agentCommands = useAgentCommands();
 	const currentChatId = useAgentChatId();
 	const setChatId = useSetAgentChatId();
-	const { formRef, onKeyDown: handleEnterSubmit } = useEnterSubmit();
+	const { formRef, onKeyDown } = useEnterSubmit();
 
 	const handleSubmit = (e?: React.FormEvent) => {
 		e?.preventDefault();
@@ -41,17 +39,10 @@ export function AgentInput({ status }: { status: ChatStatus }) {
 	};
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		handleInputChange(e.target.value, e.target.selectionStart ?? 0);
-	};
-
-	const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (handleKeyDown(e)) {
-			return;
-		}
-
-		if (!showCommands) {
-			handleEnterSubmit(e);
-		}
+		agentCommands.handleInputChange(
+			e.target.value,
+			e.target.selectionStart ?? 0
+		);
 	};
 
 	const handleStop = (e: React.MouseEvent) => {
@@ -63,7 +54,7 @@ export function AgentInput({ status }: { status: ChatStatus }) {
 		<div className="shrink-0 border-t bg-sidebar/30 backdrop-blur-sm">
 			<div className="mx-auto max-w-4xl p-4">
 				<div className="relative">
-					<AgentCommandMenu />
+					<AgentCommandMenu {...agentCommands} />
 
 					<form className="flex gap-2" onSubmit={handleSubmit} ref={formRef}>
 						<div className="relative flex-1">
@@ -74,9 +65,9 @@ export function AgentInput({ status }: { status: ChatStatus }) {
 								)}
 								disabled={isLoading}
 								onChange={handleChange}
-								onKeyDown={handleKey}
+								onKeyDown={onKeyDown}
 								placeholder="Ask the agent to analyze your data..."
-								ref={inputRef}
+								ref={agentCommands.inputRef}
 								value={input}
 							/>
 						</div>
