@@ -86,6 +86,9 @@ const app = new Elysia()
         }
         captureError(error);
     })
+    .get("/health", () => {
+        return { status: "ok" };
+    })
     .post("/", async ({ headers, body, store }) => {
         try {
             const siteId = headers["x-website-id"];
