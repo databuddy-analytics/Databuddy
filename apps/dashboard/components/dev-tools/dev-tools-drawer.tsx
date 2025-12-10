@@ -275,16 +275,191 @@ function StorageManagement() {
 }
 
 function PerformanceInfo() {
+	const queryClient = useQueryClient();
 	const [memoryInfo, setMemoryInfo] = useState<{
 		usedJSHeapSize?: number;
 		totalJSHeapSize?: number;
 		jsHeapSizeLimit?: number;
 	}>({});
+	const [advancedMemory, setAdvancedMemory] = useState<{
+		bytes?: number;
+		breakdown?: Array<{
+			bytes: number;
+			attribution: Array<{
+				url: string;
+				scope: string;
+			}>;
+			types: string[];
+		}>;
+	} | null>(null);
+	const [isMeasuring, setIsMeasuring] = useState(false);
+	const [breakdown, setBreakdown] = useState<{
+		domNodes: number;
+		eventListeners: number;
+		reactQueryCache: number;
+		storage: number;
+		images: number;
+		scripts: number;
+		timers: number;
+		intervals: number;
+		websockets: number;
+		workers: number;
+	}>({
+		domNodes: 0,
+		eventListeners: 0,
+		reactQueryCache: 0,
+		storage: 0,
+		images: 0,
+		scripts: 0,
+		timers: 0,
+		intervals: 0,
+		websockets: 0,
+		workers: 0,
+	});
+
+	const calculateBreakdown = useCallback(() => {
+		// DOM nodes count
+		const domNodes = document.querySelectorAll("*").length;
+
+		// Event listeners count (approximate by checking common elements)
+		let eventListeners = 0;
+		const allElements = document.querySelectorAll("*");
+		for (const el of allElements) {
+			// We can't directly count listeners, but we can estimate
+			// by checking if elements have common event handler patterns
+			if (el instanceof HTMLElement) {
+				if (
+					el.onclick ||
+					el.onmouseover ||
+					el.onfocus ||
+					el.getAttribute("onclick")
+				) {
+					eventListeners++;
+				}
+			}
+		}
+
+		// React Query cache size estimate
+		const cache = queryClient.getQueryCache();
+		const queries = cache.getAll();
+		let reactQueryCache = 0;
+		for (const query of queries) {
+			const state = query.state;
+			if (state.data) {
+				// Rough estimate: JSON stringify size
+				try {
+					reactQueryCache += JSON.stringify(state.data).length;
+				} catch {
+					// If circular or non-serializable, estimate by object keys
+					reactQueryCache += Object.keys(state.data).length * 100;
+				}
+			}
+		}
+
+		// Storage size
+		let storage = 0;
+		for (const key in localStorage) {
+			if (Object.hasOwn(localStorage, key)) {
+				storage += localStorage[key].length + key.length;
+			}
+		}
+		for (const key in sessionStorage) {
+			if (Object.hasOwn(sessionStorage, key)) {
+				storage += sessionStorage[key].length + key.length;
+			}
+		}
+
+		// Images size estimate
+		const images = document.querySelectorAll("img");
+		let imagesSize = 0;
+		for (const img of images) {
+			if (img.complete && img.naturalWidth && img.naturalHeight) {
+				// Rough estimate: width * height * 4 bytes (RGBA)
+				imagesSize += img.naturalWidth * img.naturalHeight * 4;
+			}
+		}
+
+		// Scripts count
+		const scripts = document.querySelectorAll("script").length;
+
+		// Count active timers and intervals (approximate)
+		// We can't directly count these, but we can check for common patterns
+		let timers = 0;
+		let intervals = 0;
+		// Note: We can't actually count these without patching setTimeout/setInterval
+		// This is just a placeholder for future enhancement
+
+		// WebSocket connections
+		let websockets = 0;
+		// Check if there are any WebSocket instances (can't directly enumerate)
+		// This would require tracking at creation time
+
+		// Web Workers count
+		let workers = 0;
+		// Can't enumerate workers without tracking them at creation
+
+		setBreakdown({
+			domNodes,
+			eventListeners,
+			reactQueryCache,
+			storage,
+			images: imagesSize,
+			scripts,
+			timers,
+			intervals,
+			websockets,
+			workers,
+		});
+	}, [queryClient]);
+
+	const measureAdvancedMemory = useCallback(async () => {
+		if (
+			typeof performance !== "undefined" &&
+			"measureUserAgentSpecificMemory" in performance &&
+			typeof performance.measureUserAgentSpecificMemory === "function"
+		) {
+			setIsMeasuring(true);
+			try {
+				const result =
+					await performance.measureUserAgentSpecificMemory();
+				setAdvancedMemory(result);
+				toast.success("Advanced memory measurement completed");
+			} catch (error) {
+				if (error instanceof DOMException) {
+					if (error.name === "SecurityError") {
+						toast.error(
+							"Memory measurement requires cross-origin isolation. Enable COOP/COEP headers.",
+						);
+					} else {
+						toast.error(`Memory measurement failed: ${error.message}`);
+					}
+				} else {
+					toast.error("Failed to measure memory");
+				}
+				console.error("Memory measurement error:", error);
+			} finally {
+				setIsMeasuring(false);
+			}
+		} else {
+			toast.error(
+				"Advanced memory API not available. Use Chrome 89+ with cross-origin isolation.",
+			);
+		}
+	}, []);
+
+	const openDevToolsMemory = useCallback(() => {
+		toast.info(
+			"Open Chrome DevTools → Memory tab → Take heap snapshot for detailed analysis",
+		);
+		console.log(
+			"💡 Tip: Open Chrome DevTools (F12) → Memory tab → Take heap snapshot to see detailed JavaScript object memory usage",
+		);
+	}, []);
 
 	useEffect(() => {
 		let animationFrameId: number;
 		let lastUpdate = 0;
-		const throttleMs = 100; // Update at most every 500ms
+		const throttleMs = 500; // Update at most every 500ms
 
 		const updateMemory = (timestamp: number) => {
 			if (timestamp - lastUpdate >= throttleMs) {
@@ -298,6 +473,7 @@ function PerformanceInfo() {
 						});
 					}
 				}
+				calculateBreakdown();
 				lastUpdate = timestamp;
 			}
 
@@ -315,13 +491,14 @@ function PerformanceInfo() {
 				});
 			}
 		}
+		calculateBreakdown();
 
 		animationFrameId = requestAnimationFrame(updateMemory);
 
 		return () => {
 			cancelAnimationFrame(animationFrameId);
 		};
-	}, []);
+	}, [calculateBreakdown]);
 
 	const formatBytes = (bytes?: number) => {
 		if (!bytes) {
@@ -333,30 +510,156 @@ function PerformanceInfo() {
 		return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
 	};
 
+	const formatNumber = (num: number) => {
+		if (num >= 1_000_000) {
+			return `${(num / 1_000_000).toFixed(2)}M`;
+		}
+		if (num >= 1_000) {
+			return `${(num / 1_000).toFixed(2)}K`;
+		}
+		return num.toString();
+	};
+
+	const canMeasureAdvanced =
+		typeof performance !== "undefined" &&
+		"measureUserAgentSpecificMemory" in performance &&
+		typeof performance.measureUserAgentSpecificMemory === "function" &&
+		typeof crossOriginIsolated !== "undefined" &&
+		crossOriginIsolated;
+
 	if (Object.keys(memoryInfo).length === 0) {
 		return null;
 	}
 
 	return (
 		<InfoSection title="Performance">
-			<div className="space-y-1.5 text-xs">
-				<div className="flex items-center justify-between">
-					<span className="text-muted-foreground">Used Heap:</span>
-					<span className="font-medium font-mono">
-						{formatBytes(memoryInfo.usedJSHeapSize)}
-					</span>
+			<div className="space-y-3">
+				{/* Overall Heap Stats */}
+				<div className="space-y-1.5 text-xs">
+					<div className="flex items-center justify-between">
+						<span className="text-muted-foreground">Used Heap:</span>
+						<span className="font-medium font-mono">
+							{formatBytes(memoryInfo.usedJSHeapSize)}
+						</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-muted-foreground">Total Heap:</span>
+						<span className="font-medium font-mono">
+							{formatBytes(memoryInfo.totalJSHeapSize)}
+						</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-muted-foreground">Heap Limit:</span>
+						<span className="font-medium font-mono">
+							{formatBytes(memoryInfo.jsHeapSizeLimit)}
+						</span>
+					</div>
 				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-muted-foreground">Total Heap:</span>
-					<span className="font-medium font-mono">
-						{formatBytes(memoryInfo.totalJSHeapSize)}
-					</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-muted-foreground">Heap Limit:</span>
-					<span className="font-medium font-mono">
-						{formatBytes(memoryInfo.jsHeapSizeLimit)}
-					</span>
+
+				{/* Advanced Memory Measurement */}
+				{canMeasureAdvanced && (
+					<>
+						<Separator />
+						<div className="space-y-2">
+							<div className="flex items-center justify-between">
+								<h4 className="text-muted-foreground text-xs font-medium">
+									Advanced Measurement
+								</h4>
+								<Button
+									disabled={isMeasuring}
+									onClick={measureAdvancedMemory}
+									size="sm"
+									variant="outline"
+								>
+									{isMeasuring ? "Measuring..." : "Measure Memory"}
+								</Button>
+							</div>
+							{advancedMemory && (
+								<div className="rounded border bg-muted/30 p-2 space-y-1.5 text-xs">
+									<div className="flex items-center justify-between">
+										<span className="text-muted-foreground">Total Memory:</span>
+										<span className="font-medium font-mono">
+											{formatBytes(advancedMemory.bytes)}
+										</span>
+									</div>
+									{advancedMemory.breakdown && (
+										<div className="space-y-1 pt-2 border-t">
+											<div className="text-muted-foreground font-medium">
+												Breakdown:
+											</div>
+											{advancedMemory.breakdown.map((item, idx) => (
+												<div
+													className="flex items-center justify-between pl-2"
+													key={idx}
+												>
+													<span className="text-muted-foreground">
+														{item.attribution[0]?.url || "Unknown"}:
+													</span>
+													<span className="font-medium font-mono">
+														{formatBytes(item.bytes)}
+													</span>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
+							)}
+						</div>
+					</>
+				)}
+
+				<Separator />
+
+				{/* Memory Breakdown */}
+				<div className="space-y-2">
+					<div className="flex items-center justify-between">
+						<h4 className="text-muted-foreground text-xs font-medium">
+							Tracked Memory Usage
+						</h4>
+						<Button
+							onClick={openDevToolsMemory}
+							size="sm"
+							variant="ghost"
+						>
+							<ChartBarIcon className="size-3" weight="duotone" />
+						</Button>
+					</div>
+					<div className="rounded border bg-muted/30 p-2 text-muted-foreground text-xs">
+						These are measurable contributions. For detailed JavaScript object
+						analysis, use Chrome DevTools Memory profiler (click icon above).
+					</div>
+					<div className="space-y-1.5 text-xs">
+						<div className="flex items-center justify-between">
+							<span className="text-muted-foreground">React Query Cache:</span>
+							<span className="font-medium font-mono">
+								{formatBytes(breakdown.reactQueryCache)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-muted-foreground">Storage (LS/SS):</span>
+							<span className="font-medium font-mono">
+								{formatBytes(breakdown.storage)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-muted-foreground">Images (estimated):</span>
+							<span className="font-medium font-mono">
+								{formatBytes(breakdown.images)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-muted-foreground">DOM Nodes:</span>
+							<span className="font-medium font-mono">
+								{formatNumber(breakdown.domNodes)} nodes
+							</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-muted-foreground">Scripts:</span>
+							<span className="font-medium font-mono">
+								{breakdown.scripts} loaded
+							</span>
+						</div>
+					</div>
 				</div>
 			</div>
 		</InfoSection>

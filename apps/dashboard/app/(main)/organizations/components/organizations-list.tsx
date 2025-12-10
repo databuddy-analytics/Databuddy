@@ -7,13 +7,17 @@ import {
 	CheckCircleIcon,
 	PlusIcon,
 } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
-import type { Organization } from "@/components/providers/organizations-provider";
+import {
+	AUTH_QUERY_KEYS,
+	type Organization,
+} from "@/components/providers/organizations-provider";
 import { RightSidebar } from "@/components/right-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +124,7 @@ export function OrganizationsList({
 	activeOrganization,
 }: OrganizationsListProps) {
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const [processingId, setProcessingId] = useState<string | null>(null);
 	const [showCreateOrganizationDialog, setShowCreateOrganizationDialog] =
 		useState(false);
@@ -139,6 +144,10 @@ export function OrganizationsList({
 			if (error) {
 				toast.error(error.message ?? "Failed to switch workspace");
 			} else {
+				await queryClient.invalidateQueries({
+					queryKey: AUTH_QUERY_KEYS.activeOrganization,
+				});
+				queryClient.invalidateQueries();
 				toast.success("Workspace updated");
 				await new Promise((resolve) => setTimeout(resolve, 300));
 				router.push("/organizations/settings");

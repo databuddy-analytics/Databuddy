@@ -4,7 +4,8 @@ import {
 	DatabaseIcon,
 } from "@phosphor-icons/react";
 import { flexRender, type Table } from "@tanstack/react-table";
-import { Fragment, useCallback, useState } from "react";
+import type React from "react";
+import { Fragment, memo, useCallback, useMemo, useState } from "react";
 import {
 	TableBody,
 	TableCell,
@@ -21,6 +22,33 @@ const PERCENTAGE_THRESHOLDS = {
 	MEDIUM: 25,
 	LOW: 10,
 } as const;
+
+const DEFAULT_CELL_STYLE = {
+	maxWidth: "300px",
+	minWidth: "80px",
+} as const;
+	
+const cellStyleCache = new Map<number, React.CSSProperties>();
+
+function getCellStyle(size: number): React.CSSProperties {
+	if (size === 150) {
+		return DEFAULT_CELL_STYLE;
+	}
+	
+	const cached = cellStyleCache.get(size);
+	if (cached) {
+		return cached;
+	}
+	
+	const style = {
+		width: `${Math.min(size, 300)}px`,
+		maxWidth: "300px",
+		minWidth: "80px",
+	} as const;
+	
+	cellStyleCache.set(size, style);
+	return style;
+}
 
 type PercentageRow = {
 	percentage?: string | number;
@@ -151,7 +179,7 @@ type TableContentProps<TData extends { name: string | number }> = {
 	className?: string;
 };
 
-export function TableContent<TData extends { name: string | number }>({
+function TableContentInner<TData extends { name: string | number }>({
 	table,
 	title,
 	minHeight = 200,
@@ -289,24 +317,21 @@ export function TableContent<TData extends { name: string | number }>({
 									}}
 									tabIndex={isInteractive || hasSubRows ? 0 : -1}
 								>
-									{row.getVisibleCells().map((cell, cellIndex) => (
-										<TableCell
-											className={cn(
-												"px-2 py-2 font-medium text-accent-foreground/80 text-sm",
-												cellIndex === 0 &&
-													"font-semibold text-sidebar-foreground",
-												(cell.column.columnDef.meta as any)?.className
-											)}
-											key={cell.id}
-											style={{
-												width:
-													cell.column.getSize() !== 150
-														? `${Math.min(cell.column.getSize(), 300)}px`
-														: undefined,
-												maxWidth: "300px",
-												minWidth: "80px",
-											}}
-										>
+									{row.getVisibleCells().map((cell, cellIndex) => {
+										const cellSize = cell.column.getSize();
+										const cellStyle = getCellStyle(cellSize);
+
+										return (
+											<TableCell
+												className={cn(
+													"px-2 py-2 font-medium text-accent-foreground/80 text-sm",
+													cellIndex === 0 &&
+														"font-semibold text-sidebar-foreground",
+													(cell.column.columnDef.meta as any)?.className
+												)}
+												key={cell.id}
+												style={cellStyle}
+											>
 											<div className="flex items-center gap-2">
 												{cellIndex === 0 && hasSubRows && (
 													<button
@@ -339,7 +364,8 @@ export function TableContent<TData extends { name: string | number }>({
 												</div>
 											</div>
 										</TableCell>
-									))}
+										);
+									})}
 								</TableRow>
 
 								{hasSubRows &&
@@ -357,22 +383,19 @@ export function TableContent<TData extends { name: string | number }>({
 													{renderSubRow(subRow, row.original, subIndex)}
 												</TableCell>
 											) : (
-												row.getVisibleCells().map((cell, cellIndex) => (
-													<TableCell
-														className={cn(
-															"py-2 text-sidebar-foreground/70 text-sm",
-															cellIndex === 0 ? "pl-8" : "px-2"
-														)}
-														key={`sub-${cell.id}`}
-														style={{
-															width:
-																cell.column.getSize() !== 150
-																	? `${Math.min(cell.column.getSize(), 300)}px`
-																	: undefined,
-															maxWidth: "300px",
-															minWidth: "80px",
-														}}
-													>
+												row.getVisibleCells().map((cell, cellIndex) => {
+													const subCellSize = cell.column.getSize();
+													const subCellStyle = getCellStyle(subCellSize);
+													
+													return (
+														<TableCell
+															className={cn(
+																"py-2 text-sidebar-foreground/70 text-sm",
+																cellIndex === 0 ? "pl-8" : "px-2"
+															)}
+															key={`sub-${cell.id}`}
+															style={subCellStyle}
+														>
 														<div className="truncate">
 															{cellIndex === 0 && (
 																<span className="text-xs">↳ </span>
@@ -380,7 +403,8 @@ export function TableContent<TData extends { name: string | number }>({
 															{(subRow as any)[cell.column.id] || ""}
 														</div>
 													</TableCell>
-												))
+													);
+												})
 											)}
 										</TableRow>
 									))}
@@ -392,3 +416,5 @@ export function TableContent<TData extends { name: string | number }>({
 		</div>
 	);
 }
+
+export const TableContent = memo(TableContentInner) as typeof TableContentInner;
