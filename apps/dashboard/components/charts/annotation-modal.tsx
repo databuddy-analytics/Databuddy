@@ -1,6 +1,7 @@
 "use client";
 
 import { EyeIcon, EyeSlashIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Badge } from "@/components/ui/badge";
@@ -373,9 +374,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 						disabled={!text.trim() || loading}
 						onClick={handleSubmit}
 					>
-						{loading && (
-							<div className="mr-2 size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-						)}
+						{loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
 						{isCreate ? "Create annotation" : "Save changes"}
 					</Button>
 				</DialogFooter>

@@ -151,7 +151,7 @@ export function MetricsChartWithAnnotations({
 			loading: "Creating annotation...",
 			success: () => {
 				refetchAnnotations();
-				return "Annotation created successfully! 🎉";
+				return "Annotation created successfully!";
 			},
 			error: (err) => {
 				console.error("Failed to create annotation:", err);
@@ -228,7 +228,7 @@ export function MetricsChartWithAnnotations({
 			/>
 
 			{/* Edit Annotation Modal */}
-			{editingAnnotation && (
+			{editingAnnotation ? (
 				<AnnotationModal
 					annotation={editingAnnotation}
 					isOpen={true}
@@ -237,7 +237,7 @@ export function MetricsChartWithAnnotations({
 					onClose={closeEditModal}
 					onSubmit={handleSaveAnnotation}
 				/>
-			)}
+			) : null}
 		</>
 	);
 }
