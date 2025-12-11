@@ -3,16 +3,30 @@ import { Elysia } from "elysia";
 import { logger } from "@/lib/logger";
 import { executeSchedule } from "@/services/flag-scheduler";
 import { Receiver } from "@upstash/qstash";
+import { z } from "zod";
 
-
+const webhookBodySchema = z.object({
+    scheduleId: z.string(),
+    stepScheduledAt: z.string().optional(),
+    stepValue: z.union([z.number(), z.literal("enable"), z.literal("disable")]).optional(),
+});
 export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-scheduler" })
     .post(
         "/",
         async function handleFlagSchedulerWebhook({ request, set }) {
             try {
+                const currentSigningKey = process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY;
+                const nextSigningKey = process.env.UPSTASH_QSTASH_NEXT_SIGNING_KEY;
+
+                if (!currentSigningKey || !nextSigningKey) {
+                    logger.error("Missing QStash signing keys");
+                    set.status = 500;
+                    return { error: "Server configuration error" };
+                }
+
                 const receiver = new Receiver({
-                    currentSigningKey: process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY!,
-                    nextSigningKey: process.env.UPSTASH_QSTASH_NEXT_SIGNING_KEY!,
+                    currentSigningKey,
+                    nextSigningKey,
                 });
 
                 const signature = request.headers.get("Upstash-Signature");
@@ -45,11 +59,13 @@ export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-schedul
                     return { error: "Invalid signature" };
                 }
 
-                const body = JSON.parse(rawBody) as {
-                    scheduleId: string;
-                    stepScheduledAt?: string;
-                    stepValue?: number | "enable" | "disable";
-                };
+                const parseResult = webhookBodySchema.safeParse(JSON.parse(rawBody));
+                if (!parseResult.success) {
+                    logger.warn({ error: parseResult.error }, "Invalid webhook body");
+                    set.status = 400;
+                    return { error: "Invalid request body" };
+                }
+                const body = parseResult.data;
 
                 const scheduleId = body.scheduleId || request.headers.get("X-Schedule-Id");
                 if (!scheduleId) {
