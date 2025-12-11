@@ -762,6 +762,7 @@ export const flagSchedules = pgTable(
 		>(),
 		type: flagScheduleActionType().notNull(),
 		isEnabled: boolean("is_enabled").default(false).notNull(),
+		qstashScheduleIds: text("qstash_schedule_ids").array(),
 		executedAt: timestamp("executed_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),

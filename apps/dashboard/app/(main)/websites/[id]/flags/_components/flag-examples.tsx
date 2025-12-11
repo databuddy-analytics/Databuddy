@@ -228,13 +228,13 @@ export function FlagExamples({
     queryKey: ["examples-display-strategy"],
     queryFn: async () => {
       console.log("Fetching examples display strategy");
-      return await getExamplesDisplayStrategy("OSA-FWQhcahi6J5VDxsbn", userId, "test")
+      return await getExamplesDisplayStrategy("h3mH7S0t8_MIqPvjLeYCb", userId, "test")
     }
   });
   const { data: shouldShowExamples, refetch: refetchShouldShowExamples, isFetching: isFetchingShouldShowExamples } = useQuery({
     queryKey: ["should-show-examples"],
     queryFn: async () => {
-      return await getShouldShowExamples("OSA-FWQhcahi6J5VDxsbn", userId, "test")
+      return await getShouldShowExamples("h3mH7S0t8_MIqPvjLeYCb", userId, "test")
     }
   });
 

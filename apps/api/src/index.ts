@@ -24,12 +24,10 @@ import { agent } from "./routes/agent";
 import { health } from "./routes/health";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
-
-import { startFlagScheduler, stopFlagScheduler } from "./services/flag-scheduler";
+import { flagSchedulerWebhook } from "./routes/webhooks/flag-scheduler";
 
 initTracing();
 setupUncaughtErrorHandlers();
-startFlagScheduler();
 
 const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [
@@ -59,6 +57,7 @@ const app = new Elysia()
 	)
 	.use(publicApi)
 	.use(health)
+	.use(flagSchedulerWebhook)
 	.onBeforeHandle(function startTrace({ request, path, store }) {
 		const method = request.method;
 		const startTime = Date.now();
@@ -174,7 +173,6 @@ export default {
 
 process.on("SIGINT", async () => {
 	logger.info("SIGINT received, shutting down gracefully...");
-	stopFlagScheduler();
 	await shutdownTracing().catch((error) =>
 		logger.error({ error }, "Shutdown error")
 	);
@@ -183,7 +181,6 @@ process.on("SIGINT", async () => {
 
 process.on("SIGTERM", async () => {
 	logger.info("SIGTERM received, shutting down gracefully...");
-	stopFlagScheduler();
 	await shutdownTracing().catch((error) =>
 		logger.error({ error }, "Shutdown error")
 	);

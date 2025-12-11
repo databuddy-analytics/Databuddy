@@ -33,10 +33,10 @@ import {
 } from "@/components/ui/select";
 import {
   Sheet,
-	SheetBody,
+  SheetBody,
   SheetContent,
   SheetDescription,
-	SheetFooter,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -286,56 +286,56 @@ export function FlagSheet({
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-	return (
-		<Sheet onOpenChange={onCloseAction} open={isOpen}>
-			<SheetContent side="right">
-				<SheetHeader>
-					<div className="flex items-center gap-4">
-						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
-							<FlagIcon
-								className="text-accent-foreground"
-								size={22}
-								weight="fill"
-							/>
-						</div>
-						<div>
-							<SheetTitle className="text-lg">
-								{isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
-							</SheetTitle>
-							<SheetDescription>
-								{isEditing
-									? "Update flag configuration and settings"
-									: "Set up a new feature flag for controlled rollouts"}
-							</SheetDescription>
-						</div>
-					</div>
-				</SheetHeader>
+  return (
+    <Sheet onOpenChange={onCloseAction} open={isOpen}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <div className="flex items-center gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+              <FlagIcon
+                className="text-accent-foreground"
+                size={22}
+                weight="fill"
+              />
+            </div>
+            <div>
+              <SheetTitle className="text-lg">
+                {isEditing ? "Edit Feature Flag" : "Create Feature Flag"}
+              </SheetTitle>
+              <SheetDescription>
+                {isEditing
+                  ? "Update flag configuration and settings"
+                  : "Set up a new feature flag for controlled rollouts"}
+              </SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
 
-				<Form {...form}>
-					<form
-						className="flex flex-1 flex-col overflow-y-auto"
-						onSubmit={form.handleSubmit(onSubmit)}
-					>
-						<SheetBody className="space-y-6">
-							{/* Basic Information */}
-							<section className="space-y-3">
-								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-									<FormField
-										control={form.control}
-										name="flag.name"
-										render={({ field }) => (
-											<FormItem>
-												<FormLabel>Flag Name</FormLabel>
-												<FormControl>
-													<Input
-														placeholder="New Dashboard Feature"
-														{...field}
-													/>
-												</FormControl>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
+        <Form {...form}>
+          <form
+            className="flex flex-1 flex-col overflow-y-auto"
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
+            <SheetBody className="space-y-6">
+              {/* Basic Information */}
+              <section className="space-y-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="flag.name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Flag Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="New Dashboard Feature"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
@@ -411,7 +411,7 @@ export function FlagSheet({
 
               {/* Configuration */}
               <section className="space-y-3">
-                <div className="flex gap-8">
+                <div className="flex flex-wrap gap-8">
                   <FormField
                     control={form.control}
                     name="flag.type"
@@ -519,28 +519,6 @@ export function FlagSheet({
                     }}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="flag.environment"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Environment
-                          <span className="text-muted-foreground text-xs">
-                            (Optional)
-                          </span>
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g. production"
-                            {...field}
-                            value={field.value || ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   {showDefaultValue && (
 
@@ -586,6 +564,30 @@ export function FlagSheet({
                       )}
                     />
                   )}
+
+                  <FormField
+                    control={form.control}
+                    name="flag.environment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Environment
+                          <span className="text-muted-foreground text-xs">
+                            (Optional)
+                          </span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. production"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                 </div>
               </section>
 
@@ -860,7 +862,6 @@ export function FlagSheet({
                   )}
                 />
               </section>
-						</SheetBody>
 
               {/* Dependencies */}
               <div className="space-y-4">
@@ -890,24 +891,25 @@ export function FlagSheet({
                   <ScheduleManager form={form} />
                 </div>
               )}
+            </SheetBody>
 
-						<SheetFooter>
-							<Button onClick={onCloseAction} type="button" variant="ghost">
-								Cancel
-							</Button>
-							<Button disabled={isLoading} type="submit">
-								{isLoading
-									? isEditing
-										? "Updating..."
-										: "Creating..."
-									: isEditing
-										? "Update Flag"
-										: "Create Flag"}
-							</Button>
-						</SheetFooter>
-					</form>
-				</Form>
-			</SheetContent>
-		</Sheet>
-	);
+            <SheetFooter>
+              <Button onClick={onCloseAction} type="button" variant="ghost">
+                Cancel
+              </Button>
+              <Button disabled={isLoading} type="submit">
+                {isLoading
+                  ? isEditing
+                    ? "Updating..."
+                    : "Creating..."
+                  : isEditing
+                    ? "Update Flag"
+                    : "Create Flag"}
+              </Button>
+            </SheetFooter>
+          </form>
+        </Form>
+      </SheetContent>
+    </Sheet>
+  );
 }

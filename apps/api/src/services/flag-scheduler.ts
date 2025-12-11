@@ -1,97 +1,11 @@
-import { and, db, eq, flagSchedules, flags, lte, isNotNull, inArray, isNull } from "@databuddy/db";
+import { db, eq, flagSchedules, flags } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { logger } from "@databuddy/shared/logger";
 import { handleFlagUpdateDependencyCascading } from "@databuddy/shared/flags/utils";
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 
-let schedulerInterval: NodeJS.Timeout | null = null;
-
-export function startFlagScheduler() {
-    if (schedulerInterval) {
-        logger.warn("Flag scheduler already running, skipping start");
-        return;
-    }
-
-    logger.info("Starting flag scheduler...");
-
-    processSchedules();
-    schedulerInterval = setInterval(processSchedules, 60 * 1000);
-}
-
-export function stopFlagScheduler() {
-    if (schedulerInterval) {
-        clearInterval(schedulerInterval);
-        schedulerInterval = null;
-        logger.info("Flag scheduler stopped");
-    }
-}
-
-async function processSchedules() {
-    try {
-        logger.debug("Processing schedules");
-
-        const now = new Date();
-
-        const dueSingleSchedules = await db
-            .select()
-            .from(flagSchedules)
-            .where(
-                and(
-                    isNotNull(flagSchedules.scheduledAt),
-                    lte(flagSchedules.scheduledAt, now),
-                    inArray(flagSchedules.type, ['enable', 'disable']),
-                    eq(flagSchedules.isEnabled, true),
-                    isNull(flagSchedules.executedAt)
-                )
-            );
-
-        const rolloutSchedules = await db.select().from(flagSchedules).where(
-            and(
-                isNotNull(flagSchedules.rolloutSteps),
-                isNull(flagSchedules.scheduledAt),
-                eq(flagSchedules.type, "update_rollout"),
-                eq(flagSchedules.isEnabled, true),
-                isNull(flagSchedules.executedAt)
-            )
-        );
-
-        const dueSteps = [];
-
-        for (const sched of rolloutSchedules) {
-            if (!sched.rolloutSteps || sched.rolloutSteps.length === 0) continue;
-
-            const dueStepsForSchedule = sched.rolloutSteps
-                .filter((step: any) => new Date(step.scheduledAt) <= now && !step.executedAt)
-                .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-
-            const latestStep = dueStepsForSchedule?.[0];
-            if (latestStep) {
-                dueSteps.push({
-                    ...sched,
-                    __isStep: true,
-                    stepValue: latestStep.value,
-                    stepScheduledAt: latestStep.scheduledAt,
-                });
-            }
-        }
-
-        const toExecute = [...dueSingleSchedules, ...dueSteps];
-
-        if (toExecute.length === 0) return;
-
-        logger.info(`Executing ${toExecute.length} pending schedules...`);
-
-        for (const sched of toExecute) {
-
-            await executeSchedule(sched);
-        }
-    } catch (err) {
-        logger.error({ err }, "Error running flag scheduler");
-    }
-}
-
-interface ExecutableSchedule {
+export interface ExecutableSchedule {
     id: string;
     flagId: string;
     type: string;
@@ -102,7 +16,7 @@ interface ExecutableSchedule {
     rolloutSteps: { value: number | "enable" | "disable"; scheduledAt: string; executedAt?: string }[] | null;
 }
 
-async function executeSchedule(sched: ExecutableSchedule) {
+export async function executeSchedule(sched: ExecutableSchedule) {
     try {
         const flag = await db.query.flags.findFirst({
             where: eq(flags.id, sched.flagId),
