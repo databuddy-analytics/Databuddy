@@ -207,7 +207,7 @@ const buildStepQuery = (
 			SELECT anonymous_id as vid, time as ts FROM analytics.events
 			WHERE ${base} AND event_name = {t${idx}:String}${filterSQL}
 			UNION ALL
-			SELECT anonymous_id as vid, timestamp as ts FROM analytics.custom_events
+			SELECT anonymous_id as vid, timestamp as ts FROM analytics.custom_event_spans
 			WHERE client_id = {websiteId:String}
 				AND timestamp >= parseDateTimeBestEffort({startDate:String})
 				AND timestamp <= parseDateTimeBestEffort({endDate:String})
