@@ -103,30 +103,18 @@ const app = new Elysia()
             });
 
             if (!isValid) {
-                return {
-                    success: false,
-                    message: "Invalid signature",
-                    error: "Invalid signature",
-                };
+                return new Response("Invalid signature", { status: 401 });
             }
 
             if (!siteId || typeof siteId !== "string") {
-                return {
-                    success: false,
-                    message: "Website ID is required",
-                    error: "Missing or invalid x-website-id header",
-                };
+                return new Response("Website ID is required", { status: 400 });
             }
 
             const site = await lookupWebsite(siteId);
 
             if (!site.success) {
-                console.error("Website lookup failed:", site.error);
-                return {
-                    success: false,
-                    message: "Website not found",
-                    error: site.error,
-                };
+                captureError(site.error);
+                return new Response("Website not found", { status: 404 });
             }
 
             const maxRetriesHeader = headers["x-max-retries"];
@@ -138,11 +126,8 @@ const app = new Elysia()
 
             if (!result.success) {
                 console.error("Uptime check failed:", result.error);
-                return {
-                    success: false,
-                    message: "Failed to check uptime",
-                    error: result.error,
-                };
+                captureError(result.error);
+                return new Response("Failed to check uptime", { status: 500 });
             }
 
             const { data } = result;
@@ -184,32 +169,10 @@ const app = new Elysia()
                 console.error("Failed to store uptime data in ClickHouse:", error);
                 // continue execution even if clickhouse insert fails
             }
-
-            console.log(
-                JSON.stringify({
-                    message: "Uptime check complete",
-                    site_id: siteId,
-                    url: site.data.domain,
-                    status: STATUS_LABELS[data.status as 0 | 1 | 2 | 3] || "UNKNOWN",
-                    http_code: data.http_code,
-                    ttfb_ms: data.ttfb_ms,
-                    retries: data.retries,
-                    streak: data.failure_streak,
-                })
-            );
-
-            return {
-                success: true,
-                message: "Uptime check complete",
-                data,
-            };
+            return new Response("Uptime check complete", { status: 200 });
         } catch (error) {
-            console.error("Unexpected error:", error);
             captureError(error);
-            return {
-                success: false,
-                message: "Internal server error",
-            };
+            return new Response("Internal server error", { status: 500 });
         }
     });
 
