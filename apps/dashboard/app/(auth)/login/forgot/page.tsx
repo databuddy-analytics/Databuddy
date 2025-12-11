@@ -1,15 +1,15 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ArrowLeftIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordPage() {
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -39,52 +39,72 @@ export default function ForgotPasswordPage() {
 	};
 
 	return (
-		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
-			<div className="mb-8 text-center">
-				<h1 className="font-medium text-foreground text-xl">
+		<>
+			<div className="mb-8 space-y-1 px-6 text-left">
+				<h1 className="font-medium text-2xl text-foreground">
 					Reset your password
 				</h1>
 				<p className="text-muted-foreground text-sm">
-					We'll send you a link to reset your password
+					We&apos;ll send you a link to reset your password
 				</p>
 			</div>
-			<form className="space-y-4" onSubmit={handleForgotPassword}>
-				<div className="space-y-2">
-					<Label className="font-medium text-foreground" htmlFor="forgot-email">
-						Email address
-					</Label>
-					<Input
-						autoComplete="email"
-						id="forgot-email"
-						name="email"
-						onChange={(e) => setEmail(e.target.value)}
-						placeholder="name@example.com"
-						required
-						type="email"
-						value={email}
-					/>
+			<div className="relative px-6">
+				<div className="relative z-10">
+					<form className="space-y-5" onSubmit={handleForgotPassword}>
+						<div className="space-y-3">
+							<Label className="font-medium text-foreground" htmlFor="forgot-email">
+								Email<span className="text-primary">*</span>
+							</Label>
+							<Input
+								autoComplete="email"
+								id="forgot-email"
+								name="email"
+								onChange={(e) => setEmail(e.target.value)}
+								placeholder="Enter your email"
+								required
+								type="email"
+								value={email}
+							/>
+						</div>
+						<Button className="w-full" disabled={isLoading} type="submit">
+							{isLoading ? (
+								<>
+									<SpinnerIcon className="mr-2 size-4 animate-spin" />
+									Sending reset link...
+								</>
+							) : (
+								"Send reset link"
+							)}
+						</Button>
+					</form>
 				</div>
-				<Button
-					className="w-full bg-primary"
-					disabled={isLoading}
-					type="submit"
+			</div>
+			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
+				<Link
+					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
+					href="/login"
 				>
-					{isLoading ? (
-						<>
-							<Loader2 className="size-4 animate-spin" />
-							Sending reset link...
-						</>
-					) : (
-						"Send reset link"
-					)}
-				</Button>
-				<Link className="mt-4 block" href="/login">
-					<Button className="w-full" type="button" variant="outline">
-						<ChevronLeft className="mr-2 size-4" />
-						Back to login
-					</Button>
+					<ArrowLeftIcon className="mr-1 inline size-3" />
+					Back to login
 				</Link>
-			</form>
-		</div>
+			</div>
+		</>
+	);
+}
+
+export default function Page() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex h-screen items-center justify-center bg-background">
+					<div className="relative">
+						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
+					</div>
+				</div>
+			}
+		>
+			<ForgotPasswordPage />
+		</Suspense>
 	);
 }

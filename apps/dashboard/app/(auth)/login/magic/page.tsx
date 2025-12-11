@@ -1,16 +1,16 @@
 "use client";
 
 import { signIn } from "@databuddy/auth/client";
-import { ChevronLeft, Loader2, Sparkles } from "lucide-react";
+	import { ArrowLeftIcon, SparkleIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function MagicLinkPage() {
+function MagicLinkPage() {
 	const router = useRouter();
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
@@ -43,64 +43,82 @@ export default function MagicLinkPage() {
 	};
 
 	return (
-		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden p-6">
-			<div className="mb-12 text-center">
-				<div className="relative mb-10 inline-flex h-16 w-16 items-center justify-center">
-					<div className="-inset-1 absolute animate-pulse rounded-full bg-radial from-accent-foreground to-transparent opacity-20 blur-md" />
-					<div className="relative">
-						<Sparkles className="size-8 animate-pulse text-foreground" />
-					</div>
-				</div>
+		<>
+			<div className="mb-8 space-y-1 px-6 text-left">
 				<h1 className="font-medium text-2xl text-foreground">
 					Sign in with magic link
 				</h1>
-				<p className="mt-1 text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-sm">
 					No password needed — just use your email
 				</p>
 			</div>
-			<form className="space-y-4" onSubmit={handleMagicLinkLogin}>
-				<div className="space-y-3">
-					<Label className="font-medium text-foreground" htmlFor="magic-email">
-						Email address
-					</Label>
-					<Input
-						autoComplete="email"
-						id="magic-email"
-						name="email"
-						onChange={(e) => setEmail(e.target.value)}
-						placeholder="name@example.com"
-						required
-						type="email"
-						value={email}
-					/>
+			<div className="relative px-6">
+				<div className="relative z-10">
+					<form className="space-y-5" onSubmit={handleMagicLinkLogin}>
+						<div className="space-y-3">
+							<Label className="font-medium text-foreground" htmlFor="magic-email">
+								Email<span className="text-primary">*</span>
+							</Label>
+							<Input
+								autoComplete="email"
+								id="magic-email"
+								name="email"
+								onChange={(e) => setEmail(e.target.value)}
+								placeholder="Enter your email"
+								required
+								type="email"
+								value={email}
+							/>
+						</div>
+						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+							<SparkleIcon className="size-4 shrink-0 text-foreground" />
+							<p className="text-muted-foreground">
+								We&apos;ll send a secure link to your email that will sign you in
+								instantly — no password needed.
+							</p>
+						</div>
+						<Button className="w-full" disabled={isLoading} type="submit">
+							{isLoading ? (
+								<>
+									<SpinnerIcon className="mr-2 size-4 animate-spin" />
+									Sending magic link...
+								</>
+							) : (
+								<>
+									<SparkleIcon className="mr-2 size-4" />
+									Send magic link
+								</>
+							)}
+						</Button>
+					</form>
 				</div>
-				<div className="flex items-center gap-3 p-3 text-info-foreground text-sm">
-					<Sparkles className="size-4 shrink-0 text-foreground" />
-					<p className="text-muted-foreground">
-						We'll send a secure link to your email that will sign you in
-						instantly — no password needed.
-					</p>
-				</div>
-				<Button className="w-full" disabled={isLoading} size="lg" type="submit">
-					{isLoading ? (
-						<>
-							<Loader2 className="size-4 animate-spin" />
-							Sending magic link...
-						</>
-					) : (
-						<>
-							<Sparkles className="size-4" />
-							Send magic link
-						</>
-					)}
-				</Button>
-				<Link className="block" href="/login">
-					<Button className="w-full" size="lg" type="button" variant="ghost">
-						<ChevronLeft className="size-4" />
-						Back to login
-					</Button>
+			</div>
+			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
+				<Link
+					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
+					href="/login"
+				>
+					<ArrowLeftIcon className="mr-1 inline size-3" />
+					Back to login
 				</Link>
-			</form>
-		</div>
+			</div>
+		</>
+	);
+}
+
+export default function Page() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex h-screen items-center justify-center bg-background">
+					<div className="relative">
+						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
+					</div>
+				</div>
+			}
+		>
+			<MagicLinkPage />
+		</Suspense>
 	);
 }
