@@ -16,34 +16,33 @@ const MOBILE_PREFIX_REGEX = /^Mobile\s+/;
 const MOBILE_SUFFIX_REGEX = /\s+Mobile$/;
 
 // Types
-export interface DeviceTypeEntry {
+export type DeviceTypeEntry = {
 	device_type: string;
 	device_brand?: string;
 	device_model?: string;
 	visitors: number;
 	pageviews?: number;
-}
+};
 
-export interface BrowserVersionEntry {
+export type BrowserVersionEntry = {
 	browser: string;
 	version?: string;
 	visitors: number;
 	pageviews?: number;
 	count?: number;
-}
+};
 
-export interface TechnologyTableEntry {
+export type TechnologyTableEntry = {
 	name: string;
 	visitors: number;
 	percentage: number;
 	icon?: string;
 	iconComponent?: React.ReactNode;
 	category?: string;
-}
+};
 
-// Enhanced device type icons with better styling
 export const getDeviceTypeIcon = (
-	deviceType: string,
+	deviceType: string | null | undefined,
 	size: "sm" | "md" | "lg" = "md"
 ) => {
 	const sizeClasses = {
@@ -51,6 +50,12 @@ export const getDeviceTypeIcon = (
 		md: "size-4",
 		lg: "size-5",
 	};
+
+	if (!deviceType) {
+		return (
+			<HelpCircle className={`${sizeClasses[size]} text-muted-foreground`} />
+		);
+	}
 
 	const typeLower = deviceType.toLowerCase();
 	const className = `${sizeClasses[size]}`;

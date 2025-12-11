@@ -51,42 +51,42 @@ const wwwRegex = /^www\./;
 
 function SkeletonRow() {
 	return (
-		<TableRow>
-			<TableCell>
-				<div className="flex items-center gap-2">
-					<Skeleton className="size-6 rounded-full" />
+		<TableRow className="h-[49px]">
+			<TableCell className="h-[49px] py-2">
+				<div className="flex items-center gap-2.5">
+					<Skeleton className="size-6 shrink-0 rounded-full" />
 					<Skeleton className="h-4 w-24" />
 				</div>
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-5 rounded" />
+					<Skeleton className="size-4 shrink-0 rounded" />
 					<Skeleton className="h-4 w-16" />
 				</div>
 			</TableCell>
-			<TableCell>
-				<div className="flex gap-1">
-					<Skeleton className="size-4 rounded" />
-					<Skeleton className="size-4 rounded" />
-					<Skeleton className="size-4 rounded" />
+			<TableCell className="h-[49px] py-2">
+				<div className="flex items-center gap-1">
+					<Skeleton className="size-4 shrink-0 rounded" />
+					<Skeleton className="size-4 shrink-0 rounded" />
+					<Skeleton className="size-4 shrink-0 rounded" />
 				</div>
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-1.5">
-					<Skeleton className="size-3.5 rounded" />
+					<Skeleton className="size-3.5 shrink-0 rounded" />
 					<Skeleton className="h-4 w-16" />
 				</div>
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-4 w-6" />
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-4 w-6" />
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-5 w-12 rounded-full" />
 			</TableCell>
-			<TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-4 w-14" />
 			</TableCell>
 		</TableRow>
@@ -195,7 +195,8 @@ export function UsersList({ websiteId }: UsersListProps) {
 				id: "location",
 				header: "Location",
 				cell: ({ row }) => {
-					const countryCode = getCountryCode(row.original.country);
+					const country = row.original.country || "";
+					const countryCode = getCountryCode(country);
 					const countryName = getCountryName(countryCode);
 					const isUnknown = !countryCode || countryCode === "Unknown";
 
@@ -217,16 +218,20 @@ export function UsersList({ websiteId }: UsersListProps) {
 			{
 				id: "device",
 				header: "Device",
-				cell: ({ row }) => (
-					<div
-						className="flex items-center gap-1"
-						title={`${row.original.browser_name} on ${row.original.os_name}`}
-					>
-						{getDeviceIcon(row.original.device_type)}
-						<BrowserIcon name={row.original.browser_name} size="sm" />
-						<OSIcon name={row.original.os_name} size="sm" />
-					</div>
-				),
+				cell: ({ row }) => {
+					const browserName = row.original.browser_name || "Unknown";
+					const osName = row.original.os_name || "Unknown";
+					return (
+						<div
+							className="flex items-center gap-1"
+							title={`${browserName} on ${osName}`}
+						>
+							{getDeviceIcon(row.original.device_type)}
+							<BrowserIcon name={browserName} size="sm" />
+							<OSIcon name={osName} size="sm" />
+						</div>
+					);
+				},
 				size: 80,
 			},
 			{
@@ -270,7 +275,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 				header: "Sessions",
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
-						{row.original.session_count}
+						{row.original.session_count ?? 0}
 					</span>
 				),
 				size: 70,
@@ -280,7 +285,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 				header: "Pages",
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
-						{row.original.total_events}
+						{row.original.total_events ?? 0}
 					</span>
 				),
 				size: 60,
@@ -289,7 +294,8 @@ export function UsersList({ websiteId }: UsersListProps) {
 				id: "type",
 				header: "Type",
 				cell: ({ row }) => {
-					const isReturning = row.original.session_count > 1;
+					const sessionCount = row.original.session_count ?? 0;
+					const isReturning = sessionCount > 1;
 					return (
 						<Badge variant={isReturning ? "default" : "secondary"}>
 							{isReturning ? "Return" : "New"}
@@ -442,7 +448,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 						<TableBody>
 							{table.getRowModel().rows.map((row) => (
 								<TableRow
-									className="cursor-pointer"
+									className="h-[49px] cursor-pointer"
 									key={row.id}
 									onClick={() => {
 										router.push(
@@ -452,6 +458,7 @@ export function UsersList({ websiteId }: UsersListProps) {
 								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell
+											className="h-[49px] py-2"
 											key={cell.id}
 											style={{
 												width: cell.column.getSize(),

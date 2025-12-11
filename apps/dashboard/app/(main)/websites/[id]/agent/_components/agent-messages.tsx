@@ -1,8 +1,6 @@
 "use client";
 
-import { useChat } from "@ai-sdk-tools/store";
-import type { UIMessage } from "ai";
-import { useParams } from "next/navigation";
+import type { ChatStatus, UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
 	ChainOfThought,
@@ -22,7 +20,6 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { useAgentChatTransport } from "./hooks/use-agent-chat";
 import { useChatStatus } from "./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
@@ -204,11 +201,13 @@ function renderMessagePart(
 	return null;
 }
 
-export function AgentMessages() {
-	const params = useParams();
-	const chatId = params.chatId as string;
-	const transport = useAgentChatTransport();
-	const { messages, status } = useChat<UIMessage>({ id: chatId, transport });
+export function AgentMessages({
+	status,
+	messages,
+}: {
+	status: ChatStatus;
+	messages: UIMessage[];
+}) {
 	const hasError = status === "error";
 	const chatStatus = useChatStatus(messages, status);
 	const isStreaming = status === "streaming" || status === "submitted";
@@ -249,7 +248,7 @@ export function AgentMessages() {
 				);
 			})}
 
-			{isStreaming && messages.at(-1)?.role !== "assistant" && (
+			{!!isStreaming && (
 				<StreamingIndicator
 					statusText={chatStatus.displayMessage ?? undefined}
 				/>
@@ -277,7 +276,7 @@ function StreamingIndicator({ statusText }: { statusText?: string }) {
 			className="fade-in group w-full animate-in duration-300"
 			data-role="assistant"
 		>
-			<div className="flex w-full items-start justify-start gap-2">
+			<div className="flex w-full items-center justify-start gap-2">
 				<Avatar className="size-8 shrink-0 animate-pulse ring-1 ring-border">
 					<AvatarImage alt="Databunny" src="/databunny.webp" />
 					<AvatarFallback className="bg-primary/10 font-semibold text-primary">

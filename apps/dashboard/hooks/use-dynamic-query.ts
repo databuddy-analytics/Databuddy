@@ -93,27 +93,27 @@ async function fetchDynamicQuery(
 	// Prepare the request body
 	const requestBody = Array.isArray(queryData)
 		? queryData.map((query) => ({
-				...query,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: query.limit || 100,
-				page: query.page || 1,
-				filters: transformFilters(query.filters),
-				granularity: query.granularity || dateRange.granularity || "daily",
-				groupBy: query.groupBy,
-			}))
+			...query,
+			startDate: dateRange.start_date,
+			endDate: dateRange.end_date,
+			timeZone: timezone,
+			limit: query.limit || 100,
+			page: query.page || 1,
+			filters: transformFilters(query.filters),
+			granularity: query.granularity || dateRange.granularity || "daily",
+			groupBy: query.groupBy,
+		}))
 		: {
-				...queryData,
-				startDate: dateRange.start_date,
-				endDate: dateRange.end_date,
-				timeZone: timezone,
-				limit: queryData.limit || 100,
-				page: queryData.page || 1,
-				filters: transformFilters(queryData.filters),
-				granularity: queryData.granularity || dateRange.granularity || "daily",
-				groupBy: queryData.groupBy,
-			};
+			...queryData,
+			startDate: dateRange.start_date,
+			endDate: dateRange.end_date,
+			timeZone: timezone,
+			limit: queryData.limit || 100,
+			page: queryData.page || 1,
+			filters: transformFilters(queryData.filters),
+			granularity: queryData.granularity || dateRange.granularity || "daily",
+			groupBy: queryData.groupBy,
+		};
 
 	const response = await fetch(url, {
 		method: "POST",
@@ -893,31 +893,41 @@ export function useUserProfile(
 
 		const sessions = Array.isArray(rawSessions)
 			? rawSessions.map((session: any) => ({
-					session_id: session.session_id,
-					session_name: session.session_name || "Session",
-					first_visit: session.first_visit,
-					last_visit: session.last_visit,
-					duration: session.duration || 0,
-					duration_formatted: session.duration_formatted || "0s",
-					page_views: session.page_views || 0,
-					unique_pages: session.unique_pages || 0,
-					device: session.device || "",
-					browser: session.browser || "",
-					os: session.os || "",
-					country: session.country || "",
-					region: session.region || "",
-					referrer: session.referrer || "direct",
-					events:
-						Array.isArray(session.events) && session.events.length > 0
-							? session.events.map((eventTuple: any[]) => ({
-									event_id: eventTuple[0],
-									time: eventTuple[1],
-									event_name: eventTuple[2],
-									path: eventTuple[3],
-									properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
-								}))
-							: [],
-				}))
+				session_id: session.session_id,
+				session_name: session.session_name || "Session",
+				first_visit: session.first_visit,
+				last_visit: session.last_visit,
+				duration: session.duration || 0,
+				duration_formatted: session.duration_formatted || "0s",
+				page_views: session.page_views || 0,
+				unique_pages: session.unique_pages || 0,
+				device: session.device || "",
+				browser: session.browser || "",
+				os: session.os || "",
+				country: session.country || "",
+				region: session.region || "",
+				referrer: session.referrer || "direct",
+				events:
+					Array.isArray(session.events) && session.events.length > 0
+						? session.events.map((eventTuple: any[]) => {
+							let propertiesObj: Record<string, unknown> = {};
+							if (eventTuple[4]) {
+								try {
+									propertiesObj = JSON.parse(eventTuple[4]);
+								} catch {
+									// Keep empty object if parsing fails
+								}
+							}
+							return {
+								event_id: eventTuple[0],
+								time: eventTuple[1],
+								event_name: eventTuple[2],
+								path: eventTuple[3],
+								properties: propertiesObj,
+							};
+						})
+						: [],
+			}))
 			: [];
 
 		return {

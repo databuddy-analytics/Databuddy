@@ -1,7 +1,6 @@
 import { agentRouter } from "./routers/agent";
 import { annotationsRouter } from "./routers/annotations";
 import { apikeysRouter } from "./routers/apikeys";
-import { assistantRouter } from "./routers/assistant";
 import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { chatRouter } from "./routers/chat";
@@ -26,7 +25,6 @@ export const appRouter = {
 	autocomplete: autocompleteRouter,
 	apikeys: apikeysRouter,
 	flags: flagsRouter,
-	assistant: assistantRouter,
 	chat: chatRouter,
 	agent: agentRouter,
 	organizations: organizationsRouter,

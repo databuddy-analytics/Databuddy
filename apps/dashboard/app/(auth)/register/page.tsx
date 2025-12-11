@@ -53,12 +53,12 @@ function RegisterPageContent() {
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
-	const trackSignUp = async (
+	const trackSignUp = (
 		method: "email" | "social",
 		provider?: "github" | "google"
 	) => {
 		try {
-			await track("signup_completed", {
+			track("signup_completed", {
 				method: method === "social" ? `${method}_${provider}` : method,
 				plan: selectedPlan || undefined,
 			});
@@ -105,7 +105,7 @@ function RegisterPageContent() {
 			name: formData.name,
 			fetchOptions: {
 				onSuccess: () => {
-					trackSignUp("email").catch(console.error);
+					trackSignUp("email");
 					if (callbackUrl) {
 						handleAuthSuccess();
 					} else {
@@ -158,7 +158,7 @@ function RegisterPageContent() {
 				callbackURL: callbackUrl || "/websites",
 				fetchOptions: {
 					onSuccess: () => {
-						trackSignUp("social", provider).catch(console.error);
+						trackSignUp("social", provider);
 						toast.success("Registration successful!");
 						handleAuthSuccess();
 					},

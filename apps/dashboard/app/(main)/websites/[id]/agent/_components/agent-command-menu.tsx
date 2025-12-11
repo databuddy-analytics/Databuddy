@@ -7,11 +7,21 @@ import {
 	MagnifyingGlassIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
-import { useRef } from "react";
-import { cn } from "@/lib/utils";
-import type { AgentCommand } from "./agent-atoms";
-import { useAgentCommands } from "./hooks/use-agent-commands";
+import { Button } from "@/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import type { useAgentCommands } from "./hooks/use-agent-commands";
 
 const COMMAND_ICONS: Record<string, typeof MagnifyingGlassIcon> = {
 	analyze: MagnifyingGlassIcon,
@@ -27,67 +37,77 @@ function getCommandIcon(command: string) {
 	return COMMAND_ICONS[prefix] ?? MagnifyingGlassIcon;
 }
 
-export function AgentCommandMenu() {
-	const menuRef = useRef<HTMLDivElement>(null);
-	const { showCommands, filteredCommands, selectedIndex, executeCommand } =
-		useAgentCommands();
-
+export function AgentCommandMenu({
+	showCommands,
+	filteredCommands,
+	closeCommands,
+	executeCommand,
+}: ReturnType<typeof useAgentCommands>) {
 	if (!showCommands || filteredCommands.length === 0) {
 		return null;
 	}
 
 	return (
-		<AnimatePresence>
-			<motion.div
-				animate={{ opacity: 1, y: 0 }}
-				className="absolute right-0 bottom-full left-0 z-30 mb-2"
-				exit={{ opacity: 0, y: 8 }}
-				initial={{ opacity: 0, y: 8 }}
-				ref={menuRef}
-				transition={{ duration: 0.15 }}
-			>
-				<div className="overflow-hidden rounded border bg-sidebar/95 shadow-lg backdrop-blur-lg">
-					<div className="max-h-64 overflow-y-auto p-1">
-						{filteredCommands.map((command: AgentCommand, index: number) => {
-							const isSelected = selectedIndex === index;
-							const Icon = getCommandIcon(command.command);
+		<Popover
+			onOpenChange={(open) => {
+				if (!open) {
+					closeCommands();
+				}
+			}}
+			open={showCommands}
+		>
+			<PopoverTrigger asChild>
+				<Button
+					aria-expanded={showCommands}
+					className="-z-1 absolute inset-0 justify-between opacity-0"
+					role="combobox"
+					variant="outline"
+				>
+					Select command...
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+				<Command>
+					<CommandInput className="h-9" placeholder="Search command..." />
+					<CommandList className="bg-sidebar/95!">
+						<CommandEmpty>No commands found.</CommandEmpty>
+						<CommandGroup>
+							{filteredCommands.map((command) => {
+								const Icon = getCommandIcon(command.command);
 
-							return (
-								<button
-									className={cn(
-										"flex w-full items-center gap-3 rounded px-3 py-2 text-left",
-										" ",
-										isSelected ? "bg-accent" : "hover:bg-accent/50"
-									)}
-									data-index={index}
-									key={command.id}
-									onClick={() => executeCommand(command)}
-									onMouseDown={(e) => e.preventDefault()}
-									type="button"
-								>
-									<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
-										<Icon
-											className="size-4 text-foreground/60"
-											weight="duotone"
-										/>
-									</div>
-									<div className="min-w-0 flex-1">
-										<p className="truncate font-medium text-sm">
-											{command.title}
-										</p>
-										<p className="truncate text-foreground/50 text-xs">
-											{command.description}
-										</p>
-									</div>
-									<span className="text-foreground/30 text-xs">
-										{command.command}
-									</span>
-								</button>
-							);
-						})}
-					</div>
-				</div>
-			</motion.div>
-		</AnimatePresence>
+								return (
+									<CommandItem
+										className="rounded-none data-[selected=true]:rounded data-[selected=true]:bg-accent/50"
+										key={command.id}
+										onSelect={() => {
+											executeCommand(command);
+										}}
+										value={command.title}
+									>
+										<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
+											<Icon
+												className="size-4 text-foreground/60"
+												weight="duotone"
+											/>
+										</div>
+										<div className="min-w-0 flex-1">
+											<p className="truncate font-medium text-sm">
+												{command.title}
+											</p>
+											<p className="truncate text-foreground/50 text-xs">
+												{command.description}
+											</p>
+										</div>
+										<span className="text-foreground/30 text-xs">
+											{command.command}
+										</span>
+									</CommandItem>
+								);
+							})}
+						</CommandGroup>
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 }

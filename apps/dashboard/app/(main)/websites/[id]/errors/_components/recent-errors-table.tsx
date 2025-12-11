@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -59,12 +59,22 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 	const [selectedError, setSelectedError] = useState<RecentError | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	const handleViewError = (error: RecentError) => {
+	const handleViewError = useCallback((error: RecentError) => {
 		setSelectedError(error);
 		setIsModalOpen(true);
-	};
+	}, []);
 
-	const columns = [
+	const tableData = useMemo(
+		() =>
+			recentErrors.map((error) => ({
+				...error,
+				name: error.message,
+			})),
+		[recentErrors]
+	);
+
+	const columns = useMemo(
+		() => [
 		{
 			id: "severity",
 			accessorKey: "message",
@@ -104,7 +114,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 								{type}
 							</Badge>
 							{row.stack && (
-								<Tooltip>
+								<Tooltip skipProvider>
 									<TooltipTrigger asChild>
 										<Badge
 											className="gap-1 border-chart-2/30 bg-chart-2/10 text-chart-2"
@@ -120,7 +130,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 								</Tooltip>
 							)}
 						</div>
-						<Tooltip>
+						<Tooltip skipProvider>
 							<TooltipTrigger asChild>
 								<p className="line-clamp-2 cursor-help text-muted-foreground text-sm leading-relaxed">
 									{message}
@@ -148,7 +158,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				}
 
 				return (
-					<Tooltip>
+					<Tooltip skipProvider>
 						<TooltipTrigger asChild>
 							<div className="flex max-w-[140px] items-center gap-1.5">
 								<CodeIcon
@@ -180,7 +190,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				}
 
 				return (
-					<Tooltip>
+					<Tooltip skipProvider>
 						<TooltipTrigger asChild>
 							<div className="flex items-center gap-2">
 								{browser && <BrowserIcon name={browser} size="sm" />}
@@ -218,7 +228,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				}
 
 				return (
-					<Tooltip>
+					<Tooltip skipProvider>
 						<TooltipTrigger asChild>
 							<div className="flex items-center gap-1.5">
 								<CountryFlag
@@ -245,7 +255,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				const full = formatDateTimeSeconds(time);
 
 				return (
-					<Tooltip>
+					<Tooltip skipProvider>
 						<TooltipTrigger asChild>
 							<div className="flex items-center gap-1.5 text-muted-foreground">
 								<ClockIcon className="h-3.5 w-3.5 shrink-0" weight="duotone" />
@@ -259,16 +269,15 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				);
 			},
 		},
-	];
+		],
+		[]
+	);
 
 	return (
 		<>
 			<DataTable
 				columns={columns}
-				data={recentErrors.map((error) => ({
-					...error,
-					name: error.message,
-				}))}
+				data={tableData}
 				emptyMessage="No errors recorded in this time period"
 				initialPageSize={10}
 				minHeight={400}

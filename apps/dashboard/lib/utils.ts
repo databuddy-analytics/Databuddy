@@ -46,6 +46,6 @@ export function getDefaultDateRange() {
 	};
 }
 
-export function getDeviceIcon(device: string, size: 'sm' | 'md' | 'lg' = 'md') {
+export function getDeviceIcon(device: string | null | undefined, size: 'sm' | 'md' | 'lg' = 'md') {
 	return getDeviceTypeIcon(device, size);
 }

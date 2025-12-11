@@ -1,14 +1,14 @@
 "use client";
 
 import { signIn } from "@databuddy/auth/client";
-import { ChevronLeft, Loader2, MailCheck } from "lucide-react";
+import { ArrowLeftIcon, EnvelopeIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
-export default function MagicSentPage() {
+function MagicSentPage() {
 	const [email] = useQueryState("email", parseAsString.withDefault(""));
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -22,7 +22,7 @@ export default function MagicSentPage() {
 
 		await signIn.magicLink({
 			email,
-			callbackURL: "/home",
+			callbackURL: "/home",	
 			fetchOptions: {
 				onSuccess: () => {
 					setIsLoading(false);
@@ -39,54 +39,68 @@ export default function MagicSentPage() {
 	};
 
 	return (
-		<div className="relative mx-auto mt-12 w-full max-w-md overflow-hidden rounded-xl border border-border bg-card p-6 shadow">
-			<div className="mb-8 text-center">
-				<div className="relative mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-info/10 p-3">
-					<div className="absolute inset-0 animate-pulse rounded-full bg-info/5" />
-					<div className="-inset-1 absolute rounded-full bg-gradient-to-tr from-info/20 to-info/10 opacity-70 blur-md" />
-					<div className="relative rounded-full bg-gradient-to-tr from-info to-info/80 p-2.5">
-						<MailCheck className="size-8 text-info-foreground" />
-					</div>
-				</div>
-				<h1 className="font-bold text-2xl text-foreground">Check your email</h1>
-				<p className="mt-2 text-muted-foreground">
+		<>
+			<div className="mb-8 space-y-1 px-6 text-left">
+				<h1 className="font-medium text-2xl text-foreground">Check your email</h1>
+				<p className="text-muted-foreground text-sm">
 					Magic link sent to{" "}
-					<strong className="font-medium text-info">{email}</strong>
+					<strong className="font-medium text-primary">{email}</strong>
 				</p>
 			</div>
-			<div className="space-y-5 py-4">
-				<div className="rounded-lg border border-info/20 bg-info/5 p-4 text-info-foreground">
-					<p className="text-sm">
-						We've sent a magic link to <strong>{email}</strong>. Please check
-						your inbox and click the link to sign in instantly.
-					</p>
+			<div className="relative px-6">
+				<div className="relative z-10">
+					<div className="space-y-5">
+						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-4">
+							<EnvelopeIcon className="size-5 shrink-0 text-primary" />
+							<p className="text-sm text-muted-foreground">
+								We&apos;ve sent a magic link to <strong className="text-foreground">{email}</strong>. Please check
+								your inbox and click the link to sign in instantly.
+							</p>
+						</div>
+						<Button
+							className="w-full"
+							disabled={isLoading}
+							onClick={handleResend}
+							type="button"
+						>
+							{isLoading ? (
+								<>
+									<SpinnerIcon className="mr-2 size-4 animate-spin" />
+									Sending...
+								</>
+							) : (
+								"Resend magic link"
+							)}
+						</Button>
+					</div>
 				</div>
-				<Button
-					className="w-full bg-info text-info-foreground hover:bg-info/90"
-					disabled={isLoading}
-					onClick={handleResend}
-					type="button"
+			</div>
+			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
+				<Link
+					className="h-auto flex-1 cursor-pointer p-0 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
+					href="/login"
 				>
-					{isLoading ? (
-						<>
-							<Loader2 className="mr-2 size-4 animate-spin" />
-							Sending...
-						</>
-					) : (
-						"Resend magic link"
-					)}
-				</Button>
-				<Link href="/login">
-					<Button
-						className="w-full border-info/20 hover:bg-info/5"
-						type="button"
-						variant="outline"
-					>
-						<ChevronLeft className="mr-2 size-4" />
-						Back to login
-					</Button>
+					<ArrowLeftIcon className="mr-1 inline size-3" />
+					Back to login
 				</Link>
 			</div>
-		</div>
+		</>
+	);
+}
+
+export default function Page() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex h-screen items-center justify-center bg-background">
+					<div className="relative">
+						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
+					</div>
+				</div>
+			}
+		>
+			<MagicSentPage />
+		</Suspense>
 	);
 }

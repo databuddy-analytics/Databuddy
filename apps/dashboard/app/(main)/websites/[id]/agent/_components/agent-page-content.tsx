@@ -74,7 +74,7 @@ function AgentPageContentInner({
 	const params = useParams();
 	const chatId = params.chatId as string;
 	const transport = useAgentChatTransport();
-	const { messages } = useChat<UIMessage>({ id: chatId, transport });
+	const { status, messages } = useChat<UIMessage>({ id: chatId, transport });
 
 	const hasMessages = messages.length > 0;
 
@@ -119,7 +119,7 @@ function AgentPageContentInner({
 				<Conversation className="flex-1">
 					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
 						{hasMessages ? (
-							<AgentMessages />
+							<AgentMessages messages={messages} status={status} />
 						) : (
 							<ConversationEmptyState>
 								<WelcomeState onPromptSelect={setInputValue} />
@@ -128,7 +128,8 @@ function AgentPageContentInner({
 					</ConversationContent>
 					<ConversationScrollButton />
 				</Conversation>
-				<AgentInput />
+
+				<AgentInput status={status} />
 			</div>
 		</div>
 	);

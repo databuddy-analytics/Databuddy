@@ -50,10 +50,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 				<input
 					ref={ref}
 					className={cn(
-						'peer flex h-9 text-[13px] placeholder:text-[13px] w-full min-w-0 rounded border px-3 py-1 text-sm outline-none transition-all selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:font-medium file:text-foreground file:text-sm placeholder:text-muted disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
-						'bg-accent/40 dark:bg-input/30',
-						'focus-visible:bg-background focus-visible:border-primary/50 focus-visible:blue-angled-rectangle-gradient',
-						'aria-invalid:border-destructive aria-invalid:red-angled-rectangle-gradient',
+						'peer flex h-9 text-[13px] placeholder:text-[13px] w-full min-w-0 rounded-sm border border-accent-brighter px-3 py-1 text-sm outline-none transition-all selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:font-medium file:text-foreground file:text-sm placeholder:text-muted disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+						'bg-input dark:bg-input/80',
+						'focus-visible:bg-background focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:blue-angled-rectangle-gradient',
+						'aria-invalid:border-destructive aria-invalid:ring-destructive/20 aria-invalid:red-angled-rectangle-gradient dark:aria-invalid:ring-destructive/40',
 						variant === 'ghost' &&
 							'border-transparent bg-transparent hover:bg-accent/30 focus-visible:bg-accent/50',
 						className
@@ -64,7 +64,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 					onBlur={handleBlur}
 					{...props}
 				/>
-				{/* Animated focus indicator line */}
 				{showFocusIndicator && (
 					<motion.span
 						className={cn(
