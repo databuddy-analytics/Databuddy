@@ -12,11 +12,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
 } from "@/components/providers/organizations-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -27,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { PLAN_IDS, type PlanId } from "@/types/features";
 
 const getOrganizationInitials = (name: string) =>
 	name
@@ -35,6 +38,23 @@ const getOrganizationInitials = (name: string) =>
 		.join("")
 		.toUpperCase()
 		.slice(0, 2);
+
+const getPlanDisplayInfo = (planId: PlanId | null) => {
+	if (!planId || planId === PLAN_IDS.FREE) {
+		return { name: "Free", variant: "gray" as const };
+	}
+	if (planId === PLAN_IDS.HOBBY) {
+		return { name: "Hobby", variant: "blue" as const };
+	}
+	if (planId === PLAN_IDS.PRO) {
+		return { name: "Pro", variant: "green" as const };
+	}
+	if (planId === PLAN_IDS.SCALE) {
+		return { name: "Scale", variant: "amber" as const };
+	}
+
+	return null;
+};
 
 const MENU_ITEM_BASE_CLASSES =
 	"flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground";
@@ -66,20 +86,24 @@ type OrganizationSelectorTriggerProps = {
 	} | null;
 	isOpen: boolean;
 	isSettingActiveOrganization: boolean;
+	currentPlanId: PlanId | null;
 };
 
 function OrganizationSelectorTrigger({
 	activeOrganization,
 	isOpen,
 	isSettingActiveOrganization,
+	currentPlanId,
 }: OrganizationSelectorTriggerProps) {
+	const planInfo = getPlanDisplayInfo(currentPlanId);
+
 	return (
 		<div
 			className={cn(
 				"flex h-12 w-full items-center border-b bg-sidebar-accent px-3 py-3",
 				"hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
-				isSettingActiveOrganization && "cursor-not-allowed opacity-70",
-				isOpen && "bg-sidebar-accent/60"
+				isSettingActiveOrganization ? "cursor-not-allowed opacity-70" : "",
+				isOpen ? "bg-sidebar-accent/60" : ""
 			)}
 		>
 			<div className="flex w-full items-center justify-between">
@@ -100,10 +124,18 @@ function OrganizationSelectorTrigger({
 							</AvatarFallback>
 						</Avatar>
 					</div>
-					<div className="flex min-w-0 flex-1 flex-col items-start">
-						<span className="truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
-							{activeOrganization?.name || "Personal"}
-						</span>
+					<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+						<div className="flex items-center gap-2">
+							<span className="truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
+								{activeOrganization?.name || "Personal"}
+							</span>
+							<Badge
+								className="shrink-0 text-xs"
+								variant={planInfo?.variant || "gray"}
+							>
+								{planInfo?.name || "Free"}
+							</Badge>
+						</div>
 						<p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
 							{activeOrganization?.slug || "Your workspace"}
 						</p>
@@ -119,7 +151,7 @@ function OrganizationSelectorTrigger({
 					<CaretDownIcon
 						className={cn(
 							"size-4 text-sidebar-accent-foreground/60 transition-transform duration-200",
-							isOpen && "rotate-180"
+							isOpen ? "rotate-180" : ""
 						)}
 					/>
 				)}
@@ -132,6 +164,7 @@ export function OrganizationSelector() {
 	const queryClient = useQueryClient();
 	const { organizations, activeOrganization, isLoading } =
 		useOrganizationsContext();
+	const { currentPlanId } = useBillingContext();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState("");
@@ -211,6 +244,7 @@ export function OrganizationSelector() {
 					>
 						<OrganizationSelectorTrigger
 							activeOrganization={activeOrganization}
+							currentPlanId={currentPlanId}
 							isOpen={isOpen}
 							isSettingActiveOrganization={isSwitching}
 						/>
