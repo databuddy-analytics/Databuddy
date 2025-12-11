@@ -131,7 +131,7 @@ function SessionRowInternal({
 
 					{/* Location */}
 					<div className="flex items-center gap-1.5 overflow-hidden">
-						<CountryFlag country={session.country_code} size="sm" />
+						<CountryFlag country={session.country_code || ""} size="sm" />
 						<span className="truncate">
 							{session.country_name || session.country || "Unknown"}
 						</span>
@@ -140,8 +140,8 @@ function SessionRowInternal({
 					{/* Device Stack */}
 					<div className="flex items-center gap-1">
 						{getDeviceIcon(session.device_type)}
-						<BrowserIcon name={session.browser_name} size="sm" />
-						<OSIcon name={session.os_name} size="sm" />
+						<BrowserIcon name={session.browser_name || "Unknown"} size="sm" />
+						<OSIcon name={session.os_name || "Unknown"} size="sm" />
 					</div>
 
 					{/* Referrer */}
@@ -160,7 +160,7 @@ function SessionRowInternal({
 
 					{/* Pages */}
 					<span className="text-right font-medium tabular-nums">
-						{session.page_views}
+						{session.page_views ?? 0}
 					</span>
 
 					{/* Events */}

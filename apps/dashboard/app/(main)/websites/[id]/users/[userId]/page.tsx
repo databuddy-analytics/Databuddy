@@ -220,9 +220,11 @@ function Header({
 						</div>
 					</div>
 					<Badge
-						variant={userProfile.total_sessions > 1 ? "default" : "secondary"}
+						variant={
+							(userProfile.total_sessions ?? 0) > 1 ? "default" : "secondary"
+						}
 					>
-						{userProfile.total_sessions > 1 ? "Return" : "New"}
+						{(userProfile.total_sessions ?? 0) > 1 ? "Return" : "New"}
 					</Badge>
 				</div>
 			) : (
@@ -267,23 +269,23 @@ export default function UserDetailPage() {
 	const transformSession = useCallback(
 		(session: {
 			session_id: string;
-			first_visit: string;
-			last_visit: string;
-			page_views: number;
-			country?: string;
-			referrer?: string;
-			device?: string;
-			browser?: string;
-			os?: string;
-			events?: unknown[];
-			session_name?: string;
+			first_visit?: string | null;
+			last_visit?: string | null;
+			page_views?: number | null;
+			country?: string | null;
+			referrer?: string | null;
+			device?: string | null;
+			browser?: string | null;
+			os?: string | null;
+			events?: unknown[] | null;
+			session_name?: string | null;
 		}): Session => {
 			const countryCode = getCountryCode(session.country || "");
 			return {
 				session_id: session.session_id,
-				first_visit: session.first_visit,
-				last_visit: session.last_visit,
-				page_views: session.page_views,
+				first_visit: session.first_visit || "",
+				last_visit: session.last_visit || "",
+				page_views: session.page_views ?? 0,
 				visitor_id: userId as string,
 				country: countryCode,
 				country_name: session.country || "",
@@ -293,7 +295,7 @@ export default function UserDetailPage() {
 				browser_name: session.browser || "",
 				os_name: session.os || "",
 				events: session.events || [],
-				session_name: session.session_name,
+				session_name: session.session_name || undefined,
 			} as Session;
 		},
 		[userId]
@@ -321,16 +323,15 @@ export default function UserDetailPage() {
 			(acc: number, s: { events?: unknown[] }) =>
 				acc + (Array.isArray(s.events) ? s.events.length : 0),
 			0
-		) || 0;
+		) ?? 0;
 	const totalPages =
 		userProfile.sessions?.reduce(
 			(acc: number, s: { page_views?: number }) =>
 				acc + (Number(s.page_views) || 0),
 			0
-		) || 0;
-	const avgPagesPerSession = userProfile.total_sessions
-		? totalPages / userProfile.total_sessions
-		: 0;
+		) ?? 0;
+	const totalSessions = userProfile.total_sessions ?? 0;
+	const avgPagesPerSession = totalSessions > 0 ? totalPages / totalSessions : 0;
 
 	return (
 		<div className="flex h-full flex-col">
@@ -345,14 +346,14 @@ export default function UserDetailPage() {
 							<StatItem
 								icon={ChartLineIcon}
 								label="Sessions"
-								value={userProfile.total_sessions}
+								value={userProfile.total_sessions ?? 0}
 							/>
 						</div>
 						<div className="bg-sidebar p-4">
 							<StatItem
 								icon={EyeIcon}
 								label="Pageviews"
-								value={userProfile.total_pageviews}
+								value={userProfile.total_pageviews ?? 0}
 							/>
 						</div>
 						<div className="bg-sidebar p-4">
@@ -418,12 +419,17 @@ export default function UserDetailPage() {
 								value={userProfile.device || "Unknown"}
 							/>
 							<TechItem
-								icon={<BrowserIcon name={userProfile.browser} size="md" />}
+								icon={
+									<BrowserIcon
+										name={userProfile.browser || "Unknown"}
+										size="md"
+									/>
+								}
 								label="Browser"
 								value={userProfile.browser || "Unknown"}
 							/>
 							<TechItem
-								icon={<OSIcon name={userProfile.os} size="md" />}
+								icon={<OSIcon name={userProfile.os || "Unknown"} size="md" />}
 								label="Operating System"
 								value={userProfile.os || "Unknown"}
 							/>
@@ -487,13 +493,13 @@ export default function UserDetailPage() {
 					<div className="grid grid-cols-2 gap-px border-b bg-border sm:grid-cols-4 lg:hidden">
 						<div className="bg-background p-3">
 							<p className="font-bold text-foreground text-xl tabular-nums">
-								{userProfile.total_sessions}
+								{userProfile.total_sessions ?? 0}
 							</p>
 							<p className="text-muted-foreground text-xs">Sessions</p>
 						</div>
 						<div className="bg-background p-3">
 							<p className="font-bold text-foreground text-xl tabular-nums">
-								{userProfile.total_pageviews}
+								{userProfile.total_pageviews ?? 0}
 							</p>
 							<p className="text-muted-foreground text-xs">Pageviews</p>
 						</div>
