@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
 		"pino-pretty",
 		"@axiomhq/pino",
 		"thread-stream",
+		"@react-email/render",
+		"prettier",
 	],
 	transpilePackages: [],
 	output: "standalone",
