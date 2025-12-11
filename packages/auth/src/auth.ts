@@ -176,12 +176,16 @@ export const auth = betterAuth({
 					subject = "Reset your password";
 				}
 
-				await resend.emails.send({
-					from: "noreply@databuddy.cc",
-					to: email,
-					subject,
-					react: OtpEmail({ otp }),
-				});
+				resend.emails
+					.send({
+						from: "noreply@databuddy.cc",
+						to: email,
+						subject,
+						react: OtpEmail({ otp }),
+					})
+					.catch((error) => {
+						console.error("Failed to send OTP email:", error);
+					});
 			},
 		}),
 		magicLink({
