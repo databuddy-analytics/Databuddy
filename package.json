@@ -105,9 +105,5 @@
     "prettier": "^3.7.4",
     "react-hotkeys-hook": "^5.2.1",
     "zod": "^4.1.13"
-  },
-  "overrides": {
-    "prettier": "^3.7.4",
-    "@react-email/render": "1.1.3"
   }
 }
