@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "@databuddy/auth/client";
+import { authClient, signIn } from "@databuddy/auth/client";
 import {
 	EyeIcon,
 	EyeSlashIcon,
@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,13 +30,9 @@ function LoginPage() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
-	const [lastUsed, setLastUsed] = useState<string | null>(null);
 
 	const defaultCallbackUrl = callback;
-
-	useEffect(() => {
-		setLastUsed(localStorage.getItem("lastUsedLogin"));
-	}, []);
+	const lastUsed = authClient.getLastUsedLoginMethod();
 
 	const handleSocialLogin = (provider: "github" | "google") => {
 		setIsLoading(true);
@@ -50,7 +46,6 @@ function LoginPage() {
 			newUserCallbackURL: "/onboarding",
 			fetchOptions: {
 				onSuccess: () => {
-					localStorage.setItem("lastUsedLogin", provider);
 					if (callbackUrl) {
 						router.push(callbackUrl);
 					}
@@ -80,7 +75,6 @@ function LoginPage() {
 			callbackURL: defaultCallbackUrl,
 			fetchOptions: {
 				onSuccess: () => {
-					localStorage.setItem("lastUsedLogin", "email");
 					const callbackUrl = callback;
 					if (callbackUrl) {
 						router.push(callbackUrl);
@@ -172,7 +166,7 @@ function LoginPage() {
 										Sign in with Magic Link
 									</Link>
 								</Button>
-								{lastUsed === "magic" && (
+								{lastUsed === "magic-link" && (
 									<Badge
 										className="-top-3 -right-0.5 absolute z-10 rounded-full px-1 py-0 text-[10px]"
 										variant="secondary"

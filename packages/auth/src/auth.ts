@@ -14,6 +14,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import {
 	customSession,
 	emailOTP,
+	lastLoginMethod,
 	magicLink,
 	organization,
 	twoFactor,
@@ -163,6 +164,14 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		lastLoginMethod({
+			customResolveMethod: (ctx) => {
+				if (ctx.path === "/magic-link/verify" || ctx.path?.includes("/magic-link")) {
+					return "magic-link";
+				}
+				return null;
+			},
+		}),
 		emailOTP({
 			async sendVerificationOTP({ email, otp, type }) {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
