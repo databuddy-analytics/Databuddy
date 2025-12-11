@@ -39,6 +39,7 @@
     "@types/d3-scale": "^4.0.9",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
+    "@upstash/qstash": "^2.8.4",
     "@xyflow/react": "^12.10.0",
     "ai": "^5.0.108",
     "autumn-js": "^0.1.40",

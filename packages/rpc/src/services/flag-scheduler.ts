@@ -10,8 +10,9 @@ const client = new Client({
     token: process.env.UPSTASH_QSTASH_TOKEN,
 });
 
+
 const FLAG_SCHEDULER_DESTINATION =
-    process.env.BETTER_AUTH_URL + "/webhooks/flag-scheduler";
+    process.env.NEXT_PUBLIC_API_URL + "/webhooks/flag-scheduler"
 
 export async function createQStashSchedule(
     scheduleId: string,
@@ -63,10 +64,7 @@ export async function createQStashRolloutSchedule(
     rolloutSteps: RolloutStep[]
 ): Promise<string[]> {
     try {
-        const messageIds: string[] = [];
-
-        // Create a one-time schedule for each rollout step
-        for (const step of rolloutSteps) {
+        const messageIds = await Promise.all(rolloutSteps.map(async (step) => {
             const stepScheduledAt = new Date(step.scheduledAt);
             const timestamp = Math.floor(stepScheduledAt.getTime() / 1000);
 
@@ -89,8 +87,8 @@ export async function createQStashRolloutSchedule(
                 throw new Error(`Failed to create QStash schedule for rollout step at ${step.scheduledAt}`);
             }
 
-            messageIds.push(messageId);
-        }
+            return messageId;
+        }));
 
         logger.info(
             {
@@ -165,16 +163,8 @@ export async function updateQStashRolloutSchedule(
 
 export async function deleteQStashSchedule(qstashScheduleId: string): Promise<void> {
     try {
-        try {
-            await client.schedules.delete(qstashScheduleId);
-            logger.info({ qstashScheduleId }, "Deleted QStash schedule");
-        } catch (error) {
-            // If it fails, it's likely already executed or doesn't exist
-            logger.debug(
-                { qstashScheduleId, error },
-                "Could not delete QStash schedule (likely already executed or one-time message)"
-            );
-        }
+        await client.schedules.delete(qstashScheduleId);
+        logger.info({ qstashScheduleId }, "Deleted QStash schedule");
     } catch (error) {
         logger.error(
             {

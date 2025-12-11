@@ -1,19 +1,56 @@
 import { db, eq, flagSchedules } from "@databuddy/db";
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { logger } from "@/lib/logger";
 import { executeSchedule } from "@/services/flag-scheduler";
+import { Receiver } from "@upstash/qstash";
 
-const webhookBodySchema = t.Object({
-    scheduleId: t.String(),
-    stepScheduledAt: t.Optional(t.String()),
-    stepValue: t.Optional(t.Union([t.Number(), t.Literal("enable"), t.Literal("disable")])),
-});
 
 export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-scheduler" })
     .post(
         "/",
-        async function handleFlagSchedulerWebhook({ body, request, set }) {
+        async function handleFlagSchedulerWebhook({ request, set }) {
             try {
+                const receiver = new Receiver({
+                    currentSigningKey: process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY!,
+                    nextSigningKey: process.env.UPSTASH_QSTASH_NEXT_SIGNING_KEY!,
+                });
+
+                const signature = request.headers.get("Upstash-Signature");
+                if (!signature) {
+                    set.status = 401;
+                    return { error: "Missing Webhook Signature" };
+                }
+
+                const rawBody = await request.text();
+
+                const FLAG_SCHEDULER_DESTINATION =
+                    process.env.NEXT_PUBLIC_API_URL + "/webhooks/flag-scheduler"
+
+                logger.info({
+                    verificationUrl: FLAG_SCHEDULER_DESTINATION,
+                    hasSignature: !!signature,
+                    bodyLength: rawBody.length,
+                }, "Verifying QStash signature");
+
+                const isValid = await receiver.verify({
+                    body: rawBody,
+                    signature,
+                    url: FLAG_SCHEDULER_DESTINATION
+                });
+
+
+                if (!isValid) {
+                    logger.warn("Invalid signature");
+                    set.status = 401;
+                    return { error: "Invalid signature" };
+                }
+
+                const body = JSON.parse(rawBody) as {
+                    scheduleId: string;
+                    stepScheduledAt?: string;
+                    stepValue?: number | "enable" | "disable";
+                };
+
                 const scheduleId = body.scheduleId || request.headers.get("X-Schedule-Id");
                 if (!scheduleId) {
                     logger.warn("Missing schedule ID");
@@ -45,7 +82,7 @@ export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-schedul
 
                 if (schedule.type === "update_rollout" && body.stepScheduledAt && body.stepValue !== undefined) {
                     const stepAlreadyExecuted = schedule.rolloutSteps?.some(
-                        (step: any) => step.scheduledAt === body.stepScheduledAt && step.executedAt
+                        (step) => step.scheduledAt === body.stepScheduledAt && step.executedAt
                     );
 
                     if (stepAlreadyExecuted) {
@@ -58,9 +95,9 @@ export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-schedul
                         __isStep: true,
                         stepValue: body.stepValue,
                         stepScheduledAt: body.stepScheduledAt,
-                    } as any);
+                    });
                 } else {
-                    await executeSchedule(schedule as any);
+                    await executeSchedule(schedule);
                 }
 
                 logger.info({ scheduleId }, "Flag schedule executed successfully");
@@ -71,9 +108,6 @@ export const flagSchedulerWebhook = new Elysia({ prefix: "/webhooks/flag-schedul
                 set.status = 500;
                 return { error: "Internal server error" };
             }
-        },
-        {
-            body: webhookBodySchema,
         }
     )
     .get("/health", () => ({
