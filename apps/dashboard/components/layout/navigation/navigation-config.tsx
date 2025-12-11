@@ -238,10 +238,10 @@ export const websiteNavigation: NavigationSection[] = [
 			alpha: true,
 			gatedFeature: GATED_FEATURES.WEB_VITALS,
 		}),
-		createNavItem("Performance", ActivityIcon, "/performance", {
-			rootLevel: false,
-			tag: "deprecated",
-		}),
+		// createNavItem("Performance", ActivityIcon, "/performance", {
+		// 	rootLevel: false,
+		// 	tag: "deprecated",
+		// }),
 		createNavItem("Geographic", MapPinIcon, "/map", {
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.GEOGRAPHIC,

@@ -4,6 +4,9 @@
  */
 export const COMMON_AGENT_RULES = `<behavior_rules>
 - Call tools immediately without explanatory text
+- CRITICAL: NEVER generate a response before tool calls complete. Always wait for tool results before responding to the user
+- If you need data to answer a question, call the tool first, then respond based on the actual results
+- Do not speculate or guess what tool results will be - wait for actual data
 - Use parallel tool calls when possible
 - Provide specific numbers and actionable insights
 - Lead with the most important information first

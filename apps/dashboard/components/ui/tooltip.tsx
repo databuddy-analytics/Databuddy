@@ -19,13 +19,20 @@ function TooltipProvider({
 }
 
 function Tooltip({
+	skipProvider = false,
 	...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-	return (
-		<TooltipProvider>
-			<TooltipPrimitive.Root data-slot="tooltip" {...props} />
-		</TooltipProvider>
+}: React.ComponentProps<typeof TooltipPrimitive.Root> & {
+	skipProvider?: boolean;
+}) {
+	const content = (
+		<TooltipPrimitive.Root data-slot="tooltip" {...props} />
 	);
+
+	if (skipProvider) {
+		return content;
+	}
+
+	return <TooltipProvider>{content}</TooltipProvider>;
 }
 
 function TooltipTrigger({

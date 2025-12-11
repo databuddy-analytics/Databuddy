@@ -177,19 +177,19 @@ Since we don't collect personal data, most rights don't apply. For any requests,
   language="html"
   filename="Consent-Based Implementation"
   code={`<!-- Consent banner required -->
-<div id="consent-banner">
-  <p>We use analytics cookies to improve our website.</p>
-  <button onclick="acceptAnalytics()">Accept</button>
-  <button onclick="rejectAnalytics()">Reject</button>
-</div>
+  <div id="consent-banner">
+    <p>We use analytics cookies to improve our website.</p>
+    <button onclick="acceptAnalytics()">Accept</button>
+    <button onclick="rejectAnalytics()">Reject</button>
+  </div>
 
-<!-- Conditional analytics loading -->
-<script>
-function acceptAnalytics() {
-  // Load analytics only after consent
-  loadGoogleAnalytics();
-}
-</script>`}
+  <!-- Conditional analytics loading -->
+  <script>
+    function acceptAnalytics() {
+      // Load analytics only after consent
+      loadGoogleAnalytics();
+    }
+  </script>`}
 />
 
 **Option B: Privacy-First Approach**
@@ -197,9 +197,10 @@ function acceptAnalytics() {
   language="html"
   filename="Privacy-First Implementation"
   code={`<!-- No consent required -->
-<script src="https://cdn.databuddy.cc/sdk.js" 
-        data-client-id="your-client-id">
-</script>`}
+<script
+  src="https://cdn.databuddy.cc/sdk.js" 
+  data-client-id="your-client-id"
+  ></script>`}
 />
 
 ### Step 3: Update Privacy Policy

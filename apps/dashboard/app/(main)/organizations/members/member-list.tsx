@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from "@databuddy/auth/client";
 import { CrownIcon, TrashIcon } from "@phosphor-icons/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -41,6 +42,8 @@ type RoleSelectorProps = {
 	onUpdateRole: MemberListProps["onUpdateRole"];
 	isUpdatingMember: boolean;
 	organizationId: string;
+	canEditRoles: boolean;
+	isCurrentUser: boolean;
 };
 
 function RoleSelector({
@@ -48,14 +51,28 @@ function RoleSelector({
 	onUpdateRole,
 	isUpdatingMember,
 	organizationId,
+	canEditRoles,
+	isCurrentUser,
 }: RoleSelectorProps) {
 	if (member.role === "owner") {
 		return <Badge variant="amber">Owner</Badge>;
 	}
 
+	// If user doesn't have permission to edit roles, show badge instead
+	if (!canEditRoles) {
+		return (
+			<Badge variant={member.role === "admin" ? "default" : "secondary"}>
+				{member.role === "admin" ? "Admin" : "Member"}
+			</Badge>
+		);
+	}
+
+	// Prevent admins from changing their own role
+	const isDisabled = isUpdatingMember || (isCurrentUser && member.role === "admin");
+
 	return (
 		<Select
-			disabled={isUpdatingMember}
+			disabled={isDisabled}
 			onValueChange={(newRole) =>
 				onUpdateRole({
 					memberId: member.id,
@@ -84,6 +101,8 @@ type MemberRowProps = {
 	isUpdatingMember: boolean;
 	organizationId: string;
 	onConfirmRemove: (member: MemberToRemove) => void;
+	canEditRoles: boolean;
+	isCurrentUser: boolean;
 };
 
 function MemberRow({
@@ -93,6 +112,8 @@ function MemberRow({
 	isUpdatingMember,
 	organizationId,
 	onConfirmRemove,
+	canEditRoles,
+	isCurrentUser,
 }: MemberRowProps) {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
@@ -123,13 +144,15 @@ function MemberRow({
 			</div>
 
 			<RoleSelector
+				canEditRoles={canEditRoles}
+				isCurrentUser={isCurrentUser}
 				isUpdatingMember={isUpdatingMember}
 				member={member}
 				onUpdateRole={onUpdateRole}
 				organizationId={organizationId}
 			/>
 
-			{member.role !== "owner" ? (
+			{canEditRoles && member.role !== "owner" ? (
 				<Button
 					className="size-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
 					disabled={isRemovingMember}
@@ -158,6 +181,16 @@ export function MemberList({
 	const [memberToRemove, setMemberToRemove] = useState<MemberToRemove | null>(
 		null
 	);
+	const { data: session } = authClient.useSession();
+
+	// Find current user's member record
+	const currentUserMember = session?.user?.id
+		? members.find((m) => m.userId === session.user.id)
+		: null;
+
+	// Check if current user can edit roles (admin or owner)
+	const canEditRoles =
+		currentUserMember?.role === "admin" || currentUserMember?.role === "owner";
 
 	const handleRemove = async () => {
 		if (!memberToRemove) {
@@ -169,18 +202,23 @@ export function MemberList({
 
 	return (
 		<>
-			{members.map((member) => (
-				<MemberRow
-					isRemovingMember={isRemovingMember}
-					isUpdatingMember={isUpdatingMember}
-					key={member.id}
-					member={member}
-					onConfirmRemove={setMemberToRemove}
-					onRemoveMember={onRemoveMember}
-					onUpdateRole={onUpdateRole}
-					organizationId={organizationId}
-				/>
-			))}
+			{members.map((member) => {
+				const isCurrentUser = member.userId === session?.user?.id;
+				return (
+					<MemberRow
+						canEditRoles={canEditRoles}
+						isCurrentUser={isCurrentUser}
+						isRemovingMember={isRemovingMember}
+						isUpdatingMember={isUpdatingMember}
+						key={member.id}
+						member={member}
+						onConfirmRemove={setMemberToRemove}
+						onRemoveMember={onRemoveMember}
+						onUpdateRole={onUpdateRole}
+						organizationId={organizationId}
+					/>
+				);
+			})}
 
 			<DeleteDialog
 				confirmLabel="Remove"

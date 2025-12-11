@@ -132,7 +132,7 @@ export default function CustomSidebar() {
 
 function NewBadge({ isSelected }: { isSelected?: boolean }) {
 	return (
-		<div className="flex w-full items-center justify-end">
+		<div className="flex items-center justify-end">
 			<Badge
 				className={cn(
 					"!no-underline !decoration-transparent pointer-events-none border-dashed",

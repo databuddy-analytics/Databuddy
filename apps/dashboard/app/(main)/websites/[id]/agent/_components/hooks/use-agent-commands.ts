@@ -1,26 +1,32 @@
 import { useChatActions } from "@ai-sdk-tools/store";
 import { useAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { AgentCommand } from "../agent-atoms";
 import {
 	agentInputAtom,
 	commandQueryAtom,
-	selectedCommandIndexAtom,
 	showCommandsAtom,
 } from "../agent-atoms";
 import { filterCommands } from "../agent-commands";
 
 export function useAgentCommands() {
-	const [input, setInput] = useAtom(agentInputAtom);
+	const [_, setInput] = useAtom(agentInputAtom);
 	const [showCommands, setShowCommands] = useAtom(showCommandsAtom);
 	const [commandQuery, setCommandQuery] = useAtom(commandQueryAtom);
-	const [selectedIndex, setSelectedIndex] = useAtom(selectedCommandIndexAtom);
+	const inputRef = useRef<HTMLInputElement>(null);
+
 	const { sendMessage } = useChatActions();
 
 	const filteredCommands = useMemo(
 		() => filterCommands(commandQuery),
 		[commandQuery]
 	);
+
+	const hideCommands = useCallback(() => {
+		setShowCommands(false);
+		// Focus the input when commands are hidden
+		inputRef.current?.focus();
+	}, []);
 
 	const handleInputChange = useCallback(
 		(value: string, cursorPosition: number) => {
@@ -33,13 +39,12 @@ export function useAgentCommands() {
 				const query = textBeforeCursor.substring(lastSlashIndex + 1);
 				setCommandQuery(query);
 				setShowCommands(true);
-				setSelectedIndex(0);
 			} else {
-				setShowCommands(false);
+				hideCommands();
 				setCommandQuery("");
 			}
 		},
-		[setCommandQuery, setInput, setSelectedIndex, setShowCommands]
+		[setCommandQuery, setInput, hideCommands]
 	);
 
 	const executeCommand = useCallback(
@@ -49,84 +54,23 @@ export function useAgentCommands() {
 				metadata: { toolChoice: command.toolName },
 			});
 			setInput("");
-			setShowCommands(false);
+			hideCommands();
 			setCommandQuery("");
-			setSelectedIndex(0);
 		},
-		[sendMessage, setCommandQuery, setInput, setSelectedIndex, setShowCommands]
-	);
-
-	const navigateUp = useCallback(() => {
-		setSelectedIndex((prev) => Math.max(prev - 1, 0));
-	}, [setSelectedIndex]);
-
-	const navigateDown = useCallback(() => {
-		setSelectedIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
-	}, [filteredCommands.length, setSelectedIndex]);
-
-	const selectCurrent = useCallback(() => {
-		const command = filteredCommands[selectedIndex];
-		if (command) {
-			executeCommand(command);
-		}
-	}, [executeCommand, filteredCommands, selectedIndex]);
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (!showCommands || filteredCommands.length === 0) {
-				return false;
-			}
-
-			switch (e.key) {
-				case "ArrowDown":
-					e.preventDefault();
-					navigateDown();
-					return true;
-				case "ArrowUp":
-					e.preventDefault();
-					navigateUp();
-					return true;
-				case "Enter":
-					e.preventDefault();
-					selectCurrent();
-					return true;
-				case "Escape":
-					e.preventDefault();
-					setShowCommands(false);
-					setCommandQuery("");
-					return true;
-				default:
-					return false;
-			}
-		},
-		[
-			filteredCommands.length,
-			navigateDown,
-			navigateUp,
-			selectCurrent,
-			setCommandQuery,
-			setShowCommands,
-			showCommands,
-		]
+		[sendMessage, setCommandQuery, setInput, hideCommands]
 	);
 
 	const closeCommands = useCallback(() => {
-		setShowCommands(false);
+		hideCommands();
 		setCommandQuery("");
-		setSelectedIndex(0);
-	}, [setCommandQuery, setSelectedIndex, setShowCommands]);
+	}, [setCommandQuery, hideCommands]);
 
 	return {
-		input,
+		inputRef,
 		showCommands,
 		filteredCommands,
-		selectedIndex,
 		handleInputChange,
-		handleKeyDown,
 		executeCommand,
 		closeCommands,
-		navigateUp,
-		navigateDown,
-		selectCurrent,
 	};
 }

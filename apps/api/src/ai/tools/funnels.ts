@@ -1,8 +1,8 @@
-import { appRouter, createRPCContext } from "@databuddy/rpc";
-import { createRouterClient, ORPCError } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
+import { getServerRPCClient } from "../../lib/orpc-server";
 import type { AppContext } from "../config/context";
 import { createToolLogger } from "./utils/logger";
 
@@ -16,20 +16,16 @@ async function callRPCProcedure(
 ) {
 	try {
 		const headers = context.requestHeaders ?? new Headers();
-		const rpcContext = await createRPCContext({ headers });
+		const client = await getServerRPCClient(headers);
 
-		const router = appRouter[routerName as keyof typeof appRouter] as
-			| Record<string, unknown>
+		const router = client[routerName as keyof typeof client] as
+			| Record<string, (input: unknown) => Promise<unknown>>
 			| undefined;
 		if (!router || typeof router !== "object") {
 			throw new Error(`Router ${routerName} not found`);
 		}
 
-		const client = createRouterClient(router as any, {
-			context: rpcContext,
-		}) as Record<string, (input: unknown) => Promise<unknown>> | undefined;
-
-		const clientFn = client?.[method];
+		const clientFn = router[method];
 		if (typeof clientFn !== "function") {
 			throw new Error(
 				`Procedure ${routerName}.${method} not found or not callable.`
@@ -55,7 +51,7 @@ async function callRPCProcedure(
 							: error.code === "FORBIDDEN"
 								? "You don't have permission to access this resource."
 								: error.message ||
-									"An error occurred while processing your request.";
+								"An error occurred while processing your request.";
 
 			throw new Error(userMessage);
 		}
@@ -225,8 +221,149 @@ export function createFunnelTools(context: AppContext) {
 				throw error instanceof Error
 					? error
 					: new Error(
-							"Failed to retrieve funnel analytics by referrer. Please try again."
-						);
+						"Failed to retrieve funnel analytics by referrer. Please try again."
+					);
+			}
+		},
+	});
+
+	const createFunnelTool = tool({
+		description:
+			"Create a new funnel to track a user journey. REQUIRES EXPLICIT USER CONFIRMATION before creating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+		inputSchema: z.object({
+			websiteId: z.string().describe("The website ID"),
+			name: z
+				.string()
+				.min(1)
+				.max(100)
+				.describe("The funnel name (1-100 characters)"),
+			description: z
+				.string()
+				.optional()
+				.describe("Optional description of the funnel"),
+			steps: z
+				.array(
+					z.object({
+						type: z
+							.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
+							.describe("Step type: PAGE_VIEW for page paths, EVENT for custom events"),
+						target: z
+							.string()
+							.min(1)
+							.describe(
+								"Step target: page path (e.g., '/signup') or event name (e.g., 'button_click')"
+							),
+						name: z
+							.string()
+							.min(1)
+							.describe("Human-readable step name (e.g., 'Sign Up Page', 'Add to Cart')"),
+						conditions: z
+							.record(z.string(), z.unknown())
+							.optional()
+							.describe("Optional conditions for the step"),
+					})
+				)
+				.min(2)
+				.max(10)
+				.describe(
+					"Array of funnel steps (minimum 2, maximum 10). Steps define the user journey path."
+				),
+			filters: z
+				.array(
+					z.object({
+						field: z.string().describe("Filter field name"),
+						operator: z
+							.enum(["equals", "contains", "not_equals", "in", "not_in"])
+							.describe("Filter operator"),
+						value: z
+							.union([z.string(), z.array(z.string())])
+							.describe("Filter value (string or array of strings)"),
+					})
+				)
+				.optional()
+				.describe("Optional filters to apply to the funnel"),
+			ignoreHistoricData: z
+				.boolean()
+				.optional()
+				.describe(
+					"Whether to ignore historic data before funnel creation (default: false)"
+				),
+			confirmed: z
+				.boolean()
+				.describe(
+					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
+				),
+		}),
+		execute: async ({
+			websiteId,
+			name,
+			description,
+			steps,
+			filters,
+			ignoreHistoricData,
+			confirmed,
+		}) => {
+			try {
+				// If not confirmed, return preview and ask for confirmation
+				if (!confirmed) {
+					const stepsPreview = steps
+						.map((step, index) => `${index + 1}. ${step.name} (${step.type}: ${step.target})`)
+						.join("\n");
+					const filtersPreview = filters && filters.length > 0
+						? filters
+							.map(
+								(filter) =>
+									`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
+							)
+							.join("\n")
+						: "None";
+
+					return {
+						preview: true,
+						message:
+							"Please review the funnel details below and confirm if you want to create it:",
+						funnel: {
+							name,
+							description: description || "No description",
+							steps: stepsPreview,
+							filters: filtersPreview,
+							ignoreHistoricData: ignoreHistoricData ?? false,
+						},
+						confirmationRequired: true,
+						instruction:
+							"To create this funnel, the user must explicitly confirm (e.g., 'yes', 'create it', 'confirm'). Only then call this tool again with confirmed=true.",
+					};
+				}
+
+				// User confirmed - create the funnel
+				const result = await callRPCProcedure(
+					"funnels",
+					"create",
+					{
+						websiteId,
+						name,
+						description,
+						steps,
+						filters,
+						ignoreHistoricData: ignoreHistoricData ?? false,
+					},
+					context
+				);
+
+				return {
+					success: true,
+					message: `Funnel "${name}" created successfully`,
+					funnel: result,
+				};
+			} catch (error) {
+				logger.error("Failed to create funnel", {
+					websiteId,
+					name,
+					error,
+				});
+				throw error instanceof Error
+					? error
+					: new Error("Failed to create funnel. Please try again.");
 			}
 		},
 	});
@@ -236,5 +373,6 @@ export function createFunnelTools(context: AppContext) {
 		get_funnel_by_id: getFunnelByIdTool,
 		get_funnel_analytics: getFunnelAnalyticsTool,
 		get_funnel_analytics_by_referrer: getFunnelAnalyticsByReferrerTool,
+		create_funnel: createFunnelTool,
 	} as const;
 }

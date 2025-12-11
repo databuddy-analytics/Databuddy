@@ -13,6 +13,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { BillingProvider } from "@/components/providers/billing-provider";
 import { OrganizationsProvider } from "@/components/providers/organizations-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const defaultQueryClientOptions = {
 	defaultOptions: {
@@ -51,19 +52,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 			<QueryClientProvider client={queryClient}>
-				<FlagsProviderWrapper>
-					<AutumnProvider
-						backendUrl={
-							process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-						}
-					>
-						<BillingProvider>
-							<OrganizationsProvider>
-								<NuqsAdapter>{children}</NuqsAdapter>
-							</OrganizationsProvider>
-						</BillingProvider>
-					</AutumnProvider>
-				</FlagsProviderWrapper>
+				<TooltipProvider>
+					<FlagsProviderWrapper>
+						<AutumnProvider
+							backendUrl={
+								process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+							}
+						>
+							<BillingProvider>
+								<OrganizationsProvider>
+									<NuqsAdapter>{children}</NuqsAdapter>
+								</OrganizationsProvider>
+							</BillingProvider>
+						</AutumnProvider>
+					</FlagsProviderWrapper>
+				</TooltipProvider>
 			</QueryClientProvider>
 		</ThemeProvider>
 	);
