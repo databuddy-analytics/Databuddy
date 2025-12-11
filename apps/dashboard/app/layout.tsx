@@ -114,12 +114,6 @@ export default function RootLayout({
 			lang="en"
 			suppressHydrationWarning
 		>
-			<head>
-				<script
-          			crossOrigin="anonymous"
-          			src="//unpkg.com/react-scan/dist/auto.global.js"
-        		/>
-			</head>
 			<Databuddy
 				apiUrl={
 					isLocalhost ? "http://localhost:4000" : "https://basket.databuddy.cc"
