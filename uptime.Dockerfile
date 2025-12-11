@@ -8,7 +8,7 @@ COPY packages/*/package.json ./packages/
 
 COPY packages/ ./packages/
 
-RUN bun install
+RUN bun install --ignore-scripts
 
 COPY apps/uptime/src ./apps/uptime/src
 
