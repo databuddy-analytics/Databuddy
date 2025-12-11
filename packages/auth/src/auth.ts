@@ -164,12 +164,22 @@ export const auth = betterAuth({
 	},
 	plugins: [
 		emailOTP({
-			async sendVerificationOTP({ email, otp }) {
+			async sendVerificationOTP({ email, otp, type }) {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
+
+				let subject = "Your verification code";
+				if (type === "sign-in") {
+					subject = "Sign in to Databuddy";
+				} else if (type === "email-verification") {
+					subject = "Verify your email address";
+				} else if (type === "forget-password") {
+					subject = "Reset your password";
+				}
+
 				await resend.emails.send({
 					from: "noreply@databuddy.cc",
 					to: email,
-					subject: "Your verification code",
+					subject,
 					react: OtpEmail({ otp }),
 				});
 			},
