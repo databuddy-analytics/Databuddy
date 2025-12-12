@@ -50,7 +50,11 @@ export type ClickhouseQueryParamValue =
 
 export type ClickhouseQueryParams = Record<string, ClickhouseQueryParamValue>;
 
-type Filter = { field: string; operator: string; value: string | readonly string[] };
+type Filter = {
+	field: string;
+	operator: string;
+	value: string | readonly string[];
+};
 type VisitorStep = { step: number; time: number; referrer?: string };
 type ParsedReferrer = { name: string; type: string; domain: string };
 
@@ -217,7 +221,9 @@ const buildTimeRangeWhere = (timeColumn: "time" | "timestamp") =>
 	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
 		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
 
-const buildBaseWhere = (timeColumn: "time" | "timestamp") => `client_id = {websiteId:String}
+const buildBaseWhere = (
+	timeColumn: "time" | "timestamp"
+) => `client_id = {websiteId:String}
 		AND ${buildTimeRangeWhere(timeColumn)}`;
 
 const buildStepQuery = (
@@ -395,8 +401,8 @@ export const processFunnelAnalytics = async (
 	const biggestDropoff =
 		stepsAnalytics.length > 1
 			? stepsAnalytics
-				.slice(1)
-				.reduce((max, s) => (s.dropoff_rate > max.dropoff_rate ? s : max))
+					.slice(1)
+					.reduce((max, s) => (s.dropoff_rate > max.dropoff_rate ? s : max))
 			: stepsAnalytics[0];
 
 	return {

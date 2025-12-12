@@ -1,5 +1,13 @@
 import { websitesApi } from "@databuddy/auth";
-import { and, annotations, desc, eq, isNull, or, type SQL } from "@databuddy/db";
+import {
+	and,
+	annotations,
+	desc,
+	eq,
+	isNull,
+	or,
+	type SQL,
+} from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -193,7 +201,10 @@ export const annotationsRouter = {
 			);
 
 			if (website.isPublic) {
-				const hasPermission = await hasWebsiteUpdatePermission(context, website);
+				const hasPermission = await hasWebsiteUpdatePermission(
+					context,
+					website
+				);
 				if (!hasPermission) {
 					throw new ORPCError("FORBIDDEN", {
 						message:
@@ -209,7 +220,7 @@ export const annotationsRouter = {
 					id: annotationId,
 					websiteId: input.websiteId,
 					chartType: input.chartType,
-				chartContext:input.chartContext,
+					chartContext: input.chartContext,
 					annotationType: input.annotationType,
 					xValue: new Date(input.xValue),
 					xEndValue: input.xEndValue ? new Date(input.xEndValue) : null,

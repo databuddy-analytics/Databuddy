@@ -51,7 +51,7 @@ async function callRPCProcedure(
 							: error.code === "FORBIDDEN"
 								? "You don't have permission to access this resource."
 								: error.message ||
-								"An error occurred while processing your request.";
+									"An error occurred while processing your request.";
 
 			throw new Error(userMessage);
 		}
@@ -221,8 +221,8 @@ export function createFunnelTools(context: AppContext) {
 				throw error instanceof Error
 					? error
 					: new Error(
-						"Failed to retrieve funnel analytics by referrer. Please try again."
-					);
+							"Failed to retrieve funnel analytics by referrer. Please try again."
+						);
 			}
 		},
 	});
@@ -246,7 +246,9 @@ export function createFunnelTools(context: AppContext) {
 					z.object({
 						type: z
 							.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
-							.describe("Step type: PAGE_VIEW for page paths, EVENT for custom events"),
+							.describe(
+								"Step type: PAGE_VIEW for page paths, EVENT for custom events"
+							),
 						target: z
 							.string()
 							.min(1)
@@ -256,7 +258,9 @@ export function createFunnelTools(context: AppContext) {
 						name: z
 							.string()
 							.min(1)
-							.describe("Human-readable step name (e.g., 'Sign Up Page', 'Add to Cart')"),
+							.describe(
+								"Human-readable step name (e.g., 'Sign Up Page', 'Add to Cart')"
+							),
 						conditions: z
 							.record(z.string(), z.unknown())
 							.optional()
@@ -307,16 +311,20 @@ export function createFunnelTools(context: AppContext) {
 				// If not confirmed, return preview and ask for confirmation
 				if (!confirmed) {
 					const stepsPreview = steps
-						.map((step, index) => `${index + 1}. ${step.name} (${step.type}: ${step.target})`)
+						.map(
+							(step, index) =>
+								`${index + 1}. ${step.name} (${step.type}: ${step.target})`
+						)
 						.join("\n");
-					const filtersPreview = filters && filters.length > 0
-						? filters
-							.map(
-								(filter) =>
-									`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
-							)
-							.join("\n")
-						: "None";
+					const filtersPreview =
+						filters && filters.length > 0
+							? filters
+									.map(
+										(filter) =>
+											`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
+									)
+									.join("\n")
+							: "None";
 
 					return {
 						preview: true,

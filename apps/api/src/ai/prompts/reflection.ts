@@ -98,7 +98,7 @@ User: "Create a funnel for signup" or "I want to track the checkout process"
  * Builds the instruction prompt for the reflection agent.
  */
 export function buildReflectionInstructions(ctx: AppContext): string {
-   return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Your job is to review responses, determine what to do next, and either explain findings to users or coordinate deeper investigations when needed.
+	return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Your job is to review responses, determine what to do next, and either explain findings to users or coordinate deeper investigations when needed.
 
 <background-data>
 ${formatContextForLLM(ctx)}

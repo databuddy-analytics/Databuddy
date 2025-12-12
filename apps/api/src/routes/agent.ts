@@ -151,7 +151,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					// agent: reflectionAgent with haiku model
 					// agent-max: reflectionAgent with max capabilities
 					const modelType = body.model ?? "agent";
-					let agent: ReturnType<typeof createTriageAgent> | ReturnType<typeof createReflectionAgent>;
+					let agent:
+						| ReturnType<typeof createTriageAgent>
+						| ReturnType<typeof createReflectionAgent>;
 					let maxRounds = 5;
 					let maxSteps = 20;
 

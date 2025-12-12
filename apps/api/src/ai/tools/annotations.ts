@@ -51,7 +51,7 @@ async function callRPCProcedure(
 							: error.code === "FORBIDDEN"
 								? "You don't have permission to access this resource."
 								: error.message ||
-								"An error occurred while processing your request.";
+									"An error occurred while processing your request.";
 
 			throw new Error(userMessage);
 		}
@@ -148,7 +148,12 @@ export function createAnnotationTools(context: AppContext) {
 		}),
 		execute: async ({ id }) => {
 			try {
-				return await callRPCProcedure("annotations", "getById", { id }, context);
+				return await callRPCProcedure(
+					"annotations",
+					"getById",
+					{ id },
+					context
+				);
 			} catch (error) {
 				logger.error("Failed to get annotation by ID", { id, error });
 				throw error instanceof Error
@@ -330,10 +335,7 @@ export function createAnnotationTools(context: AppContext) {
 				.max(500)
 				.optional()
 				.describe("Updated annotation text (1-500 characters)"),
-			tags: z
-				.array(z.string())
-				.optional()
-				.describe("Updated array of tags"),
+			tags: z.array(z.string()).optional().describe("Updated array of tags"),
 			color: z
 				.string()
 				.optional()
@@ -378,9 +380,7 @@ export function createAnnotationTools(context: AppContext) {
 						}
 					}
 					if (color !== undefined && color !== currentAnnotation.color) {
-						updates.push(
-							`Color: ${currentAnnotation.color} → ${color}`
-						);
+						updates.push(`Color: ${currentAnnotation.color} → ${color}`);
 					}
 					if (
 						isPublic !== undefined &&
@@ -394,7 +394,8 @@ export function createAnnotationTools(context: AppContext) {
 					if (updates.length === 0) {
 						return {
 							preview: true,
-							message: "No changes detected. The annotation will remain unchanged.",
+							message:
+								"No changes detected. The annotation will remain unchanged.",
 							annotation: currentAnnotation,
 							confirmationRequired: false,
 						};
@@ -484,8 +485,7 @@ export function createAnnotationTools(context: AppContext) {
 
 					return {
 						preview: true,
-						message:
-							"Please confirm if you want to delete this annotation:",
+						message: "Please confirm if you want to delete this annotation:",
 						annotation: {
 							id: annotation.id,
 							text: annotation.text,

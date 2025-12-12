@@ -11,11 +11,11 @@ import {
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PageHeader } from "@/app/(main)/websites/_components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/app/(main)/websites/_components/page-header";
 import { WebsiteDialog } from "@/components/website-dialog";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { useWebsites } from "@/hooks/use-websites";
@@ -96,9 +96,7 @@ function OnboardingStepCard({
 				<div
 					className={cn(
 						"flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors",
-						isActive || step.completed
-							? "bg-primary/10"
-							: "bg-accent"
+						isActive || step.completed ? "bg-primary/10" : "bg-accent"
 					)}
 				>
 					<step.icon
@@ -119,19 +117,15 @@ function OnboardingStepCard({
 						{step.description}
 					</p>
 				</div>
-				<div className="shrink-0 text-right text-balance">
+				<div className="shrink-0 text-balance text-right">
 					{step.completed ? (
 						<CheckIcon
+							aria-label="Completed"
 							className="size-4 text-primary"
 							weight="bold"
-							aria-label="Completed"
 						/>
 					) : isActive && step.action ? (
-						<Button
-							className="rounded"
-							onClick={step.action}
-							size="sm"
-						>
+						<Button className="rounded" onClick={step.action} size="sm">
 							{step.actionLabel || "Continue"}
 							<ArrowRightIcon className="ml-2 size-4" weight="bold" />
 						</Button>

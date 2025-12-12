@@ -327,15 +327,14 @@ function PerformanceInfo() {
 		for (const el of allElements) {
 			// We can't directly count listeners, but we can estimate
 			// by checking if elements have common event handler patterns
-			if (el instanceof HTMLElement) {
-				if (
-					el.onclick ||
+			if (
+				el instanceof HTMLElement &&
+				(el.onclick ||
 					el.onmouseover ||
 					el.onfocus ||
-					el.getAttribute("onclick")
-				) {
-					eventListeners++;
-				}
+					el.getAttribute("onclick"))
+			) {
+				eventListeners++;
 			}
 		}
 
@@ -384,18 +383,18 @@ function PerformanceInfo() {
 
 		// Count active timers and intervals (approximate)
 		// We can't directly count these, but we can check for common patterns
-		let timers = 0;
-		let intervals = 0;
+		const timers = 0;
+		const intervals = 0;
 		// Note: We can't actually count these without patching setTimeout/setInterval
 		// This is just a placeholder for future enhancement
 
 		// WebSocket connections
-		let websockets = 0;
+		const websockets = 0;
 		// Check if there are any WebSocket instances (can't directly enumerate)
 		// This would require tracking at creation time
 
 		// Web Workers count
-		let workers = 0;
+		const workers = 0;
 		// Can't enumerate workers without tracking them at creation
 
 		setBreakdown({
@@ -420,15 +419,14 @@ function PerformanceInfo() {
 		) {
 			setIsMeasuring(true);
 			try {
-				const result =
-					await performance.measureUserAgentSpecificMemory();
+				const result = await performance.measureUserAgentSpecificMemory();
 				setAdvancedMemory(result);
 				toast.success("Advanced memory measurement completed");
 			} catch (error) {
 				if (error instanceof DOMException) {
 					if (error.name === "SecurityError") {
 						toast.error(
-							"Memory measurement requires cross-origin isolation. Enable COOP/COEP headers.",
+							"Memory measurement requires cross-origin isolation. Enable COOP/COEP headers."
 						);
 					} else {
 						toast.error(`Memory measurement failed: ${error.message}`);
@@ -442,17 +440,17 @@ function PerformanceInfo() {
 			}
 		} else {
 			toast.error(
-				"Advanced memory API not available. Use Chrome 89+ with cross-origin isolation.",
+				"Advanced memory API not available. Use Chrome 89+ with cross-origin isolation."
 			);
 		}
 	}, []);
 
 	const openDevToolsMemory = useCallback(() => {
 		toast.info(
-			"Open Chrome DevTools → Memory tab → Take heap snapshot for detailed analysis",
+			"Open Chrome DevTools → Memory tab → Take heap snapshot for detailed analysis"
 		);
 		console.log(
-			"💡 Tip: Open Chrome DevTools (F12) → Memory tab → Take heap snapshot to see detailed JavaScript object memory usage",
+			"💡 Tip: Open Chrome DevTools (F12) → Memory tab → Take heap snapshot to see detailed JavaScript object memory usage"
 		);
 	}, []);
 
@@ -514,8 +512,8 @@ function PerformanceInfo() {
 		if (num >= 1_000_000) {
 			return `${(num / 1_000_000).toFixed(2)}M`;
 		}
-		if (num >= 1_000) {
-			return `${(num / 1_000).toFixed(2)}K`;
+		if (num >= 1000) {
+			return `${(num / 1000).toFixed(2)}K`;
 		}
 		return num.toString();
 	};
@@ -562,7 +560,7 @@ function PerformanceInfo() {
 						<Separator />
 						<div className="space-y-2">
 							<div className="flex items-center justify-between">
-								<h4 className="text-muted-foreground text-xs font-medium">
+								<h4 className="font-medium text-muted-foreground text-xs">
 									Advanced Measurement
 								</h4>
 								<Button
@@ -575,7 +573,7 @@ function PerformanceInfo() {
 								</Button>
 							</div>
 							{advancedMemory && (
-								<div className="rounded border bg-muted/30 p-2 space-y-1.5 text-xs">
+								<div className="space-y-1.5 rounded border bg-muted/30 p-2 text-xs">
 									<div className="flex items-center justify-between">
 										<span className="text-muted-foreground">Total Memory:</span>
 										<span className="font-medium font-mono">
@@ -583,8 +581,8 @@ function PerformanceInfo() {
 										</span>
 									</div>
 									{advancedMemory.breakdown && (
-										<div className="space-y-1 pt-2 border-t">
-											<div className="text-muted-foreground font-medium">
+										<div className="space-y-1 border-t pt-2">
+											<div className="font-medium text-muted-foreground">
 												Breakdown:
 											</div>
 											{advancedMemory.breakdown.map((item, idx) => (
@@ -613,14 +611,10 @@ function PerformanceInfo() {
 				{/* Memory Breakdown */}
 				<div className="space-y-2">
 					<div className="flex items-center justify-between">
-						<h4 className="text-muted-foreground text-xs font-medium">
+						<h4 className="font-medium text-muted-foreground text-xs">
 							Tracked Memory Usage
 						</h4>
-						<Button
-							onClick={openDevToolsMemory}
-							size="sm"
-							variant="ghost"
-						>
+						<Button onClick={openDevToolsMemory} size="sm" variant="ghost">
 							<ChartBarIcon className="size-3" weight="duotone" />
 						</Button>
 					</div>

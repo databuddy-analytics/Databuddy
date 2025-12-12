@@ -27,7 +27,10 @@ export class WebsiteService {
 	private readonly database: typeof db;
 	private readonly cache: WebsiteCache | null;
 
-	constructor(database: typeof db = db, cache: WebsiteCache | null = new WebsiteCache()) {
+	constructor(
+		database: typeof db = db,
+		cache: WebsiteCache | null = new WebsiteCache()
+	) {
 		this.database = database;
 		this.cache = cache;
 	}
@@ -39,7 +42,9 @@ export class WebsiteService {
 			});
 			return website ?? null;
 		} catch (error) {
-			console.error("WebsiteService.getByIdFromDb failed:", { error: String(error) });
+			console.error("WebsiteService.getByIdFromDb failed:", {
+				error: String(error),
+			});
 			return null;
 		}
 	}
@@ -93,7 +98,9 @@ export class WebsiteService {
 					return cached;
 				}
 			} else if (filter?.userId) {
-				const cached = await this.cache?.getWebsiteByDomain(domain, { userId: filter.userId });
+				const cached = await this.cache?.getWebsiteByDomain(domain, {
+					userId: filter.userId,
+				});
 				if (cached) {
 					return cached;
 				}
@@ -153,7 +160,11 @@ export class WebsiteService {
 						website
 					);
 				} else if (website.userId) {
-					await this.cache?.setWebsiteByDomain(website.domain, { userId: website.userId }, website);
+					await this.cache?.setWebsiteByDomain(
+						website.domain,
+						{ userId: website.userId },
+						website
+					);
 				}
 			}
 
@@ -176,7 +187,10 @@ export class WebsiteService {
 			}
 
 			const cacheFilter = {
-				userId: filter.userId && typeof filter.userId === "string" ? filter.userId : undefined,
+				userId:
+					filter.userId && typeof filter.userId === "string"
+						? filter.userId
+						: undefined,
 				organizationId:
 					filter.organizationId && typeof filter.organizationId === "string"
 						? filter.organizationId
@@ -252,15 +266,26 @@ export class WebsiteService {
 						created
 					);
 				} else if (created.userId) {
-					await this.cache?.setWebsiteByDomain(created.domain, { userId: created.userId }, created);
+					await this.cache?.setWebsiteByDomain(
+						created.domain,
+						{ userId: created.userId },
+						created
+					);
 				}
 
 				await this.cache?.invalidateLists({
 					userIds: created.userId ? [created.userId] : [],
-					organizationIds: created.organizationId ? [created.organizationId] : [],
+					organizationIds: created.organizationId
+						? [created.organizationId]
+						: [],
 					userOrgPairs:
 						created.userId && created.organizationId
-							? [{ userId: created.userId, organizationId: created.organizationId }]
+							? [
+									{
+										userId: created.userId,
+										organizationId: created.organizationId,
+									},
+								]
 							: [],
 				});
 			}
@@ -303,7 +328,8 @@ export class WebsiteService {
 
 				if (before) {
 					const scopeChanged =
-						before.organizationId !== updated.organizationId || before.userId !== updated.userId;
+						before.organizationId !== updated.organizationId ||
+						before.userId !== updated.userId;
 					const domainChanged = before.domain !== updated.domain;
 
 					if (scopeChanged || domainChanged) {
@@ -312,7 +338,9 @@ export class WebsiteService {
 								organizationId: before.organizationId,
 							});
 						} else if (before.userId) {
-							await this.cache?.deleteWebsiteByDomain(before.domain, { userId: before.userId });
+							await this.cache?.deleteWebsiteByDomain(before.domain, {
+								userId: before.userId,
+							});
 						}
 					}
 				}
@@ -324,28 +352,46 @@ export class WebsiteService {
 						updated
 					);
 				} else if (updated.userId) {
-					await this.cache?.setWebsiteByDomain(updated.domain, { userId: updated.userId }, updated);
+					await this.cache?.setWebsiteByDomain(
+						updated.domain,
+						{ userId: updated.userId },
+						updated
+					);
 				}
 
 				const userIds = Array.from(
 					new Set([before?.userId, updated.userId].filter(Boolean) as string[])
 				);
 				const organizationIds = Array.from(
-					new Set([before?.organizationId, updated.organizationId].filter(Boolean) as string[])
+					new Set(
+						[before?.organizationId, updated.organizationId].filter(
+							Boolean
+						) as string[]
+					)
 				);
 
 				const userOrgPairs = (() => {
 					const pairs: Array<{ userId: string; organizationId: string }> = [];
 					if (before?.userId && before.organizationId) {
-						pairs.push({ userId: before.userId, organizationId: before.organizationId });
+						pairs.push({
+							userId: before.userId,
+							organizationId: before.organizationId,
+						});
 					}
 					if (updated.userId && updated.organizationId) {
-						pairs.push({ userId: updated.userId, organizationId: updated.organizationId });
+						pairs.push({
+							userId: updated.userId,
+							organizationId: updated.organizationId,
+						});
 					}
 					return pairs;
 				})();
 
-				await this.cache?.invalidateLists({ userIds, organizationIds, userOrgPairs });
+				await this.cache?.invalidateLists({
+					userIds,
+					organizationIds,
+					userOrgPairs,
+				});
 			}
 
 			return updated ?? null;
@@ -375,7 +421,9 @@ export class WebsiteService {
 					organizationId: deleted.organizationId,
 				});
 			} else if (deleted.userId) {
-				await this.cache?.deleteWebsiteByDomain(deleted.domain, { userId: deleted.userId });
+				await this.cache?.deleteWebsiteByDomain(deleted.domain, {
+					userId: deleted.userId,
+				});
 			}
 
 			await this.cache?.invalidateLists({
@@ -383,7 +431,12 @@ export class WebsiteService {
 				organizationIds: deleted.organizationId ? [deleted.organizationId] : [],
 				userOrgPairs:
 					deleted.userId && deleted.organizationId
-						? [{ userId: deleted.userId, organizationId: deleted.organizationId }]
+						? [
+								{
+									userId: deleted.userId,
+									organizationId: deleted.organizationId,
+								},
+							]
 						: [],
 			});
 

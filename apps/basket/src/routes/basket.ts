@@ -1,8 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type {
-	AnalyticsEvent,
-	CustomOutgoingLink,
-} from "@databuddy/db";
+import type { AnalyticsEvent, CustomOutgoingLink } from "@databuddy/db";
 import {
 	batchedCustomEventSpansSchema,
 	batchedErrorsSchema,
@@ -141,7 +138,6 @@ function processTrackEventData(
 		};
 	});
 }
-
 
 function processOutgoingLinkData(
 	linkData: any,
@@ -468,13 +464,10 @@ const app = new Elysia()
 				const errorResponse = validation.error;
 				if (errorResponse instanceof Response) {
 					const errorBody = await errorResponse.json();
-					return new Response(
-						JSON.stringify({ ...errorBody, batch: true }),
-						{
-							status: errorResponse.status,
-							headers: { "Content-Type": "application/json" },
-						}
-					);
+					return new Response(JSON.stringify({ ...errorBody, batch: true }), {
+						status: errorResponse.status,
+						headers: { "Content-Type": "application/json" },
+					});
 				}
 				return errorResponse;
 			}

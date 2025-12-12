@@ -1,14 +1,14 @@
 import type * as React from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import bash from "shiki/langs/bash.mjs";
 import css from "shiki/langs/css.mjs";
 import html from "shiki/langs/html.mjs";
+import http from "shiki/langs/http.mjs";
 import json from "shiki/langs/json.mjs";
 import jsx from "shiki/langs/jsx.mjs";
 import markdown from "shiki/langs/markdown.mjs";
-import bash from "shiki/langs/bash.mjs";
 import tsx from "shiki/langs/tsx.mjs";
-import http from "shiki/langs/http.mjs";
 import githubLight from "shiki/themes/github-light.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { SciFiCard } from "@/components/scifi-card";
@@ -71,7 +71,7 @@ function CodeBlock({
 
 	return (
 		<SciFiCard
-			className="group/code relative my-4 w-full overflow-hidden rounded border border-border bg-muted/50 dark:bg-[#101010] text-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/20"
+			className="group/code relative my-4 w-full overflow-hidden rounded border border-border bg-muted/50 text-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/20 dark:bg-[#101010]"
 			cornerOpacity="opacity-0 group-hover/code:opacity-100"
 			variant="primary"
 		>
@@ -108,7 +108,7 @@ function CodeBlock({
 						className={cn(
 							"font-mono! text-[13px] leading-relaxed",
 							"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-							"[&>pre>code]:overflow-x-auto [&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:p-4",
+							"[&>pre>code]:block [&>pre>code]:w-full [&>pre>code]:overflow-x-auto [&>pre>code]:p-4",
 							"[&_.line]:min-h-5",
 							className
 						)}

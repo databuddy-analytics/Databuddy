@@ -276,13 +276,10 @@ export function checkForBot(
 				"bot.detection_reason": botCheck.reason || "unknown_bot",
 			});
 			return {
-				error: new Response(
-					JSON.stringify({ status: "ignored" }),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
+				error: new Response(JSON.stringify({ status: "ignored" }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
 			};
 		}
 		return;

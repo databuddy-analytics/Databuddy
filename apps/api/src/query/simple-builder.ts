@@ -332,16 +332,16 @@ export class SimpleQueryBuilder {
 
 			const helpers = this.config.plugins?.sessionAttribution
 				? {
-					sessionAttributionCTE: (timeField = "time") =>
-						this.generateSessionAttributionCTE(
-							timeField,
-							"analytics.events",
-							"startDate",
-							"endDate"
-						),
-					sessionAttributionJoin: (alias = "e") =>
-						this.generateSessionAttributionJoin(alias),
-				}
+						sessionAttributionCTE: (timeField = "time") =>
+							this.generateSessionAttributionCTE(
+								timeField,
+								"analytics.events",
+								"startDate",
+								"endDate"
+							),
+						sessionAttributionJoin: (alias = "e") =>
+							this.generateSessionAttributionJoin(alias),
+					}
 				: undefined;
 
 			const result = this.config.customSql(

@@ -67,9 +67,9 @@ function getAccessibleWebsites(authCtx: AuthContext) {
 				? eq(websites.organizationId, authCtx.apiKey.organizationId)
 				: authCtx.apiKey.userId
 					? and(
-						eq(websites.userId, authCtx.apiKey.userId),
-						isNull(websites.organizationId)
-					)
+							eq(websites.userId, authCtx.apiKey.userId),
+							isNull(websites.organizationId)
+						)
 					: eq(websites.id, "");
 			return db
 				.select(select)
@@ -116,12 +116,12 @@ function getTimeUnit(
 type ParamInput =
 	| string
 	| {
-		name: string;
-		start_date?: string;
-		end_date?: string;
-		granularity?: string;
-		id?: string;
-	};
+			name: string;
+			start_date?: string;
+			end_date?: string;
+			granularity?: string;
+			id?: string;
+	  };
 
 function parseParam(p: ParamInput) {
 	if (typeof p === "string") {

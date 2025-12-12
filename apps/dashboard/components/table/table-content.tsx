@@ -5,7 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import { flexRender, type Table } from "@tanstack/react-table";
 import type React from "react";
-import { Fragment, memo, useCallback, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useState } from "react";
 import {
 	TableBody,
 	TableCell,
@@ -27,25 +27,25 @@ const DEFAULT_CELL_STYLE = {
 	maxWidth: "300px",
 	minWidth: "80px",
 } as const;
-	
+
 const cellStyleCache = new Map<number, React.CSSProperties>();
 
 function getCellStyle(size: number): React.CSSProperties {
 	if (size === 150) {
 		return DEFAULT_CELL_STYLE;
 	}
-	
+
 	const cached = cellStyleCache.get(size);
 	if (cached) {
 		return cached;
 	}
-	
+
 	const style = {
 		width: `${Math.min(size, 300)}px`,
 		maxWidth: "300px",
 		minWidth: "80px",
 	} as const;
-	
+
 	cellStyleCache.set(size, style);
 	return style;
 }
@@ -332,38 +332,38 @@ function TableContentInner<TData extends { name: string | number }>({
 												key={cell.id}
 												style={cellStyle}
 											>
-											<div className="flex items-center gap-2">
-												{cellIndex === 0 && hasSubRows && (
-													<button
-														aria-label={
-															expandedRow === row.id
-																? "Collapse row"
-																: "Expand row"
-														}
-														className="shrink-0 rounded p-0.5 hover:bg-sidebar-accent/60"
-														onClick={(e) => {
-															e.stopPropagation();
-															toggleRowExpansion(row.id);
-														}}
-														type="button"
-													>
-														{expandedRow === row.id ? (
-															<ArrowDownIcon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
-														) : (
-															<ArrowUpIcon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
-														)}
-													</button>
-												)}
-												<div className="flex-1 overflow-hidden truncate">
-													<div className="truncate">
-														{flexRender(
-															cell.column.columnDef.cell,
-															cell.getContext()
-														)}
+												<div className="flex items-center gap-2">
+													{cellIndex === 0 && hasSubRows && (
+														<button
+															aria-label={
+																expandedRow === row.id
+																	? "Collapse row"
+																	: "Expand row"
+															}
+															className="shrink-0 rounded p-0.5 hover:bg-sidebar-accent/60"
+															onClick={(e) => {
+																e.stopPropagation();
+																toggleRowExpansion(row.id);
+															}}
+															type="button"
+														>
+															{expandedRow === row.id ? (
+																<ArrowDownIcon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
+															) : (
+																<ArrowUpIcon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
+															)}
+														</button>
+													)}
+													<div className="flex-1 overflow-hidden truncate">
+														<div className="truncate">
+															{flexRender(
+																cell.column.columnDef.cell,
+																cell.getContext()
+															)}
+														</div>
 													</div>
 												</div>
-											</div>
-										</TableCell>
+											</TableCell>
 										);
 									})}
 								</TableRow>
@@ -386,7 +386,7 @@ function TableContentInner<TData extends { name: string | number }>({
 												row.getVisibleCells().map((cell, cellIndex) => {
 													const subCellSize = cell.column.getSize();
 													const subCellStyle = getCellStyle(subCellSize);
-													
+
 													return (
 														<TableCell
 															className={cn(
@@ -396,13 +396,13 @@ function TableContentInner<TData extends { name: string | number }>({
 															key={`sub-${cell.id}`}
 															style={subCellStyle}
 														>
-														<div className="truncate">
-															{cellIndex === 0 && (
-																<span className="text-xs">↳ </span>
-															)}
-															{(subRow as any)[cell.column.id] || ""}
-														</div>
-													</TableCell>
+															<div className="truncate">
+																{cellIndex === 0 && (
+																	<span className="text-xs">↳ </span>
+																)}
+																{(subRow as any)[cell.column.id] || ""}
+															</div>
+														</TableCell>
 													);
 												})
 											)}
