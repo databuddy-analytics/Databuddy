@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { connect } from "node:tls";
 import { chQuery } from "@databuddy/db";
-import { getWebsiteById } from "@databuddy/services/websites";
+import { websiteService } from "@databuddy/services/websites";
 import { captureError, record } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
@@ -41,12 +41,12 @@ type Heartbeat = {
     streak: number;
 };
 
-export async function lookupWebsite(
+export function lookupWebsite(
     id: string
 ): Promise<ActionResult<{ id: string; domain: string }>> {
     return record("uptime.lookup_website", async () => {
         try {
-            const site = await getWebsiteById(id);
+            const site = await websiteService.getById(id);
 
             if (!site) {
                 return { success: false, error: `Website ${id} not found` };
@@ -70,7 +70,7 @@ function normalizeUrl(url: string): string {
     return `https://${url}`;
 }
 
-async function pingWebsite(
+function pingWebsite(
     originalUrl: string
 ): Promise<FetchSuccess | FetchFailure> {
     return record("uptime.ping_website", async () => {
@@ -165,58 +165,60 @@ function checkCertificate(url: string): Promise<{
     valid: boolean;
     expiry: number;
 }> {
-    return record("uptime.check_certificate", () => {
-        return new Promise((resolve) => {
-            try {
-                const parsed = new URL(url);
+    return record(
+        "uptime.check_certificate",
+        () =>
+            new Promise((resolve) => {
+                try {
+                    const parsed = new URL(url);
 
-                if (parsed.protocol !== "https:") {
-                    resolve({ valid: false, expiry: 0 });
-                    return;
-                }
-
-                const port = parsed.port ? Number.parseInt(parsed.port, 10) : 443;
-                const socket = connect(
-                    {
-                        host: parsed.hostname,
-                        port,
-                        servername: parsed.hostname,
-                        timeout: 5000,
-                    },
-                    () => {
-                        const cert = socket.getPeerCertificate();
-                        socket.destroy();
-
-                        if (!cert?.valid_to) {
-                            resolve({ valid: false, expiry: 0 });
-                            return;
-                        }
-
-                        const expiry = new Date(cert.valid_to);
-                        resolve({
-                            valid: expiry > new Date(),
-                            expiry: expiry.getTime(),
-                        });
+                    if (parsed.protocol !== "https:") {
+                        resolve({ valid: false, expiry: 0 });
+                        return;
                     }
-                );
 
-                socket.on("error", () => {
-                    socket.destroy();
-                    resolve({ valid: false, expiry: 0 });
-                });
+                    const port = parsed.port ? Number.parseInt(parsed.port, 10) : 443;
+                    const socket = connect(
+                        {
+                            host: parsed.hostname,
+                            port,
+                            servername: parsed.hostname,
+                            timeout: 5000,
+                        },
+                        () => {
+                            const cert = socket.getPeerCertificate();
+                            socket.destroy();
 
-                socket.on("timeout", () => {
-                    socket.destroy();
+                            if (!cert?.valid_to) {
+                                resolve({ valid: false, expiry: 0 });
+                                return;
+                            }
+
+                            const expiry = new Date(cert.valid_to);
+                            resolve({
+                                valid: expiry > new Date(),
+                                expiry: expiry.getTime(),
+                            });
+                        }
+                    );
+
+                    socket.on("error", () => {
+                        socket.destroy();
+                        resolve({ valid: false, expiry: 0 });
+                    });
+
+                    socket.on("timeout", () => {
+                        socket.destroy();
+                        resolve({ valid: false, expiry: 0 });
+                    });
+                } catch {
                     resolve({ valid: false, expiry: 0 });
-                });
-            } catch {
-                resolve({ valid: false, expiry: 0 });
-            }
-        });
-    });
+                }
+            })
+    );
 }
 
-async function getProbeMetadata(): Promise<{ ip: string; region: string }> {
+function getProbeMetadata(): Promise<{ ip: string; region: string }> {
     return record("uptime.get_probe_metadata", async () => {
         try {
             const res = await fetch("https://api.ipify.org?format=json", {
@@ -235,7 +237,7 @@ async function getProbeMetadata(): Promise<{ ip: string; region: string }> {
     });
 }
 
-async function getLastHeartbeat(siteId: string): Promise<Heartbeat | null> {
+function getLastHeartbeat(siteId: string): Promise<Heartbeat | null> {
     return record("uptime.get_last_heartbeat", async () => {
         try {
             const rows = await chQuery<{
@@ -310,7 +312,7 @@ function calculateStatus(
     return { status: UP, retries: 0, streak: 0 };
 }
 
-export async function checkUptime(
+export function checkUptime(
     siteId: string,
     url: string,
     attempt = 1,

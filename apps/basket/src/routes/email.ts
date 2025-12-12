@@ -76,20 +76,32 @@ const app = new Elysia()
 		async ({ body, request }: { body: unknown; request: Request }) => {
 			// Validate API key
 			if (!validateApiKey(request)) {
-				return {
-					status: "error",
-					message: "Invalid or missing API key",
-				};
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Invalid or missing API key",
+					}),
+					{
+						status: 401,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 
 			// Validate schema
 			const parseResult = emailEventSchema.safeParse(body);
 			if (!parseResult.success) {
-				return {
-					status: "error",
-					message: "Invalid email event schema",
-					errors: parseResult.error.issues,
-				};
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Invalid email event schema",
+						errors: parseResult.error.issues,
+					}),
+					{
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 
 			const emailData = parseResult.data;
@@ -97,22 +109,43 @@ const app = new Elysia()
 			const eventTime = emailData.event_time || Date.now();
 
 			if (await checkEmailDuplicate(emailHash, eventTime)) {
-				return { status: "success", message: "Duplicate event ignored" };
+				return new Response(
+					JSON.stringify({
+						status: "success",
+						message: "Duplicate event ignored",
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 
 			try {
 				insertEmailEvent(emailData);
-				return {
-					status: "success",
-					type: "email",
-					event_id: emailHash,
-				};
+				return new Response(
+					JSON.stringify({
+						status: "success",
+						type: "email",
+						event_id: emailHash,
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			} catch (error) {
 				captureError(error, { message: "Email event processing failed" });
-				return {
-					status: "error",
-					message: "Failed to process email event",
-				};
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Failed to process email event",
+					}),
+					{
+						status: 500,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 		}
 	)
@@ -121,20 +154,32 @@ const app = new Elysia()
 		async ({ body, request }: { body: unknown; request: Request }) => {
 			// Validate API key
 			if (!validateApiKey(request)) {
-				return {
-					status: "error",
-					message: "Invalid or missing API key",
-				};
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Invalid or missing API key",
+					}),
+					{
+						status: 401,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 
 			// Validate schema
 			const parseResult = batchEmailEventSchema.safeParse(body);
 			if (!parseResult.success) {
-				return {
-					status: "error",
-					message: "Invalid batch email event schema",
-					errors: parseResult.error.issues,
-				};
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Invalid batch email event schema",
+						errors: parseResult.error.issues,
+					}),
+					{
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
 			}
 
 			const emailEvents = parseResult.data;
@@ -172,12 +217,18 @@ const app = new Elysia()
 
 			results.push(...(await Promise.all(processingPromises)));
 
-			return {
-				status: "success",
-				batch: true,
-				processed: results.length,
-				results,
-			};
+			return new Response(
+				JSON.stringify({
+					status: "success",
+					batch: true,
+					processed: results.length,
+					results,
+				}),
+				{
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}
+			);
 		}
 	);
 

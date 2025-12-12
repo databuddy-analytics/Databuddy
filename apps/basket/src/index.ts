@@ -123,17 +123,15 @@ const app = new Elysia()
 	.use(basketRouter)
 	.use(emailRouter)
 	.get("/health", function healthCheck() {
-		return {
+		return new Response(JSON.stringify({
 			status: "ok",
 			version: "1.0.0",
 			producer_stats: getProducerStats(),
 			kafka: getKafkaHealth(),
-		};
+		}), { status: 200 });
 	});
 
 const port = process.env.PORT || 4000;
-
-console.log(`Starting basket service on port ${port}`);
 
 export default {
 	fetch: app.fetch,

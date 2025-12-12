@@ -19,7 +19,7 @@ type ValidationResult = {
 };
 
 type ValidationError = {
-	error: { status: string; message: string };
+	error: Response;
 };
 
 /**
@@ -43,7 +43,15 @@ export function validateRequest(
 				"validation.failed": true,
 				"validation.reason": "payload_too_large",
 			});
-			return { error: { status: "error", message: "Payload too large" } };
+			return {
+				error: new Response(
+					JSON.stringify({ status: "error", message: "Payload too large" }),
+					{
+						status: 413,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
+			};
 		}
 
 		let clientId = sanitizeString(
@@ -73,7 +81,15 @@ export function validateRequest(
 				"validation.failed": true,
 				"validation.reason": "missing_client_id",
 			});
-			return { error: { status: "error", message: "Missing client ID" } };
+			return {
+				error: new Response(
+					JSON.stringify({ status: "error", message: "Missing client ID" }),
+					{
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
+			};
 		}
 
 		setAttributes({
@@ -99,7 +115,16 @@ export function validateRequest(
 				"website.status": website?.status || "not_found",
 			});
 			return {
-				error: { status: "error", message: "Invalid or inactive client ID" },
+				error: new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Invalid or inactive client ID",
+					}),
+					{
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
 			};
 		}
 
@@ -135,7 +160,16 @@ export function validateRequest(
 						"autumn.allowed": false,
 					});
 					return {
-						error: { status: "error", message: "Exceeded event limit" },
+						error: new Response(
+							JSON.stringify({
+								status: "error",
+								message: "Exceeded event limit",
+							}),
+							{
+								status: 429,
+								headers: { "Content-Type": "application/json" },
+							}
+						),
 					};
 				}
 
@@ -174,7 +208,18 @@ export function validateRequest(
 				"validation.reason": "origin_not_authorized",
 				"request.origin": origin,
 			});
-			return { error: { status: "error", message: "Origin not authorized" } };
+			return {
+				error: new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Origin not authorized",
+					}),
+					{
+						status: 403,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
+			};
 		}
 
 		const userAgent =
@@ -210,7 +255,7 @@ export function checkForBot(
 	query: any,
 	clientId: string,
 	userAgent: string
-): Promise<{ error?: { status: string } } | undefined> {
+): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
 		const botCheck = detectBot(userAgent, request);
 		if (botCheck.isBot) {
@@ -230,7 +275,15 @@ export function checkForBot(
 				"bot.category": botCheck.category || "Bot Detection",
 				"bot.detection_reason": botCheck.reason || "unknown_bot",
 			});
-			return { error: { status: "ignored" } };
+			return {
+				error: new Response(
+					JSON.stringify({ status: "ignored" }),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
+			};
 		}
 		return;
 	});

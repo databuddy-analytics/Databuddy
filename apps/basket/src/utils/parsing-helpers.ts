@@ -53,23 +53,35 @@ export function validateEventSchema<T>(
  * Standard error response for schema validation failures
  */
 export function createSchemaErrorResponse(errors: z.ZodIssue[]) {
-	return {
-		status: "error",
-		message: "Invalid event schema",
-		errors,
-	};
+	return new Response(
+		JSON.stringify({
+			status: "error",
+			message: "Invalid event schema",
+			errors,
+		}),
+		{
+			status: 400,
+			headers: { "Content-Type": "application/json" },
+		}
+	);
 }
 
 /**
  * Standard error response for bot detection
  */
 export function createBotDetectedResponse(eventType: string) {
-	return {
-		status: "error",
-		message: "Bot detected",
-		eventType,
-		error: "ignored",
-	};
+	return new Response(
+		JSON.stringify({
+			status: "error",
+			message: "Bot detected",
+			eventType,
+			error: "ignored",
+		}),
+		{
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		}
+	);
 }
 
 /**

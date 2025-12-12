@@ -1,6 +1,7 @@
 import { clickHouse, formatClickhouseDate } from "@databuddy/db";
-import Elysia from "elysia";
 import { Receiver } from "@upstash/qstash";
+import Elysia from "elysia";
+import { checkUptime, lookupWebsite } from "./actions";
 import {
     captureError,
     endRequestSpan,
@@ -8,7 +9,6 @@ import {
     shutdownTracing,
     startRequestSpan,
 } from "./lib/tracing";
-import { checkUptime, lookupWebsite } from "./actions";
 
 initTracing();
 
@@ -41,21 +41,16 @@ process.on("SIGINT", async () => {
 const CURRENT_SIGNING_KEY = process.env.QSTASH_CURRENT_SIGNING_KEY;
 const NEXT_SIGNING_KEY = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-if (!CURRENT_SIGNING_KEY || !NEXT_SIGNING_KEY) {
-    throw new Error("QSTASH_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required");
+if (!(CURRENT_SIGNING_KEY && NEXT_SIGNING_KEY)) {
+    throw new Error(
+        "QSTASH_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required"
+    );
 }
 
 const receiver = new Receiver({
     currentSigningKey: CURRENT_SIGNING_KEY,
     nextSigningKey: NEXT_SIGNING_KEY,
 });
-
-const STATUS_LABELS = {
-    0: "DOWN",
-    1: "UP",
-    2: "PENDING",
-    3: "MAINTENANCE",
-} as const;
 
 const app = new Elysia()
     .state("tracing", {
@@ -86,18 +81,16 @@ const app = new Elysia()
         }
         captureError(error);
     })
-    .get("/health", () => {
-        return { status: "ok" };
-    })
-    .post("/", async ({ headers, body, store }) => {
+    .get("/health", () => ({ status: "ok" }))
+    .post("/", async ({ headers, body }) => {
         try {
             const siteId = headers["x-website-id"];
             const signature = headers["upstash-signature"];
 
             const isValid = await receiver.verify({
-                // @ts-ignore, this doesn't require type assertions
+                // @ts-expect-error, this doesn't require type assertions
                 body,
-                // @ts-ignore, these don't require type assertions 
+                // @ts-expect-error, these don't require type assertions
                 signature,
                 url: "https://uptime.databuddy.cc",
             });
