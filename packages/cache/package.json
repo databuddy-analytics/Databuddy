@@ -1,0 +1,29 @@
+{
+  "name": "@databuddy/cache",
+  "version": "0.0.1",
+  "type": "module",
+  "private": false,
+  "main": "./dist/drizzle.js",
+  "types": "./dist/drizzle.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/drizzle.d.ts",
+      "default": "./dist/drizzle.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run build.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
