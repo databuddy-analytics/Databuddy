@@ -125,7 +125,7 @@ export function BillingProvider({
 		const isOrganizationBilling = billingContext?.isOrganization ?? false;
 		const canUserUpgrade = billingContext?.canUserUpgrade ?? true;
 
-		const currentPlanId = 'pro';
+		const currentPlanId = effectivePlanId;
 		const currentPlan = products?.find((p) => p.id === currentPlanId);
 		const isFree =
 			currentPlanId === PLAN_IDS.FREE ||
