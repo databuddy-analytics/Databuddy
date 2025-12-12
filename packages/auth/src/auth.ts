@@ -199,9 +199,9 @@ export const auth = betterAuth({
 			},
 		}),
 		magicLink({
-			sendMagicLink: async ({ email, url }) => {
+			sendMagicLink: ({ email, url }) => {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
-				await resend.emails.send({
+				resend.emails.send({
 					from: "noreply@databuddy.cc",
 					to: email,
 					subject: "Login to Databuddy",
