@@ -23,6 +23,32 @@ export type UpdateWebsiteInput = Partial<
 	Omit<InferInsertModel<typeof websites>, "id" | "createdAt">
 >;
 
+export class DuplicateDomainError extends Error {
+	constructor(domain: string) {
+		super(`A website with the domain "${domain}" already exists.`);
+		this.name = "DuplicateDomainError";
+	}
+}
+
+export class WebsiteNotFoundError extends Error {
+	constructor(message = "Website not found") {
+		super(message);
+		this.name = "WebsiteNotFoundError";
+	}
+}
+
+export class ValidationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ValidationError";
+	}
+}
+
+export const buildWebsiteFilter = (userId: string, organizationId?: string) =>
+	organizationId
+		? eq(websites.organizationId, organizationId)
+		: and(eq(websites.userId, userId), isNull(websites.organizationId));
+
 export class WebsiteService {
 	private readonly database: typeof db;
 	private readonly cache: WebsiteCache | null;
@@ -89,16 +115,17 @@ export class WebsiteService {
 		filter?: { userId?: string | null; organizationId?: string | null }
 	): Promise<Website | null> {
 		try {
-			// Cache only when the scope is explicit (prevents collisions between org and personal sites).
+			const normalizedDomain = domain.trim().toLowerCase();
+
 			if (filter?.organizationId) {
-				const cached = await this.cache?.getWebsiteByDomain(domain, {
+				const cached = await this.cache?.getWebsiteByDomain(normalizedDomain, {
 					organizationId: filter.organizationId,
 				});
 				if (cached) {
 					return cached;
 				}
 			} else if (filter?.userId) {
-				const cached = await this.cache?.getWebsiteByDomain(domain, {
+				const cached = await this.cache?.getWebsiteByDomain(normalizedDomain, {
 					userId: filter.userId,
 				});
 				if (cached) {
@@ -106,7 +133,7 @@ export class WebsiteService {
 				}
 			}
 
-			const domainCondition = eq(websites.domain, domain);
+			const domainCondition = eq(websites.domain, normalizedDomain);
 
 			const userCondition =
 				filter?.userId === undefined
@@ -245,62 +272,83 @@ export class WebsiteService {
 		}
 	}
 
-	async create(input: CreateWebsiteInput): Promise<Website | null> {
+	async create(input: CreateWebsiteInput): Promise<Website> {
+		const normalizedDomain = input.domain.trim().toLowerCase();
+
+		const existing = await this.getByDomain(normalizedDomain, {
+			userId: input.userId ?? undefined,
+			organizationId: input.organizationId ?? undefined,
+		});
+
+		if (existing) {
+			throw new DuplicateDomainError(normalizedDomain);
+		}
+
 		try {
 			const [created] = await this.database
 				.insert(websites)
 				.values({
 					...input,
+					domain: normalizedDomain,
 					id: input.id ?? randomUUID(),
 					updatedAt: new Date(),
 				})
 				.returning();
 
-			if (created) {
-				await this.cache?.setWebsite(created);
-
-				if (created.organizationId) {
-					await this.cache?.setWebsiteByDomain(
-						created.domain,
-						{ organizationId: created.organizationId },
-						created
-					);
-				} else if (created.userId) {
-					await this.cache?.setWebsiteByDomain(
-						created.domain,
-						{ userId: created.userId },
-						created
-					);
-				}
-
-				await this.cache?.invalidateLists({
-					userIds: created.userId ? [created.userId] : [],
-					organizationIds: created.organizationId
-						? [created.organizationId]
-						: [],
-					userOrgPairs:
-						created.userId && created.organizationId
-							? [
-									{
-										userId: created.userId,
-										organizationId: created.organizationId,
-									},
-								]
-							: [],
-				});
+			if (!created) {
+				throw new Error("Failed to create website");
 			}
 
-			return created ?? null;
+			await this.cache?.setWebsite(created);
+
+			if (created.organizationId) {
+				await this.cache?.setWebsiteByDomain(
+					created.domain,
+					{ organizationId: created.organizationId },
+					created
+				);
+			} else if (created.userId) {
+				await this.cache?.setWebsiteByDomain(
+					created.domain,
+					{ userId: created.userId },
+					created
+				);
+			}
+
+			await this.cache?.invalidateLists({
+				userIds: created.userId ? [created.userId] : [],
+				organizationIds: created.organizationId
+					? [created.organizationId]
+					: [],
+				userOrgPairs:
+					created.userId && created.organizationId
+						? [
+							{
+								userId: created.userId,
+								organizationId: created.organizationId,
+							},
+						]
+						: [],
+			});
+
+			return created;
 		} catch (error) {
+			if (
+				error instanceof DuplicateDomainError ||
+				error instanceof ValidationError ||
+				error instanceof WebsiteNotFoundError
+			) {
+				throw error;
+			}
 			console.error("WebsiteService.create failed:", { error: String(error) });
-			return null;
+			throw new Error(`Failed to create website: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
 	async updateById(
 		id: string,
 		updates: UpdateWebsiteInput
-	): Promise<Website | null> {
+	): Promise<Website> {
 		const hasAtLeastOneUpdate = (() => {
 			for (const value of Object.values(updates)) {
 				if (value !== undefined) {
@@ -311,99 +359,138 @@ export class WebsiteService {
 		})();
 
 		if (!hasAtLeastOneUpdate) {
-			return this.getById(id);
+			const website = await this.getById(id);
+			if (!website) {
+				throw new WebsiteNotFoundError();
+			}
+			return website;
+		}
+
+		const before = await this.getByIdFromDb(id);
+		if (!before) {
+			throw new WebsiteNotFoundError();
+		}
+
+		const normalizedUpdates = { ...updates };
+		if (updates.domain !== undefined) {
+			const normalizedDomain = updates.domain.trim().toLowerCase();
+
+			if (normalizedDomain !== before.domain.toLowerCase()) {
+				const existing = await this.getByDomain(normalizedDomain, {
+					userId: before.userId ?? undefined,
+					organizationId: before.organizationId ?? undefined,
+				});
+
+				if (existing && existing.id !== id) {
+					throw new DuplicateDomainError(normalizedDomain);
+				}
+			}
+
+			normalizedUpdates.domain = normalizedDomain;
 		}
 
 		try {
-			const before = await this.getByIdFromDb(id);
-
 			const [updated] = await this.database
 				.update(websites)
-				.set({ ...updates, updatedAt: new Date() })
+				.set({ ...normalizedUpdates, updatedAt: new Date() })
 				.where(eq(websites.id, id))
 				.returning();
 
-			if (updated) {
-				await this.cache?.setWebsite(updated);
-
-				if (before) {
-					const scopeChanged =
-						before.organizationId !== updated.organizationId ||
-						before.userId !== updated.userId;
-					const domainChanged = before.domain !== updated.domain;
-
-					if (scopeChanged || domainChanged) {
-						if (before.organizationId) {
-							await this.cache?.deleteWebsiteByDomain(before.domain, {
-								organizationId: before.organizationId,
-							});
-						} else if (before.userId) {
-							await this.cache?.deleteWebsiteByDomain(before.domain, {
-								userId: before.userId,
-							});
-						}
-					}
-				}
-
-				if (updated.organizationId) {
-					await this.cache?.setWebsiteByDomain(
-						updated.domain,
-						{ organizationId: updated.organizationId },
-						updated
-					);
-				} else if (updated.userId) {
-					await this.cache?.setWebsiteByDomain(
-						updated.domain,
-						{ userId: updated.userId },
-						updated
-					);
-				}
-
-				const userIds = Array.from(
-					new Set([before?.userId, updated.userId].filter(Boolean) as string[])
-				);
-				const organizationIds = Array.from(
-					new Set(
-						[before?.organizationId, updated.organizationId].filter(
-							Boolean
-						) as string[]
-					)
-				);
-
-				const userOrgPairs = (() => {
-					const pairs: Array<{ userId: string; organizationId: string }> = [];
-					if (before?.userId && before.organizationId) {
-						pairs.push({
-							userId: before.userId,
-							organizationId: before.organizationId,
-						});
-					}
-					if (updated.userId && updated.organizationId) {
-						pairs.push({
-							userId: updated.userId,
-							organizationId: updated.organizationId,
-						});
-					}
-					return pairs;
-				})();
-
-				await this.cache?.invalidateLists({
-					userIds,
-					organizationIds,
-					userOrgPairs,
-				});
+			if (!updated) {
+				throw new WebsiteNotFoundError();
 			}
 
-			return updated ?? null;
+			await this.cache?.setWebsite(updated);
+
+			if (before) {
+				const scopeChanged =
+					before.organizationId !== updated.organizationId ||
+					before.userId !== updated.userId;
+				const domainChanged = before.domain.toLowerCase() !== updated.domain.toLowerCase();
+
+				if (scopeChanged || domainChanged) {
+					if (before.organizationId) {
+						await this.cache?.deleteWebsiteByDomain(before.domain, {
+							organizationId: before.organizationId,
+						});
+					} else if (before.userId) {
+						await this.cache?.deleteWebsiteByDomain(before.domain, {
+							userId: before.userId,
+						});
+					}
+				}
+			}
+
+			if (updated.organizationId) {
+				await this.cache?.setWebsiteByDomain(
+					updated.domain,
+					{ organizationId: updated.organizationId },
+					updated
+				);
+			} else if (updated.userId) {
+				await this.cache?.setWebsiteByDomain(
+					updated.domain,
+					{ userId: updated.userId },
+					updated
+				);
+			}
+
+			const userIds = Array.from(
+				new Set([before?.userId, updated.userId].filter(Boolean) as string[])
+			);
+			const organizationIds = Array.from(
+				new Set(
+					[before?.organizationId, updated.organizationId].filter(
+						Boolean
+					) as string[]
+				)
+			);
+
+			const userOrgPairs = (() => {
+				const pairs: Array<{ userId: string; organizationId: string }> = [];
+				if (before?.userId && before.organizationId) {
+					pairs.push({
+						userId: before.userId,
+						organizationId: before.organizationId,
+					});
+				}
+				if (updated.userId && updated.organizationId) {
+					pairs.push({
+						userId: updated.userId,
+						organizationId: updated.organizationId,
+					});
+				}
+				return pairs;
+			})();
+
+			await this.cache?.invalidateLists({
+				userIds,
+				organizationIds,
+				userOrgPairs,
+			});
+
+			return updated;
 		} catch (error) {
+			if (
+				error instanceof DuplicateDomainError ||
+				error instanceof ValidationError ||
+				error instanceof WebsiteNotFoundError
+			) {
+				throw error;
+			}
 			console.error("WebsiteService.updateById failed:", {
 				error: String(error),
 			});
-			return null;
+			throw new Error(`Failed to update website: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	async deleteById(id: string): Promise<boolean> {
+	async deleteById(id: string): Promise<void> {
+		const before = await this.getByIdFromDb(id);
+		if (!before) {
+			throw new WebsiteNotFoundError();
+		}
+
 		try {
 			const [deleted] = await this.database
 				.delete(websites)
@@ -411,7 +498,7 @@ export class WebsiteService {
 				.returning();
 
 			if (!deleted) {
-				return false;
+				throw new WebsiteNotFoundError();
 			}
 
 			await this.cache?.deleteWebsiteById(id);
@@ -432,22 +519,28 @@ export class WebsiteService {
 				userOrgPairs:
 					deleted.userId && deleted.organizationId
 						? [
-								{
-									userId: deleted.userId,
-									organizationId: deleted.organizationId,
-								},
-							]
+							{
+								userId: deleted.userId,
+								organizationId: deleted.organizationId,
+							},
+						]
 						: [],
 			});
-
-			return true;
 		} catch (error) {
+			if (
+				error instanceof DuplicateDomainError ||
+				error instanceof ValidationError ||
+				error instanceof WebsiteNotFoundError
+			) {
+				throw error;
+			}
 			console.error("WebsiteService.deleteById failed:", {
 				error: String(error),
 			});
-			return false;
+			throw new Error(`Failed to delete website: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 }
 
 export const websiteService = new WebsiteService();
+

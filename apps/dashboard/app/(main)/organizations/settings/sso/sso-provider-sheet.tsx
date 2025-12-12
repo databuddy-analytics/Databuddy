@@ -242,7 +242,7 @@ function SAMLConfigFields({
 					value={form.entryPoint}
 				/>
 			</FormField>
-
+		
 			<FormField
 				hint="Paste the IdP certificate from Okta (X.509 Certificate)"
 				id="certificate"

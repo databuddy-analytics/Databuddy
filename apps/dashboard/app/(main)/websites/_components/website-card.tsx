@@ -35,10 +35,7 @@ function TrendStat({
 	trend: ProcessedMiniChartData["trend"] | undefined;
 	className?: string;
 }) {
-	if (!trend) {
-		return null;
-	}
-	if (trend.type === "up") {
+	if (trend?.type === "up") {
 		return (
 			<div className={className}>
 				<TrendUpIcon
@@ -50,7 +47,7 @@ function TrendStat({
 			</div>
 		);
 	}
-	if (trend.type === "down") {
+	if (trend?.type === "down") {
 		return (
 			<div className={className}>
 				<TrendDownIcon
@@ -118,12 +115,12 @@ export const WebsiteCard = memo(
 								</div>
 							</div>
 						) : (
-							<div className="py-8 text-center text-muted-foreground text-xs">
+							<div className="flex h-28 items-center justify-center text-center text-muted-foreground text-xs">
 								No data yet
 							</div>
 						)
 					) : (
-						<div className="py-8 text-center text-muted-foreground text-xs">
+						<div className="flex h-28 items-center justify-center text-center text-muted-foreground text-xs">
 							Failed to load
 						</div>
 					)}
@@ -145,21 +142,19 @@ export const WebsiteCard = memo(
 									{website.domain}
 								</CardDescription>
 							</div>
-							{chartData ? (
-								<div className="flex shrink-0 flex-col items-end space-y-0.5">
-									<span className="flex items-center gap-1 font-semibold text-foreground text-xs tabular-nums">
-										<EyeIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
-										{formatNumber(chartData.totalViews)}
-									</span>
-									<TrendStat
-										className="flex items-center gap-1 font-semibold text-xs"
-										trend={chartData.trend}
+							<div className="flex shrink-0 flex-col items-end space-y-0.5">
+								<span className="flex items-center gap-1 font-semibold text-foreground text-xs tabular-nums">
+									<EyeIcon
+										className="size-4 shrink-0 text-muted-foreground"
+										weight="duotone"
 									/>
-								</div>
-							) : null}
+									{chartData ? formatNumber(chartData.totalViews) : "0"}
+								</span>
+								<TrendStat
+									className="flex items-center gap-1 font-semibold text-xs"
+									trend={chartData?.trend}
+								/>
+							</div>
 						</div>
 					</div>
 				</CardContent>

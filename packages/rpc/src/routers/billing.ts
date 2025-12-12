@@ -1,5 +1,6 @@
 import { websitesApi } from "@databuddy/auth";
 import { chQuery } from "@databuddy/db";
+import { buildWebsiteFilter } from "@databuddy/services/websites";
 import type {
 	DailyUsageByTypeRow,
 	DailyUsageRow,
@@ -9,7 +10,6 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { protectedProcedure } from "../orpc";
-import { buildWebsiteFilter } from "../services/website-service";
 
 const DAYS_IN_MONTH = 30;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -24,11 +24,11 @@ const EVENT_CATEGORIES = {
 
 type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
 
-interface EventSource {
+type EventSource = {
 	table: string;
 	dateColumn: string;
 	category: EventCategory;
-}
+};
 
 const EVENT_SOURCES: EventSource[] = [
 	{
@@ -147,7 +147,7 @@ const aggregateUsageData = (
 
 const checkOrganizationPermission = async (
 	headers: Headers,
-	organizationId: string
+	_organizationId: string
 ): Promise<void> => {
 	const { success } = await websitesApi.hasPermission({
 		headers,
