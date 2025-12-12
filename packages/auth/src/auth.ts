@@ -9,8 +9,8 @@ import {
 	VerificationEmail,
 } from "@databuddy/email";
 import { getRedisCache } from "@databuddy/redis";
-import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { betterAuth } from "better-auth/minimal";
 import {
 	customSession,
 	emailOTP,
@@ -144,12 +144,10 @@ export const auth = betterAuth({
 	session: {
 		cookieCache: {
 			enabled: true,
-			maxAge: 60 * 60 * 24 * 30, // 30 days
+			maxAge: 5 * 60,
 		},
-		expiresIn: 60 * 60 * 24 * 30, // 30 days
-		updateAge: 60 * 60 * 24 * 3, // 1 day (every 1 day the session expiration is updated)
-		storeSessionInDatabase: true, // Store session in database when secondary storage is provided
-		preserveSessionInDatabase: true, // Preserve session records in database when deleted from secondary storage
+		storeSessionInDatabase: true,
+		preserveSessionInDatabase: true,
 	},
 	secondaryStorage: {
 		get: async (key) => {
@@ -166,7 +164,10 @@ export const auth = betterAuth({
 	plugins: [
 		lastLoginMethod({
 			customResolveMethod: (ctx) => {
-				if (ctx.path === "/magic-link/verify" || ctx.path?.includes("/magic-link")) {
+				if (
+					ctx.path === "/magic-link/verify" ||
+					ctx.path?.includes("/magic-link")
+				) {
 					return "magic-link";
 				}
 				return null;

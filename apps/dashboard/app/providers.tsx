@@ -7,11 +7,9 @@ import {
 	QueryClientProvider,
 	useQuery,
 } from "@tanstack/react-query";
-import { AutumnProvider } from "autumn-js/react";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
-import { BillingProvider } from "@/components/providers/billing-provider";
 import { OrganizationsProvider } from "@/components/providers/organizations-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -54,17 +52,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 			<QueryClientProvider client={queryClient}>
 				<TooltipProvider>
 					<FlagsProviderWrapper>
-						<AutumnProvider
-							backendUrl={
-								process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-							}
-						>
-							<BillingProvider>
-								<OrganizationsProvider>
-									<NuqsAdapter>{children}</NuqsAdapter>
-								</OrganizationsProvider>
-							</BillingProvider>
-						</AutumnProvider>
+						<OrganizationsProvider>
+							<NuqsAdapter>{children}</NuqsAdapter>
+						</OrganizationsProvider>
 					</FlagsProviderWrapper>
 				</TooltipProvider>
 			</QueryClientProvider>

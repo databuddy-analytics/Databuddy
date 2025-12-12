@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient, signIn } from "@databuddy/auth/client";
+import { authClient } from "@databuddy/auth/client";
 import {
 	EyeIcon,
 	EyeSlashIcon,
@@ -34,13 +34,13 @@ function LoginPage() {
 	const defaultCallbackUrl = callback;
 	const lastUsed = authClient.getLastUsedLoginMethod();
 
-	const handleSocialLogin = (provider: "github" | "google") => {
+	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
 
 		const callbackUrl = callback;
 		const finalCallbackUrl = callbackUrl || defaultCallbackUrl;
 
-		signIn.social({
+		await authClient.signIn.social({
 			provider,
 			callbackURL: finalCallbackUrl,
 			newUserCallbackURL: "/onboarding",
@@ -69,17 +69,11 @@ function LoginPage() {
 
 		setIsLoading(true);
 
-		await signIn.email({
+		await authClient.signIn.email({
 			email,
 			password,
 			callbackURL: defaultCallbackUrl,
 			fetchOptions: {
-				onSuccess: () => {
-					const callbackUrl = callback;
-					if (callbackUrl) {
-						router.push(callbackUrl);
-					}
-				},
 				onError: (error) => {
 					setIsLoading(false);
 					if (

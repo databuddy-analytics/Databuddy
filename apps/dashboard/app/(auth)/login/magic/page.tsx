@@ -1,7 +1,7 @@
 "use client";
 
-import { signIn } from "@databuddy/auth/client";
-	import { ArrowLeftIcon, SparkleIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { authClient } from "@databuddy/auth/client";
+import { ArrowLeftIcon, SparkleIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -23,7 +23,7 @@ function MagicLinkPage() {
 		}
 		setIsLoading(true);
 
-		await signIn.magicLink({
+		await authClient.signIn.magicLink({
 			email,
 			callbackURL: "/home",
 			fetchOptions: {
@@ -56,7 +56,10 @@ function MagicLinkPage() {
 				<div className="relative z-10">
 					<form className="space-y-5" onSubmit={handleMagicLinkLogin}>
 						<div className="space-y-3">
-							<Label className="font-medium text-foreground" htmlFor="magic-email">
+							<Label
+								className="font-medium text-foreground"
+								htmlFor="magic-email"
+							>
 								Email<span className="text-primary">*</span>
 							</Label>
 							<Input
@@ -73,8 +76,8 @@ function MagicLinkPage() {
 						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
 							<SparkleIcon className="size-4 shrink-0 text-foreground" />
 							<p className="text-muted-foreground">
-								We&apos;ll send a secure link to your email that will sign you in
-								instantly — no password needed.
+								We&apos;ll send a secure link to your email that will sign you
+								in instantly — no password needed.
 							</p>
 						</div>
 						<Button className="w-full" disabled={isLoading} type="submit">

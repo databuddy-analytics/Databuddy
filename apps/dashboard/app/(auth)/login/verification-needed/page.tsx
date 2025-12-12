@@ -1,7 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { ArrowLeftIcon, WarningIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, SpinnerIcon, WarningIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
@@ -51,9 +51,10 @@ function VerificationNeededPage() {
 					<div className="space-y-5">
 						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-4">
 							<WarningIcon className="size-5 shrink-0 text-primary" />
-							<p className="text-sm text-muted-foreground">
-								Your email <strong className="text-foreground">{email}</strong> needs to be verified before you
-								can sign in. Please check your inbox for the verification link.
+							<p className="text-muted-foreground text-sm">
+								Your email <strong className="text-foreground">{email}</strong>{" "}
+								needs to be verified before you can sign in. Please check your
+								inbox for the verification link.
 							</p>
 						</div>
 						<Button
