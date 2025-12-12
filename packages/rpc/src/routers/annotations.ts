@@ -1,7 +1,9 @@
-import { and, annotations, desc, eq, isNull } from "@databuddy/db";
+import { websitesApi } from "@databuddy/auth";
+import { and, annotations, desc, eq, isNull, or, type SQL } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 import { getCacheAuthContext } from "../utils/cache-keys";
@@ -11,6 +13,23 @@ const annotationsCache = createDrizzleCache({
 	namespace: "annotations",
 });
 const CACHE_TTL = 300; // 5 minutes
+
+/**
+ * Check if a user has update permission for a website (ownership check)
+ */
+async function hasWebsiteUpdatePermission(
+	context: Context & { user: NonNullable<Context["user"]> },
+	website: { organizationId: string | null; userId: string | null }
+): Promise<boolean> {
+	if (website.organizationId) {
+		const { success } = await websitesApi.hasPermission({
+			headers: context.headers,
+			body: { permissions: { website: ["update"] } },
+		});
+		return success;
+	}
+	return website.userId === context.user.id;
+}
 
 const chartContextSchema = z.object({
 	dateRange: z.object({
@@ -51,18 +70,44 @@ export const annotationsRouter = {
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
-					await authorizeWebsiteAccess(context, input.websiteId, "read");
+					const website = await authorizeWebsiteAccess(
+						context,
+						input.websiteId,
+						"read"
+					);
+
+					// For public websites, filter annotations to only show:
+					// 1. Public annotations (isPublic: true)
+					// 2. Annotations created by the current user (if authenticated)
+					// For non-public websites, show all annotations (user has access via authorizeWebsiteAccess)
+					const baseConditions = [
+						eq(annotations.websiteId, input.websiteId),
+						eq(annotations.chartType, input.chartType),
+						isNull(annotations.deletedAt),
+					];
+
+					let visibilityCondition: SQL<unknown> | undefined;
+					if (website.isPublic) {
+						if (context.user) {
+							// Show public annotations OR user's own annotations
+							visibilityCondition = or(
+								eq(annotations.isPublic, true),
+								eq(annotations.createdBy, context.user.id)
+							);
+						} else {
+							// Unauthenticated users on public websites only see public annotations
+							visibilityCondition = eq(annotations.isPublic, true);
+						}
+					}
+
+					const whereCondition = visibilityCondition
+						? and(...baseConditions, visibilityCondition)
+						: and(...baseConditions);
 
 					return context.db
 						.select()
 						.from(annotations)
-						.where(
-							and(
-								eq(annotations.websiteId, input.websiteId),
-								eq(annotations.chartType, input.chartType),
-								isNull(annotations.deletedAt)
-							)
-						)
+						.where(whereCondition)
 						.orderBy(desc(annotations.createdAt));
 				},
 			});
@@ -141,7 +186,21 @@ export const annotationsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await authorizeWebsiteAccess(context, input.websiteId, "update");
+			const website = await authorizeWebsiteAccess(
+				context,
+				input.websiteId,
+				"update"
+			);
+
+			if (website.isPublic) {
+				const hasPermission = await hasWebsiteUpdatePermission(context, website);
+				if (!hasPermission) {
+					throw new ORPCError("FORBIDDEN", {
+						message:
+							"You cannot create annotations on public websites unless you own them.",
+					});
+				}
+			}
 
 			const annotationId = crypto.randomUUID();
 			const [newAnnotation] = await context.db
@@ -193,11 +252,23 @@ export const annotationsRouter = {
 				});
 			}
 
-			await authorizeWebsiteAccess(
+			const annotation = existingAnnotation[0];
+
+			// Users can only update their own annotations, unless they own the website
+			const website = await authorizeWebsiteAccess(
 				context,
-				existingAnnotation[0].websiteId,
-				"update"
+				annotation.websiteId,
+				"read"
 			);
+
+			const hasPermission = await hasWebsiteUpdatePermission(context, website);
+
+			// If user doesn't own website, they can only update their own annotations
+			if (!hasPermission && annotation.createdBy !== context.user.id) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "You can only update your own annotations.",
+				});
+			}
 
 			const [updatedAnnotation] = await context.db
 				.update(annotations)
@@ -230,11 +301,23 @@ export const annotationsRouter = {
 				});
 			}
 
-			await authorizeWebsiteAccess(
+			const annotation = existingAnnotation[0];
+
+			// Users can only delete their own annotations, unless they own the website
+			const website = await authorizeWebsiteAccess(
 				context,
-				existingAnnotation[0].websiteId,
-				"update"
+				annotation.websiteId,
+				"read"
 			);
+
+			const hasPermission = await hasWebsiteUpdatePermission(context, website);
+
+			// If user doesn't own website, they can only delete their own annotations
+			if (!hasPermission && annotation.createdBy !== context.user.id) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "You can only delete your own annotations.",
+				});
+			}
 
 			await context.db
 				.update(annotations)
