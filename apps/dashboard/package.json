@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev -p 3000",
-    "build": "next build",
+    "build": "bun run --bun next build",
     "start": "next start -p 3000",
     "typecheck": "tsgo --noEmit"
   },
