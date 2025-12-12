@@ -5,9 +5,9 @@ await build({
     outdir: "./dist",
     target: "bun",
     format: "esm",
-    splitting: false,
-    minify: false,
-    sourcemap: "external",
+    splitting: true,
+    minify: true,
+    sourcemap: "none",
 });
 
 console.log("✅ Cache package built successfully!");

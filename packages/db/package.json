@@ -15,6 +15,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@types/sqlstring": "^2.3.2",
     "drizzle-orm": "^0.45.1",
+    "ioredis": "^5.8.2",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"
   },

@@ -22,16 +22,16 @@ bun add @databuddy/cache drizzle-orm
 
 ## Quick Start
 
-### Basic Usage with Bun's RedisClient
+### Basic Usage with ioredis
 
 ```typescript
-import { RedisClient } from "bun";
+import Redis from "ioredis";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { RedisDrizzleCache } from "@databuddy/cache";
 import * as schema from "./schema";
 
 // Create Redis client
-const redis = new RedisClient(process.env.REDIS_URL!);
+const redis = new Redis(process.env.REDIS_URL!);
 
 // Create cache instance
 const cache = new RedisDrizzleCache({
@@ -71,11 +71,17 @@ type RedisCacheConfig = {
 
 #### redis
 
-The Redis client instance. Currently supports Bun's `RedisClient` which must implement the following methods:
+The Redis client instance from ioredis. Must be a connected `Redis` instance.
 
+```typescript
+import Redis from "ioredis";
+const redis = new Redis(process.env.REDIS_URL!);
+```
+
+The client must support the following methods:
 - `get(key: string): Promise<string | null>` - Retrieve a value from Redis
 - `setex(key: string, seconds: number, value: string): Promise<unknown>` - Set a value with TTL
-- `unlink(...keys: string[]): Promise<unknown>` - Delete one or more keys
+- `unlink(...keys: string[]): Promise<unknown>` - Delete one or more keys (falls back to `del` if unavailable)
 
 #### defaultTtl
 
@@ -263,12 +269,12 @@ Invalidates cache entries when mutations occur. Called automatically by Drizzle 
 ### Basic Setup
 
 ```typescript
-import { RedisClient } from "bun";
+import Redis from "ioredis";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { RedisDrizzleCache } from "@databuddy/cache";
 import { users, posts } from "./schema";
 
-const redis = new RedisClient(process.env.REDIS_URL!);
+const redis = new Redis(process.env.REDIS_URL!);
 
 const cache = new RedisDrizzleCache({
     redis,
@@ -356,8 +362,7 @@ const config: RedisCacheConfig = {
 ## Requirements
 
 - Drizzle ORM ^0.45.1
-- Bun runtime
-- Bun's RedisClient
+- ioredis ^5.8.2
 - A Redis server (local or remote)
 
 ## License

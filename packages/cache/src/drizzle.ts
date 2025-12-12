@@ -1,7 +1,7 @@
-import type { RedisClient } from "bun";
 import { getTableName, is, Table } from "drizzle-orm";
 import { Cache } from "drizzle-orm/cache/core";
 import type { CacheConfig } from "drizzle-orm/cache/core/types";
+import type Redis from "ioredis";
 
 /**
  * Configuration options for creating a Redis-based Drizzle cache instance.
@@ -22,15 +22,16 @@ import type { CacheConfig } from "drizzle-orm/cache/core/types";
  */
 export type RedisCacheConfig = {
     /**
-     * Redis client instance from Bun.
-     * Must be a connected RedisClient instance.
+     * Redis client instance from ioredis.
+     * Must be a connected Redis instance.
      *
      * @example
      * ```typescript
-     * const redis = new RedisClient("redis://localhost:6379");
+     * import Redis from "ioredis";
+     * const redis = new Redis("redis://localhost:6379");
      * ```
      */
-    redis: RedisClient;
+    redis: Redis;
     /**
      * Default time-to-live for cached entries in seconds.
      * Used when no explicit TTL is provided via CacheConfig.
@@ -83,19 +84,19 @@ export type RedisCacheConfig = {
 /**
  * Redis-based cache implementation for Drizzle ORM.
  *
- * This cache extends Drizzle's base Cache class and uses Redis (via Bun's RedisClient)
+ * This cache extends Drizzle's base Cache class and uses Redis (via ioredis)
  * to store and retrieve query results. It automatically invalidates cache entries
  * when mutations occur on tracked tables.
  *
  * @example
  * ```typescript
- * import { RedisClient } from "bun";
+ * import Redis from "ioredis";
  * import { drizzle } from "drizzle-orm/node-postgres";
  * import { RedisDrizzleCache } from "@databuddy/cache";
  * import { users } from "./schema";
  *
  * // Create Redis client
- * const redis = new RedisClient(process.env.REDIS_URL!);
+ * const redis = new Redis(process.env.REDIS_URL!);
  *
  * // Create cache instance
  * const cache = new RedisDrizzleCache({
@@ -139,7 +140,7 @@ export type RedisCacheConfig = {
  * ```
  */
 export class RedisDrizzleCache extends Cache {
-    private readonly redis: RedisClient;
+    private readonly redis: Redis;
     private readonly defaultTtl: number;
     private readonly namespace: string;
     private readonly _strategy: "explicit" | "all";
@@ -153,8 +154,10 @@ export class RedisDrizzleCache extends Cache {
      *
      * @example
      * ```typescript
+     * import Redis from "ioredis";
+     * const redis = new Redis("redis://localhost:6379");
      * const cache = new RedisDrizzleCache({
-     *   redis: new RedisClient("redis://localhost:6379"),
+     *   redis,
      *   defaultTtl: 300,
      *   strategy: "all",
      *   namespace: "drizzle:db"
@@ -386,13 +389,17 @@ export class RedisDrizzleCache extends Cache {
             // Delete by tags (if tags are used, you might want to track them separately)
             for (const tag of tagsArray) {
                 const tagKey = this.formatKey(`tag:${tag}`);
-                deletePromises.push(this.redis.unlink(tagKey));
+                deletePromises.push(
+                    this.redis.unlink(tagKey).catch(() => this.redis.del(tagKey))
+                );
             }
 
             // Delete cache entries
             for (const key of keysToDelete) {
                 const cacheKey = this.formatKey(key);
-                deletePromises.push(this.redis.unlink(cacheKey));
+                deletePromises.push(
+                    this.redis.unlink(cacheKey).catch(() => this.redis.del(cacheKey))
+                );
             }
 
             // Clean up tracking for affected tables
@@ -478,4 +485,3 @@ export class RedisDrizzleCache extends Cache {
         return this.defaultTtl;
     }
 }
-

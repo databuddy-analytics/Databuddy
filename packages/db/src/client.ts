@@ -1,9 +1,9 @@
 /** biome-ignore-all lint/performance/noNamespaceImport: "Required" */
 
 import { RedisDrizzleCache } from "@databuddy/cache";
-import { RedisClient } from "bun";
 import type { Cache } from "drizzle-orm/cache/core/cache";
 import { drizzle } from "drizzle-orm/node-postgres";
+import Redis from "ioredis";
 import * as relations from "./drizzle/relations";
 import * as schema from "./drizzle/schema";
 
@@ -17,7 +17,7 @@ if (!databaseUrl) {
 
 const cache = process.env.REDIS_URL
 	? new RedisDrizzleCache({
-		redis: new RedisClient(process.env.REDIS_URL ?? ""),
+		redis: new Redis(process.env.REDIS_URL ?? ""),
 		defaultTtl: 300, // 5 minutes default
 		strategy: "all", // Cache all queries by default
 		namespace: "drizzle:db",

@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/cache",
-  "version": "0.0.1",
+  "version": "0.0.100",
   "type": "module",
   "private": false,
   "main": "./dist/drizzle.js",
@@ -15,10 +15,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun run build.ts"
+    "build": "rm -rf dist && bun run build.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.1"
+    "drizzle-orm": "^0.45.1",
+    "ioredis": "^5.8.2"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
