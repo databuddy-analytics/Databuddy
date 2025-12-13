@@ -134,10 +134,12 @@ function renderMessagePart(
 	partIndex: number,
 	messageId: string,
 	isLastMessage: boolean,
-	isStreaming: boolean
+	isStreaming: boolean,
+	role: UIMessage["role"]
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
+	const mode = role === "user" ? "static" : "streaming";
 
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
@@ -176,7 +178,7 @@ function renderMessagePart(
 		}
 
 		return (
-			<MessageResponse isAnimating={isCurrentlyStreaming} key={key}>
+			<MessageResponse isAnimating={isCurrentlyStreaming} key={key} mode={mode}>
 				{textPart.text}
 			</MessageResponse>
 		);
@@ -238,7 +240,8 @@ export function AgentMessages({
 									partIndex,
 									message.id,
 									isLastMessage,
-									isStreaming
+									isStreaming,
+									message.role
 								)
 							)}
 
