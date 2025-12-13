@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/cache",
-  "version": "0.0.114",
+  "version": "0.0.120",
   "description": "A generic caching implementation for Drizzle ORM that provides automatic query result caching and intelligent cache invalidation",
   "type": "module",
   "private": false,

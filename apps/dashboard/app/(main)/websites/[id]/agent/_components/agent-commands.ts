@@ -167,20 +167,3 @@ export function getToolMessage(toolName: string | null): string | null {
 
 	return messages[toolName] ?? `Running ${toolName}...`;
 }
-
-export function getStatusMessage(status: string | null): string | null {
-	if (!status) {
-		return null;
-	}
-
-	const messages: Record<string, string> = {
-		routing: "Routing request...",
-		thinking: "Thinking...",
-		analyzing: "Analyzing data...",
-		searching: "Searching...",
-		generating: "Generating response...",
-		visualizing: "Creating visualization...",
-	};
-
-	return messages[status] ?? null;
-}
