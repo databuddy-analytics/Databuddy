@@ -1,6 +1,6 @@
-import { useChatActions } from "@ai-sdk-tools/store";
 import { useAtom } from "jotai";
 import { useCallback, useMemo, useRef } from "react";
+import { useChat } from "@/contexts/chat-context";
 import type { AgentCommand } from "../agent-atoms";
 import {
 	agentInputAtom,
@@ -15,7 +15,7 @@ export function useAgentCommands() {
 	const [commandQuery, setCommandQuery] = useAtom(commandQueryAtom);
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const { sendMessage } = useChatActions();
+	const { sendMessage } = useChat();
 
 	const filteredCommands = useMemo(
 		() => filterCommands(commandQuery),

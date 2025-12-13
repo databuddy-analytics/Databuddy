@@ -1,8 +1,8 @@
 import type { UIMessage } from "ai";
 import { Suspense } from "react";
+import { ChatProvider } from "@/contexts/chat-context";
 import { getServerRPCClient } from "@/lib/orpc-server";
 import { AgentPageClient } from "../_components/agent-page-client";
-import { ChatProviderWrapper } from "../_components/chat-provider-wrapper";
 
 type Props = {
 	params: Promise<{ id: string; chatId: string }>;
@@ -23,15 +23,11 @@ export default async function AgentPage(props: Props) {
 
 	return (
 		// <FeatureGate feature={GATED_FEATURES.AI_AGENT}>
-		<ChatProviderWrapper chatId={chatId} initialMessages={initialMessages}>
+		<ChatProvider chatId={chatId} initialMessages={initialMessages}>
 			<Suspense fallback={<AgentPageSkeleton />}>
-				<AgentPageClient
-					chatId={chatId}
-					initialMessages={initialMessages}
-					websiteId={id}
-				/>
+				<AgentPageClient chatId={chatId} websiteId={id} />
 			</Suspense>
-		</ChatProviderWrapper>
+		</ChatProvider>
 		// </FeatureGate>
 	);
 }

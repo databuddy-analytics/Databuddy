@@ -1,11 +1,10 @@
 "use client";
 
-import { useChatActions } from "@ai-sdk-tools/store";
 import { PaperPlaneRightIcon, StopIcon } from "@phosphor-icons/react";
-import type { ChatStatus } from "ai";
 import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useChat } from "@/contexts/chat-context";
 import { useEnterSubmit } from "@/hooks/use-enter-submit";
 import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
@@ -13,8 +12,8 @@ import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
 import { useAgentCommands } from "./hooks/use-agent-commands";
 
-export function AgentInput({ status }: { status: ChatStatus }) {
-	const { sendMessage, stop } = useChatActions();
+export function AgentInput() {
+	const { sendMessage, stop, status } = useChat();
 	const isLoading = status === "streaming" || status === "submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
 	const agentCommands = useAgentCommands();
