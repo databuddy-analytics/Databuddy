@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
-    "@databuddy/cache": "workspace:*",
+    "@databuddy/cache": "latest",
     "@faker-js/faker": "^9.9.0",
     "@neondatabase/serverless": "^1.0.2",
     "@types/sqlstring": "^2.3.2",
