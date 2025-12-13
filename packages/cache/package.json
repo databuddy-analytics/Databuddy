@@ -1,15 +1,15 @@
 {
   "name": "@databuddy/cache",
-  "version": "0.0.112",
+  "version": "0.0.114",
   "description": "A generic caching implementation for Drizzle ORM that provides automatic query result caching and intelligent cache invalidation",
   "type": "module",
   "private": false,
-  "main": "./dist/drizzle.js",
+  "main": "./dist/drizzle.mjs",
   "types": "./dist/drizzle.d.ts",
   "exports": {
     ".": {
       "types": "./dist/drizzle.d.ts",
-      "default": "./dist/drizzle.js"
+      "default": "./dist/drizzle.mjs"
     }
   },
   "files": [
@@ -17,7 +17,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rm -rf dist && bun run build.ts"
+    "build": "rm -rf dist && unbuild",
+    "vscode:prepublish": "bun run build"
   },
   "keywords": [
     "cache",
@@ -41,11 +42,11 @@
     "url": "https://github.com/databuddy-analytics/databuddy/issues"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.1",
-    "ioredis": "^5.8.2"
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "unbuild": "^3.6.1"
   },
   "publishConfig": {
     "access": "public"
