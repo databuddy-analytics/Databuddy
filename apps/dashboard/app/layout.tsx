@@ -128,7 +128,7 @@ export default function RootLayout({
 				trackPerformance={true}
 				trackWebVitals={true}
 			/>
-			<body className="flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
+			<body className="root flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
 				<Providers>
 					<main className="flex-1">{children}</main>
 				</Providers>

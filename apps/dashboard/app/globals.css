@@ -301,7 +301,10 @@
    Root Variables
    ========================================================================== */
 
-
+.root {
+  isolation: isolate;
+}
+   
 :root {
 
   --background: oklch(0.99 0.005 240);
@@ -525,6 +528,7 @@
     line-height: 1.6;
     min-height: 100vh;
     overflow-x: hidden;
+    position: relative;
   }
 
   p {
@@ -619,51 +623,16 @@
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-/* Enhanced scrollbar for specific containers */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
-}
-
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
 @media (max-width: 768px) {
-  /* Smooth scrolling on mobile */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
   }
 
-  /* Edge swipe indicator */
-  @keyframes swipe-hint {
-    0% {
-      transform: translateX(-100%) translateY(-50%);
-    }
-    50% {
-      transform: translateX(0) translateY(-50%);
-    }
-    100% {
-      transform: translateX(-100%) translateY(-50%);
-    }
-  }
-
-  .swipe-hint-animation {
-    animation: swipe-hint 2s ease-in-out infinite;
-  }
-
-  /* Mobile-specific typography */
   body {
     font-size: 16px; /* Prevent zoom on iOS */
   }
 
-  /* Improved mobile forms */
   input,
   textarea,
   select {
@@ -675,14 +644,6 @@
   background-color: var(--accent-foreground);
   color: var(--accent);
 }
-
-/* Tablet optimizations */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .tablet-optimized {
-    padding: 1.5rem;
-  }
-}
-
 /* ==========================================================================
    Accessibility & User Preferences
    ========================================================================== */
@@ -696,26 +657,5 @@
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
     scroll-behavior: auto;
-  }
-
-  .sidebar-transition {
-    transition: none;
-  }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  :root {
-    --border: oklch(0.5 0 0);
-    --ring: oklch(0.3 0 0);
-  }
-
-  .dark {
-    --border: oklch(0.7 0 0);
-    --ring: oklch(0.8 0 0);
-  }
-
-  .sidebar-backdrop {
-    background-color: rgba(0, 0, 0, 0.8);
   }
 }
