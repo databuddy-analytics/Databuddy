@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChatStatus, UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
 	ChainOfThought,
@@ -19,6 +19,7 @@ import {
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useChat } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
 import { useChatStatus } from "./hooks/use-chat-status";
 
@@ -203,13 +204,8 @@ function renderMessagePart(
 	return null;
 }
 
-export function AgentMessages({
-	status,
-	messages,
-}: {
-	status: ChatStatus;
-	messages: UIMessage[];
-}) {
+export function AgentMessages() {
+	const { status, messages } = useChat();
 	const hasError = status === "error";
 	const chatStatus = useChatStatus(messages, status);
 	const isStreaming = status === "streaming" || status === "submitted";

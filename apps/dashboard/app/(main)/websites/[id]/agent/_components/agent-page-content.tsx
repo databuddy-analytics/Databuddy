@@ -68,7 +68,7 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const { status, messages } = useChat();
+	const { messages } = useChat();
 
 	const hasMessages = messages.length > 0;
 
@@ -113,7 +113,7 @@ function AgentPageContentInner({
 				<Conversation className="flex-1">
 					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
 						{hasMessages ? (
-							<AgentMessages messages={messages} status={status} />
+							<AgentMessages />
 						) : (
 							<ConversationEmptyState>
 								<WelcomeState onPromptSelect={setInputValue} />
@@ -123,7 +123,7 @@ function AgentPageContentInner({
 					<ConversationScrollButton />
 				</Conversation>
 
-				<AgentInput status={status} />
+				<AgentInput />
 			</div>
 		</div>
 	);

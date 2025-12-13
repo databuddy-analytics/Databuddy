@@ -37,3 +37,8 @@ export function useChat() {
 
 	return chat;
 }
+
+export function useChatStatus() {
+	const { status } = useChat();
+	return status;
+}
