@@ -1,7 +1,6 @@
 /** biome-ignore-all lint/performance/noNamespaceImport: "Required" */
 
 import { RedisDrizzleCache } from "@databuddy/cache";
-import type { Cache } from "drizzle-orm/cache/core/cache";
 import { drizzle } from "drizzle-orm/node-postgres";
 import Redis from "ioredis";
 import * as relations from "./drizzle/relations";
@@ -24,8 +23,8 @@ const cache = process.env.REDIS_URL
 	})
 	: undefined;
 
-// @ts-expect-error - cache is not a Cache instance
+// @ts-expect-error - cache is not a Cache instance	
 export const db = drizzle(databaseUrl, {
 	schema: fullSchema,
-	cache: cache as Cache,
+	cache,
 });
