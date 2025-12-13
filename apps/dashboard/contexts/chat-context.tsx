@@ -7,7 +7,7 @@ import { useAgentChatTransport } from "@/app/(main)/websites/[id]/agent/_compone
 
 type ChatContextType = ReturnType<typeof useAiSdkChat<UIMessage>>;
 
-const ChatContext = createContext<ChatContextType>({} as ChatContextType);
+const ChatContext = createContext<ChatContextType | null>(null);
 
 export function ChatProvider({
 	chatId,
