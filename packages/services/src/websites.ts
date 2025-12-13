@@ -321,11 +321,11 @@ export class WebsiteService {
 				userOrgPairs:
 					created.userId && created.organizationId
 						? [
-								{
-									userId: created.userId,
-									organizationId: created.organizationId,
-								},
-							]
+							{
+								userId: created.userId,
+								organizationId: created.organizationId,
+							},
+						]
 						: [],
 			});
 
@@ -519,11 +519,11 @@ export class WebsiteService {
 				userOrgPairs:
 					deleted.userId && deleted.organizationId
 						? [
-								{
-									userId: deleted.userId,
-									organizationId: deleted.organizationId,
-								},
-							]
+							{
+								userId: deleted.userId,
+								organizationId: deleted.organizationId,
+							},
+						]
 						: [],
 			});
 		} catch (error) {
