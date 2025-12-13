@@ -199,13 +199,13 @@ export function WebsiteDialog({
 										<FormLabel>Domain</FormLabel>
 										<FormControl>
 											<div className="flex items-center">
-												<span className="inline-flex h-9 items-center rounded-l-md border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
+												<span className="inline-flex h-9 items-center rounded-none border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
 													https://
 												</span>
 												<Input
 													placeholder="your-company.com"
 													{...field}
-													className="rounded-l-none"
+													className="rounded-l-none border border-border border-l-0"
 													onChange={(e) => {
 														let domain = e.target.value.trim();
 														if (
