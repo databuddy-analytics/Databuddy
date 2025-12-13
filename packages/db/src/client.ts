@@ -16,14 +16,14 @@ if (!databaseUrl) {
 
 const cache = process.env.REDIS_URL
 	? new RedisDrizzleCache({
-		redis: new Redis(process.env.REDIS_URL ?? ""),
-		defaultTtl: 300, // 5 minutes default
-		strategy: "all", // Cache all queries by default
-		namespace: "drizzle:db",
-	})
+			redis: new Redis(process.env.REDIS_URL ?? ""),
+			defaultTtl: 300, // 5 minutes default
+			strategy: "all", // Cache all queries by default
+			namespace: "drizzle:db",
+		})
 	: undefined;
 
-// @ts-expect-error - cache is not a Cache instance	
+// @ts-expect-error - cache is not a Cache instance
 export const db = drizzle(databaseUrl, {
 	schema: fullSchema,
 	cache,

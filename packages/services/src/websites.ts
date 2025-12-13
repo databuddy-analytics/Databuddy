@@ -317,17 +317,15 @@ export class WebsiteService {
 
 			await this.cache?.invalidateLists({
 				userIds: created.userId ? [created.userId] : [],
-				organizationIds: created.organizationId
-					? [created.organizationId]
-					: [],
+				organizationIds: created.organizationId ? [created.organizationId] : [],
 				userOrgPairs:
 					created.userId && created.organizationId
 						? [
-							{
-								userId: created.userId,
-								organizationId: created.organizationId,
-							},
-						]
+								{
+									userId: created.userId,
+									organizationId: created.organizationId,
+								},
+							]
 						: [],
 			});
 
@@ -341,14 +339,13 @@ export class WebsiteService {
 				throw error;
 			}
 			console.error("WebsiteService.create failed:", { error: String(error) });
-			throw new Error(`Failed to create website: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(
+				`Failed to create website: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
 	}
 
-	async updateById(
-		id: string,
-		updates: UpdateWebsiteInput
-	): Promise<Website> {
+	async updateById(id: string, updates: UpdateWebsiteInput): Promise<Website> {
 		const hasAtLeastOneUpdate = (() => {
 			for (const value of Object.values(updates)) {
 				if (value !== undefined) {
@@ -406,7 +403,8 @@ export class WebsiteService {
 				const scopeChanged =
 					before.organizationId !== updated.organizationId ||
 					before.userId !== updated.userId;
-				const domainChanged = before.domain.toLowerCase() !== updated.domain.toLowerCase();
+				const domainChanged =
+					before.domain.toLowerCase() !== updated.domain.toLowerCase();
 
 				if (scopeChanged || domainChanged) {
 					if (before.organizationId) {
@@ -481,7 +479,9 @@ export class WebsiteService {
 			console.error("WebsiteService.updateById failed:", {
 				error: String(error),
 			});
-			throw new Error(`Failed to update website: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(
+				`Failed to update website: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
 	}
 
@@ -519,11 +519,11 @@ export class WebsiteService {
 				userOrgPairs:
 					deleted.userId && deleted.organizationId
 						? [
-							{
-								userId: deleted.userId,
-								organizationId: deleted.organizationId,
-							},
-						]
+								{
+									userId: deleted.userId,
+									organizationId: deleted.organizationId,
+								},
+							]
 						: [],
 			});
 		} catch (error) {
@@ -537,10 +537,11 @@ export class WebsiteService {
 			console.error("WebsiteService.deleteById failed:", {
 				error: String(error),
 			});
-			throw new Error(`Failed to delete website: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(
+				`Failed to delete website: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
 	}
 }
 
 export const websiteService = new WebsiteService();
-
