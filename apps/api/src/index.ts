@@ -166,7 +166,7 @@ const app = new Elysia()
 
 export default {
 	fetch: app.fetch,
-	port: 3001,
+	port: Number.parseInt(process.env.PORT ?? "3001", 10),
 };
 
 process.on("SIGINT", async () => {

@@ -482,6 +482,7 @@
         "@databuddy/auth": "workspace:*",
         "@databuddy/db": "workspace:*",
         "@databuddy/redis": "workspace:*",
+        "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@databuddy/validation": "workspace:*",
         "@opentelemetry/api": "^1.9.0",

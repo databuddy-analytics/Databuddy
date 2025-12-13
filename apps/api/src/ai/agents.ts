@@ -1,13 +1,6 @@
 import { Agent } from "@ai-sdk-tools/agents";
 import type { AppContext } from "./config/context";
-import {
-	extendedMemoryConfig,
-	maxMemoryConfig,
-	memoryTools,
-	minimalMemoryConfig,
-	standardMemoryConfig,
-	withUserProfile,
-} from "./config/memory";
+
 import { models } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
 import { buildReflectionInstructions } from "./prompts/reflection";
@@ -17,7 +10,6 @@ import { executeQueryBuilderTool } from "./tools/execute-query-builder";
 import { executeSqlQueryTool } from "./tools/execute-sql-query";
 import { createFunnelTools } from "./tools/funnels";
 import { getTopPagesTool } from "./tools/get-top-pages";
-import { competitorAnalysisTool, webSearchTool } from "./tools/web-search";
 
 /**
  * Creates analytics tools with context-aware funnels tools.
@@ -44,22 +36,10 @@ function createAnalyticsTools(context: {
 		get_top_pages: getTopPagesTool,
 		execute_query_builder: executeQueryBuilderTool,
 		execute_sql_query: executeSqlQueryTool,
-		web_search: webSearchTool,
-		competitor_analysis: competitorAnalysisTool,
 		...funnelTools,
 		...annotationTools,
-		...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
 	} as const;
 }
-
-/**
- * Tools available to triage agent.
- */
-const triageTools = {
-	web_search: webSearchTool,
-	competitor_analysis: competitorAnalysisTool,
-	...(Object.keys(memoryTools).length > 0 ? memoryTools : {}),
-} as const;
 
 /**
  * Creates an analytics specialist agent with user-specific memory.
@@ -82,11 +62,10 @@ export function createAnalyticsAgent(
 
 	return new Agent({
 		name: "analytics",
-		model: withUserProfile(models.analytics, userId),
+		model: models.analytics,
 		temperature: 0.3,
 		instructions: buildAnalyticsInstructions,
 		tools,
-		memory: standardMemoryConfig,
 		modelSettings: {
 			failureMode: {
 				maxAttempts: 2,
@@ -113,19 +92,16 @@ export const createReflectionAgent = (
 ) => {
 	const config = {
 		standard: {
-			model: withUserProfile(models.advanced, userId),
+			model: models.advanced,
 			maxTurns: 15,
-			memory: extendedMemoryConfig, // 30 messages for Sonnet
 		},
 		haiku: {
-			model: withUserProfile(models.analytics, userId),
+			model: models.analytics,
 			maxTurns: 15,
-			memory: standardMemoryConfig, // 20 messages for Haiku
 		},
 		max: {
-			model: withUserProfile(models.advanced, userId),
+			model: models.advanced,
 			maxTurns: 20,
-			memory: maxMemoryConfig, // 40 messages for deep investigations
 		},
 	}[variant];
 
@@ -160,11 +136,9 @@ export function createTriageAgent(
 ) {
 	return new Agent({
 		name: "triage",
-		model: withUserProfile(models.triage, userId),
+		model: models.triage,
 		temperature: 0.1,
 		instructions: buildTriageInstructions,
-		tools: triageTools,
-		memory: minimalMemoryConfig,
 		modelSettings: {
 			toolChoice: {
 				type: "tool",
