@@ -1,7 +1,6 @@
 import { getTableName, is, Table } from "drizzle-orm";
 import { Cache } from "drizzle-orm/cache/core";
 import type { CacheConfig } from "drizzle-orm/cache/core/types";
-import type Redis from "ioredis";
 
 /**
  * Configuration options for creating a Redis-based Drizzle cache instance.
@@ -22,8 +21,8 @@ import type Redis from "ioredis";
  */
 export type RedisCacheConfig = {
     /**
-     * Redis client instance from ioredis.
-     * Must be a connected Redis instance.
+     * Cache client instance.
+     * Can be any cache implementation that supports get, setex, unlink, and del methods.
      *
      * @example
      * ```typescript
@@ -31,7 +30,7 @@ export type RedisCacheConfig = {
      * const redis = new Redis("redis://localhost:6379");
      * ```
      */
-    redis: Redis;
+    redis: any;
     /**
      * Default time-to-live for cached entries in seconds.
      * Used when no explicit TTL is provided via CacheConfig.
@@ -140,7 +139,7 @@ export type RedisCacheConfig = {
  * ```
  */
 export class RedisDrizzleCache extends Cache {
-    private readonly redis: Redis;
+    private readonly redis: any;
     private readonly defaultTtl: number;
     private readonly namespace: string;
     private readonly _strategy: "explicit" | "all";

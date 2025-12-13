@@ -7,7 +7,7 @@ await build({
     format: "esm",
     splitting: true,
     minify: true,
-    sourcemap: "none",
+    sourcemap: "external",
 });
 
 console.log("✅ Cache package built successfully!");

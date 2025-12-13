@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/cache",
-  "version": "0.0.100",
+  "version": "0.0.110",
   "type": "module",
   "private": false,
   "main": "./dist/drizzle.js",

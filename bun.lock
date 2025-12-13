@@ -396,7 +396,7 @@
     },
     "packages/cache": {
       "name": "@databuddy/cache",
-      "version": "0.0.10",
+      "version": "0.0.100",
       "dependencies": {
         "drizzle-orm": "^0.45.1",
         "ioredis": "^5.8.2",
