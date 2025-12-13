@@ -18,7 +18,7 @@ export function ChatProvider({
 	initialMessages: UIMessage[];
 	children: React.ReactNode;
 }) {
-	const transport = useAgentChatTransport();
+	const transport = useAgentChatTransport(chatId);
 	const chat = useAiSdkChat<UIMessage>({
 		id: chatId,
 		transport,
