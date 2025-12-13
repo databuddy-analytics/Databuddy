@@ -8,7 +8,7 @@ import { protectedProcedure } from "../orpc";
 import { authorizeWebsiteAccess } from "../utils/auth";
 
 if (!process.env.UPSTASH_QSTASH_TOKEN) {
-	throw new Error("UPSTASH_QSTASH_TOKEN environment variable is required");
+	logger.error("UPSTASH_QSTASH_TOKEN environment variable is required");
 }
 
 const client = new Client({
