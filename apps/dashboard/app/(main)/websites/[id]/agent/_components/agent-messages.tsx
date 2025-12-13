@@ -134,7 +134,8 @@ function renderMessagePart(
 	partIndex: number,
 	messageId: string,
 	isLastMessage: boolean,
-	isStreaming: boolean
+	isStreaming: boolean,
+	role: UIMessage["role"]
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
@@ -176,7 +177,11 @@ function renderMessagePart(
 		}
 
 		return (
-			<MessageResponse isAnimating={isCurrentlyStreaming} key={key}>
+			<MessageResponse
+				isAnimating={isCurrentlyStreaming}
+				key={key}
+				mode={role === "user" ? "static" : "streaming"}
+			>
 				{textPart.text}
 			</MessageResponse>
 		);
@@ -238,7 +243,8 @@ export function AgentMessages({
 									partIndex,
 									message.id,
 									isLastMessage,
-									isStreaming
+									isStreaming,
+									message.role
 								)
 							)}
 
