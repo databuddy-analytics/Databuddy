@@ -139,6 +139,7 @@ function renderMessagePart(
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
+	const mode = role === "user" ? "static" : "streaming";
 
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
@@ -177,11 +178,7 @@ function renderMessagePart(
 		}
 
 		return (
-			<MessageResponse
-				isAnimating={isCurrentlyStreaming}
-				key={key}
-				mode={role === "user" ? "static" : "streaming"}
-			>
+			<MessageResponse isAnimating={isCurrentlyStreaming} key={key} mode={mode}>
 				{textPart.text}
 			</MessageResponse>
 		);
