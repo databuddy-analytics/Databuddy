@@ -139,7 +139,7 @@ function renderMessagePart(
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
-	const mode = role === "user" ? "static" : "streaming";
+	const mode = (role === "user" || !isCurrentlyStreaming) ? "static" : "streaming";
 
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
