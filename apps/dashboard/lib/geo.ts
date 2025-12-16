@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-const countriesGeoUrl = "/countries.json";
+const countriesGeoUrl = "/countries.geojson";
 const subdivisionsGeoUrl = "/subdivisions.json";
 
 export type Subdivisions = {
