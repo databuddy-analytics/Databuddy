@@ -36,6 +36,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user-avatar";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useProfilesData } from "@/hooks/use-dynamic-query";
@@ -253,16 +258,7 @@ export default function UsersPage() {
 						const url = new URL(referrer);
 						const hostname = url.hostname.replace(wwwRegex, "");
 
-						return (
-							<div className="flex min-w-0 max-w-[100px] items-center gap-1.5">
-								<FaviconImage
-									className="shrink-0 rounded-sm"
-									domain={hostname}
-									size={14}
-								/>
-								<span className="truncate text-sm">{hostname}</span>
-							</div>
-						);
+						return <Source referrer={hostname} />;
 					} catch {
 						return (
 							<span className="block max-w-[100px] truncate text-sm">
@@ -502,3 +498,27 @@ export default function UsersPage() {
 		</div>
 	);
 }
+
+const Source = ({ referrer }: { referrer: string }) => {
+	const [isTextTruncated, setIsTextTruncated] = useState(false);
+
+	const checkTextOverflow = (node: HTMLSpanElement | null) => {
+		if (node) {
+			setIsTextTruncated(node.scrollWidth > node.clientWidth);
+		}
+	};
+
+	return (
+		<div className="flex min-w-0 max-w-[100px] items-center gap-1.5">
+			<FaviconImage domain={referrer} size={14} />
+			<Tooltip open={isTextTruncated ? undefined : false}>
+				<TooltipTrigger asChild>
+					<span className="truncate text-sm" ref={checkTextOverflow}>
+						{referrer}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="right">{referrer}</TooltipContent>
+			</Tooltip>
+		</div>
+	);
+};
