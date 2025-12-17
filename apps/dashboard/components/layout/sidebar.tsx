@@ -8,7 +8,10 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAccordionStates } from "@/hooks/use-persistent-state";
+import {
+	useAccordionStates,
+	usePersistentState,
+} from "@/hooks/use-persistent-state";
 import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { CategorySidebar } from "./category-sidebar";
@@ -31,22 +34,12 @@ type NavigationConfig = {
 	currentWebsiteId?: string | null;
 };
 
-type User = {
-	name?: string | null;
-	email?: string | null;
-	image?: string | null;
-};
-
-type SidebarProps = {
-	user: User;
-};
-
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar() {
 	const pathname = usePathname();
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
-	const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
-		undefined
-	);
+	const [selectedCategory, setSelectedCategory] = usePersistentState<
+		string | undefined
+	>("sidebar-selected-category", undefined);
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
 	const accordionStates = useAccordionStates();
 	const sidebarRef = useRef<HTMLDivElement>(null);
@@ -159,10 +152,6 @@ export function Sidebar({ user }: SidebarProps) {
 	}, [isMobileOpen, closeSidebar]);
 
 	useEffect(() => {
-		setSelectedCategory(undefined);
-	}, [pathname]);
-
-	useEffect(() => {
 		if (isMobileOpen && sidebarRef.current) {
 			const firstFocusableElement = sidebarRef.current.querySelector(
 				'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -220,7 +209,6 @@ export function Sidebar({ user }: SidebarProps) {
 				<CategorySidebar
 					onCategoryChangeAction={setSelectedCategory}
 					selectedCategory={selectedCategory}
-					user={user}
 				/>
 			</div>
 

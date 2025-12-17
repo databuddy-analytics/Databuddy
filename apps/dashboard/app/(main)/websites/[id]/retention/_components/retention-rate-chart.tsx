@@ -49,6 +49,12 @@ function CustomTooltip({
 		return null;
 	}
 
+	const totalUsers = data.new_users + data.returning_users;
+	const returningPercentage =
+		totalUsers > 0 ? (data.returning_users / totalUsers) * 100 : 0;
+	const newPercentage =
+		totalUsers > 0 ? (data.new_users / totalUsers) * 100 : 0;
+
 	return (
 		<div className="min-w-[180px] rounded border border-border bg-popover p-2.5 shadow-lg">
 			<div className="mb-2 font-semibold text-foreground text-sm">
@@ -136,7 +142,7 @@ export function RetentionRateChart({
 	}
 
 	return (
-		<div className="flex h-full flex-col gap-3 p-4">
+		<div className="flex h-full flex-col gap-3">
 			{/* Legend */}
 			<div className="flex items-center gap-4">
 				<div className="flex items-center gap-2">

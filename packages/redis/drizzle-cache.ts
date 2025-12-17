@@ -54,7 +54,7 @@ export function createDrizzleCache({
 	) {
 		const start = Date.now();
 		try {
-			await redis.setex(cacheKey, ttl, JSON.stringify(result));
+			await redis.set(cacheKey, JSON.stringify(result), "EX", ttl);
 			const duration = Date.now() - start;
 			debugLog("info", `SET: ${cacheKey} (${duration}ms, ttl=${ttl}s)`);
 		} catch (error) {

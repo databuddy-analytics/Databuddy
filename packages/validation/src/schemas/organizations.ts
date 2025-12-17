@@ -29,13 +29,7 @@ export const organizationSlugSchema = z
 
 export const organizationLogoSchema = z
 	.string()
-	.refine(
-		(val) => {
-			if (!val) return true;
-			return val.startsWith("data:") || val.startsWith("http://") || val.startsWith("https://");
-		},
-		"Logo must be a valid data URL (base64) or URL"
-	)
+	.url("Logo must be a valid URL")
 	.optional();
 
 export const createOrganizationSchema = z.object({

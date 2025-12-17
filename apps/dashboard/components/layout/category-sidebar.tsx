@@ -23,7 +23,7 @@ import {
 	getContextConfig,
 	getDefaultCategory,
 } from "./navigation/navigation-config";
-import { ProfileButtonClient } from "./profile-button-client";
+import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
 const HelpDialog = dynamic(
@@ -34,22 +34,14 @@ const HelpDialog = dynamic(
 	}
 );
 
-type User = {
-	name?: string | null;
-	email?: string | null;
-	image?: string | null;
-};
-
 type CategorySidebarProps = {
 	onCategoryChangeAction?: (categoryId: string) => void;
 	selectedCategory?: string;
-	user: User;
 };
 
 export function CategorySidebar({
 	onCategoryChangeAction,
 	selectedCategory,
-	user,
 }: CategorySidebarProps) {
 	const pathname = usePathname();
 	const { websites, isLoading: isLoadingWebsites } = useWebsites();
@@ -111,34 +103,29 @@ export function CategorySidebar({
 					const Icon = category.icon;
 					const isActive = activeCategory === category.id;
 					const isLast = idx === categories.length - 1;
-					// biome-ignore lint/nursery/noLeakedRender: FUCK ULTRACITE BRO THIS MAKES NO SENSE
-					const borderClass = isActive && !isLast ? "border-accent" : "";
-					const hoverClass = isActive ? "" : "hover:bg-sidebar-accent-brighter";
-					const boxClass = isLast
-						? "box-content border-border border-b"
-						: "box-content border-transparent";
-
 					return (
 						<Tooltip delayDuration={500} key={category.id}>
 							<TooltipTrigger asChild>
 								<button
 									className={cn(
-										borderClass,
+										isActive && !isLast && "border-accent",
 										"relative flex h-10 w-full cursor-pointer items-center justify-center",
 										"focus:outline-none",
-										hoverClass,
-										boxClass
+										!isActive && "hover:bg-sidebar-accent-brighter",
+										isLast
+											? "box-content border-border border-b"
+											: "box-content border-transparent"
 									)}
 									onClick={() => onCategoryChangeAction?.(category.id)}
 									type="button"
 								>
-									{isActive ? (
+									{isActive && (
 										<div
 											className={cn(
 												"absolute top-0 left-0 z-[-1] box-border h-full w-full bg-sidebar-accent-brighter"
 											)}
 										/>
-									) : null}
+									)}
 									<Icon
 										className={cn(
 											"size-5",
@@ -174,12 +161,12 @@ export function CategorySidebar({
 							type="button"
 							variant="ghost"
 						>
-							<InfoIcon className="size-5" weight="duotone" />
+							<InfoIcon className="size-4" weight="duotone" />
 						</Button>
 					</div>
 
 					<div className="flex justify-center">
-						<ProfileButtonClient user={user} />
+						<SignOutButton />
 					</div>
 				</div>
 

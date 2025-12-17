@@ -22,32 +22,31 @@ export const NoticeBanner = ({
 		)}
 	>
 		<div className="flex w-full flex-wrap items-center justify-between gap-5">
-			{description || title || icon ? (
+			{(description || title || icon) && (
 				<div className="flex flex-1 items-center gap-2">
-					{icon
-						? cloneElement(icon, {
-								...icon.props,
-								className: cn("text-accent", icon.props.className),
-								"aria-hidden": true,
-								weight: "fill",
-								size: 20,
-							})
-						: null}
+					{icon &&
+						cloneElement(icon, {
+							...icon.props,
+							className: cn("text-accent", icon.props.className),
+							"aria-hidden": true,
+							weight: "fill",
+							size: 20,
+						})}
 					<div className="flex flex-1 flex-col">
-						{title ? (
+						{title && (
 							<h3 className="font-medium text-accent-brighter text-sm">
 								{title}
 							</h3>
-						) : null}
-						{description ? (
+						)}
+						{description && (
 							<p className="text-nowrap text-accent-brighter/80 text-xs">
 								{description}
 							</p>
-						) : null}
+						)}
 					</div>
 				</div>
-			) : null}
-			{children ? children : null}
+			)}
+			{children}
 		</div>
 	</div>
 );

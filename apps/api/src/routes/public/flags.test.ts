@@ -6,6 +6,7 @@ import {
 	evaluateValueRule,
 	hashString,
 	parseProperties,
+	selectVariant,
 } from "./flags";
 
 const ROLLOUT_REASON_REGEX = /ROLLOUT_(ENABLED|DISABLED)/;
@@ -450,6 +451,131 @@ describe("evaluateRule - non-batch mode", () => {
 		};
 
 		expect(evaluateRule(rule, { userId: "test" })).toBe(false);
+	});
+});
+
+describe("selectVariant", () => {
+	it("selects variant based on user hash", () => {
+		const flag = {
+			key: "button-color",
+			variants: [
+				{ key: "control", value: "gray", weight: 50 },
+				{ key: "variant-a", value: "blue", weight: 25 },
+				{ key: "variant-b", value: "green", weight: 25 },
+			],
+		};
+
+		const result = selectVariant(flag, { userId: "user-123" });
+		expect(["gray", "blue", "green"]).toContain(result.value);
+		expect(["control", "variant-a", "variant-b"]).toContain(result.variant);
+	});
+
+	it("provides sticky assignment for same user", () => {
+		const flag = {
+			key: "button-color",
+			variants: [
+				{ key: "control", value: "gray", weight: 50 },
+				{ key: "variant-a", value: "blue", weight: 50 },
+			],
+		};
+
+		const result1 = selectVariant(flag, { userId: "user-123" });
+		const result2 = selectVariant(flag, { userId: "user-123" });
+
+		expect(result1.variant).toBe(result2.variant);
+		expect(result1.value).toBe(result2.value);
+	});
+
+	it("supports string variants", () => {
+		const flag = {
+			key: "theme",
+			variants: [
+				{ key: "light", value: "light-theme", weight: 50 },
+				{ key: "dark", value: "dark-theme", weight: 50 },
+			],
+		};
+
+		const result = selectVariant(flag, { userId: "user-456" });
+		expect(typeof result.value).toBe("string");
+		expect(["light-theme", "dark-theme"]).toContain(result.value);
+	});
+
+	it("supports number variants", () => {
+		const flag = {
+			key: "price-point",
+			variants: [
+				{ key: "low", value: 9.99, weight: 33 },
+				{ key: "medium", value: 14.99, weight: 33 },
+				{ key: "high", value: 19.99, weight: 34 },
+			],
+		};
+
+		const result = selectVariant(flag, { userId: "user-789" });
+		expect(typeof result.value).toBe("number");
+		expect([9.99, 14.99, 19.99]).toContain(result.value);
+	});
+
+	it("supports object variants", () => {
+		const flag = {
+			key: "feature-config",
+			variants: [
+				{ key: "basic", value: { features: ["a", "b"] }, weight: 50 },
+				{
+					key: "premium",
+					value: { features: ["a", "b", "c", "d"] },
+					weight: 50,
+				},
+			],
+		};
+
+		const result = selectVariant(flag, { userId: "user-abc" });
+		expect(typeof result.value).toBe("object");
+		expect(result.value).toHaveProperty("features");
+	});
+
+	it("returns default when no variants", () => {
+		const flag = {
+			key: "test",
+			defaultValue: true,
+			variants: [],
+		};
+
+		const result = selectVariant(flag, { userId: "user-123" });
+		expect(result.variant).toBe("default");
+		expect(result.value).toBe(true);
+	});
+});
+
+describe("evaluateFlag - multi-variant", () => {
+	it("evaluates multivariant flags correctly", () => {
+		const flag = {
+			key: "button-color",
+			type: "multivariant",
+			variants: [
+				{ key: "control", value: "gray", weight: 50 },
+				{ key: "variant-a", value: "blue", weight: 50 },
+			],
+			payload: { experiment: "button-test" },
+		};
+
+		const result = evaluateFlag(flag, { userId: "user-123" });
+		expect(result.enabled).toBe(true);
+		expect(["gray", "blue"]).toContain(result.value);
+		expect(["control", "variant-a"]).toContain(result.variant as string);
+		expect(result.reason).toBe("MULTIVARIANT_EVALUATED");
+		expect(result.payload).toEqual({ experiment: "button-test" });
+	});
+
+	it("falls back to boolean for non-multivariant flags", () => {
+		const flag = {
+			key: "simple-flag",
+			type: "boolean",
+			defaultValue: true,
+		};
+
+		const result = evaluateFlag(flag, { userId: "user-123" });
+		expect(result.value).toBe(true);
+		expect(result.variant).toBeUndefined();
 	});
 });
 

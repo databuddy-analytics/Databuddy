@@ -10,6 +10,7 @@ const flagQuerySchema = t.Object({
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	properties: t.Optional(t.String()),
+	environment: t.Optional(t.String()),
 });
 
 const bulkFlagQuerySchema = t.Object({
@@ -17,6 +18,7 @@ const bulkFlagQuerySchema = t.Object({
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	properties: t.Optional(t.String()),
+	environment: t.Optional(t.String()),
 });
 
 type UserContext = {
@@ -38,21 +40,46 @@ type FlagRule = {
 
 type FlagResult = {
 	enabled: boolean;
-	value: boolean;
+	value: boolean | string | number;
 	payload: unknown;
 	reason: string;
+	variant?: string;
+};
+
+type Variant = {
+	key: string;
+	value: string | number;
+	weight?: number;
+	description?: string;
+	type: "string" | "number";
+};
+
+/** Flag type for evaluation - includes database fields not in the form schema */
+type EvaluableFlag = {
+	key: string;
+	type: "boolean" | "rollout" | "multivariant";
+	status: "active" | "inactive" | "archived";
+	defaultValue: boolean;
+	rolloutPercentage: number;
+	rules?: FlagRule[];
+	variants?: Variant[];
+	payload?: unknown;
 };
 
 const getCachedFlag = cacheable(
-	(key: string, clientId: string) => {
+	(key: string, clientId: string, environment?: string) => {
 		const scopeCondition = or(
 			eq(flags.websiteId, clientId),
 			eq(flags.organizationId, clientId)
 		);
 
+		const environmentCondition = environment
+			? eq(flags.environment, environment)
+			: isNull(flags.environment);
 		return db.query.flags.findFirst({
 			where: and(
 				eq(flags.key, key),
+				environmentCondition,
 				isNull(flags.deletedAt),
 				eq(flags.status, "active"),
 				scopeCondition
@@ -68,16 +95,21 @@ const getCachedFlag = cacheable(
 );
 
 const getCachedFlagsForClient = cacheable(
-	(clientId: string) => {
+	(clientId: string, environment?: string) => {
 		const scopeCondition = or(
 			eq(flags.websiteId, clientId),
 			eq(flags.organizationId, clientId)
 		);
 
+		const environmentCondition = environment
+			? eq(flags.environment, environment)
+			: isNull(flags.environment);
+
 		return db.query.flags.findMany({
 			where: and(
 				isNull(flags.deletedAt),
 				eq(flags.status, "active"),
+				environmentCondition,
 				scopeCondition
 			),
 		});
@@ -216,7 +248,47 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	}
 }
 
-export function evaluateFlag(flag: any, context: UserContext): FlagResult {
+export function selectVariant(
+	flag: EvaluableFlag,
+	context: UserContext
+): { value: string | number | boolean; variant: string } {
+	if (!flag.variants || flag.variants.length === 0) {
+		return { value: flag.defaultValue, variant: "default" };
+	}
+
+	const identifier = context.userId || context.email || "anonymous";
+	const hash = hashString(`${flag.key}:variant:${identifier}`);
+	const percentage = hash % 100;
+
+	const hasAnyWeight = flag.variants.some((v: Variant) => typeof v?.weight === "number");
+
+	if (!hasAnyWeight) {
+		const idx = hash % flag.variants.length;
+		const selected = flag.variants[idx];
+		if (!selected) {
+			return { value: flag.defaultValue, variant: "default" };
+		}
+		return { value: selected.value, variant: selected.key };
+	}
+
+	// Otherwise use weighted selection (weights may be 0 for some variants)
+	let cumulative = 0;
+	for (const variant of flag.variants) {
+		cumulative += typeof variant.weight === "number" ? variant.weight : 0;
+		if (percentage < cumulative) {
+			return { value: variant.value, variant: variant.key };
+		}
+	}
+
+	// If no weighted match, fall back to last variant
+	const lastVariant = flag.variants[flag.variants.length - 1];
+	if (!lastVariant) {
+		return { value: flag.defaultValue, variant: "default" };
+	}
+	return { value: lastVariant.value, variant: lastVariant.key };
+}
+
+export function evaluateFlag(flag: EvaluableFlag, context: UserContext): FlagResult {
 	if (flag.rules && Array.isArray(flag.rules) && flag.rules.length > 0) {
 		for (const rule of flag.rules as FlagRule[]) {
 			if (evaluateRule(rule, context)) {
@@ -228,6 +300,17 @@ export function evaluateFlag(flag: any, context: UserContext): FlagResult {
 				};
 			}
 		}
+	}
+
+	if (flag.type === "multivariant" && flag.variants && flag.variants.length > 0) {
+		const { value, variant } = selectVariant(flag, context);
+		return {
+			enabled: true, // Variants are always "enabled"
+			value,
+			variant,
+			payload: flag.payload,
+			reason: "MULTIVARIANT_EVALUATED",
+		};
 	}
 
 	let enabled = Boolean(flag.defaultValue);
@@ -262,11 +345,13 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 		"/evaluate",
 		function evaluateFlagEndpoint({ query, set }) {
 			return record("evaluateFlag", async (): Promise<FlagResult> => {
+
 				setAttributes({
 					"flag.key": query.key || "missing",
 					"flag.client_id": query.clientId || "missing",
 					"flag.has_user_id": Boolean(query.userId),
 					"flag.has_email": Boolean(query.email),
+					"flag.environment": query.environment || "missing",
 				});
 
 				try {
@@ -293,11 +378,12 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 							clientId: query.clientId,
 							userId: query.userId,
 							email: query.email,
+							environment: query.environment,
 						},
 						"Flag evaluation request"
 					);
 
-					const flag = await getCachedFlag(query.key, query.clientId);
+					const flag = await getCachedFlag(query.key, query.clientId, query.environment);
 
 					if (!flag) {
 						setAttributes({ "flag.found": false });
@@ -309,7 +395,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						};
 					}
 
-					const result = evaluateFlag(flag, context);
+					const result = evaluateFlag(flag as unknown as EvaluableFlag, context);
 					setAttributes({
 						"flag.found": true,
 						"flag.type": flag.type,
@@ -346,6 +432,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					"flag.client_id": query.clientId || "missing",
 					"flag.has_user_id": Boolean(query.userId),
 					"flag.has_email": Boolean(query.email),
+					"flag.environment": query.environment || "missing",
 				});
 
 				try {
@@ -365,7 +452,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						properties: parseProperties(query.properties),
 					};
 
-					const allFlags = await getCachedFlagsForClient(query.clientId);
+					const allFlags = await getCachedFlagsForClient(query.clientId, query.environment);
 
 					setAttributes({
 						"flag.total_flags": allFlags.length,
@@ -374,7 +461,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					const enabledFlags: Record<string, FlagResult> = {};
 
 					for (const flag of allFlags) {
-						const result = evaluateFlag(flag, context);
+						const result = evaluateFlag(flag as unknown as EvaluableFlag, context);
 						if (result.enabled) {
 							enabledFlags[flag.key] = result;
 						}

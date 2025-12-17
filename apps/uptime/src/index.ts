@@ -1,175 +1,182 @@
+import { clickHouse, formatClickhouseDate } from "@databuddy/db";
+import Elysia from "elysia";
 import { Receiver } from "@upstash/qstash";
-import { Elysia } from "elysia";
-import { z } from "zod";
-import { checkUptime, lookupSchedule } from "./actions";
-import { sendUptimeEvent } from "./lib/producer";
 import {
-	captureError,
-	endRequestSpan,
-	initTracing,
-	shutdownTracing,
-	startRequestSpan,
+    captureError,
+    endRequestSpan,
+    initTracing,
+    shutdownTracing,
+    startRequestSpan,
 } from "./lib/tracing";
+import { checkUptime, lookupWebsite } from "./actions";
 
 initTracing();
 
 process.on("unhandledRejection", (reason, _promise) => {
-	console.error("Unhandled Rejection:", reason);
-	captureError(reason);
+    console.error("Unhandled Rejection:", reason);
+    captureError(reason);
 });
 
 process.on("uncaughtException", (error) => {
-	console.error("Uncaught Exception:", error);
-	captureError(error);
+    console.error("Uncaught Exception:", error);
+    captureError(error);
 });
 
 process.on("SIGTERM", async () => {
-	console.log("SIGTERM received, shutting down gracefully...");
-	await shutdownTracing().catch((error) =>
-		console.error("Shutdown error:", error)
-	);
-	process.exit(0);
+    console.log("SIGTERM received, shutting down gracefully...");
+    await shutdownTracing().catch((error) =>
+        console.error("Shutdown error:", error)
+    );
+    process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-	console.log("SIGINT received, shutting down gracefully...");
-	await shutdownTracing().catch((error) =>
-		console.error("Shutdown error:", error)
-	);
-	process.exit(0);
+    console.log("SIGINT received, shutting down gracefully...");
+    await shutdownTracing().catch((error) =>
+        console.error("Shutdown error:", error)
+    );
+    process.exit(0);
 });
 
 const CURRENT_SIGNING_KEY = process.env.QSTASH_CURRENT_SIGNING_KEY;
 const NEXT_SIGNING_KEY = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-if (!(CURRENT_SIGNING_KEY && NEXT_SIGNING_KEY)) {
-	throw new Error(
-		"QSTASH_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required"
-	);
+if (!CURRENT_SIGNING_KEY || !NEXT_SIGNING_KEY) {
+    throw new Error("QSTASH_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY environment variables are required");
 }
 
 const receiver = new Receiver({
-	currentSigningKey: CURRENT_SIGNING_KEY,
-	nextSigningKey: NEXT_SIGNING_KEY,
+    currentSigningKey: CURRENT_SIGNING_KEY,
+    nextSigningKey: NEXT_SIGNING_KEY,
 });
 
+const STATUS_LABELS = {
+    0: "DOWN",
+    1: "UP",
+    2: "PENDING",
+    3: "MAINTENANCE",
+} as const;
+
 const app = new Elysia()
-	.state("tracing", {
-		span: null as ReturnType<typeof startRequestSpan> | null,
-		startTime: 0,
-	})
-	.onBeforeHandle(function startTrace({ request, path, store }) {
-		const method = request.method;
-		const startTime = Date.now();
-		const span = startRequestSpan(method, request.url, path);
+    .state("tracing", {
+        span: null as ReturnType<typeof startRequestSpan> | null,
+        startTime: 0,
+    })
+    .onBeforeHandle(function startTrace({ request, path, store }) {
+        const method = request.method;
+        const startTime = Date.now();
+        const span = startRequestSpan(method, request.url, path);
 
-		store.tracing = {
-			span,
-			startTime,
-		};
-	})
-	.onAfterHandle(function endTrace({ responseValue, store }) {
-		if (store.tracing?.span && store.tracing.startTime) {
-			const statusCode =
-				responseValue instanceof Response ? responseValue.status : 200;
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
-	})
-	.onError(function handleError({ error, code, store }) {
-		if (store.tracing?.span && store.tracing.startTime) {
-			const statusCode = code === "NOT_FOUND" ? 404 : 500;
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
-		captureError(error);
-	})
-	.get("/health", () => ({ status: "ok" }))
-	.post("/", async ({ headers, body }) => {
-		try {
-			console.log("Received headers:", JSON.stringify(headers, null, 2));
+        store.tracing = {
+            span,
+            startTime,
+        };
+    })
+    .onAfterHandle(function endTrace({ responseValue, store }) {
+        if (store.tracing?.span && store.tracing.startTime) {
+            const statusCode =
+                responseValue instanceof Response ? responseValue.status : 200;
+            endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
+        }
+    })
+    .onError(function handleError({ error, code, store }) {
+        if (store.tracing?.span && store.tracing.startTime) {
+            const statusCode = code === "NOT_FOUND" ? 404 : 500;
+            endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
+        }
+        captureError(error);
+    })
+    .get("/health", () => {
+        return { status: "ok" };
+    })
+    .post("/", async ({ headers, body, store }) => {
+        try {
+            const siteId = headers["x-website-id"];
+            const signature = headers["upstash-signature"];
 
-			const headerSchema = z.object({
-				"upstash-signature": z.string(),
-				"x-schedule-id": z.string(),
-				"upstash-retried": z.string().optional(),
-			});
+            const isValid = await receiver.verify({
+                // @ts-ignore, this doesn't require type assertions
+                body,
+                // @ts-ignore, these don't require type assertions 
+                signature,
+                url: "https://uptime.databuddy.cc",
+            });
 
-			const parsed = headerSchema.safeParse(headers);
-			if (!parsed.success) {
-				console.error("Header validation failed:", parsed.error.format());
-				return new Response(
-					JSON.stringify({
-						error: "Missing required headers",
-						details: parsed.error.format()
-					}),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" }
-					}
-				);
-			}
+            if (!isValid) {
+                return new Response("Invalid signature", { status: 401 });
+            }
 
-			const { "upstash-signature": signature, "x-schedule-id": scheduleId } =
-				parsed.data;
+            if (!siteId || typeof siteId !== "string") {
+                return new Response("Website ID is required", { status: 400 });
+            }
 
-			const isValid = await receiver.verify({
-				// @ts-expect-error, this doesn't require type assertions
-				body,
-				signature,
-				url: "https://uptime.databuddy.cc",
-			});
+            const site = await lookupWebsite(siteId);
 
-			if (!isValid) {
-				return new Response("Invalid signature", { status: 401 });
-			}
+            if (!site.success) {
+                captureError(site.error);
+                return new Response("Website not found", { status: 404 });
+            }
 
-			console.log(`Looking up schedule: ${scheduleId}`);
+            const maxRetriesHeader = headers["x-max-retries"];
+            const maxRetries = maxRetriesHeader
+                ? Number.parseInt(maxRetriesHeader as string, 10)
+                : 3;
 
-			const schedule = await lookupSchedule(scheduleId);
-			if (!schedule.success) {
-				console.error(`Schedule lookup failed: ${schedule.error}`);
-				captureError(schedule.error);
-				return new Response(
-					JSON.stringify({
-						error: "Schedule not found",
-						scheduleId,
-						details: schedule.error
-					}),
-					{
-						status: 404,
-						headers: { "Content-Type": "application/json" }
-					}
-				);
-			}
+            const result = await checkUptime(siteId, site.data.domain, 1, maxRetries);
 
-			const monitorId = schedule.data.websiteId || scheduleId;
+            if (!result.success) {
+                console.error("Uptime check failed:", result.error);
+                captureError(result.error);
+                return new Response("Failed to check uptime", { status: 500 });
+            }
 
-			const maxRetries = parsed.data["upstash-retried"]
-				? Number.parseInt(parsed.data["upstash-retried"], 10) + 3
-				: 3;
+            const { data } = result;
 
-			const result = await checkUptime(monitorId, schedule.data.url, 1, maxRetries);
-
-			if (!result.success) {
-				console.error("Uptime check failed:", result.error);
-				captureError(result.error);
-				return new Response("Failed to check uptime", { status: 500 });
-			}
-
-			try {
-				await sendUptimeEvent(result.data, monitorId);
-			} catch (error) {
-				console.error("Failed to send uptime event:", error);
-				captureError(error);
-			}
-
-			return new Response("Uptime check complete", { status: 200 });
-		} catch (error) {
-			captureError(error);
-			return new Response("Internal server error", { status: 500 });
-		}
-	});
+            // TO-DO: migrate this to use redpanda & vector instead of clickhouse.
+            try {
+                await clickHouse.insert({
+                    table: "uptime.uptime_monitor",
+                    values: [
+                        {
+                            site_id: data.site_id,
+                            url: data.url,
+                            timestamp: formatClickhouseDate(new Date(data.timestamp)),
+                            status: data.status,
+                            http_code: data.http_code,
+                            ttfb_ms: data.ttfb_ms,
+                            total_ms: data.total_ms,
+                            attempt: data.attempt,
+                            retries: data.retries,
+                            failure_streak: data.failure_streak,
+                            response_bytes: data.response_bytes,
+                            content_hash: data.content_hash,
+                            redirect_count: data.redirect_count,
+                            probe_region: data.probe_region,
+                            probe_ip: data.probe_ip,
+                            ssl_expiry: data.ssl_expiry
+                                ? formatClickhouseDate(new Date(data.ssl_expiry))
+                                : null,
+                            ssl_valid: data.ssl_valid,
+                            env: data.env,
+                            check_type: data.check_type,
+                            user_agent: data.user_agent,
+                            error: data.error,
+                        },
+                    ],
+                    format: "JSONEachRow",
+                });
+            } catch (error) {
+                console.error("Failed to store uptime data in ClickHouse:", error);
+                // continue execution even if clickhouse insert fails
+            }
+            return new Response("Uptime check complete", { status: 200 });
+        } catch (error) {
+            captureError(error);
+            return new Response("Internal server error", { status: 500 });
+        }
+    });
 
 export default {
-	port: 4000,
-	fetch: app.fetch,
+    port: 4000,
+    fetch: app.fetch,
 };

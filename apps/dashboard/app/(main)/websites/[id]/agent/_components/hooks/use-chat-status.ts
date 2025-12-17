@@ -1,12 +1,13 @@
 import type { ChatStatus, UIMessage } from "ai";
 import { useMemo } from "react";
 import type { AgentStatus } from "../agent-atoms";
-import { getToolMessage } from "../agent-commands";
+import { getStatusMessage, getToolMessage } from "../agent-commands";
 
 type ChatStatusResult = {
 	agentStatus: AgentStatus;
 	currentToolCall: string | null;
 	toolMessage: string | null;
+	statusMessage: string | null;
 	displayMessage: string | null;
 	hasTextContent: boolean;
 	isStreaming: boolean;
@@ -36,32 +37,35 @@ export function useChatStatus(
 			agentStatus,
 			currentToolCall: null,
 			toolMessage: null,
+			statusMessage: getStatusMessage(agentStatus),
 			displayMessage: null,
 			hasTextContent: false,
 			isStreaming: isLoading,
 		};
 
 		if (messages.length === 0) {
-			return { ...defaultResult, displayMessage: null };
+			return { ...defaultResult, displayMessage: defaultResult.statusMessage };
 		}
 
 		const lastMessage = messages.at(-1);
 		if (lastMessage?.role !== "assistant") {
-			return { ...defaultResult, displayMessage: null };
+			return { ...defaultResult, displayMessage: defaultResult.statusMessage };
 		}
 
 		const hasTextContent = Boolean(getTextContent(lastMessage).trim());
 		const toolMessage = getToolMessage(null);
+		const statusMessage = getStatusMessage(agentStatus);
 
 		let displayMessage: string | null = null;
 		if (!hasTextContent && isLoading) {
-			displayMessage = toolMessage;
+			displayMessage = toolMessage ?? statusMessage;
 		}
 
 		return {
 			agentStatus,
 			currentToolCall: null,
 			toolMessage,
+			statusMessage,
 			displayMessage,
 			hasTextContent,
 			isStreaming: isLoading,

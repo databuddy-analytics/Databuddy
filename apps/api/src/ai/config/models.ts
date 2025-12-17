@@ -17,15 +17,12 @@ export const openrouter = createOpenRouter({
  * Centralized here for easy switching and environment-based overrides.
  */
 
-// const overrideModel = 'z-ai/glm-4.6'
-const overrideModel: string | null = null;
-
 const modelNames = {
-	triage: overrideModel || "anthropic/claude-haiku-4.5",
-	analytics: overrideModel || "anthropic/claude-haiku-4.5",
+	triage: "anthropic/claude-haiku-4.5",
+	analytics: "anthropic/claude-haiku-4.5",
 	// triage: "z-ai/glm-4.6",
 	// analytics: "z-ai/glm-4.6",
-	advanced: overrideModel || "anthropic/claude-sonnet-4.5",
+	advanced: "anthropic/claude-sonnet-4.5",
 	// advanced: "z-ai/glm-4.6",
 	perplexity: "perplexity/sonar-pro",
 } as const;

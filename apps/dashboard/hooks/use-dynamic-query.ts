@@ -909,23 +909,13 @@ export function useUserProfile(
 					referrer: session.referrer || "direct",
 					events:
 						Array.isArray(session.events) && session.events.length > 0
-							? session.events.map((eventTuple: any[]) => {
-									let propertiesObj: Record<string, unknown> = {};
-									if (eventTuple[4]) {
-										try {
-											propertiesObj = JSON.parse(eventTuple[4]);
-										} catch {
-											// Keep empty object if parsing fails
-										}
-									}
-									return {
-										event_id: eventTuple[0],
-										time: eventTuple[1],
-										event_name: eventTuple[2],
-										path: eventTuple[3],
-										properties: propertiesObj,
-									};
-								})
+							? session.events.map((eventTuple: any[]) => ({
+									event_id: eventTuple[0],
+									time: eventTuple[1],
+									event_name: eventTuple[2],
+									path: eventTuple[3],
+									properties: eventTuple[4] ? JSON.parse(eventTuple[4]) : {},
+								}))
 							: [],
 				}))
 			: [];

@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.4-slim AS builder
+FROM oven/bun:1.3.2-slim AS builder
 
 WORKDIR /app
 
@@ -7,11 +7,11 @@ COPY package.json bun.lock turbo.json ./
 COPY apps/ ./apps/
 COPY packages/ ./packages/
 
-RUN bun install --ignore-scripts
+RUN bun install
 
 RUN bunx turbo build --filter=@databuddy/api...
 
-FROM oven/bun:1.3.4-slim
+FROM oven/bun:1.3.2-slim
 
 WORKDIR /app
 
@@ -22,7 +22,10 @@ COPY --from=builder /app/packages ./packages
 
 ENV NODE_ENV=production
 
-EXPOSE 3001
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:4000/health || exit 1
 
 WORKDIR /app/apps/api
 

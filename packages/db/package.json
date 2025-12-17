@@ -9,20 +9,18 @@
     "./clickhouse": "./clickhouse/index.ts"
   },
   "dependencies": {
-    "@clickhouse/client": "^1.14.0",
-    "@databuddy/cache": "latest",
+    "@clickhouse/client": "catalog:",
     "@faker-js/faker": "^9.9.0",
-    "@neondatabase/serverless": "^1.0.2",
+    "@neondatabase/serverless": "^1.0.1",
     "@types/sqlstring": "^2.3.2",
-    "drizzle-orm": "^0.45.1",
-    "ioredis": "^5.8.2",
+    "drizzle-orm": "^0.44.7",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"
   },
   "devDependencies": {
-    "@types/pg": "^8.16.0",
-    "drizzle-kit": "^0.31.8",
-    "tsx": "^4.21.0"
+    "@types/pg": "^8.15.4",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.20.3"
   },
   "scripts": {
     "db:push": "dotenv -- drizzle-kit push",

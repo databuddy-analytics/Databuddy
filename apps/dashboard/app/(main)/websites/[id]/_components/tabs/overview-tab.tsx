@@ -416,14 +416,14 @@ export function WebsiteOverviewTab({
 					...(visibleMetrics.pageviews && {
 						pageviews: event.pageviews as number,
 					}),
-					...(visibleMetrics.sessions && {
-						sessions: event.sessions as number,
-					}),
 					...(visibleMetrics.visitors && {
 						visitors:
 							(event.visitors as number) ||
 							(event.unique_visitors as number) ||
 							0,
+					}),
+					...(visibleMetrics.sessions && {
+						sessions: event.sessions as number,
 					}),
 					...(visibleMetrics.bounce_rate && {
 						bounce_rate: event.bounce_rate as number,
@@ -488,7 +488,7 @@ export function WebsiteOverviewTab({
 
 	const formatNumber = useCallback(
 		(value: number | null | undefined): string => {
-			if (value === null || value === undefined || Number.isNaN(value)) {
+			if (value == null || Number.isNaN(value)) {
 				return "0";
 			}
 			return Intl.NumberFormat(undefined, {
@@ -809,15 +809,6 @@ export function WebsiteOverviewTab({
 						trend: calculateTrends.pageviews,
 					},
 					{
-						id: "sessions-chart",
-						title: "Sessions",
-						value: analytics.summary?.sessions || 0,
-						description: `${formatNumber(todaySessions)} today`,
-						icon: ChartLineIcon,
-						chartData: miniChartData.sessions,
-						trend: calculateTrends.sessions,
-					},
-					{
 						id: "visitors-chart",
 						title: "Visitors",
 						value: analytics.summary?.unique_visitors || 0,
@@ -825,6 +816,15 @@ export function WebsiteOverviewTab({
 						icon: UsersIcon,
 						chartData: miniChartData.visitors,
 						trend: calculateTrends.visitors,
+					},
+					{
+						id: "sessions-chart",
+						title: "Sessions",
+						value: analytics.summary?.sessions || 0,
+						description: `${formatNumber(todaySessions)} today`,
+						icon: ChartLineIcon,
+						chartData: miniChartData.sessions,
+						trend: calculateTrends.sessions,
 					},
 					{
 						id: "bounce-rate-chart",

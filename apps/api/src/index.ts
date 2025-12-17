@@ -24,6 +24,7 @@ import { agent } from "./routes/agent";
 import { health } from "./routes/health";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
+import { flagSchedulerWebhook } from "./routes/webhooks/flag-scheduler";
 
 initTracing();
 setupUncaughtErrorHandlers();
@@ -56,6 +57,7 @@ const app = new Elysia()
 	)
 	.use(publicApi)
 	.use(health)
+	.use(flagSchedulerWebhook)
 	.onBeforeHandle(function startTrace({ request, path, store }) {
 		const method = request.method;
 		const startTime = Date.now();
@@ -166,7 +168,7 @@ const app = new Elysia()
 
 export default {
 	fetch: app.fetch,
-	port: Number.parseInt(process.env.PORT ?? "3001", 10),
+	port: 3001,
 };
 
 process.on("SIGINT", async () => {

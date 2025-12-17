@@ -32,10 +32,7 @@ import VisuallyHidden from "@/components/ui/visuallyhidden";
 function RegisterPageContent() {
 	const router = useRouter();
 	const [selectedPlan] = useQueryState("plan", parseAsString);
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callbackUrl] = useQueryState("callback", parseAsString);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: "",
@@ -70,12 +67,16 @@ function RegisterPageContent() {
 		}
 	};
 
-	const getCallbackUrl = () => {
-		if (selectedPlan) {
+	const handleAuthSuccess = () => {
+		if (callbackUrl) {
+			toast.success("Account created! Completing integration...");
+			router.push(callbackUrl);
+		} else if (selectedPlan) {
 			localStorage.setItem("pendingPlanSelection", selectedPlan);
-			return `/billing?tab=plans&plan=${selectedPlan}`;
+			router.push(`/billing?tab=plans&plan=${selectedPlan}`);
+		} else {
+			router.push("/websites");
 		}
-		return callback;
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -102,16 +103,19 @@ function RegisterPageContent() {
 			email: formData.email,
 			password: formData.password,
 			name: formData.name,
-			callbackURL: getCallbackUrl(),
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignUp("email");
-					toast.success(
-						"Account created! Please check your email to verify your account."
-					);
-					setRegistrationStep("verification-needed");
-					if (selectedPlan) {
-						localStorage.setItem("pendingPlanSelection", selectedPlan);
+					if (callbackUrl) {
+						handleAuthSuccess();
+					} else {
+						toast.success(
+							"Account created! Please check your email to verify your account."
+						);
+						setRegistrationStep("verification-needed");
+						if (selectedPlan) {
+							localStorage.setItem("pendingPlanSelection", selectedPlan);
+						}
 					}
 				},
 			},
@@ -151,11 +155,12 @@ function RegisterPageContent() {
 		try {
 			await authClient.signIn.social({
 				provider,
-				callbackURL: getCallbackUrl(),
-				newUserCallbackURL: "/onboarding",
+				callbackURL: callbackUrl || "/websites",
 				fetchOptions: {
 					onSuccess: () => {
 						trackSignUp("social", provider);
+						toast.success("Registration successful!");
+						handleAuthSuccess();
 					},
 					onError: () => {
 						toast.error(
@@ -533,16 +538,16 @@ function RegisterPageContent() {
 				<div className="mt-4 text-center">
 					<p className="text-muted-foreground text-sm">
 						Already have an account?{" "}
-					<Link
-						className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground duration-200 hover:text-accent-foreground/60"
-						href={
-							callback
-								? `/login?callback=${encodeURIComponent(callback)}`
-								: "/login"
-						}
-					>
-						Sign in
-					</Link>
+						<Link
+							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground duration-200 hover:text-accent-foreground/60"
+							href={
+								callbackUrl
+									? `/login?callback=${encodeURIComponent(callbackUrl)}`
+									: "/login"
+							}
+						>
+							Sign in
+						</Link>
 					</p>
 				</div>
 			)}

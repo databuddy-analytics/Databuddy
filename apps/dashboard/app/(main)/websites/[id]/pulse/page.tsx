@@ -5,7 +5,6 @@ import {
 	PauseIcon,
 	PencilIcon,
 	PlayIcon,
-	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -14,16 +13,6 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -57,7 +46,6 @@ export default function PulsePage() {
 		granularity: string;
 	} | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const {
 		data: schedule,
@@ -74,9 +62,6 @@ export default function PulsePage() {
 	});
 	const resumeMutation = useMutation({
 		...orpc.uptime.resumeSchedule.mutationOptions(),
-	});
-	const deleteMutation = useMutation({
-		...orpc.uptime.deleteSchedule.mutationOptions(),
 	});
 
 	const [isPausing, setIsPausing] = useState(false);
@@ -188,23 +173,6 @@ export default function PulsePage() {
 		await refetchSchedule();
 	};
 
-	const handleDeleteMonitor = async () => {
-		if (!schedule) {
-			return;
-		}
-
-		try {
-			await deleteMutation.mutateAsync({ scheduleId: schedule.id });
-			toast.success("Monitor deleted successfully");
-			await refetchSchedule();
-			setIsDeleteDialogOpen(false);
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to delete monitor";
-			toast.error(errorMessage);
-		}
-	};
-
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
 		try {
@@ -299,15 +267,6 @@ export default function PulsePage() {
 				<PencilIcon size={16} weight="duotone" />
 				Configure
 			</Button>
-			<Button
-				disabled={deleteMutation.isPending}
-				onClick={() => setIsDeleteDialogOpen(true)}
-				size="sm"
-				variant="outline"
-			>
-				<TrashIcon size={16} weight="duotone" />
-				Delete
-			</Button>
 		</>
 	) : undefined;
 
@@ -378,32 +337,6 @@ export default function PulsePage() {
 				schedule={editingSchedule}
 				websiteId={websiteId as string}
 			/>
-
-			<AlertDialog
-				onOpenChange={setIsDeleteDialogOpen}
-				open={isDeleteDialogOpen}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Monitor</AlertDialogTitle>
-						<AlertDialogDescription>
-							Are you sure you want to delete this uptime monitor? This action
-							cannot be undone and all historical data will be preserved but no
-							new checks will be performed.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							disabled={deleteMutation.isPending}
-							onClick={handleDeleteMonitor}
-						>
-							{deleteMutation.isPending ? "Deleting..." : "Delete Monitor"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</div>
 	);
 }

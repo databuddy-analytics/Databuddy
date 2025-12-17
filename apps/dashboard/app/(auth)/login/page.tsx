@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { signIn } from "@databuddy/auth/client";
 import {
 	EyeIcon,
 	EyeSlashIcon,
@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,17 +30,31 @@ function LoginPage() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
+	const [lastUsed, setLastUsed] = useState<string | null>(null);
 
-	const lastUsed = authClient.getLastUsedLoginMethod();
+	const defaultCallbackUrl = callback;
 
-	const handleSocialLogin = async (provider: "github" | "google") => {
+	useEffect(() => {
+		setLastUsed(localStorage.getItem("lastUsedLogin"));
+	}, []);
+
+	const handleSocialLogin = (provider: "github" | "google") => {
 		setIsLoading(true);
 
-		await authClient.signIn.social({
+		const callbackUrl = callback;
+		const finalCallbackUrl = callbackUrl || defaultCallbackUrl;
+
+		signIn.social({
 			provider,
-			callbackURL: callback,
+			callbackURL: finalCallbackUrl,
 			newUserCallbackURL: "/onboarding",
 			fetchOptions: {
+				onSuccess: () => {
+					localStorage.setItem("lastUsedLogin", provider);
+					if (callbackUrl) {
+						router.push(callbackUrl);
+					}
+				},
 				onError: () => {
 					setIsLoading(false);
 					toast.error(
@@ -60,11 +74,18 @@ function LoginPage() {
 
 		setIsLoading(true);
 
-		await authClient.signIn.email({
+		await signIn.email({
 			email,
 			password,
-			callbackURL: callback,
+			callbackURL: defaultCallbackUrl,
 			fetchOptions: {
+				onSuccess: () => {
+					localStorage.setItem("lastUsedLogin", "email");
+					const callbackUrl = callback;
+					if (callbackUrl) {
+						router.push(callbackUrl);
+					}
+				},
 				onError: (error) => {
 					setIsLoading(false);
 					if (
@@ -151,7 +172,7 @@ function LoginPage() {
 										Sign in with Magic Link
 									</Link>
 								</Button>
-								{lastUsed === "magic-link" && (
+								{lastUsed === "magic" && (
 									<Badge
 										className="-top-3 -right-0.5 absolute z-10 rounded-full px-1 py-0 text-[10px]"
 										variant="secondary"

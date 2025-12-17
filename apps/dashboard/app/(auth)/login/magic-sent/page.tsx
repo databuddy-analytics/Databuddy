@@ -1,11 +1,7 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import {
-	ArrowLeftIcon,
-	EnvelopeIcon,
-	SpinnerIcon,
-} from "@phosphor-icons/react";
+import { signIn } from "@databuddy/auth/client";
+import { ArrowLeftIcon, EnvelopeIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
@@ -24,9 +20,9 @@ function MagicSentPage() {
 		}
 		setIsLoading(true);
 
-		await authClient.signIn.magicLink({
+		await signIn.magicLink({
 			email,
-			callbackURL: "/home",
+			callbackURL: "/home",	
 			fetchOptions: {
 				onSuccess: () => {
 					setIsLoading(false);
@@ -45,9 +41,7 @@ function MagicSentPage() {
 	return (
 		<>
 			<div className="mb-8 space-y-1 px-6 text-left">
-				<h1 className="font-medium text-2xl text-foreground">
-					Check your email
-				</h1>
+				<h1 className="font-medium text-2xl text-foreground">Check your email</h1>
 				<p className="text-muted-foreground text-sm">
 					Magic link sent to{" "}
 					<strong className="font-medium text-primary">{email}</strong>
@@ -58,10 +52,9 @@ function MagicSentPage() {
 					<div className="space-y-5">
 						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-4">
 							<EnvelopeIcon className="size-5 shrink-0 text-primary" />
-							<p className="text-muted-foreground text-sm">
-								We&apos;ve sent a magic link to{" "}
-								<strong className="text-foreground">{email}</strong>. Please
-								check your inbox and click the link to sign in instantly.
+							<p className="text-sm text-muted-foreground">
+								We&apos;ve sent a magic link to <strong className="text-foreground">{email}</strong>. Please check
+								your inbox and click the link to sign in instantly.
 							</p>
 						</div>
 						<Button

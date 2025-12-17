@@ -307,8 +307,8 @@ type MetricsChartProps = {
 
 const DEFAULT_METRICS = [
 	"pageviews",
-	"sessions",
 	"visitors",
+	"sessions",
 	"bounce_rate",
 	"median_session_duration",
 ];

@@ -1,7 +1,7 @@
 "use client";
 
 import { BuildingsIcon, FloppyDiskIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { RightSidebar } from "@/components/right-sidebar";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,7 @@ export function GeneralSettings({
 	const [slug, setSlug] = useState(organization.slug);
 	const [isSaving, setIsSaving] = useState(false);
 
-	const { updateOrganization } = useOrganizations();
-
-	useEffect(() => {
-		setName(organization.name);
-		setSlug(organization.slug);
-	}, [organization.name, organization.slug]);
+	const { updateOrganizationAsync } = useOrganizations();
 
 	const cleanSlug = (value: string) =>
 		value
@@ -39,7 +34,7 @@ export function GeneralSettings({
 
 	const hasChanges = name !== organization.name || slug !== organization.slug;
 
-	const handleSave = () => {
+	const handleSave = async () => {
 		if (!name.trim()) {
 			toast.error("Name is required");
 			return;
@@ -50,20 +45,17 @@ export function GeneralSettings({
 		}
 
 		setIsSaving(true);
-		updateOrganization(
-			{
+		try {
+			await updateOrganizationAsync({
 				organizationId: organization.id,
 				data: { name: name.trim(), slug: slug.trim() },
-			},
-			{
-				onSuccess: () => {
-					setIsSaving(false);
-				},
-				onError: () => {
-					setIsSaving(false);
-				},
-			}
-		);
+			});
+			toast.success("Settings updated");
+		} catch {
+			toast.error("Failed to update settings");
+		} finally {
+			setIsSaving(false);
+		}
 	};
 
 	return (

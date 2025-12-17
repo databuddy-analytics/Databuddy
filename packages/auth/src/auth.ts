@@ -9,12 +9,11 @@ import {
 	VerificationEmail,
 } from "@databuddy/email";
 import { getRedisCache } from "@databuddy/redis";
+import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { betterAuth } from "better-auth/minimal";
 import {
 	customSession,
 	emailOTP,
-	lastLoginMethod,
 	magicLink,
 	organization,
 	twoFactor,
@@ -144,10 +143,12 @@ export const auth = betterAuth({
 	session: {
 		cookieCache: {
 			enabled: true,
-			maxAge: 5 * 60,
+			maxAge: 60 * 60 * 24 * 30, // 30 days
 		},
-		storeSessionInDatabase: true,
-		preserveSessionInDatabase: true,
+		expiresIn: 60 * 60 * 24 * 30, // 30 days
+		updateAge: 60 * 60 * 24 * 3, // 1 day (every 1 day the session expiration is updated)
+		storeSessionInDatabase: true, // Store session in database when secondary storage is provided
+		preserveSessionInDatabase: true, // Preserve session records in database when deleted from secondary storage
 	},
 	secondaryStorage: {
 		get: async (key) => {
@@ -162,19 +163,7 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
-		lastLoginMethod({
-			customResolveMethod: (ctx) => {
-				if (
-					ctx.path === "/magic-link/verify" ||
-					ctx.path?.includes("/magic-link")
-				) {
-					return "magic-link";
-				}
-				return null;
-			},
-		}),
 		emailOTP({
-			// biome-ignore lint/suspicious/useAwait: we don't want to await here
 			async sendVerificationOTP({ email, otp, type }) {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 
@@ -200,9 +189,9 @@ export const auth = betterAuth({
 			},
 		}),
 		magicLink({
-			sendMagicLink: ({ email, url }) => {
+			sendMagicLink: async ({ email, url }) => {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
-				resend.emails.send({
+				await resend.emails.send({
 					from: "noreply@databuddy.cc",
 					to: email,
 					subject: "Login to Databuddy",

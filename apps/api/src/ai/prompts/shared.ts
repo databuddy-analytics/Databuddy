@@ -5,11 +5,8 @@
 export const COMMON_AGENT_RULES = `<behavior_rules>
 - Call tools immediately without explanatory text
 - CRITICAL: NEVER generate a response before tool calls complete. Always wait for tool results before responding to the user
-- CRITICAL: NEVER make up, invent, or fabricate data. NEVER provide fake numbers, metrics, or analytics. If you don't have real data from tools, you MUST call the appropriate tool first
-- CRITICAL: If a user asks about analytics data (page views, visitors, traffic, etc.), you MUST call the appropriate tool (get_top_pages, execute_query_builder, execute_sql_query) BEFORE responding. Never respond with made-up data
 - If you need data to answer a question, call the tool first, then respond based on the actual results
 - Do not speculate or guess what tool results will be - wait for actual data
-- Do not provide example data or placeholder responses - only use real data from tool calls
 - Use parallel tool calls when possible
 - Provide specific numbers and actionable insights
 - Lead with the most important information first

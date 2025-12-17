@@ -1,10 +1,11 @@
 export interface FlagResult {
 	enabled: boolean;
-	value: boolean;
-	payload: any;
+	value: boolean | string | number;
+	payload: Record<string, unknown> | null;
 	reason: string;
 	flagId?: string;
-	flagType?: "boolean" | "rollout";
+	flagType?: "boolean" | "rollout" | "multivariant";
+	variant?: string;
 }
 
 export interface FlagsConfig {
@@ -14,7 +15,7 @@ export interface FlagsConfig {
 	user?: {
 		userId?: string;
 		email?: string;
-		properties?: Record<string, any>;
+		properties?: Record<string, unknown>;
 	};
 	disabled?: boolean;
 	/** Enable debug logging */
@@ -25,6 +26,7 @@ export interface FlagsConfig {
 	isPending?: boolean;
 	/** Automatically fetch all flags on initialization (default: true) */
 	autoFetch?: boolean;
+	environment?: string;
 }
 
 export interface FlagState {
@@ -41,7 +43,7 @@ export interface FlagsContext {
 }
 
 export interface StorageInterface {
-	get(key: string): any;
+	get(key: string): FlagResult | null;
 	set(key: string, value: unknown): void;
 	getAll(): Record<string, unknown>;
 	clear(): void;

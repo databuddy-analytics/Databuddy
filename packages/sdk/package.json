@@ -12,7 +12,8 @@
     "vscode:prepublish": "bun run build"
   },
   "dependencies": {
-    "jotai": "^2.15.1"
+    "jotai": "^2.15.1",
+    "pino": "^10.1.0"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^2.0.0",

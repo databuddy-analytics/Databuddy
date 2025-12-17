@@ -29,7 +29,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 
 const granularityOptions = [
@@ -72,7 +71,6 @@ export function MonitorDialog({
 }: MonitorDialogProps) {
 	const formRef = useRef<HTMLFormElement>(null);
 	const isEditing = !!schedule;
-	const { data: website } = useWebsite(websiteId);
 
 	const form = useForm<MonitorFormData>({
 		resolver: zodResolver(monitorFormSchema),
@@ -138,19 +136,8 @@ export function MonitorDialog({
 				});
 				toast.success("Monitor updated successfully");
 			} else {
-				if (!website?.domain) {
-					toast.error("Website domain not found");
-					return;
-				}
-				
-				const url = website.domain.startsWith("http")
-					? website.domain
-					: `https://${website.domain}`;
-
 				await createMutation.mutateAsync({
 					websiteId,
-					url,
-					name: website.name ?? undefined,
 					granularity: data.granularity,
 				});
 				toast.success("Monitor created successfully");

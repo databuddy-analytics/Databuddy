@@ -68,8 +68,7 @@ function RoleSelector({
 	}
 
 	// Prevent admins from changing their own role
-	const isDisabled =
-		isUpdatingMember || (isCurrentUser && member.role === "admin");
+	const isDisabled = isUpdatingMember || (isCurrentUser && member.role === "admin");
 
 	return (
 		<Select

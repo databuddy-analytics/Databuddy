@@ -1,6 +1,5 @@
 import type { AppContext } from "../config/context";
 import { formatContextForLLM } from "../config/context";
-import { COMMON_AGENT_RULES } from "./shared";
 
 /**
  * Single-model capabilities.
@@ -25,8 +24,6 @@ const ROUTING_RULES = `<routing-rules>
  */
 export function buildTriageInstructions(ctx: AppContext): string {
 	return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Handle analytics requests directly.
-
-${COMMON_AGENT_RULES}
 
 <background-data>
 ${formatContextForLLM(ctx)}

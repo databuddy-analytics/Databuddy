@@ -10,31 +10,31 @@ import { FlagActions } from "./flag-actions";
 import type { Flag } from "./types";
 
 type FlagRowProps = {
-	flag: Flag;
-	onEditAction: () => void;
-	isExpanded?: boolean;
-	onToggleAction?: (flagId: string) => void;
-	children?: React.ReactNode;
+  flag: Flag;
+  onEditAction: () => void;
+  isExpanded?: boolean;
+  onToggleAction?: (flagId: string) => void;
+  children?: React.ReactNode;
 };
 
 export function FlagRow({
-	flag,
-	onEditAction,
-	isExpanded = false,
-	onToggleAction,
-	children,
+  flag,
+  onEditAction,
+  isExpanded = false,
+  onToggleAction,
+  children,
 }: FlagRowProps) {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-		const target = e.target as HTMLElement;
-		if (target.closest("button")) {
-			return;
-		}
-		if (onToggleAction) {
-			onToggleAction(flag.id);
-		}
-	};
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) {
+      return;
+    }
+    if (onToggleAction) {
+      onToggleAction(flag.id);
+    }
+  };
 
 	const getStatusBadge = (status: string) => {
 		if (status === "active") {
@@ -64,14 +64,14 @@ export function FlagRow({
 		return <Badge>{status}</Badge>;
 	};
 
-	const ruleCount = Array.isArray(flag.rules) ? flag.rules.length : 0;
-	const rollout =
-		typeof flag.rolloutPercentage === "number" ? flag.rolloutPercentage : 0;
-	const isBooleanFlag = String(flag.type).toLowerCase() === "boolean";
-	const defaultLabel =
-		isBooleanFlag && typeof flag.defaultValue === "boolean"
-			? `Default: ${flag.defaultValue ? "On" : "Off"}`
-			: undefined;
+  const ruleCount = Array.isArray(flag.rules) ? flag.rules.length : 0;
+  const rollout =
+    typeof flag.rolloutPercentage === "number" ? flag.rolloutPercentage : 0;
+  const isBooleanFlag = String(flag.type).toLowerCase() === "boolean";
+  const defaultLabel =
+    isBooleanFlag && typeof flag.defaultValue === "boolean"
+      ? `Default: ${flag.defaultValue ? "On" : "Off"}`
+      : undefined;
 
 	return (
 		<Card

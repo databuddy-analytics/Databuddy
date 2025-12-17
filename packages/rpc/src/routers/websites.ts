@@ -2,7 +2,6 @@ import { websitesApi } from "@databuddy/auth";
 import {
 	and,
 	chQuery,
-	db,
 	eq,
 	inArray,
 	isNull,
@@ -11,14 +10,6 @@ import {
 	websites,
 } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
-import {
-	buildWebsiteFilter,
-	DuplicateDomainError,
-	ValidationError,
-	type Website,
-	WebsiteNotFoundError,
-	WebsiteService,
-} from "@databuddy/services/websites";
 import { logger } from "@databuddy/shared/logger";
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 import {
@@ -31,11 +22,18 @@ import {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure } from "../orpc";
+import {
+	buildWebsiteFilter,
+	DuplicateDomainError,
+	ValidationError,
+	type Website,
+	WebsiteNotFoundError,
+	WebsiteService,
+} from "../services/website-service";
 import { authorizeWebsiteAccess } from "../utils/auth";
 import { invalidateWebsiteCaches } from "../utils/cache-invalidation";
 import { getCacheAuthContext } from "../utils/cache-keys";
 
-const websiteService = new WebsiteService(db);
 const websiteCache = createDrizzleCache({ redis, namespace: "websites" });
 const CACHE_DURATION = 60; // seconds
 const TREND_THRESHOLD = 5; // percentage
@@ -406,13 +404,13 @@ export const websitesRouter = {
 			const serviceInput = {
 				name: input.name,
 				domain: input.domain,
+				subdomain: input.subdomain,
 				userId: context.user.id,
 				organizationId: input.organizationId,
-				status: "ACTIVE" as const,
 			};
 
 			try {
-				return await websiteService.create(serviceInput);
+				return await new WebsiteService(context.db).createWebsite(serviceInput);
 			} catch (error) {
 				if (error instanceof ValidationError) {
 					throw new ORPCError("BAD_REQUEST", {
@@ -421,9 +419,6 @@ export const websitesRouter = {
 				}
 				if (error instanceof DuplicateDomainError) {
 					throw new ORPCError("CONFLICT", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),
@@ -440,19 +435,18 @@ export const websitesRouter = {
 				"update"
 			);
 
-			const serviceInput: { name?: string; domain?: string } = {};
-			if (input.name !== undefined) {
-				serviceInput.name = input.name;
-			}
-			if (input.domain !== undefined) {
-				serviceInput.domain = input.domain;
-			}
+			const serviceInput = {
+				name: input.name,
+				domain: input.domain,
+			};
 
 			let updatedWebsite: Website;
 			try {
-				updatedWebsite = await websiteService.updateById(
+				updatedWebsite = await new WebsiteService(context.db).updateWebsite(
 					input.id,
-					serviceInput
+					serviceInput,
+					context.user.id,
+					websiteToUpdate.organizationId ?? undefined
 				);
 			} catch (error) {
 				if (error instanceof ValidationError) {
@@ -465,9 +459,6 @@ export const websitesRouter = {
 				}
 				if (error instanceof WebsiteNotFoundError) {
 					throw new ORPCError("NOT_FOUND", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),
@@ -504,15 +495,12 @@ export const websitesRouter = {
 
 			let updatedWebsite: Website;
 			try {
-				updatedWebsite = await websiteService.updateById(input.id, {
-					isPublic: input.isPublic,
-				});
+				updatedWebsite = await new WebsiteService(
+					context.db
+				).toggleWebsitePublic(input.id, input.isPublic, context.user.id);
 			} catch (error) {
 				if (error instanceof WebsiteNotFoundError) {
 					throw new ORPCError("NOT_FOUND", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),
@@ -542,14 +530,11 @@ export const websitesRouter = {
 			);
 
 			try {
-				await websiteService.deleteById(input.id);
+				await new WebsiteService(context.db).deleteWebsite(
+					input.id,
+					context.user.id
+				);
 			} catch (error) {
-				if (error instanceof WebsiteNotFoundError) {
-					throw new ORPCError("NOT_FOUND", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
-				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),
 				});
@@ -590,21 +575,20 @@ export const websitesRouter = {
 			}
 
 			try {
-				return await websiteService.updateById(input.websiteId, {
-					organizationId: input.organizationId ?? null,
-				});
+				return await new WebsiteService(context.db).transferWebsite(
+					input.websiteId,
+					input.organizationId ?? null,
+					context.user.id
+				);
 			} catch (error) {
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
 				if (error instanceof DuplicateDomainError) {
 					throw new ORPCError("CONFLICT", {
 						message:
 							"A website with this domain already exists in the destination. Please remove or rename the existing website first.",
 					});
-				}
-				if (error instanceof WebsiteNotFoundError) {
-					throw new ORPCError("NOT_FOUND", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),
@@ -632,21 +616,22 @@ export const websitesRouter = {
 			}
 
 			try {
-				return await websiteService.updateById(input.websiteId, {
-					organizationId: input.targetOrganizationId,
-				});
+				return await new WebsiteService(
+					context.db
+				).transferWebsiteToOrganization(
+					input.websiteId,
+					input.targetOrganizationId,
+					context.user.id
+				);
 			} catch (error) {
+				if (error instanceof WebsiteNotFoundError) {
+					throw new ORPCError("NOT_FOUND", { message: error.message });
+				}
 				if (error instanceof DuplicateDomainError) {
 					throw new ORPCError("CONFLICT", {
 						message:
 							"A website with this domain already exists in the destination. Please remove or rename the existing website first.",
 					});
-				}
-				if (error instanceof WebsiteNotFoundError) {
-					throw new ORPCError("NOT_FOUND", { message: error.message });
-				}
-				if (error instanceof ORPCError) {
-					throw error;
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: error instanceof Error ? error.message : String(error),

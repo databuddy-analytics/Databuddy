@@ -1,6 +1,6 @@
 "use client";
 
-import type { UIMessage } from "ai";
+import type { ChatStatus, UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import {
 	ChainOfThought,
@@ -18,7 +18,7 @@ import {
 	ReasoningContent,
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { useChat } from "@/contexts/chat-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useChatStatus } from "./hooks/use-chat-status";
 
@@ -134,12 +134,10 @@ function renderMessagePart(
 	partIndex: number,
 	messageId: string,
 	isLastMessage: boolean,
-	isStreaming: boolean,
-	role: UIMessage["role"]
+	isStreaming: boolean
 ) {
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
-	const mode = (role === "user" || !isCurrentlyStreaming) ? "static" : "streaming";
 
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
@@ -178,7 +176,7 @@ function renderMessagePart(
 		}
 
 		return (
-			<MessageResponse isAnimating={isCurrentlyStreaming} key={key} mode={mode}>
+			<MessageResponse isAnimating={isCurrentlyStreaming} key={key}>
 				{textPart.text}
 			</MessageResponse>
 		);
@@ -203,8 +201,13 @@ function renderMessagePart(
 	return null;
 }
 
-export function AgentMessages() {
-	const { status, messages } = useChat();
+export function AgentMessages({
+	status,
+	messages,
+}: {
+	status: ChatStatus;
+	messages: UIMessage[];
+}) {
 	const hasError = status === "error";
 	const chatStatus = useChatStatus(messages, status);
 	const isStreaming = status === "streaming" || status === "submitted";
@@ -235,8 +238,7 @@ export function AgentMessages() {
 									partIndex,
 									message.id,
 									isLastMessage,
-									isStreaming,
-									message.role
+									isStreaming
 								)
 							)}
 
@@ -275,6 +277,13 @@ function StreamingIndicator({ statusText }: { statusText?: string }) {
 			data-role="assistant"
 		>
 			<div className="flex w-full items-center justify-start gap-2">
+				<Avatar className="size-8 shrink-0 animate-pulse ring-1 ring-border">
+					<AvatarImage alt="Databunny" src="/databunny.webp" />
+					<AvatarFallback className="bg-primary/10 font-semibold text-primary">
+						DB
+					</AvatarFallback>
+				</Avatar>
+
 				<div className="flex w-full flex-col gap-2">
 					<div className="flex items-center gap-1 text-muted-foreground text-sm">
 						<span className="animate-pulse">{statusText || "Thinking"}</span>

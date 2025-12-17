@@ -28,12 +28,15 @@
     "./types/sessions": "./src/types/sessions.ts",
     "./types/vercel": "./src/types/vercel.ts",
     "./types/website": "./src/types/website.ts",
+    "./flags": "./src/flags/index.ts",
+    "./flags/utils": "./src/flags/utils.ts",
     "./utils/date-utils": "./src/utils/date-utils.ts",
     "./utils/ids": "./src/utils/ids.ts",
     "./utils/openrouter": "./src/utils/openrouter.ts",
     "./logger": "./src/utils/logger.ts"
   },
   "dependencies": {
+    "@databuddy/redis": "workspace:*",
     "@axiomhq/pino": "^1.3.1",
     "@databuddy/db": "workspace:*",
     "@logtail/edge": "catalog:",

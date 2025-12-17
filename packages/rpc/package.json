@@ -10,15 +10,14 @@
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/redis": "workspace:*",
-    "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@orpc/otel": "^1.12.2",
-    "@orpc/server": "^1.12.2",
+    "@orpc/otel": "^1.11.2",
+    "@orpc/server": "^1.11.2",
     "@types/jszip": "^3.4.1",
     "@upstash/qstash": "^2.8.4",
-    "ai": "^5.0.112",
+    "ai": "^5.0.93",
     "autumn-js": "^0.0.101",
     "dayjs": "^1.11.19",
     "drizzle-orm": "^0.44.7",
@@ -27,11 +26,11 @@
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
     "redis": "^5.10.0",
-    "superjson": "^2.2.6",
+    "superjson": "^2.2.5",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/pg": "^8.16.0",
+    "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"
   }
 }

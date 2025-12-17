@@ -151,7 +151,7 @@ export function OrganizationsList({
 				toast.success("Workspace updated");
 				await new Promise((resolve) => setTimeout(resolve, 300));
 				router.push("/organizations/settings");
-			}
+		}
 		} catch {
 			toast.error("Failed to switch workspace");
 		} finally {

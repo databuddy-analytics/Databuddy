@@ -39,35 +39,10 @@ export type ReferrerAnalytics = {
 	conversion_rate: number;
 };
 
-export type ClickhouseQueryParamValue =
-	| string
-	| number
-	| boolean
-	| null
-	| undefined
-	| readonly string[]
-	| readonly number[];
-
-export type ClickhouseQueryParams = Record<string, ClickhouseQueryParamValue>;
-
-type Filter = {
-	field: string;
-	operator: string;
-	value: string | readonly string[];
-};
+type Filter = { field: string; operator: string; value: string | string[] };
 type VisitorStep = { step: number; time: number; referrer?: string };
-type ParsedReferrer = { name: string; type: string; domain: string };
 
 // Helpers
-const ESCAPE_BACKSLASH_REGEX = /\\/g;
-const ESCAPE_LIKE_WILDCARDS_REGEX = /[%_]/g;
-const WWW_PREFIX_REGEX = /^www\./;
-
-const escapeClickhouseString = (value: string): string =>
-	value
-		.replace(ESCAPE_BACKSLASH_REGEX, "\\\\")
-		.replace(ESCAPE_LIKE_WILDCARDS_REGEX, "\\$&");
-
 const formatDuration = (seconds: number): string => {
 	if (!seconds || seconds <= 0) {
 		return "—";
@@ -91,14 +66,14 @@ const avg = (arr: number[]): number =>
 const pct = (num: number, denom: number): number =>
 	denom > 0 ? Math.round((num / denom) * 10_000) / 100 : 0;
 
-const parseReferrer = (ref: string): ParsedReferrer => {
+const parseReferrer = (ref: string) => {
 	if (!ref || ref === "Direct" || ref.toLowerCase() === "(direct)") {
 		return { name: "Direct", type: "direct", domain: "" };
 	}
 
 	try {
 		const url = new URL(ref.includes("://") ? ref : `https://${ref}`);
-		const host = url.hostname.replace(WWW_PREFIX_REGEX, "").toLowerCase();
+		const host = url.hostname.replace(/^www\./, "").toLowerCase();
 		const known = referrers[url.hostname] || referrers[host];
 
 		return known
@@ -144,7 +119,7 @@ const OPS = new Set([
 
 const buildFilterSQL = (
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: Record<string, unknown>
 ): string => {
 	const parts: string[] = [];
 
@@ -158,57 +133,31 @@ const buildFilterSQL = (
 
 		if (operator === "is_null") {
 			parts.push(`${field} IS NULL`);
-			continue;
-		}
-
-		if (operator === "is_not_null") {
+		} else if (operator === "is_not_null") {
 			parts.push(`${field} IS NOT NULL`);
-			continue;
-		}
-
-		// Preserve historical behavior: if value is an array, treat it as IN/NOT IN.
-		// (Even if the operator isn't "in", the old code defaulted to NOT IN.)
-		if (Array.isArray(value)) {
+		} else if (Array.isArray(value)) {
 			params[key] = value;
 			parts.push(
 				`${field} ${operator === "in" ? "IN" : "NOT IN"} {${key}:Array(String)}`
 			);
-			continue;
-		}
-
-		if (typeof value !== "string") {
-			continue;
-		}
-
-		switch (operator) {
-			default: {
-				const escaped = escapeClickhouseString(value);
-
-				if (operator === "contains" || operator === "not_contains") {
-					params[key] = `%${escaped}%`;
-					parts.push(
-						`${field} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
-					);
-					break;
-				}
-
-				if (operator === "starts_with") {
-					params[key] = `${escaped}%`;
-					parts.push(`${field} LIKE {${key}:String}`);
-					break;
-				}
-
-				if (operator === "ends_with") {
-					params[key] = `%${escaped}`;
-					parts.push(`${field} LIKE {${key}:String}`);
-					break;
-				}
-
+		} else {
+			const escaped = value.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&");
+			if (operator === "contains" || operator === "not_contains") {
+				params[key] = `%${escaped}%`;
+				parts.push(
+					`${field} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
+				);
+			} else if (operator === "starts_with") {
+				params[key] = `${escaped}%`;
+				parts.push(`${field} LIKE {${key}:String}`);
+			} else if (operator === "ends_with") {
+				params[key] = `%${escaped}`;
+				parts.push(`${field} LIKE {${key}:String}`);
+			} else {
 				params[key] = escaped;
 				parts.push(
 					`${field} ${operator === "equals" ? "=" : "!="} {${key}:String}`
 				);
-				break;
 			}
 		}
 	}
@@ -217,30 +166,25 @@ const buildFilterSQL = (
 };
 
 // Query building
-const buildTimeRangeWhere = (timeColumn: "time" | "timestamp") =>
-	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
-		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
-
-const buildBaseWhere = (
-	timeColumn: "time" | "timestamp"
-) => `client_id = {websiteId:String}
-		AND ${buildTimeRangeWhere(timeColumn)}`;
-
 const buildStepQuery = (
 	step: AnalyticsStep,
 	idx: number,
 	filterSQL: string,
-	params: ClickhouseQueryParams,
+	params: Record<string, unknown>,
 	includeReferrer = false
 ): string => {
 	params[`n${idx}`] = step.name;
 	params[`t${idx}`] = step.target;
 
 	const refCol = includeReferrer ? ", any(referrer) as ref" : "";
-	const base = buildBaseWhere("time");
+	const base = `client_id = {websiteId:String}
+		AND time >= parseDateTimeBestEffort({startDate:String})
+		AND time <= parseDateTimeBestEffort({endDate:String})`;
 
 	if (step.type === "PAGE_VIEW") {
-		const escapedTarget = escapeClickhouseString(step.target);
+		const escapedTarget = step.target
+			.replace(/\\/g, "\\\\")
+			.replace(/[%_]/g, "\\$&");
 		params[`t${idx}l`] = `%${escapedTarget}%`;
 		return `SELECT ${idx + 1} as step, {n${idx}:String} as name, anonymous_id as vid, MIN(time) as ts${refCol}
 			FROM analytics.events
@@ -263,9 +207,10 @@ const buildStepQuery = (
 			SELECT anonymous_id as vid, time as ts FROM analytics.events
 			WHERE ${base} AND event_name = {t${idx}:String}${filterSQL}
 			UNION ALL
-			SELECT anonymous_id as vid, timestamp as ts FROM analytics.custom_event_spans
+			SELECT anonymous_id as vid, timestamp as ts FROM analytics.custom_events
 			WHERE client_id = {websiteId:String}
-				AND ${buildTimeRangeWhere("timestamp")}
+				AND timestamp >= parseDateTimeBestEffort({startDate:String})
+				AND timestamp <= parseDateTimeBestEffort({endDate:String})
 				AND event_name = {t${idx}:String}
 		) e ${refJoin}
 		GROUP BY e.vid${includeReferrer ? ", r.vref" : ""}`;
@@ -277,15 +222,12 @@ const groupByVisitor = (
 ): Map<string, VisitorStep[]> => {
 	const map = new Map<string, VisitorStep[]>();
 	for (const r of rows) {
-		const existing = map.get(r.vid);
-		const arr = existing ?? [];
-		if (!existing) {
+		let arr = map.get(r.vid);
+		if (!arr) {
+			arr = [];
 			map.set(r.vid, arr);
 		}
-		arr.push({ step: r.step, time: r.ts, referrer: r.ref || undefined });
-	}
-	for (const steps of map.values()) {
-		steps.sort((a, b) => a.time - b.time);
+		arr.push({ step: r.step, time: r.ts, referrer: r.ref });
 	}
 	return map;
 };
@@ -302,6 +244,7 @@ const countStepCompletions = (
 			continue;
 		}
 
+		steps.sort((a, b) => a.time - b.time);
 		let expected = 1;
 
 		for (const s of steps) {
@@ -323,7 +266,7 @@ const countStepCompletions = (
 export const processFunnelAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: Record<string, unknown>
 ): Promise<FunnelAnalytics> => {
 	const filterSQL = buildFilterSQL(filters, params);
 	const stepQueries = steps.map((s, i) =>
@@ -351,6 +294,7 @@ export const processFunnelAnalytics = async (
 	const stepTimes = new Map<number, number[]>();
 
 	for (const [, stepList] of visitors) {
+		stepList.sort((a, b) => a.time - b.time);
 		let expected = 1;
 		let firstTime = 0;
 		let prevTime = 0;
@@ -398,12 +342,12 @@ export const processFunnelAnalytics = async (
 	});
 
 	const lastStep = stepsAnalytics.at(-1);
-	const biggestDropoff =
-		stepsAnalytics.length > 1
-			? stepsAnalytics
-					.slice(1)
-					.reduce((max, s) => (s.dropoff_rate > max.dropoff_rate ? s : max))
-			: stepsAnalytics[0];
+	const biggestDropoff = stepsAnalytics
+		.slice(1)
+		.reduce(
+			(max, s) => (s.dropoff_rate > max.dropoff_rate ? s : max),
+			stepsAnalytics[1] || stepsAnalytics[0]
+		);
 
 	return {
 		overall_conversion_rate: pct(lastStep?.users || 0, totalUsers),
@@ -421,7 +365,7 @@ export const processFunnelAnalytics = async (
 export const processGoalAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams,
+	params: Record<string, unknown>,
 	totalWebsiteUsers: number
 ): Promise<FunnelAnalytics> => {
 	const filterSQL = buildFilterSQL(filters, params);
@@ -462,7 +406,7 @@ export const processGoalAnalytics = async (
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: Record<string, unknown>
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
 	const filterSQL = buildFilterSQL(filters, params);
 	const stepQueries = steps.map((s, i) =>
@@ -554,7 +498,7 @@ export const getTotalWebsiteUsers = async (
 export const buildFilterConditions = (
 	filters: Filter[],
 	_prefix: string,
-	params: ClickhouseQueryParams
+	params: Record<string, unknown>
 ): { conditions: string; errors: string[] } => ({
 	conditions: buildFilterSQL(filters, params),
 	errors: [],

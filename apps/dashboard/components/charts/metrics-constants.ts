@@ -185,7 +185,7 @@ export const formatPerformanceTime = (value: number): string => {
 };
 
 export const formatCLS = (value: number): string => {
-	if (value === null || value === undefined || Number.isNaN(value)) {
+	if (value == null || Number.isNaN(value)) {
 		return "N/A";
 	}
 	return value.toFixed(3);
@@ -213,10 +213,10 @@ export const ANALYTICS_METRICS: MetricConfig[] = [
 	createMetric("pageviews", "Pageviews", "pageviews", Eye, (value) =>
 		value.toLocaleString()
 	),
-	createMetric("sessions", "Sessions", "sessions", TrendingUp, (value) =>
+	createMetric("visitors", "Visitors", "visitors", Users, (value) =>
 		value.toLocaleString()
 	),
-	createMetric("visitors", "Visitors", "visitors", Users, (value) =>
+	createMetric("sessions", "Sessions", "sessions", TrendingUp, (value) =>
 		value.toLocaleString()
 	),
 	createMetric(

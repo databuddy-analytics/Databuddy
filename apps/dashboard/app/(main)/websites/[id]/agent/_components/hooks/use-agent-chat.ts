@@ -6,8 +6,9 @@ import { useMemo } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
-export function useAgentChatTransport(chatId: string) {
+export function useAgentChatTransport() {
 	const params = useParams();
+	const chatId = params.chatId as string;
 	const websiteId = params.id as string;
 
 	return useMemo(

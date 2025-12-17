@@ -87,36 +87,6 @@ export async function authorizeWebsiteAccess(
 }
 
 /**
- * A utility to authorize uptime schedule access.
- * If schedule has websiteId, checks website access.
- * Otherwise, checks that user owns the schedule.
- *
- * @throws {ORPCError} if the user is not authorized.
- */
-export async function authorizeUptimeScheduleAccess(
-	ctx: Context,
-	schedule: { websiteId: string | null; userId: string }
-) {
-	if (!ctx.user) {
-		throw new ORPCError("UNAUTHORIZED", {
-			message: "Authentication is required for this action.",
-		});
-	}
-
-	if (ctx.user.role === "ADMIN") {
-		return;
-	}
-
-	if (schedule.websiteId) {
-		await authorizeWebsiteAccess(ctx, schedule.websiteId, "update");
-	} else if (schedule.userId !== ctx.user.id) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "You do not have permission to access this monitor.",
-		});
-	}
-}
-
-/**
  * A utility to centralize authorization checks for database connections.
  * It verifies if a user has the required permissions for a specific database connection,
  * checking for ownership or organization roles.

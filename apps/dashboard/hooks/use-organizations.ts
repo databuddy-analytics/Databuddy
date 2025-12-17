@@ -206,6 +206,7 @@ export function useOrganizations() {
 			toast.success("Workspace updated");
 		},
 		onError: (error: Error) => {
+			// Don't show error toast for organization not found - we handle this gracefully
 			if (
 				!(
 					error.message?.includes("ORGANIZATION_NOT_FOUND") ||
@@ -241,12 +242,19 @@ export function useOrganizations() {
 		isLoading,
 
 		createOrganization: createOrganizationMutation.mutate,
+		createOrganizationAsync: createOrganizationMutation.mutateAsync,
 		updateOrganization: updateOrganizationMutation.mutate,
+		updateOrganizationAsync: updateOrganizationMutation.mutateAsync,
 		deleteOrganization: deleteOrganizationMutation.mutate,
+		deleteOrganizationAsync: deleteOrganizationMutation.mutateAsync,
 		setActiveOrganization: setActiveOrganizationMutation.mutate,
+		setActiveOrganizationAsync: setActiveOrganizationMutation.mutateAsync,
 		leaveOrganization: leaveOrganizationMutation.mutate,
+		leaveOrganizationAsync: leaveOrganizationMutation.mutateAsync,
 		uploadOrganizationLogo: uploadOrganizationLogoMutation.mutate,
+		uploadOrganizationLogoAsync: uploadOrganizationLogoMutation.mutateAsync,
 		deleteOrganizationLogo: deleteOrganizationLogoMutation.mutate,
+		deleteOrganizationLogoAsync: deleteOrganizationLogoMutation.mutateAsync,
 
 		isCreatingOrganization: createOrganizationMutation.isPending,
 		isUpdatingOrganization: updateOrganizationMutation.isPending,
@@ -355,14 +363,97 @@ export function useOrganizationMembers(organizationId: string) {
 		refetch,
 
 		inviteMember: inviteMemberMutation.mutate,
+		inviteMemberAsync: inviteMemberMutation.mutateAsync,
 		updateMember: updateMemberMutation.mutate,
+		updateMemberAsync: updateMemberMutation.mutateAsync,
 		removeMember: removeMemberMutation.mutate,
+		removeMemberAsync: removeMemberMutation.mutateAsync,
 
 		isInvitingMember: inviteMemberMutation.isPending,
 		isUpdatingMember: updateMemberMutation.isPending,
 		isRemovingMember: removeMemberMutation.isPending,
 	};
 }
+
+// useOrganizationInvitations has been moved to @/hooks/use-organization-invitations for simplified state management
+
+export function useUserInvitations() {
+	const queryClient = useQueryClient();
+
+	const {
+		data: invitations = [],
+		isLoading,
+		error,
+		refetch,
+	} = useQuery({
+		queryKey: QUERY_KEYS.userInvitations,
+		queryFn: async () => {
+			const { data, error: apiError } =
+				await authClient.organization.listUserInvitations();
+			if (apiError) {
+				throw new Error(apiError.message || "Failed to fetch user invitations");
+			}
+			return data || [];
+		},
+	});
+
+	const invalidateUserInvitations = () => {
+		queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userInvitations });
+	};
+
+	const acceptInvitationMutation = useMutation(
+		createMutation(
+			async (invitationId: string) => {
+				const { data: result, error: apiError } =
+					await authClient.organization.acceptInvitation({
+						invitationId,
+					});
+				if (apiError) {
+					throw new Error(apiError.message || "Failed to accept invitation");
+				}
+				return result;
+			},
+			"Invitation accepted successfully",
+			"Failed to accept invitation",
+			invalidateUserInvitations
+		)
+	);
+
+	const rejectInvitationMutation = useMutation(
+		createMutation(
+			async (invitationId: string) => {
+				const { data: result, error: apiError } =
+					await authClient.organization.rejectInvitation({
+						invitationId,
+					});
+				if (apiError) {
+					throw new Error(apiError.message || "Failed to reject invitation");
+				}
+				return result;
+			},
+			"Invitation rejected",
+			"Failed to reject invitation",
+			invalidateUserInvitations
+		)
+	);
+
+	return {
+		invitations,
+		isLoading,
+		error,
+		hasError: !!error,
+		refetch,
+
+		acceptInvitation: acceptInvitationMutation.mutate,
+		acceptInvitationAsync: acceptInvitationMutation.mutateAsync,
+		rejectInvitation: rejectInvitationMutation.mutate,
+		rejectInvitationAsync: rejectInvitationMutation.mutateAsync,
+
+		isAcceptingInvitation: acceptInvitationMutation.isPending,
+		isRejectingInvitation: rejectInvitationMutation.isPending,
+	};
+}
+
 export type Organization = ReturnType<
 	typeof useOrganizations
 >["organizations"][number];
@@ -374,5 +465,8 @@ export type ActiveOrganization = ReturnType<
 export type OrganizationMember = ReturnType<
 	typeof useOrganizationMembers
 >["members"][number];
+
+// Invitation types are now in @/stores/jotai/organizationAtoms
+export type { Invitation } from "@/stores/jotai/organizationAtoms";
 
 export type CancelInvitation = (invitationId: string) => Promise<void>;

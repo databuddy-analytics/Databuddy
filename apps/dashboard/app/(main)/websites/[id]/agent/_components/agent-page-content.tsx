@@ -1,5 +1,6 @@
 "use client";
 
+import { useChat } from "@ai-sdk-tools/store";
 import {
 	ArrowRightIcon,
 	BrainIcon,
@@ -7,7 +8,9 @@ import {
 	LightningIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
+import type { UIMessage } from "ai";
 import { useSetAtom } from "jotai";
+import { useParams } from "next/navigation";
 import {
 	Conversation,
 	ConversationContent,
@@ -15,12 +18,12 @@ import {
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useChat } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
 import { AgentChatProvider } from "./agent-chat-context";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
+import { useAgentChatTransport } from "./hooks/use-agent-chat";
 import { NewChatButton } from "./new-chat-button";
 
 type AgentPageContentProps = {
@@ -68,7 +71,10 @@ function AgentPageContentInner({
 	websiteId: string;
 }) {
 	const setInputValue = useSetAtom(agentInputAtom);
-	const { messages } = useChat();
+	const params = useParams();
+	const chatId = params.chatId as string;
+	const transport = useAgentChatTransport();
+	const { status, messages } = useChat<UIMessage>({ id: chatId, transport });
 
 	const hasMessages = messages.length > 0;
 
@@ -113,7 +119,7 @@ function AgentPageContentInner({
 				<Conversation className="flex-1">
 					<ConversationContent className="mx-auto w-full max-w-4xl pb-[150px]">
 						{hasMessages ? (
-							<AgentMessages />
+							<AgentMessages messages={messages} status={status} />
 						) : (
 							<ConversationEmptyState>
 								<WelcomeState onPromptSelect={setInputValue} />
@@ -123,7 +129,7 @@ function AgentPageContentInner({
 					<ConversationScrollButton />
 				</Conversation>
 
-				<AgentInput />
+				<AgentInput status={status} />
 			</div>
 		</div>
 	);

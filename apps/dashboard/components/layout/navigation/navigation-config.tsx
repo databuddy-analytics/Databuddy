@@ -250,11 +250,6 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.ERROR_TRACKING,
 		}),
-		createNavItem("Pulse", HeartbeatIcon, "/pulse", {
-			rootLevel: false,
-			flag: "pulse",
-			alpha: true,
-		}),
 	]),
 	createNavSection("Product Analytics", TrendUpIcon, [
 		createNavItem("Users", UsersThreeIcon, "/users", {
@@ -287,6 +282,19 @@ export const websiteNavigation: NavigationSection[] = [
 			// gatedFeature: GATED_FEATURES.AI_AGENT,
 		}),
 	]),
+	createNavSection(
+		"Pulse",
+		HeartbeatIcon,
+		[
+			createNavItem("Uptime", ChartLineUpIcon, "/pulse", {
+				rootLevel: false,
+				alpha: true,
+			}),
+		],
+		{
+			flag: "pulse",
+		}
+	),
 ];
 
 export const websiteSettingsNavigation: NavigationSection[] = [

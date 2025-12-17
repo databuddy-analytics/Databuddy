@@ -1,12 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import {
-	ArrowLeftIcon,
-	EyeIcon,
-	EyeSlashIcon,
-	SpinnerIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon, EyeIcon, EyeSlashIcon, SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -35,7 +30,7 @@ function ForgotPasswordPage() {
 		}
 		setIsLoading(true);
 
-		const { error } = await authClient.emailOtp.sendVerificationOtp({
+		const { data, error } = await authClient.emailOtp.sendVerificationOtp({
 			email,
 			type: "forget-password",
 		});
@@ -53,7 +48,7 @@ function ForgotPasswordPage() {
 
 	const handleResetPassword = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!(otp && password && confirmPassword)) {
+		if (!otp || !password || !confirmPassword) {
 			toast.error("Please fill in all fields");
 			return;
 		}
@@ -68,7 +63,7 @@ function ForgotPasswordPage() {
 
 		setIsLoading(true);
 
-		const { error } = await authClient.emailOtp.resetPassword({
+		const { data, error } = await authClient.emailOtp.resetPassword({
 			email,
 			otp,
 			password,
@@ -76,9 +71,7 @@ function ForgotPasswordPage() {
 
 		if (error) {
 			setIsLoading(false);
-			toast.error(
-				error.message || "Failed to reset password. Please try again."
-			);
+			toast.error(error.message || "Failed to reset password. Please try again.");
 			return;
 		}
 
@@ -126,10 +119,7 @@ function ForgotPasswordPage() {
 					<div className="relative z-10">
 						<form className="space-y-5" onSubmit={handleSendOTP}>
 							<div className="space-y-3">
-								<Label
-									className="font-medium text-foreground"
-									htmlFor="forgot-email"
-								>
+								<Label className="font-medium text-foreground" htmlFor="forgot-email">
 									Email<span className="text-primary">*</span>
 								</Label>
 								<Input
@@ -189,7 +179,7 @@ function ForgotPasswordPage() {
 									Verification code<span className="text-primary">*</span>
 								</Label>
 								<Button
-									className="h-auto p-0 text-accent-foreground/60 text-xs duration-200 hover:text-accent-foreground"
+									className="h-auto p-0 text-xs text-accent-foreground/60 duration-200 hover:text-accent-foreground"
 									disabled={isResending}
 									onClick={handleResendOTP}
 									type="button"
@@ -234,7 +224,9 @@ function ForgotPasswordPage() {
 									value={password}
 								/>
 								<Button
-									aria-label={showPassword ? "Hide password" : "Show password"}
+									aria-label={
+										showPassword ? "Hide password" : "Show password"
+									}
 									className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 									onClick={() => setShowPassword(!showPassword)}
 									size="sm"

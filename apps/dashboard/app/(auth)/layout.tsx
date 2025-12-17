@@ -68,20 +68,6 @@ export default async function AuthLayout({
 						</Suspense>
 					</div>
 				</div>
-
-			<div className="flex justify-center p-6 pb-8 text-center text-muted-foreground text-sm">
-					<p>
-						Powered by{" "}
-						<a
-							className="font-medium text-foreground hover:underline"
-							href="https://www.databuddy.cc"
-							rel="noopener noreferrer dofollow"
-							target="_blank"
-						>
-							Databuddy
-						</a>
-					</p>
-				</div>
 			</div>
 		</div>
 	);

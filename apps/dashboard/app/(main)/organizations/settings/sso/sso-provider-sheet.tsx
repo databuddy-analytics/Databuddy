@@ -98,7 +98,7 @@ function ProtocolSelector({
 						/>
 						<div className="flex items-center gap-1.5">
 							<span className="font-medium text-sm">{label}</span>
-							{badge ? <Badge variant="amber">{badge}</Badge> : null}
+							{badge && <Badge variant="amber">{badge}</Badge>}
 						</div>
 					</button>
 				))}
@@ -124,12 +124,10 @@ function FormField({
 		<div className="space-y-2">
 			<Label className="font-medium" htmlFor={id}>
 				{label}
-				{optional ? (
-					<span className="text-muted-foreground"> (optional)</span>
-				) : null}
+				{optional && <span className="text-muted-foreground"> (optional)</span>}
 			</Label>
 			{children}
-			{hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+			{hint && <p className="text-muted-foreground text-xs">{hint}</p>}
 		</div>
 	);
 }
@@ -165,15 +163,11 @@ function BaseConfigFields({
 				/>
 			</FormField>
 
-			<FormField
-				hint="The IdP entity ID or SP metadata URL (auto-generated for SAML)"
-				id="issuer"
-				label="Issuer URL"
-			>
+			<FormField id="issuer" label="Issuer URL">
 				<Input
 					id="issuer"
 					onChange={(e) => onChange({ issuer: e.target.value })}
-					placeholder="https://idp.example.com or leave empty for SAML"
+					placeholder="https://idp.example.com..."
 					value={form.issuer}
 				/>
 			</FormField>
@@ -230,46 +224,33 @@ function SAMLConfigFields({
 }) {
 	return (
 		<div className="space-y-3">
-			<FormField
-				hint="The IdP Single Sign-on URL (from Okta: Single Sign-on URL)"
-				id="entry-point"
-				label="SSO URL (Entry Point)"
-			>
+			<FormField id="entry-point" label="SSO URL">
 				<Input
 					id="entry-point"
 					onChange={(e) => onChange({ entryPoint: e.target.value })}
-					placeholder="https://trial-1076874.okta.com/app/.../sso/saml"
+					placeholder="https://idp.example.com/sso..."
 					value={form.entryPoint}
 				/>
 			</FormField>
 
-			<FormField
-				hint="Paste the IdP certificate from Okta (X.509 Certificate)"
-				id="certificate"
-				label="IdP Certificate"
-			>
+			<FormField id="certificate" label="IdP Certificate">
 				<Textarea
 					className="font-mono text-xs"
 					id="certificate"
 					onChange={(e) => onChange({ certificate: e.target.value })}
-					placeholder="-----BEGIN CERTIFICATE-----&#10;MIIDqjCCApKgAwIBAgIGAZhVGMeUMA0GCSqGSIb3DQEBCwUAMIGVMQswCQYDVQQGEwJVUzETMBEG&#10;...&#10;-----END CERTIFICATE-----"
-					rows={5}
+					placeholder="-----BEGIN CERTIFICATE-----"
+					rows={3}
 					value={form.certificate}
 				/>
 			</FormField>
 
-			<FormField
-				hint="Optional: Paste the full IdP metadata XML from Okta (alternative to manual configuration)"
-				id="idp-metadata"
-				label="IdP Metadata XML"
-				optional
-			>
+			<FormField id="idp-metadata" label="IdP Metadata" optional>
 				<Textarea
 					className="font-mono text-xs"
 					id="idp-metadata"
 					onChange={(e) => onChange({ idpMetadata: e.target.value })}
-					placeholder="&lt;md:EntityDescriptor xmlns:md=&quot;urn:oasis:names:tc:SAML:2.0:metadata&quot;&gt;&#10;  ...&#10;&lt;/md:EntityDescriptor&gt;"
-					rows={5}
+					placeholder="Paste IdP metadata XML..."
+					rows={3}
 					value={form.idpMetadata}
 				/>
 			</FormField>
@@ -304,18 +285,7 @@ function ProtocolConfigSection({
 	);
 }
 
-function ServiceProviderInfo({ providerId }: { providerId?: string }) {
-	const baseUrl =
-		typeof window !== "undefined"
-			? window.location.origin
-			: "https://app.databuddy.cc";
-	const acsUrl = providerId
-		? `${baseUrl}/api/auth/sso/saml2/sp/acs/${providerId}`
-		: `${baseUrl}/api/auth/sso/saml2/sp/acs/[providerId]`;
-	const metadataUrl = providerId
-		? `${baseUrl}/api/auth/sso/saml2/sp/metadata/${providerId}`
-		: `${baseUrl}/api/auth/sso/saml2/sp/metadata/[providerId]`;
-
+function ServiceProviderInfo() {
 	return (
 		<section className="rounded border bg-card p-4">
 			<div className="mb-3 flex items-center gap-2">
@@ -327,16 +297,16 @@ function ServiceProviderInfo({ providerId }: { providerId?: string }) {
 				<span className="font-medium text-sm">Service Provider Details</span>
 			</div>
 			<div className="space-y-2.5 text-sm">
-				<div className="flex flex-col gap-1">
-					<span className="text-foreground">Single Sign-on URL (ACS)</span>
-					<code className="break-all rounded bg-muted px-2 py-1 text-xs">
-						{acsUrl}
+				<div className="flex items-center justify-between gap-2">
+					<span className="text-foreground">Callback URL</span>
+					<code className="truncate px-2 py-1 text-xs">
+						/api/auth/sso/callback/[id]
 					</code>
 				</div>
-				<div className="flex flex-col gap-1">
-					<span className="text-foreground">Audience URI (SP Entity ID)</span>
-					<code className="break-all rounded bg-muted px-2 py-1 text-xs">
-						{metadataUrl}
+				<div className="flex items-center justify-between gap-2">
+					<span className="text-foreground">Entity ID</span>
+					<code className="truncate px-2 py-1 text-xs">
+						https://app.databuddy.cc
 					</code>
 				</div>
 			</div>
@@ -370,42 +340,7 @@ export function SSOProviderSheet({
 
 	const handleCreate = async () => {
 		try {
-			// Validate required fields
-			if (!form.providerName.trim()) {
-				toast.error("Provider name is required");
-				return;
-			}
-
-			if (!form.domain.trim()) {
-				toast.error("Domain is required");
-				return;
-			}
-
-			if (providerType === "oidc") {
-				const hasClientId = form.clientId.trim();
-				const hasClientSecret = form.clientSecret.trim();
-				if (!(hasClientId && hasClientSecret)) {
-					toast.error("Client ID and Client Secret are required for OIDC");
-					return;
-				}
-			}
-
-			if (providerType === "saml") {
-				if (!form.entryPoint.trim()) {
-					toast.error("SSO URL (Entry Point) is required for SAML");
-					return;
-				}
-				if (!form.certificate.trim()) {
-					toast.error("IdP Certificate is required for SAML");
-					return;
-				}
-			}
-
 			const providerId = generateProviderId(form.providerName);
-			const baseUrl =
-				typeof window !== "undefined"
-					? window.location.origin
-					: "https://app.databuddy.cc";
 
 			const payload =
 				providerType === "oidc"
@@ -431,24 +366,20 @@ export function SSOProviderSheet({
 						}
 					: {
 							providerId,
-							issuer:
-								form.issuer ||
-								`${baseUrl}/api/auth/sso/saml2/sp/metadata/${providerId}`,
+							issuer: form.issuer,
 							domain: form.domain,
 							organizationId,
 							samlConfig: {
 								entryPoint: form.entryPoint,
 								cert: form.certificate,
-								callbackUrl: `${baseUrl}/api/auth/sso/saml2/sp/acs/${providerId}`,
-								audience: `${baseUrl}/api/auth/sso/saml2/sp/metadata/${providerId}`,
+								callbackUrl: `${window.location.origin}/api/auth/sso/saml2/callback/${providerId}`,
+								audience: window.location.origin,
 								wantAssertionsSigned: true,
 								signatureAlgorithm: "sha256",
 								digestAlgorithm: "sha256",
 								identifierFormat:
 									"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-								spMetadata: {
-									entityID: `${baseUrl}/api/auth/sso/saml2/sp/metadata/${providerId}`,
-								},
+								spMetadata: {},
 								idpMetadata: form.idpMetadata
 									? { metadata: form.idpMetadata }
 									: undefined,
@@ -466,11 +397,6 @@ export function SSOProviderSheet({
 			handleClose();
 		} catch (err) {
 			console.error("SSO creation error:", err);
-			toast.error(
-				err instanceof Error
-					? err.message
-					: "Failed to create SSO provider. Please check your configuration."
-			);
 		}
 	};
 
@@ -503,11 +429,7 @@ export function SSOProviderSheet({
 						onChange={updateForm}
 						type={providerType}
 					/>
-					{providerType === "saml" && (
-						<ServiceProviderInfo
-							providerId={generateProviderId(form.providerName) || undefined}
-						/>
-					)}
+					<ServiceProviderInfo />
 				</SheetBody>
 
 				<SheetFooter>

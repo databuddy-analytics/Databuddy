@@ -653,14 +653,26 @@ export const assistantMessages = pgTable(
 	]
 );
 
-export const flagType = pgEnum("flag_type", ["boolean", "rollout"]);
+export const dbPermissionLevel = pgEnum("db_permission_level", [
+	"readonly",
+	"admin",
+]);
+
+export const flagType = pgEnum("flag_type", ["boolean", "rollout", "multivariant"]);
 
 export const flagStatus = pgEnum("flag_status", [
 	"active",
 	"inactive",
 	"archived",
 ]);
-
+export const flagScheduleActionType = pgEnum("flag_schedule_type", [
+	"enable",
+	"disable",
+	"update_rollout",
+]);
+export type RolloutStep =
+	| { scheduledAt: string; action: "enable" | "disable"; executedAt?: string }
+	| { scheduledAt: string; action: "set_percentage"; value: number; executedAt?: string };
 export const annotationType = pgEnum("annotation_type", [
 	"point",
 	"line",
@@ -687,6 +699,9 @@ export const flags = pgTable(
 		organizationId: text("organization_id"),
 		userId: text("user_id"),
 		createdBy: text("created_by").notNull(),
+		variants: jsonb("variants").default([]),
+		dependencies: text("dependencies").array(),
+		environment: text("environment"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
@@ -736,6 +751,33 @@ export const flags = pgTable(
 	]
 );
 
+export const flagSchedules = pgTable(
+	"flag_schedules",
+	{
+		id: text().primaryKey().notNull(),
+		flagId: text("flag_id").notNull(),
+		scheduledAt: timestamp("scheduled_at"),
+		rolloutSteps: jsonb("rollout_steps").$type<
+			{ scheduledAt: string; value: number | "enable" | "disable", executedAt?: string }[]
+		>(),
+		type: flagScheduleActionType().notNull(),
+		isEnabled: boolean("is_enabled").default(false).notNull(),
+		qstashScheduleIds: text("qstash_schedule_ids").array(),
+		executedAt: timestamp("executed_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("idx_flag_schedules_flag_id").on(table.flagId),
+		index("idx_flag_schedules_scheduled_at").on(table.scheduledAt),
+		foreignKey({
+			columns: [table.flagId],
+			foreignColumns: [flags.id],
+			name: "flag_schedules_flag_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
 export const annotations = pgTable(
 	"annotations",
 	{
@@ -782,10 +824,7 @@ export const uptimeSchedules = pgTable(
 	"uptime_schedules",
 	{
 		id: text().primaryKey().notNull(),
-		websiteId: text("website_id"),
-		userId: text("user_id").notNull(),
-		url: text().notNull(),
-		name: text(),
+		websiteId: text("website_id").notNull(),
 		granularity: text("granularity").notNull(),
 		cron: text().notNull(),
 		isPaused: boolean("is_paused").default(false).notNull(),
@@ -797,25 +836,10 @@ export const uptimeSchedules = pgTable(
 			"btree",
 			table.websiteId.asc().nullsLast().op("text_ops")
 		),
-		index("uptime_schedules_user_id_idx").using(
-			"btree",
-			table.userId.asc().nullsLast().op("text_ops")
-		),
-		index("uptime_schedules_url_idx").using(
-			"btree",
-			table.url.asc().nullsLast().op("text_ops")
-		),
 		foreignKey({
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
 			name: "uptime_schedules_website_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "uptime_schedules_user_id_fkey",
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
