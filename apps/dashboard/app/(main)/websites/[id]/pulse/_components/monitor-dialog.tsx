@@ -142,7 +142,7 @@ export function MonitorDialog({
 					toast.error("Website domain not found");
 					return;
 				}
-				
+
 				const url = website.domain.startsWith("http")
 					? website.domain
 					: `https://${website.domain}`;

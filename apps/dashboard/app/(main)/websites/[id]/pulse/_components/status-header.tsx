@@ -50,18 +50,18 @@ type StatusHeaderProps = {
 		status: number;
 		probe_region?: string;
 	};
-	onEdit: () => void;
-	onDelete: () => void;
-	onRefetch: () => void;
+	onEditAction: () => void;
+	onDeleteAction: () => void;
+	onRefetchAction: () => void;
 };
 
 export function StatusHeader({
 	schedule,
 	currentStatus = "unknown",
 	lastCheck,
-	onEdit,
-	onDelete,
-	onRefetch,
+	onEditAction,
+	onDeleteAction,
+	onRefetchAction,
 }: StatusHeaderProps) {
 	const [isPausing, setIsPausing] = useState(false);
 
@@ -82,7 +82,7 @@ export function StatusHeader({
 				await pauseMutation.mutateAsync({ scheduleId: schedule.id });
 				toast.success("Monitor paused");
 			}
-			onRefetch();
+			onRefetchAction();
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Failed to update monitor";
@@ -102,9 +102,9 @@ export function StatusHeader({
 		<Card
 			className={cn(
 				"relative overflow-hidden rounded border bg-sidebar p-6",
-				isOperational && "border-l-4 border-l-emerald-500",
-				isDown && "border-l-4 border-l-red-500",
-				isPaused && "border-l-4 border-l-amber-500"
+				isOperational ? "border-l-4 border-l-emerald-500" : "",
+				isDown ? "border-l-4 border-l-red-500" : "",
+				isPaused ? "border-l-4 border-l-amber-500" : ""
 			)}
 		>
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -113,9 +113,9 @@ export function StatusHeader({
 						<div
 							className={cn(
 								"flex size-3 items-center justify-center rounded-full ring-4",
-								isOperational && "bg-emerald-500 ring-emerald-500/20",
-								isDown && "bg-red-500 ring-red-500/20",
-								isPaused && "bg-amber-500 ring-amber-500/20"
+								isOperational ? "bg-emerald-500 ring-emerald-500/20" : "",
+								isDown ? "bg-red-500 ring-red-500/20" : "",
+								isPaused ? "bg-amber-500 ring-amber-500/20" : ""
 							)}
 						/>
 						<h2 className="font-semibold text-lg tracking-tight">
@@ -130,18 +130,18 @@ export function StatusHeader({
 						<span>
 							{granularityLabels[schedule.granularity] || schedule.granularity}
 						</span>
-						{lastCheck && (
+						{lastCheck ? (
 							<>
 								<span className="text-border">•</span>
 								<span>Last checked {dayjs(lastCheck.timestamp).fromNow()}</span>
-								{lastCheck.probe_region && (
+								{lastCheck.probe_region ? (
 									<>
 										<span className="text-border">•</span>
 										<span>from {lastCheck.probe_region}</span>
 									</>
-								)}
+								) : null}
 							</>
-						)}
+						) : null}
 					</div>
 				</div>
 
@@ -169,7 +169,7 @@ export function StatusHeader({
 					</Button>
 					<Button
 						className="h-8 gap-2 text-xs"
-						onClick={onEdit}
+						onClick={onEditAction}
 						size="sm"
 						variant="outline"
 					>
@@ -186,7 +186,7 @@ export function StatusHeader({
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
-								onClick={onDelete}
+								onClick={onDeleteAction}
 							>
 								<TrashIcon className="mr-2" size={16} />
 								Delete Monitor

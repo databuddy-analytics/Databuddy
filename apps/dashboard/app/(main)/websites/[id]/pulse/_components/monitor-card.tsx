@@ -38,16 +38,16 @@ type MonitorCardProps = {
 		createdAt: Date | string;
 		updatedAt: Date | string;
 	};
-	onEdit: () => void;
-	onDelete: () => void;
-	onRefetch: () => void;
+	onEditAction: () => void;
+	onDeleteAction: () => void;
+	onRefetchAction: () => void;
 };
 
 export function MonitorCard({
 	schedule,
-	onEdit,
-	onDelete,
-	onRefetch,
+	onEditAction,
+	onDeleteAction,
+	onRefetchAction,
 }: MonitorCardProps) {
 	const [isPausing, setIsPausing] = useState(false);
 
@@ -68,7 +68,7 @@ export function MonitorCard({
 				await pauseMutation.mutateAsync({ scheduleId: schedule.id });
 				toast.success("Monitor paused");
 			}
-			onRefetch();
+			onRefetchAction();
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Failed to update monitor";
@@ -121,7 +121,7 @@ export function MonitorCard({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem onClick={onEdit}>
+							<DropdownMenuItem onClick={onEditAction}>
 								<PencilIcon size={16} />
 								Edit
 							</DropdownMenuItem>
@@ -138,7 +138,7 @@ export function MonitorCard({
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
-								onClick={onDelete}
+								onClick={onDeleteAction}
 							>
 								<TrashIcon size={16} />
 								Delete
