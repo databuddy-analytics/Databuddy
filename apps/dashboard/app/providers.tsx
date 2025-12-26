@@ -17,8 +17,8 @@ import { useToastTracking } from "@/hooks/toast-hooks";
 const defaultQueryClientOptions = {
 	defaultOptions: {
 		queries: {
-			staleTime: 5 * 60 * 1000, // 5 minutes
-			gcTime: 10 * 60 * 1000, // 10 minutes
+			staleTime: 1000 * 60 * 2, // 2 minutes
+			gcTime: 1000 * 60 * 5, // 5 minutes
 			refetchOnWindowFocus: false,
 			refetchOnMount: true,
 			refetchOnReconnect: true,
@@ -36,15 +36,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	const [queryClient] = useState(
 		() =>
 			new QueryClient({
-				...defaultQueryClientOptions,
-				defaultOptions: {
-					...defaultQueryClientOptions.defaultOptions,
-					queries: {
-						...defaultQueryClientOptions.defaultOptions.queries,
-						gcTime: 1000 * 60 * 5, // 5 minutes
-						staleTime: 1000 * 60 * 2, // 2 minutes
-					},
-				},
+				defaultOptions: defaultQueryClientOptions.defaultOptions,
 			})
 	);
 
