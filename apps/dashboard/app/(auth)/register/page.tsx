@@ -429,6 +429,7 @@ function RegisterPageContent() {
 						checked={isHoneypot}
 						disabled={isLoading}
 						onCheckedChange={(checked) => setIsHoneypot(checked as boolean)}
+						tabIndex={-1}
 					/>
 				</VisuallyHidden>
 
