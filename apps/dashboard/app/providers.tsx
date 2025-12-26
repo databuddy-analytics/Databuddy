@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { useState } from "react";
 import { OrganizationsProvider } from "@/components/providers/organizations-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useToastTracking } from "@/hooks/toast-hooks";
@@ -32,14 +31,11 @@ const defaultQueryClientOptions = {
 	},
 };
 
-export default function Providers({ children }: { children: React.ReactNode }) {
-	const [queryClient] = useState(
-		() =>
-			new QueryClient({
-				defaultOptions: defaultQueryClientOptions.defaultOptions,
-			})
-	);
+const queryClient = new QueryClient({
+	defaultOptions: defaultQueryClientOptions.defaultOptions,
+});
 
+export default function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 			<QueryClientProvider client={queryClient}>
