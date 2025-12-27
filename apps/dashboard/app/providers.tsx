@@ -1,14 +1,18 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
+import { trackError } from "@databuddy/sdk";
 import { FlagsProvider } from "@databuddy/sdk/react";
 import {
+	MutationCache,
+	QueryCache,
 	QueryClient,
 	QueryClientProvider,
 	useQuery,
 } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { toast } from "sonner";
 import { OrganizationsProvider } from "@/components/providers/organizations-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useToastTracking } from "@/hooks/toast-hooks";
@@ -33,6 +37,28 @@ const defaultQueryClientOptions = {
 
 const queryClient = new QueryClient({
 	defaultOptions: defaultQueryClientOptions.defaultOptions,
+	queryCache: new QueryCache({
+		onError: (error) => {
+			const message = error instanceof Error ? error.message : "Unknown error";
+			toast.error(message);
+			trackError(message, {
+				stack: error.stack,
+				error_type: error.name,
+				cause: error.cause ? String(error.cause) : undefined,
+			});
+		},
+	}),
+	mutationCache: new MutationCache({
+		onError: (error) => {
+			const message = error instanceof Error ? error.message : "Unknown error";
+			toast.error(message);
+			trackError(message, {
+				stack: error.stack,
+				error_type: error.name,
+				cause: error.cause ? String(error.cause) : undefined,
+			});
+		},
+	}),
 });
 
 export default function Providers({ children }: { children: React.ReactNode }) {

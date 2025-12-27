@@ -137,9 +137,6 @@ export function TwoFactorDialog({
 			setStep("password");
 			onSuccess();
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to set password");
-		},
 	});
 
 	// Enable 2FA mutation
@@ -161,9 +158,6 @@ export function TwoFactorDialog({
 			}
 			setStep("setup");
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to enable 2FA");
-		},
 	});
 
 	// Verify TOTP mutation
@@ -182,9 +176,6 @@ export function TwoFactorDialog({
 			setStep("backup");
 			onSuccess();
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Invalid verification code");
-		},
 	});
 
 	// Disable 2FA mutation
@@ -200,9 +191,6 @@ export function TwoFactorDialog({
 			toast.success("Two-factor authentication disabled");
 			onSuccess();
 			onOpenChange(false);
-		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to disable 2FA");
 		},
 	});
 
@@ -222,9 +210,6 @@ export function TwoFactorDialog({
 				setBackupCodes(data.backupCodes);
 				toast.success("New backup codes generated");
 			}
-		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to generate backup codes");
 		},
 	});
 

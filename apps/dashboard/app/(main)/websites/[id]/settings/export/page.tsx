@@ -81,9 +81,6 @@ export default function ExportPage() {
 				downloadFile(blob, result.filename);
 				toast.success("Data exported successfully!");
 			},
-			onError: (error) => {
-				toast.error(error.message || "Export failed");
-			},
 		});
 	}, [
 		websiteData,

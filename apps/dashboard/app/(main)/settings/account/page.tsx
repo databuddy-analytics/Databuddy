@@ -97,9 +97,6 @@ function ChangePasswordDialog({
 			setNewPassword("");
 			setConfirmPassword("");
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to change password");
-		},
 	});
 
 	return (
@@ -220,9 +217,6 @@ export default function AccountSettingsPage() {
 			toast.success("Profile updated successfully");
 			queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to update profile");
-		},
 	});
 
 	const linkSocial = useMutation({
@@ -235,9 +229,6 @@ export default function AccountSettingsPage() {
 				throw new Error(result.error.message);
 			}
 			return result;
-		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to link account");
 		},
 	});
 
@@ -252,9 +243,6 @@ export default function AccountSettingsPage() {
 		onSuccess: () => {
 			toast.success("Account unlinked successfully");
 			queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
-		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to unlink account");
 		},
 	});
 

@@ -132,9 +132,6 @@ export function OrganizationLogoUploader({
 							handleModalOpenChange(false);
 							setTimeout(() => resetCropState(), 100);
 						},
-						onError: (error) => {
-							toast.error(error.message || "Failed to update logo.");
-						},
 					}
 				);
 			};
@@ -151,9 +148,6 @@ export function OrganizationLogoUploader({
 			{
 				onSuccess: () => {
 					setPreview(null);
-				},
-				onError: (error) => {
-					toast.error(error.message || "Failed to delete logo.");
 				},
 			}
 		);

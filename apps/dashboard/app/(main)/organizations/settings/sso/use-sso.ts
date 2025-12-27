@@ -136,9 +136,6 @@ export function useSSO(organizationId: string) {
 		onSuccess: () => {
 			invalidateSSOQueries();
 		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to register SSO provider");
-		},
 	});
 
 	const deleteProviderMutation = useMutation({
@@ -146,9 +143,6 @@ export function useSSO(organizationId: string) {
 		onSuccess: () => {
 			invalidateSSOQueries();
 			toast.success("SSO provider deleted successfully");
-		},
-		onError: (error: Error) => {
-			toast.error(error.message || "Failed to delete SSO provider");
 		},
 	});
 

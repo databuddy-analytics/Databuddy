@@ -76,12 +76,6 @@ function TransferPageContent() {
 						router.push("/websites");
 					}, 500);
 				},
-				onError: (error) => {
-					toast.error(
-						(error as Error).message ||
-							"Failed to transfer website. Please try again."
-					);
-				},
 			}
 		);
 	}, [

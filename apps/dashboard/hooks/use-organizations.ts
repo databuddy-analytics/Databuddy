@@ -47,7 +47,7 @@ const QUERY_KEYS = {
 const createMutation = <TData, TVariables>(
 	mutationFn: (variables: TVariables) => Promise<TData>,
 	successMessage: string,
-	errorMessage: string,
+	_errorMessage: string,
 	onSuccessCallback?: () => void,
 	options: { showToast?: boolean } = { showToast: true }
 ) => ({
@@ -56,11 +56,6 @@ const createMutation = <TData, TVariables>(
 		onSuccessCallback?.();
 		if (options.showToast) {
 			toast.success(successMessage);
-		}
-	},
-	onError: (error: Error) => {
-		if (options.showToast) {
-			toast.error(error.message || errorMessage);
 		}
 	},
 });
@@ -143,11 +138,6 @@ export function useOrganizations() {
 			invalidateOrganizationQueries();
 			toast.success("Logo uploaded successfully");
 		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to upload logo"
-			);
-		},
 	});
 
 	const deleteOrganizationLogoMutation = useMutation({
@@ -155,11 +145,6 @@ export function useOrganizations() {
 		onSuccess: () => {
 			invalidateOrganizationQueries();
 			toast.success("Logo deleted successfully");
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete logo"
-			);
 		},
 	});
 
@@ -209,16 +194,6 @@ export function useOrganizations() {
 		onSuccess: () => {
 			invalidateOrganizationQueries();
 			toast.success("Workspace updated");
-		},
-		onError: (error: Error) => {
-			if (
-				!(
-					error.message?.includes("ORGANIZATION_NOT_FOUND") ||
-					error.message?.includes("Organization not found")
-				)
-			) {
-				toast.error(error.message || "Failed to update workspace");
-			}
 		},
 	});
 

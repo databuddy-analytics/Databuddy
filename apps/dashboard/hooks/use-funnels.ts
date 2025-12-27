@@ -115,11 +115,6 @@ export function useFunnels(websiteId: string, enabled = true) {
 			});
 			toast.success("Funnel created successfully");
 		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to create funnel";
-			toast.error(message);
-		},
 	});
 
 	const updateMutation = useMutation({
@@ -133,11 +128,6 @@ export function useFunnels(websiteId: string, enabled = true) {
 			});
 			toast.success("Funnel updated successfully");
 		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to update funnel";
-			toast.error(message);
-		},
 	});
 
 	const deleteMutation = useMutation({
@@ -150,11 +140,6 @@ export function useFunnels(websiteId: string, enabled = true) {
 				queryKey: orpc.funnels.getAnalytics.key(),
 			});
 			toast.success("Funnel deleted successfully");
-		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to delete funnel";
-			toast.error(message);
 		},
 	});
 

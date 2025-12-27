@@ -122,9 +122,6 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 					setSelectedWebsite(null);
 					toast.success("Website transferred successfully");
 				},
-				onError: (error: any) => {
-					toast.error(error.message ?? "Failed to transfer website");
-				},
 			}
 		);
 	};

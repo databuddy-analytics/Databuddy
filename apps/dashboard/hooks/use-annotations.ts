@@ -38,11 +38,6 @@ export function useAnnotations(input: ListAnnotationsInput) {
 		onSuccess: () => {
 			toast.success("Annotation created successfully");
 		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to create annotation";
-			toast.error(message);
-		},
 	});
 
 	const updateAnnotation = useMutation({
@@ -50,22 +45,12 @@ export function useAnnotations(input: ListAnnotationsInput) {
 		onSuccess: () => {
 			toast.success("Annotation updated successfully");
 		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to update annotation";
-			toast.error(message);
-		},
 	});
 
 	const deleteAnnotation = useMutation({
 		...orpc.annotations.delete.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Annotation deleted successfully");
-		},
-		onError: (error) => {
-			const message =
-				error instanceof Error ? error.message : "Failed to delete annotation";
-			toast.error(message);
 		},
 	});
 
