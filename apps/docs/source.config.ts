@@ -5,6 +5,9 @@ export const docs = defineDocs({
 	docs: {
 		schema: frontmatterSchema,
 		async: true,
+		postprocess: {
+			includeProcessedMarkdown: true,
+		},
 	},
 	meta: {
 		schema: metaSchema,

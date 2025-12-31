@@ -8,7 +8,7 @@ import { onRateDocs } from "@/lib/feedback-action";
 import { getPageImage, source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
 
-type AsyncPageData = DocMethods & {
+export type AsyncPageData = DocMethods & {
 	title?: string;
 	description?: string;
 	load: () => Promise<DocData>;
