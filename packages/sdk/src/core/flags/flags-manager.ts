@@ -106,6 +106,14 @@ export class CoreFlagsManager implements FlagsManager {
 		};
 	}
 
+	private removeStaleKeys(validCacheKeys: Set<string>): void {
+		for (const key of this.cache.keys()) {
+			if (!validCacheKeys.has(key)) {
+				this.cache.delete(key);
+			}
+		}
+	}
+
 	private async initialize(): Promise<void> {
 		// Load from persistent storage first (instant hydration)
 		if (!this.config.skipStorage && this.storage) {
@@ -303,6 +311,10 @@ export class CoreFlagsManager implements FlagsManager {
 				cacheKey: getCacheKey(key, user ?? this.config.user),
 				cacheEntry: createCacheEntry(result, ttl, staleTime),
 			}));
+
+			this.removeStaleKeys(
+				new Set(flagCacheEntries.map(({ cacheKey }) => cacheKey))
+			);
 
 			for (const { cacheKey, cacheEntry } of flagCacheEntries) {
 				this.cache.set(cacheKey, cacheEntry);
