@@ -86,6 +86,7 @@ interface ChartDataPoint {
 	websiteId: string;
 	date: string;
 	value: number;
+	hasAnyData: number;
 }
 
 const calculateAverage = (values: { value: number }[]) =>
@@ -183,17 +184,26 @@ const fetchChartData = async (
           client_id IN {websiteIds:Array(String)}
           AND toDate(time) >= (today() - 6)
         GROUP BY client_id, event_date
+      ),
+      has_any_data AS (
+        SELECT client_id, 1 AS hasData
+        FROM analytics.events
+        WHERE client_id IN {websiteIds:Array(String)} AND event_name = 'screen_view'
+        GROUP BY client_id
       )
     SELECT
       all_websites.website_id AS websiteId,
       toString(date_range.date) AS date,
-      COALESCE(daily_pageviews.pageviews, 0) AS value
+      COALESCE(daily_pageviews.pageviews, 0) AS value,
+      COALESCE(has_any_data.hasData, 0) AS hasAnyData
     FROM
       (SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
     CROSS JOIN
       date_range
     LEFT JOIN
       daily_pageviews ON all_websites.website_id = daily_pageviews.client_id AND date_range.date = daily_pageviews.event_date
+    LEFT JOIN
+      has_any_data ON all_websites.website_id = has_any_data.client_id
     ORDER BY
       websiteId,
       date ASC
@@ -205,29 +215,32 @@ const fetchChartData = async (
 
 	const groupedData = websiteIds.reduce(
 		(acc, id) => {
-			acc[id] = [];
+			acc[id] = { points: [], hasAnyData: false };
 			return acc;
 		},
-		{} as Record<string, { date: string; value: number }[]>
+		{} as Record<string, { points: { date: string; value: number }[]; hasAnyData: boolean }>
 	);
 
 	for (const row of queryResults) {
-		groupedData[row.websiteId]?.push({
-			date: row.date,
-			value: row.value,
-		});
+		if (groupedData[row.websiteId]) {
+			groupedData[row.websiteId].points.push({ date: row.date, value: row.value });
+			if (row.hasAnyData === 1) {
+				groupedData[row.websiteId].hasAnyData = true;
+			}
+		}
 	}
 
 	const processedData: Record<string, ProcessedMiniChartData> = {};
 
 	for (const websiteId of websiteIds) {
-		const dataPoints = groupedData[websiteId] || [];
-		const totalViews = dataPoints.reduce((sum, point) => sum + point.value, 0);
-		const trend = calculateTrend(dataPoints);
+		const { points, hasAnyData } = groupedData[websiteId];
+		const totalViews = points.reduce((sum, point) => sum + point.value, 0);
+		const trend = calculateTrend(points);
 
 		processedData[websiteId] = {
-			data: dataPoints,
+			data: points,
 			totalViews,
+			hasAnyData,
 			trend,
 		};
 	}

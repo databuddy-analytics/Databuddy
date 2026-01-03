@@ -20,6 +20,7 @@ export interface MiniChartDataPoint {
 export interface ProcessedMiniChartData {
 	data: MiniChartDataPoint[];
 	totalViews: number;
+	hasAnyData: boolean;
 	trend: {
 		type: "up" | "down" | "neutral";
 		value: number;

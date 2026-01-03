@@ -182,7 +182,7 @@ export const WebsiteCard = memo(
 											<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
 										</div>
 									) : chartData ? (
-										chartData.data.length > 0 && chartData.totalViews > 0 ? (
+										chartData.hasAnyData ? (
 											<div className="h-28 space-y-2">
 												<div className="h-full duration-300 [--chart-color:var(--color-primary)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
 													<MiniChart
