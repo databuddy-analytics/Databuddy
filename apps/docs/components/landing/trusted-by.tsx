@@ -8,7 +8,7 @@ const logos = [
 		src: "https://www.better-auth.com",
 		style: "font-medium font-geist",
 	},
-	{ name: "Rivo", src: "https://rivo.gg", style: "font-bold font-barlow" },
+	{ name: "Notra", src: "https://usenotra.com", style: "font-bold font-geist" },
 	{ name: "Confinity", src: "https://www.confinity.com" },
 	{ name: "Autumn", src: "https://useautumn.com", style: "font-bold" },
 	{ name: "OpenCut", src: "https://opencut.app" },
