@@ -21,7 +21,7 @@
     "react": "catalog:",
     "@types/react": "catalog:",
     "tokenlens": "^2.0.0-alpha.3",
-    "typescript": "catalog:",
+  "typescript": "catalog:",
     "unbuild": "^3.6.1",
     "vue": ">=3",
     "msw": "^2.11.5"

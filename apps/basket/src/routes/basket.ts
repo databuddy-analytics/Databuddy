@@ -15,6 +15,7 @@ import {
 	insertTrackEventsBatch,
 } from "@lib/event-service";
 import { checkForBot, validateRequest } from "@lib/request-validation";
+import { getDailySalt, saltAnonymousId } from "@lib/security";
 import { captureError, record } from "@lib/tracing";
 import { analyticsEventSchema, outgoingLinkSchema } from "@utils/event-schema";
 import { getGeo } from "@utils/ip-geo";
@@ -45,9 +46,10 @@ function processTrackEventData(
 	return record("processTrackEventData", async () => {
 		const eventId = parseEventId(trackData.eventId, randomUUID);
 
-		const [geoData, uaData] = await Promise.all([
+		const [geoData, uaData, salt] = await Promise.all([
 			getGeo(ip),
 			parseUserAgent(userAgent),
+			getDailySalt(),
 		]);
 
 		const { anonymizedIP, country, region, city } = geoData;
@@ -65,6 +67,12 @@ function processTrackEventData(
 		const timestamp = parseTimestamp(trackData.timestamp);
 		const sessionStartTime = parseTimestamp(trackData.sessionStartTime);
 
+		let anonymousId = sanitizeString(
+			trackData.anonymousId,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		);
+		anonymousId = saltAnonymousId(anonymousId, salt);
+
 		return {
 			id: randomUUID(),
 			client_id: clientId,
@@ -72,10 +80,7 @@ function processTrackEventData(
 				trackData.name,
 				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 			),
-			anonymous_id: sanitizeString(
-				trackData.anonymousId,
-				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
-			),
+			anonymous_id: anonymousId,
 			time: timestamp,
 			session_id: validateSessionId(trackData.sessionId),
 			event_type: "track",
