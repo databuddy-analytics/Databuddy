@@ -1,5 +1,6 @@
     "use client";
 
+import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 
 type ShortcutGroup = {
@@ -64,9 +65,9 @@ export function KeyboardShortcuts({
 	const isMacOS = useMemo(() => isMac(), []);
 
 	return (
-		<div className={compact ? "space-y-3" : "space-y-4"}>
+		<div className={compact ? "divide-y dark:divide-border divide-border/50" : "space-y-4"}>
 			{groups.map((group) => (
-				<div key={group.title}>
+				<div key={group.title} className={cn({"py-3 first:pt-0 last:pb-0": compact})}>
 					{!compact && (
 						<h4 className="mb-2 font-medium text-sm text-foreground">
 							{group.title}
@@ -82,7 +83,7 @@ export function KeyboardShortcuts({
 									className="flex items-center justify-between"
 									key={shortcut.label}
 								>
-									<span className="text-muted-foreground text-sm">
+									<span className="text-muted-foreground dark:text-foreground/70 text-sm">
 										{shortcut.label}
 									</span>
 									<kbd className="rounded border bg-secondary px-1.5 py-0.5 text-xs">
