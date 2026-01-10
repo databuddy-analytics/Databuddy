@@ -113,7 +113,7 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 				className="relative flex flex-col lg:flex-row"
 				style={{ minHeight: 350 }}
 			>
-				<div className="relative min-h-[200px] flex-1 lg:min-h-0">
+				<div className="relative flex-1 max-lg:aspect-video lg:min-h-0 [&>div]:rounded-t-none [&>div]:border-0">
 					<MapComponent
 						height="100%"
 						isLoading={false}
@@ -121,15 +121,15 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 					/>
 				</div>
 
-				<div className="w-full shrink-0 border-t bg-card lg:w-44 lg:border-t-0 lg:border-l">
-					<div className="h-10 border-b bg-card px-2">
+				<div className="absolute right-2 bottom-2 z-1 w-44 shrink-0 rounded border border-t bg-muted">
+					<div className="h-9 rounded-t border-b bg-muted px-2">
 						<span className="flex h-full items-center font-semibold text-sidebar-foreground/70 text-xs uppercase tracking-wide">
 							Top Countries
 						</span>
 					</div>
 
 					{topCountries.length > 0 ? (
-						<div className="max-h-48 overflow-y-auto bg-accent lg:max-h-none">
+						<div className="max-h-48 overflow-y-auto rounded-b bg-background lg:max-h-none">
 							{topCountries.map((country) => {
 								const percentage =
 									totalVisitors > 0
