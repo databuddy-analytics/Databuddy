@@ -436,10 +436,10 @@ function RegisterPageContent() {
 				</VisuallyHidden>
 
 				<div className="space-y-3">
-					<div className="flex items-start gap-2">
+					<div className="flex items-center gap-2">
 						<Checkbox
 							checked={acceptTerms}
-							className="mt-1 cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+							className="cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
 							disabled={isLoading}
 							id="terms"
 							onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
