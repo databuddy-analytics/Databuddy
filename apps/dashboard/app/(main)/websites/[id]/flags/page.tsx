@@ -10,33 +10,11 @@ import { FeatureGate } from "@/components/feature-gate";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
+import { FlagIcon } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
 import { FlagSheet } from "./_components/flag-sheet";
-import { FlagsList } from "./_components/flags-list";
-import type { Flag } from "./_components/types";
-
-const FlagsListSkeleton = () => (
-	<div className="border-border border-t">
-		{[...new Array(5)].map((_, i) => (
-			<div
-				className="flex animate-pulse items-center border-border border-b px-4 py-4 sm:px-6"
-				key={`skeleton-${i + 1}`}
-			>
-				<div className="flex flex-1 items-center gap-4">
-					<div className="min-w-0 flex-1 space-y-2">
-						<div className="flex items-center gap-2">
-							<div className="h-5 w-40 rounded bg-muted" />
-							<div className="h-5 w-16 rounded bg-muted" />
-							<div className="h-5 w-20 rounded bg-muted" />
-						</div>
-						<div className="h-4 w-48 rounded bg-muted" />
-					</div>
-					<div className="h-6 w-10 rounded-full bg-muted" />
-					<div className="size-8 rounded bg-muted" />
-				</div>
-			</div>
-		))}
-	</div>
-);
+import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
+import type { Flag, TargetGroup } from "./_components/types";
 
 export default function FlagsPage() {
 	const { id } = useParams();
@@ -54,6 +32,22 @@ export default function FlagsPage() {
 		() => flags?.filter((f) => f.status !== "archived") ?? [],
 		[flags]
 	);
+
+	const groupsMap = useMemo(() => {
+		const map = new Map<string, TargetGroup[]>();
+		for (const flag of activeFlags) {
+			if (
+				Array.isArray(flag.targetGroups) &&
+				flag.targetGroups.length > 0 &&
+				typeof flag.targetGroups[0] === "object"
+			) {
+				map.set(flag.id, flag.targetGroups as TargetGroup[]);
+			} else {
+				map.set(flag.id, []);
+			}
+		}
+		return map;
+	}, [activeFlags]);
 
 	const deleteFlagMutation = useMutation({
 		...orpc.flags.delete.mutationOptions(),
@@ -98,13 +92,29 @@ export default function FlagsPage() {
 			<ErrorBoundary>
 				<div className="h-full overflow-y-auto">
 					<Suspense fallback={<FlagsListSkeleton />}>
-						<FlagsList
-							flags={activeFlags as Flag[]}
-							isLoading={flagsLoading}
-							onCreateFlagAction={handleCreateFlag}
-							onDeleteFlag={handleDeleteFlagRequest}
-							onEditFlagAction={handleEditFlag}
-						/>
+						{flagsLoading ? (
+							<FlagsListSkeleton />
+						) : activeFlags.length === 0 ? (
+							<div className="flex flex-1 items-center justify-center py-16">
+								<EmptyState
+									action={{
+										label: "Create Your First Flag",
+										onClick: handleCreateFlag,
+									}}
+									description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+									icon={<FlagIcon weight="duotone" />}
+									title="No feature flags yet"
+									variant="minimal"
+								/>
+							</div>
+						) : (
+							<FlagsList
+								flags={activeFlags as Flag[]}
+								groups={groupsMap}
+								onDelete={handleDeleteFlagRequest}
+								onEdit={handleEditFlag}
+							/>
+						)}
 					</Suspense>
 
 					{isFlagSheetOpen && (

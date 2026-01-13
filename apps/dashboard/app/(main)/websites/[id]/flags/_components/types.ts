@@ -74,13 +74,6 @@ export interface FlagSheetProps {
 	template?: FlagTemplate | null;
 }
 
-export interface FlagsListProps {
-	flags: Flag[];
-	isLoading: boolean;
-	onCreateFlagAction: () => void;
-	onEditFlagAction: (flag: Flag) => void;
-}
-
 export interface VariantEditorProps {
 	variants: Variant[];
 	onChangeAction: (variants: Variant[]) => void;
