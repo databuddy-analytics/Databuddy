@@ -174,7 +174,7 @@ function WebsiteMapPage() {
 
 			<div className="absolute right-3 bottom-3 left-3 z-20 sm:top-3 sm:right-3 sm:bottom-auto sm:left-auto sm:w-60">
 				<Card className="w-full gap-0 border bg-card/95 py-0 shadow-lg backdrop-blur-sm">
-					<CardHeader className="border-b bg-accent px-2.5 py-2 sm:px-3 sm:py-2.5">
+					<CardHeader className="border-b bg-accent px-2.5 py-2 sm:px-3 sm:py-2.5 [.border-b]:pb-2">
 						<CardTitle className="flex items-center gap-2 font-semibold text-xs sm:text-sm">
 							<GlobeIcon
 								className="size-3.5 text-primary sm:size-4"

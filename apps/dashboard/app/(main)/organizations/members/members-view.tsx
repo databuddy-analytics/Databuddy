@@ -127,7 +127,7 @@ export function MembersView({
 
 				<RightSidebar className="gap-4 p-5">
 					<Button className="w-full" onClick={() => setShowInviteDialog(true)}>
-						<UserPlusIcon className="mr-2" size={16} />
+						<UserPlusIcon size={16} />
 						Invite Member
 					</Button>
 					<RightSidebar.InfoCard
@@ -135,7 +135,7 @@ export function MembersView({
 						icon={UsersIcon}
 						title={String(members.length)}
 					/>
-					<RightSidebar.DocsLink />
+					<RightSidebar.DocsLink className="justify-center" />
 					<RightSidebar.Tip description="Admins can manage settings and invite members. Members have read-only access to analytics." />
 				</RightSidebar>
 			</div>

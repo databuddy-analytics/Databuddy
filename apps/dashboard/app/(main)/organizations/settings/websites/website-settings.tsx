@@ -156,7 +156,7 @@ export function WebsiteSettings({
 				{/* Sidebar */}
 				<RightSidebar className="gap-4 p-5">
 					<Button className="w-full" onClick={() => setShowCreateDialog(true)}>
-						<PlusIcon className="mr-2" size={16} />
+						<PlusIcon size={16} />
 						Create New Website
 					</Button>
 					{!isEmpty && (
@@ -166,7 +166,7 @@ export function WebsiteSettings({
 							title={String(websites.length)}
 						/>
 					)}
-					<RightSidebar.DocsLink />
+					<RightSidebar.DocsLink className="justify-center" />
 					<RightSidebar.Tip description="Click on a website to view its settings, manage tracking scripts, and configure analytics." />
 				</RightSidebar>
 			</div>

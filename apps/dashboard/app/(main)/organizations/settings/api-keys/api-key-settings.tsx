@@ -121,7 +121,7 @@ export function ApiKeySettings({ organization }: ApiKeySettingsProps) {
 							title={`${activeCount} / ${items.length}`}
 						/>
 					)}
-					<RightSidebar.DocsLink />
+					<RightSidebar.DocsLink className="justify-center" />
 					<RightSidebar.Tip
 						description="Keep your API keys secure. Never share them publicly or commit them to version control."
 						title="Security reminder"

@@ -197,7 +197,7 @@ export function OrganizationsList({
 					isOpen={showCreateOrganizationDialog}
 					onClose={() => setShowCreateOrganizationDialog(false)}
 				/>
-				<RightSidebar.DocsLink />
+				<RightSidebar.DocsLink className="justify-center" />
 				<RightSidebar.Tip description="Click on an organization to switch to it. The active organization is used across the dashboard." />
 			</RightSidebar>
 		</div>
