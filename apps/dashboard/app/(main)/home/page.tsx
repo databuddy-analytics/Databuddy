@@ -20,6 +20,7 @@ import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "../websites/_components/page-header";
 import { WebsiteCard } from "../websites/_components/website-card";
+import { MonitorsSection } from "./_components/monitors-section";
 import { SmartInsightsSection } from "./_components/smart-insights-section";
 import { SummaryStats } from "./_components/summary-stats";
 
@@ -58,7 +59,7 @@ export default function HomePage() {
 		isLoading,
 		isError,
 		isFetching,
-		refetch,
+		refetch: refetchWebsites,
 	} = useWebsites();
 
 	const {
@@ -70,13 +71,29 @@ export default function HomePage() {
 	} = useGlobalAnalytics();
 
 	const {
+		monitors,
 		totalMonitors,
 		activeMonitors,
 		healthPercentage,
 		isLoading: isPulseLoading,
+		isFetching: isPulseFetching,
+		refetch: refetchMonitors,
 	} = usePulseStatus();
 
-	const { insights, isLoading: isInsightsLoading } = useSmartInsights();
+	const {
+		insights,
+		isLoading: isInsightsLoading,
+		isFetching: isInsightsFetching,
+		refetch: refetchInsights,
+	} = useSmartInsights();
+
+	const handleRefetch = async () => {
+		await Promise.all([
+			refetchWebsites(),
+			refetchMonitors(),
+			refetchInsights(),
+		]);
+	};
 
 	return (
 		<div className="flex h-full flex-col">
@@ -87,8 +104,15 @@ export default function HomePage() {
 					<>
 						<Button
 							aria-label="Refresh data"
-							disabled={isLoading || isFetching}
-							onClick={() => refetch()}
+							disabled={
+								isLoading ||
+								isFetching ||
+								isPulseLoading ||
+								isPulseFetching ||
+								isInsightsLoading ||
+								isInsightsFetching
+							}
+							onClick={handleRefetch}
 							size="icon"
 							variant="secondary"
 						>
@@ -96,7 +120,12 @@ export default function HomePage() {
 								aria-hidden
 								className={cn(
 									"size-4",
-									isLoading || isFetching ? "animate-spin" : ""
+									isLoading ||
+										isFetching ||
+										isPulseFetching ||
+										isInsightsFetching
+										? "animate-spin"
+										: ""
 								)}
 							/>
 						</Button>
@@ -119,7 +148,7 @@ export default function HomePage() {
 			/>
 
 			<div
-				aria-busy={isFetching}
+				aria-busy={isFetching || isPulseFetching || isInsightsFetching}
 				className="flex-1 space-y-6 overflow-y-auto p-3 sm:p-4 lg:p-6"
 			>
 				{/* Summary Stats */}
@@ -135,11 +164,18 @@ export default function HomePage() {
 					websiteCount={websiteCount}
 				/>
 
-				{/* Smart Insights */}
-				<SmartInsightsSection
-					insights={insights}
-					isLoading={isLoading || isInsightsLoading}
-				/>
+				<div className="grid gap-6 lg:grid-cols-2">
+					<SmartInsightsSection
+						insights={insights}
+						isLoading={isLoading || isInsightsLoading}
+					/>
+					<MonitorsSection
+						activeMonitors={activeMonitors}
+						isLoading={isPulseLoading}
+						monitors={monitors}
+						totalMonitors={totalMonitors}
+					/>
+				</div>
 
 				{/* Websites Section */}
 				<div className="space-y-4">
@@ -167,7 +203,7 @@ export default function HomePage() {
 						<EmptyState
 							action={{
 								label: "Try Again",
-								onClick: () => refetch(),
+								onClick: handleRefetch,
 							}}
 							description="There was an issue fetching your websites."
 							icon={<GlobeIcon />}

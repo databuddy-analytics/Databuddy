@@ -72,7 +72,7 @@ export function UptimeHeatmap({
 	return (
 		<>
 			<div className="flex items-center justify-between border-b px-4 py-3">
-				<h3 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+				<h3 className="font-semibold text-lg text-sidebar-foreground">
 					Uptime History
 				</h3>
 				<span className="text-muted-foreground text-sm">

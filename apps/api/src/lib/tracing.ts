@@ -150,3 +150,25 @@ export function endRequestSpan(
 	});
 	span.end();
 }
+
+/**
+ * Capture and record an error
+ */
+export function captureError(
+	error: unknown,
+	attributes?: Record<string, string | number | boolean>
+): void {
+	const span = trace.getActiveSpan();
+	if (span) {
+		span.setStatus({
+			code: SpanStatusCode.ERROR,
+			message: error instanceof Error ? error.message : String(error),
+		});
+		span.recordException(
+			error instanceof Error ? error : new Error(String(error))
+		);
+		if (attributes) {
+			setAttributes(attributes);
+		}
+	}
+}

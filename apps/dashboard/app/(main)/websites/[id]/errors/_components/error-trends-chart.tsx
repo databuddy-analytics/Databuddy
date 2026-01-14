@@ -120,7 +120,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 						/>
 					</div>
 					<div className="min-w-0 flex-1">
-						<h2 className="font-semibold text-foreground text-sm tracking-tight sm:text-base">
+						<h2 className="font-semibold text-foreground text-sm sm:text-base">
 							Error Trends
 						</h2>
 						<p className="text-muted-foreground text-xs">No data available</p>
@@ -153,7 +153,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 						<BugIcon className="size-4 text-destructive" weight="duotone" />
 					</div>
 					<div className="min-w-0">
-						<h2 className="font-semibold text-foreground text-sm tracking-tight sm:text-base">
+						<h2 className="font-semibold text-foreground text-sm sm:text-base">
 							Error Trends
 						</h2>
 						<p className="text-muted-foreground text-xs">
@@ -181,7 +181,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 
 			<div className="grid grid-cols-2 gap-3 border-b bg-muted/30 p-3">
 				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+					<p className="font-mono text-[10px] text-muted-foreground uppercase">
 						Total Errors
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
@@ -189,7 +189,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 					</p>
 				</div>
 				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+					<p className="font-mono text-[10px] text-muted-foreground uppercase">
 						Affected Users
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">

@@ -11,7 +11,7 @@ export default function AuthLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex h-screen">
+		<div className="flex h-dvh">
 			<div className="relative hidden flex-col items-start justify-between overflow-hidden p-12 md:flex md:w-1/2">
 				<div className="absolute inset-0">
 					<Iridescence

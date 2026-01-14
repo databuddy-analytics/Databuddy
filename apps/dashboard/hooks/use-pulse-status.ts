@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
 export interface PulseStatus {
@@ -20,10 +21,14 @@ export interface PulseStatus {
 }
 
 export function usePulseStatus() {
+	const { activeOrganization, isLoading: isLoadingOrganization } =
+		useOrganizationsContext();
+
 	const query = useQuery({
 		...orpc.uptime.listSchedules.queryOptions({
-			input: {},
+			input: { organizationId: activeOrganization?.id },
 		}),
+		enabled: !isLoadingOrganization,
 	});
 
 	const status = useMemo<PulseStatus>(() => {
@@ -53,7 +58,7 @@ export function usePulseStatus() {
 
 	return {
 		...status,
-		isLoading: query.isLoading,
+		isLoading: query.isLoading || isLoadingOrganization,
 		isFetching: query.isFetching,
 		isError: query.isError,
 		refetch: query.refetch,

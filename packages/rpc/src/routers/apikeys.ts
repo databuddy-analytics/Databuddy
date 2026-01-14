@@ -24,29 +24,16 @@ import { protectedProcedure, publicProcedure } from "../orpc";
 export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
 type ApiKey = InferSelectModel<typeof apikey>;
-type Metadata = {
+interface Metadata {
 	resources?: Record<string, string[]>;
 	tags?: string[];
 	description?: string;
 	lastUsedAt?: string;
-};
+}
 
 export const API_SCOPES = [
 	"read:data",
-	"write:data",
-	"read:experiments",
-	"track:events",
-	"admin:apikeys",
-	"read:analytics",
-	"write:custom-sql",
-	"read:export",
-	"write:otel",
-	"admin:users",
-	"admin:organizations",
-	"admin:websites",
-	"rate:standard",
-	"rate:premium",
-	"rate:enterprise",
+	"write:llm",
 ] as const;
 
 const scopeEnum = z.enum(API_SCOPES);
@@ -142,9 +129,9 @@ export const apikeysRouter = {
 					input.organizationId
 						? eq(apikey.organizationId, input.organizationId)
 						: and(
-								eq(apikey.userId, context.user.id),
-								isNull(apikey.organizationId)
-							)
+							eq(apikey.userId, context.user.id),
+							isNull(apikey.organizationId)
+						)
 				)
 				.orderBy(desc(apikey.createdAt));
 			return rows.map((r) => mapKey(r));

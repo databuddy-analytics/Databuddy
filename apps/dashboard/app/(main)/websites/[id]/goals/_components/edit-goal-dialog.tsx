@@ -96,8 +96,9 @@ export function EditGoalDialog({
 	}, [goal]);
 
 	const handleSubmit = async () => {
-		if (!formData) return;
-		// Ensure all filters have valid operators (default to "equals" if missing)
+		if (!formData) {
+			return;
+		}
 		const sanitizedFilters = formData.filters.map((f) => ({
 			...f,
 			operator: f.operator || "equals",
@@ -138,7 +139,9 @@ export function EditGoalDialog({
 
 	const getSuggestions = useCallback(
 		(field: string): string[] => {
-			if (!autocompleteData) return [];
+			if (!autocompleteData) {
+				return [];
+			}
 
 			switch (field) {
 				case "browser_name":
@@ -164,9 +167,15 @@ export function EditGoalDialog({
 
 	const getTargetSuggestions = useCallback(
 		(goalType: string): string[] => {
-			if (!autocompleteData) return [];
-			if (goalType === "PAGE_VIEW") return autocompleteData.pagePaths || [];
-			if (goalType === "EVENT") return autocompleteData.customEvents || [];
+			if (!autocompleteData) {
+				return [];
+			}
+			if (goalType === "PAGE_VIEW") {
+				return autocompleteData.pagePaths || [];
+			}
+			if (goalType === "EVENT") {
+				return autocompleteData.customEvents || [];
+			}
 			return [];
 		},
 		[autocompleteData]
@@ -174,16 +183,22 @@ export function EditGoalDialog({
 
 	const handleClose = useCallback(() => {
 		onClose();
-		if (isCreateMode) resetForm();
+		if (isCreateMode) {
+			resetForm();
+		}
 	}, [onClose, isCreateMode, resetForm]);
 
 	const isFormValid = useMemo(() => {
-		if (!formData) return false;
+		if (!formData) {
+			return false;
+		}
 		const hasEmptyFilter = formData.filters.some((f) => !f.value);
 		return formData.name && formData.target && !hasEmptyFilter;
 	}, [formData]);
 
-	if (!formData) return null;
+	if (!formData) {
+		return null;
+	}
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
@@ -359,6 +374,7 @@ export function EditGoalDialog({
 										/>
 
 										<Button
+											aria-label="Remove filter"
 											className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
 											onClick={() => removeFilter(index)}
 											size="icon"

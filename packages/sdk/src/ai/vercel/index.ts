@@ -1,5 +1,4 @@
 export { databuddyLLM, httpTransport } from "./middleware";
-
 export type {
 	AICall,
 	AIError,
@@ -10,3 +9,4 @@ export type {
 	TrackOptions,
 	Transport,
 } from "./types";
+export { generateTraceId } from "./utils";

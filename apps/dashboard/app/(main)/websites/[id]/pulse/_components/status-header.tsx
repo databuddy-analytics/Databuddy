@@ -118,7 +118,7 @@ export function StatusHeader({
 								isPaused ? "bg-amber-500 ring-amber-500/20" : ""
 							)}
 						/>
-						<h2 className="font-semibold text-lg tracking-tight">
+						<h2 className="font-semibold text-lg">
 							{isPaused
 								? "Monitoring Paused"
 								: isDown

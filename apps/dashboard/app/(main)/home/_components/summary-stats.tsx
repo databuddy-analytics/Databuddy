@@ -68,7 +68,15 @@ export function SummaryStats({
 	activeMonitors,
 	isLoading,
 }: SummaryStatsProps) {
-	if (isLoading) {
+	// Show loading if explicitly loading OR if we don't have data yet
+	const showLoading =
+		isLoading ||
+		(websiteCount === 0 &&
+			totalMonitors === 0 &&
+			totalActiveUsers === 0 &&
+			totalViews === 0);
+
+	if (showLoading) {
 		return (
 			<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCardSkeleton />

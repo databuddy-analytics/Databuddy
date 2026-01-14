@@ -203,7 +203,7 @@ function RegisterPageContent() {
 			default:
 				return (
 					<>
-						<h1 className="font-medium text-2xl text-foreground tracking-tight">
+						<h1 className="font-medium text-2xl text-foreground">
 							Create your account
 						</h1>
 						<p className="mt-1 text-muted-foreground text-sm">
@@ -554,7 +554,7 @@ export default function RegisterPage() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex h-screen items-center justify-center bg-background">
+				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />

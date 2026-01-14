@@ -85,10 +85,6 @@ export const account = pgTable(
 			"btree",
 			table.accountId.asc().nullsLast().op("text_ops")
 		),
-		index("accounts_providerId_idx").using(
-			"btree",
-			table.providerId.asc().nullsLast().op("text_ops")
-		),
 		uniqueIndex("accounts_provider_account_unique").using(
 			"btree",
 			table.providerId.asc().nullsLast().op("text_ops"),
@@ -150,17 +146,13 @@ export const invitation = pgTable(
 		inviterId: text("inviter_id").notNull(),
 	},
 	(table) => [
-		index("invitations_email_idx").using(
-			"btree",
-			table.email.asc().nullsLast().op("text_ops")
-		),
 		index("invitations_organizationId_idx").using(
 			"btree",
 			table.organizationId.asc().nullsLast().op("text_ops")
 		),
-		index("invitations_teamId_idx").using(
+		index("idx_invitation_inviter_id").using(
 			"btree",
-			table.teamId.asc().nullsLast().op("text_ops")
+			table.inviterId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.organizationId],
@@ -218,10 +210,6 @@ export const verification = pgTable(
 		updatedAt: timestamp("updated_at"),
 	},
 	(table) => [
-		index("verifications_identifier_idx").using(
-			"btree",
-			table.identifier.asc().nullsLast().op("text_ops")
-		),
 		index("verifications_expiresAt_idx").using(
 			"btree",
 			table.expiresAt.asc().nullsLast()
@@ -238,9 +226,9 @@ export const twoFactor = pgTable(
 		userId: text("user_id").notNull(),
 	},
 	(table) => [
-		index("twoFactor_secret_idx").using(
+		index("idx_two_factor_user_id").using(
 			"btree",
-			table.secret.asc().nullsLast().op("text_ops")
+			table.userId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -275,6 +263,10 @@ export const ssoProvider = pgTable(
 		index("sso_provider_domain_idx").using(
 			"btree",
 			table.domain.asc().nullsLast().op("text_ops")
+		),
+		index("idx_sso_provider_user_id").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -369,13 +361,7 @@ export const user = pgTable(
 		role: role().default("USER").notNull(),
 		twoFactorEnabled: boolean("two_factor_enabled"),
 	},
-	(table) => [
-		unique("users_email_unique").on(table.email),
-		index("users_emailVerified_idx").using(
-			"btree",
-			table.emailVerified.asc().nullsLast()
-		),
-	]
+	(table) => [unique("users_email_unique").on(table.email)]
 );
 
 export const funnelDefinitions = pgTable(
@@ -395,9 +381,9 @@ export const funnelDefinitions = pgTable(
 		deletedAt: timestamp({ precision: 3 }),
 	},
 	(table) => [
-		index("funnel_definitions_websiteId_idx").using(
+		index("idx_funnel_definitions_createdBy").using(
 			"btree",
-			table.websiteId.asc().nullsLast().op("text_ops")
+			table.createdBy.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
@@ -434,11 +420,9 @@ export const goals = pgTable(
 		deletedAt: timestamp({ precision: 3 }),
 	},
 	(table) => [
-		index("goals_websiteId_deletedAt_createdAt_idx").using(
+		index("idx_goals_createdBy").using(
 			"btree",
-			table.websiteId.asc().nullsLast().op("text_ops"),
-			table.deletedAt.asc().nullsLast(),
-			table.createdAt.desc().nullsLast()
+			table.createdBy.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
@@ -482,23 +466,7 @@ export const team = pgTable(
 export const apiKeyType = pgEnum("api_key_type", ["user", "sdk", "automation"]);
 export const apiScope = pgEnum("api_scope", [
 	"read:data",
-	"write:data",
-	"read:experiments",
-	"track:events",
-	"admin:apikeys",
-	// New scopes for core use cases
-	"read:analytics",
-	"write:custom-sql",
-	"read:export",
-	"write:otel",
-	// Administrative scopes
-	"admin:users",
-	"admin:organizations",
-	"admin:websites",
-	// Rate limiting and usage scopes
-	"rate:standard",
-	"rate:premium",
-	"rate:enterprise",
+	"write:llm",
 ]);
 
 // Resource type for flexible, future-proof per-resource access control
@@ -552,19 +520,6 @@ export const apikey = pgTable(
 			"btree",
 			table.keyHash.asc().nullsLast().op("text_ops")
 		),
-		index("apikey_user_id_idx").using(
-			"btree",
-			table.userId.asc().nullsLast().op("text_ops")
-		),
-		index("apikey_organization_id_idx").using(
-			"btree",
-			table.organizationId.asc().nullsLast().op("text_ops")
-		),
-		index("apikey_prefix_idx").using(
-			"btree",
-			table.prefix.asc().nullsLast().op("text_ops")
-		),
-		index("apikey_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
 	]
 );
 
@@ -578,7 +533,13 @@ export const organization = pgTable(
 		createdAt: timestamp("created_at").notNull(),
 		metadata: text(),
 	},
-	(table) => [unique("organizations_slug_unique").on(table.slug)]
+	(table) => [
+		unique("organizations_slug_unique").on(table.slug),
+		index("idx_organization_logo").using(
+			"btree",
+			table.logo.asc().nullsLast().op("text_ops")
+		),
+	]
 );
 
 export const assistantConversations = pgTable(
@@ -592,9 +553,9 @@ export const assistantConversations = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [
-		index("assistant_conversations_website_id_idx").using(
+		index("idx_assistant_conversations_user_id").using(
 			"btree",
-			table.websiteId.asc().nullsLast().op("text_ops")
+			table.userId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -670,19 +631,6 @@ export const flagStatus = pgEnum("flag_status", [
 	"inactive",
 	"archived",
 ]);
-export const flagScheduleActionType = pgEnum("flag_schedule_type", [
-	"enable",
-	"disable",
-	"update_rollout",
-]);
-export type RolloutStep =
-	| { scheduledAt: string; action: "enable" | "disable"; executedAt?: string }
-	| {
-		scheduledAt: string;
-		action: "set_percentage";
-		value: number;
-		executedAt?: string;
-	};
 export const annotationType = pgEnum("annotation_type", [
 	"point",
 	"line",
@@ -729,9 +677,9 @@ export const flags = pgTable(
 		uniqueIndex("flags_key_user_unique")
 			.on(table.key, table.userId)
 			.where(isNotNull(table.userId)),
-		index("flags_website_id_idx").using(
+		index("idx_flags_created_by").using(
 			"btree",
-			table.websiteId.asc().nullsLast().op("text_ops")
+			table.createdBy.asc().nullsLast().op("text_ops")
 		),
 		index("flags_website_folder_idx").using(
 			"btree",
@@ -769,38 +717,6 @@ export const flags = pgTable(
 	]
 );
 
-export const flagSchedules = pgTable(
-	"flag_schedules",
-	{
-		id: text().primaryKey().notNull(),
-		flagId: text("flag_id").notNull(),
-		scheduledAt: timestamp("scheduled_at"),
-		rolloutSteps:
-			jsonb("rollout_steps").$type<
-				{
-					scheduledAt: string;
-					value: number | "enable" | "disable";
-					executedAt?: string;
-				}[]
-			>(),
-		type: flagScheduleActionType().notNull(),
-		isEnabled: boolean("is_enabled").default(false).notNull(),
-		qstashScheduleIds: text("qstash_schedule_ids").array(),
-		executedAt: timestamp("executed_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	},
-	(table) => [
-		index("idx_flag_schedules_flag_id").on(table.flagId),
-		index("idx_flag_schedules_scheduled_at").on(table.scheduledAt),
-		foreignKey({
-			columns: [table.flagId],
-			foreignColumns: [flags.id],
-			name: "flag_schedules_flag_id_fkey",
-		}).onDelete("cascade"),
-	]
-);
-
 export const annotations = pgTable(
 	"annotations",
 	{
@@ -822,9 +738,9 @@ export const annotations = pgTable(
 		deletedAt: timestamp("deleted_at", { precision: 3 }),
 	},
 	(table) => [
-		index("annotations_website_id_idx").using(
+		index("idx_annotations_created_by").using(
 			"btree",
-			table.websiteId.asc().nullsLast().op("text_ops")
+			table.createdBy.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
@@ -861,6 +777,10 @@ export const targetGroups = pgTable(
 		index("target_groups_website_id_idx").using(
 			"btree",
 			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("idx_target_groups_created_by").using(
+			"btree",
+			table.createdBy.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],

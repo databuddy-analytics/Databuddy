@@ -118,7 +118,7 @@ export default function Page() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex h-screen items-center justify-center bg-background">
+				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
 						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />

@@ -240,6 +240,7 @@ export function VariantEditor({
 								</div>
 							</div>
 							<Button
+								aria-label="Remove variant"
 								className="size-8 text-muted-foreground hover:text-destructive"
 								disabled={variants.length <= 1}
 								onClick={() => handleRemoveVariant(index)}

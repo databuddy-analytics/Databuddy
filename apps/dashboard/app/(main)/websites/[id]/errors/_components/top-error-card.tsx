@@ -18,7 +18,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 						/>
 					</div>
 					<div className="min-w-0 flex-1">
-						<h3 className="font-semibold text-foreground text-sm tracking-tight">
+						<h3 className="font-semibold text-foreground text-sm">
 							Most Frequent Error
 						</h3>
 						<p className="text-muted-foreground text-xs">No errors detected</p>
@@ -40,7 +40,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 					<BugIcon className="size-4 text-destructive" weight="duotone" />
 				</div>
 				<div className="min-w-0 flex-1">
-					<h3 className="font-semibold text-foreground text-sm tracking-tight">
+					<h3 className="font-semibold text-foreground text-sm">
 						Most Frequent Error
 					</h3>
 					<p className="text-muted-foreground text-xs">Top occurring error</p>

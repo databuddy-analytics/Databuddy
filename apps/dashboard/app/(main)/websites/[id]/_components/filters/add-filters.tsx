@@ -68,7 +68,9 @@ function getSuggestions(
 	field: string,
 	autocompleteData: AutocompleteData | undefined
 ): string[] {
-	if (!autocompleteData) return [];
+	if (!autocompleteData) {
+		return [];
+	}
 
 	const suggestionMap: Record<string, string[] | undefined> = {
 		browser_name: autocompleteData.browsers,
@@ -101,7 +103,9 @@ function ValueSuggestions({
 				.slice(0, MAX_SUGGESTIONS)
 		: suggestions.slice(0, MAX_SUGGESTIONS);
 
-	if (suggestions.length === 0) return null;
+	if (suggestions.length === 0) {
+		return null;
+	}
 
 	return (
 		<div className="space-y-2">

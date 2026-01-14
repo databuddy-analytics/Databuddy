@@ -136,7 +136,7 @@ export function CategorySidebar({
 									{isActive ? (
 										<div
 											className={cn(
-												"absolute top-0 left-0 z-[-1] box-border h-full w-full bg-sidebar-accent-brighter"
+												"absolute top-0 left-0 -z-10 box-border h-full w-full bg-sidebar-accent-brighter"
 											)}
 										/>
 									) : null}

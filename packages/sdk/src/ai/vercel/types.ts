@@ -1,4 +1,24 @@
 /**
+ * Content types for input/output arrays
+ */
+export type MessageContent =
+	| { type: "text"; text: string }
+	| { type: "reasoning"; text: string }
+	| { type: "tool-call"; id: string; function: { name: string; arguments: string } }
+	| { type: "tool-result"; toolCallId: string; toolName: string; output: unknown; isError?: boolean }
+	| { type: "file"; file: string; mediaType: string }
+	| { type: "image"; image: string; mediaType: string }
+	| { type: "source"; sourceType: string; id: string; url: string; title: string };
+
+/**
+ * Message format for input/output
+ */
+export interface AIMessage {
+	role: string;
+	content: string | MessageContent[];
+}
+
+/**
  * Token usage from AI model calls
  */
 export interface TokenUsage {
@@ -6,6 +26,9 @@ export interface TokenUsage {
 	outputTokens: number;
 	totalTokens: number;
 	cachedInputTokens?: number;
+	cacheCreationInputTokens?: number;
+	reasoningTokens?: number;
+	webSearchCount?: number;
 }
 
 /**
@@ -24,6 +47,7 @@ export interface ToolCallInfo {
 	toolCallCount: number;
 	toolResultCount: number;
 	toolCallNames: string[];
+	availableTools?: string[];
 }
 
 /**
@@ -40,15 +64,20 @@ export interface AIError {
  */
 export interface AICall {
 	timestamp: Date;
+	traceId: string;
 	type: "generate" | "stream";
 	model: string;
 	provider: string;
 	finishReason?: string;
+	input: AIMessage[];
+	output: AIMessage[];
 	usage: TokenUsage;
 	cost: TokenCost;
 	tools: ToolCallInfo;
 	error?: AIError;
 	durationMs: number;
+	httpStatus?: number;
+	params?: Record<string, unknown>;
 }
 
 /**
@@ -86,6 +115,16 @@ export interface DatabuddyLLMOptions {
 	 */
 	computeCosts?: boolean;
 	/**
+	 * Privacy mode - when true, input/output content is not captured
+	 * @default false
+	 */
+	privacyMode?: boolean;
+	/**
+	 * Maximum size for input/output content in bytes
+	 * @default 1048576 (1MB)
+	 */
+	maxContentSize?: number;
+	/**
 	 * Called on successful AI calls
 	 */
 	onSuccess?: (call: AICall) => void;
@@ -105,10 +144,23 @@ export interface TrackOptions {
 	 */
 	transport?: Transport;
 	/**
+	 * Trace ID to link related calls together
+	 */
+	traceId?: string;
+	/**
+	 * Client ID for this specific call (overrides instance-level clientId)
+	 */
+	clientId?: string;
+	/**
 	 * Whether to compute costs using TokenLens
 	 * @default true
 	 */
 	computeCosts?: boolean;
+	/**
+	 * Privacy mode - when true, input/output content is not captured
+	 * @default false
+	 */
+	privacyMode?: boolean;
 	/**
 	 * Called on successful AI calls
 	 */

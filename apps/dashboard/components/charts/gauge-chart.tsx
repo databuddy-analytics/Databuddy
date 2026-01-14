@@ -140,7 +140,7 @@ export const GaugeChart = memo(function GaugeChart({
 				)}
 			>
 				<span
-					className="font-semibold text-foreground tabular-nums tracking-tight"
+					className="font-semibold text-foreground tabular-nums"
 					style={{ fontSize: valueFontSize, lineHeight: 1 }}
 				>
 					{displayValue}

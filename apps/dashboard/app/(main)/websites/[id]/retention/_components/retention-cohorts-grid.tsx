@@ -111,15 +111,15 @@ export function RetentionCohortsGrid({
 			<table className="w-full border-collapse text-sm">
 				<thead>
 					<tr className="border-border border-b">
-						<th className="w-20 bg-accent px-2 py-2.5 text-left font-semibold text-foreground text-xs uppercase tracking-wider">
+						<th className="w-20 bg-accent px-2 py-2.5 text-left font-semibold text-foreground text-xs uppercase">
 							Cohort
 						</th>
-						<th className="w-16 bg-accent px-2 py-2.5 text-right font-semibold text-foreground text-xs uppercase tracking-wider">
+						<th className="w-16 bg-accent px-2 py-2.5 text-right font-semibold text-foreground text-xs uppercase">
 							Users
 						</th>
 						{periodHeaders.map((header) => (
 							<th
-								className="min-w-[60px] flex-1 bg-accent px-2 py-2.5 text-center font-semibold text-foreground text-xs uppercase tracking-wider"
+								className="min-w-[60px] flex-1 bg-accent px-2 py-2.5 text-center font-semibold text-foreground text-xs uppercase"
 								key={header}
 							>
 								{header}

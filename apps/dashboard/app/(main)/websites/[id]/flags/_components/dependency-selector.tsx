@@ -118,7 +118,12 @@ export function DependencySelector({
 							placeholder="Search…"
 							value={search}
 						/>
-						<div className="max-h-40 space-y-0.5 overflow-y-auto">
+						<div
+							className="max-h-40 space-y-0.5 overflow-y-auto"
+							// Fixes Radix UI Popover content scrolling issue: https://github.com/radix-ui/primitives/issues/1159
+							onTouchMove={(e) => e.stopPropagation()}
+							onWheel={(e) => e.stopPropagation()}
+						>
 							{filteredFlags.length > 0 ? (
 								filteredFlags.map((flag) => {
 									const isActive = flag.status === "active";

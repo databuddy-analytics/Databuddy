@@ -5,10 +5,10 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type ErrorPageProps = {
+interface ErrorPageProps {
 	error: Error & { digest?: string };
 	reset: () => void;
-};
+}
 
 export default function ErrorPage({ error, reset }: ErrorPageProps) {
 	useEffect(() => {
@@ -16,7 +16,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 	}, [error]);
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-muted/20">
+		<div className="flex min-h-dvh items-center justify-center bg-muted/20">
 			<Card className="w-full max-w-lg border-destructive/50 shadow-lg">
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2 text-destructive">

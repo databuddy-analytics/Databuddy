@@ -74,7 +74,7 @@ function AgentPageContentInner({
 			<div
 				className={cn(
 					"flex flex-1 flex-col overflow-hidden",
-					"transition-all duration-300 ease-in-out",
+					"transition-all duration-300 ease-in-out"
 				)}
 			>
 				<div className="relative z-10 bg-sidebar-accent">
@@ -92,7 +92,7 @@ function AgentPageContentInner({
 								<h1 className="truncate font-semibold text-sidebar-accent-foreground text-sm">
 									Databunny
 								</h1>
-								<span className="rounded border border-border/50 bg-accent px-1.5 py-0.5 text-[10px] text-foreground/60 uppercase tracking-wide">
+								<span className="rounded border border-border/50 bg-accent px-1.5 py-0.5 text-[10px] text-foreground/60 uppercase">
 									Alpha
 								</span>
 							</div>

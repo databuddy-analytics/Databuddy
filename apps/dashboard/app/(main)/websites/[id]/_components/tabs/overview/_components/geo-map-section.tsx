@@ -123,7 +123,7 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 
 				<div className="absolute right-2 bottom-2 z-1 w-44 shrink-0 rounded border border-t bg-muted">
 					<div className="h-9 rounded-t border-b bg-muted px-2">
-						<span className="flex h-full items-center font-semibold text-sidebar-foreground/70 text-xs uppercase tracking-wide">
+						<span className="flex h-full items-center font-semibold text-sidebar-foreground/70 text-xs uppercase">
 							Top Countries
 						</span>
 					</div>

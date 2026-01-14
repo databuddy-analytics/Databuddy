@@ -146,7 +146,7 @@ export function EventsTrendChart({
 						/>
 					</div>
 					<div className="min-w-0 flex-1">
-						<h2 className="font-semibold text-foreground text-sm tracking-tight sm:text-base">
+						<h2 className="font-semibold text-foreground text-sm sm:text-base">
 							Events Trend
 						</h2>
 						<p className="text-muted-foreground text-xs">No data available</p>
@@ -171,7 +171,7 @@ export function EventsTrendChart({
 						<LightningIcon className="size-4 text-primary" weight="duotone" />
 					</div>
 					<div className="min-w-0">
-						<h2 className="font-semibold text-foreground text-sm tracking-tight sm:text-base">
+						<h2 className="font-semibold text-foreground text-sm sm:text-base">
 							Events Trend
 						</h2>
 						<p className="text-muted-foreground text-xs">
@@ -205,7 +205,7 @@ export function EventsTrendChart({
 
 			<div className="grid grid-cols-2 gap-3 border-b bg-muted/30 p-3">
 				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+					<p className="font-mono text-[10px] text-muted-foreground uppercase">
 						Total Events
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
@@ -213,7 +213,7 @@ export function EventsTrendChart({
 					</p>
 				</div>
 				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+					<p className="font-mono text-[10px] text-muted-foreground uppercase">
 						Unique Users
 					</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">

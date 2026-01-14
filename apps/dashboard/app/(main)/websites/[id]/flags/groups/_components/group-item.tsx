@@ -154,6 +154,7 @@ export function GroupItem({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
+								aria-label="Group actions"
 								className="size-8 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
 								size="icon"
 								variant="ghost"

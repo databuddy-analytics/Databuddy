@@ -3,7 +3,6 @@ import "./globals.css";
 import { Databuddy } from "@databuddy/sdk/react";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import Providers from "./providers";
 
@@ -129,17 +128,11 @@ export default function RootLayout({
 				trackPerformance={true}
 				trackWebVitals={true}
 			/>
-			<body className="flex h-full min-h-screen flex-col bg-background text-foreground antialiased">
+			<body className="flex h-full min-h-dvh flex-col bg-background text-foreground antialiased">
 				<Providers>
 					<main className="flex-1">{children}</main>
 				</Providers>
 				<Toaster />
-				<Script
-					data-affonso="cmkd7crwv000zdc3g8yqnjacw"
-					data-cookie_duration="30"
-					src="https://cdn.affonso.io/js/pixel.min.js"
-					strategy="afterInteractive"
-				/>
 			</body>
 		</html>
 	);

@@ -964,6 +964,7 @@ export function CardSheet({
 												/>
 
 												<Button
+													aria-label="Remove filter"
 													className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
 													onClick={() => handleRemoveFilter(index)}
 													size="icon"

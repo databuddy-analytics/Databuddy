@@ -167,17 +167,8 @@ export function SmartInsightsSection({
 		);
 	}
 
-	const hasCritical = insights.some((i) => i.severity === "critical");
-	const hasWarning = insights.some((i) => i.severity === "warning");
-
 	return (
-		<div
-			className={cn(
-				"divide-y rounded border bg-card",
-				hasCritical && "border-red-500/30",
-				!hasCritical && hasWarning && "border-amber-500/30"
-			)}
-		>
+		<div className="divide-y rounded border bg-card">
 			<div className="flex items-center justify-between px-4 py-3">
 				<div className="flex items-center gap-2">
 					<SparkleIcon className="size-4 text-primary" weight="duotone" />

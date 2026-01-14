@@ -11,7 +11,7 @@ dayjs.extend(relativeTimePlugin);
 const DEFAULT_DATE_FORMAT = "MMM D, YYYY";
 const DEFAULT_TIME_FORMAT = "h:mm A";
 
-type DateFormatOptions = {
+interface DateFormatOptions {
 	timezone?: string;
 	dateFormat?: string;
 	timeFormat?: string;

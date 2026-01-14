@@ -6,7 +6,9 @@ import { hasAllScopes, hasAnyScope, hasScope, isExpired } from "keypal";
 
 export type ApiKeyRow = InferSelectModel<typeof apikey>;
 export type ApiScope = ApiKeyRow["scopes"][number];
-type Metadata = { resources?: Record<string, string[]> };
+interface Metadata {
+	resources?: Record<string, string[]>;
+}
 
 const getMeta = (key: ApiKeyRow): Metadata => (key.metadata as Metadata) ?? {};
 

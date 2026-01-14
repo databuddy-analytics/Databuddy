@@ -33,7 +33,7 @@ export function GoalsList({
 	analyticsLoading = false,
 }: GoalsListProps) {
 	if (isLoading) {
-		return null; // Skeleton is handled by parent
+		return null;
 	}
 
 	if (goals.length === 0) {

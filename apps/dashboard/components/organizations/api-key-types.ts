@@ -1,22 +1,4 @@
-export type ApiScope =
-	| "read:data"
-	| "write:data"
-	| "read:experiments"
-	| "track:events"
-	| "admin:apikeys"
-	// New scopes for core use cases
-	| "read:analytics"
-	| "write:custom-sql"
-	| "read:export"
-	| "write:otel"
-	// Administrative scopes
-	| "admin:users"
-	| "admin:organizations"
-	| "admin:websites"
-	// Rate limiting and usage scopes
-	| "rate:standard"
-	| "rate:premium"
-	| "rate:enterprise";
+export type ApiScope = "read:data" | "write:llm";
 
 export type ApiResourceType =
 	| "global"

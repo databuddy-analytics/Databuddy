@@ -117,7 +117,7 @@ function ActiveFilters({ filters }: { filters: ActiveFilter[] }) {
 
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
-			<span className="font-medium text-foreground/60 text-xs uppercase tracking-wide">
+			<span className="font-medium text-foreground/60 text-xs uppercase">
 				Active:
 			</span>
 			{filters.map((filter) => (

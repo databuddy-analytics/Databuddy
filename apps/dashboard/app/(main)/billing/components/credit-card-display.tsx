@@ -90,7 +90,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 							weight="bold"
 						/>
 					</div>
-					<span className="font-mono text-[10px] text-white/40 uppercase tracking-[0.25em]">
+					<span className="font-mono text-[10px] text-white/40 uppercase">
 						{brand}
 					</span>
 				</div>
@@ -101,7 +101,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 						<>
 							<button
 								aria-label="Hide card details"
-								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/90 tabular-nums tracking-[0.2em] hover:text-white"
+								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/90 tabular-nums hover:text-white"
 								onClick={() => setShowCardDetails(false)}
 								type="button"
 							>
@@ -109,16 +109,16 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 							</button>
 							<div className="flex items-end justify-between">
 								<div className="flex flex-col">
-									<span className="text-[8px] text-white/30 uppercase tracking-wider">
+									<span className="text-[8px] text-white/30 uppercase">
 										Card Holder
 									</span>
-									<p className="font-medium text-white/70 text-xs uppercase tracking-wide">
+									<p className="font-medium text-white/70 text-xs uppercase">
 										{cardHolder}
 									</p>
 								</div>
 								<div className="flex items-end gap-4">
 									<div className="flex flex-col text-right">
-										<span className="text-[8px] text-white/30 uppercase tracking-wider">
+										<span className="text-[8px] text-white/30 uppercase">
 											Expires
 										</span>
 										<p className="font-mono text-white/70 text-xs tabular-nums">
@@ -133,7 +133,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 						<>
 							<button
 								aria-label="Show card details"
-								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/25 tabular-nums tracking-[0.2em] hover:text-white/40"
+								className="w-fit cursor-pointer text-left font-mono text-[15px] text-white/25 tabular-nums hover:text-white/40"
 								onClick={() => setShowCardDetails(true)}
 								type="button"
 							>
@@ -141,16 +141,16 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 							</button>
 							<div className="flex items-end justify-between">
 								<div className="flex flex-col">
-									<span className="text-[8px] text-white/30 uppercase tracking-wider">
+									<span className="text-[8px] text-white/30 uppercase">
 										Card Holder
 									</span>
-									<p className="font-medium text-white/25 text-xs uppercase tracking-wide">
+									<p className="font-medium text-white/25 text-xs uppercase">
 										•••• ••••
 									</p>
 								</div>
 								<div className="flex items-end gap-4">
 									<div className="flex flex-col text-right">
-										<span className="text-[8px] text-white/30 uppercase tracking-wider">
+										<span className="text-[8px] text-white/30 uppercase">
 											Expires
 										</span>
 										<p className="font-mono text-white/25 text-xs tabular-nums">
@@ -171,7 +171,7 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 function CardBrandLogo({ brand }: { brand: string }) {
 	if (brand === "visa") {
 		return (
-			<div className="flex h-6 w-10 items-center justify-center font-bold text-sm text-white/80 italic tracking-tight">
+			<div className="flex h-6 w-10 items-center justify-center font-bold text-sm text-white/80 italic">
 				VISA
 			</div>
 		);

@@ -3,7 +3,7 @@ import { smoothStream } from "ai";
 import { Elysia, t } from "elysia";
 import { createReflectionAgent, createTriageAgent } from "../ai/agents";
 import { buildAppContext } from "../ai/config/context";
-import { record, setAttributes } from "../lib/tracing";
+import { captureError, record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 import { QueryBuilders } from "../query/builders";
 
@@ -195,7 +195,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						sendSources: true,
 					});
 				} catch (error) {
-					console.error("Agent chat error:", error);
+					captureError(error, {
+						agent_error: true,
+						agent_model_type: body.model ?? "agent",
+						agent_chat_id: chatId,
+						agent_website_id: body.websiteId,
+						agent_user_id: user?.id ?? "unknown",
+						error_type: error instanceof Error ? error.name : "UnknownError",
+					});
 					return new Response(
 						JSON.stringify({
 							error: error instanceof Error ? error.message : "Unknown error",

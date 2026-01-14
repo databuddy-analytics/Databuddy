@@ -1,4 +1,4 @@
-import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -95,7 +95,7 @@ export function captureError(
 	error: unknown,
 	attributes?: Record<string, string | number | boolean>
 ): void {
-	const span = trace.getActiveSpan();
+	const span = trace.getActiveSpan() ?? currentRequestSpan;
 	if (!span) {
 		return;
 	}
@@ -112,13 +112,23 @@ export function captureError(
 	}
 }
 
+// Global store for current request span (fallback when context propagation isn't available)
+let currentRequestSpan: Span | null = null;
+
+/**
+ * Set the current request span (called from request handler)
+ */
+export function setCurrentRequestSpan(span: Span | null): void {
+	currentRequestSpan = span;
+}
+
 /**
  * Set attributes on active span - replaces @elysiajs/opentelemetry setAttributes
  */
 export function setAttributes(
 	attributes: Record<string, string | number | boolean>
 ): void {
-	const span = trace.getActiveSpan();
+	const span = trace.getActiveSpan() ?? currentRequestSpan;
 	if (span) {
 		for (const [key, value] of Object.entries(attributes)) {
 			span.setAttribute(key, value);
@@ -127,15 +137,16 @@ export function setAttributes(
 }
 
 /**
- * Start HTTP request span
+ * Start HTTP request span and set it as active
+ * Returns both the span and the context with the span set as active
  */
 export function startRequestSpan(
 	method: string,
 	path: string,
 	route?: string
-): Span {
+): { span: Span; activeContext: ReturnType<typeof context.active> } {
 	const tracer = getTracer();
-	return tracer.startSpan(`${method} ${route ?? path}`, {
+	const span = tracer.startSpan(`${method} ${route ?? path}`, {
 		kind: 1, // SERVER
 		attributes: {
 			http_method: method,
@@ -143,6 +154,21 @@ export function startRequestSpan(
 			http_target: path,
 		},
 	});
+
+	// Create context with this span as active
+	const activeContext = trace.setSpan(context.active(), span);
+
+	return { span, activeContext };
+}
+
+/**
+ * Wrap a function with OpenTelemetry context
+ */
+export function withContext<T>(
+	activeContext: ReturnType<typeof context.active>,
+	fn: () => T | Promise<T>
+): T | Promise<T> {
+	return context.with(activeContext, fn);
 }
 
 /**

@@ -27,12 +27,12 @@ export default async function MainLayout({
 			backendUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}
 		>
 			<BillingProvider>
-				<div className="h-screen overflow-hidden text-foreground">
+				<div className="h-dvh overflow-hidden text-foreground">
 					<Sidebar user={user} />
 					<CommandSearch />
 					<DevToolsDrawer />
-					<div className="relative h-screen pl-0 md:pl-76 lg:pl-84">
-						<div className="h-screen overflow-y-auto overflow-x-hidden pt-12 md:pt-0">
+					<div className="relative h-dvh pl-0 md:pl-76 lg:pl-84">
+						<div className="h-dvh overflow-y-auto overflow-x-hidden pt-12 md:pt-0">
 							{children}
 						</div>
 					</div>

@@ -352,7 +352,7 @@ Context:
 				<SheetBody className="space-y-6">
 					{quickActions.length > 0 && (
 						<section className="space-y-3">
-							<span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							<span className="font-medium text-muted-foreground text-xs uppercase">
 								Quick actions
 							</span>
 							<div className="flex flex-wrap gap-2">

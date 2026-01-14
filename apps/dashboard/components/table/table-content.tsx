@@ -255,7 +255,7 @@ function TableContentInner<TData extends { name: string | number }>({
 							{headerGroup.headers.map((header) => (
 								<TableHead
 									className={cn(
-										"h-10 bg-card px-2 font-semibold text-sidebar-foreground/70 text-xs uppercase tracking-wide",
+										"h-10 bg-card px-2 font-semibold text-sidebar-foreground/70 text-xs uppercase",
 										(header.column.columnDef.meta as any)?.className
 									)}
 									key={header.id}

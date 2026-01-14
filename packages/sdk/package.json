@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.3.24",
+  "version": "2.3.25",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
@@ -14,7 +14,7 @@
     "vscode:prepublish": "bun run build"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/provider": "^3.0.2",
     "@types/node": "^20.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "ai": "^5.0.51",

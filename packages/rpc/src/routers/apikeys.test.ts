@@ -13,20 +13,7 @@ const keys = createKeys({ prefix: "dbdy_", length: 48 });
 // Constants matching the router
 const API_SCOPES = [
 	"read:data",
-	"write:data",
-	"read:experiments",
-	"track:events",
-	"admin:apikeys",
-	"read:analytics",
-	"write:custom-sql",
-	"read:export",
-	"write:otel",
-	"admin:users",
-	"admin:organizations",
-	"admin:websites",
-	"rate:standard",
-	"rate:premium",
-	"rate:enterprise",
+	"write:llm",
 ] as const;
 
 const RESOURCE_TYPES = [
@@ -124,32 +111,10 @@ function checkValidity(key: {
 describe("API_SCOPES constants", () => {
 	it("contains read scopes", () => {
 		expect(API_SCOPES).toContain("read:data");
-		expect(API_SCOPES).toContain("read:experiments");
-		expect(API_SCOPES).toContain("read:analytics");
-		expect(API_SCOPES).toContain("read:export");
 	});
 
 	it("contains write scopes", () => {
-		expect(API_SCOPES).toContain("write:data");
-		expect(API_SCOPES).toContain("write:custom-sql");
-		expect(API_SCOPES).toContain("write:otel");
-	});
-
-	it("contains admin scopes", () => {
-		expect(API_SCOPES).toContain("admin:apikeys");
-		expect(API_SCOPES).toContain("admin:users");
-		expect(API_SCOPES).toContain("admin:organizations");
-		expect(API_SCOPES).toContain("admin:websites");
-	});
-
-	it("contains rate limit scopes", () => {
-		expect(API_SCOPES).toContain("rate:standard");
-		expect(API_SCOPES).toContain("rate:premium");
-		expect(API_SCOPES).toContain("rate:enterprise");
-	});
-
-	it("contains track scope", () => {
-		expect(API_SCOPES).toContain("track:events");
+		expect(API_SCOPES).toContain("write:llm");
 	});
 });
 
@@ -222,10 +187,10 @@ describe("keys.create", () => {
 		const { record } = await keys.create({
 			ownerId: "test",
 			name: "test",
-			scopes: ["read:data", "write:data"],
+			scopes: ["read:data", "write:llm"],
 		});
 		expect(record.metadata.scopes).toContain("read:data");
-		expect(record.metadata.scopes).toContain("write:data");
+		expect(record.metadata.scopes).toContain("write:llm");
 	});
 
 	it("returns record with metadata containing expiresAt", async () => {
@@ -262,37 +227,37 @@ describe("keys.hashKey", () => {
 
 describe("getScopes (router helper)", () => {
 	it("returns base scopes when no resources", () => {
-		const scopes = getScopes(["read:data", "write:data"], {});
+		const scopes = getScopes(["read:data", "write:llm"], {});
 		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("write:data");
+		expect(scopes).toContain("write:llm");
 	});
 
 	it("includes global resource scopes", () => {
 		const scopes = getScopes(["read:data"], {
-			resources: { global: ["admin:apikeys"] },
+			resources: { global: ["write:llm"] },
 		});
 		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("admin:apikeys");
+		expect(scopes).toContain("write:llm");
 	});
 
 	it("includes resource-specific scopes when resource matches", () => {
 		const scopes = getScopes(
 			["read:data"],
-			{ resources: { "website:site-123": ["write:data"] } },
+			{ resources: { "website:site-123": ["write:llm"] } },
 			"website:site-123"
 		);
 		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("write:data");
+		expect(scopes).toContain("write:llm");
 	});
 
 	it("excludes resource scopes when resource does not match", () => {
 		const scopes = getScopes(
 			["read:data"],
-			{ resources: { "website:site-123": ["write:data"] } },
+			{ resources: { "website:site-123": ["write:llm"] } },
 			"website:site-456"
 		);
 		expect(scopes).toContain("read:data");
-		expect(scopes).not.toContain("write:data");
+		expect(scopes).not.toContain("write:llm");
 	});
 
 	it("combines global and resource-specific scopes", () => {
@@ -300,20 +265,19 @@ describe("getScopes (router helper)", () => {
 			["read:data"],
 			{
 				resources: {
-					global: ["track:events"],
-					"website:site-123": ["write:data"],
+					global: ["write:llm"],
+					"website:site-123": ["write:llm"],
 				},
 			},
 			"website:site-123"
 		);
 		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:events");
-		expect(scopes).toContain("write:data");
+		expect(scopes).toContain("write:llm");
 	});
 
 	it("deduplicates scopes", () => {
 		const scopes = getScopes(
-			["read:data"],
+			["read:data", "write:llm"],
 			{
 				resources: {
 					global: ["read:data"],
@@ -397,11 +361,11 @@ describe("checkValidity (router helper)", () => {
 
 describe("keypal hasScope", () => {
 	it("returns true when scope exists", () => {
-		expect(hasScope(["read:data", "write:data"], "read:data")).toBe(true);
+		expect(hasScope(["read:data", "write:llm"], "read:data")).toBe(true);
 	});
 
 	it("returns false when scope does not exist", () => {
-		expect(hasScope(["read:data"], "write:data")).toBe(false);
+		expect(hasScope(["read:data"], "write:llm")).toBe(false);
 	});
 
 	it("handles undefined scopes", () => {
@@ -415,17 +379,17 @@ describe("keypal hasScope", () => {
 
 describe("keypal hasAnyScope", () => {
 	it("returns true when any scope matches", () => {
-		expect(hasAnyScope(["read:data"], ["read:data", "write:data"])).toBe(true);
+		expect(hasAnyScope(["read:data"], ["read:data", "write:llm"])).toBe(true);
 	});
 
 	it("returns true when multiple scopes match", () => {
 		expect(
-			hasAnyScope(["read:data", "write:data"], ["read:data", "admin:apikeys"])
+			hasAnyScope(["read:data", "write:llm"], ["read:data", "write:llm"])
 		).toBe(true);
 	});
 
 	it("returns false when no scopes match", () => {
-		expect(hasAnyScope(["track:events"], ["read:data", "write:data"])).toBe(
+		expect(hasAnyScope(["write:llm"], ["read:data", "write:llm"])).toBe(
 			false
 		);
 	});
@@ -443,14 +407,14 @@ describe("keypal hasAllScopes", () => {
 	it("returns true when all scopes match", () => {
 		expect(
 			hasAllScopes(
-				["read:data", "write:data", "track:events"],
-				["read:data", "write:data"]
+				["read:data", "write:llm"],
+				["read:data", "write:llm"]
 			)
 		).toBe(true);
 	});
 
 	it("returns false when not all scopes match", () => {
-		expect(hasAllScopes(["read:data"], ["read:data", "write:data"])).toBe(
+		expect(hasAllScopes(["read:data"], ["read:data", "write:llm"])).toBe(
 			false
 		);
 	});
@@ -465,7 +429,7 @@ describe("keypal hasAllScopes", () => {
 
 	it("returns true when exact match", () => {
 		expect(
-			hasAllScopes(["read:data", "write:data"], ["read:data", "write:data"])
+			hasAllScopes(["read:data", "write:llm"], ["read:data", "write:llm"])
 		).toBe(true);
 	});
 });
@@ -498,21 +462,20 @@ describe("keypal isExpired", () => {
 
 describe("resource format patterns", () => {
 	it("global resource stores scopes directly", () => {
-		const resources = { global: ["read:data", "write:data"] };
-		expect(resources.global).toEqual(["read:data", "write:data"]);
+		const resources = { global: ["read:data", "write:llm"] };
+		expect(resources.global).toEqual(["read:data", "write:llm"]);
 	});
 
 	it("website resource uses type:id format", () => {
-		const resources = { "website:site-123": ["read:analytics"] };
-		expect(resources["website:site-123"]).toContain("read:analytics");
+		const resources = { "website:site-123": ["write:llm"] };
+		expect(resources["website:site-123"]).toContain("write:llm");
 	});
 
 	it("multiple resources can coexist", () => {
 		const resources = {
-			global: ["track:events"],
+			global: ["write:llm"],
 			"website:site-1": ["read:data"],
-			"website:site-2": ["write:data"],
-			"ab_experiment:exp-1": ["read:experiments"],
+			"website:site-2": ["write:llm"],
 		};
 
 		expect(Object.keys(resources)).toHaveLength(4);
@@ -554,7 +517,7 @@ describe("checkAccess simulation (matches router logic)", () => {
 
 	it("returns invalid for disabled key", () => {
 		const result = checkAccess(
-			["read:data"],
+			["read:data", "write:llm"],
 			{},
 			{ valid: false, reason: "disabled" }
 		);
@@ -564,20 +527,20 @@ describe("checkAccess simulation (matches router logic)", () => {
 
 	it("returns all scopes when no specific scopes requested", () => {
 		const result = checkAccess(
-			["read:data", "write:data"],
+			["read:data", "write:llm"],
 			{},
 			{ valid: true }
 		);
 		expect(result.valid).toBe(true);
 		expect(result.hasAccess).toBe(true);
 		expect(result.scopes).toContain("read:data");
-		expect(result.scopes).toContain("write:data");
+		expect(result.scopes).toContain("write:llm");
 	});
 
 	it("checks any scope by default", () => {
 		const result = checkAccess(["read:data"], {}, { valid: true }, [
 			"read:data",
-			"write:data",
+			"write:llm",
 		]);
 		expect(result.hasAccess).toBe(true);
 		expect(result.matched).toEqual(["read:data"]);
@@ -585,10 +548,10 @@ describe("checkAccess simulation (matches router logic)", () => {
 
 	it("checks all scopes when mode is all", () => {
 		const result = checkAccess(
-			["read:data"],
+			["read:data", "write:llm"],
 			{},
 			{ valid: true },
-			["read:data", "write:data"],
+			["read:data", "write:llm"],
 			undefined,
 			"all"
 		);
@@ -598,7 +561,7 @@ describe("checkAccess simulation (matches router logic)", () => {
 
 	it("includes resource-specific scopes", () => {
 		const result = checkAccess(
-			["read:data"],
+			["read:data", "write:llm"],
 			{ resources: { "website:site-123": ["write:data"] } },
 			{ valid: true },
 			["write:data"],
@@ -618,16 +581,16 @@ describe("resourcesToAccess (dashboard compatibility)", () => {
 	});
 
 	it("converts global resource correctly", () => {
-		const access = resourcesToAccess({ global: ["read:data", "write:data"] });
+		const access = resourcesToAccess({ global: ["read:data", "write:llm"] });
 		expect(access).toHaveLength(1);
 		expect(access[0].resourceType).toBe("global");
 		expect(access[0].resourceId).toBeNull();
-		expect(access[0].scopes).toEqual(["read:data", "write:data"]);
+		expect(access[0].scopes).toEqual(["read:data", "write:llm"]);
 	});
 
 	it("converts website resource correctly", () => {
 		const access = resourcesToAccess({
-			"website:site-123": ["read:analytics"],
+			"website:site-123": ["write:llm"],
 		});
 		expect(access).toHaveLength(1);
 		expect(access[0].resourceType).toBe("website");
@@ -637,9 +600,9 @@ describe("resourcesToAccess (dashboard compatibility)", () => {
 
 	it("converts multiple resources", () => {
 		const access = resourcesToAccess({
-			global: ["track:events"],
+			global: ["write:llm"],
 			"website:site-1": ["read:data"],
-			"website:site-2": ["write:data"],
+			"website:site-2": ["write:llm"],
 		});
 		expect(access).toHaveLength(3);
 	});
@@ -661,9 +624,9 @@ describe("accessToResources (dashboard compatibility)", () => {
 
 	it("converts global access entry", () => {
 		const resources = accessToResources([
-			{ resourceType: "global", scopes: ["read:data", "write:data"] },
+			{ resourceType: "global", scopes: ["read:data", "write:llm"] },
 		]);
-		expect(resources).toEqual({ global: ["read:data", "write:data"] });
+		expect(resources).toEqual({ global: ["read:data", "write:llm"] });
 	});
 
 	it("converts website access entry", () => {
@@ -671,34 +634,34 @@ describe("accessToResources (dashboard compatibility)", () => {
 			{
 				resourceType: "website",
 				resourceId: "site-123",
-				scopes: ["read:analytics"],
+				scopes: ["write:llm"],
 			},
 		]);
-		expect(resources).toEqual({ "website:site-123": ["read:analytics"] });
+		expect(resources).toEqual({ "website:site-123": ["write:llm"] });
 	});
 
 	it("converts multiple access entries", () => {
 		const resources = accessToResources([
-			{ resourceType: "global", scopes: ["track:events"] },
+			{ resourceType: "global", scopes: ["write:llm"] },
 			{ resourceType: "website", resourceId: "site-1", scopes: ["read:data"] },
-			{ resourceType: "website", resourceId: "site-2", scopes: ["write:data"] },
+			{ resourceType: "website", resourceId: "site-2", scopes: ["write:llm"] },
 		]);
 		expect(resources).toEqual({
-			global: ["track:events"],
+			global: ["write:llm"],
 			"website:site-1": ["read:data"],
-			"website:site-2": ["write:data"],
+			"website:site-2": ["write:llm"],
 		});
 	});
 
 	it("handles undefined resourceId for non-global types", () => {
 		const resources = accessToResources([
 			{
-				resourceType: "ab_experiment",
-				resourceId: "exp-1",
-				scopes: ["read:experiments"],
+				resourceType: "website",
+				resourceId: "site-123",
+				scopes: ["write:llm"],
 			},
 		]);
-		expect(resources).toEqual({ "ab_experiment:exp-1": ["read:experiments"] });
+		expect(resources).toEqual({ "website:site-123": ["write:llm"] });
 	});
 });
 
@@ -706,7 +669,7 @@ describe("round-trip conversion (access <-> resources)", () => {
 	it("maintains data through round-trip (resources -> access -> resources)", () => {
 		const original = {
 			global: ["read:data"],
-			"website:site-123": ["write:data", "read:analytics"],
+			"website:site-123": ["write:llm"],
 		};
 		const access = resourcesToAccess(original);
 		const converted = accessToResources(
@@ -721,7 +684,7 @@ describe("round-trip conversion (access <-> resources)", () => {
 
 	it("maintains data through round-trip (access -> resources -> access)", () => {
 		const original: AccessEntry[] = [
-			{ resourceType: "global", scopes: ["track:events"] },
+			{ resourceType: "global", scopes: ["write:llm"] },
 			{ resourceType: "website", resourceId: "site-1", scopes: ["read:data"] },
 		];
 		const resources = accessToResources(original);
@@ -729,7 +692,7 @@ describe("round-trip conversion (access <-> resources)", () => {
 
 		expect(access).toHaveLength(2);
 		expect(access.find((a) => a.resourceType === "global")?.scopes).toEqual([
-			"track:events",
+			"write:llm",
 		]);
 		expect(
 			access.find(
@@ -748,7 +711,7 @@ describe("dashboard use case: api-key-list", () => {
 			start: "dbdy_abc",
 			type: "user" as const,
 			enabled: true,
-			scopes: ["read:data"],
+			scopes: ["read:data", "write:llm"],
 			expiresAt: null,
 			revokedAt: null,
 			createdAt: new Date(),
@@ -779,7 +742,7 @@ describe("dashboard use case: api-key-detail-dialog", () => {
 	it("detail response has access array for ResourceAccessDisplay", () => {
 		const resources = {
 			global: ["read:data"],
-			"website:site-123": ["write:data", "read:analytics"],
+			"website:site-123": ["write:llm"],
 		};
 		const access = resourcesToAccess(resources);
 
@@ -804,25 +767,25 @@ describe("dashboard use case: api-key-create-dialog", () => {
 	it("converts globalScopes and access to resources format", () => {
 		const input = {
 			name: "Test Key",
-			globalScopes: ["read:data", "write:data"],
+			globalScopes: ["read:data", "write:llm"],
 			access: [
 				{
 					resourceType: "website",
 					resourceId: "site-1",
-					scopes: ["read:analytics"],
+					scopes: ["write:llm"],
 				},
 				{
 					resourceType: "website",
 					resourceId: "site-2",
-					scopes: ["write:data"],
+					scopes: ["write:llm"],
 				},
 			],
 		};
 
 		const resources = accessToResources(input.access);
 		expect(resources).toEqual({
-			"website:site-1": ["read:analytics"],
-			"website:site-2": ["write:data"],
+			"website:site-1": ["write:llm"],
+			"website:site-2": ["write:llm"],
 		});
 	});
 
@@ -833,7 +796,7 @@ describe("dashboard use case: api-key-create-dialog", () => {
 
 	it("handles only global scopes (no website restrictions)", () => {
 		const input = {
-			globalScopes: ["read:data", "write:data"],
+			globalScopes: ["read:data", "write:llm"],
 			access: [],
 		};
 		const resources = accessToResources(input.access);

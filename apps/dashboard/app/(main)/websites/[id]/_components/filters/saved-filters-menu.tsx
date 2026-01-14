@@ -40,7 +40,9 @@ function filtersMatch(
 	a: DynamicQueryFilter[],
 	b: DynamicQueryFilter[]
 ): boolean {
-	if (a.length !== b.length) return false;
+	if (a.length !== b.length) {
+		return false;
+	}
 	return a.every((f1, i) => {
 		const f2 = b[i];
 		return (

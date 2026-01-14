@@ -1,4 +1,14 @@
-import { and, db, eq, uptimeSchedules } from "@databuddy/db";
+import { websitesApi } from "@databuddy/auth";
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	isNull,
+	or,
+	uptimeSchedules,
+	websites,
+} from "@databuddy/db";
 import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
 import { Client } from "@upstash/qstash";
@@ -100,14 +110,83 @@ export const uptimeRouter = {
 		}),
 
 	listSchedules: protectedProcedure
-		.input(z.object({ websiteId: z.string().optional() }))
+		.input(
+			z
+				.object({
+					websiteId: z.string().optional(),
+					organizationId: z.string().optional(),
+				})
+				.default({})
+		)
 		.handler(async ({ context, input }) => {
-			const conditions = [eq(uptimeSchedules.userId, context.user.id)];
-
 			if (input.websiteId) {
 				await authorizeWebsiteAccess(context, input.websiteId, "read");
-				conditions.push(eq(uptimeSchedules.websiteId, input.websiteId));
+				return await db.query.uptimeSchedules.findMany({
+					where: eq(uptimeSchedules.websiteId, input.websiteId),
+					orderBy: (table, { desc }) => [desc(table.createdAt)],
+					with: { website: true },
+				});
 			}
+
+			if (input.organizationId) {
+				const { success } = await websitesApi.hasPermission({
+					headers: context.headers,
+					body: { permissions: { website: ["read"] } },
+				});
+				if (!success) {
+					throw new ORPCError("FORBIDDEN", {
+						message: "Missing organization permissions.",
+					});
+				}
+
+				// Get websites for this organization
+				const orgWebsites = await db.query.websites.findMany({
+					where: eq(websites.organizationId, input.organizationId),
+					columns: { id: true },
+				});
+
+				const orgWebsiteIds = orgWebsites.map((w) => w.id);
+
+				if (orgWebsiteIds.length === 0) {
+					return [];
+				}
+
+				return await db.query.uptimeSchedules.findMany({
+					where: inArray(uptimeSchedules.websiteId, orgWebsiteIds),
+					orderBy: (table, { desc }) => [desc(table.createdAt)],
+					with: { website: true },
+				});
+			}
+
+			// Personal monitors only (no organizationId)
+			// Get personal websites
+			const personalWebsites = await db.query.websites.findMany({
+				where: and(
+					eq(websites.userId, context.user.id),
+					isNull(websites.organizationId)
+				),
+				columns: { id: true },
+			});
+
+			const personalWebsiteIds = personalWebsites.map((w) => w.id);
+
+			// Filter schedules:
+			// 1. Personal monitors (no websiteId) created by user
+			// 2. Monitors for personal websites
+			const scheduleConditions = [
+				and(
+					eq(uptimeSchedules.userId, context.user.id),
+					isNull(uptimeSchedules.websiteId)
+				),
+			];
+
+			if (personalWebsiteIds.length > 0) {
+				scheduleConditions.push(
+					inArray(uptimeSchedules.websiteId, personalWebsiteIds)
+				);
+			}
+
+			const conditions = [or(...scheduleConditions)];
 
 			return await db.query.uptimeSchedules.findMany({
 				where: and(...conditions),

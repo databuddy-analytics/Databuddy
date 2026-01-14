@@ -200,7 +200,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 				fullScreen &&
 				ReactDOM.createPortal(
 					<div
-						className="fixed inset-0 z-1000 flex items-center justify-center"
+						className="fixed inset-0 z-50 flex items-center justify-center"
 						ref={modalRef}
 						tabIndex={-1}
 					>

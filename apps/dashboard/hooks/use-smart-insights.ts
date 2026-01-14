@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
 export type InsightType =
@@ -30,17 +31,21 @@ export interface Insight {
 }
 
 export function useSmartInsights() {
+	const { activeOrganization, isLoading: isLoadingOrganization } =
+		useOrganizationsContext();
+
 	const query = useQuery({
 		...orpc.insights.getSmartInsights.queryOptions({
-			input: undefined,
+			input: { organizationId: activeOrganization?.id },
 		}),
+		enabled: !isLoadingOrganization,
 		staleTime: 5 * 60 * 1000,
 		refetchInterval: 5 * 60 * 1000,
 	});
 
 	return {
 		insights: (query.data?.insights ?? []) as Insight[],
-		isLoading: query.isLoading,
+		isLoading: query.isLoading || isLoadingOrganization,
 		isFetching: query.isFetching,
 		isError: query.isError,
 		refetch: query.refetch,

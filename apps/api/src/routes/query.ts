@@ -17,6 +17,7 @@ import {
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasGlobalAccess,
+	hasKeyScope,
 	isApiKeyPresent,
 } from "../lib/api-key";
 import { record, setAttributes } from "../lib/tracing";
@@ -358,7 +359,9 @@ async function executeDynamicQuery(
 	const { startDate: from, endDate: to } = request;
 
 	// Try to get domain for website IDs (will return null for schedule IDs)
-	const domain = domainCache?.[projectId] ?? (await getWebsiteDomain(projectId).catch(() => null));
+	const domain =
+		domainCache?.[projectId] ??
+		(await getWebsiteDomain(projectId).catch(() => null));
 
 	type PreparedParameter =
 		| { id: string; error: string }
@@ -388,7 +391,11 @@ async function executeDynamicQuery(
 				type: name,
 				from: paramFrom,
 				to: paramTo,
-				timeUnit: getTimeUnit(granularity || request.granularity, paramFrom, paramTo),
+				timeUnit: getTimeUnit(
+					granularity || request.granularity,
+					paramFrom,
+					paramTo
+				),
 				filters: (request.filters || []) as Filter[],
 				limit: request.limit || 100,
 				offset: request.page ? (request.page - 1) * (request.limit || 100) : 0,
@@ -483,6 +490,18 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth.api.getSession({ headers: request.headers }),
 		]);
 		const user = session?.user ?? null;
+
+		if (apiKey && !hasKeyScope(apiKey, "read:data")) {
+			return {
+				auth: {
+					apiKey: null,
+					user: null,
+					isAuthenticated: false,
+					authMethod: "none",
+				},
+			};
+		}
+
 		return {
 			auth: {
 				apiKey,
@@ -611,26 +630,29 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					const cache = await getCachedWebsiteDomain([]);
 					const results = await Promise.all(
 						body.map((req) =>
-							executeDynamicQuery(req, accessResult.projectId, timezone, cache).catch(
-								(e) => ({
-									queryId: req.id,
-									data: [
-										{
-											parameter: req.parameters[0] as string,
-											success: false,
-											error: e instanceof Error ? e.message : "Query failed",
-											data: [],
-										},
-									],
-									meta: {
-										parameters: req.parameters,
-										total_parameters: req.parameters.length,
-										page: req.page || 1,
-										limit: req.limit || 100,
-										filters_applied: req.filters?.length || 0,
+							executeDynamicQuery(
+								req,
+								accessResult.projectId,
+								timezone,
+								cache
+							).catch((e) => ({
+								queryId: req.id,
+								data: [
+									{
+										parameter: req.parameters[0] as string,
+										success: false,
+										error: e instanceof Error ? e.message : "Query failed",
+										data: [],
 									},
-								})
-							)
+								],
+								meta: {
+									parameters: req.parameters,
+									total_parameters: req.parameters.length,
+									page: req.page || 1,
+									limit: req.limit || 100,
+									filters_applied: req.filters?.length || 0,
+								},
+							}))
 						)
 					);
 					return { success: true, batch: true, results };
@@ -638,7 +660,11 @@ export const query = new Elysia({ prefix: "/v1/query" })
 
 				return {
 					success: true,
-					...(await executeDynamicQuery(body, accessResult.projectId, timezone)),
+					...(await executeDynamicQuery(
+						body,
+						accessResult.projectId,
+						timezone
+					)),
 				};
 			}),
 		{

@@ -85,7 +85,7 @@ export function FeatureGate({
 						/>
 					</div>
 					<div className="text-center">
-						<h2 className="font-semibold text-lg tracking-tight">
+						<h2 className="font-semibold text-lg">
 							{title ?? `Unlock ${metadata?.name ?? "this feature"}`}
 						</h2>
 						<p className="mt-1 text-muted-foreground text-sm">

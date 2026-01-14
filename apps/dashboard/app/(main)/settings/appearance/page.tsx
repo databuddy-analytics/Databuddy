@@ -304,13 +304,13 @@ export default function AppearanceSettingsPage() {
 							{showGranular && (
 								<div className="border-t">
 									<div className="grid grid-cols-[1fr_6.5rem_7.5rem] gap-3 border-b bg-accent/30 px-4 py-2">
-										<span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+										<span className="font-medium text-muted-foreground text-xs uppercase">
 											Location
 										</span>
-										<span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+										<span className="font-medium text-muted-foreground text-xs uppercase">
 											Type
 										</span>
-										<span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+										<span className="font-medium text-muted-foreground text-xs uppercase">
 											Style
 										</span>
 									</div>

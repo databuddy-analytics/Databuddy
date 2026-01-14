@@ -6,7 +6,7 @@ import { referrers } from "@databuddy/shared/lists/referrers";
 import { mapScreenResolutionToDeviceType } from "./screen-resolution-to-device-type";
 import type { SimpleQueryConfig } from "./types";
 
-type DataRow = {
+interface DataRow {
 	name?: string;
 	pageviews?: number;
 	visitors?: number;

@@ -204,7 +204,7 @@ sinks:
     endpoint: "${CLICKHOUSE_URL}"
     database: observability
     table: ai_call_spans
-    auth:
+    auth: 
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"

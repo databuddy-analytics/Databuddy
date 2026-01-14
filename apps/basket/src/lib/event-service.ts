@@ -383,8 +383,8 @@ export function insertOutgoingLinksBatch(
  */
 export async function insertAICallSpans(
 	calls: Array<{
-		website_id: string;
-		user_id?: string;
+		website_id?: string;
+		user_id: string;
 		timestamp: number;
 		type: "generate" | "stream";
 		model: string;
@@ -394,6 +394,9 @@ export async function insertAICallSpans(
 		output_tokens: number;
 		total_tokens: number;
 		cached_input_tokens?: number;
+		cache_creation_input_tokens?: number;
+		reasoning_tokens?: number;
+		web_search_count?: number;
 		input_token_cost_usd?: number;
 		output_token_cost_usd?: number;
 		total_token_cost_usd?: number;
@@ -401,18 +404,20 @@ export async function insertAICallSpans(
 		tool_result_count: number;
 		tool_call_names: string[];
 		duration_ms: number;
+		trace_id?: string;
+		http_status?: number;
 		error_name?: string;
 		error_message?: string;
 		error_stack?: string;
 	}>,
-	websiteId: string
+	websiteId?: string
 ): Promise<void> {
 	if (calls.length === 0) {
 		return;
 	}
 
 	const spans: AICallSpan[] = calls.map((call) => ({
-		website_id: websiteId,
+		website_id: call.website_id ?? websiteId,
 		user_id: call.user_id,
 		timestamp: call.timestamp,
 		type: call.type,
@@ -423,6 +428,9 @@ export async function insertAICallSpans(
 		output_tokens: call.output_tokens,
 		total_tokens: call.total_tokens,
 		cached_input_tokens: call.cached_input_tokens,
+		cache_creation_input_tokens: call.cache_creation_input_tokens,
+		reasoning_tokens: call.reasoning_tokens,
+		web_search_count: call.web_search_count,
 		input_token_cost_usd: call.input_token_cost_usd,
 		output_token_cost_usd: call.output_token_cost_usd,
 		total_token_cost_usd: call.total_token_cost_usd,
@@ -430,6 +438,8 @@ export async function insertAICallSpans(
 		tool_result_count: call.tool_result_count,
 		tool_call_names: call.tool_call_names,
 		duration_ms: call.duration_ms,
+		trace_id: call.trace_id,
+		http_status: call.http_status,
 		error_name: call.error_name,
 		error_message: call.error_message,
 		error_stack: call.error_stack,

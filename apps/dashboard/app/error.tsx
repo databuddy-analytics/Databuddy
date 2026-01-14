@@ -105,7 +105,7 @@ export default function GlobalError({
 	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
 
 	return (
-		<div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6 lg:p-8">
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6 lg:p-8">
 			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center rounded border-none bg-transparent shadow-none">
 				<CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center sm:px-8 sm:py-14 lg:px-12">
 					<div

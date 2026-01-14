@@ -39,14 +39,7 @@ interface ApiKeyDetailDialogProps {
 
 const SCOPES: { value: ApiScope; label: string }[] = [
 	{ value: "read:data", label: "Read Data" },
-	{ value: "write:data", label: "Write Data" },
-	{ value: "read:analytics", label: "Analytics" },
-	{ value: "track:events", label: "Track Events" },
-	{ value: "read:export", label: "Export" },
-	{ value: "write:custom-sql", label: "Custom SQL" },
-	{ value: "read:experiments", label: "Experiments" },
-	{ value: "write:otel", label: "OpenTelemetry" },
-	{ value: "admin:apikeys", label: "Manage Keys" },
+	{ value: "write:llm", label: "LLM Tracking" },
 ];
 
 const formSchema = z.object({
@@ -259,7 +252,7 @@ export function ApiKeyDetailDialog({
 
 									{/* Permissions Section */}
 									<section className="space-y-3">
-										<Label className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+										<Label className="font-medium text-muted-foreground text-xs uppercase">
 											Permissions
 										</Label>
 										<div className="rounded border bg-card p-1">

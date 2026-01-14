@@ -7,7 +7,7 @@ import {
 	minimalMemoryConfig,
 	standardMemoryConfig,
 } from "./config/memory";
-import { models } from "./config/models";
+import { models, track } from "./config/models";
 import { buildAnalyticsInstructions } from "./prompts/analytics";
 import { buildReflectionInstructions } from "./prompts/reflection";
 import { buildTriageInstructions } from "./prompts/triage";
@@ -69,7 +69,7 @@ export function createAnalyticsAgent(
 
 	return new Agent({
 		name: "analytics",
-		model: models.analytics,
+		model: track(models.analytics, { clientId: context.websiteId }),
 		temperature: 0.3,
 		instructions: buildAnalyticsInstructions,
 		tools,
@@ -118,6 +118,7 @@ export const createReflectionAgent = (
 
 	return new Agent({
 		name: `reflection-${variant}`,
+		model: track(config.model, { clientId: context.websiteId }),
 		temperature: 0.2,
 		instructions: buildReflectionInstructions,
 		modelSettings: {
@@ -126,7 +127,8 @@ export const createReflectionAgent = (
 			},
 		},
 		handoffs: [createAnalyticsAgent(userId, context)],
-		...config,
+		maxTurns: config.maxTurns,
+		memory: config.memory,
 	});
 };
 
@@ -147,7 +149,7 @@ export function createTriageAgent(
 ) {
 	return new Agent({
 		name: "triage",
-		model: models.triage,
+		model: track(models.triage, { clientId: context.websiteId }),
 		temperature: 0.1,
 		instructions: buildTriageInstructions,
 		memory: minimalMemoryConfig,

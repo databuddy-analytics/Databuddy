@@ -1,10 +1,12 @@
-import { chQuery, db, eq, inArray, member, or, websites } from "@databuddy/db";
+import { websitesApi } from "@databuddy/auth";
+import { and, chQuery, db, eq, isNull, websites } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
+import { ORPCError } from "@orpc/server";
+import { z } from "zod";
 import { protectedProcedure } from "../orpc";
 
 const insightsCache = createDrizzleCache({ redis, namespace: "insights" });
 const CACHE_TTL = 300;
-const AUTH_CACHE_TTL = 60;
 
 type InsightType =
 	| "error_spike"
@@ -74,43 +76,6 @@ const WEB_VITAL_THRESHOLDS: Record<
 	TTFB: { good: 800, poor: 1800, unit: "ms", label: "Time to First Byte" },
 };
 
-const getAuthorizedWebsiteIds = (
-	userId: string
-): Promise<Array<{ id: string; name: string | null; domain: string }>> => {
-	const authCacheKey = `insights-auth:${userId}`;
-
-	return insightsCache.withCache({
-		key: authCacheKey,
-		ttl: AUTH_CACHE_TTL,
-		tables: ["websites", "member"],
-		queryFn: async () => {
-			const userOrgs = await db.query.member.findMany({
-				where: eq(member.userId, userId),
-				columns: { organizationId: true },
-			});
-
-			const orgIds = userOrgs.map((m) => m.organizationId);
-
-			const orgFilter =
-				orgIds.length > 0
-					? inArray(websites.organizationId, orgIds)
-					: undefined;
-
-			const accessibleWebsites = await db.query.websites.findMany({
-				where: orgFilter
-					? or(eq(websites.userId, userId), orgFilter)
-					: eq(websites.userId, userId),
-				columns: {
-					id: true,
-					name: true,
-					domain: true,
-				},
-			});
-
-			return accessibleWebsites;
-		},
-	});
-};
 
 const fetchErrorInsights = (
 	websiteIds: string[]
@@ -428,46 +393,92 @@ const buildInsights = (
 };
 
 export const insightsRouter = {
-	getSmartInsights: protectedProcedure.handler(({ context }) => {
-		const userId = context.user.id;
-		const cacheKey = `smart-insights:${userId}`;
+	getSmartInsights: protectedProcedure
+		.input(z.object({ organizationId: z.string().optional() }).default({}))
+		.handler(({ context, input }) => {
+			const userId = context.user.id;
+			const cacheKey = `smart-insights:${userId}:${input.organizationId || ""}`;
 
-		return insightsCache.withCache({
-			key: cacheKey,
-			ttl: CACHE_TTL,
-			tables: ["websites", "member"],
-			queryFn: async () => {
-				const websitesList = await getAuthorizedWebsiteIds(userId);
-				const websiteIds = websitesList.map((w) => w.id);
+			return insightsCache.withCache({
+				key: cacheKey,
+				ttl: CACHE_TTL,
+				tables: ["websites", "member"],
+				queryFn: async () => {
+					let websitesList: Array<{
+						id: string;
+						name: string | null;
+						domain: string;
+					}>;
 
-				if (websiteIds.length === 0) {
-					return { insights: [] as Insight[] };
-				}
+					if (input.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: context.headers,
+							body: { permissions: { website: ["read"] } },
+						});
+						if (!success) {
+							throw new ORPCError("FORBIDDEN", {
+								message: "Missing organization permissions.",
+							});
+						}
 
-				const websiteMap = new Map(
-					websitesList.map((w) => [w.id, { name: w.name, domain: w.domain }])
-				);
+						// Get websites for this organization only
+						const orgWebsites = await db.query.websites.findMany({
+							where: eq(websites.organizationId, input.organizationId),
+							columns: {
+								id: true,
+								name: true,
+								domain: true,
+							},
+						});
 
-				const [errorData, vitalsData, customEventData, trafficData] =
-					await Promise.all([
-						fetchErrorInsights(websiteIds),
-						fetchVitalsInsights(websiteIds),
-						fetchCustomEventInsights(websiteIds),
-						fetchTrafficInsights(websiteIds),
-					]);
+						websitesList = orgWebsites;
+					} else {
+						// Personal websites only
+						const personalWebsites = await db.query.websites.findMany({
+							where: and(
+								eq(websites.userId, userId),
+								isNull(websites.organizationId)
+							),
+							columns: {
+								id: true,
+								name: true,
+								domain: true,
+							},
+						});
 
-				const insights = buildInsights(
-					websiteMap,
-					errorData,
-					vitalsData,
-					customEventData,
-					trafficData
-				);
+						websitesList = personalWebsites;
+					}
 
-				return { insights: insights.slice(0, 10) };
-			},
-		});
-	}),
+					const websiteIds = websitesList.map((w) => w.id);
+
+					if (websiteIds.length === 0) {
+						return { insights: [] as Insight[] };
+					}
+
+					const websiteMap = new Map(
+						websitesList.map((w) => [w.id, { name: w.name, domain: w.domain }])
+					);
+
+					const [errorData, vitalsData, customEventData, trafficData] =
+						await Promise.all([
+							fetchErrorInsights(websiteIds),
+							fetchVitalsInsights(websiteIds),
+							fetchCustomEventInsights(websiteIds),
+							fetchTrafficInsights(websiteIds),
+						]);
+
+					const insights = buildInsights(
+						websiteMap,
+						errorData,
+						vitalsData,
+						customEventData,
+						trafficData
+					);
+
+					return { insights: insights.slice(0, 10) };
+				},
+			});
+		}),
 };
 
 export type InsightsRouter = typeof insightsRouter;

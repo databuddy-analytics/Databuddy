@@ -89,7 +89,6 @@ export function GoalItem({
 }: GoalItemProps) {
 	const conversionRate = analytics?.overall_conversion_rate ?? 0;
 	const totalUsers = analytics?.total_users_entered ?? 0;
-	const completions = analytics?.total_users_completed ?? 0;
 
 	return (
 		<div className={cn("border-border border-b", className)}>
@@ -168,6 +167,7 @@ export function GoalItem({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
+								aria-label="Goal actions"
 								className="size-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
 								size="icon"
 								variant="ghost"

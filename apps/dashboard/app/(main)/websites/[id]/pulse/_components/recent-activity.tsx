@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-type Check = {
+interface Check {
 	timestamp: string;
 	status: number; // 1 = up, 0 = down, 2 = pending
 	total_ms: number;
@@ -25,19 +25,19 @@ type Check = {
 	probe_region: string;
 	probe_ip?: string;
 	error?: string;
-};
+}
 
-type RecentActivityProps = {
+interface RecentActivityProps {
 	checks: Check[];
 	isLoading?: boolean;
-};
+}
 
 export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 	if (isLoading) {
 		return (
 			<>
 				<div className="border-b px-4 py-3">
-					<h3 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+					<h3 className="font-semibold text-lg text-sidebar-foreground">
 						Recent Activity
 					</h3>
 				</div>
@@ -58,7 +58,7 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 	return (
 		<>
 			<div className="border-b px-4 py-3">
-				<h3 className="font-semibold text-lg text-sidebar-foreground tracking-tight">
+				<h3 className="font-semibold text-lg text-sidebar-foreground">
 					Recent Activity
 				</h3>
 			</div>

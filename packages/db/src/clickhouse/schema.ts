@@ -394,8 +394,8 @@ SETTINGS index_granularity = 8192
  */
 const CREATE_AI_CALL_SPANS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${DATABASES.OBSERVABILITY}.ai_call_spans (
-  website_id String CODEC(ZSTD(1)),
-  user_id Nullable(String) CODEC(ZSTD(1)),
+  website_id Nullable(String) CODEC(ZSTD(1)),
+  user_id String CODEC(ZSTD(1)),
   
   timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
   
@@ -408,6 +408,9 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.OBSERVABILITY}.ai_call_spans (
   output_tokens UInt32 CODEC(ZSTD(1)),
   total_tokens UInt32 CODEC(ZSTD(1)),
   cached_input_tokens Nullable(UInt32) CODEC(ZSTD(1)),
+  cache_creation_input_tokens Nullable(UInt32) CODEC(ZSTD(1)),
+  reasoning_tokens Nullable(UInt32) CODEC(ZSTD(1)),
+  web_search_count Nullable(UInt16) CODEC(ZSTD(1)),
   
   input_token_cost_usd Nullable(Float64) CODEC(Gorilla, ZSTD(1)),
   output_token_cost_usd Nullable(Float64) CODEC(Gorilla, ZSTD(1)),
@@ -418,18 +421,21 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.OBSERVABILITY}.ai_call_spans (
   tool_call_names Array(String) CODEC(ZSTD(1)),
   
   duration_ms UInt32 CODEC(ZSTD(1)),
+  trace_id Nullable(String) CODEC(ZSTD(1)),
+  http_status Nullable(UInt16) CODEC(ZSTD(1)),
   
   error_name LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
   error_message Nullable(String) CODEC(ZSTD(1)),
   error_stack Nullable(String) CODEC(ZSTD(1)),
   
   INDEX idx_website_id website_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_model model TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_provider provider TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_error_name error_name TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
-ORDER BY (website_id, provider, model, timestamp)
+ORDER BY (user_id, provider, model, timestamp)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
@@ -647,8 +653,8 @@ export interface UptimeMonitor {
  * AI call span type
  */
 export interface AICallSpan {
-	website_id: string;
-	user_id?: string;
+	website_id?: string;
+	user_id: string;
 	timestamp: number;
 	type: "generate" | "stream";
 	model: string;
@@ -658,6 +664,9 @@ export interface AICallSpan {
 	output_tokens: number;
 	total_tokens: number;
 	cached_input_tokens?: number;
+	cache_creation_input_tokens?: number;
+	reasoning_tokens?: number;
+	web_search_count?: number;
 	input_token_cost_usd?: number;
 	output_token_cost_usd?: number;
 	total_token_cost_usd?: number;
@@ -665,6 +674,8 @@ export interface AICallSpan {
 	tool_result_count: number;
 	tool_call_names: string[];
 	duration_ms: number;
+	trace_id?: string;
+	http_status?: number;
 	error_name?: string;
 	error_message?: string;
 	error_stack?: string;

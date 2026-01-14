@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export default function PaymentSuccess() {
 	return (
-		<div className="flex h-screen flex-col items-center justify-center bg-background p-4">
+		<div className="flex h-dvh flex-col items-center justify-center bg-background p-4">
 			<div className="absolute top-8 right-0 left-0 flex justify-center">
 				<div className="flex items-center gap-2">
 					<Logo />

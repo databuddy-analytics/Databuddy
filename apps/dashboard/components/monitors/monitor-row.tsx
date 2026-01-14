@@ -130,11 +130,7 @@ export function MonitorRow({
 								{displayName}
 							</h3>
 							<Badge
-								className={
-									schedule.isPaused
-										? "gap-1.5"
-										: "gap-1.5"
-								}
+								className={schedule.isPaused ? "gap-1.5" : "gap-1.5"}
 								variant={schedule.isPaused ? "amber" : "green"}
 							>
 								<span
@@ -154,7 +150,8 @@ export function MonitorRow({
 							</div>
 							<span className="text-muted-foreground text-xs">•</span>
 							<span className="text-muted-foreground text-xs">
-								{granularityLabels[schedule.granularity] || schedule.granularity}
+								{granularityLabels[schedule.granularity] ||
+									schedule.granularity}
 							</span>
 						</div>
 					</div>
@@ -163,6 +160,7 @@ export function MonitorRow({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
+							aria-label="Monitor actions"
 							className="size-8 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
 							size="icon"
 							variant="ghost"

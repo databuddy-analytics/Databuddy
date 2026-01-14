@@ -5,9 +5,11 @@ import {
 	captureError,
 	endRequestSpan,
 	initTracing,
+	setCurrentRequestSpan,
 	shutdownTracing,
 	startRequestSpan,
 } from "@lib/tracing";
+import type { context } from "@opentelemetry/api";
 import basketRouter from "@routes/basket";
 import emailRouter from "@routes/email";
 import llmRouter from "@routes/llm";
@@ -73,7 +75,8 @@ function getKafkaHealth() {
 
 const app = new Elysia()
 	.state("tracing", {
-		span: null as ReturnType<typeof startRequestSpan> | null,
+		span: null as ReturnType<typeof startRequestSpan>["span"] | null,
+		activeContext: null as ReturnType<typeof context.active> | null | undefined,
 		startTime: 0,
 	})
 	.onBeforeHandle(function handleCors({ request, set }) {
@@ -95,10 +98,14 @@ const app = new Elysia()
 
 		const method = request.method;
 		const startTime = Date.now();
-		const span = startRequestSpan(method, request.url, path);
+		const { span, activeContext } = startRequestSpan(method, request.url, path);
+
+		// Set the span as active for this request (fallback for context propagation)
+		setCurrentRequestSpan(span);
 
 		store.tracing = {
 			span,
+			activeContext,
 			startTime,
 		};
 	})
@@ -108,6 +115,8 @@ const app = new Elysia()
 				responseValue instanceof Response ? responseValue.status : 200;
 			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
 		}
+		// Clear the current request span
+		setCurrentRequestSpan(null);
 	})
 	.onError(function handleError({ error, code, store }) {
 		if (store.tracing?.span && store.tracing.startTime) {
@@ -116,9 +125,11 @@ const app = new Elysia()
 		}
 
 		if (code === "NOT_FOUND") {
+			setCurrentRequestSpan(null);
 			return new Response(null, { status: 404 });
 		}
 		captureError(error);
+		setCurrentRequestSpan(null);
 	})
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(basketRouter)
