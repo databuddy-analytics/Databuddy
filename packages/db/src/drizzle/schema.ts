@@ -953,6 +953,7 @@ export const alarms = pgTable(
 		id: text().primaryKey().notNull(),
 		organizationId: text("organization_id"),
 		userId: text("user_id").notNull(),
+		websiteId: text("website_id"),
 		name: text().notNull(),
 		description: text(),
 		channel: alarmChannel().notNull(),
@@ -970,6 +971,11 @@ export const alarms = pgTable(
 			"btree",
 			table.userId.asc().nullsLast().op("text_ops")
 		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -980,6 +986,13 @@ export const alarms = pgTable(
 			foreignColumns: [user.id],
 			name: "alarms_user_id_fkey",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
 	]
 );
 

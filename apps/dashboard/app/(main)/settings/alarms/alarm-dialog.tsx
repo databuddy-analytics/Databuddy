@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -54,24 +54,17 @@ export function AlarmDialog({
 	alarm,
 }: AlarmDialogProps) {
 	const queryClient = useQueryClient();
-	const [name, setName] = useState("");
-	const [description, setDescription] = useState("");
-	const [channel, setChannel] = useState<AlarmChannel>("slack");
-	const [target, setTarget] = useState("");
-
-	useEffect(() => {
-		if (mode === "edit" && alarm) {
-			setName(alarm.name);
-			setDescription(alarm.description || "");
-			setChannel(alarm.channel);
-			setTarget(alarm.target);
-		} else if (mode === "create") {
-			setName("");
-			setDescription("");
-			setChannel("slack");
-			setTarget("");
-		}
-	}, [mode, alarm, open]);
+	// Initialize state from props - component should be keyed to reset on alarm change
+	const [name, setName] = useState(mode === "edit" && alarm ? alarm.name : "");
+	const [description, setDescription] = useState(
+		mode === "edit" && alarm ? alarm.description || "" : ""
+	);
+	const [channel, setChannel] = useState<AlarmChannel>(
+		mode === "edit" && alarm ? alarm.channel : "slack"
+	);
+	const [target, setTarget] = useState(
+		mode === "edit" && alarm ? alarm.target : ""
+	);
 
 	const createMutation = useMutation({
 		...orpc.alarms.create.mutationOptions(),

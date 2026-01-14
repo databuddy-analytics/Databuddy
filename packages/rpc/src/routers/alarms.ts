@@ -1,4 +1,4 @@
-import { alarms, and, db, eq, or } from "@databuddy/db";
+import { alarms, and, db, eq, isNull, or } from "@databuddy/db";
 import {
 	sendDiscordWebhook,
 	sendSlackWebhook,
@@ -57,7 +57,7 @@ export const alarmsRouter = {
 						eq(alarms.organizationId, activeOrgId),
 						and(
 							eq(alarms.userId, context.user.id),
-							eq(alarms.organizationId, null as unknown as string)
+							isNull(alarms.organizationId)
 						)
 					)
 				);

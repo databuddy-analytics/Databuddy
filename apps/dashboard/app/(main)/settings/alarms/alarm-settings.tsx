@@ -78,6 +78,9 @@ export function AlarmSettings() {
 	const queryClient = useQueryClient();
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);
+	const [togglingId, setTogglingId] = useState<string | null>(null);
+	const [deletingId, setDeletingId] = useState<string | null>(null);
+	const [testingId, setTestingId] = useState<string | null>(null);
 
 	const { data, isLoading, isError } = useQuery({
 		...orpc.alarms.list.queryOptions({
@@ -90,6 +93,8 @@ export function AlarmSettings() {
 
 	const toggleMutation = useMutation({
 		...orpc.alarms.toggle.mutationOptions(),
+		onMutate: ({ alarmId }) => setTogglingId(alarmId),
+		onSettled: () => setTogglingId(null),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["alarms"] });
 		},
@@ -97,6 +102,8 @@ export function AlarmSettings() {
 
 	const deleteMutation = useMutation({
 		...orpc.alarms.delete.mutationOptions(),
+		onMutate: ({ alarmId }) => setDeletingId(alarmId),
+		onSettled: () => setDeletingId(null),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["alarms"] });
 		},
@@ -104,6 +111,8 @@ export function AlarmSettings() {
 
 	const testMutation = useMutation({
 		...orpc.alarms.test.mutationOptions(),
+		onMutate: ({ alarmId }) => setTestingId(alarmId),
+		onSettled: () => setTestingId(null),
 	});
 
 	const items = (data ?? []) as Alarm[];
@@ -147,9 +156,9 @@ export function AlarmSettings() {
 									}
 									onDelete={() => deleteMutation.mutate({ alarmId: alarm.id })}
 									onTest={() => testMutation.mutate({ alarmId: alarm.id })}
-									isToggling={toggleMutation.isPending}
-									isDeleting={deleteMutation.isPending}
-									isTesting={testMutation.isPending}
+									isToggling={togglingId === alarm.id}
+									isDeleting={deletingId === alarm.id}
+									isTesting={testingId === alarm.id}
 								/>
 							))}
 						</div>
@@ -158,7 +167,7 @@ export function AlarmSettings() {
 
 				<RightSidebar className="gap-4 p-5">
 					<Button className="w-full" onClick={() => setShowCreateDialog(true)}>
-						<PlusIcon size={16} />
+						<PlusIcon />
 						Create Alarm
 					</Button>
 					{!isEmpty && (
@@ -176,6 +185,7 @@ export function AlarmSettings() {
 			</div>
 
 			<AlarmDialog
+				key="create"
 				open={showCreateDialog}
 				onOpenChange={setShowCreateDialog}
 				mode="create"
@@ -183,6 +193,7 @@ export function AlarmSettings() {
 
 			{editingAlarm && (
 				<AlarmDialog
+					key={editingAlarm.id}
 					open={!!editingAlarm}
 					onOpenChange={(open) => !open && setEditingAlarm(null)}
 					mode="edit"
