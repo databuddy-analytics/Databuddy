@@ -145,6 +145,7 @@ export function FlagSheet({
 				key: "",
 				name: "",
 				description: "",
+				folder: "",
 				type: "boolean",
 				status: "active",
 				defaultValue: false,
@@ -180,6 +181,7 @@ export function FlagSheet({
                 key: flag.key,
                 name: flag.name || "",
                 description: flag.description || "",
+				folder: flag.folder || "",
                 type: flag.type,
                 status: flag.status,
                 defaultValue: Boolean(flag.defaultValue),
@@ -201,6 +203,7 @@ export function FlagSheet({
 					key: templateKey,
 					name: template.name,
 					description: template.description,
+					 folder: "",
 					type: template.type,
 					status: "active",
 					defaultValue: template.defaultValue,
@@ -226,6 +229,7 @@ export function FlagSheet({
 					name: "",
 					description: "",
 					type: "boolean",
+					folder: "",
 					status: "active",
 					defaultValue: false,
 					rolloutPercentage: 0,
@@ -289,6 +293,7 @@ export function FlagSheet({
         const payload = {
             name: data.name,
             description: data.description,
+			folder: data.folder?.trim() || undefined,
             type: data.type,
             status: data.status,
             rules: data.rules || [],
@@ -411,7 +416,7 @@ export function FlagSheet({
 										)}
 									/>
 								</div>
-
+                                 
 								<FormField
 									control={form.control}
 									name="flag.description"
@@ -431,6 +436,23 @@ export function FlagSheet({
 										</FormItem>
 									)}
 								/>
+								<FormField
+                                  control={form.control}
+                                name="flag.folder"
+                                   render={({ field }) => (
+                                       <FormItem>
+                                       <FormLabel>Folder (optional)</FormLabel>
+                                      <FormControl>
+                                 <Input
+                                    placeholder="e.g. auth/login"
+                                {...field}
+                                  />
+                                      </FormControl>
+                                             <FormMessage />
+                                    </FormItem>
+                                     )}
+                                        />
+
 							</div>
 
 							{/* Separator */}
