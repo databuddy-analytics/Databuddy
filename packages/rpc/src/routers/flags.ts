@@ -112,7 +112,7 @@ const updateFlagSchema = z
 	.object({
 		id: z.string(),
 		name: z.string().min(1).max(100).optional(),
-		folder: z.string().optional()
+		folder: z.string().optional(),
 		description: z.string().optional(),
 		type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
