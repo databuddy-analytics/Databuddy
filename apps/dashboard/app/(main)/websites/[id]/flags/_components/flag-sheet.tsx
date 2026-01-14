@@ -201,10 +201,9 @@ export function FlagSheet({
 				schedule: undefined,
 			});
 		} else if (template) {
-			const templateKey = template.name.toLowerCase().replaceAll(/\s+/g, "-");
 			form.reset({
 				flag: {
-					key: templateKey,
+					key: template.id,
 					name: template.name,
 					description: template.description,
 					type: template.type,
