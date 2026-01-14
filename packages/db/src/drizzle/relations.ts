@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm/relations";
 import {
 	account,
+	alarms,
 	apikey,
 	flags,
 	flagsToTargetGroups,
@@ -12,6 +13,7 @@ import {
 	targetGroups,
 	team,
 	twoFactor,
+	uptimeAlarms,
 	uptimeSchedules,
 	user,
 	userPreferences,
@@ -170,7 +172,7 @@ export const flagsToTargetGroupsRelations = relations(
 	})
 );
 
-export const uptimeSchedulesRelations = relations(uptimeSchedules, ({ one }) => ({
+export const uptimeSchedulesRelations = relations(uptimeSchedules, ({ one, many }) => ({
 	website: one(websites, {
 		fields: [uptimeSchedules.websiteId],
 		references: [websites.id],
@@ -178,5 +180,29 @@ export const uptimeSchedulesRelations = relations(uptimeSchedules, ({ one }) => 
 	user: one(user, {
 		fields: [uptimeSchedules.userId],
 		references: [user.id],
+	}),
+	uptimeAlarms: many(uptimeAlarms),
+}));
+
+export const alarmsRelations = relations(alarms, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [alarms.organizationId],
+		references: [organization.id],
+	}),
+	user: one(user, {
+		fields: [alarms.userId],
+		references: [user.id],
+	}),
+	uptimeAlarms: many(uptimeAlarms),
+}));
+
+export const uptimeAlarmsRelations = relations(uptimeAlarms, ({ one }) => ({
+	schedule: one(uptimeSchedules, {
+		fields: [uptimeAlarms.scheduleId],
+		references: [uptimeSchedules.id],
+	}),
+	alarm: one(alarms, {
+		fields: [uptimeAlarms.alarmId],
+		references: [alarms.id],
 	}),
 }));

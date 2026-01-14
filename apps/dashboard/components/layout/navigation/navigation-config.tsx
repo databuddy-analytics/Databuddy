@@ -3,6 +3,7 @@ import {
 	ActivityIcon,
 	ArrowSquareOutIcon,
 	BellIcon,
+	BellRingingIcon,
 	BookOpenIcon,
 	BugIcon,
 	BuildingsIcon,
@@ -143,6 +144,7 @@ export const personalNavigation: NavigationSection[] = [
 		}),
 	]),
 	createNavSection("Preferences", GearIcon, [
+		createNavItem("Alarms", BellRingingIcon, "/settings/alarms"),
 		createNavItem(
 			"Analytics Behavior",
 			ChartLineUpIcon,

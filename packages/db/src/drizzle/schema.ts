@@ -936,3 +936,77 @@ export const uptimeSchedules = pgTable(
 			.onDelete("cascade"),
 	]
 );
+
+export const alarmChannel = pgEnum("alarm_channel", [
+	"slack",
+	"discord",
+	"email",
+	"webhook",
+]);
+
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		organizationId: text("organization_id"),
+		userId: text("user_id").notNull(),
+		name: text().notNull(),
+		description: text(),
+		channel: alarmChannel().notNull(),
+		target: text().notNull(),
+		enabled: boolean().default(true).notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
+export const uptimeAlarms = pgTable(
+	"uptime_alarms",
+	{
+		id: text().primaryKey().notNull(),
+		scheduleId: text("schedule_id").notNull(),
+		alarmId: text("alarm_id").notNull(),
+		failureThreshold: integer("failure_threshold").default(3).notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("uptime_alarms_schedule_id_idx").using(
+			"btree",
+			table.scheduleId.asc().nullsLast().op("text_ops")
+		),
+		index("uptime_alarms_alarm_id_idx").using(
+			"btree",
+			table.alarmId.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.scheduleId],
+			foreignColumns: [uptimeSchedules.id],
+			name: "uptime_alarms_schedule_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
+			name: "uptime_alarms_alarm_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
