@@ -502,8 +502,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 							reason: "FLAG_NOT_FOUND",
 						};
 					}
-
-					const result = evaluateFlag(
+		      	const result = evaluateFlag(
 						{
 							defaultValue: flag.defaultValue,
 							key: flag.key,
