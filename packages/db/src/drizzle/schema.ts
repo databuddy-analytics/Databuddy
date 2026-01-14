@@ -698,6 +698,7 @@ export const flags = pgTable(
 		key: text().notNull(),
 		name: text(),
 		description: text(),
+		folder: text("folder"),
 		type: flagType().default("boolean").notNull(),
 		status: flagStatus().default("active").notNull(),
 		defaultValue: jsonb("default_value").default(false).notNull(),
@@ -731,6 +732,11 @@ export const flags = pgTable(
 		index("flags_website_id_idx").using(
 			"btree",
 			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("flags_website_folder_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops"),
+			table.folder.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],

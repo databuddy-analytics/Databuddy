@@ -2,13 +2,16 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
 	GaugeIcon,
 	PencilSimpleIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +37,7 @@ import { RolloutProgress } from "./rollout-progress";
 import type { Flag, TargetGroup } from "./types";
 
 interface FlagsListProps {
-	flags: Flag[];
+	groupedFlags: Record<string, Flag[]>;
 	groups: Map<string, TargetGroup[]>;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
@@ -219,23 +222,25 @@ function FlagRow({
 		>
 			{/* Flag name & key */}
 			<div
-				className="flex min-w-[280px] shrink-0 items-center gap-3"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
-				role="presentation"
-			>
-				<div
-					className={cn("shrink-0 rounded bg-accent p-1.5", typeConfig.color)}
-				>
-					<TypeIconComponent className="size-4" weight="duotone" />
-				</div>
-				<div className="flex flex-col items-start">
-					<p className="truncate font-medium text-foreground text-sm">
-						{flag.name ?? flag.key}
-					</p>
-					<FlagKey className="-ms-1.5" flag={flag} />
-				</div>
-			</div>
+    className="flex min-w-[280px] shrink-0 items-center gap-3"
+    onClick={(e) => e.stopPropagation()}
+    onKeyDown={(e) => e.stopPropagation()}
+    role="presentation"
+>
+    {/* This was missing in your last version - the colorful icon box */}
+    <div className={cn("shrink-0 rounded bg-accent p-1.5", typeConfig.color)}>
+        <TypeIconComponent className="size-4" weight="duotone" />
+    </div>
+
+    <div className="flex flex-col items-start">
+        <div className="flex items-center gap-2">
+            <p className="truncate font-medium text-foreground text-sm">
+                {flag.name ?? flag.key}
+            </p>
+        </div>
+        <FlagKey className="-ms-1.5" flag={flag} />
+    </div>
+</div>
 
 			{/* Description */}
 			<div className="min-w-[300px] flex-1">
@@ -317,58 +322,162 @@ function FlagRow({
 	);
 }
 
-export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
-	return (
-		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					flag={flag}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
-			))}
-		</div>
-	);
-}
+export function FlagsList({ groupedFlags, groups, onEdit, onDelete }: FlagsListProps) {
+    const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+    
+    const folderNames = Object.keys(groupedFlags);
+    const isAllCollapsed = folderNames.length > 0 && folderNames.every((name) => collapsedFolders[name]);
 
+    const toggleAll = () => {
+        const newState: Record<string, boolean> = {};
+        folderNames.forEach((name) => {
+            newState[name] = !isAllCollapsed;
+        });
+        setCollapsedFolders(newState);
+    }; 
+
+    const toggleFolder = (folderName: string) => {
+        setCollapsedFolders((prev) => ({
+            ...prev,
+            [folderName]: !prev[folderName],
+        }));
+    };
+
+    return (
+        <div className="w-full overflow-x-auto pb-20">
+            {/* Table Header */}
+            <div className="flex min-w-full items-center gap-4 px-4 py-2 border-b bg-muted/20 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="min-w-[280px] shrink-0 flex items-center">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="-ml-2 mr-1 size-6 h-6 w-6 hover:bg-accent" 
+                        onClick={toggleAll}
+                        disabled={folderNames.length === 0} // Disable if no folders
+                        type="button"
+                    >
+                        <CaretDownIcon 
+                            className={cn(
+                                "size-3 transition-transform duration-200", 
+                                isAllCollapsed && "-rotate-90"
+                            )} 
+                        />
+                    </Button>
+                    <span>Feature Flag</span>
+                </div>
+                <div className="min-w-[300px] flex-1">Description</div>
+                <div className="w-[100px] shrink-0">Type</div>
+                <div className="w-20 shrink-0 text-center">Rollout</div>
+                <div className="w-[100px] shrink-0">Rules</div>
+                <div className="w-[100px] shrink-0">Groups</div>
+                <div className="w-[120px] shrink-0">Status</div>
+                <div className="w-[60px] shrink-0 text-right pr-2">Actions</div>
+            </div>
+
+            {/* Render Folders */}
+            {Object.entries(groupedFlags).map(([folderName, folderFlags]) => {
+                const isCollapsed = collapsedFolders[folderName];
+
+                return (
+                    <div key={folderName} className="flex flex-col">
+                        <button
+                            type="button"
+                            onClick={() => toggleFolder(folderName)}
+                            className="group flex items-center gap-2 bg-accent/30 px-4 py-2 border-y border-border/50 hover:bg-accent/50 transition-colors w-full text-left"
+                        >
+                            <CaretDownIcon 
+                                className={cn(
+                                    "size-3 transition-transform duration-200 text-muted-foreground group-hover:text-foreground", 
+                                    isCollapsed && "-rotate-90"
+                                )} 
+                                weight="bold" 
+                            />
+                            <FolderIcon className="size-4 text-muted-foreground" weight="duotone" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {folderName}
+                            </span>
+                            <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5 rounded">
+                                {folderFlags.length}
+                            </Badge>
+                        </button>
+
+                        {!isCollapsed && (
+                            <div className="flex flex-col">
+                                {folderFlags.map((flag) => (
+                                    <FlagRow
+                                        flag={flag}
+                                        groups={groups.get(flag.id) ?? []}
+                                        key={flag.id}
+                                        onDelete={onDelete}
+                                        onEdit={onEdit}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+
+            {/* Empty State Implementation */}
+            {folderNames.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-24 text-center border-b border-dashed">
+                    <div className="rounded-full bg-muted p-4 mb-4">
+                        <FlagIcon className="size-8 text-muted-foreground/60" weight="duotone" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-foreground">No flags found</h3>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-[250px]">
+                        It looks like you haven't created any feature flags yet, or your search returned no results.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
 export function FlagsListSkeleton() {
-	return (
-		<div className="w-full overflow-x-auto">
-			{Array.from({ length: 5 }).map((_, i) => (
-				<div
-					className="flex items-center gap-4 border-b px-4 py-3"
-					key={`skeleton-${i + 1}`}
-				>
-					<div className="flex min-w-[280px] shrink-0 items-center gap-3">
-						<Skeleton className="size-7 rounded" />
-						<Skeleton className="h-4 w-28" />
-						<Skeleton className="h-5 w-20" />
-					</div>
-					<div className="min-w-[300px] flex-1">
-						<Skeleton className="h-3 w-48" />
-					</div>
-					<div className="w-[100px] shrink-0">
-						<Skeleton className="h-5 w-16" />
-					</div>
-					<div className="w-[100px] shrink-0">
-						<Skeleton className="h-9 w-9 rounded-full" />
-					</div>
-					<div className="w-[100px] shrink-0">
-						<Skeleton className="h-3 w-12" />
-					</div>
-					<div className="w-[100px] shrink-0">
-						<Skeleton className="h-4 w-12" />
-					</div>
-					<div className="w-[120px] shrink-0">
-						<Skeleton className="h-5 w-14" />
-					</div>
-					<div className="w-[60px] shrink-0">
-						<Skeleton className="size-8 rounded" />
-					</div>
-				</div>
-			))}
-		</div>
-	);
+    return (
+        <div className="w-full overflow-x-auto">
+            {/* Header Skeleton */}
+            <div className="flex min-w-full items-center gap-4 border-b bg-muted/10 px-4 py-2">
+                <Skeleton className="h-4 w-32" />
+                <div className="flex-1 px-4"><Skeleton className="h-4 w-24" /></div>
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+            </div>
+
+            {/* Folder + Rows Skeleton */}
+            {Array.from({ length: 3 }).map((_, i) => (
+                <div key={`folder-skeleton-${i + 1}`} className="flex flex-col">
+                    {/* Fake Folder Header */}
+                    <div className="flex items-center gap-2 bg-accent/10 px-4 py-2 border-y border-border/30">
+                        <Skeleton className="size-3 rounded-full" />
+                        <Skeleton className="h-3 w-24" />
+                    </div>
+                    {/* Fake Flag Rows */}
+                    {Array.from({ length: 2 }).map((_, j) => (
+                        <div
+                            className="flex items-center gap-4 border-b px-4 py-3 opacity-60"
+                            key={`row-skeleton-${i}-${j}`}
+                        >
+                            <div className="flex min-w-[280px] shrink-0 items-center gap-3">
+                                <Skeleton className="size-7 rounded" />
+                                <Skeleton className="h-4 w-32" />
+                            </div>
+                            <div className="min-w-[300px] flex-1">
+                                <Skeleton className="h-3 w-48" />
+                            </div>
+                            <div className="w-[100px] shrink-0">
+                                <Skeleton className="h-5 w-16" />
+                            </div>
+                            <div className="w-[120px] shrink-0">
+                                <Skeleton className="h-6 w-12 rounded-full" />
+                            </div>
+                            <div className="w-[60px] shrink-0">
+                                <Skeleton className="size-8 rounded" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
 }

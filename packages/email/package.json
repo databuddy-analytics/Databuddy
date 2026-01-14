@@ -3,26 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./src/emails/index.ts",
   "exports": {
     ".": "./src/emails/index.ts",
     "./*": "./src/emails/*.tsx",
     "./config": "./config.ts"
   },
   "scripts": {
-    "dev": "email dev --dir src/emails --port 3001",
-    "preview": "email dev --dir src/emails --port 3001"
+    "dev": "bunx email dev --dir src/emails --port 3001",
+    "preview": "bunx email dev --dir src/emails --port 3001"
   },
-  "main": "./src/emails/index.ts",
   "dependencies": {
     "@react-email/components": "0.3.2",
-    "@types/node": "^24.10.4",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@react-email/preview-server": "5.2.1",
+    "react-email": "5.2.3",
+    "@react-email/preview-server": "5.2.3",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "react-email": "^5.2.1"
+    "@types/node": "^20.11.30"
   }
 }

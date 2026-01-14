@@ -168,38 +168,32 @@ export function FlagSheet({
 	});
 
 	const resetForm = useCallback(() => {
-		if (flag && isEditing) {
-			// Extract targetGroupIds from either targetGroupIds array or targetGroups objects array
-			const extractTargetGroupIds = (): string[] => {
-				if (flag.targetGroupIds && Array.isArray(flag.targetGroupIds)) {
-					return flag.targetGroupIds;
-				}
-				if (flag.targetGroups && Array.isArray(flag.targetGroups)) {
-					return flag.targetGroups.map((g) =>
-						typeof g === "string" ? g : g.id
-					);
-				}
-				return [];
-			};
+    if (flag && isEditing) {
+        // Correctly extract IDs regardless of whether data is flat strings or objects
+        const extractTargetGroupIds = (): string[] => {
+            const groups = flag.targetGroupIds ?? flag.targetGroups ?? [];
+            return groups.map((g) => (typeof g === "string" ? g : g.id));
+        };
 
-			form.reset({
-				flag: {
-					key: flag.key,
-					name: flag.name || "",
-					description: flag.description || "",
-					type: flag.type,
-					status: flag.status,
-					defaultValue: Boolean(flag.defaultValue),
-					rolloutPercentage: flag.rolloutPercentage ?? 0,
-					rolloutBy: flag.rolloutBy || undefined,
-					rules: flag.rules ?? [],
-					variants: flag.variants ?? [],
-					dependencies: flag.dependencies ?? [],
-					environment: flag.environment || undefined,
-					targetGroupIds: extractTargetGroupIds(),
-				},
-				schedule: undefined,
-			});
+        form.reset({
+            flag: {
+                key: flag.key,
+                name: flag.name || "",
+                description: flag.description || "",
+                type: flag.type,
+                status: flag.status,
+                defaultValue: Boolean(flag.defaultValue),
+                rolloutPercentage: flag.rolloutPercentage ?? 0,
+                rolloutBy: flag.rolloutBy || undefined,
+                rules: flag.rules ?? [],
+                variants: flag.variants ?? [],
+                dependencies: flag.dependencies ?? [],
+                environment: flag.environment || undefined,
+                targetGroupIds: extractTargetGroupIds(),
+            },
+            schedule: undefined,
+        });
+
 		} else if (template) {
 			const templateKey = template.name.toLowerCase().replaceAll(/\s+/g, "-");
 			form.reset({
@@ -290,57 +284,37 @@ export function FlagSheet({
 	};
 
 	const onSubmit = async (formData: FlagWithScheduleForm) => {
-		try {
-			const data = formData.flag;
+    try {
+        const { flag: data } = formData;
+        const payload = {
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            status: data.status,
+            rules: data.rules || [],
+            variants: data.variants || [],
+            dependencies: data.dependencies || [],
+            environment: data.environment?.trim() || undefined,
+            defaultValue: data.defaultValue,
+            rolloutPercentage: data.rolloutPercentage ?? 0,
+            rolloutBy: data.rolloutBy || undefined,
+            targetGroupIds: data.targetGroupIds || [],
+        };
 
-			if (isEditing && flag) {
-				const updateData = {
-					id: flag.id,
-					name: data.name,
-					description: data.description,
-					type: data.type,
-					status: data.status,
-					rules: data.rules || [],
-					variants: data.variants || [],
-					dependencies: data.dependencies || [],
-					environment: data.environment?.trim() || undefined,
-					defaultValue: data.defaultValue,
-					rolloutPercentage: data.rolloutPercentage ?? 0,
-					rolloutBy: data.rolloutBy || undefined,
-					targetGroupIds: data.targetGroupIds || [],
-				};
-				await updateMutation.mutateAsync(updateData);
-			} else {
-				const createData = {
-					websiteId,
-					key: data.key,
-					name: data.name,
-					description: data.description,
-					type: data.type,
-					status: data.status,
-					rules: data.rules || [],
-					variants: data.variants || [],
-					dependencies: data.dependencies || [],
-					environment: data.environment?.trim() || undefined,
-					defaultValue: data.defaultValue,
-					rolloutPercentage: data.rolloutPercentage ?? 0,
-					rolloutBy: data.rolloutBy || undefined,
-					targetGroupIds: data.targetGroupIds || [],
-				};
-				await createMutation.mutateAsync(createData);
-			}
+        if (isEditing && flag) {
+            await updateMutation.mutateAsync({ id: flag.id, ...payload });
+        } else {
+            await createMutation.mutateAsync({ websiteId, key: data.key, ...payload });
+        }
 
-			toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
-
-			queryClient.invalidateQueries({
-				queryKey: orpc.flags.list.key({ input: { websiteId } }),
-			});
-
-			onCloseAction();
-		} catch (error) {
-			console.error("Flag mutation error:", error);
-		}
-	};
+        toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
+        queryClient.invalidateQueries({ queryKey: orpc.flags.list.key({ input: { websiteId } }) });
+        onCloseAction();
+    } catch (error) {
+        console.error(error);
+        toast.error("Failed to save the flag. Please check your network or try again.");
+    }
+};
 
 	const isLoading = createMutation.isPending || updateMutation.isPending;
 	const isRollout = watchedType === "rollout";

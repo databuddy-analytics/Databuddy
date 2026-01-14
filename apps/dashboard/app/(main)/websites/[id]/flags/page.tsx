@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/empty-state";
 import { FlagSheet } from "./_components/flag-sheet";
 import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
 import type { Flag, TargetGroup } from "./_components/types";
+type FlagWithFolder = Flag & { folder?: string | null };
 
 export default function FlagsPage() {
 	const { id } = useParams();
@@ -29,9 +30,29 @@ export default function FlagsPage() {
 	});
 
 	const activeFlags = useMemo(
-		() => flags?.filter((f) => f.status !== "archived") ?? [],
-		[flags]
-	);
+        () => flags?.filter((f) => f.status !== "archived") ?? [],
+        [flags]
+    );
+
+    const groupedFlags = useMemo(() => {
+        const groups: Record<string, FlagWithFolder[]> = {};
+        for (const flag of activeFlags as FlagWithFolder[]) {
+	const folderName = flag.folder ?? "Root";
+
+	if (!groups[folderName]) {
+		groups[folderName] = [];
+	}
+
+	groups[folderName].push(flag);
+}
+
+        return Object.fromEntries(
+	Object.entries(groups).sort(([a], [b]) =>
+		a === "Root" ? -1 : b === "Root" ? 1 : a.localeCompare(b)
+	)
+);
+
+    }, [activeFlags]);
 
 	const groupsMap = useMemo(() => {
 		const map = new Map<string, TargetGroup[]>();
@@ -109,11 +130,11 @@ export default function FlagsPage() {
 							</div>
 						) : (
 							<FlagsList
-								flags={activeFlags as Flag[]}
-								groups={groupsMap}
-								onDelete={handleDeleteFlagRequest}
-								onEdit={handleEditFlag}
-							/>
+                                  groupedFlags={groupedFlags} 
+                                  groups={groupsMap}
+                                  onDelete={handleDeleteFlagRequest}
+                                  onEdit={handleEditFlag}
+                               />
 						)}
 					</Suspense>
 

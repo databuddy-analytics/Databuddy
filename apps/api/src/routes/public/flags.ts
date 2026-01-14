@@ -68,6 +68,7 @@ interface TargetGroupData {
 /** Flag type for evaluation - includes database fields not in the form schema */
 interface EvaluableFlag {
 	key: string;
+	folder?: string | null;
 	type: "boolean" | "rollout" | "multivariant";
 	status: "active" | "inactive" | "archived";
 	defaultValue: string | number | boolean | unknown;
@@ -506,6 +507,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						{
 							defaultValue: flag.defaultValue,
 							key: flag.key,
+							folder: flag.folder,
 							type: flag.type,
 							status: flag.status,
 							rolloutPercentage: flag.rolloutPercentage,
@@ -589,9 +591,13 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 					for (const flag of allFlags) {
 						const result = evaluateFlag(
-							flag as unknown as EvaluableFlag,
+							{
+								...flag,
+								folder: flag.folder ?? null,
+							} as EvaluableFlag,
 							context
 						);
+
 						if (result.enabled) {
 							enabledFlags[flag.key] = result;
 						}
@@ -655,6 +661,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					// Return flag definitions without evaluation
 					const flagDefinitions = allFlags.map((flag) => ({
 						key: flag.key,
+						folder: flag.folder,
 						description: flag.description,
 						type: flag.type,
 						variants: flag.variants,

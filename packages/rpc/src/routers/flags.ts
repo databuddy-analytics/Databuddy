@@ -66,6 +66,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -111,6 +112,7 @@ const updateFlagSchema = z
 	.object({
 		id: z.string(),
 		name: z.string().min(1).max(100).optional(),
+		folder: z.string().optional()
 		description: z.string().optional(),
 		type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
@@ -227,7 +229,7 @@ function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
 		...flag,
 		rules: Array.isArray(flag.rules) && flag.rules.length > 0 ? [] : flag.rules,
 		targetGroups: flag.targetGroups?.map(
-			(group: { rules?: unknown; [key: string]: unknown }) => ({
+			(group: { rules?: unknown;[key: string]: unknown }) => ({
 				...group,
 				rules:
 					Array.isArray(group.rules) && group.rules.length > 0
@@ -524,6 +526,7 @@ export const flagsRouter = {
 					.update(flags)
 					.set({
 						name: input.name,
+						folder: input.folder,
 						description: input.description,
 						type: input.type,
 						status: finalStatus,
@@ -572,6 +575,7 @@ export const flagsRouter = {
 				.values({
 					id: flagId,
 					key: input.key,
+					folder: input.folder || null,
 					name: input.name || null,
 					description: input.description || null,
 					type: input.type,
