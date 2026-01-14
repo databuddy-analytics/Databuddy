@@ -4,6 +4,7 @@ import { z } from "zod";
 import { checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
 import { sendUptimeEvent } from "./lib/producer";
+import { updateMonitorStatus } from "./notifications";
 import {
 	captureError,
 	endRequestSpan,
@@ -187,6 +188,23 @@ const app = new Elysia()
 				});
 				console.error(
 					"[uptime] Failed to send uptime event:",
+					monitorId,
+					error instanceof Error ? error.message : String(error)
+				);
+			}
+
+			// Update monitor status and trigger alarms if needed
+			try {
+				const isUp = result.data.status === 1; // MonitorStatus.UP
+				await updateMonitorStatus(scheduleId, isUp, result.data.http_code);
+			} catch (error) {
+				captureError(error, {
+					type: "notification_error",
+					monitorId,
+					httpCode: result.data.http_code,
+				});
+				console.error(
+					"[uptime] Failed to update monitor status:",
 					monitorId,
 					error instanceof Error ? error.message : String(error)
 				);

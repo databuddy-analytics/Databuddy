@@ -1,8 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CodeIcon, InfoIcon } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import {
+	BellRingingIcon,
+	CodeIcon,
+	InfoIcon,
+	PlusIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -18,6 +24,13 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetBody,
@@ -91,9 +104,55 @@ export function MonitorSheet({
 	schedule,
 }: MonitorSheetProps) {
 	const isEditing = !!schedule;
+	const queryClient = useQueryClient();
 	// Only fetch website if websiteId is provided
 	const { data: website } = useWebsite(websiteId || "");
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+	const [isAlarmsOpen, setIsAlarmsOpen] = useState(false);
+	const [selectedAlarmId, setSelectedAlarmId] = useState<string>("");
+	const [failureThreshold, setFailureThreshold] = useState(3);
+
+	// Fetch available alarms
+	const { data: availableAlarms } = useQuery({
+		...orpc.alarms.list.queryOptions({ input: {} }),
+		enabled: open && isEditing,
+	});
+
+	// Fetch assigned alarms for this schedule
+	const { data: assignedAlarms, refetch: refetchAssigned } = useQuery({
+		...orpc.uptime.listAlarms.queryOptions({
+			input: { scheduleId: schedule?.id || "" },
+		}),
+		enabled: open && isEditing && !!schedule?.id,
+	});
+
+	const assignAlarmMutation = useMutation({
+		...orpc.uptime.assignAlarm.mutationOptions(),
+		onSuccess: () => {
+			refetchAssigned();
+			setSelectedAlarmId("");
+			toast.success("Alarm assigned");
+		},
+		onError: (error: { message?: string }) => {
+			toast.error(error?.message || "Failed to assign alarm");
+		},
+	});
+
+	const unassignAlarmMutation = useMutation({
+		...orpc.uptime.unassignAlarm.mutationOptions(),
+		onSuccess: () => {
+			refetchAssigned();
+			toast.success("Alarm removed");
+		},
+		onError: (error: { message?: string }) => {
+			toast.error(error?.message || "Failed to remove alarm");
+		},
+	});
+
+	// Filter out already assigned alarms
+	const unassignedAlarms = (availableAlarms || []).filter(
+		(alarm) => !(assignedAlarms || []).some((a) => a.alarmId === alarm.id)
+	);
 
 	const form = useForm<MonitorFormData>({
 		resolver: zodResolver(monitorFormSchema),
@@ -460,6 +519,138 @@ export function MonitorSheet({
 									</div>
 								</CollapsibleSection>
 							</div>
+
+							{isEditing && (
+								<>
+									<div className="h-px bg-border" />
+									<div className="space-y-1">
+										<CollapsibleSection
+											badge={assignedAlarms?.length || 0}
+											icon={BellRingingIcon}
+											isExpanded={isAlarmsOpen}
+											onToggleAction={() => setIsAlarmsOpen(!isAlarmsOpen)}
+											title="Alarm Notifications"
+										>
+											<div className="space-y-4">
+												<p className="text-muted-foreground text-sm">
+													Receive notifications when this monitor detects downtime.
+												</p>
+
+												{/* Assigned alarms list */}
+												{(assignedAlarms || []).length > 0 && (
+													<div className="space-y-2">
+														<FormLabel>Assigned Alarms</FormLabel>
+														<div className="space-y-2">
+															{(assignedAlarms || []).map((assignment) => (
+																<div
+																	key={assignment.id}
+																	className="flex items-center justify-between rounded border p-3"
+																>
+																	<div className="space-y-1">
+																		<p className="font-medium text-sm">
+																			{assignment.alarmName}
+																		</p>
+																		<p className="text-muted-foreground text-xs">
+																			{assignment.alarmChannel} • Trigger after{" "}
+																			{assignment.failureThreshold} failures
+																		</p>
+																	</div>
+																	<Button
+																		onClick={() =>
+																			unassignAlarmMutation.mutate({
+																				scheduleId: schedule?.id || "",
+																				alarmId: assignment.alarmId,
+																			})
+																		}
+																		disabled={unassignAlarmMutation.isPending}
+																		size="icon"
+																		variant="ghost"
+																	>
+																		<TrashIcon className="size-4 text-destructive" />
+																	</Button>
+																</div>
+															))}
+														</div>
+													</div>
+												)}
+
+												{/* Add alarm form */}
+												{unassignedAlarms.length > 0 ? (
+													<div className="space-y-3">
+														<FormLabel>Add Alarm</FormLabel>
+														<div className="flex gap-2">
+															<Select
+																value={selectedAlarmId}
+																onValueChange={setSelectedAlarmId}
+															>
+																<SelectTrigger className="flex-1">
+																	<SelectValue placeholder="Select an alarm" />
+																</SelectTrigger>
+																<SelectContent>
+																	{unassignedAlarms.map((alarm) => (
+																		<SelectItem key={alarm.id} value={alarm.id}>
+																			{alarm.name} ({alarm.channel})
+																		</SelectItem>
+																	))}
+																</SelectContent>
+															</Select>
+															<Input
+																type="number"
+																min={1}
+																max={100}
+																value={failureThreshold}
+																onChange={(e) =>
+																	setFailureThreshold(Number(e.target.value))
+																}
+																className="w-20"
+																placeholder="3"
+															/>
+															<Button
+																onClick={() => {
+																	if (selectedAlarmId && schedule?.id) {
+																		assignAlarmMutation.mutate({
+																			scheduleId: schedule.id,
+																			alarmId: selectedAlarmId,
+																			failureThreshold,
+																		});
+																	}
+																}}
+																disabled={
+																	!selectedAlarmId ||
+																	assignAlarmMutation.isPending
+																}
+																size="icon"
+																variant="secondary"
+															>
+																<PlusIcon className="size-4" />
+															</Button>
+														</div>
+														<p className="text-muted-foreground text-xs">
+															Failure threshold: number of consecutive failures
+															before triggering the alarm.
+														</p>
+													</div>
+												) : (availableAlarms || []).length === 0 ? (
+													<p className="text-muted-foreground text-sm">
+														No alarms configured.{" "}
+														<a
+															href="/settings/alarms"
+															className="text-primary underline"
+														>
+															Create an alarm
+														</a>{" "}
+														first.
+													</p>
+												) : (
+													<p className="text-muted-foreground text-sm">
+														All alarms are already assigned to this monitor.
+													</p>
+												)}
+											</div>
+										</CollapsibleSection>
+									</div>
+								</>
+							)}
 						</SheetBody>
 
 						<SheetFooter>

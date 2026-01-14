@@ -1,4 +1,4 @@
-import { and, db, eq, uptimeSchedules } from "@databuddy/db";
+import { alarms, and, db, eq, uptimeAlarms, uptimeSchedules } from "@databuddy/db";
 import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
 import { Client } from "@upstash/qstash";
@@ -402,5 +402,136 @@ export const uptimeRouter = {
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule resumed");
 			return { success: true, isPaused: false };
+		}),
+
+	// Alarm assignment endpoints
+	listAlarms: protectedProcedure
+		.input(z.object({ scheduleId: z.string() }))
+		.handler(async ({ context, input }) => {
+			await getScheduleAndAuthorize(input.scheduleId, context);
+
+			const assignments = await db
+				.select({
+					id: uptimeAlarms.id,
+					alarmId: uptimeAlarms.alarmId,
+					failureThreshold: uptimeAlarms.failureThreshold,
+					alarmName: alarms.name,
+					alarmChannel: alarms.channel,
+					alarmEnabled: alarms.enabled,
+				})
+				.from(uptimeAlarms)
+				.innerJoin(alarms, eq(uptimeAlarms.alarmId, alarms.id))
+				.where(eq(uptimeAlarms.scheduleId, input.scheduleId));
+
+			return assignments;
+		}),
+
+	assignAlarm: protectedProcedure
+		.input(
+			z.object({
+				scheduleId: z.string(),
+				alarmId: z.string(),
+				failureThreshold: z.number().min(1).max(100).default(3),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await getScheduleAndAuthorize(input.scheduleId, context);
+
+			// Verify the alarm exists and user has access
+			const alarm = await db.query.alarms.findFirst({
+				where: eq(alarms.id, input.alarmId),
+			});
+
+			if (!alarm) {
+				throw new ORPCError("NOT_FOUND", { message: "Alarm not found" });
+			}
+
+			if (alarm.userId !== context.user.id) {
+				throw new ORPCError("FORBIDDEN", { message: "Access denied to alarm" });
+			}
+
+			// Check if already assigned
+			const existing = await db.query.uptimeAlarms.findFirst({
+				where: and(
+					eq(uptimeAlarms.scheduleId, input.scheduleId),
+					eq(uptimeAlarms.alarmId, input.alarmId)
+				),
+			});
+
+			if (existing) {
+				throw new ORPCError("CONFLICT", {
+					message: "Alarm already assigned to this monitor",
+				});
+			}
+
+			const id = randomUUIDv7();
+			await db.insert(uptimeAlarms).values({
+				id,
+				scheduleId: input.scheduleId,
+				alarmId: input.alarmId,
+				failureThreshold: input.failureThreshold,
+			});
+
+			logger.info(
+				{ scheduleId: input.scheduleId, alarmId: input.alarmId },
+				"Alarm assigned to monitor"
+			);
+
+			return { success: true, id };
+		}),
+
+	unassignAlarm: protectedProcedure
+		.input(z.object({ scheduleId: z.string(), alarmId: z.string() }))
+		.handler(async ({ context, input }) => {
+			await getScheduleAndAuthorize(input.scheduleId, context);
+
+			await db
+				.delete(uptimeAlarms)
+				.where(
+					and(
+						eq(uptimeAlarms.scheduleId, input.scheduleId),
+						eq(uptimeAlarms.alarmId, input.alarmId)
+					)
+				);
+
+			logger.info(
+				{ scheduleId: input.scheduleId, alarmId: input.alarmId },
+				"Alarm unassigned from monitor"
+			);
+
+			return { success: true };
+		}),
+
+	updateAlarmThreshold: protectedProcedure
+		.input(
+			z.object({
+				scheduleId: z.string(),
+				alarmId: z.string(),
+				failureThreshold: z.number().min(1).max(100),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await getScheduleAndAuthorize(input.scheduleId, context);
+
+			await db
+				.update(uptimeAlarms)
+				.set({ failureThreshold: input.failureThreshold })
+				.where(
+					and(
+						eq(uptimeAlarms.scheduleId, input.scheduleId),
+						eq(uptimeAlarms.alarmId, input.alarmId)
+					)
+				);
+
+			logger.info(
+				{
+					scheduleId: input.scheduleId,
+					alarmId: input.alarmId,
+					threshold: input.failureThreshold,
+				},
+				"Alarm threshold updated"
+			);
+
+			return { success: true };
 		}),
 };
