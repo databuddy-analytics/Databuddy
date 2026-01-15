@@ -816,6 +816,85 @@ export const flagsToTargetGroups = pgTable(
 	]
 );
 
+// Alarm trigger types
+export const alarmTriggerType = pgEnum("alarm_trigger_type", [
+	"uptime",
+	"traffic_spike",
+	"error_rate",
+	"goal",
+	"custom",
+]);
+
+// Alarm notification channels
+export const alarmNotificationChannel = pgEnum("alarm_notification_channel", [
+	"slack",
+	"discord",
+	"email",
+	"webhook",
+]);
+
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		userId: text("user_id"),
+		organizationId: text("organization_id"),
+		websiteId: text("website_id"),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean().default(true).notNull(),
+		notificationChannels: alarmNotificationChannel("notification_channels")
+			.array()
+			.default([])
+			.notNull(),
+		slackWebhookUrl: text("slack_webhook_url"),
+		discordWebhookUrl: text("discord_webhook_url"),
+		emailAddresses: text("email_addresses").array().default([]),
+		webhookUrl: text("webhook_url"),
+		webhookHeaders: jsonb("webhook_headers").default({}),
+		triggerType: alarmTriggerType("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions").default({}),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("alarms_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	]
+);
+
 export const uptimeSchedules = pgTable(
 	"uptime_schedules",
 	{
