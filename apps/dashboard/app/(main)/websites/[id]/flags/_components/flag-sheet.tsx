@@ -808,10 +808,7 @@ export function FlagSheet({
 							{/* Advanced Options */}
 							<div className="space-y-1">
 								<CollapsibleSection
-									badge={
-										form.watch("flag.targetGroupIds")?.length ??
-										(targetGroups as TargetGroup[] | undefined)?.length
-									}
+									badge={form.watch("flag.targetGroupIds")?.length ?? 0}
 									icon={UsersThreeIcon}
 									isExpanded={expandedSection === "groups"}
 									onToggleAction={() => toggleSection("groups")}
