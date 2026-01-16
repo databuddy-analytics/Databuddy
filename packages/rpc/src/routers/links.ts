@@ -152,29 +152,41 @@ export const linksRouter = {
 			}
 
 			// Generate unique slug with retry on collision
+			// Generate unique slug with retry on collision
 			let slug = "";
 			let attempts = 0;
 			const maxAttempts = 10;
 
 			while (attempts < maxAttempts) {
 				slug = generateSlug();
-				const existing = await context.db
-					.select({ id: links.id })
-					.from(links)
-					.where(eq(links.slug, slug))
-					.limit(1);
-
-				if (existing.length === 0) {
-					break;
+				
+				try {
+					const linkId = randomUUIDv7();
+					const [newLink] = await context.db
+						.insert(links)
+						.values({
+							id: linkId,
+							workspaceId: input.organizationId,
+							createdById: context.user.id,
+							slug,
+							name: input.name,
+							targetUrl: input.targetUrl,
+						})
+						.returning();
+					return newLink;
+				} catch (error) {
+					// If unique constraint violation, retry with new slug
+					if (error?.code === '23505' && error?.constraint === 'links_slug_unique') {
+						attempts++;
+						continue;
+					}
+					throw error;
 				}
-				attempts++;
 			}
 
-			if (attempts >= maxAttempts) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to generate unique slug",
-				});
-			}
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to generate unique slug",
+			});
 
 			const linkId = randomUUIDv7();
 			const [newLink] = await context.db
