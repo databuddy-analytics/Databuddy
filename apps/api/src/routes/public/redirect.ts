@@ -31,26 +31,31 @@ export const redirectRoute = new Elysia().get(
 		const city = request.headers.get("cf-ipcity") || null;
 		const region = request.headers.get("cf-ipregion") || null;
 
-		await clickHouse.insert({
-			table: "analytics.link_visits",
-			values: [
-				{
-					id: crypto.randomUUID(),
-					link_id: link.id,
-					workspace_id: link.workspaceId,
-					visited_at: new Date().toISOString().replace("T", " ").replace("Z", ""),
-					referer,
-					user_agent: userAgent,
-					ip_hash: ipHash,
-					country,
-					region,
-					city,
-					browser_name: null,
-					device_type: null,
-				},
-			],
-			format: "JSONEachRow",
-		});
+		try {
+			await clickHouse.insert({
+				table: "analytics.link_visits",
+				values: [
+					{
+						id: crypto.randomUUID(),
+						link_id: link.id,
+						workspace_id: link.workspaceId,
+						visited_at: new Date().toISOString().replace("T", " ").replace("Z", ""),
+						referer,
+						user_agent: userAgent,
+						ip_hash: ipHash,
+						country,
+						region,
+						city,
+						browser_name: null,
+						device_type: null,
+					},
+				],
+				format: "JSONEachRow",
+			});
+		} catch (error) {
+			// Log error but don't block redirect
+			console.error("Failed to track link visit:", error);
+		}
 
 		set.status = 302;
 		set.headers.location = link.targetUrl;

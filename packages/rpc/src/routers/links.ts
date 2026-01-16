@@ -46,7 +46,7 @@ async function authorizeOrganizationAccess(
 		headersObj[key] = value;
 	});
 
-	const perm = permission === "read" ? "read" : "create";
+	const perm = permission === "read" ? "read" : permission === "delete" ? "delete" : "create";
 	const { success } = await websitesApi.hasPermission({
 		headers: headersObj,
 		body: { permissions: { website: [perm] } },
@@ -152,7 +152,7 @@ export const linksRouter = {
 			}
 
 			// Generate unique slug with retry on collision
-			let slug: string;
+			let slug = "";
 			let attempts = 0;
 			const maxAttempts = 10;
 
@@ -183,7 +183,7 @@ export const linksRouter = {
 					id: linkId,
 					workspaceId: input.organizationId,
 					createdById: context.user.id,
-					slug: slug!,
+					slug,
 					name: input.name,
 					targetUrl: input.targetUrl,
 				})
