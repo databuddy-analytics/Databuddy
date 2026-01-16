@@ -856,3 +856,46 @@ export const uptimeSchedules = pgTable(
 			.onDelete("cascade"),
 	]
 );
+
+export const links = pgTable(
+	"links",
+	{
+		id: text().primaryKey().notNull(),
+		workspaceId: text("workspace_id").notNull(),
+		createdById: text("created_by_id").notNull(),
+		slug: text().notNull(),
+		name: text().notNull(),
+		targetUrl: text("target_url").notNull(),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("links_workspace_id_idx").using(
+			"btree",
+			table.workspaceId.asc().nullsLast().op("text_ops")
+		),
+		index("links_created_by_id_idx").using(
+			"btree",
+			table.createdById.asc().nullsLast().op("text_ops")
+		),
+		uniqueIndex("links_slug_unique").using(
+			"btree",
+			table.slug.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [organization.id],
+			name: "links_workspace_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "links_created_by_id_fkey",
+		}).onDelete("cascade"),
+	]
+);

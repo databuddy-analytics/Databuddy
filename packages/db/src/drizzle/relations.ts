@@ -6,6 +6,7 @@ import {
 	flagsToTargetGroups,
 	funnelDefinitions,
 	invitation,
+	links,
 	member,
 	organization,
 	session,
@@ -177,6 +178,17 @@ export const uptimeSchedulesRelations = relations(uptimeSchedules, ({ one }) => 
 	}),
 	user: one(user, {
 		fields: [uptimeSchedules.userId],
+		references: [user.id],
+	}),
+}));
+
+export const linksRelations = relations(links, ({ one }) => ({
+	organization: one(organization, {
+		fields: [links.workspaceId],
+		references: [organization.id],
+	}),
+	createdBy: one(user, {
+		fields: [links.createdById],
 		references: [user.id],
 	}),
 }));

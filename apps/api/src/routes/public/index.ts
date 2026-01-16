@@ -1,6 +1,7 @@
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { flagsRoute } from "./flags";
+import { redirectRoute } from "./redirect";
 
 export const publicApi = new Elysia({ prefix: "/public" })
 	.use(
@@ -11,6 +12,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	)
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(flagsRoute)
+	.use(redirectRoute)
 	.onError(function handlePublicError({ error, code, set }) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 

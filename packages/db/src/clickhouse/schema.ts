@@ -223,6 +223,28 @@ FROM ${DATABASES.ANALYTICS}.web_vitals_spans
 GROUP BY client_id, path, metric_name, hour
 `;
 
+const CREATE_LINK_VISITS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.link_visits (
+  id UUID,
+  link_id String,
+  workspace_id String,
+  visited_at DateTime64(3, 'UTC'),
+  referer Nullable(String),
+  user_agent Nullable(String),
+  ip_hash String,
+  country Nullable(String),
+  region Nullable(String),
+  city Nullable(String),
+  browser_name Nullable(String),
+  device_type Nullable(String),
+
+  INDEX idx_link_id link_id TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(visited_at)
+ORDER BY (workspace_id, link_id, visited_at)
+SETTINGS index_granularity = 8192
+`;
+
 const CREATE_BLOCKED_TRAFFIC_TABLE = `
 CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.blocked_traffic (
   id UUID,
@@ -680,6 +702,21 @@ export interface AICallSpan {
 	error_stack?: string;
 }
 
+export interface LinkVisit {
+	id: string;
+	link_id: string;
+	workspace_id: string;
+	visited_at: number;
+	referer?: string;
+	user_agent?: string;
+	ip_hash: string;
+	country?: string;
+	region?: string;
+	city?: string;
+	browser_name?: string;
+	device_type?: string;
+}
+
 export interface AnalyticsEvent {
 	id: string;
 	client_id: string;
@@ -776,6 +813,7 @@ export async function initClickHouseSchema() {
 			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
 			{ name: "ai_call_spans", query: CREATE_AI_CALL_SPANS_TABLE },
+			{ name: "link_visits", query: CREATE_LINK_VISITS_TABLE },
 		];
 
 		// Materialized views (must be created after target tables)
