@@ -666,6 +666,7 @@ export const flags = pgTable(
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),
 		environment: text("environment"),
+		folder: text("folder"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
@@ -684,6 +685,8 @@ export const flags = pgTable(
 			"btree",
 			table.createdBy.asc().nullsLast().op("text_ops")
 		),
+		index("idx_flags_website_folder").on(table.websiteId, table.folder),
+		index("idx_flags_org_folder").on(table.organizationId, table.folder),
 		foreignKey({
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],

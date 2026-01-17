@@ -66,6 +66,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().nullable().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -124,6 +125,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -241,7 +243,8 @@ function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
 export const flagsRouter = {
 	list: publicProcedure.input(listFlagsSchema).handler(({ context, input }) => {
 		const scope = getScope(input.websiteId, input.organizationId);
-		const cacheKey = `list:${scope}:${input.status || "all"}`;
+		const folderKey = input.folder === null ? "root" : input.folder || "all";
+		const cacheKey = `list:${scope}:${input.status || "all"}:${folderKey}`;
 
 		return flagsCache.withCache({
 			key: cacheKey,
@@ -262,6 +265,15 @@ export const flagsRouter = {
 
 				if (input.status) {
 					conditions.push(eq(flags.status, input.status));
+				}
+
+				// Filter by folder: null means root (uncategorized), string means specific folder
+				if (input.folder !== undefined) {
+					if (input.folder === null) {
+						conditions.push(isNull(flags.folder));
+					} else {
+						conditions.push(eq(flags.folder, input.folder));
+					}
 				}
 
 				const flagsList = await context.db.query.flags.findMany({
@@ -538,6 +550,7 @@ export const flagsRouter = {
 						variants: input.variants,
 						dependencies: input.dependencies,
 						environment: input.environment,
+						folder: input.folder || null,
 						deletedAt: null,
 						updatedAt: new Date(),
 					})
@@ -589,6 +602,7 @@ export const flagsRouter = {
 					websiteId: input.websiteId || null,
 					organizationId: input.organizationId || null,
 					environment: input.environment || existingFlag?.[0]?.environment,
+					folder: input.folder || null,
 					userId: input.websiteId ? null : context.user.id,
 					createdBy: context.user.id,
 				})
