@@ -5,7 +5,6 @@ import {
 	FolderIcon,
 	FolderOpenIcon,
 	FolderPlusIcon,
-	PlusIcon,
 	XIcon,
 } from "@phosphor-icons/react";
 import { useState, useMemo } from "react";
