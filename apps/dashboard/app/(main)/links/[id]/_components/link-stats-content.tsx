@@ -4,9 +4,6 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr/ArrowLeft";
 import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
 import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
 import { CursorClickIcon } from "@phosphor-icons/react/dist/ssr/CursorClick";
-import { DesktopIcon } from "@phosphor-icons/react/dist/ssr/Desktop";
-import { DeviceMobileIcon } from "@phosphor-icons/react/dist/ssr/DeviceMobile";
-import { DeviceTabletIcon } from "@phosphor-icons/react/dist/ssr/DeviceTablet";
 import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
 import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
 import { MapPinIcon } from "@phosphor-icons/react/dist/ssr/MapPin";
@@ -26,7 +23,7 @@ import {
 	YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { StatCard } from "@/components/analytics";
+import { DeviceTypeCell, StatCard } from "@/components/analytics";
 import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { EmptyState } from "@/components/empty-state";
 import { CountryFlag } from "@/components/icon";
@@ -86,17 +83,6 @@ interface ChartDataPoint {
 interface MiniChartDataPoint {
 	date: string;
 	value: number;
-}
-
-function getDeviceIcon(deviceType: string) {
-	const lower = deviceType.toLowerCase();
-	if (lower.includes("mobile") || lower.includes("phone")) {
-		return <DeviceMobileIcon className="size-4" weight="duotone" />;
-	}
-	if (lower.includes("tablet")) {
-		return <DeviceTabletIcon className="size-4" weight="duotone" />;
-	}
-	return <DesktopIcon className="size-4" weight="duotone" />;
 }
 
 function formatNumber(value: number): string {
@@ -189,9 +175,11 @@ function StatsLoadingSkeleton() {
 function ClicksChart({
 	data,
 	height = 350,
+	isHourly = false,
 }: {
 	data: ChartDataPoint[];
 	height?: number;
+	isHourly?: boolean;
 }) {
 	if (data.length === 0) {
 		return (
@@ -216,6 +204,9 @@ function ClicksChart({
 			</div>
 		);
 	}
+
+	const xAxisFormat = isHourly ? "MMM D, HH:mm" : "MMM D";
+	const tooltipFormat = isHourly ? "MMM D, YYYY HH:mm" : "MMM D, YYYY";
 
 	return (
 		<div style={{ height: `${height}px`, width: "100%" }}>
@@ -248,7 +239,7 @@ function ClicksChart({
 						axisLine={false}
 						dataKey="date"
 						tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-						tickFormatter={(value) => dayjs(value).format("MMM D")}
+						tickFormatter={(value) => dayjs(value).format(xAxisFormat)}
 						tickLine={false}
 					/>
 					<YAxis
@@ -265,7 +256,7 @@ function ClicksChart({
 									<div className="mb-2 flex items-center gap-2 border-b pb-2">
 										<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
 										<p className="font-medium text-foreground text-xs">
-											{dayjs(label).format("MMM D, YYYY")}
+											{dayjs(label).format(tooltipFormat)}
 										</p>
 									</div>
 									<div className="flex items-center justify-between gap-3">
@@ -430,12 +421,9 @@ function createDeviceColumns(): ColumnDef<SourceEntry>[] {
 			cell: ({ row }: CellContext<SourceEntry, unknown>) => {
 				const entry = row.original;
 				return (
-					<div className="flex items-center gap-2">
-						{getDeviceIcon(entry.name)}
-						<span className="font-medium capitalize">
-							{entry.name || "Unknown"}
-						</span>
-					</div>
+					<DeviceTypeCell
+						device_type={entry.name?.toLowerCase() || "unknown"}
+					/>
 				);
 			},
 		},
@@ -465,9 +453,10 @@ export function LinkStatsContent() {
 	const params = useParams();
 	const linkId = params.id as string;
 	const { activeOrganization } = useOrganizationsContext();
-	const { dateRange } = useDateFilters();
+	const { dateRange, currentGranularity } = useDateFilters();
 
 	const isMobile = useMediaQuery("(max-width: 640px)");
+	const isHourly = currentGranularity === "hourly";
 
 	const { data: link, isLoading: isLoadingLink } = useLink(
 		linkId,
@@ -719,7 +708,11 @@ export function LinkStatsContent() {
 
 			{/* Clicks Over Time Chart */}
 			<div className="overflow-hidden rounded border bg-card">
-				<ClicksChart data={chartData} height={isMobile ? 280 : 380} />
+				<ClicksChart
+					data={chartData}
+					height={isMobile ? 280 : 380}
+					isHourly={isHourly}
+				/>
 			</div>
 
 			{/* Data Tables */}

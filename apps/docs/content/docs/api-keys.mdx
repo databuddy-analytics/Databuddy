@@ -7,12 +7,12 @@ import { CodeBlock } from "@/components/docs";
 
 ## TL;DR
 
-- Generate keys in the dashboard Settings → API Keys
+- Generate keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
 - Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
 - Scopes: `read:data`, `write:data`, `read:experiments`, `track:events`, `admin:apikeys`, `read:analytics`, `write:custom-sql`, `read:export`, `write:otel`, `admin:users`, `admin:organizations`, `admin:websites`, `rate:standard`, `rate:premium`, `rate:enterprise`
 - Access can be global or scoped to a resource like a specific `website`
 - For private websites, include `website_id` and ensure the key has `read:data`
-- Rotate and revoke keys in the dashboard; only the prefix/start should be shared/logged
+- Rotate and revoke keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys); only the prefix/start should be shared/logged
 
 ### What is an API key?
 
@@ -20,7 +20,7 @@ An API key authenticates server-to-server calls to Databuddy. It supports fine-g
 
 ### Create a key
 
-1. Open the dashboard → Settings → API Keys
+1. Open [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
 2. Click “Create API Key”
 3. Choose a name, optional organization, scopes, and resource access
 4. Copy the secret immediately (it’s only shown once)
@@ -121,7 +121,7 @@ Authentication/authorization failures return structured errors:
 - **Rotate** to generate a new secret for the same key (update your servers immediately)
 - **Revoke** to immediately disable a key (cannot be undone; create a new one if needed)
 
-Actions are available in the dashboard under each key’s detail view.
+Actions are available in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys) under each key’s detail view.
 
 ### Rate limits
 

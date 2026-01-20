@@ -94,7 +94,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!(websiteValidation.success && websiteValidation.website)) {
 						return new Response(
 							JSON.stringify({
+								success: false,
 								error: websiteValidation.error ?? "Website not found",
+								code: "WEBSITE_NOT_FOUND",
 							}),
 							{ status: 404, headers: { "Content-Type": "application/json" } }
 						);
@@ -112,10 +114,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					}
 
 					if (!authorized) {
-						return new Response(JSON.stringify({ error: "Unauthorized" }), {
-							status: 403,
-							headers: { "Content-Type": "application/json" },
-						});
+						return new Response(
+							JSON.stringify({
+								success: false,
+								error: "Access denied to this website",
+								code: "ACCESS_DENIED",
+							}),
+							{ status: 403, headers: { "Content-Type": "application/json" } }
+						);
 					}
 
 					const appContext = buildAppContext(
@@ -153,10 +159,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					let maxSteps = 20;
 
 					if (!user?.id) {
-						return new Response(JSON.stringify({ error: "User ID required" }), {
-							status: 401,
-							headers: { "Content-Type": "application/json" },
-						});
+						return new Response(
+							JSON.stringify({
+								success: false,
+								error: "User ID required",
+								code: "AUTH_REQUIRED",
+							}),
+							{ status: 401, headers: { "Content-Type": "application/json" } }
+						);
 					}
 
 					switch (modelType) {
@@ -201,7 +211,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					});
 					return new Response(
 						JSON.stringify({
+							success: false,
 							error: error instanceof Error ? error.message : "Unknown error",
+							code: "INTERNAL_ERROR",
 						}),
 						{ status: 500, headers: { "Content-Type": "application/json" } }
 					);

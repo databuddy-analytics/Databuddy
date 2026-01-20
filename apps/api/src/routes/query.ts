@@ -30,12 +30,281 @@ import type { Filter, QueryRequest } from "../query/types";
 import {
 	CompileRequestSchema,
 	type CompileRequestType,
+	type DatePreset,
+	DatePresets,
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
 
-const MAX_HOURLY_DAYS = 7;
+const MAX_HOURLY_DAYS = 30;
 const MS_PER_DAY = 86_400_000;
+const DATE_FORMAT_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T/;
+
+/**
+ * Normalize date input to YYYY-MM-DD format
+ * Accepts: "2024-01-15", "2024-01-15T14:30:00.000Z", etc.
+ */
+function normalizeDate(input: string): string {
+	// Already in correct format
+	if (DATE_FORMAT_REGEX.test(input)) {
+		return input;
+	}
+	// ISO datetime format - extract date part
+	if (ISO_DATETIME_REGEX.test(input)) {
+		return input.split("T")[0] as string;
+	}
+	// Try to parse as date
+	const parsed = new Date(input);
+	if (!Number.isNaN(parsed.getTime())) {
+		return parsed.toISOString().split("T")[0] as string;
+	}
+	// Return as-is (will fail validation)
+	return input;
+}
+
+// ============================================================================
+// Date Preset Resolution
+// ============================================================================
+
+function resolveDatePreset(
+	preset: DatePreset,
+	timezone: string
+): { startDate: string; endDate: string } {
+	const now = new Date();
+	const today = new Date(
+		now.toLocaleDateString("en-CA", { timeZone: timezone })
+	);
+	const formatDate = (d: Date) => d.toISOString().split("T")[0] as string;
+
+	switch (preset) {
+		case "today":
+			return { startDate: formatDate(today), endDate: formatDate(today) };
+		case "yesterday": {
+			const yesterday = new Date(today);
+			yesterday.setDate(yesterday.getDate() - 1);
+			return {
+				startDate: formatDate(yesterday),
+				endDate: formatDate(yesterday),
+			};
+		}
+		case "last_7d": {
+			const start = new Date(today);
+			start.setDate(start.getDate() - 6);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "last_14d": {
+			const start = new Date(today);
+			start.setDate(start.getDate() - 13);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "last_30d": {
+			const start = new Date(today);
+			start.setDate(start.getDate() - 29);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "last_90d": {
+			const start = new Date(today);
+			start.setDate(start.getDate() - 89);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "this_week": {
+			const start = new Date(today);
+			start.setDate(start.getDate() - start.getDay());
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "last_week": {
+			const end = new Date(today);
+			end.setDate(end.getDate() - end.getDay() - 1);
+			const start = new Date(end);
+			start.setDate(start.getDate() - 6);
+			return { startDate: formatDate(start), endDate: formatDate(end) };
+		}
+		case "this_month": {
+			const start = new Date(today.getFullYear(), today.getMonth(), 1);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		case "last_month": {
+			const end = new Date(today.getFullYear(), today.getMonth(), 0);
+			const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+			return { startDate: formatDate(start), endDate: formatDate(end) };
+		}
+		case "this_year": {
+			const start = new Date(today.getFullYear(), 0, 1);
+			return { startDate: formatDate(start), endDate: formatDate(today) };
+		}
+		default:
+			return { startDate: formatDate(today), endDate: formatDate(today) };
+	}
+}
+
+// ============================================================================
+// Validation Helpers
+// ============================================================================
+
+interface ValidationError {
+	field: string;
+	message: string;
+	suggestion?: string;
+}
+
+function findClosestMatch(input: string, options: string[]): string | null {
+	const inputLower = input.toLowerCase();
+	let bestMatch: string | null = null;
+	let bestScore = 0;
+
+	for (const option of options) {
+		const optionLower = option.toLowerCase();
+
+		// Exact prefix match
+		if (
+			optionLower.startsWith(inputLower) ||
+			inputLower.startsWith(optionLower)
+		) {
+			const score =
+				Math.min(input.length, option.length) /
+				Math.max(input.length, option.length);
+			if (score > bestScore) {
+				bestScore = score;
+				bestMatch = option;
+			}
+		}
+
+		// Levenshtein-like simple check (for typos)
+		let matches = 0;
+		for (let i = 0; i < Math.min(inputLower.length, optionLower.length); i++) {
+			if (inputLower[i] === optionLower[i]) {
+				matches++;
+			}
+		}
+		const score = matches / Math.max(input.length, option.length);
+		if (score > 0.6 && score > bestScore) {
+			bestScore = score;
+			bestMatch = option;
+		}
+	}
+
+	return bestScore > 0.5 ? bestMatch : null;
+}
+
+function validateQueryRequest(
+	request: DynamicQueryRequestType,
+	timezone: string
+):
+	| { valid: true; startDate: string; endDate: string }
+	| { valid: false; errors: ValidationError[] } {
+	const errors: ValidationError[] = [];
+	const queryTypes = Object.keys(QueryBuilders);
+
+	// Validate parameters
+	if (!request.parameters || request.parameters.length === 0) {
+		errors.push({
+			field: "parameters",
+			message: "At least one parameter is required",
+		});
+	} else {
+		for (let i = 0; i < request.parameters.length; i++) {
+			const param = request.parameters[i];
+			const name = typeof param === "string" ? param : param?.name;
+			if (name && !QueryBuilders[name]) {
+				const suggestion = findClosestMatch(name, queryTypes);
+				errors.push({
+					field: `parameters[${i}]`,
+					message: `Unknown query type: ${name}`,
+					suggestion: suggestion ? `Did you mean '${suggestion}'?` : undefined,
+				});
+			}
+		}
+	}
+
+	// Resolve dates from preset or explicit values
+	// Normalize dates to YYYY-MM-DD (accepts ISO datetime strings too)
+	let startDate = request.startDate ? normalizeDate(request.startDate) : undefined;
+	let endDate = request.endDate ? normalizeDate(request.endDate) : undefined;
+
+	if (request.preset) {
+		if (DatePresets[request.preset]) {
+			const resolved = resolveDatePreset(request.preset, timezone);
+			startDate = resolved.startDate;
+			endDate = resolved.endDate;
+		} else {
+			const validPresets = Object.keys(DatePresets);
+			const suggestion = findClosestMatch(request.preset, validPresets);
+			errors.push({
+				field: "preset",
+				message: `Invalid date preset: ${request.preset}`,
+				suggestion: suggestion
+					? `Did you mean '${suggestion}'? Valid presets: ${validPresets.join(", ")}`
+					: `Valid presets: ${validPresets.join(", ")}`,
+			});
+		}
+	}
+
+	// Check date requirements
+	if (!(startDate || request.preset)) {
+		errors.push({
+			field: "startDate",
+			message: "Either startDate or preset is required",
+		});
+	}
+	if (!(endDate || request.preset)) {
+		errors.push({
+			field: "endDate",
+			message: "Either endDate or preset is required",
+		});
+	}
+
+	// Validate normalized date format
+	if (startDate && !DATE_FORMAT_REGEX.test(startDate)) {
+		errors.push({
+			field: "startDate",
+			message: `Invalid date: ${request.startDate}. Could not parse as a valid date`,
+		});
+	}
+	if (endDate && !DATE_FORMAT_REGEX.test(endDate)) {
+		errors.push({
+			field: "endDate",
+			message: `Invalid date: ${request.endDate}. Could not parse as a valid date`,
+		});
+	}
+
+	// Validate limit
+	if (request.limit !== undefined) {
+		if (request.limit < 1) {
+			errors.push({
+				field: "limit",
+				message: "Limit must be at least 1",
+			});
+		} else if (request.limit > 10_000) {
+			errors.push({
+				field: "limit",
+				message: "Limit cannot exceed 10000",
+			});
+		}
+	}
+
+	// Validate page
+	if (request.page !== undefined && request.page < 1) {
+		errors.push({
+			field: "page",
+			message: "Page must be at least 1",
+		});
+	}
+
+	if (errors.length > 0) {
+		return { valid: false, errors };
+	}
+
+	return {
+		valid: true,
+		startDate: startDate as string,
+		endDate: endDate as string,
+	};
+}
+
+function generateRequestId(): string {
+	return `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+}
 
 interface AuthContext {
 	apiKey: ApiKeyRow | null;
@@ -56,24 +325,56 @@ type ProjectAccessResult =
 		status?: number;
 	};
 
-const AUTH_FAILED_RESPONSE = new Response(
-	JSON.stringify({
-		success: false,
-		error: "Authentication required",
-		code: "AUTH_REQUIRED",
-	}),
-	{ status: 401, headers: { "Content-Type": "application/json" } }
-);
+function createAuthFailedResponse(requestId: string): Response {
+	return new Response(
+		JSON.stringify({
+			success: false,
+			error: "Authentication required",
+			code: "AUTH_REQUIRED",
+			requestId,
+		}),
+		{ status: 401, headers: { "Content-Type": "application/json" } }
+	);
+}
 
 function createErrorResponse(
 	error: string,
 	code: string,
-	status = 403
+	status = 403,
+	requestId?: string,
+	details?: ValidationError[]
 ): Response {
-	return new Response(JSON.stringify({ success: false, error, code }), {
-		status,
-		headers: { "Content-Type": "application/json" },
-	});
+	return new Response(
+		JSON.stringify({
+			success: false,
+			error,
+			code,
+			...(requestId && { requestId }),
+			...(details && details.length > 0 && { details }),
+		}),
+		{
+			status,
+			headers: { "Content-Type": "application/json" },
+		}
+	);
+}
+
+function createValidationErrorResponse(
+	errors: ValidationError[],
+	requestId: string
+): Response {
+	const primaryError = errors[0];
+	const message = primaryError?.suggestion
+		? `${primaryError.message}. ${primaryError.suggestion}`
+		: (primaryError?.message ?? "Validation failed");
+
+	return createErrorResponse(
+		message,
+		"VALIDATION_ERROR",
+		400,
+		requestId,
+		errors
+	);
 }
 
 /**
@@ -467,9 +768,10 @@ async function executeDynamicQuery(
 		if (!hasRequiredFields) {
 			return {
 				id,
-				error: isLlmQuery && !ownerId
-					? "Could not resolve owner for LLM query"
-					: "Missing project identifier, start_date, or end_date",
+				error:
+					isLlmQuery && !ownerId
+						? "Could not resolve owner for LLM query"
+						: "Missing project identifier, start_date, or end_date",
 			};
 		}
 
@@ -603,44 +905,44 @@ export const query = new Elysia({ prefix: "/v1/query" })
 
 	.get("/websites", ({ auth: ctx }) =>
 		record("getWebsites", async () => {
+			const requestId = generateRequestId();
 			if (!ctx.isAuthenticated) {
-				return AUTH_FAILED_RESPONSE;
+				return createAuthFailedResponse(requestId);
 			}
 			const list = await getAccessibleWebsites(ctx);
 			const count = Array.isArray(list) ? list.length : 0;
-			setAttributes({ websites_count: count, auth_method: ctx.authMethod });
-			return { success: true, websites: list, total: count };
+			setAttributes({
+				websites_count: count,
+				auth_method: ctx.authMethod,
+				request_id: requestId,
+			});
+			return { success: true, requestId, websites: list, total: count };
 		})
 	)
 
-	.get(
-		"/types",
-		({
-			query: params,
-			auth: ctx,
-		}: {
-			query: { include_meta?: string };
-			auth: AuthContext;
-		}) => {
-			if (!ctx.isAuthenticated) {
-				return AUTH_FAILED_RESPONSE;
-			}
-			const includeMeta = params.include_meta === "true";
-			const configs = Object.fromEntries(
-				Object.entries(QueryBuilders).map(([key, cfg]) => [
-					key,
-					{
-						allowedFilters:
-							cfg.allowedFilters ?? filterOptions.map((f) => f.value),
-						customizable: cfg.customizable,
-						defaultLimit: cfg.limit,
-						...(includeMeta && { meta: cfg.meta }),
-					},
-				])
-			);
-			return { success: true, types: Object.keys(QueryBuilders), configs };
-		}
-	)
+	.get("/types", ({ query: params }: { query: { include_meta?: string } }) => {
+		const requestId = generateRequestId();
+		const includeMeta = params.include_meta === "true";
+		const configs = Object.fromEntries(
+			Object.entries(QueryBuilders).map(([key, cfg]) => [
+				key,
+				{
+					allowedFilters:
+						cfg.allowedFilters ?? filterOptions.map((f) => f.value),
+					customizable: cfg.customizable,
+					defaultLimit: cfg.limit,
+					...(includeMeta && { meta: cfg.meta }),
+				},
+			])
+		);
+		return {
+			success: true,
+			requestId,
+			types: Object.keys(QueryBuilders),
+			configs,
+			presets: Object.keys(DatePresets),
+		};
+	})
 
 	.post(
 		"/compile",
@@ -653,6 +955,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			query: { website_id?: string; timezone?: string };
 			auth: AuthContext;
 		}) => {
+			const requestId = generateRequestId();
 			const accessResult = await resolveProjectAccess(ctx, {
 				websiteId: q.website_id,
 			});
@@ -661,7 +964,8 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				return createErrorResponse(
 					accessResult.error,
 					accessResult.code,
-					accessResult.status
+					accessResult.status,
+					requestId
 				);
 			}
 
@@ -671,13 +975,16 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					: null;
 				return {
 					success: true,
+					requestId,
 					...compileQuery(body as QueryRequest, domain, q.timezone || "UTC"),
 				};
 			} catch (e) {
-				return {
-					success: false,
-					error: e instanceof Error ? e.message : "Compilation failed",
-				};
+				return createErrorResponse(
+					e instanceof Error ? e.message : "Compilation failed",
+					"COMPILATION_ERROR",
+					400,
+					requestId
+				);
 			}
 		},
 		{ body: CompileRequestSchema }
@@ -691,10 +998,18 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth: ctx,
 		}: {
 			body: DynamicQueryRequestType | DynamicQueryRequestType[];
-			query: { website_id?: string; schedule_id?: string; link_id?: string; timezone?: string };
+			query: {
+				website_id?: string;
+				schedule_id?: string;
+				link_id?: string;
+				timezone?: string;
+			};
 			auth: AuthContext;
 		}) =>
 			record("executeQuery", async () => {
+				const requestId = generateRequestId();
+				const timezone = q.timezone || "UTC";
+
 				const accessResult = await resolveProjectAccess(ctx, {
 					websiteId: q.website_id,
 					scheduleId: q.schedule_id,
@@ -702,26 +1017,63 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				});
 
 				if (!accessResult.success) {
-					return {
-						success: false,
-						error: accessResult.error,
-						code: accessResult.code,
-					};
+					return createErrorResponse(
+						accessResult.error,
+						accessResult.code,
+						accessResult.status,
+						requestId
+					);
 				}
 
-				const timezone = q.timezone || "UTC";
 				const isBatch = Array.isArray(body);
 				setAttributes({
 					query_is_batch: isBatch,
 					query_count: isBatch ? body.length : 1,
+					request_id: requestId,
 				});
 
 				if (isBatch) {
+					// Validate all requests in batch first
+					for (let i = 0; i < body.length; i++) {
+						const req = body[i];
+						if (req) {
+							const validation = validateQueryRequest(req, timezone);
+							if (!validation.valid) {
+								return createValidationErrorResponse(
+									validation.errors.map((e) => ({
+										...e,
+										field: `batch[${i}].${e.field}`,
+									})),
+									requestId
+								);
+							}
+						}
+					}
+
 					const cache = await getCachedWebsiteDomain([]);
 					const results = await Promise.all(
-						body.map((req) =>
-							executeDynamicQuery(
-								req,
+						body.map((req) => {
+							const validation = validateQueryRequest(req, timezone);
+							if (!validation.valid) {
+								return {
+									queryId: req.id,
+									data: [],
+									meta: {
+										parameters: req.parameters,
+										total_parameters: req.parameters.length,
+										page: req.page || 1,
+										limit: req.limit || 100,
+										filters_applied: req.filters?.length || 0,
+									},
+								};
+							}
+							const resolvedReq = {
+								...req,
+								startDate: validation.startDate,
+								endDate: validation.endDate,
+							};
+							return executeDynamicQuery(
+								resolvedReq,
 								accessResult.projectId,
 								timezone,
 								cache
@@ -742,16 +1094,29 @@ export const query = new Elysia({ prefix: "/v1/query" })
 									limit: req.limit || 100,
 									filters_applied: req.filters?.length || 0,
 								},
-							}))
-						)
+							}));
+						})
 					);
-					return { success: true, batch: true, results };
+					return { success: true, requestId, batch: true, results };
 				}
+
+				// Single query - validate and resolve dates
+				const validation = validateQueryRequest(body, timezone);
+				if (!validation.valid) {
+					return createValidationErrorResponse(validation.errors, requestId);
+				}
+
+				const resolvedBody = {
+					...body,
+					startDate: validation.startDate,
+					endDate: validation.endDate,
+				};
 
 				return {
 					success: true,
+					requestId,
 					...(await executeDynamicQuery(
-						body,
+						resolvedBody,
 						accessResult.projectId,
 						timezone
 					)),
@@ -777,12 +1142,15 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth: AuthContext;
 		}) =>
 			record("executeCustomQuery", async () => {
+				const requestId = generateRequestId();
+
 				if (!q.website_id) {
-					return {
-						success: false,
-						error: "website_id is required",
-						code: "MISSING_WEBSITE_ID",
-					};
+					return createErrorResponse(
+						"website_id is required",
+						"MISSING_WEBSITE_ID",
+						400,
+						requestId
+					);
 				}
 
 				const accessResult = await resolveProjectAccess(ctx, {
@@ -790,11 +1158,12 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				});
 
 				if (!accessResult.success) {
-					return {
-						success: false,
-						error: accessResult.error,
-						code: accessResult.code,
-					};
+					return createErrorResponse(
+						accessResult.error,
+						accessResult.code,
+						accessResult.status,
+						requestId
+					);
 				}
 
 				setAttributes({
@@ -803,7 +1172,18 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					custom_query_filters: body.query.filters?.length || 0,
 				});
 
-				return executeCustomQuery(body, accessResult.projectId);
+				const result = await executeCustomQuery(body, accessResult.projectId);
+
+				if (!result.success) {
+					return createErrorResponse(
+						result.error ?? "Query execution failed",
+						"QUERY_ERROR",
+						400,
+						requestId
+					);
+				}
+
+				return { ...result, requestId };
 			}),
 		{
 			body: t.Object({

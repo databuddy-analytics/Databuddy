@@ -1,8 +1,5 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-
-export { createClient } from "@clickhouse/client";
-
 /**
  * ClickHouse table names used throughout the application
  */
@@ -15,6 +12,7 @@ export const TABLE_NAMES = {
 	web_vitals_spans: "analytics.web_vitals_spans",
 	custom_event_spans: "analytics.custom_event_spans",
 	ai_call_spans: "analytics.ai_call_spans",
+	ai_traffic_spans: "analytics.ai_traffic_spans",
 };
 
 const logger = console;

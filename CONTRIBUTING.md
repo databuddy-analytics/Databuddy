@@ -47,7 +47,7 @@ bun run sdk:build
 7. Start development servers:
 
 ```bash
-bun run dev
+bun run dev:dashboard
 ```
 
 8. Seed the database with sample data (optional):

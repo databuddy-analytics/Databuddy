@@ -554,6 +554,7 @@ function getDefaultProducer(): EventProducer {
 				"analytics-vitals-spans": TABLE_NAMES.web_vitals_spans,
 				"analytics-custom-event-spans": TABLE_NAMES.custom_event_spans,
 				"analytics-ai-call-spans": TABLE_NAMES.ai_call_spans,
+				"analytics-ai-traffic-spans": TABLE_NAMES.ai_traffic_spans,
 			},
 		});
 	}

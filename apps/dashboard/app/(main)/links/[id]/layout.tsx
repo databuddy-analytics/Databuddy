@@ -13,6 +13,8 @@ import { DateRangePicker } from "@/components/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
 
+const MAX_HOURLY_DAYS = 7;
+
 interface QuickRange {
 	label: string;
 	fullLabel: string;
@@ -46,7 +48,20 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const queryClient = useQueryClient();
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
-	const { currentDateRange, setDateRangeAction } = useDateFilters();
+	const {
+		currentDateRange,
+		currentGranularity,
+		setCurrentGranularityAtomState,
+		setDateRangeAction,
+	} = useDateFilters();
+
+	const dateRangeDays = useMemo(
+		() =>
+			dayjs(currentDateRange.endDate).diff(currentDateRange.startDate, "day"),
+		[currentDateRange]
+	);
+
+	const isHourlyDisabled = dateRangeDays > MAX_HOURLY_DAYS;
 
 	const selectedRange: DayPickerRange | undefined = useMemo(
 		() => ({
@@ -63,6 +78,16 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		},
 		[setDateRangeAction]
 	);
+
+	const getGranularityButtonClass = (type: "daily" | "hourly") => {
+		const isActive = currentGranularity === type;
+		const baseClass =
+			"h-full w-16 cursor-pointer touch-manipulation rounded-none px-0 text-xs";
+		const activeClass = isActive
+			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
+			: "text-muted-foreground";
+		return `${baseClass} ${activeClass}`.trim();
+	};
 
 	const isQuickRangeActive = useCallback(
 		(range: QuickRange) => {
@@ -116,12 +141,36 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 			<div className="sticky top-0 right-0 left-0 z-50 shrink-0 overscroll-contain bg-background md:top-0 md:left-84">
 				<div className="flex h-12 items-center justify-between border-b pr-4">
 					<div className="flex h-full items-center">
+						{/* Granularity Toggle */}
+						<Button
+							className={clsx(getGranularityButtonClass("daily"), "border-r")}
+							onClick={() => setCurrentGranularityAtomState("daily")}
+							title="View daily aggregated data"
+							variant="ghost"
+						>
+							Daily
+						</Button>
+						<Button
+							className={clsx(getGranularityButtonClass("hourly"), "border-r")}
+							disabled={isHourlyDisabled}
+							onClick={() => setCurrentGranularityAtomState("hourly")}
+							title={
+								isHourlyDisabled
+									? `Hourly view is only available for ${MAX_HOURLY_DAYS} days or less`
+									: `View hourly data (up to ${MAX_HOURLY_DAYS} days)`
+							}
+							variant="ghost"
+						>
+							Hourly
+						</Button>
+
+						{/* Quick Range Buttons */}
 						{QUICK_RANGES.map((range) => {
 							const isActive = isQuickRangeActive(range);
 							return (
 								<Button
 									className={clsx(
-										"h-full w-14 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
+										"h-full w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
 										isActive
 											? "bg-accent text-accent-foreground hover:bg-accent"
 											: "hover:bg-accent!"
@@ -136,6 +185,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 							);
 						})}
 
+						{/* Date Range Picker */}
 						<div className="flex h-full items-center pl-1">
 							<DateRangePicker
 								className="w-auto"

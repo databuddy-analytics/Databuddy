@@ -18,6 +18,15 @@ const link = new RPCLink({
 		}),
 	interceptors: [
 		onError((error) => {
+			// Suppress JSON parse errors for non-JSON responses (common in demo mode)
+			if (
+				error instanceof Error &&
+				(error.message.includes("Unexpected token") ||
+					error.message.includes("JSON") ||
+					error.message.includes("<!DOCTYPE"))
+			) {
+				return;
+			}
 			console.error("oRPC error:", error);
 		}),
 	],

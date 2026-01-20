@@ -77,12 +77,12 @@ export function BillingProvider({
 	const params = useParams();
 	const pathname = usePathname();
 
+	const isDemoRoute = useMemo(() => pathname?.startsWith("/demo/"), [pathname]);
+
 	const websiteId = useMemo(() => {
 		if (propWebsiteId) {
 			return propWebsiteId;
 		}
-
-		const isDemoRoute = pathname?.startsWith("/demo/");
 
 		if (isDemoRoute) {
 			const routeId = params?.id;
@@ -92,7 +92,7 @@ export function BillingProvider({
 		}
 
 		return;
-	}, [propWebsiteId, params?.id, pathname]);
+	}, [propWebsiteId, params?.id, isDemoRoute]);
 
 	const {
 		customer,
@@ -115,6 +115,9 @@ export function BillingProvider({
 		...orpc.organizations.getBillingContext.queryOptions({
 			input: websiteId ? { websiteId } : undefined,
 		}),
+		enabled: !!websiteId,
+		retry: false,
+		throwOnError: false,
 	});
 
 	const value = useMemo<BillingContextValue>(() => {

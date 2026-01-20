@@ -410,6 +410,31 @@ SETTINGS index_granularity = 8192
 `;
 
 /**
+ * AI traffic spans table - tracks AI crawlers and AI assistants
+ */
+const CREATE_AI_TRAFFIC_SPANS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.ai_traffic_spans (
+  client_id String CODEC(ZSTD(1)),
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  
+  bot_type LowCardinality(String) CODEC(ZSTD(1)),
+  bot_name String CODEC(ZSTD(1)),
+  user_agent String CODEC(ZSTD(1)),
+  
+  path String CODEC(ZSTD(1)),
+  referrer Nullable(String) CODEC(ZSTD(1)),
+  
+  INDEX idx_client_id client_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_bot_type bot_type TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_bot_name bot_name TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (client_id, bot_type, timestamp)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+`;
+
+
+/**
  * Lean AI call spans table - stores individual AI model calls
  * owner_id: The org or user ID that owns this data (from API key)
  */
@@ -644,6 +669,20 @@ export interface CustomOutgoingLink {
 	timestamp: number;
 }
 
+/**
+ * AI traffic span - tracks AI crawlers and AI assistants
+ */
+export interface AITrafficSpan {
+	client_id: string;
+	timestamp: number;
+	bot_type: "ai_crawler" | "ai_assistant";
+	bot_name: string;
+	user_agent: string;
+	path: string;
+	referrer?: string;
+}
+
+
 export interface UptimeMonitor {
 	site_id: string;
 	url: string;
@@ -811,6 +850,7 @@ export async function initClickHouseSchema() {
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
 			{ name: "ai_call_spans", query: CREATE_AI_CALL_SPANS_TABLE },
 			{ name: "link_visits", query: CREATE_LINK_VISITS_TABLE },
+			{ name: "ai_traffic_spans", query: CREATE_AI_TRAFFIC_SPANS_TABLE },
 		];
 
 		// Materialized views (must be created after target tables)

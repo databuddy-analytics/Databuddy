@@ -1,0 +1,335 @@
+---
+title: Analytics Queries
+description: Query website analytics data with flexible parameters and filters
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+The Query API lets you fetch analytics data for your websites with flexible date ranges, filters, and aggregations.
+
+## Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/v1/query/websites` | List accessible websites |
+| GET | `/v1/query/types` | Get available query types |
+| POST | `/v1/query` | Execute analytics query |
+
+## List Websites
+
+Get all websites you have access to:
+
+<CodeBlock 
+  language="http"
+  code="GET /v1/query/websites"
+/>
+
+**Response:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "websites": [
+    {
+      "id": "web_123",
+      "name": "My Website",
+      "domain": "example.com",
+      "isPublic": false,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1
+}`}
+/>
+
+## Get Query Types
+
+Discover available query types and their configurations. This endpoint is **public** and doesn't require authentication.
+
+<CodeBlock 
+  language="http"
+  code="GET /v1/query/types?include_meta=true"
+/>
+
+Set `include_meta=true` to get descriptions, output fields, and visualization hints.
+
+**Response:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "types": ["summary", "pages", "traffic", "browser_name", "..."],
+  "configs": {
+    "summary": {
+      "allowedFilters": ["country", "device_type", "browser_name"],
+      "customizable": true,
+      "defaultLimit": 100,
+      "meta": {
+        "description": "Overall website metrics and KPIs",
+        "outputFields": ["pageviews", "visitors", "sessions", "..."]
+      }
+    }
+  }
+}`}
+/>
+
+## Execute Query
+
+Query analytics data with full parameter control:
+
+<CodeBlock 
+  language="http"
+  code="POST /v1/query?website_id={id}"
+/>
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `website_id` | Yes* | Website to query |
+| `link_id` | Yes* | Link shortener ID (for link analytics) |
+| `schedule_id` | Yes* | Uptime monitor ID (for uptime analytics) |
+| `timezone` | No | Timezone for date calculations (default: UTC) |
+
+*One of `website_id`, `link_id`, or `schedule_id` is required.
+
+**Request Body:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["summary", "pages", "browser_name"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "limit": 100,
+  "page": 1,
+  "filters": [
+    {
+      "field": "country",
+      "op": "in",
+      "value": ["US", "CA"]
+    }
+  ],
+  "granularity": "daily"
+}`}
+/>
+
+**Request Body Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `parameters` | array | Yes | Query types to execute |
+| `startDate` | string | Conditional | Start date (YYYY-MM-DD). Required if no `preset` |
+| `endDate` | string | Conditional | End date (YYYY-MM-DD). Required if no `preset` |
+| `preset` | string | Conditional | Date preset instead of explicit dates |
+| `id` | string | No | Query identifier returned in response |
+| `limit` | number | No | Max results per parameter (default: 100, max: 10000) |
+| `page` | number | No | Page number for pagination (default: 1) |
+| `filters` | array | No | Filter conditions |
+| `granularity` | string | No | `"hourly"` or `"daily"` (default: daily) |
+| `groupBy` | string/array | No | Fields to group results by |
+
+## Date Presets
+
+Instead of specifying `startDate` and `endDate`, use a preset for common date ranges:
+
+| Preset | Description |
+|--------|-------------|
+| `today` | Current day |
+| `yesterday` | Previous day |
+| `last_7d` | Last 7 days including today |
+| `last_14d` | Last 14 days including today |
+| `last_30d` | Last 30 days including today |
+| `last_90d` | Last 90 days including today |
+| `this_week` | Current week (Sunday to today) |
+| `last_week` | Previous full week |
+| `this_month` | Current month to date |
+| `last_month` | Previous full month |
+| `this_year` | Current year to date |
+
+**Example with preset:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["summary", "pages"],
+  "preset": "last_30d",
+  "limit": 10
+}`}
+/>
+
+## Parameters with Custom Date Ranges
+
+Each parameter can have its own date range:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": [
+    "summary",
+    {
+      "name": "pages",
+      "start_date": "2024-01-01",
+      "end_date": "2024-01-15",
+      "id": "pages-first-half"
+    }
+  ],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31"
+}`}
+/>
+
+## Response Format
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "queryId": "my-query-123",
+  "data": [
+    {
+      "parameter": "summary",
+      "success": true,
+      "data": [
+        {
+          "date": "2024-01-01",
+          "pageviews": 1250,
+          "visitors": 890,
+          "sessions": 1100
+        }
+      ]
+    },
+    {
+      "parameter": "pages",
+      "success": true,
+      "data": [
+        {
+          "path": "/",
+          "pageviews": 450,
+          "visitors": 320
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "parameters": ["summary", "pages"],
+    "total_parameters": 2,
+    "page": 1,
+    "limit": 100,
+    "filters_applied": 2
+  }
+}`}
+/>
+
+<Callout type="warning">
+  The top-level `success: true` means the request was valid. Check each parameter's `success` field to confirm individual query results.
+</Callout>
+
+## Batch Queries
+
+Execute multiple queries in a single request by sending an array:
+
+<CodeBlock 
+  language="json"
+  code={`[
+  {
+    "id": "query-1",
+    "parameters": ["summary", "pages"],
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31",
+    "limit": 100
+  },
+  {
+    "id": "query-2", 
+    "parameters": ["browser_name", "os_name"],
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31",
+    "limit": 50
+  }
+]`}
+/>
+
+**Batch Response:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "batch": true,
+  "results": [
+    {
+      "queryId": "query-1",
+      "data": [...],
+      "meta": {...}
+    },
+    {
+      "queryId": "query-2",
+      "data": [...],
+      "meta": {...}
+    }
+  ]
+}`}
+/>
+
+## Filter Operations
+
+| Operator | Description | Example Value |
+|----------|-------------|---------------|
+| `eq` | Equals | `"US"` |
+| `ne` | Not equals | `"bot"` |
+| `contains` | Contains substring | `"chrome"` |
+| `not_contains` | Does not contain | `"preview"` |
+| `starts_with` | Starts with prefix | `"/blog"` |
+| `in` | Value in array | `["US", "CA", "UK"]` |
+| `not_in` | Value not in array | `["bot", "crawler"]` |
+
+## Common Filter Fields
+
+| Field | Available On | Example |
+|-------|--------------|---------|
+| `country` | Most queries | `{"field": "country", "op": "eq", "value": "US"}` |
+| `device_type` | Most queries | `{"field": "device_type", "op": "in", "value": ["mobile", "tablet"]}` |
+| `browser_name` | Most queries | `{"field": "browser_name", "op": "eq", "value": "Chrome"}` |
+| `os_name` | Most queries | `{"field": "os_name", "op": "eq", "value": "iOS"}` |
+| `path` | pages, sessions | `{"field": "path", "op": "starts_with", "value": "/blog"}` |
+| `referrer` | traffic | `{"field": "referrer", "op": "contains", "value": "google"}` |
+
+<Callout type="info">
+  Use `GET /v1/query/types?include_meta=true` to see which filters are allowed for each query type.
+</Callout>
+
+## Granularity
+
+Control time-based aggregation:
+
+- `"daily"` — Group by day (default)
+- `"hourly"` — Group by hour (max 30 days range)
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["summary"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-07",
+  "granularity": "hourly"
+}`}
+/>
+
+## Pagination
+
+Use `page` and `limit` for large result sets:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["pages"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "limit": 50,
+  "page": 2
+}`}
+/>
+
+Page numbering starts at 1.

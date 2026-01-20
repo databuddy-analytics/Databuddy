@@ -5,9 +5,14 @@
  * and platform identification.
  */
 
-import { bots } from "@databuddy/shared/lists/bots";
 import { captureError, record } from "@lib/tracing";
-import { UAParser } from "ua-parser-js";
+import {
+	BotAction,
+	BotCategory,
+	type BotDetectionResult,
+	detectBot as detectBotShared,
+	parseUserAgent as parseUserAgentShared,
+} from "@databuddy/shared/bot-detection";
 
 export interface UserAgentInfo {
 	bot: {
@@ -46,17 +51,15 @@ export function parseUserAgent(userAgent: string): Promise<{
 		}
 
 		try {
-			const parser = new UAParser(userAgent);
-			const result = parser.getResult();
-
+			const parsed = parseUserAgentShared(userAgent);
 			return {
-				browserName: result.browser.name || undefined,
-				browserVersion: result.browser.version || undefined,
-				osName: result.os.name || undefined,
-				osVersion: result.os.version || undefined,
-				deviceType: result.device.type || undefined,
-				deviceBrand: result.device.vendor || undefined,
-				deviceModel: result.device.model || undefined,
+				browserName: parsed.browserName,
+				browserVersion: parsed.browserVersion,
+				osName: parsed.osName,
+				osVersion: parsed.osVersion,
+				deviceType: parsed.deviceType,
+				deviceBrand: parsed.deviceBrand,
+				deviceModel: parsed.deviceModel,
 			};
 		} catch (error) {
 			captureError(error, { userAgent, message: "Failed to parse user agent" });
@@ -73,50 +76,40 @@ export function parseUserAgent(userAgent: string): Promise<{
 	});
 }
 
+/**
+ * Detect bot using new centralized system
+ * 
+ * Maps to legacy format for backwards compatibility
+ */
 export function detectBot(
 	userAgent: string,
-	request: Request
+	_request: Request,
 ): {
 	isBot: boolean;
 	reason?: string;
 	category?: string;
 	botName?: string;
+	action?: BotAction;
+	result?: BotDetectionResult;
 } {
-	const ua = userAgent || "";
+	const result = detectBotShared(userAgent);
 
-	const detectedBot = bots.find((bot) => new RegExp(bot.regex, "i").test(ua));
-	if (detectedBot) {
-		return {
-			isBot: true,
-			reason: "known_bot_user_agent",
-			category: "Known Bot",
-			botName: detectedBot.name,
-		};
+	// Map new category to legacy format
+	let legacyCategory: string | undefined;
+	if (result.category === BotCategory.AI_CRAWLER) {
+		legacyCategory = "AI Crawler";
+	} else if (result.category === BotCategory.AI_ASSISTANT) {
+		legacyCategory = "AI Assistant";
+	} else if (result.isBot) {
+		legacyCategory = "Known Bot";
 	}
 
-	if (!userAgent) {
-		return {
-			isBot: true,
-			reason: "missing_user_agent",
-			category: "Missing Headers",
-		};
-	}
-
-	if (!request.headers.get("accept")) {
-		return {
-			isBot: true,
-			reason: "missing_accept_header",
-			category: "Missing Headers",
-		};
-	}
-
-	if (ua.length < 10) {
-		return {
-			isBot: true,
-			reason: "user_agent_too_short",
-			category: "Suspicious Pattern",
-		};
-	}
-
-	return { isBot: false };
+	return {
+		isBot: result.isBot,
+		reason: result.reason,
+		category: legacyCategory,
+		botName: result.name,
+		action: result.action,
+		result, // Include full result for new code
+	};
 }

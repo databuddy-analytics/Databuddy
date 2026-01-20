@@ -3,7 +3,7 @@ interface StatusPageConfig {
 	heading: string;
 	description: string;
 	icon: "clock" | "link-break" | "warning";
-};
+}
 
 const ICONS = {
 	clock: `<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">

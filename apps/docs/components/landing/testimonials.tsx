@@ -15,11 +15,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 const testimonials = [
 	{
-		name: "Dominik",
-		profession: "Founder, Rivo.gg",
-		link: "https://x.com/DominikDoesDev/status/1929921951000101188",
-		description: "Hands down one of the sexiest analytic tools out there😍",
-		avatar: "dominik.jpg",
+		name: "Michael Chomsky",
+		profession: "Founder, Rentmyheader",
+		link: "https://x.com/michael_chomsky/status/2013527112699814351",
+		description:
+			"Ive tried a BUNCH of analytics providers.\n\nDatabuddy does things I didn't even know are possible.\n\nSo far 10x better than anything I personally have ever tried.",
+		avatar:
+			"https://pbs.twimg.com/profile_images/1995587948914638854/iGEDdcOq_400x400.jpg",
 		social: null,
 	},
 	{

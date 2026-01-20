@@ -88,9 +88,50 @@ export const contents: SidebarSection[] = [
 				isNew: true,
 			},
 			{
-				title: "API",
-				href: "/docs/api",
+				title: "API Reference",
 				icon: DatabaseIcon,
+				children: [
+					{
+						title: "Overview",
+						href: "/docs/api",
+						icon: FileTextIcon,
+					},
+					{
+						title: "Authentication",
+						href: "/docs/api/authentication",
+						icon: KeyIcon,
+					},
+					{
+						title: "Analytics Queries",
+						href: "/docs/api/query",
+						icon: ChartBarIcon,
+					},
+					{
+						title: "Event Tracking",
+						href: "/docs/api/events",
+						icon: LightningIcon,
+					},
+					{
+						title: "Link Analytics",
+						href: "/docs/api/links",
+						icon: GlobeIcon,
+					},
+					{
+						title: "Custom Queries",
+						href: "/docs/api/custom-queries",
+						icon: CodeIcon,
+					},
+					{
+						title: "Error Handling",
+						href: "/docs/api/errors",
+						icon: ShieldCheckIcon,
+					},
+					{
+						title: "Rate Limits",
+						href: "/docs/api/rate-limits",
+						icon: SpeedometerIcon,
+					},
+				],
 			},
 			{
 				title: "API Keys",

@@ -8,7 +8,11 @@ export function detectDeviceOS(userAgent: string | null): DeviceOS {
 	}
 	const lower = userAgent.toLowerCase();
 
-	if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ipod")) {
+	if (
+		lower.includes("iphone") ||
+		lower.includes("ipad") ||
+		lower.includes("ipod")
+	) {
 		return "ios";
 	}
 	if (lower.includes("android")) {
@@ -17,7 +21,10 @@ export function detectDeviceOS(userAgent: string | null): DeviceOS {
 	return "other";
 }
 
-export function getTargetUrl(link: CachedLink, userAgent: string | null): string {
+export function getTargetUrl(
+	link: CachedLink,
+	userAgent: string | null
+): string {
 	const os = detectDeviceOS(userAgent);
 
 	if (os === "ios" && link.iosUrl) {

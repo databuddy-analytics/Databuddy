@@ -22,6 +22,7 @@ export const Analytics = {
 	custom_events_hourly: "analytics.custom_events_hourly",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
+	link_visits: "analytics.link_visits",
 	uptime_monitor: "uptime.uptime_monitor",
 } as const;
 

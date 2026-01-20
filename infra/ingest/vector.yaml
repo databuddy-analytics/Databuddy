@@ -9,6 +9,7 @@ sources:
       - analytics-vitals-spans
       - analytics-custom-event-spans
       - analytics-ai-call-spans
+      - analytics-ai-traffic-spans
       - analytics-outgoing-links
       - analytics-email-events
       - analytics-blocked-traffic
@@ -44,6 +45,7 @@ transforms:
       custom_events: '.topic == "analytics-custom-events"'
       custom_event_spans: '.topic == "analytics-custom-event-spans"'
       ai_call_spans: '.topic == "analytics-ai-call-spans"'
+      ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
       email_events: '.topic == "analytics-email-events"'
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
@@ -207,6 +209,26 @@ sinks:
     database: observability
     table: ai_call_spans
     auth: 
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_ai_traffic_spans:
+    type: clickhouse
+    inputs:
+      - route_analytics.ai_traffic_spans
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: ai_traffic_spans
+    auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"

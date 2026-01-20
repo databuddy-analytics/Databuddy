@@ -1,5 +1,6 @@
 import { getWebsiteByIdV2, isValidOrigin } from "@hooks/auth";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
+import { sendEvent } from "@lib/producer";
 import { captureError, record, setAttributes } from "@lib/tracing";
 import { extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
@@ -253,34 +254,67 @@ export function validateRequest(
 }
 /**
  * Check if request is from a bot
- * Returns error object if bot detected, undefined otherwise
+ * - ALLOW: Process normally (search engines, social media)
+ * - TRACK_ONLY: Log to ai_traffic_spans but don't count as pageview (AI crawlers)
+ * - BLOCK: Reject and log to blocked_traffic (scrapers, malicious bots)
  */
 export function checkForBot(
 	request: Request,
 	body: any,
 	query: any,
 	clientId: string,
-	userAgent: string
+	userAgent: string,
 ): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
 		const botCheck = detectBot(userAgent, request);
-		if (botCheck.isBot) {
-			logBlockedTraffic(
-				request,
-				body,
-				query,
-				botCheck.reason || "unknown_bot",
-				botCheck.category || "Bot Detection",
-				botCheck.botName,
-				clientId
-			);
+
+		if (!botCheck.isBot) {
+			return;
+		}
+
+		const { action, result } = botCheck;
+
+		// Handle ALLOW action - let the request through normally
+		if (action === "allow") {
+			setAttributes({
+				bot_detected: true,
+				bot_action: "allow",
+				bot_category: botCheck.category,
+				bot_name: botCheck.botName || "unknown",
+			});
+			return; // Process as normal traffic
+		}
+
+		// Handle TRACK_ONLY action - log to AI traffic table
+		if (action === "track_only") {
+			const path =
+				body?.path ||
+				body?.url ||
+				query?.path ||
+				request.headers.get("referer") ||
+				"";
+			const referrer =
+				body?.referrer || request.headers.get("referer") || undefined;
+
+			sendEvent("analytics-ai-traffic-spans", {
+				client_id: clientId,
+				timestamp: Date.now(),
+				bot_type: result?.category || "unknown",
+				bot_name: botCheck.botName || "unknown",
+				user_agent: userAgent,
+				path,
+				referrer,
+				action: "tracked",
+			});
+
 			setAttributes({
 				validation_failed: true,
-				validation_reason: "bot_detected",
+				validation_reason: "ai_traffic",
+				bot_action: "track_only",
+				bot_type: result?.category || "unknown",
 				bot_name: botCheck.botName || "unknown",
-				bot_category: botCheck.category || "Bot Detection",
-				bot_detection_reason: botCheck.reason || "unknown_bot",
 			});
+
 			return {
 				error: new Response(JSON.stringify({ status: "ignored" }), {
 					status: 200,
@@ -288,6 +322,32 @@ export function checkForBot(
 				}),
 			};
 		}
-		return;
+
+		// Handle BLOCK action - log to blocked traffic and reject
+		logBlockedTraffic(
+			request,
+			body,
+			query,
+			botCheck.reason || "unknown_bot",
+			botCheck.category || "Bot Detection",
+			botCheck.botName,
+			clientId,
+		);
+
+		setAttributes({
+			validation_failed: true,
+			validation_reason: "bot_blocked",
+			bot_action: "block",
+			bot_name: botCheck.botName || "unknown",
+			bot_category: botCheck.category || "Bot Detection",
+			bot_detection_reason: botCheck.reason || "unknown_bot",
+		});
+
+		return {
+			error: new Response(JSON.stringify({ status: "ignored" }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}),
+		};
 	});
 }

@@ -1,7 +1,7 @@
 import { getRedisCache } from "./redis";
 
 const LINKS_CACHE_PREFIX = "link:slug";
-const LINKS_CACHE_TTL = 300; // 5 minutes
+const LINKS_CACHE_TTL = 604_800; // 7 days - long TTL with manual invalidation on update/delete
 
 export interface CachedLink {
 	id: string;
@@ -57,12 +57,12 @@ export async function setCachedLink(
 
 /**
  * Set a negative cache entry for a slug that doesn't exist
- * Uses shorter TTL to allow for link creation
+ * Uses shorter TTL (60s) since new links invalidate the cache on creation anyway
  */
 export async function setCachedLinkNotFound(slug: string): Promise<void> {
 	const redis = getRedisCache();
 	const key = getLinkCacheKey(slug);
-	await redis.setex(key, 60, "null"); // 1 minute for negative cache
+	await redis.setex(key, 60, "null");
 }
 
 /**

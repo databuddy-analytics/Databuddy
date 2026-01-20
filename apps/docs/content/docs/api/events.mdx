@@ -1,0 +1,254 @@
+---
+title: Event Tracking
+description: Send custom events programmatically via the Basket API
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+Track custom events programmatically using the Basket endpoint. This is useful for server-side tracking, mobile apps, or custom integrations.
+
+## Base URL
+
+<CodeBlock 
+  language="text"
+  code="https://basket.databuddy.cc"
+/>
+
+## Send Single Event
+
+<CodeBlock 
+  language="http"
+  code="POST basket.databuddy.cc/?client_id={website_id}"
+/>
+
+**Request Body:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "purchase",
+  "anonymousId": "anon_user_123",
+  "sessionId": "session_456",
+  "timestamp": 1704067200000,
+  "properties": {
+    "value": 99.99,
+    "currency": "USD",
+    "product_id": "prod_123"
+  }
+}`}
+/>
+
+**Response:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "status": "success",
+  "type": "custom"
+}`}
+/>
+
+## Minimal Event
+
+Not all fields are required. A minimal event only needs `type` and `name`:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "newsletter_signup",
+  "properties": {
+    "source": "footer_form"
+  }
+}`}
+/>
+
+## Event Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Must be `"custom"` |
+| `name` | string | Yes | Event name (1-128 characters) |
+| `anonymousId` | string | No | Anonymous user identifier (max 128 chars) |
+| `sessionId` | string | No | Session identifier (max 128 chars) |
+| `timestamp` | number | No | Unix timestamp in milliseconds (defaults to now) |
+| `properties` | object | No | Custom event properties |
+
+<Callout type="info">
+  `anonymousId` and `sessionId` help correlate events with page views. If you're only tracking server-side events without session context, you can omit them.
+</Callout>
+
+## Batch Events
+
+Send multiple events in a single request:
+
+<CodeBlock 
+  language="http"
+  code="POST basket.databuddy.cc/batch?client_id={website_id}"
+/>
+
+**Request Body:**
+
+<CodeBlock 
+  language="json"
+  code={`[
+  {
+    "type": "custom",
+    "name": "purchase",
+    "anonymousId": "anon_user_123",
+    "sessionId": "session_456",
+    "timestamp": 1704067200000,
+    "properties": {
+      "value": 99.99,
+      "currency": "USD",
+      "product_id": "prod_123"
+    }
+  },
+  {
+    "type": "custom",
+    "name": "signup",
+    "anonymousId": "anon_user_124",
+    "sessionId": "session_457",
+    "timestamp": 1704067260000,
+    "properties": {
+      "plan": "premium",
+      "source": "landing_page"
+    }
+  }
+]`}
+/>
+
+**Batch Response:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "status": "success",
+  "batch": true,
+  "processed": 2,
+  "results": [
+    {
+      "status": "success",
+      "type": "custom",
+      "eventId": "evt_12345"
+    },
+    {
+      "status": "success", 
+      "type": "custom",
+      "eventId": "evt_12346"
+    }
+  ]
+}`}
+/>
+
+## Common Event Examples
+
+### E-commerce Purchase
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "purchase",
+  "properties": {
+    "order_id": "order_123",
+    "value": 149.99,
+    "currency": "USD",
+    "items": [
+      {"sku": "SKU-001", "name": "Product A", "quantity": 2, "price": 49.99},
+      {"sku": "SKU-002", "name": "Product B", "quantity": 1, "price": 50.01}
+    ]
+  }
+}`}
+/>
+
+### User Signup
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "signup",
+  "properties": {
+    "method": "email",
+    "plan": "free",
+    "referrer": "google"
+  }
+}`}
+/>
+
+### Feature Usage
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "feature_used",
+  "properties": {
+    "feature": "export_csv",
+    "context": "dashboard"
+  }
+}`}
+/>
+
+### Form Submission
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "type": "custom",
+  "name": "form_submit",
+  "properties": {
+    "form_id": "contact_form",
+    "success": true
+  }
+}`}
+/>
+
+## Server-Side Tracking
+
+For server-side event tracking (Node.js, Python, etc.), use the API directly:
+
+<CodeBlock 
+  language="typescript"
+  code={`// Node.js example
+async function trackEvent(websiteId: string, event: object) {
+  const response = await fetch(
+    \`https://basket.databuddy.cc/?client_id=\${websiteId}\`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event)
+    }
+  );
+  return response.json();
+}
+
+// Usage
+await trackEvent('web_123', {
+  type: 'custom',
+  name: 'api_call',
+  properties: {
+    endpoint: '/users',
+    method: 'POST',
+    status: 201
+  }
+});`}
+/>
+
+## Best Practices
+
+1. **Use consistent event names** — Use snake_case and be descriptive (`button_click` not `click`)
+
+2. **Include context** — Add properties that help segment and analyze later
+
+3. **Batch when possible** — For high-volume tracking, use the batch endpoint
+
+4. **Don't track PII** — Avoid tracking personally identifiable information in properties
+
+5. **Use timestamps for historical data** — When importing historical events, set the `timestamp` field
+
+<Callout type="warning">
+  Event properties are stored as JSON. Keep property values simple (strings, numbers, booleans) for best query performance.
+</Callout>

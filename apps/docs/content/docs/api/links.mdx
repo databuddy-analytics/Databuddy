@@ -1,0 +1,184 @@
+---
+title: Link Analytics
+description: Query analytics for shortened links
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+Query click analytics for your shortened links using the same query API, with `link_id` instead of `website_id`.
+
+## Query Link Analytics
+
+<CodeBlock 
+  language="http"
+  code="POST /v1/query?link_id={link_id}"
+/>
+
+**Request Body:**
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["link_total_clicks", "link_clicks_by_day", "link_top_referrers"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "granularity": "daily",
+  "limit": 10
+}`}
+/>
+
+## Granularity
+
+Time-series queries support hourly or daily granularity:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameters": ["link_clicks_by_day"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-07",
+  "granularity": "hourly"
+}`}
+/>
+
+- `"daily"` — Group by day (default)
+- `"hourly"` — Group by hour (max 30 days range)
+
+When using hourly granularity, `link_clicks_by_day` returns data points for each hour instead of each day.
+
+## Available Query Types
+
+| Type | Description | Granularity |
+|------|-------------|-------------|
+| `link_total_clicks` | Total click count for the link | — |
+| `link_clicks_by_day` | Time-series breakdown of clicks | hour, day |
+| `link_referrers_by_day` | Time-series count of unique referrers | hour, day |
+| `link_countries_by_day` | Time-series count of unique countries | hour, day |
+| `link_top_referrers` | Top traffic sources | — |
+| `link_top_countries` | Top countries by clicks | — |
+| `link_top_regions` | Top regions by clicks | — |
+| `link_top_cities` | Top cities by clicks | — |
+| `link_top_devices` | Device type breakdown (mobile, desktop, tablet) | — |
+| `link_top_browsers` | Browser breakdown | — |
+
+## Example Response
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "queryId": "",
+  "data": [
+    {
+      "parameter": "link_total_clicks",
+      "success": true,
+      "data": [{ "total": 1542 }]
+    },
+    {
+      "parameter": "link_clicks_by_day",
+      "success": true,
+      "data": [
+        { "date": "2024-01-01", "clicks": 125 },
+        { "date": "2024-01-02", "clicks": 143 }
+      ]
+    },
+    {
+      "parameter": "link_top_referrers",
+      "success": true,
+      "data": [
+        { "name": "twitter.com", "referrer": "twitter.com", "clicks": 523 },
+        { "name": "Direct", "referrer": "Direct", "clicks": 412 }
+      ]
+    }
+  ],
+  "meta": {
+    "parameters": ["link_total_clicks", "link_clicks_by_day", "link_top_referrers"],
+    "total_parameters": 3,
+    "page": 1,
+    "limit": 10,
+    "filters_applied": 0
+  }
+}`}
+/>
+
+### Hourly Response Example
+
+With `"granularity": "hourly"`, time-series queries return data points for each hour:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "parameter": "link_clicks_by_day",
+  "success": true,
+  "data": [
+    { "date": "2024-01-01 00:00:00", "clicks": 12 },
+    { "date": "2024-01-01 01:00:00", "clicks": 8 },
+    { "date": "2024-01-01 02:00:00", "clicks": 5 }
+  ]
+}`}
+/>
+
+## Outbound Link Tracking
+
+For tracking which external links users click on your website (not link shortener), use these query types with `website_id`:
+
+<CodeBlock 
+  language="bash"
+  code={`curl -X POST -H "x-api-key: dbdy_your_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "parameters": ["outbound_links", "outbound_domains"],
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31",
+    "limit": 20
+  }' \\
+  "https://api.databuddy.cc/v1/query?website_id=web_123"`}
+/>
+
+### Outbound Links Response
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "data": [
+    {
+      "parameter": "outbound_links",
+      "success": true,
+      "data": [
+        {
+          "href": "https://github.com/example/repo",
+          "text": "View on GitHub",
+          "total_clicks": 245,
+          "unique_users": 189,
+          "unique_sessions": 210,
+          "percentage": 15.2,
+          "last_clicked": "2024-01-31T15:42:00.000Z"
+        }
+      ]
+    },
+    {
+      "parameter": "outbound_domains",
+      "success": true,
+      "data": [
+        {
+          "domain": "github.com",
+          "total_clicks": 523,
+          "unique_users": 412,
+          "unique_links": 8,
+          "percentage": 32.5
+        }
+      ]
+    }
+  ]
+}`}
+/>
+
+## Differences: Link Shortener vs Outbound Links
+
+| Feature | Link Shortener (`link_id`) | Outbound Links (`website_id`) |
+|---------|---------------------------|-------------------------------|
+| Purpose | Clicks on your shortened URLs | Clicks on external links from your site |
+| Query parameter | `link_id` | `website_id` |
+| Query types | `link_*` | `outbound_links`, `outbound_domains` |
+| Data source | Link redirect tracking | Website visitor tracking |

@@ -1,5 +1,9 @@
 import { and, desc, eq, isNull, links } from "@databuddy/db";
-import { invalidateLinkCache } from "@databuddy/redis";
+import {
+	type CachedLink,
+	invalidateLinkCache,
+	setCachedLink,
+} from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
@@ -72,6 +76,35 @@ const updateLinkSchema = z.object({
 const deleteLinkSchema = z.object({
 	id: z.string(),
 });
+
+interface LinkRecord {
+	id: string;
+	slug: string;
+	targetUrl: string;
+	expiresAt: Date | null;
+	expiredRedirectUrl: string | null;
+	ogTitle: string | null;
+	ogDescription: string | null;
+	ogImageUrl: string | null;
+	ogVideoUrl: string | null;
+	iosUrl: string | null;
+	androidUrl: string | null;
+}
+
+function toCachedLink(link: LinkRecord): CachedLink {
+	return {
+		id: link.id,
+		targetUrl: link.targetUrl,
+		expiresAt: link.expiresAt?.toISOString() ?? null,
+		expiredRedirectUrl: link.expiredRedirectUrl,
+		ogTitle: link.ogTitle,
+		ogDescription: link.ogDescription,
+		ogImageUrl: link.ogImageUrl,
+		ogVideoUrl: link.ogVideoUrl,
+		iosUrl: link.iosUrl,
+		androidUrl: link.androidUrl,
+	};
+}
 
 export const linksRouter = {
 	list: protectedProcedure
@@ -176,7 +209,7 @@ export const linksRouter = {
 						})
 						.returning();
 
-					await invalidateLinkCache(input.slug).catch(() => { });
+					await setCachedLink(input.slug, toCachedLink(newLink)).catch(() => { });
 
 					return newLink;
 				} catch (error) {
@@ -211,7 +244,7 @@ export const linksRouter = {
 						})
 						.returning();
 
-					await invalidateLinkCache(slug).catch(() => { });
+					await setCachedLink(slug, toCachedLink(newLink)).catch(() => { });
 
 					return newLink;
 				} catch (error) {
@@ -277,13 +310,15 @@ export const linksRouter = {
 					.where(eq(links.id, id))
 					.returning();
 
-				// Invalidate old slug cache
-				await invalidateLinkCache(oldSlug).catch(() => { });
+				const newSlug = updatedLink.slug;
 
-				// If slug changed, also invalidate new slug (in case of negative cache)
-				if (input.slug && input.slug !== oldSlug) {
-					await invalidateLinkCache(input.slug).catch(() => { });
+				// If slug changed, invalidate old slug cache
+				if (newSlug !== oldSlug) {
+					await invalidateLinkCache(oldSlug).catch(() => { });
 				}
+
+				// Write-through: cache the updated link
+				await setCachedLink(newSlug, toCachedLink(updatedLink)).catch(() => { });
 
 				return updatedLink;
 			} catch (error) {

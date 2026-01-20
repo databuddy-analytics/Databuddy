@@ -146,7 +146,10 @@ function buildDeviceTypeSQL(deviceType: DeviceType): string {
 		: heuristic;
 }
 
-type FilterResult = { clause: string; params: Record<string, Filter["value"]> };
+interface FilterResult {
+	clause: string;
+	params: Record<string, Filter["value"]>;
+}
 
 function buildGenericFilter(
 	filter: Filter,
@@ -283,18 +286,23 @@ export class SimpleQueryBuilder {
 		return buildGenericFilter(filter, key, operator, filter.field);
 	}
 
+	private getIdField(): string {
+		return this.config.idField || "client_id";
+	}
+
 	private generateSessionAttributionCTE(
 		timeField: string,
 		table: string,
 		fromParam: string,
 		toParam: string
 	): string {
+		const idField = this.getIdField();
 		return `session_attribution AS (
 			SELECT 
 				session_id,
 				${buildSessionFieldsSelect(timeField)}
 			FROM ${table}
-			WHERE client_id = {websiteId:String}
+			WHERE ${idField} = {websiteId:String}
 				AND ${timeField} >= toDateTime({${fromParam}:String})
 				AND ${timeField} <= toDateTime(concat({${toParam}:String}, ' 23:59:59'))
 				AND session_id != ''
@@ -332,16 +340,16 @@ export class SimpleQueryBuilder {
 
 			const helpers = this.config.plugins?.sessionAttribution
 				? {
-						sessionAttributionCTE: (timeField = "time") =>
-							this.generateSessionAttributionCTE(
-								timeField,
-								"analytics.events",
-								"startDate",
-								"endDate"
-							),
-						sessionAttributionJoin: (alias = "e") =>
-							this.generateSessionAttributionJoin(alias),
-					}
+					sessionAttributionCTE: (timeField = "time") =>
+						this.generateSessionAttributionCTE(
+							timeField,
+							"analytics.events",
+							"startDate",
+							"endDate"
+						),
+					sessionAttributionJoin: (alias = "e") =>
+						this.generateSessionAttributionJoin(alias),
+				}
 				: undefined;
 
 			const result = this.config.customSql(
@@ -443,7 +451,8 @@ export class SimpleQueryBuilder {
 
 		if (cte.table && !this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";
-			whereConditions.push("client_id = {websiteId:String}");
+			const idField = this.getIdField();
+			whereConditions.push(`${idField} = {websiteId:String}`);
 			whereConditions.push(`${timeField} >= toDateTime({from:String})`);
 			whereConditions.push(
 				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
@@ -591,6 +600,7 @@ export class SimpleQueryBuilder {
 		const finalWhereClause =
 			filterClauses.length > 0 ? filterClauses.join(" AND ") : "1=1";
 
+		const idField = this.getIdField();
 		let sql = `
 		WITH ${this.generateSessionAttributionCTE(timeField, table, "from", "to")},
 		attributed_events AS (
@@ -599,7 +609,7 @@ export class SimpleQueryBuilder {
 				${buildSessionFieldsJoinSelect()}
 			FROM ${table} e
 			${this.generateSessionAttributionJoin("e")}
-			WHERE e.client_id = {websiteId:String}
+			WHERE e.${idField} = {websiteId:String}
 				AND e.${timeField} >= toDateTime({from:String})
 				AND e.${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))
 				AND e.session_id != ''
@@ -624,7 +634,7 @@ export class SimpleQueryBuilder {
 			whereClause.push(...this.config.where);
 		}
 
-		whereClause.push("client_id = {websiteId:String}");
+		whereClause.push(`${this.getIdField()} = {websiteId:String}`);
 
 		if (!this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";

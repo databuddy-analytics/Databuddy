@@ -1,4 +1,5 @@
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
+import { captureError, record, setAttributes } from "./tracing";
 
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
@@ -16,78 +17,98 @@ class LinksProducer {
 	private producer: Producer | null = null;
 	private connected = false;
 	private readonly config: ProducerConfig;
-	
+
 	constructor(config: ProducerConfig) {
 		this.config = config;
 	}
 
-	private async connect(): Promise<boolean> {
+	private connect(): Promise<boolean> {
 		if (this.connected && this.producer) {
-			return true;
+			return Promise.resolve(true);
 		}
 
 		if (!this.config.broker) {
-			return false;
+			setAttributes({ kafka_broker_configured: false });
+			return Promise.resolve(false);
 		}
 
-		try {
-			const kafka = new Kafka({
-				brokers: [this.config.broker],
-				clientId: "links-producer",
-				...(this.config.username &&
-					this.config.password && {
-					sasl: {
-						mechanism: "scram-sha-256",
-						username: this.config.username,
-						password: this.config.password,
-					},
-					ssl: false,
-				}),
-			});
+		return record("links-kafka_connect", async () => {
+			try {
+				const kafka = new Kafka({
+					brokers: [this.config.broker as string],
+					clientId: "links-producer",
+					...(this.config.username &&
+						this.config.password && {
+						sasl: {
+							mechanism: "scram-sha-256",
+							username: this.config.username,
+							password: this.config.password,
+						},
+						ssl: false,
+					}),
+				});
 
-			this.producer = kafka.producer({
-				maxInFlightRequests: 1,
-				idempotent: true,
-				transactionTimeout: 30_000,
-			});
+				this.producer = kafka.producer({
+					maxInFlightRequests: 1,
+					idempotent: true,
+					transactionTimeout: 30_000,
+				});
 
-			await this.producer.connect();
-			this.connected = true;
-			return true;
-		} catch (error) {
-			console.error("Failed to connect to Kafka:", error);
-			this.connected = false;
-			return false;
-		}
+				await this.producer.connect();
+				this.connected = true;
+
+				setAttributes({ kafka_connected: true });
+				return true;
+			} catch (error) {
+				captureError(error, { operation: "kafka_connect" });
+				this.connected = false;
+				setAttributes({ kafka_connected: false });
+				return false;
+			}
+		});
 	}
 
-	async send(topic: string, event: unknown, key?: string): Promise<void> {
-		try {
-			if (!((await this.connect()) && this.producer)) {
-				return;
-			}
+	send(topic: string, event: unknown, key?: string): Promise<void> {
+		return record("links-kafka_send", async () => {
+			const eventKey = key ?? (event as { link_id?: string }).link_id;
 
-			await this.producer.send({
-				topic,
-				messages: [
-					{
-						value: stringifyEvent(event),
-						key: key || (event as { link_id?: string }).link_id,
-					},
-				],
-				compression: CompressionTypes.GZIP,
+			setAttributes({
+				kafka_topic: topic,
+				kafka_message_key: eventKey ?? "unknown",
 			});
-		} catch (error) {
-			console.error("Failed to send to Kafka:", error);
-		}
+
+			try {
+				if (!((await this.connect()) && this.producer)) {
+					setAttributes({ kafka_send_skipped: true });
+					return;
+				}
+
+				await this.producer.send({
+					topic,
+					messages: [
+						{
+							value: stringifyEvent(event),
+							key: eventKey,
+						},
+					],
+					compression: CompressionTypes.GZIP,
+				});
+
+				setAttributes({ kafka_send_success: true });
+			} catch (error) {
+				captureError(error, { operation: "kafka_send", kafka_topic: topic });
+				setAttributes({ kafka_send_success: false });
+			}
+		});
 	}
 
 	async disconnect(): Promise<void> {
 		if (this.producer) {
 			try {
 				await this.producer.disconnect();
+				setAttributes({ kafka_disconnected: true });
 			} catch (error) {
-				console.error("Failed to disconnect from Kafka:", error);
+				captureError(error, { operation: "kafka_disconnect" });
 			}
 			this.producer = null;
 			this.connected = false;

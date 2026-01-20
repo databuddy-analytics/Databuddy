@@ -1,0 +1,237 @@
+---
+title: Custom Queries
+description: Build advanced analytics queries with custom aggregations and filters
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+<Callout type="warning">
+  **Advanced Feature**: Custom queries give you direct access to the analytics database. Use standard query types when possible for better performance and caching.
+</Callout>
+
+The Custom Query API lets you build queries with custom aggregations, filters, and groupings when the standard query types don't meet your needs.
+
+## Endpoint
+
+<CodeBlock 
+  language="http"
+  code="POST /v1/query/custom?website_id={id}"
+/>
+
+## Request Format
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "query": {
+    "table": "events",
+    "selects": [
+      {
+        "field": "path",
+        "aggregate": "count",
+        "alias": "pageviews"
+      },
+      {
+        "field": "anonymous_id",
+        "aggregate": "uniq",
+        "alias": "unique_visitors"
+      }
+    ],
+    "filters": [
+      {
+        "field": "country",
+        "operator": "eq",
+        "value": "US"
+      }
+    ],
+    "groupBy": ["path"]
+  },
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "timezone": "America/New_York",
+  "limit": 100
+}`}
+/>
+
+## Request Fields
+
+### Root Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | object | Yes | Query configuration |
+| `startDate` | string | Yes | Start date (YYYY-MM-DD) |
+| `endDate` | string | Yes | End date (YYYY-MM-DD) |
+| `timezone` | string | No | Timezone (default: UTC) |
+| `granularity` | string | No | `"hourly"` or `"daily"` |
+| `limit` | number | No | Max rows (default: 1000, max: 10000) |
+
+### Query Object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `table` | string | Yes | Table to query |
+| `selects` | array | Yes | Aggregations to compute (1-10) |
+| `filters` | array | No | Filter conditions (max 20) |
+| `groupBy` | array | No | Group by columns (max 5) |
+
+### Select Object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `field` | string | Yes | Column name or `"*"` for count |
+| `aggregate` | string | Yes | Aggregation function |
+| `alias` | string | No | Output column name |
+
+### Aggregate Functions
+
+| Function | Description | Field Requirements |
+|----------|-------------|-------------------|
+| `count` | Count rows | Any field or `"*"` |
+| `uniq` | Count unique values | Any field |
+| `sum` | Sum values | Numeric fields only |
+| `avg` | Average value | Numeric fields only |
+| `max` | Maximum value | Numeric fields only |
+| `min` | Minimum value | Numeric fields only |
+
+### Filter Operators
+
+| Operator | Description |
+|----------|-------------|
+| `eq` | Equals |
+| `ne` | Not equals |
+| `gt` | Greater than |
+| `lt` | Less than |
+| `gte` | Greater than or equal |
+| `lte` | Less than or equal |
+| `contains` | Contains substring |
+| `not_contains` | Does not contain |
+| `starts_with` | Starts with prefix |
+| `in` | Value in array |
+| `not_in` | Value not in array |
+
+## Available Tables
+
+| Table | Description |
+|-------|-------------|
+| `events` | Page views and custom events |
+| `sessions` | Session-level data |
+| `profiles` | User profile data |
+| `errors` | JavaScript errors |
+| `performance` | Web vitals and performance metrics |
+
+## Example Queries
+
+### Top Pages by Unique Visitors
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "query": {
+    "table": "events",
+    "selects": [
+      {"field": "path", "aggregate": "count", "alias": "views"},
+      {"field": "anonymous_id", "aggregate": "uniq", "alias": "visitors"}
+    ],
+    "groupBy": ["path"]
+  },
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "limit": 20
+}`}
+/>
+
+### Average Session Duration by Country
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "query": {
+    "table": "sessions",
+    "selects": [
+      {"field": "duration", "aggregate": "avg", "alias": "avg_duration"},
+      {"field": "*", "aggregate": "count", "alias": "session_count"}
+    ],
+    "groupBy": ["country"]
+  },
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "limit": 50
+}`}
+/>
+
+### Error Count by Browser
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "query": {
+    "table": "errors",
+    "selects": [
+      {"field": "*", "aggregate": "count", "alias": "error_count"},
+      {"field": "message", "aggregate": "uniq", "alias": "unique_errors"}
+    ],
+    "filters": [
+      {"field": "level", "operator": "eq", "value": "error"}
+    ],
+    "groupBy": ["browser_name"]
+  },
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31"
+}`}
+/>
+
+## Response Format
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": true,
+  "data": [
+    {
+      "path": "/",
+      "views": 1250,
+      "visitors": 890
+    },
+    {
+      "path": "/pricing",
+      "views": 450,
+      "visitors": 380
+    }
+  ],
+  "meta": {
+    "rowCount": 2,
+    "executionTime": 45
+  }
+}`}
+/>
+
+## Validation Errors
+
+Custom queries are validated against the schema. Common errors:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": false,
+  "error": "Invalid column \\"invalid_field\\" for table \\"events\\""
+}`}
+/>
+
+| Error | Cause |
+|-------|-------|
+| Invalid table | Table name not in allowed list |
+| Invalid column | Column doesn't exist on table |
+| Column not filterable | Column can't be used in filters |
+| Column not aggregatable | Column can't use that aggregate function |
+| Too many selects | More than 10 select expressions |
+| Too many filters | More than 20 filters |
+| Too many groupBy | More than 5 group by fields |
+
+## Rate Limits
+
+Custom queries have stricter rate limits due to their computational cost:
+
+- **30 requests per minute** (vs 200+ for standard queries)
+
+Use standard query types when possible for better performance and higher rate limits.

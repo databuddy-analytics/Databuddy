@@ -13,9 +13,10 @@ const HEADER = `# Databuddy Documentation
 
 `;
 
-const SECTION_ORDER = ["root", "Integrations", "hooks", "features", "performance", "privacy", "compliance"];
+const SECTION_ORDER = ["root", "api", "Integrations", "hooks", "features", "performance", "privacy", "compliance"];
 const SECTION_LABELS: Record<string, string> = {
 	root: "Core",
+	api: "API Reference",
 	Integrations: "Integrations",
 	hooks: "React Hooks",
 	features: "Features",

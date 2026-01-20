@@ -1,3 +1,4 @@
+import { Analytics } from "../../types/tables";
 import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
 // ============================================================================
@@ -23,21 +24,10 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-		) => ({
-			sql: `
-				SELECT count() as total
-				FROM analytics.link_visits
-				WHERE link_id = {linkId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-			`,
-			params: { linkId, startDate, endDate },
-		}),
+		table: Analytics.link_visits,
+		fields: ["count() as total"],
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 	},
 
@@ -62,28 +52,20 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["day"],
+			supports_granularity: ["hour", "day"],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-		) => ({
-			sql: `
-				SELECT
-					formatDateTime(toDate(timestamp), '%Y-%m-%d') as date,
-					count() as clicks
-				FROM analytics.link_visits
-				WHERE link_id = {linkId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY toDate(timestamp)
-				ORDER BY toDate(timestamp) ASC
-			`,
-			params: { linkId, startDate, endDate },
-		}),
+		table: Analytics.link_visits,
+		fields: ["count() as clicks"],
+		groupBy: ["date"],
+		orderBy: "date ASC",
 		timeField: "timestamp",
+		idField: "link_id",
+		timeBucket: {
+			field: "timestamp",
+			granularity: "day",
+			alias: "date",
+		},
 		customizable: false,
 	},
 
@@ -108,28 +90,20 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["day"],
+			supports_granularity: ["hour", "day"],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-		) => ({
-			sql: `
-				SELECT
-					formatDateTime(toDate(timestamp), '%Y-%m-%d') as date,
-					uniq(referrer) as value
-				FROM analytics.link_visits
-				WHERE link_id = {linkId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY toDate(timestamp)
-				ORDER BY toDate(timestamp) ASC
-			`,
-			params: { linkId, startDate, endDate },
-		}),
+		table: Analytics.link_visits,
+		fields: ["uniq(referrer) as value"],
+		groupBy: ["date"],
+		orderBy: "date ASC",
 		timeField: "timestamp",
+		idField: "link_id",
+		timeBucket: {
+			field: "timestamp",
+			granularity: "day",
+			alias: "date",
+		},
 		customizable: false,
 	},
 
@@ -154,28 +128,20 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["day"],
+			supports_granularity: ["hour", "day"],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-		) => ({
-			sql: `
-				SELECT
-					formatDateTime(toDate(timestamp), '%Y-%m-%d') as date,
-					uniq(country) as value
-				FROM analytics.link_visits
-				WHERE link_id = {linkId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY toDate(timestamp)
-				ORDER BY toDate(timestamp) ASC
-			`,
-			params: { linkId, startDate, endDate },
-		}),
+		table: Analytics.link_visits,
+		fields: ["uniq(country) as value"],
+		groupBy: ["date"],
+		orderBy: "date ASC",
 		timeField: "timestamp",
+		idField: "link_id",
+		timeBucket: {
+			field: "timestamp",
+			granularity: "day",
+			alias: "date",
+		},
 		customizable: false,
 	},
 
@@ -209,33 +175,17 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-		) => {
-			const limit = _limit || 10;
-			return {
-				sql: `
-					SELECT
-						coalesce(nullIf(referrer, ''), 'Direct') as name,
-						coalesce(nullIf(referrer, ''), 'Direct') as referrer,
-						count() as clicks
-					FROM analytics.link_visits
-					WHERE link_id = {linkId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY referrer
-					ORDER BY clicks DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { linkId, startDate, endDate, limit },
-			};
-		},
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(referrer, ''), 'Direct') as name",
+			"coalesce(nullIf(referrer, ''), 'Direct') as referrer",
+			"count() as clicks",
+		],
+		groupBy: ["referrer"],
+		orderBy: "clicks DESC",
+		limit: 10,
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 		plugins: { parseReferrers: true },
 	},
@@ -276,33 +226,17 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-		) => {
-			const limit = _limit || 10;
-			return {
-				sql: `
-					SELECT
-						coalesce(nullIf(country, ''), 'Unknown') as name,
-						coalesce(nullIf(country, ''), 'Unknown') as country,
-						count() as clicks
-					FROM analytics.link_visits
-					WHERE link_id = {linkId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY country
-					ORDER BY clicks DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { linkId, startDate, endDate, limit },
-			};
-		},
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(country, ''), 'Unknown') as name",
+			"coalesce(nullIf(country, ''), 'Unknown') as country",
+			"count() as clicks",
+		],
+		groupBy: ["country"],
+		orderBy: "clicks DESC",
+		limit: 10,
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -343,33 +277,17 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-		) => {
-			const limit = _limit || 10;
-			return {
-				sql: `
-					SELECT
-						coalesce(nullIf(region, ''), 'Unknown') as name,
-						coalesce(nullIf(country, ''), 'Unknown') as country,
-						count() as clicks
-					FROM analytics.link_visits
-					WHERE link_id = {linkId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY region, country
-					ORDER BY clicks DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { linkId, startDate, endDate, limit },
-			};
-		},
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(region, ''), 'Unknown') as name",
+			"coalesce(nullIf(country, ''), 'Unknown') as country",
+			"count() as clicks",
+		],
+		groupBy: ["region", "country"],
+		orderBy: "clicks DESC",
+		limit: 10,
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -410,33 +328,17 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-		) => {
-			const limit = _limit || 10;
-			return {
-				sql: `
-					SELECT
-						coalesce(nullIf(city, ''), 'Unknown') as name,
-						coalesce(nullIf(country, ''), 'Unknown') as country,
-						count() as clicks
-					FROM analytics.link_visits
-					WHERE link_id = {linkId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY city, country
-					ORDER BY clicks DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { linkId, startDate, endDate, limit },
-			};
-		},
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(city, ''), 'Unknown') as name",
+			"coalesce(nullIf(country, ''), 'Unknown') as country",
+			"count() as clicks",
+		],
+		groupBy: ["city", "country"],
+		orderBy: "clicks DESC",
+		limit: 10,
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -465,25 +367,15 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-		) => ({
-			sql: `
-				SELECT
-					coalesce(nullIf(device_type, ''), 'Unknown') as name,
-					count() as clicks
-				FROM analytics.link_visits
-				WHERE link_id = {linkId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY device_type
-				ORDER BY clicks DESC
-			`,
-			params: { linkId, startDate, endDate },
-		}),
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(device_type, ''), 'Unknown') as name",
+			"count() as clicks",
+		],
+		groupBy: ["device_type"],
+		orderBy: "clicks DESC",
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 	},
 
@@ -511,32 +403,16 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: [],
 			version: "1.0",
 		},
-		customSql: (
-			linkId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-		) => {
-			const limit = _limit || 10;
-			return {
-				sql: `
-					SELECT
-						coalesce(nullIf(browser_name, ''), 'Unknown') as name,
-						count() as clicks
-					FROM analytics.link_visits
-					WHERE link_id = {linkId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY browser_name
-					ORDER BY clicks DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { linkId, startDate, endDate, limit },
-			};
-		},
+		table: Analytics.link_visits,
+		fields: [
+			"coalesce(nullIf(browser_name, ''), 'Unknown') as name",
+			"count() as clicks",
+		],
+		groupBy: ["browser_name"],
+		orderBy: "clicks DESC",
+		limit: 10,
 		timeField: "timestamp",
+		idField: "link_id",
 		customizable: false,
 	},
 };

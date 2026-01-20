@@ -1,7 +1,7 @@
 "use client";
 
+import { SparkleIcon, TrendDownIcon } from "@phosphor-icons/react/dist/ssr";
 import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -213,7 +213,9 @@ export default function LinksPage() {
 			<QrCodeDialog
 				link={qrLink}
 				onOpenChange={(open) => {
-					if (!open) setQrLink(null);
+					if (!open) {
+						setQrLink(null);
+					}
 				}}
 				open={!!qrLink}
 			/>

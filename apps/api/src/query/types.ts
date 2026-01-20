@@ -38,7 +38,7 @@ export type TimeUnit = keyof typeof TimeGranularity | "hourly" | "daily";
 // Filter Types
 // ============================================================================
 
-export type Filter = {
+export interface Filter {
 	field: string;
 	op: FilterOperator;
 	value: string | number | (string | number)[];
@@ -53,14 +53,14 @@ export type Filter = {
 // ============================================================================
 
 /** Column field - direct column reference */
-export type ColumnField = {
+export interface ColumnField {
 	type: "column";
 	source: string;
 	alias?: string;
 };
 
 /** Aggregate field - uses aggregate function */
-export type AggregateField = {
+export interface AggregateField {
 	type: "aggregate";
 	fn: AggregateFn;
 	source?: string;
@@ -69,14 +69,14 @@ export type AggregateField = {
 };
 
 /** Expression field - raw SQL expression */
-export type ExpressionField = {
+export interface ExpressionField {
 	type: "expression";
 	expression: string | SqlExpression;
 	alias: string;
 };
 
 /** Window field - aggregate with OVER clause */
-export type WindowField = {
+export interface WindowField {
 	type: "window";
 	fn: AggregateFn;
 	source?: string;
@@ -88,7 +88,7 @@ export type WindowField = {
 };
 
 /** Computed field - references pre-built computed metric */
-export type ComputedField = {
+export interface ComputedField {
 	type: "computed";
 	metric: "bounceRate" | "percentageOfTotal" | "pagesPerSession";
 	/** Fields to use as inputs (depends on metric) */
@@ -111,7 +111,7 @@ export type ConfigField = string | FieldDefinition | AliasedExpression;
 // CTE Definition Types
 // ============================================================================
 
-export type CTEDefinition = {
+export interface CTEDefinition {
 	name: string;
 	table?: string;
 	from?: string; // Reference another CTE
@@ -126,7 +126,7 @@ export type CTEDefinition = {
 // Time Bucket Configuration
 // ============================================================================
 
-export type TimeBucketConfig = {
+export interface TimeBucketConfig {
 	/** Field to bucket (defaults to timeField) */
 	field?: string;
 	/** Granularity (can be overridden by request.timeUnit) */
@@ -143,7 +143,7 @@ export type TimeBucketConfig = {
 // Query Configuration
 // ============================================================================
 
-export type QueryPlugins = {
+export interface QueryPlugins {
 	parseReferrers?: boolean;
 	normalizeUrls?: boolean;
 	normalizeGeo?: boolean;
@@ -152,7 +152,7 @@ export type QueryPlugins = {
 	sessionAttribution?: boolean;
 };
 
-export type QueryHelpers = {
+export interface QueryHelpers {
 	sessionAttributionCTE: (timeField?: string) => string;
 	sessionAttributionJoin: (alias?: string) => string;
 };
@@ -171,7 +171,7 @@ export type CustomSqlFn = (
 	helpers?: QueryHelpers
 ) => string | { sql: string; params: Record<string, unknown> };
 
-export type SimpleQueryConfig = {
+export interface SimpleQueryConfig {
 	/** Main table to query */
 	table?: string;
 
@@ -205,6 +205,9 @@ export type SimpleQueryConfig = {
 	/** Time bucket configuration (new) */
 	timeBucket?: TimeBucketConfig;
 
+	/** Field used for ID filtering (default: "client_id") */
+	idField?: string;
+
 	/** Allowed filter fields */
 	allowedFilters?: string[];
 
@@ -225,9 +228,9 @@ export type SimpleQueryConfig = {
 
 	/** Query metadata for documentation */
 	meta?: QueryBuilderMeta;
-};
+}
 
-export type QueryRequest = {
+export interface QueryRequest {
 	projectId: string;
 	type: string;
 	from: string;
@@ -241,7 +244,7 @@ export type QueryRequest = {
 	timezone?: string;
 };
 
-export type CompiledQuery = {
+export interface CompiledQuery {
 	sql: string;
 	params: Record<string, unknown>;
 };
