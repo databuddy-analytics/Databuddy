@@ -23,6 +23,7 @@ export interface Flag {
 	dependencies?: string[];
 	environment?: string;
 	persistAcrossAuth?: boolean;
+	folder?: string | null;
 	websiteId?: string | null;
 	organizationId?: string | null;
 	userId?: string | null;

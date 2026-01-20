@@ -2,9 +2,11 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -12,7 +14,7 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -405,6 +407,10 @@ function FlagRow({
 }
 
 export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
+	const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(
+		new Set()
+	);
+
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
 		for (const f of flags) {
@@ -427,19 +433,84 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	const flagsByFolder = useMemo(() => {
+		const folderMap = new Map<string, Flag[]>();
+		for (const flag of flags) {
+			const folder = flag.folder || "";
+			if (!folderMap.has(folder)) {
+				folderMap.set(folder, []);
+			}
+			folderMap.get(folder)?.push(flag);
+		}
+		// Sort folders: empty string (uncategorized) first, then alphabetically
+		return new Map(
+			Array.from(folderMap.entries()).sort(([a], [b]) => {
+				if (a === "") {
+					return -1;
+				}
+				if (b === "") {
+					return 1;
+				}
+				return a.localeCompare(b);
+			})
+		);
+	}, [flags]);
+
+	const toggleFolder = (folder: string) => {
+		setCollapsedFolders((prev) => {
+			const next = new Set(prev);
+			if (next.has(folder)) {
+				next.delete(folder);
+			} else {
+				next.add(folder);
+			}
+			return next;
+		});
+	};
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
-					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
-			))}
+			{Array.from(flagsByFolder.entries()).map(([folder, folderFlags]) => {
+				const isCollapsed = collapsedFolders.has(folder);
+				const folderName = folder || "Uncategorized";
+
+				return (
+					<div key={folder || "uncategorized"}>
+						{flagsByFolder.size > 1 && (
+							<button
+								className="flex w-full items-center gap-2 border-b bg-muted/30 px-4 py-2 text-left transition-colors hover:bg-muted/50"
+								onClick={() => toggleFolder(folder)}
+								type="button"
+							>
+								<FolderIcon className="text-muted-foreground" size={16} />
+								<span className="font-medium text-sm">{folderName}</span>
+								<span className="text-muted-foreground text-xs">
+									({folderFlags.length})
+								</span>
+								<CaretDownIcon
+									className={cn(
+										"ml-auto text-muted-foreground transition-transform",
+										isCollapsed && "-rotate-90"
+									)}
+									size={16}
+								/>
+							</button>
+						)}
+						{!isCollapsed &&
+							folderFlags.map((flag) => (
+								<FlagRow
+									dependents={dependentsMap.get(flag.key) ?? []}
+									flag={flag}
+									flagMap={flagMap}
+									groups={groups.get(flag.id) ?? []}
+									key={flag.id}
+									onDelete={onDelete}
+									onEdit={onEdit}
+								/>
+							))}
+					</div>
+				);
+			})}
 		</div>
 	);
 }
