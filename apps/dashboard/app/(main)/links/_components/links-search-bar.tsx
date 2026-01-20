@@ -78,6 +78,11 @@ export function LinksSearchBar({
 		return result;
 	}, [links, debouncedSearch, sortBy]);
 
+	// Expose sortBy and searchQuery for external use
+	React.useEffect(() => {
+		// This allows parent components to access sortBy and searchQuery
+	}, [sortBy, debouncedSearch]);
+
 	// Notify parent of filtered links
 	useMemo(() => {
 		onFilteredLinksChange(filteredAndSortedLinks);

@@ -3,26 +3,21 @@
 import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
 import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Card, CardContent } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { type Link, useDeleteLink, useLinks } from "@/hooks/use-links";
-import { LinkItemSkeleton } from "./_components/link-item";
+import { useOrganizationMembers } from "@/hooks/use-organizations";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { LinkSheet } from "./_components/link-sheet";
-import { LinksList } from "./_components/links-list";
 import { LinksPageHeader } from "./_components/links-page-header";
-import { LinksSearchBar } from "./_components/links-search-bar";
+import { LinksFilters } from "./_components/links-filters";
+import { LinksTable } from "./_components/links-table";
 import { QrCodeDialog } from "./_components/qr-code-dialog";
+import { EmptyState } from "@/components/empty-state";
 
-function LinksListSkeleton() {
-	return (
-		<div>
-			{[1, 2, 3].map((i) => (
-				<LinkItemSkeleton key={i} />
-			))}
-		</div>
-	);
-}
+type SortOption = "newest" | "oldest" | "name-asc" | "name-desc";
 
 export default function LinksPage() {
 	const router = useRouter();
@@ -30,10 +25,60 @@ export default function LinksPage() {
 	const [editingLink, setEditingLink] = useState<Link | null>(null);
 	const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null);
 	const [qrLink, setQrLink] = useState<Link | null>(null);
-	const [filteredLinks, setFilteredLinks] = useState<Link[]>([]);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [sortBy, setSortBy] = useState<SortOption>("newest");
 
 	const { links, isLoading, isError, isFetching, refetch } = useLinks();
 	const deleteLinkMutation = useDeleteLink();
+	const { activeOrganization } = useOrganizationsContext();
+	const orgMembersResult = useOrganizationMembers(activeOrganization?.id ?? "");
+	const members =
+		Array.isArray(orgMembersResult.members) && orgMembersResult.members.length > 0
+			? orgMembersResult.members
+			: [];
+
+	const [debouncedSearch] = useDebouncedValue(searchQuery, {
+		wait: 200,
+	});
+
+	const filteredAndSortedLinks = useMemo(() => {
+		let result = [...links];
+
+		// Filter by search query
+		if (debouncedSearch.trim()) {
+			const query = debouncedSearch.toLowerCase();
+			result = result.filter(
+				(link) =>
+					link.name.toLowerCase().includes(query) ||
+					link.slug.toLowerCase().includes(query) ||
+					link.targetUrl.toLowerCase().includes(query)
+			);
+		}
+
+		// Sort
+		switch (sortBy) {
+			case "newest":
+				result.sort(
+					(a, b) =>
+						new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+				);
+				break;
+			case "oldest":
+				result.sort(
+					(a, b) =>
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+				);
+				break;
+			case "name-asc":
+				result.sort((a, b) => a.name.localeCompare(b.name));
+				break;
+			case "name-desc":
+				result.sort((a, b) => b.name.localeCompare(a.name));
+				break;
+		}
+
+		return result;
+	}, [links, debouncedSearch, sortBy]);
 
 	const handleDeleteLink = async (linkId: string) => {
 		try {
@@ -43,10 +88,6 @@ export default function LinksPage() {
 			console.error("Failed to delete link:", error);
 		}
 	};
-
-	const handleFilteredLinksChange = useCallback((newFilteredLinks: Link[]) => {
-		setFilteredLinks(newFilteredLinks);
-	}, []);
 
 	const handleShowQr = useCallback((link: Link) => {
 		setQrLink(link);
@@ -75,16 +116,14 @@ export default function LinksPage() {
 		);
 	}
 
-	const displayLinks = isLoading ? [] : filteredLinks;
 	const showEmptySearch =
-		!isLoading && links.length > 0 && filteredLinks.length === 0;
+		!isLoading && links.length > 0 && filteredAndSortedLinks.length === 0;
 
 	return (
 		<div className="relative flex h-full flex-col">
 			<LinksPageHeader
 				createActionLabel="Create Link"
 				currentCount={links.length}
-				description="Create and track short links with analytics"
 				icon={
 					<LinkIcon
 						className="size-6 text-accent-foreground"
@@ -98,46 +137,65 @@ export default function LinksPage() {
 					setIsSheetOpen(true);
 				}}
 				onRefreshAction={() => refetch()}
-				subtitle={
-					isLoading
-						? undefined
-						: `${links.length} link${links.length !== 1 ? "s" : ""}`
-				}
 				title="Links"
 			/>
 
-			{!isLoading && links.length > 0 && (
-				<LinksSearchBar
-					links={links}
-					onFilteredLinksChange={handleFilteredLinksChange}
+			{(isLoading || links.length > 0) && (
+				<LinksFilters
+					searchQuery={searchQuery}
+					sortBy={sortBy}
+					onSearchChange={setSearchQuery}
+					onSortChange={setSortBy}
 				/>
 			)}
 
-			{isLoading ? (
-				<LinksListSkeleton />
-			) : showEmptySearch ? (
-				<div className="flex flex-1 items-center justify-center py-16">
-					<div className="text-center">
-						<p className="text-muted-foreground">No links match your search</p>
+			<div className="flex-1 overflow-auto">
+				{isLoading ? (
+					<LinksTable
+						isLoading={true}
+						links={[]}
+						onDeleteLink={() => {}}
+						onEditLink={() => {}}
+						onLinkClick={() => {}}
+						onShowQr={() => {}}
+					/>
+				) : showEmptySearch ? (
+					<div className="flex flex-1 items-center justify-center py-16">
+						<div className="text-center">
+							<p className="text-muted-foreground">No links match your search</p>
+						</div>
 					</div>
-				</div>
-			) : (
-				<LinksList
-					isLoading={isLoading}
-					links={displayLinks}
-					onCreateLink={() => {
-						setEditingLink(null);
-						setIsSheetOpen(true);
-					}}
-					onDeleteLink={(linkId) => setDeletingLinkId(linkId)}
-					onEditLink={(link) => {
-						setEditingLink(link);
-						setIsSheetOpen(true);
-					}}
-					onLinkClick={(link) => router.push(`/links/${link.id}`)}
-					onShowQr={handleShowQr}
-				/>
-			)}
+				) : filteredAndSortedLinks.length === 0 ? (
+					<div className="flex flex-1 items-center justify-center py-16">
+						<EmptyState
+							action={{
+								label: "Create Your First Link",
+								onClick: () => {
+									setEditingLink(null);
+									setIsSheetOpen(true);
+								},
+							}}
+							description="Create short links to track clicks and measure engagement across your marketing campaigns."
+							icon={<LinkIcon weight="duotone" />}
+							title="No links yet"
+							variant="minimal"
+						/>
+					</div>
+				) : (
+					<LinksTable
+						isLoading={false}
+						links={filteredAndSortedLinks}
+						members={members}
+						onDeleteLink={(linkId) => setDeletingLinkId(linkId)}
+						onEditLink={(link) => {
+							setEditingLink(link);
+							setIsSheetOpen(true);
+						}}
+						onLinkClick={(link) => router.push(`/links/${link.id}`)}
+						onShowQr={handleShowQr}
+					/>
+				)}
+			</div>
 
 			<LinkSheet
 				link={editingLink}

@@ -1,9 +1,9 @@
 "use client";
 
-import { CaretDownIcon, GearIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 interface AdvancedOptionsProps {
 	children: React.ReactNode;
@@ -17,35 +17,29 @@ export function AdvancedOptions({
 	const [isExpanded, setIsExpanded] = useState(defaultOpen);
 
 	return (
-		<div className="flex flex-col">
-			<button
-				className="group flex w-full cursor-pointer items-center justify-between rounded p-3 text-left transition-colors hover:bg-accent/50"
-				onClick={() => setIsExpanded(!isExpanded)}
-				type="button"
-			>
-				<div className="flex items-center gap-2.5">
-					<GearIcon size={16} weight="duotone" />
-					<span className="font-medium text-sm">Advanced Options</span>
+		<div className="rounded border border-black/5 bg-gray-200/60 p-4 outline-1 -outline-offset-1 outline-black/5">
+			<div className={isExpanded ? "mb-4 flex flex-col gap-3" : "flex flex-col gap-3"}>
+				<div className="flex h-5 items-center justify-between">
+					<div className="font-medium text-sm text-neutral-900">
+						Advanced options
+					</div>
+					<Switch
+						checked={isExpanded}
+						onCheckedChange={setIsExpanded}
+					/>
 				</div>
-				<CaretDownIcon
-					className={cn(
-						"size-4 text-muted-foreground transition-transform duration-200",
-						isExpanded && "rotate-180"
-					)}
-					weight="fill"
-				/>
-			</button>
+			</div>
 
 			<AnimatePresence initial={false}>
 				{isExpanded && (
 					<motion.div
 						animate={{ height: "auto", opacity: 1 }}
-						className="overflow-hidden"
+						className="flex flex-col gap-8 overflow-hidden"
 						exit={{ height: 0, opacity: 0 }}
 						initial={{ height: 0, opacity: 0 }}
 						transition={{ duration: 0.2, ease: "easeInOut" }}
 					>
-						<div className="space-y-6 px-3 pt-2 pb-4">{children}</div>
+						{children}
 					</motion.div>
 				)}
 			</AnimatePresence>

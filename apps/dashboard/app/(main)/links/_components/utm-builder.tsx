@@ -144,21 +144,21 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 	};
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center gap-2">
+		<div className="flex flex-col gap-4">
+			<div className="inline-flex items-center gap-2">
 				<LinkIcon size={16} weight="duotone" />
 				<span className="font-medium text-sm">UTM Parameters</span>
 			</div>
 
-			<div className="grid gap-3">
+			<div className="flex flex-col gap-5">
 				{UTM_FIELDS.map((field) => (
-					<div className="grid gap-1.5" key={field.key}>
-						<Label className="text-xs" htmlFor={field.key}>
-							{field.label}
-							<span className="ml-1 text-muted-foreground">({field.key})</span>
+					<div className="flex min-w-56 flex-col gap-2.5" key={field.key}>
+						<Label className="inline-flex text-xs font-medium" htmlFor={field.key}>
+							<span className="text-neutral-900">{field.label}</span>
+							<span className="text-neutral-900/40"> ({field.key})</span>
 						</Label>
 						<Input
-							className="h-8 text-sm"
+							className="h-9 text-sm"
 							id={field.key}
 							onChange={(e) => handleFieldChange(field.key, e.target.value)}
 							placeholder={field.placeholder}
@@ -169,7 +169,7 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 			</div>
 
 			{previewUrl && previewUrl !== baseUrl && (
-				<div className="space-y-1.5">
+				<div className="flex flex-col gap-1.5">
 					<Label className="text-muted-foreground text-xs">Preview URL</Label>
 					<div className="break-all rounded border bg-muted/50 p-2 font-mono text-xs">
 						{previewUrl}

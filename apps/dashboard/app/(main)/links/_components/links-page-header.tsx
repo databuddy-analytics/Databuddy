@@ -85,17 +85,16 @@ export function LinksPageHeader({
 							})}
 						</div>
 						<div>
-							<div className="flex items-center gap-2">
-								<h1 className="truncate font-medium text-foreground text-xl sm:text-2xl">
-									{title}
-								</h1>
-								{typeof currentCount === "number" && !isLoading && (
-									<span className="rounded bg-muted px-2 py-0.5 font-mono text-muted-foreground text-sm">
-										{currentCount}
-									</span>
-								)}
-							</div>
-							{renderSubtitle()}
+							<h1 className="truncate font-medium text-foreground text-xl sm:text-2xl">
+								{title}
+							</h1>
+						{typeof currentCount === "number" && !isLoading && currentCount > 0 ? (
+							<p className="text-muted-foreground text-sm">
+								{currentCount} link{currentCount !== 1 ? "s" : ""}
+							</p>
+						) : (
+							renderSubtitle()
+						)}
 						</div>
 					</div>
 				</div>
@@ -104,13 +103,13 @@ export function LinksPageHeader({
 						<Button
 							disabled={isRefreshing}
 							onClick={onRefreshAction}
-							variant="secondary"
+							variant="outline"
 						>
 							<ArrowClockwiseIcon
 								className={isRefreshing ? "animate-spin" : ""}
 								size={16}
 							/>
-							Refresh
+							Refresh Data
 						</Button>
 					)}
 					{onCreateAction && (
