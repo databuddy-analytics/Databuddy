@@ -32,6 +32,7 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { WebsitePageHeader } from "../_components/website-page-header";
+import { AssignedAlarms } from "./_components/assigned-alarms";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
 
@@ -355,6 +356,8 @@ export default function PulsePage() {
 								isLoading={isLoadingHeatmap}
 							/>
 						</div>
+
+						<AssignedAlarms websiteId={websiteId as string} />
 
 						<div className="bg-sidebar">
 							<RecentActivity

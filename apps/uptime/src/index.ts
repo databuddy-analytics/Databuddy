@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { z } from "zod";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
+import { checkAndTriggerAlarms } from "./lib/alarms";
 import { sendUptimeEvent } from "./lib/producer";
 import {
     captureError,
@@ -11,6 +12,7 @@ import {
     shutdownTracing,
     startRequestSpan,
 } from "./lib/tracing";
+import { MonitorStatus } from "./types";
 
 initTracing();
 
@@ -190,6 +192,31 @@ const app = new Elysia()
                     monitorId,
                     error instanceof Error ? error.message : String(error)
                 );
+            }
+
+            if (schedule.data.websiteId) {
+                try {
+                    await checkAndTriggerAlarms({
+                        websiteId: schedule.data.websiteId,
+                        url: result.data.url,
+                        status: result.data.status === MonitorStatus.UP ? "up" : "down",
+                        httpCode: result.data.http_code,
+                        responseTime: result.data.ttfb_ms,
+                        consecutiveFailures: result.data.failure_streak,
+                        timestamp: result.data.timestamp,
+                    });
+                } catch (error) {
+                    captureError(error, {
+                        type: "alarm_trigger_error",
+                        monitorId,
+                        websiteId: schedule.data.websiteId,
+                    });
+                    console.error(
+                        "[uptime] Failed to trigger alarms:",
+                        monitorId,
+                        error instanceof Error ? error.message : String(error)
+                    );
+                }
             }
 
             return new Response("Uptime check complete", { status: 200 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { BellIcon, PlusIcon } from "@phosphor-icons/react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -12,9 +13,11 @@ import { AlarmDialog } from "./_components/alarm-dialog";
 import { AlarmRow } from "./_components/alarm-row";
 
 export default function NotificationsSettingsPage() {
+	const searchParams = useSearchParams();
+	const websiteId = searchParams.get("websiteId") || undefined;
 	const { activeOrganization } = useOrganizationsContext();
 	const { alarms, isLoading, deleteAlarm, testAlarm, isDeleting, isTesting } =
-		useAlarms(activeOrganization?.id ?? "");
+		useAlarms(activeOrganization?.id ?? "", websiteId);
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingAlarm, setEditingAlarm] = useState<string | null>(null);
