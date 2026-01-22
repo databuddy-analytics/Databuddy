@@ -1,6 +1,6 @@
 import { useFlags } from "@databuddy/sdk/react";
 import { FEATURE_METADATA } from "@databuddy/shared/types/features";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { ChevronUpIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -129,22 +129,22 @@ export const NavigationSection = memo(function NavigationSectionComponent({
 			<button
 				className={clsx(
 					className,
-					"flex h-10 w-full min-w-0 items-center gap-3 border-b px-3 text-left font-medium text-sidebar-foreground text-sm transition-all focus:outline-none",
-					isExpanded
-						? "border-b-border bg-sidebar-accent-brighter"
-						: "border-b-transparent hover:bg-sidebar-accent-brighter"
+					"flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-border bg-muted/25 px-4 text-left font-medium text-foreground text-base transition-all focus:outline-none",
+					"hover:bg-muted/50"
 				)}
 				data-section={title}
 				data-track="navigation-section-toggle"
 				onClick={() => toggleAccordion(title, true)}
 				type="button"
 			>
-				<Icon className="size-5 shrink-0 text-sidebar-ring" weight="duotone" />
-				<span className="min-w-0 flex-1 truncate text-sm">{title}</span>
-				<CaretDownIcon
+				<div className="flex items-center gap-3">
+					<Icon className="size-5 shrink-0 text-foreground" />
+					<span className="min-w-0 truncate text-base font-medium">{title}</span>
+				</div>
+				<ChevronUpIcon
 					className={clsx(
-						"size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-200",
-						isExpanded ? "rotate-180" : ""
+						"size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+						isExpanded ? "" : "rotate-180"
 					)}
 				/>
 			</button>

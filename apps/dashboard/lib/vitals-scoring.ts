@@ -131,12 +131,12 @@ export interface MetricScoreData {
 	score: number | null;
 	weight: number;
 	contribution: number | null;
-	status: "good" | "needs-improvement" | "poor" | null;
+	status:"good" |"needs-improvement" |"poor" | null;
 }
 
 export interface RESResult {
 	score: number | null;
-	status: "good" | "needs-improvement" | "poor" | null;
+	status:"good" |"needs-improvement" |"poor" | null;
 	metrics: MetricScoreData[];
 	totalSamples: number;
 }
@@ -146,17 +146,17 @@ export interface RESResult {
  */
 function getScoreStatus(
 	score: number | null
-): "good" | "needs-improvement" | "poor" | null {
+):"good" |"needs-improvement" |"poor" | null {
 	if (score === null) {
 		return null;
 	}
 	if (score >= 90) {
-		return "good";
+		return"good";
 	}
 	if (score >= 50) {
-		return "needs-improvement";
+		return"needs-improvement";
 	}
-	return "poor";
+	return"poor";
 }
 
 /**
@@ -165,7 +165,7 @@ function getScoreStatus(
 function getMetricStatus(
 	value: number | null | undefined,
 	metric: RESMetric
-): "good" | "needs-improvement" | "poor" | null {
+):"good" |"needs-improvement" |"poor" | null {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -173,12 +173,12 @@ function getMetricStatus(
 	const threshold = METRIC_THRESHOLDS[metric];
 
 	if (value <= threshold.good) {
-		return "good";
+		return"good";
 	}
 	if (value <= threshold.poor) {
-		return "needs-improvement";
+		return"needs-improvement";
 	}
-	return "poor";
+	return"poor";
 }
 
 interface MetricInput {

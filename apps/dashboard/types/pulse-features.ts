@@ -1,12 +1,12 @@
-import { PLAN_IDS, type PlanId } from "./features.js";
+import { PLAN_IDS, type PlanId } from"./features.js";
 
 /**
  * Pulse plan tiers - ordered from lowest to highest
  */
 export const PULSE_PLAN_IDS = {
-	FREE: "pulse_free",
-	PRO: "pulse_pro",
-	BUSINESS: "pulse_business",
+	FREE:"pulse_free",
+	PRO:"pulse_pro",
+	BUSINESS:"pulse_business",
 } as const;
 
 export type PulsePlanId = (typeof PULSE_PLAN_IDS)[keyof typeof PULSE_PLAN_IDS];
@@ -21,23 +21,23 @@ export const PULSE_PLAN_HIERARCHY: PulsePlanId[] = [
 /** Gated features - locked behind specific plans */
 export const PULSE_GATED_FEATURES = {
 	// Basic checks
-	BASIC_UPTIME_CHECKS: "basic_uptime_checks",
-	EMAIL_ALERTS: "email_alerts",
-	WEBHOOKS: "webhooks",
-	PUBLIC_STATUS_PAGE: "public_status_page",
-	DASHBOARD_INTEGRATION: "dashboard_integration",
+	BASIC_UPTIME_CHECKS:"basic_uptime_checks",
+	EMAIL_ALERTS:"email_alerts",
+	WEBHOOKS:"webhooks",
+	PUBLIC_STATUS_PAGE:"public_status_page",
+	DASHBOARD_INTEGRATION:"dashboard_integration",
 	// Advanced checks
-	SSL_CERTIFICATE_CHECKS: "ssl_certificate_checks",
-	KEYWORD_CONTENT_MATCH: "keyword_content_match",
-	MULTI_LOCATION_CHECKS: "multi_location_checks",
-	ONE_MINUTE_FREQUENCY: "one_minute_frequency",
+	SSL_CERTIFICATE_CHECKS:"ssl_certificate_checks",
+	KEYWORD_CONTENT_MATCH:"keyword_content_match",
+	MULTI_LOCATION_CHECKS:"multi_location_checks",
+	ONE_MINUTE_FREQUENCY:"one_minute_frequency",
 	// Enterprise features
-	THIRTY_SECOND_FREQUENCY: "thirty_second_frequency",
-	SYNTHETIC_TRANSACTIONS: "synthetic_transactions",
-	ALERT_ESCALATION: "alert_escalation",
-	SMS_VOICE_ALERTS: "sms_voice_alerts",
-	HEARTBEAT_MONITORING: "heartbeat_monitoring",
-	N_OUT_OF_M_FALSE_POSITIVE_REDUCTION: "n_out_of_m_false_positive_reduction",
+	THIRTY_SECOND_FREQUENCY:"thirty_second_frequency",
+	SYNTHETIC_TRANSACTIONS:"synthetic_transactions",
+	ALERT_ESCALATION:"alert_escalation",
+	SMS_VOICE_ALERTS:"sms_voice_alerts",
+	HEARTBEAT_MONITORING:"heartbeat_monitoring",
+	N_OUT_OF_M_FALSE_POSITIVE_REDUCTION:"n_out_of_m_false_positive_reduction",
 } as const;
 
 export type PulseGatedFeatureId =
@@ -130,9 +130,9 @@ export type PulsePlanMetadata = {
  */
 export const PULSE_PLAN_METADATA: Record<PulsePlanId, PulsePlanMetadata> = {
 	[PULSE_PLAN_IDS.FREE]: {
-		name: "Pulse Free",
+		name:"Pulse Free",
 		priceUsdMonthly: 0,
-		targetUser: "Hobbyists, Personal Projects",
+		targetUser:"Hobbyists, Personal Projects",
 		limits: {
 			includedMonitors: 5,
 			checkFrequencyMinutes: 5,
@@ -140,9 +140,9 @@ export const PULSE_PLAN_METADATA: Record<PulsePlanId, PulsePlanMetadata> = {
 		},
 	},
 	[PULSE_PLAN_IDS.PRO]: {
-		name: "Pulse Pro",
+		name:"Pulse Pro",
 		priceUsdMonthly: 15,
-		targetUser: "SMBs, Small Agencies",
+		targetUser:"SMBs, Small Agencies",
 		limits: {
 			includedMonitors: 50,
 			checkFrequencyMinutes: 1,
@@ -151,9 +151,9 @@ export const PULSE_PLAN_METADATA: Record<PulsePlanId, PulsePlanMetadata> = {
 		},
 	},
 	[PULSE_PLAN_IDS.BUSINESS]: {
-		name: "Pulse Business",
+		name:"Pulse Business",
 		priceUsdMonthly: 49,
-		targetUser: "Growing SaaS, Dev Teams",
+		targetUser:"Growing SaaS, Dev Teams",
 		limits: {
 			includedMonitors: 200,
 			checkFrequencySeconds: 30,
@@ -174,86 +174,86 @@ export const PULSE_FEATURE_METADATA: Record<
 	PulseFeatureMeta
 > = {
 	[PULSE_GATED_FEATURES.BASIC_UPTIME_CHECKS]: {
-		name: "Basic Uptime Checks",
-		description: "HTTP/S, Ping, and Port monitoring",
-		upgradeMessage: "Basic uptime checks are available on all plans",
+		name:"Basic Uptime Checks",
+		description:"HTTP/S, Ping, and Port monitoring",
+		upgradeMessage:"Basic uptime checks are available on all plans",
 	},
 	[PULSE_GATED_FEATURES.EMAIL_ALERTS]: {
-		name: "Email Alerts",
-		description: "Receive email notifications when monitors go down",
-		upgradeMessage: "Email alerts are available on all plans",
+		name:"Email Alerts",
+		description:"Receive email notifications when monitors go down",
+		upgradeMessage:"Email alerts are available on all plans",
 	},
 	[PULSE_GATED_FEATURES.WEBHOOKS]: {
-		name: "Webhooks",
-		description: "Integrate with external services via webhooks",
-		upgradeMessage: "Webhooks are available on all plans",
+		name:"Webhooks",
+		description:"Integrate with external services via webhooks",
+		upgradeMessage:"Webhooks are available on all plans",
 	},
 	[PULSE_GATED_FEATURES.PUBLIC_STATUS_PAGE]: {
-		name: "Public Status Page",
-		description: "Share your service status publicly",
-		upgradeMessage: "Public status pages are available on all plans",
+		name:"Public Status Page",
+		description:"Share your service status publicly",
+		upgradeMessage:"Public status pages are available on all plans",
 	},
 	[PULSE_GATED_FEATURES.DASHBOARD_INTEGRATION]: {
-		name: "Dashboard Integration",
-		description: "View monitor status in your dashboard",
-		upgradeMessage: "Dashboard integration is available on all plans",
+		name:"Dashboard Integration",
+		description:"View monitor status in your dashboard",
+		upgradeMessage:"Dashboard integration is available on all plans",
 	},
 	[PULSE_GATED_FEATURES.SSL_CERTIFICATE_CHECKS]: {
-		name: "SSL Certificate Expiry Checks",
-		description: "Monitor SSL certificate expiration dates",
-		upgradeMessage: "Upgrade to Pro for SSL certificate checks",
+		name:"SSL Certificate Expiry Checks",
+		description:"Monitor SSL certificate expiration dates",
+		upgradeMessage:"Upgrade to Pro for SSL certificate checks",
 		minPlan: PULSE_PLAN_IDS.PRO,
 	},
 	[PULSE_GATED_FEATURES.KEYWORD_CONTENT_MATCH]: {
-		name: "Keyword/Content Match",
-		description: "Verify specific content appears on monitored pages",
-		upgradeMessage: "Upgrade to Pro for keyword/content matching",
+		name:"Keyword/Content Match",
+		description:"Verify specific content appears on monitored pages",
+		upgradeMessage:"Upgrade to Pro for keyword/content matching",
 		minPlan: PULSE_PLAN_IDS.PRO,
 	},
 	[PULSE_GATED_FEATURES.MULTI_LOCATION_CHECKS]: {
-		name: "Multi-Location Checks",
-		description: "Monitor from multiple geographic locations",
-		upgradeMessage: "Upgrade to Pro for multi-location checks",
+		name:"Multi-Location Checks",
+		description:"Monitor from multiple geographic locations",
+		upgradeMessage:"Upgrade to Pro for multi-location checks",
 		minPlan: PULSE_PLAN_IDS.PRO,
 	},
 	[PULSE_GATED_FEATURES.ONE_MINUTE_FREQUENCY]: {
-		name: "1-Minute Check Frequency",
-		description: "Check your monitors every minute",
-		upgradeMessage: "Upgrade to Pro for 1-minute check frequency",
+		name:"1-Minute Check Frequency",
+		description:"Check your monitors every minute",
+		upgradeMessage:"Upgrade to Pro for 1-minute check frequency",
 		minPlan: PULSE_PLAN_IDS.PRO,
 	},
 	[PULSE_GATED_FEATURES.THIRTY_SECOND_FREQUENCY]: {
-		name: "30-Second Check Frequency",
-		description: "Check your monitors every 30 seconds",
-		upgradeMessage: "Upgrade to Business for 30-second check frequency",
+		name:"30-Second Check Frequency",
+		description:"Check your monitors every 30 seconds",
+		upgradeMessage:"Upgrade to Business for 30-second check frequency",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,
 	},
 	[PULSE_GATED_FEATURES.SYNTHETIC_TRANSACTIONS]: {
-		name: "Synthetic Transactions",
-		description: "Multi-step checks that simulate user workflows",
-		upgradeMessage: "Upgrade to Business for synthetic transactions",
+		name:"Synthetic Transactions",
+		description:"Multi-step checks that simulate user workflows",
+		upgradeMessage:"Upgrade to Business for synthetic transactions",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,
 	},
 	[PULSE_GATED_FEATURES.ALERT_ESCALATION]: {
-		name: "Alert Escalation Policies",
-		description: "Configure alert escalation rules",
-		upgradeMessage: "Upgrade to Business for alert escalation",
+		name:"Alert Escalation Policies",
+		description:"Configure alert escalation rules",
+		upgradeMessage:"Upgrade to Business for alert escalation",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,
 	},
 	[PULSE_GATED_FEATURES.SMS_VOICE_ALERTS]: {
-		name: "SMS/Voice Call Alerts",
-		description: "Receive alerts via SMS or voice calls via Twilio",
-		upgradeMessage: "Upgrade to Business for SMS/voice alerts",
+		name:"SMS/Voice Call Alerts",
+		description:"Receive alerts via SMS or voice calls via Twilio",
+		upgradeMessage:"Upgrade to Business for SMS/voice alerts",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,
 	},
 	[PULSE_GATED_FEATURES.HEARTBEAT_MONITORING]: {
-		name: "Heartbeat Monitoring",
-		description: "Monitor applications that send heartbeat signals",
-		upgradeMessage: "Upgrade to Business for heartbeat monitoring",
+		name:"Heartbeat Monitoring",
+		description:"Monitor applications that send heartbeat signals",
+		upgradeMessage:"Upgrade to Business for heartbeat monitoring",
 		minPlan: PULSE_PLAN_IDS.BUSINESS,
 	},
 	[PULSE_GATED_FEATURES.N_OUT_OF_M_FALSE_POSITIVE_REDUCTION]: {
-		name: "N-out-of-M False Positive Reduction",
+		name:"N-out-of-M False Positive Reduction",
 		description:
 			"Reduce false positives by requiring N failures out of M checks",
 		upgradeMessage:
@@ -319,7 +319,7 @@ export function getPulsePlanLimits(
 
 /** Product information */
 export const PULSE_PRODUCT_INFO = {
-	productName: "Databuddy Pulse",
+	productName:"Databuddy Pulse",
 	coreValueProposition:
 		"Integrated, Privacy-First Uptime Monitoring: Know when your site is down, and why, without compromising user privacy.",
 } as const;

@@ -3,11 +3,10 @@
 import { authClient } from "@databuddy/auth/client";
 import { PLAN_IDS, type PlanId } from "@databuddy/shared/types/features";
 import {
-	CaretDownIcon,
 	CheckIcon,
+	ChevronDownIcon,
 	PlusIcon,
-	SpinnerGapIcon,
-} from "@phosphor-icons/react";
+} from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { useState } from "react";
@@ -52,9 +51,9 @@ const getPlanDisplayInfo = (planId: PlanId | null) => {
 };
 
 const MENU_ITEM_BASE_CLASSES =
-	"flex h-10 cursor-pointer items-center gap-3 px-4 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground";
+	"flex h-16 cursor-pointer items-center gap-3 px-4 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground border-b border-border";
 const MENU_ITEM_ACTIVE_CLASSES =
-	"bg-sidebar-accent font-medium text-sidebar-accent-foreground";
+	"bg-muted font-medium text-foreground";
 
 function filterOrganizations<T extends { name: string; slug?: string | null }>(
 	orgs: T[] | undefined,
@@ -96,64 +95,60 @@ function OrganizationSelectorTrigger({
 	return (
 		<div
 			className={cn(
-				"flex h-12 w-full items-center border-b bg-sidebar-accent px-3 py-3",
-				"hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+				"flex h-16 w-full items-center border-b border-border px-4",
+				"hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 				isSettingActiveOrganization ? "cursor-not-allowed opacity-70" : "",
-				isOpen ? "bg-sidebar-accent/60" : ""
+				isOpen ? "bg-muted/50" : ""
 			)}
 		>
-			<div className="flex w-full min-w-0 items-center justify-between">
+			<div className="flex w-full min-w-0 items-center justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
-					<div className="shrink-0 rounded">
-						<Avatar className="size-7">
+					<div className="shrink-0">
+						<Avatar className="size-8 rounded-full">
 							<AvatarImage
 								alt={activeOrganization?.name ?? "Workspace"}
-								className="rounded"
+								className="rounded-full"
 								src={getDicebearUrl(
 									activeOrganization?.logo || activeOrganization?.id
 								)}
 							/>
-							<AvatarFallback className="bg-secondary">
+							<AvatarFallback className="rounded-full bg-muted">
 								<Image
 									alt={activeOrganization?.name ?? "Workspace"}
-									className="rounded"
-									height={28}
+									className="rounded-full"
+									height={32}
 									src={getDicebearUrl(
 										activeOrganization?.logo || activeOrganization?.id
 									)}
 									unoptimized
-									width={28}
+									width={32}
 								/>
 							</AvatarFallback>
 						</Avatar>
 					</div>
-					<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+					<div className="flex min-w-0 flex-1 flex-col items-start">
 						<div className="flex min-w-0 items-center gap-2">
-							<span className="min-w-0 truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
+							<span className="min-w-0 truncate text-left font-medium text-foreground text-sm leading-none">
 								{activeOrganization?.name ?? "Select workspace"}
 							</span>
 							<Badge
-								className="shrink-0 py-1 text-xs leading-none"
-								variant={planInfo?.variant || "gray"}
+								className="shrink-0 rounded-none px-2 py-0.5 font-mono text-xs font-semibold uppercase leading-none"
+								variant={planInfo?.variant === "gray" ? "secondary" : "default"}
 							>
 								{planInfo?.name || "Free"}
 							</Badge>
 						</div>
-						<p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
+						<p className="mt-1 truncate text-left text-muted-foreground text-xs leading-none">
 							{activeOrganization?.slug ?? "No workspace selected"}
 						</p>
 					</div>
 				</div>
 				{isSettingActiveOrganization ? (
-					<SpinnerGapIcon
-						aria-label="Switching workspace"
-						className="size-4 shrink-0 animate-spin text-sidebar-accent-foreground/60"
-						weight="duotone"
-					/>
+					<div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				) : (
-					<CaretDownIcon
+					<ChevronDownIcon
 						className={cn(
-							"size-4 shrink-0 text-sidebar-accent-foreground/60 transition-transform duration-200",
+							"size-4 shrink-0 text-muted-foreground transition-transform duration-200",
 							isOpen ? "rotate-180" : ""
 						)}
 					/>
@@ -204,15 +199,16 @@ export function OrganizationSelector() {
 
 	if (isLoading) {
 		return (
-			<div className="flex h-12 w-full items-center bg-sidebar-accent px-3 py-3">
-				<div className="flex w-full min-w-0 items-center justify-between">
+			<div className="flex h-16 w-full items-center border-b border-border px-4">
+				<div className="flex w-full min-w-0 items-center justify-between gap-3">
 					<div className="flex min-w-0 items-center gap-3">
-						<div className="shrink-0 rounded-lg border bg-sidebar/80 p-1.5">
-							<Skeleton className="size-5 rounded" />
-						</div>
-						<div className="flex min-w-0 flex-1 flex-col items-start">
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="mt-1 h-3 w-16 rounded" />
+						<Skeleton className="size-8 shrink-0 rounded-full" />
+						<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+							<div className="flex items-center gap-2">
+								<Skeleton className="h-4 w-24 rounded" />
+								<Skeleton className="h-4 w-12 rounded-none" />
+							</div>
+							<Skeleton className="h-3 w-16 rounded" />
 						</div>
 					</div>
 					<Skeleton className="size-4 shrink-0 rounded" />
@@ -251,7 +247,7 @@ export function OrganizationSelector() {
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					align="start"
-					className="w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
+					className="w-72 rounded-none border-t-0 border-r border-l-0 bg-background p-0"
 					sideOffset={0}
 				>
 					{filteredOrganizations.length > 0 && (
@@ -266,32 +262,33 @@ export function OrganizationSelector() {
 									key={org.id}
 									onClick={() => handleSelectOrganization(org.id)}
 								>
-									<Avatar className="size-5">
+									<Avatar className="size-6 rounded-full">
 										<AvatarImage
 											alt={org.name}
+											className="rounded-full"
 											src={getDicebearUrl(org.logo || org.id)}
 										/>
-										<AvatarFallback className="bg-sidebar-primary/30">
+										<AvatarFallback className="rounded-full bg-muted">
 											<Image
 												alt={org.name}
-												className="rounded"
-												height={20}
+												className="rounded-full"
+												height={24}
 												src={getDicebearUrl(org.logo || org.id)}
 												unoptimized
-												width={20}
+												width={24}
 											/>
 										</AvatarFallback>
 									</Avatar>
 									<div className="flex min-w-0 flex-1 flex-col items-start text-left">
-										<span className="truncate text-left font-medium text-sm">
+										<span className="truncate text-left font-medium text-foreground text-sm">
 											{org.name}
 										</span>
-										<span className="truncate text-left text-sidebar-foreground/70 text-xs">
+										<span className="truncate text-left text-muted-foreground text-xs">
 											{org.slug}
 										</span>
 									</div>
 									{activeOrganization?.id === org.id && (
-										<CheckIcon className="size-4 text-accent-foreground" />
+										<CheckIcon className="size-4 text-foreground" />
 									)}
 								</DropdownMenuItem>
 							))}
@@ -300,14 +297,14 @@ export function OrganizationSelector() {
 
 					<DropdownMenuSeparator className="m-0 p-0" />
 					<DropdownMenuItem
-						className={MENU_ITEM_BASE_CLASSES}
+						className={cn(MENU_ITEM_BASE_CLASSES, "border-b-0")}
 						onClick={() => {
 							setShowCreateDialog(true);
 							setIsOpen(false);
 						}}
 					>
-						<PlusIcon className="size-5 text-accent-foreground" />
-						<span className="font-medium text-sm">Create Organization</span>
+						<PlusIcon className="size-5 text-foreground" />
+						<span className="font-medium text-foreground text-sm">Create Organization</span>
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>

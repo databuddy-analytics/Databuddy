@@ -6,12 +6,12 @@ import {
 	PencilIcon,
 	TagIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useState } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
 import {
 	Sheet,
 	SheetContent,
@@ -19,16 +19,16 @@ import {
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,
-} from "@/components/ui/sheet";
-import { formatAnnotationDateRange } from "@/lib/annotation-utils";
-import type { Annotation } from "@/types/annotations";
+} from"@/components/ui/sheet";
+import { formatAnnotationDateRange } from"@/lib/annotation-utils";
+import type { Annotation } from"@/types/annotations";
 
 type AnnotationsPanelProps = {
 	annotations: Annotation[];
 	onEdit: (annotation: Annotation) => void;
 	onDelete: (id: string) => Promise<void>;
 	isDeleting?: boolean;
-	granularity?: "hourly" | "daily" | "weekly" | "monthly";
+	granularity?:"hourly" |"daily" |"weekly" |"monthly";
 };
 
 export function AnnotationsPanel({
@@ -36,7 +36,7 @@ export function AnnotationsPanel({
 	onEdit,
 	onDelete,
 	isDeleting = false,
-	granularity = "daily",
+	granularity ="daily",
 }: AnnotationsPanelProps) {
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
@@ -60,14 +60,14 @@ export function AnnotationsPanel({
 					</Button>
 				</SheetTrigger>
 				<SheetContent
-					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-md"
+					className="m-3 h-[calc(100%-1.5rem)] border p-0 sm:max-w-md"
 					side="right"
 				>
 					<div className="flex h-full flex-col">
 						{/* Header */}
 						<SheetHeader className="shrink-0 pr-5">
 							<div className="flex items-start gap-4">
-								<div className="flex size-11 items-center justify-center rounded border bg-secondary-brighter">
+								<div className="flex size-11 items-center justify-center border bg-secondary-brighter">
 									<NoteIcon
 										className="text-foreground"
 										size={22}
@@ -78,7 +78,7 @@ export function AnnotationsPanel({
 									<SheetTitle className="text-lg">Chart Annotations</SheetTitle>
 									<SheetDescription className="text-sm">
 										{annotations.length} annotation
-										{annotations.length !== 1 ? "s" : ""} on this chart
+										{annotations.length !== 1 ?"s" :""} on this chart
 									</SheetDescription>
 								</div>
 							</div>
@@ -87,8 +87,8 @@ export function AnnotationsPanel({
 						{/* Content */}
 						<div className="flex-1 space-y-4 overflow-y-auto p-2">
 							{annotations.length === 0 ? (
-								<div className="flex flex-col items-center justify-center rounded border bg-card py-12 text-center">
-									<div className="flex size-12 items-center justify-center rounded bg-secondary">
+								<div className="flex flex-col items-center justify-center border bg-card py-12 text-center">
+									<div className="flex size-12 items-center justify-center bg-secondary">
 										<NoteIcon
 											className="size-6 text-muted-foreground"
 											weight="duotone"
@@ -105,24 +105,24 @@ export function AnnotationsPanel({
 								<div className="space-y-3">
 									{annotations.map((annotation) => {
 										const isRange =
-											annotation.annotationType === "range" &&
+											annotation.annotationType ==="range" &&
 											annotation.xEndValue &&
 											new Date(annotation.xValue).getTime() !==
 												new Date(annotation.xEndValue).getTime();
 
 										return (
 											<div
-												className="group rounded border bg-card hover:border-primary"
+												className="group border bg-card hover:border-primary"
 												key={annotation.id}
 											>
 												{/* Annotation Header */}
 												<div className="flex items-start gap-3 p-3">
 													<div
-														className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded border"
+														className="mt-0.5 flex size-8 shrink-0 items-center justify-center border"
 														style={{ borderColor: annotation.color }}
 													>
 														<div
-															className="size-3 rounded-full"
+															className="size-3"
 															style={{ backgroundColor: annotation.color }}
 														/>
 													</div>
@@ -172,7 +172,7 @@ export function AnnotationsPanel({
 												{/* Meta */}
 												<div className="flex items-center justify-between border-t bg-secondary px-3 py-2">
 													<span className="text-muted-foreground text-xs">
-														Created{" "}
+														Created{""}
 														{dayjs(annotation.createdAt).format("MMM D, YYYY")}
 													</span>
 													<div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -231,10 +231,10 @@ export function AnnotationsPanel({
 				title="Delete Annotation"
 			>
 				{annotationToDelete ? (
-					<div className="rounded border bg-card p-3">
+					<div className=" border bg-card p-3">
 						<div className="flex items-start gap-3">
 							<div
-								className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded"
+								className="mt-0.5 flex size-6 shrink-0 items-center justify-center"
 								style={{ backgroundColor: annotationToDelete.color }}
 							>
 								<NoteIcon className="size-3 text-white" weight="fill" />

@@ -4,20 +4,20 @@ import {
 	CalendarDotsIcon,
 	CaretRightIcon,
 	CheckIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DateRange } from "react-day-picker";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import type { DateRange } from"react-day-picker";
+import { Button } from"@/components/ui/button";
+import { Calendar } from"@/components/ui/calendar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { formatMonthDay } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/popover";
+import { useIsMobile } from"@/hooks/use-mobile";
+import { formatMonthDay } from"@/lib/formatters";
+import { cn } from"@/lib/utils";
 
 interface PresetRange {
 	label: string;
@@ -26,58 +26,58 @@ interface PresetRange {
 
 const PRESET_RANGES: PresetRange[] = [
 	{
-		label: "Today",
+		label:"Today",
 		getValue: () => {
 			const today = dayjs().startOf("day").toDate();
 			return { from: today, to: today };
 		},
 	},
 	{
-		label: "Yesterday",
+		label:"Yesterday",
 		getValue: () => {
-			const yesterday = dayjs().subtract(1, "day").startOf("day").toDate();
+			const yesterday = dayjs().subtract(1,"day").startOf("day").toDate();
 			return { from: yesterday, to: yesterday };
 		},
 	},
 	{
-		label: "Last 7 days",
+		label:"Last 7 days",
 		getValue: () => ({
-			from: dayjs().subtract(6, "day").startOf("day").toDate(),
+			from: dayjs().subtract(6,"day").startOf("day").toDate(),
 			to: dayjs().endOf("day").toDate(),
 		}),
 	},
 	{
-		label: "Last 14 days",
+		label:"Last 14 days",
 		getValue: () => ({
-			from: dayjs().subtract(13, "day").startOf("day").toDate(),
+			from: dayjs().subtract(13,"day").startOf("day").toDate(),
 			to: dayjs().endOf("day").toDate(),
 		}),
 	},
 	{
-		label: "Last 30 days",
+		label:"Last 30 days",
 		getValue: () => ({
-			from: dayjs().subtract(29, "day").startOf("day").toDate(),
+			from: dayjs().subtract(29,"day").startOf("day").toDate(),
 			to: dayjs().endOf("day").toDate(),
 		}),
 	},
 	{
-		label: "This month",
+		label:"This month",
 		getValue: () => ({
 			from: dayjs().startOf("month").toDate(),
 			to: dayjs().endOf("day").toDate(),
 		}),
 	},
 	{
-		label: "Last month",
+		label:"Last month",
 		getValue: () => ({
-			from: dayjs().subtract(1, "month").startOf("month").toDate(),
-			to: dayjs().subtract(1, "month").endOf("month").toDate(),
+			from: dayjs().subtract(1,"month").startOf("month").toDate(),
+			to: dayjs().subtract(1,"month").endOf("month").toDate(),
 		}),
 	},
 	{
-		label: "Last 90 days",
+		label:"Last 90 days",
 		getValue: () => ({
-			from: dayjs().subtract(89, "day").startOf("day").toDate(),
+			from: dayjs().subtract(89,"day").startOf("day").toDate(),
 			to: dayjs().endOf("day").toDate(),
 		}),
 	},
@@ -114,7 +114,7 @@ export function DateRangePicker({
 		if (!(tempRange?.from && tempRange?.to)) {
 			return 0;
 		}
-		return dayjs(tempRange.to).diff(dayjs(tempRange.from), "day") + 1;
+		return dayjs(tempRange.to).diff(dayjs(tempRange.from),"day") + 1;
 	}, [tempRange]);
 
 	const activePreset = useMemo(() => {
@@ -124,8 +124,8 @@ export function DateRangePicker({
 		return PRESET_RANGES.find((preset) => {
 			const presetRange = preset.getValue();
 			return (
-				dayjs(tempRange.from).isSame(presetRange.from, "day") &&
-				dayjs(tempRange.to).isSame(presetRange.to, "day")
+				dayjs(tempRange.from).isSame(presetRange.from,"day") &&
+				dayjs(tempRange.to).isSame(presetRange.to,"day")
 			);
 		});
 	}, [tempRange]);
@@ -163,14 +163,14 @@ export function DateRangePicker({
 
 	const formatDisplayRange = useCallback((range: DateRange | undefined) => {
 		if (!(range?.from && range?.to)) {
-			return "Select dates";
+			return"Select dates";
 		}
 
 		const from = dayjs(range.from);
 		const to = dayjs(range.to);
 		const currentYear = dayjs().year();
 
-		if (from.isSame(to, "day")) {
+		if (from.isSame(to,"day")) {
 			return from.year() === currentYear
 				? from.format("MMM D")
 				: from.format("MMM D, YYYY");
@@ -199,7 +199,7 @@ export function DateRangePicker({
 					<Button
 						className={cn(
 							"h-8 justify-start gap-2 whitespace-nowrap px-3 text-left font-medium text-xs",
-							!value?.from && "text-muted-foreground"
+							!value?.from &&"text-muted-foreground"
 						)}
 						disabled={disabled}
 						variant="secondary"
@@ -227,10 +227,10 @@ export function DateRangePicker({
 										return (
 											<button
 												className={cn(
-													"flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm",
+													"flex w-full items-center justify-between px-2 py-1.5 text-left text-sm",
 													isActive
-														? "bg-primary text-primary-foreground"
-														: "text-muted-foreground hover:bg-secondary hover:text-foreground"
+														?"bg-primary text-primary-foreground"
+														:"text-muted-foreground hover:bg-secondary hover:text-foreground"
 												)}
 												key={preset.label}
 												onClick={() => handlePresetSelect(preset)}
@@ -252,7 +252,7 @@ export function DateRangePicker({
 								<div className="flex items-center gap-2">
 									{tempRange?.from ? (
 										<>
-											<div className="rounded bg-background px-2.5 py-1 shadow-sm">
+											<div className=" bg-background px-2.5 py-1 shadow-sm">
 												<span className="font-semibold text-foreground text-sm tabular-nums">
 													{formatMonthDay(tempRange.from)}
 												</span>
@@ -263,23 +263,23 @@ export function DateRangePicker({
 											/>
 											<div
 												className={cn(
-													"rounded px-2.5 py-1",
+													" px-2.5 py-1",
 													tempRange?.to
-														? "bg-background shadow-sm"
-														: "border border-muted-foreground/40 border-dashed"
+														?"bg-background shadow-sm"
+														:"border border-muted-foreground/40 border-dashed"
 												)}
 											>
 												<span
 													className={cn(
 														"font-semibold text-sm tabular-nums",
 														tempRange?.to
-															? "text-foreground"
-															: "text-muted-foreground"
+															?"text-foreground"
+															:"text-muted-foreground"
 													)}
 												>
 													{tempRange?.to
 														? formatMonthDay(tempRange.to)
-														: "End date"}
+														:"End date"}
 												</span>
 											</div>
 										</>
@@ -290,8 +290,8 @@ export function DateRangePicker({
 									)}
 								</div>
 								{daysDiff > 0 && (
-									<span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary text-xs tabular-nums">
-										{daysDiff} day{daysDiff !== 1 ? "s" : ""}
+									<span className=" bg-primary/15 px-2 py-0.5 font-semibold text-primary text-xs tabular-nums">
+										{daysDiff} day{daysDiff !== 1 ?"s" :""}
 									</span>
 								)}
 							</div>
@@ -303,10 +303,10 @@ export function DateRangePicker({
 									return (
 										<button
 											className={cn(
-												"shrink-0 rounded px-2.5 py-1.5 font-medium text-xs",
+												"shrink-0 px-2.5 py-1.5 font-medium text-xs",
 												isActive
-													? "bg-primary text-primary-foreground"
-													: "bg-secondary text-muted-foreground"
+													?"bg-primary text-primary-foreground"
+													:"bg-secondary text-muted-foreground"
 											)}
 											key={preset.label}
 											onClick={() => handlePresetSelect(preset)}

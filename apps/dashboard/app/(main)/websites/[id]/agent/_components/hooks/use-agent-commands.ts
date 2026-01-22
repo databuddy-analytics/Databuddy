@@ -1,14 +1,14 @@
-import { useDebouncedCallback } from "@tanstack/react-pacer";
-import { useAtom, useSetAtom } from "jotai";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useChat } from "@/contexts/chat-context";
-import type { AgentCommand } from "../agent-atoms";
+import { useDebouncedCallback } from"@tanstack/react-pacer";
+import { useAtom, useSetAtom } from"jotai";
+import { useCallback, useMemo, useRef, useState } from"react";
+import { useChat } from"@/contexts/chat-context";
+import type { AgentCommand } from"../agent-atoms";
 import {
 	agentInputAtom,
 	commandQueryAtom,
 	showCommandsAtom,
-} from "../agent-atoms";
-import { filterCommands } from "../agent-commands";
+} from"../agent-atoms";
+import { filterCommands } from"../agent-commands";
 
 export function useAgentCommands() {
 	const setInput = useSetAtom(agentInputAtom);

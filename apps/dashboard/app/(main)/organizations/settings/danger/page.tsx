@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { DangerZoneSettings } from "./danger-zone-settings";
+import { Suspense } from"react";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useOrganizations } from"@/hooks/use-organizations";
+import { DangerZoneSettings } from"./danger-zone-settings";
 
 function PageSkeleton() {
 	return (
@@ -16,20 +16,20 @@ function PageSkeleton() {
 					<div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
 						<div className="space-y-2">
 							<Skeleton className="h-4 w-24" />
-							<Skeleton className="h-32 w-full rounded" />
+							<Skeleton className="h-32 w-full" />
 						</div>
 						<div className="flex items-center justify-center">
-							<Skeleton className="size-9 rounded" />
+							<Skeleton className="size-9" />
 						</div>
 						<div className="space-y-2">
 							<Skeleton className="h-4 w-32" />
-							<Skeleton className="h-32 w-full rounded" />
+							<Skeleton className="h-32 w-full" />
 						</div>
 					</div>
 				</div>
 
 				{/* Destructive action */}
-				<div className="rounded border border-destructive/20 bg-destructive/5 p-4">
+				<div className=" border border-destructive/20 bg-destructive/5 p-4">
 					<div className="flex items-start justify-between gap-4">
 						<div className="space-y-2">
 							<Skeleton className="h-5 w-40" />
@@ -41,9 +41,9 @@ function PageSkeleton() {
 			</div>
 
 			<div className="space-y-4 bg-card p-5">
-				<Skeleton className="h-20 w-full rounded" />
+				<Skeleton className="h-20 w-full" />
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="mt-auto h-20 w-full rounded" />
+				<Skeleton className="mt-auto h-20 w-full" />
 			</div>
 		</div>
 	);

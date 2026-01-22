@@ -1,8 +1,8 @@
 "use client";
 
-import { BellIcon } from "@phosphor-icons/react";
-import { RightSidebar } from "@/components/right-sidebar";
-import { ComingSoon } from "../_components/settings-section";
+import { BellIcon } from"@phosphor-icons/react";
+import { RightSidebar } from"@/components/right-sidebar";
+import { ComingSoon } from"../_components/settings-section";
 
 export default function NotificationsSettingsPage() {
 	return (

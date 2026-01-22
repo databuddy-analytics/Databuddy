@@ -5,20 +5,20 @@ import {
 	DotsThreeIcon,
 	PencilSimpleIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { FunnelFilter, FunnelStep } from "@/hooks/use-funnels";
-import { cn } from "@/lib/utils";
-import type { FunnelAnalyticsData } from "@/types/funnels";
+} from"@/components/ui/dropdown-menu";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { FunnelFilter, FunnelStep } from"@/hooks/use-funnels";
+import { cn } from"@/lib/utils";
+import type { FunnelAnalyticsData } from"@/types/funnels";
 
 export interface FunnelItemData {
 	id: string;
@@ -67,7 +67,7 @@ function MiniFunnelPreview({
 			<div className="flex h-6 items-center gap-0.5">
 				{[100, 70, 45, 25].map((w, i) => (
 					<div
-						className="h-full rounded-sm bg-muted"
+						className="h-full bg-muted"
 						key={`placeholder-${i + 1}`}
 						style={{ width: `${w * 0.3}px` }}
 					/>
@@ -85,7 +85,7 @@ function MiniFunnelPreview({
 
 				return (
 					<div
-						className="h-full rounded-sm bg-primary transition-all"
+						className="h-full bg-primary transition-all"
 						key={`step-${index + 1}`}
 						style={{
 							width: `${width}px`,
@@ -129,14 +129,14 @@ export function FunnelItem({
 			className={cn(
 				"border-border border-b",
 				className,
-				isExpanded && "bg-accent/30"
+				isExpanded &&"bg-accent/30"
 			)}
 		>
 			<button
 				className="group flex w-full cursor-pointer select-none items-center hover:bg-accent/50"
 				onClick={handleClick}
 				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
+					if (e.key ==="Enter" || e.key ==="") {
 						onToggle(funnel.id);
 					}
 				}}
@@ -148,7 +148,7 @@ export function FunnelItem({
 					<CaretRightIcon
 						className={cn(
 							"size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-							isExpanded && "rotate-90"
+							isExpanded &&"rotate-90"
 						)}
 						weight="bold"
 					/>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AgentPageContent } from "./agent-page-content";
+import { AgentPageContent } from"./agent-page-content";
 
 type AgentPageClientProps = {
 	chatId: string;

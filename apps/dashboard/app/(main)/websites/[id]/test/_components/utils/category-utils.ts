@@ -8,8 +8,8 @@ import {
 	SquaresFourIcon,
 	UsersIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import type { ElementType } from "react";
+} from"@phosphor-icons/react";
+import type { ElementType } from"react";
 
 /** Icon mapping for query type categories */
 export const CATEGORY_ICONS: Record<string, ElementType> = {
@@ -34,18 +34,18 @@ export function getCategoryIcon(category: string): ElementType {
 
 /** Color mapping for categories (for future use in charts, badges, etc) */
 export const CATEGORY_COLORS: Record<string, string> = {
-	Analytics: "hsl(var(--chart-1))",
-	Realtime: "hsl(var(--chart-2))",
-	Devices: "hsl(var(--chart-3))",
-	Geo: "hsl(var(--chart-4))",
-	Traffic: "hsl(var(--chart-5))",
-	Engagement: "hsl(var(--chart-1))",
-	Errors: "hsl(var(--destructive))",
-	Users: "hsl(var(--chart-2))",
-	Sessions: "hsl(var(--chart-3))",
-	Pages: "hsl(var(--chart-4))",
-	Performance: "hsl(var(--chart-5))",
-	Other: "hsl(var(--muted-foreground))",
+	Analytics:"hsl(var(--chart-1))",
+	Realtime:"hsl(var(--chart-2))",
+	Devices:"hsl(var(--chart-3))",
+	Geo:"hsl(var(--chart-4))",
+	Traffic:"hsl(var(--chart-5))",
+	Engagement:"hsl(var(--chart-1))",
+	Errors:"hsl(var(--destructive))",
+	Users:"hsl(var(--chart-2))",
+	Sessions:"hsl(var(--chart-3))",
+	Pages:"hsl(var(--chart-4))",
+	Performance:"hsl(var(--chart-5))",
+	Other:"hsl(var(--muted-foreground))",
 };
 
 /** Get the color for a category */

@@ -5,28 +5,28 @@ import {
 	HeartbeatIcon,
 	PencilIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+} from"@phosphor-icons/react";
+import { useMutation } from"@tanstack/react-query";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { orpc } from "@/lib/orpc";
+} from"@/components/ui/dropdown-menu";
+import { orpc } from"@/lib/orpc";
 
 const granularityLabels: Record<string, string> = {
-	minute: "1m",
-	ten_minutes: "10m",
-	thirty_minutes: "30m",
-	hour: "1h",
-	six_hours: "6h",
-	twelve_hours: "12h",
-	day: "Daily",
+	minute:"1m",
+	ten_minutes:"10m",
+	thirty_minutes:"30m",
+	hour:"1h",
+	six_hours:"6h",
+	twelve_hours:"12h",
+	day:"Daily",
 };
 
 type MonitorCardProps = {
@@ -71,7 +71,7 @@ export function MonitorCard({
 			onRefetchAction();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update monitor";
+				error instanceof Error ? error.message :"Failed to update monitor";
 			toast.error(errorMessage);
 		} finally {
 			setIsPausing(false);
@@ -79,11 +79,11 @@ export function MonitorCard({
 	};
 
 	return (
-		<Card className="rounded">
+		<Card className="">
 			<CardContent className="p-6">
 				<div className="flex items-start justify-between">
 					<div className="flex items-start gap-4">
-						<div className="flex size-12 items-center justify-center rounded border bg-secondary-brighter">
+						<div className="flex size-12 items-center justify-center border bg-secondary-brighter">
 							<HeartbeatIcon
 								className="text-accent-foreground"
 								size={24}
@@ -105,9 +105,9 @@ export function MonitorCard({
 								<div className="flex items-center gap-2">
 									<span>Status:</span>
 									<span
-										className={`font-medium ${schedule.isPaused ? "text-amber-600" : "text-green-600"}`}
+										className={`font-medium ${schedule.isPaused ?"text-amber-600" :"text-green-600"}`}
 									>
-										{schedule.isPaused ? "Paused" : "Active"}
+										{schedule.isPaused ?"Paused" :"Active"}
 									</span>
 								</div>
 							</div>
@@ -134,7 +134,7 @@ export function MonitorCard({
 								onClick={handleTogglePause}
 							>
 								<HeartbeatIcon size={16} />
-								{schedule.isPaused ? "Resume" : "Pause"}
+								{schedule.isPaused ?"Resume" :"Pause"}
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"

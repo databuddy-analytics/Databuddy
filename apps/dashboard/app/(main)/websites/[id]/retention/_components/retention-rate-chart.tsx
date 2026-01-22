@@ -1,9 +1,9 @@
 "use client";
 
-import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
-import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr/Spinner";
-import dayjs from "dayjs";
-import { useMemo } from "react";
+import { ChartLineIcon } from"@phosphor-icons/react/dist/ssr/ChartLine";
+import { SpinnerIcon } from"@phosphor-icons/react/dist/ssr/Spinner";
+import dayjs from"dayjs";
+import { useMemo } from"react";
 import {
 	Area,
 	AreaChart,
@@ -12,8 +12,8 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { EmptyState } from "@/components/empty-state";
+} from"recharts";
+import { EmptyState } from"@/components/empty-state";
 
 interface RetentionRate {
 	date: string;
@@ -51,14 +51,14 @@ function CustomTooltip({
 	}
 
 	return (
-		<div className="min-w-[180px] rounded border border-border bg-popover p-2.5 shadow-lg">
+		<div className="min-w-[180px] border border-border bg-popover p-2.5 shadow-lg">
 			<div className="mb-2 font-semibold text-foreground text-sm">
 				{date.format("MMM D, YYYY")}
 			</div>
 			<div className="space-y-1.5">
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<div className="size-2 rounded-full bg-primary" />
+						<div className="size-2 bg-primary" />
 						<span className="text-muted-foreground text-xs">Retention</span>
 					</div>
 					<span className="font-semibold text-foreground text-xs tabular-nums">
@@ -67,7 +67,7 @@ function CustomTooltip({
 				</div>
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<div className="size-2 rounded-full bg-success" />
+						<div className="size-2 bg-success" />
 						<span className="text-muted-foreground text-xs">Returning</span>
 					</div>
 					<span className="font-medium text-foreground text-xs tabular-nums">
@@ -76,7 +76,7 @@ function CustomTooltip({
 				</div>
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<div className="size-2 rounded-full bg-muted" />
+						<div className="size-2 bg-muted" />
 						<span className="text-muted-foreground text-xs">New</span>
 					</div>
 					<span className="font-medium text-foreground text-xs tabular-nums">
@@ -141,7 +141,7 @@ export function RetentionRateChart({
 			{/* Legend */}
 			<div className="flex items-center gap-4">
 				<div className="flex items-center gap-2">
-					<div className="size-2.5 rounded-full bg-primary" />
+					<div className="size-2.5 bg-primary" />
 					<span className="text-muted-foreground text-xs">
 						Daily Retention Rate
 					</span>
@@ -191,7 +191,7 @@ export function RetentionRateChart({
 							dataKey="date"
 							dy={8}
 							interval="preserveStartEnd"
-							tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+							tick={{ fontSize: 11, fill:"var(--color-muted-foreground)" }}
 							tickLine={false}
 						/>
 						<YAxis
@@ -199,7 +199,7 @@ export function RetentionRateChart({
 							domain={[0, maxRetention]}
 							tick={{
 								fontSize: 11,
-								fill: "var(--color-muted-foreground)",
+								fill:"var(--color-muted-foreground)",
 							}}
 							tickFormatter={(value) => `${value}%`}
 							tickLine={false}
@@ -208,9 +208,9 @@ export function RetentionRateChart({
 						<Tooltip content={<CustomTooltip />} />
 						<Area
 							activeDot={{
-								fill: "var(--color-primary)",
+								fill:"var(--color-primary)",
 								r: 5,
-								stroke: "var(--color-background)",
+								stroke:"var(--color-background)",
 								strokeWidth: 2,
 							}}
 							connectNulls

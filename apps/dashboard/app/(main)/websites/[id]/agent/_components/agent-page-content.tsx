@@ -1,25 +1,25 @@
 "use client";
 
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowRight";
-import { BrainIcon } from "@phosphor-icons/react/dist/ssr/Brain";
-import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr/ChartBar";
-import { LightningIcon } from "@phosphor-icons/react/dist/ssr/Lightning";
-import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
-import { useSetAtom } from "jotai";
+import { ArrowRightIcon } from"@phosphor-icons/react/dist/ssr/ArrowRight";
+import { BrainIcon } from"@phosphor-icons/react/dist/ssr/Brain";
+import { ChartBarIcon } from"@phosphor-icons/react/dist/ssr/ChartBar";
+import { LightningIcon } from"@phosphor-icons/react/dist/ssr/Lightning";
+import { TableIcon } from"@phosphor-icons/react/dist/ssr/Table";
+import { useSetAtom } from"jotai";
 import {
 	Conversation,
 	ConversationContent,
 	ConversationEmptyState,
 	ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useChat } from "@/contexts/chat-context";
-import { cn } from "@/lib/utils";
-import { agentInputAtom } from "./agent-atoms";
-import { AgentChatProvider } from "./agent-chat-context";
-import { AgentInput } from "./agent-input";
-import { AgentMessages } from "./agent-messages";
-import { NewChatButton } from "./new-chat-button";
+} from"@/components/ai-elements/conversation";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { useChat } from"@/contexts/chat-context";
+import { cn } from"@/lib/utils";
+import { agentInputAtom } from"./agent-atoms";
+import { AgentChatProvider } from"./agent-chat-context";
+import { AgentInput } from"./agent-input";
+import { AgentMessages } from"./agent-messages";
+import { NewChatButton } from"./new-chat-button";
 
 interface AgentPageContentProps {
 	chatId: string;
@@ -28,24 +28,24 @@ interface AgentPageContentProps {
 
 const SUGGESTED_PROMPTS = [
 	{
-		text: "Analyze my traffic trends and find anomalies",
+		text:"Analyze my traffic trends and find anomalies",
 		icon: ChartBarIcon,
-		category: "Analysis",
+		category:"Analysis",
 	},
 	{
-		text: "What's causing my bounce rate to increase?",
+		text:"What's causing my bounce rate to increase?",
 		icon: BrainIcon,
-		category: "Insights",
+		category:"Insights",
 	},
 	{
-		text: "Generate a weekly performance report",
+		text:"Generate a weekly performance report",
 		icon: TableIcon,
-		category: "Reports",
+		category:"Reports",
 	},
 	{
-		text: "Find my best converting traffic sources",
+		text:"Find my best converting traffic sources",
 		icon: LightningIcon,
-		category: "Discovery",
+		category:"Discovery",
 	},
 ];
 
@@ -77,7 +77,7 @@ function AgentPageContentInner({
 			>
 				<div className="relative z-10 bg-sidebar-accent">
 					<div className="flex h-12 items-center gap-3 border-b px-3 sm:h-12 sm:px-3">
-						<div className="rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
+						<div className=" bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
 							<Avatar className="size-8">
 								<AvatarImage alt="Databunny avatar" src="/databunny.webp" />
 								<AvatarFallback className="bg-primary/10 font-semibold text-primary">
@@ -90,7 +90,7 @@ function AgentPageContentInner({
 								<h1 className="truncate font-semibold text-sidebar-accent-foreground text-sm">
 									Databunny
 								</h1>
-								<span className="rounded border border-border/50 bg-accent px-1.5 py-0.5 text-[10px] text-foreground/60 uppercase">
+								<span className=" border border-border/50 bg-accent px-1.5 py-0.5 text-[10px] text-foreground/60 uppercase">
 									Alpha
 								</span>
 							</div>
@@ -155,7 +155,7 @@ function WelcomeState({
 					"Auto Reports",
 				].map((capability) => (
 					<span
-						className="rounded border border-border/50 bg-accent px-3 py-1 text-foreground/70 text-xs"
+						className=" border border-border/50 bg-accent px-3 py-1 text-foreground/70 text-xs"
 						key={capability}
 					>
 						{capability}
@@ -167,7 +167,7 @@ function WelcomeState({
 				{SUGGESTED_PROMPTS.map((prompt) => (
 					<button
 						className={cn(
-							"group flex items-start gap-3 rounded border border-dashed p-3 text-left",
+							"group flex items-start gap-3 border border-dashed p-3 text-left",
 							"transition-all hover:border-solid hover:bg-accent/30",
 							"disabled:cursor-not-allowed disabled:opacity-50"
 						)}
@@ -175,7 +175,7 @@ function WelcomeState({
 						onClick={() => onPromptSelect(prompt.text)}
 						type="button"
 					>
-						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-accent/50">
+						<div className="flex size-8 shrink-0 items-center justify-center bg-accent/50">
 							<prompt.icon
 								className="size-4 text-foreground/60"
 								weight="duotone"

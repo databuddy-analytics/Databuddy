@@ -1,20 +1,20 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { FlagIcon } from "@phosphor-icons/react/dist/ssr/Flag";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureGate } from "@/components/feature-gate";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { orpc } from "@/lib/orpc";
-import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
-import { FlagSheet } from "./_components/flag-sheet";
-import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
-import type { Flag, TargetGroup } from "./_components/types";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
+import { FlagIcon } from"@phosphor-icons/react/dist/ssr/Flag";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { Suspense, useMemo, useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { FeatureGate } from"@/components/feature-gate";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { orpc } from"@/lib/orpc";
+import { isFlagSheetOpenAtom } from"@/stores/jotai/flagsAtoms";
+import { FlagSheet } from"./_components/flag-sheet";
+import { FlagsList, FlagsListSkeleton } from"./_components/flags-list";
+import type { Flag, TargetGroup } from"./_components/types";
 
 export default function FlagsPage() {
 	const { id } = useParams();
@@ -29,7 +29,7 @@ export default function FlagsPage() {
 	});
 
 	const activeFlags = useMemo(
-		() => flags?.filter((f) => f.status !== "archived") ?? [],
+		() => flags?.filter((f) => f.status !=="archived") ?? [],
 		[flags]
 	);
 
@@ -39,7 +39,7 @@ export default function FlagsPage() {
 			if (
 				Array.isArray(flag.targetGroups) &&
 				flag.targetGroups.length > 0 &&
-				typeof flag.targetGroups[0] === "object"
+				typeof flag.targetGroups[0] ==="object"
 			) {
 				map.set(flag.id, flag.targetGroups as TargetGroup[]);
 			} else {
@@ -98,7 +98,7 @@ export default function FlagsPage() {
 							<div className="flex flex-1 items-center justify-center py-16">
 								<EmptyState
 									action={{
-										label: "Create Your First Flag",
+										label:"Create Your First Flag",
 										onClick: handleCreateFlag,
 									}}
 									description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."

@@ -1,8 +1,8 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { DynamicQueryResponse } from "@databuddy/shared/types/api";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { DynamicQueryResponse } from"@databuddy/shared/types/api";
+import type { UseQueryOptions } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useDynamicQuery } from"@/hooks/use-dynamic-query";
 
 export function useUserProfile(
 	websiteId: string,
@@ -25,8 +25,8 @@ export function useUserProfile(
 			parameters: ["profile_detail"],
 			filters: [
 				{
-					field: "anonymous_id",
-					operator: "eq",
+					field:"anonymous_id",
+					operator:"eq",
 					value: userId,
 				},
 			],
@@ -42,8 +42,8 @@ export function useUserProfile(
 			parameters: ["profile_sessions"],
 			filters: [
 				{
-					field: "anonymous_id",
-					operator: "eq",
+					field:"anonymous_id",
+					operator:"eq",
 					value: userId,
 				},
 			],
@@ -63,19 +63,19 @@ export function useUserProfile(
 		const sessions = Array.isArray(rawSessions)
 			? rawSessions.map((session: any) => ({
 					session_id: session.session_id,
-					session_name: session.session_name || "Session",
+					session_name: session.session_name ||"Session",
 					first_visit: session.first_visit,
 					last_visit: session.last_visit,
 					duration: session.duration || 0,
-					duration_formatted: session.duration_formatted || "0s",
+					duration_formatted: session.duration_formatted ||"0s",
 					page_views: session.page_views || 0,
 					unique_pages: session.unique_pages || 0,
-					device: session.device || "",
-					browser: session.browser || "",
-					os: session.os || "",
-					country: session.country || "",
-					region: session.region || "",
-					referrer: session.referrer || "direct",
+					device: session.device ||"",
+					browser: session.browser ||"",
+					os: session.os ||"",
+					country: session.country ||"",
+					region: session.region ||"",
+					referrer: session.referrer ||"direct",
 					events:
 						Array.isArray(session.events) && session.events.length > 0
 							? session.events.map((eventTuple: any[]) => {

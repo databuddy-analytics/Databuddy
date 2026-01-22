@@ -1,4 +1,7 @@
-import { ArrowSquareOutIcon, LockSimpleIcon } from "@phosphor-icons/react";
+import {
+	ArrowTopRightOnSquareIcon,
+	LockClosedIcon,
+} from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -60,14 +63,14 @@ export function NavigationItem({
 					className="shrink-0 rounded"
 					domain={domain}
 					fallbackIcon={
-						<Icon aria-hidden className="size-5 shrink-0" weight="duotone" />
+						<Icon aria-hidden className="size-5 shrink-0" />
 					}
 					size={20}
 				/>
 			) : (
-				<Icon aria-hidden className="size-4 shrink-0" weight="duotone" />
+				<Icon aria-hidden className="size-5 shrink-0" />
 			)}
-			<span className="min-w-0 flex-1 truncate">{name}</span>
+			<span className="min-w-0 flex-1 truncate text-base font-medium">{name}</span>
 		</>
 	);
 
@@ -75,14 +78,14 @@ export function NavigationItem({
 		return (
 			<div
 				aria-disabled
-				className="group flex min-w-0 cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/40 text-sm"
+				className="group flex h-16 min-w-0 cursor-not-allowed items-center gap-3 border-b border-border px-4 text-muted-foreground/50 text-base"
 				title={lockedPlanName ? `Requires ${lockedPlanName} plan` : undefined}
 			>
 				{content}
 				<div className="flex shrink-0 items-center gap-1.5">
-					<LockSimpleIcon aria-hidden className="size-3" />
+					<LockClosedIcon aria-hidden className="size-3" />
 					{lockedPlanName && (
-						<span className="rounded bg-sidebar-accent px-1.5 py-0.5 font-medium text-[10px] text-sidebar-foreground/50 uppercase">
+						<span className="rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground uppercase">
 							{lockedPlanName}
 						</span>
 					)}
@@ -95,11 +98,11 @@ export function NavigationItem({
 		return (
 			<div
 				aria-disabled
-				className="group flex min-w-0 cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/30 text-sm"
+				className="group flex h-16 min-w-0 cursor-not-allowed items-center gap-3 border-b border-border px-4 text-muted-foreground/40 text-base"
 			>
 				{content}
 				{tag && (
-					<span className="shrink-0 font-mono text-sidebar-foreground/30 text-xs uppercase">
+					<span className="shrink-0 font-mono text-muted-foreground/40 text-xs uppercase">
 						{tag}
 					</span>
 				)}
@@ -118,10 +121,10 @@ export function NavigationItem({
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex min-w-0 items-center gap-3 border-transparent border-r-2 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
+				"group flex h-16 min-w-0 items-center gap-3 border-b border-border px-4 text-base transition-colors",
 				isActive
-					? "border-sidebar-ring bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"
+					? "bg-muted font-medium text-foreground"
+					: "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
 			)}
 			data-nav-href={href}
 			data-nav-item={name}
@@ -132,12 +135,12 @@ export function NavigationItem({
 			{content}
 			<div className="flex shrink-0 items-center gap-1.5">
 				{alpha && (
-					<span className="font-mono text-sidebar-foreground/50 text-xs">
+					<span className="font-mono text-muted-foreground text-xs">
 						ALPHA
 					</span>
 				)}
 				{tag && (
-					<span className="font-mono text-sidebar-foreground/50 text-xs uppercase">
+					<span className="font-mono text-muted-foreground text-xs uppercase">
 						{tag}
 					</span>
 				)}
@@ -157,10 +160,9 @@ export function NavigationItem({
 					</span>
 				)}
 				{isExternal && (
-					<ArrowSquareOutIcon
+					<ArrowTopRightOnSquareIcon
 						aria-hidden
-						className="size-3 text-sidebar-ring opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-						weight="duotone"
+						className="size-3 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 					/>
 				)}
 			</div>

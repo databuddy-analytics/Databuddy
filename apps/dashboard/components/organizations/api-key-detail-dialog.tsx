@@ -1,6 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	ArrowsClockwiseIcon,
 	CheckCircleIcon,
@@ -9,27 +9,27 @@ import {
 	KeyIcon,
 	ProhibitIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { orpc } from "@/lib/orpc";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { DeleteDialog } from "../ui/delete-dialog";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+} from"@phosphor-icons/react";
+import { useMutation, useQueryClient } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import { useEffect, useState } from"react";
+import { useForm } from"react-hook-form";
+import { z } from"zod";
+import { orpc } from"@/lib/orpc";
+import { Badge } from"../ui/badge";
+import { Button } from"../ui/button";
+import { DeleteDialog } from"../ui/delete-dialog";
+import { Input } from"../ui/input";
+import { Label } from"../ui/label";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from "../ui/sheet";
-import { Switch } from "../ui/switch";
-import type { ApiKeyListItem, ApiScope } from "./api-key-types";
+} from"../ui/sheet";
+import { Switch } from"../ui/switch";
+import type { ApiKeyListItem, ApiScope } from"./api-key-types";
 
 interface ApiKeyDetailDialogProps {
 	apiKey: ApiKeyListItem | null;
@@ -38,12 +38,12 @@ interface ApiKeyDetailDialogProps {
 }
 
 const SCOPES: { value: ApiScope; label: string }[] = [
-	{ value: "read:data", label: "Read Data" },
-	{ value: "write:llm", label: "LLM Tracking" },
+	{ value:"read:data", label:"Read Data" },
+	{ value:"write:llm", label:"LLM Tracking" },
 ];
 
 const formSchema = z.object({
-	name: z.string().min(1, "Name is required"),
+	name: z.string().min(1,"Name is required"),
 	enabled: z.boolean(),
 	expiresAt: z.string().optional(),
 });
@@ -62,7 +62,7 @@ export function ApiKeyDetailDialog({
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		defaultValues: { name: "", enabled: true, expiresAt: "" },
+		defaultValues: { name:"", enabled: true, expiresAt:"" },
 	});
 
 	useEffect(() => {
@@ -70,7 +70,7 @@ export function ApiKeyDetailDialog({
 			form.reset({
 				name: apiKey.name,
 				enabled: apiKey.enabled && !apiKey.revokedAt,
-				expiresAt: apiKey.expiresAt?.slice(0, 10) ?? "",
+				expiresAt: apiKey.expiresAt?.slice(0, 10) ??"",
 			});
 		}
 	}, [apiKey, form]);
@@ -144,14 +144,14 @@ export function ApiKeyDetailDialog({
 		<>
 			<Sheet onOpenChange={handleClose} open={open}>
 				<SheetContent
-					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-md"
+					className="m-3 h-[calc(100%-1.5rem)] border p-0 sm:max-w-md"
 					side="right"
 				>
 					<div className="flex h-full flex-col">
 						{/* Header */}
 						<SheetHeader className="shrink-0 pr-5">
 							<div className="flex items-start gap-4">
-								<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+								<div className="flex h-11 w-11 items-center justify-center border bg-secondary-brighter">
 									<KeyIcon
 										className="text-foreground"
 										size={22}
@@ -166,8 +166,8 @@ export function ApiKeyDetailDialog({
 										{apiKey.prefix}_{apiKey.start}…
 									</SheetDescription>
 								</div>
-								<Badge variant={isActive ? "green" : "secondary"}>
-									{isActive ? "Active" : "Inactive"}
+								<Badge variant={isActive ?"green" :"secondary"}>
+									{isActive ?"Active" :"Inactive"}
 								</Badge>
 							</div>
 						</SheetHeader>
@@ -180,9 +180,9 @@ export function ApiKeyDetailDialog({
 							<div className="flex-1 space-y-6 overflow-y-auto p-2">
 								{/* New Secret Alert */}
 								{newSecret && (
-									<div className="rounded border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
+									<div className=" border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
 										<div className="mb-3 flex items-center gap-2">
-											<div className="flex size-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+											<div className="flex size-6 items-center justify-center bg-green-100 dark:bg-green-900/40">
 												<CheckCircleIcon
 													className="text-green-600 dark:text-green-400"
 													size={14}
@@ -193,7 +193,7 @@ export function ApiKeyDetailDialog({
 												New secret generated
 											</p>
 										</div>
-										<div className="relative rounded border border-green-200 bg-background dark:border-green-900/50">
+										<div className="relative border border-green-200 bg-background dark:border-green-900/50">
 											<code className="block break-all p-3 pr-12 font-mono text-xs">
 												{newSecret}
 											</code>
@@ -235,7 +235,7 @@ export function ApiKeyDetailDialog({
 									</div>
 
 									{/* Enabled Toggle */}
-									<div className="flex items-center justify-between rounded border bg-card p-2">
+									<div className="flex items-center justify-between border bg-card p-2">
 										<div>
 											<p className="font-medium text-foreground text-sm">
 												Enabled
@@ -255,20 +255,20 @@ export function ApiKeyDetailDialog({
 										<Label className="font-medium text-muted-foreground text-xs uppercase">
 											Permissions
 										</Label>
-										<div className="rounded border bg-card p-1">
+										<div className=" border bg-card p-1">
 											<div className="grid grid-cols-2 gap-1">
 												{SCOPES.map((scope) => {
 													const hasScope = apiKey.scopes.includes(scope.value);
 													return (
 														<div
-															className="flex items-center gap-2 rounded px-3 py-2.5 text-sm"
+															className="flex items-center gap-2 px-3 py-2.5 text-sm"
 															key={scope.value}
 														>
 															<div
-																className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
+																className={`flex size-4 shrink-0 items-center justify-center border ${
 																	hasScope
-																		? "border-primary bg-primary text-primary-foreground"
-																		: "border-muted-foreground/30"
+																		?"border-primary bg-primary text-primary-foreground"
+																		:"border-muted-foreground/30"
 																}`}
 															>
 																{hasScope && (
@@ -288,7 +288,7 @@ export function ApiKeyDetailDialog({
 									</section>
 
 									{/* Meta Section */}
-									<section className="space-y-2 rounded border bg-card p-2">
+									<section className="space-y-2 border bg-card p-2">
 										<div className="flex items-center justify-between text-sm">
 											<span className="font-medium text-muted-foreground">
 												Created
@@ -328,8 +328,8 @@ export function ApiKeyDetailDialog({
 											>
 												<ArrowsClockwiseIcon size={14} />
 												{rotateMutation.isPending
-													? "Rotating…"
-													: "Rotate Secret"}
+													?"Rotating…"
+													:"Rotate Secret"}
 											</Button>
 											<Button
 												className="flex-1"
@@ -340,7 +340,7 @@ export function ApiKeyDetailDialog({
 												variant="outline"
 											>
 												<ProhibitIcon size={14} />
-												{revokeMutation.isPending ? "Revoking…" : "Revoke Key"}
+												{revokeMutation.isPending ?"Revoking…" :"Revoke Key"}
 											</Button>
 										</div>
 										<Button
@@ -363,7 +363,7 @@ export function ApiKeyDetailDialog({
 									Cancel
 								</Button>
 								<Button disabled={updateMutation.isPending} type="submit">
-									{updateMutation.isPending ? "Saving…" : "Save Changes"}
+									{updateMutation.isPending ?"Saving…" :"Save Changes"}
 								</Button>
 							</div>
 						</form>

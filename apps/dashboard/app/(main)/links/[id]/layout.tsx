@@ -1,17 +1,17 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { useQueryClient } from "@tanstack/react-query";
-import clsx from "clsx";
-import dayjs from "dayjs";
-import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import type { DateRange as DayPickerRange } from "react-day-picker";
-import { useHotkeys } from "react-hotkeys-hook";
-import { toast } from "sonner";
-import { DateRangePicker } from "@/components/date-range-picker";
-import { Button } from "@/components/ui/button";
-import { useDateFilters } from "@/hooks/use-date-filters";
+import { ArrowClockwiseIcon } from"@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { useQueryClient } from"@tanstack/react-query";
+import clsx from"clsx";
+import dayjs from"dayjs";
+import { useParams } from"next/navigation";
+import { useCallback, useMemo, useState } from"react";
+import type { DateRange as DayPickerRange } from"react-day-picker";
+import { useHotkeys } from"react-hotkeys-hook";
+import { toast } from"sonner";
+import { DateRangePicker } from"@/components/date-range-picker";
+import { Button } from"@/components/ui/button";
+import { useDateFilters } from"@/hooks/use-date-filters";
 
 const MAX_HOURLY_DAYS = 7;
 
@@ -23,18 +23,18 @@ interface QuickRange {
 }
 
 const QUICK_RANGES: QuickRange[] = [
-	{ label: "24h", fullLabel: "Last 24 hours", hours: 24 },
-	{ label: "7d", fullLabel: "Last 7 days", days: 7 },
-	{ label: "30d", fullLabel: "Last 30 days", days: 30 },
-	{ label: "90d", fullLabel: "Last 90 days", days: 90 },
+	{ label:"24h", fullLabel:"Last 24 hours", hours: 24 },
+	{ label:"7d", fullLabel:"Last 7 days", days: 7 },
+	{ label:"30d", fullLabel:"Last 30 days", days: 30 },
+	{ label:"90d", fullLabel:"Last 90 days", days: 90 },
 ];
 
 const getStartDateForRange = (range: QuickRange) => {
 	const now = new Date();
 	return range.hours
-		? dayjs(now).subtract(range.hours, "hour").toDate()
+		? dayjs(now).subtract(range.hours,"hour").toDate()
 		: dayjs(now)
-				.subtract(range.days ?? 7, "day")
+				.subtract(range.days ?? 7,"day")
 				.toDate();
 };
 
@@ -57,7 +57,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 
 	const dateRangeDays = useMemo(
 		() =>
-			dayjs(currentDateRange.endDate).diff(currentDateRange.startDate, "day"),
+			dayjs(currentDateRange.endDate).diff(currentDateRange.startDate,"day"),
 		[currentDateRange]
 	);
 
@@ -79,13 +79,13 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		[setDateRangeAction]
 	);
 
-	const getGranularityButtonClass = (type: "daily" | "hourly") => {
+	const getGranularityButtonClass = (type:"daily" |"hourly") => {
 		const isActive = currentGranularity === type;
 		const baseClass =
-			"h-full w-16 cursor-pointer touch-manipulation rounded-none px-0 text-xs";
+			"h-full w-16 cursor-pointer touch-manipulation px-0 text-xs";
 		const activeClass = isActive
-			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
-			: "text-muted-foreground";
+			?"font-medium bg-accent hover:bg-accent! text-accent-foreground"
+			:"text-muted-foreground";
 		return `${baseClass} ${activeClass}`.trim();
 	};
 
@@ -99,8 +99,8 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 			const start = getStartDateForRange(range);
 
 			return (
-				dayjs(selectedRange.from).isSame(start, "day") &&
-				dayjs(selectedRange.to).isSame(now, "day")
+				dayjs(selectedRange.from).isSame(start,"day") &&
+				dayjs(selectedRange.to).isSame(now,"day")
 			);
 		},
 		[selectedRange]
@@ -111,7 +111,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		try {
 			await queryClient.invalidateQueries({
 				predicate: (query) =>
-					query.queryKey[0] === "batch-dynamic-query" &&
+					query.queryKey[0] ==="batch-dynamic-query" &&
 					query.queryKey.includes(linkId),
 			});
 			toast.success("Data refreshed");
@@ -123,7 +123,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	};
 
 	useHotkeys(
-		["1", "2", "3", "4"],
+		["1","2","3","4"],
 		(e) => {
 			const index = Number.parseInt(e.key, 10) - 1;
 			if (index >= 0 && index < QUICK_RANGES.length) {
@@ -143,7 +143,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 					<div className="flex h-full items-center">
 						{/* Granularity Toggle */}
 						<Button
-							className={clsx(getGranularityButtonClass("daily"), "border-r")}
+							className={clsx(getGranularityButtonClass("daily"),"border-r")}
 							onClick={() => setCurrentGranularityAtomState("daily")}
 							title="View daily aggregated data"
 							variant="ghost"
@@ -151,7 +151,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 							Daily
 						</Button>
 						<Button
-							className={clsx(getGranularityButtonClass("hourly"), "border-r")}
+							className={clsx(getGranularityButtonClass("hourly"),"border-r")}
 							disabled={isHourlyDisabled}
 							onClick={() => setCurrentGranularityAtomState("hourly")}
 							title={
@@ -170,15 +170,15 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 							return (
 								<Button
 									className={clsx(
-										"h-full w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
+										"h-full w-12 cursor-pointer touch-manipulation whitespace-nowrap border-r px-0 font-medium text-xs",
 										isActive
-											? "bg-accent text-accent-foreground hover:bg-accent"
-											: "hover:bg-accent!"
+											?"bg-accent text-accent-foreground hover:bg-accent"
+											:"hover:bg-accent!"
 									)}
 									key={range.label}
 									onClick={() => handleQuickRangeSelect(range)}
 									title={range.fullLabel}
-									variant={isActive ? "secondary" : "ghost"}
+									variant={isActive ?"secondary" :"ghost"}
 								>
 									{range.label}
 								</Button>
@@ -214,7 +214,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 						>
 							<ArrowClockwiseIcon
 								aria-hidden="true"
-								className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
+								className={`size-4 ${isRefreshing ?"animate-spin" :""}`}
 							/>
 						</Button>
 					</div>

@@ -7,19 +7,19 @@ import {
 	FileTextIcon,
 	ReceiptIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react";
-import type { CustomerInvoice } from "autumn-js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { memo, useMemo } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { ErrorState } from "../components/empty-states";
-import { useBilling, useBillingData } from "../hooks/use-billing";
+} from"@phosphor-icons/react";
+import type { CustomerInvoice } from"autumn-js";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { memo, useMemo } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { cn } from"@/lib/utils";
+import { ErrorState } from"../components/empty-states";
+import { useBilling, useBillingData } from"../hooks/use-billing";
 
 dayjs.extend(relativeTime);
 
@@ -132,25 +132,25 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 				<div className="flex items-center gap-3">
 					<div
 						className={cn(
-							"flex size-10 shrink-0 items-center justify-center rounded border",
-							status.variant === "green"
-								? "border-green-600 bg-green-100 dark:border-green-800 dark:bg-green-900/30"
-								: status.variant === "amber"
-									? "border-amber-600 bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30"
-									: status.variant === "destructive"
-										? "border-destructive bg-destructive-100 dark:border-destructive-800 dark:bg-destructive-900/30"
-										: "border-muted-foreground bg-muted dark:border-muted-foreground dark:bg-muted/30"
+							"flex size-10 shrink-0 items-center justify-center border",
+							status.variant ==="green"
+								?"border-green-600 bg-green-100 dark:border-green-800 dark:bg-green-900/30"
+								: status.variant ==="amber"
+									?"border-amber-600 bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30"
+									: status.variant ==="destructive"
+										?"border-destructive bg-destructive-100 dark:border-destructive-800 dark:bg-destructive-900/30"
+										:"border-muted-foreground bg-muted dark:border-muted-foreground dark:bg-muted/30"
 						)}
 					>
 						<status.icon
 							className={cn(
-								status.variant === "green"
-									? "text-green-600 dark:text-green-600"
-									: status.variant === "amber"
-										? "text-amber-600 dark:text-amber-400"
-										: status.variant === "destructive"
-											? "text-destructive dark:text-destructive-400"
-											: "text-muted-foreground dark:text-muted-foreground/80"
+								status.variant ==="green"
+									?"text-green-600 dark:text-green-600"
+									: status.variant ==="amber"
+										?"text-amber-600 dark:text-amber-400"
+										: status.variant ==="destructive"
+											?"text-destructive dark:text-destructive-400"
+											:"text-muted-foreground dark:text-muted-foreground/80"
 							)}
 							size={18}
 							weight="duotone"
@@ -175,7 +175,7 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 					<Button
 						aria-label="View invoice"
 						className="shrink-0"
-						onClick={() => window.open(invoice.hosted_invoice_url, "_blank")}
+						onClick={() => window.open(invoice.hosted_invoice_url,"_blank")}
 						size="sm"
 						variant="secondary"
 					>
@@ -202,14 +202,14 @@ function SubscriptionItem({ product }: { product: ProductStatus }) {
 		? dayjs(product.current_period_end)
 		: null;
 	const isCanceled = !!product.canceled_at;
-	const isActive = product.status === "active";
+	const isActive = product.status ==="active";
 
 	return (
 		<div className="flex items-start gap-3">
 			<div
 				className={cn(
-					"mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full",
-					isActive ? "bg-primary/10" : "bg-muted"
+					"mt-0.5 flex size-6 shrink-0 items-center justify-center",
+					isActive ?"bg-primary/10" :"bg-muted"
 				)}
 			>
 				{isActive ? (
@@ -235,7 +235,7 @@ function SubscriptionItem({ product }: { product: ProductStatus }) {
 					)}
 					{renewalDate && (
 						<span className="ml-2">
-							· {isCanceled ? "Ends" : "Renews"} {renewalDate.fromNow()}
+							· {isCanceled ?"Ends" :"Renews"} {renewalDate.fromNow()}
 						</span>
 					)}
 				</div>
@@ -246,9 +246,9 @@ function SubscriptionItem({ product }: { product: ProductStatus }) {
 
 function BillingSummary({ invoices }: { invoices: CustomerInvoice[] }) {
 	const stats = useMemo(() => {
-		const paid = invoices.filter((i) => i.status === "paid");
+		const paid = invoices.filter((i) => i.status ==="paid");
 		const totalPaid = paid.reduce((sum, i) => sum + i.total, 0);
-		const currency = invoices[0]?.currency || "usd";
+		const currency = invoices[0]?.currency ||"usd";
 
 		return {
 			totalInvoices: invoices.length,
@@ -256,13 +256,13 @@ function BillingSummary({ invoices }: { invoices: CustomerInvoice[] }) {
 			totalSpent: formatCurrency(totalPaid, currency),
 			lastPayment: paid[0]
 				? dayjs(paid[0].created_at).format("MMM D, YYYY")
-				: "N/A",
+				:"N/A",
 		};
 	}, [invoices]);
 
 	if (invoices.length === 0) {
 		return (
-			<div className="flex aspect-[1.586/1] w-full flex-col items-center justify-center rounded-xl border border-dashed bg-background">
+			<div className="flex aspect-[1.586/1] w-full flex-col items-center justify-center border border-dashed bg-background">
 				<ReceiptIcon
 					className="mb-2 text-muted-foreground"
 					size={28}
@@ -277,17 +277,17 @@ function BillingSummary({ invoices }: { invoices: CustomerInvoice[] }) {
 
 	return (
 		<div className="space-y-3">
-			<div className="flex items-center justify-between rounded border bg-background px-3 py-2">
+			<div className="flex items-center justify-between border bg-background px-3 py-2">
 				<span className="text-muted-foreground text-sm">Total Spent</span>
 				<span className="font-semibold">{stats.totalSpent}</span>
 			</div>
-			<div className="flex items-center justify-between rounded border bg-background px-3 py-2">
+			<div className="flex items-center justify-between border bg-background px-3 py-2">
 				<span className="text-muted-foreground text-sm">Invoices</span>
 				<span className="font-medium">
 					{stats.paidInvoices} / {stats.totalInvoices}
 				</span>
 			</div>
-			<div className="flex items-center justify-between rounded border bg-background px-3 py-2">
+			<div className="flex items-center justify-between border bg-background px-3 py-2">
 				<span className="text-muted-foreground text-sm">Last Payment</span>
 				<span className="font-medium">{stats.lastPayment}</span>
 			</div>
@@ -307,7 +307,7 @@ function HistorySkeleton() {
 					{[1, 2, 3].map((i) => (
 						<div className="px-5 py-4" key={i}>
 							<div className="flex items-center gap-3">
-								<Skeleton className="size-10 rounded" />
+								<Skeleton className="size-10" />
 								<div>
 									<Skeleton className="mb-1 h-4 w-32" />
 									<Skeleton className="h-3 w-24" />
@@ -340,33 +340,33 @@ function HistorySkeleton() {
 
 function getInvoiceStatus(status: string) {
 	switch (status) {
-		case "paid":
+		case"paid":
 			return {
-				label: "Paid",
+				label:"Paid",
 				icon: CheckCircleIcon,
-				variant: "green" as const,
+				variant:"green" as const,
 			};
-		case "open":
-		case "pending":
-			return { label: "Pending", icon: ClockIcon, variant: "amber" as const };
-		case "failed":
+		case"open":
+		case"pending":
+			return { label:"Pending", icon: ClockIcon, variant:"amber" as const };
+		case"failed":
 			return {
-				label: "Failed",
+				label:"Failed",
 				icon: XCircleIcon,
-				variant: "destructive" as const,
+				variant:"destructive" as const,
 			};
 		default:
 			return {
 				label: status,
 				icon: FileTextIcon,
-				variant: "secondary" as const,
+				variant:"secondary" as const,
 			};
 	}
 }
 
 function formatCurrency(amount: number, currency: string): string {
 	return new Intl.NumberFormat("en-US", {
-		style: "currency",
+		style:"currency",
 		currency: currency.toUpperCase(),
 	}).format(amount);
 }

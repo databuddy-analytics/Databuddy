@@ -8,18 +8,18 @@ import {
 	UserIcon,
 	UsersThreeIcon,
 	WrenchIcon,
-} from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import type { TargetGroup } from "../../_components/types";
+} from"@/components/ui/dropdown-menu";
+import { cn } from"@/lib/utils";
+import type { TargetGroup } from"../../_components/types";
 
 export interface GroupItemProps {
 	group: TargetGroup;
@@ -31,9 +31,9 @@ export interface GroupItemProps {
 
 function getRuleIcon(type: string) {
 	switch (type) {
-		case "email":
+		case"email":
 			return EnvelopeIcon;
-		case "user_id":
+		case"user_id":
 			return UserIcon;
 		default:
 			return WrenchIcon;
@@ -42,14 +42,14 @@ function getRuleIcon(type: string) {
 
 function getRuleTypeLabel(type: string) {
 	switch (type) {
-		case "email":
-			return "emails";
-		case "user_id":
-			return "users";
-		case "property":
-			return "properties";
+		case"email":
+			return"emails";
+		case"user_id":
+			return"users";
+		case"property":
+			return"properties";
 		default:
-			return "rules";
+			return"rules";
 	}
 }
 
@@ -71,7 +71,7 @@ export function GroupItem({
 	);
 
 	return (
-		<div className={cn("border-border border-b", isSelected && "bg-accent/30")}>
+		<div className={cn("border-border border-b", isSelected &&"bg-accent/30")}>
 			<div className="group flex items-center hover:bg-accent/50">
 				{/* Clickable area for editing */}
 				<button
@@ -89,7 +89,7 @@ export function GroupItem({
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
 							<div
-								className="flex size-8 shrink-0 items-center justify-center rounded"
+								className="flex size-8 shrink-0 items-center justify-center"
 								style={{ backgroundColor: `${group.color}20` }}
 							>
 								<UsersThreeIcon
@@ -103,7 +103,7 @@ export function GroupItem({
 							</h3>
 							{ruleCount > 0 && (
 								<Badge className="shrink-0" variant="gray">
-									{ruleCount} rule{ruleCount !== 1 ? "s" : ""}
+									{ruleCount} rule{ruleCount !== 1 ?"s" :""}
 								</Badge>
 							)}
 						</div>
@@ -141,8 +141,8 @@ export function GroupItem({
 								})}
 							{group.memberCount !== undefined && group.memberCount > 0 && (
 								<span className="text-muted-foreground text-xs">
-									<span className="tabular-nums">{group.memberCount}</span>{" "}
-									member{group.memberCount !== 1 ? "s" : ""}
+									<span className="tabular-nums">{group.memberCount}</span>{""}
+									member{group.memberCount !== 1 ?"s" :""}
 								</span>
 							)}
 						</div>

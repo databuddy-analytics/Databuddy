@@ -6,31 +6,31 @@ import type {
 	SessionEvent,
 	SessionReferrer,
 	SessionRowProps,
-} from "@databuddy/shared/types/sessions";
+} from"@databuddy/shared/types/sessions";
 import {
 	ArrowSquareOutIcon,
 	CaretDownIcon,
 	CaretRightIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import React, { useCallback } from "react";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import React, { useCallback } from"react";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { BrowserIcon, CountryFlag, OSIcon } from"@/components/icon";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { getDeviceIcon } from "@/lib/utils";
-import { generateSessionName } from "./generate-session-name";
-import { SessionEventTimeline } from "./session-event-timeline";
+} from"@/components/ui/collapsible";
+import { getDeviceIcon } from"@/lib/utils";
+import { generateSessionName } from"./generate-session-name";
+import { SessionEventTimeline } from"./session-event-timeline";
 
 dayjs.extend(relativeTime);
 
 function getEventSortPriority(eventName: string): number {
-	if (eventName === "page_exit") return 0;
-	if (eventName === "screen_view") return 1;
+	if (eventName ==="page_exit") return 0;
+	if (eventName ==="screen_view") return 1;
 	return 2;
 }
 
@@ -81,11 +81,11 @@ function getReferrerInfo(session: Session): SessionReferrer {
 			const url = new URL(session.referrer);
 			return { name: url.hostname, domain: url.hostname };
 		} catch {
-			return { name: "Direct", domain: null };
+			return { name:"Direct", domain: null };
 		}
 	}
 
-	return { name: "Direct", domain: null };
+	return { name:"Direct", domain: null };
 }
 
 function SessionRowInternal({
@@ -114,7 +114,7 @@ function SessionRowInternal({
 			<CollapsibleTrigger asChild>
 				<div
 					className={`group grid cursor-pointer grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 px-3 py-2 text-sm hover:bg-accent/50 lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px] ${
-						isExpanded ? "bg-accent/30" : ""
+						isExpanded ?"bg-accent/30" :""
 					}`}
 				>
 					{/* Expand Icon */}
@@ -131,24 +131,24 @@ function SessionRowInternal({
 
 					{/* Location */}
 					<div className="flex items-center gap-1.5 overflow-hidden">
-						<CountryFlag country={session.country_code || ""} size="sm" />
+						<CountryFlag country={session.country_code ||""} size="sm" />
 						<span className="truncate">
-							{session.country_name || session.country || "Unknown"}
+							{session.country_name || session.country ||"Unknown"}
 						</span>
 					</div>
 
 					{/* Device Stack */}
 					<div className="flex items-center gap-1">
 						{getDeviceIcon(session.device_type)}
-						<BrowserIcon name={session.browser_name || "Unknown"} size="sm" />
-						<OSIcon name={session.os_name || "Unknown"} size="sm" />
+						<BrowserIcon name={session.browser_name ||"Unknown"} size="sm" />
+						<OSIcon name={session.os_name ||"Unknown"} size="sm" />
 					</div>
 
 					{/* Referrer */}
 					<div className="hidden items-center gap-1.5 overflow-hidden lg:flex">
 						{referrerInfo.domain ? (
 							<FaviconImage
-								className="shrink-0 rounded-sm"
+								className="shrink-0"
 								domain={referrerInfo.domain}
 								size={14}
 							/>
@@ -170,7 +170,7 @@ function SessionRowInternal({
 
 					{/* Last seen */}
 					<span className="text-right text-muted-foreground">
-						{session.first_visit ? dayjs(session.first_visit).fromNow() : "—"}
+						{session.first_visit ? dayjs(session.first_visit).fromNow() :"—"}
 					</span>
 				</div>
 			</CollapsibleTrigger>

@@ -1,16 +1,16 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureGate } from "@/components/feature-gate";
-import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
-import { FlagSheet } from "../_components/flag-sheet";
-import type { FlagTemplate } from "../_components/types";
-import { TemplatesList } from "./_components/templates-list";
-import { HARDCODED_TEMPLATES } from "./_data/templates";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { Suspense, useState } from"react";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { FeatureGate } from"@/components/feature-gate";
+import { isFlagSheetOpenAtom } from"@/stores/jotai/flagsAtoms";
+import { FlagSheet } from"../_components/flag-sheet";
+import type { FlagTemplate } from"../_components/types";
+import { TemplatesList } from"./_components/templates-list";
+import { HARDCODED_TEMPLATES } from"./_data/templates";
 
 const TemplatesListSkeleton = () => (
 	<div className="border-border border-t">
@@ -22,14 +22,14 @@ const TemplatesListSkeleton = () => (
 				<div className="flex flex-1 items-center gap-4">
 					<div className="min-w-0 flex-1 space-y-2">
 						<div className="flex items-center gap-2">
-							<div className="size-10 rounded bg-muted" />
+							<div className="size-10 bg-muted" />
 							<div className="flex-1 space-y-2">
-								<div className="h-5 w-40 rounded bg-muted" />
-								<div className="h-4 w-64 rounded bg-muted" />
+								<div className="h-5 w-40 bg-muted" />
+								<div className="h-4 w-64 bg-muted" />
 							</div>
 						</div>
 					</div>
-					<div className="size-8 rounded bg-muted" />
+					<div className="size-8 bg-muted" />
 				</div>
 			</div>
 		))}

@@ -1,18 +1,18 @@
 "use client";
 
-import { ArchiveIcon } from "@phosphor-icons/react/dist/ssr/Archive";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { orpc } from "@/lib/orpc";
-import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
-import { FlagSheet } from "../_components/flag-sheet";
-import type { Flag } from "../_components/types";
-import { ArchivedFlagItem } from "./_components/archived-flag-item";
+import { ArchiveIcon } from"@phosphor-icons/react/dist/ssr/Archive";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { Suspense, useMemo, useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { orpc } from"@/lib/orpc";
+import { isFlagSheetOpenAtom } from"@/stores/jotai/flagsAtoms";
+import { FlagSheet } from"../_components/flag-sheet";
+import type { Flag } from"../_components/types";
+import { ArchivedFlagItem } from"./_components/archived-flag-item";
 
 const ArchivedFlagsListSkeleton = () => (
 	<div className="border-border border-t">
@@ -24,12 +24,12 @@ const ArchivedFlagsListSkeleton = () => (
 				<div className="flex flex-1 items-center gap-4">
 					<div className="min-w-0 flex-1 space-y-2">
 						<div className="flex items-center gap-2">
-							<div className="h-5 w-40 rounded bg-muted" />
-							<div className="h-5 w-16 rounded bg-muted" />
+							<div className="h-5 w-40 bg-muted" />
+							<div className="h-5 w-16 bg-muted" />
 						</div>
-						<div className="h-4 w-48 rounded bg-muted" />
+						<div className="h-4 w-48 bg-muted" />
 					</div>
-					<div className="size-8 rounded bg-muted" />
+					<div className="size-8 bg-muted" />
 				</div>
 			</div>
 		))}
@@ -49,7 +49,7 @@ export default function ArchivePage() {
 	});
 
 	const archivedFlags = useMemo(
-		() => flags?.filter((f) => f.status === "archived") ?? [],
+		() => flags?.filter((f) => f.status ==="archived") ?? [],
 		[flags]
 	);
 

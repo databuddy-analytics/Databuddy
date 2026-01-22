@@ -1,7 +1,7 @@
-import dayjs from "dayjs";
-import type { Annotation } from "@/types/annotations";
+import dayjs from"dayjs";
+import type { Annotation } from"@/types/annotations";
 
-type Granularity = "hourly" | "daily" | "weekly" | "monthly";
+type Granularity ="hourly" |"daily" |"weekly" |"monthly";
 
 /**
  * Formats a date to a readable string
@@ -25,13 +25,13 @@ export function formatAnnotationDate(
 export function formatAnnotationDateRange(
 	start: Date | string,
 	end: Date | string | null,
-	granularity: Granularity = "daily"
+	granularity: Granularity ="daily"
 ): string {
 	const startDate = dayjs(start);
 	const endDate = end ? dayjs(end) : null;
 
 	// If hourly granularity, always show time
-	const isHourly = granularity === "hourly";
+	const isHourly = granularity ==="hourly";
 
 	if (!endDate || startDate.isSame(endDate)) {
 		// For single date, show time if hourly or if time is not midnight
@@ -41,11 +41,11 @@ export function formatAnnotationDateRange(
 
 	// Check if the range spans less than 24 hours or if times differ on same day
 	const isHourlyRange =
-		startDate.isSame(endDate, "day") || endDate.diff(startDate, "hour") < 24;
+		startDate.isSame(endDate,"day") || endDate.diff(startDate,"hour") < 24;
 
 	// If hourly granularity or range is within same day, show time
 	const showTime =
-		isHourly || isHourlyRange || startDate.isSame(endDate, "day");
+		isHourly || isHourlyRange || startDate.isSame(endDate,"day");
 
 	return `${formatAnnotationDate(start, showTime)} - ${formatAnnotationDate(end as Date | string, showTime)}`;
 }
@@ -54,7 +54,7 @@ export function formatAnnotationDateRange(
  * Checks if an annotation is a single-day range
  */
 export function isSingleDayAnnotation(annotation: Annotation): boolean {
-	if (annotation.annotationType !== "range" || !annotation.xEndValue) {
+	if (annotation.annotationType !=="range" || !annotation.xEndValue) {
 		return false;
 	}
 
@@ -70,10 +70,10 @@ export function isSingleDayAnnotation(annotation: Annotation): boolean {
  */
 export function getChartDisplayDate(
 	date: Date | string,
-	granularity: Granularity = "daily"
+	granularity: Granularity ="daily"
 ): string {
 	const dateObj = dayjs(date);
-	return granularity === "hourly"
+	return granularity ==="hourly"
 		? dateObj.format("MMM D, h:mm A")
 		: dateObj.format("MMM D");
 }

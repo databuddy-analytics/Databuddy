@@ -1,6 +1,6 @@
-import type { IconProps } from "@phosphor-icons/react";
-import { cloneElement } from "react";
-import { cn } from "@/lib/utils";
+import type { IconProps } from"@phosphor-icons/react";
+import { cloneElement } from"react";
+import { cn } from"@/lib/utils";
 
 export const NoticeBanner = ({
 	title,
@@ -17,7 +17,7 @@ export const NoticeBanner = ({
 }) => (
 	<div
 		className={cn(
-			"notice-banner-angled-rectangle-gradient flex flex-1 items-center gap-2 rounded-lg border border-accent-foreground bg-accent-foreground/80 px-3 py-2 font-medium text-accent-brighter text-sm",
+			"notice-banner-angled-rectangle-gradient flex flex-1 items-center gap-2 border border-accent-foreground bg-accent-foreground/80 px-3 py-2 font-medium text-accent-brighter text-sm",
 			className
 		)}
 	>
@@ -29,7 +29,7 @@ export const NoticeBanner = ({
 								...icon.props,
 								className: cn("text-accent", icon.props.className),
 								"aria-hidden": true,
-								weight: "fill",
+								weight:"fill",
 								size: 20,
 							})
 						: null}

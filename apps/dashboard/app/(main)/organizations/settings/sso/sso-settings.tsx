@@ -7,17 +7,17 @@ import {
 	PlusIcon,
 	ShieldCheckIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Organization } from "@/hooks/use-organizations";
-import { SSOProviderSheet } from "./sso-provider-sheet";
-import { useSSO } from "./use-sso";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { Organization } from"@/hooks/use-organizations";
+import { SSOProviderSheet } from"./sso-provider-sheet";
+import { useSSO } from"./use-sso";
 
 type SSOSettingsProps = {
 	organization: Organization;
@@ -27,7 +27,7 @@ type SSOProviderDisplay = {
 	id: string;
 	providerId: string;
 	name: string;
-	type: "oidc" | "saml";
+	type:"oidc" |"saml";
 	domain: string;
 	issuer: string;
 };
@@ -35,12 +35,12 @@ type SSOProviderDisplay = {
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded" />
+			<Skeleton className="size-10" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
 			</div>
-			<Skeleton className="h-6 w-16 rounded-full" />
+			<Skeleton className="h-6 w-16" />
 		</div>
 	);
 }
@@ -54,9 +54,9 @@ function SSOSkeleton() {
 			</div>
 			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-20 w-full rounded" />
+				<Skeleton className="h-20 w-full" />
 			</div>
 		</div>
 	);
@@ -65,7 +65,7 @@ function SSOSkeleton() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10">
+			<div className="mb-4 flex size-16 items-center justify-center bg-destructive/10">
 				<FingerprintIcon
 					className="text-destructive"
 					size={28}
@@ -95,8 +95,8 @@ function SSOProviderRow({
 }) {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded bg-secondary">
-				{provider.type === "saml" ? (
+			<div className="flex size-10 shrink-0 items-center justify-center bg-secondary">
+				{provider.type ==="saml" ? (
 					<FingerprintIcon
 						className="text-accent-foreground"
 						size={20}
@@ -113,7 +113,7 @@ function SSOProviderRow({
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
 					<p className="truncate font-medium">{provider.name}</p>
-					<Badge variant={provider.type === "saml" ? "secondary" : "outline"}>
+					<Badge variant={provider.type ==="saml" ?"secondary" :"outline"}>
 						{provider.type.toUpperCase()}
 					</Badge>
 				</div>
@@ -215,7 +215,7 @@ export function SSOSettings({ organization }: SSOSettingsProps) {
 					</Button>
 
 					<RightSidebar.InfoCard
-						badge={{ label: "Enterprise", variant: "secondary" }}
+						badge={{ label:"Enterprise", variant:"secondary" }}
 						description="OIDC, OAuth2, SAML 2.0"
 						icon={ShieldCheckIcon}
 						title="Supported Protocols"
@@ -224,7 +224,7 @@ export function SSOSettings({ organization }: SSOSettingsProps) {
 					<RightSidebar.Section border title="How SSO Works">
 						<div className="space-y-3">
 							<div className="flex items-start gap-3">
-								<div className="flex size-6 shrink-0 items-center justify-center rounded bg-secondary text-muted-foreground text-xs">
+								<div className="flex size-6 shrink-0 items-center justify-center bg-secondary text-muted-foreground text-xs">
 									1
 								</div>
 								<p className="text-muted-foreground text-sm">
@@ -232,7 +232,7 @@ export function SSOSettings({ organization }: SSOSettingsProps) {
 								</p>
 							</div>
 							<div className="flex items-start gap-3">
-								<div className="flex size-6 shrink-0 items-center justify-center rounded bg-secondary text-muted-foreground text-xs">
+								<div className="flex size-6 shrink-0 items-center justify-center bg-secondary text-muted-foreground text-xs">
 									2
 								</div>
 								<p className="text-muted-foreground text-sm">
@@ -240,7 +240,7 @@ export function SSOSettings({ organization }: SSOSettingsProps) {
 								</p>
 							</div>
 							<div className="flex items-start gap-3">
-								<div className="flex size-6 shrink-0 items-center justify-center rounded bg-secondary text-muted-foreground text-xs">
+								<div className="flex size-6 shrink-0 items-center justify-center bg-secondary text-muted-foreground text-xs">
 									3
 								</div>
 								<p className="text-muted-foreground text-sm">
@@ -269,7 +269,7 @@ export function SSOSettings({ organization }: SSOSettingsProps) {
 			/>
 
 			<DeleteDialog
-				description={`This will permanently delete the SSO provider "${providerToDelete?.name}" and disable SSO authentication for the domain "${providerToDelete?.domain}".`}
+				description={`This will permanently delete the SSO provider"${providerToDelete?.name}" and disable SSO authentication for the domain"${providerToDelete?.domain}".`}
 				isDeleting={isDeleting}
 				isOpen={!!providerToDelete}
 				onClose={() => setProviderToDelete(null)}

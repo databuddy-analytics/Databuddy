@@ -3,13 +3,13 @@
 import {
 	ANALYTICS_TABLES,
 	getTableDefinition,
-} from "@databuddy/shared/schema/analytics-tables";
+} from"@databuddy/shared/schema/analytics-tables";
 import type {
 	AggregateFunction,
 	CustomQueryConfig,
-} from "@databuddy/shared/types/custom-query";
-import { useMemo } from "react";
-import { Label } from "@/components/ui/label";
+} from"@databuddy/shared/types/custom-query";
+import { useMemo } from"react";
+import { Label } from"@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -18,7 +18,7 @@ import {
 	SelectLabel,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 
 interface CustomQueryBuilderProps {
 	value: CustomQueryConfig | null;
@@ -30,24 +30,24 @@ const AGGREGATES: {
 	value: AggregateFunction;
 	label: string;
 	prefix: string;
-	forTypes: ("string" | "number")[];
+	forTypes: ("string" |"number")[];
 }[] = [
 	{
-		value: "count",
-		label: "Count",
-		prefix: "",
-		forTypes: ["string", "number"],
+		value:"count",
+		label:"Count",
+		prefix:"",
+		forTypes: ["string","number"],
 	},
 	{
-		value: "uniq",
-		label: "Count Unique",
-		prefix: "Unique ",
+		value:"uniq",
+		label:"Count Unique",
+		prefix:"Unique",
 		forTypes: ["string"],
 	},
-	{ value: "sum", label: "Sum", prefix: "Total ", forTypes: ["number"] },
-	{ value: "avg", label: "Average", prefix: "Avg ", forTypes: ["number"] },
-	{ value: "max", label: "Maximum", prefix: "Max ", forTypes: ["number"] },
-	{ value: "min", label: "Minimum", prefix: "Min ", forTypes: ["number"] },
+	{ value:"sum", label:"Sum", prefix:"Total", forTypes: ["number"] },
+	{ value:"avg", label:"Average", prefix:"Avg", forTypes: ["number"] },
+	{ value:"max", label:"Maximum", prefix:"Max", forTypes: ["number"] },
+	{ value:"min", label:"Minimum", prefix:"Min", forTypes: ["number"] },
 ];
 
 export function CustomQueryBuilder({
@@ -69,41 +69,41 @@ export function CustomQueryBuilder({
 			return { stringColumns: [], numberColumns: [] };
 		}
 		return {
-			stringColumns: table.columns.filter((c) => c.type === "string"),
+			stringColumns: table.columns.filter((c) => c.type ==="string"),
 			numberColumns: table.columns.filter(
-				(c) => c.type === "number" && c.aggregatable
+				(c) => c.type ==="number" && c.aggregatable
 			),
 		};
 	}, [value?.table]);
 
-	const currentField = value?.selects?.at(0)?.field || "*";
-	const currentAggregate = value?.selects?.at(0)?.aggregate || "count";
+	const currentField = value?.selects?.at(0)?.field ||"*";
+	const currentAggregate = value?.selects?.at(0)?.aggregate ||"count";
 
 	const availableAggregates = useMemo(() => {
-		if (currentField === "*") {
-			return AGGREGATES.filter((a) => a.value === "count");
+		if (currentField ==="*") {
+			return AGGREGATES.filter((a) => a.value ==="count");
 		}
 		const isNumber = numberColumns.some((c) => c.name === currentField);
 		return AGGREGATES.filter((a) =>
-			a.forTypes.includes(isNumber ? "number" : "string")
+			a.forTypes.includes(isNumber ?"number" :"string")
 		);
 	}, [currentField, numberColumns]);
 
 	const getAlias = (field: string, aggregate: AggregateFunction) => {
-		if (field === "*") {
-			return "Count";
+		if (field ==="*") {
+			return"Count";
 		}
 		const col = [...stringColumns, ...numberColumns].find(
 			(c) => c.name === field
 		);
 		const agg = AGGREGATES.find((a) => a.value === aggregate);
-		return `${agg?.prefix || ""}${col?.label || field}`;
+		return `${agg?.prefix ||""}${col?.label || field}`;
 	};
 
 	const handleTableChange = (tableName: string) => {
 		onChangeAction({
 			table: tableName,
-			selects: [{ field: "*", aggregate: "count", alias: "Count" }],
+			selects: [{ field:"*", aggregate:"count", alias:"Count" }],
 		});
 	};
 
@@ -113,7 +113,7 @@ export function CustomQueryBuilder({
 		}
 		const isNumber = numberColumns.some((c) => c.name === field);
 		const aggregate: AggregateFunction =
-			field === "*" ? "count" : isNumber ? "sum" : "uniq";
+			field ==="*" ?"count" : isNumber ?"sum" :"uniq";
 
 		onChangeAction({
 			...value,
@@ -144,7 +144,7 @@ export function CustomQueryBuilder({
 				<Select
 					disabled={disabled}
 					onValueChange={handleTableChange}
-					value={value?.table || ""}
+					value={value?.table ||""}
 				>
 					<SelectTrigger>
 						<SelectValue placeholder="Select table..." />

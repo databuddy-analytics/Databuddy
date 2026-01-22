@@ -1,28 +1,28 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/FloppyDisk";
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { FloppyDiskIcon } from"@phosphor-icons/react/dist/ssr/FloppyDisk";
+import { useEffect } from"react";
+import { useForm } from"react-hook-form";
+import { z } from"zod";
 import {
 	Form,
 	FormControl,
 	FormField,
 	FormItem,
 	FormMessage,
-} from "@/components/ui/form";
-import { FormDialog } from "@/components/ui/form-dialog";
-import { Input } from "@/components/ui/input";
-import { getOperatorLabel } from "@/hooks/use-filters";
+} from"@/components/ui/form";
+import { FormDialog } from"@/components/ui/form-dialog";
+import { Input } from"@/components/ui/input";
+import { getOperatorLabel } from"@/hooks/use-filters";
 
 const formSchema = z.object({
 	name: z
 		.string()
-		.min(2, "Name must be at least 2 characters")
-		.max(100, "Name is too long"),
+		.min(2,"Name must be at least 2 characters")
+		.max(100,"Name is too long"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -61,12 +61,12 @@ export function SaveFilterDialog({
 }: SaveFilterDialogProps) {
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		defaultValues: { name: "" },
+		defaultValues: { name:"" },
 	});
 
 	useEffect(() => {
 		if (isOpen) {
-			form.reset({ name: editingFilter?.name ?? "" });
+			form.reset({ name: editingFilter?.name ??"" });
 		}
 	}, [isOpen, editingFilter, form]);
 
@@ -95,8 +95,8 @@ export function SaveFilterDialog({
 		<FormDialog
 			description={
 				isEditing
-					? `Update the name for "${editingFilter?.name}"`
-					: `Save ${filters.length} filter${filters.length === 1 ? "" : "s"} for later`
+					? `Update the name for"${editingFilter?.name}"`
+					: `Save ${filters.length} filter${filters.length === 1 ?"" :"s"} for later`
 			}
 			icon={
 				<FloppyDiskIcon
@@ -112,15 +112,15 @@ export function SaveFilterDialog({
 			submitDisabled={
 				isLoading || filters.length === 0 || !form.formState.isValid
 			}
-			submitLabel={isLoading ? "Saving…" : isEditing ? "Update" : "Save"}
-			title={isEditing ? "Rename Filter" : "Save Filter"}
+			submitLabel={isLoading ?"Saving…" : isEditing ?"Update" :"Save"}
+			title={isEditing ?"Rename Filter" :"Save Filter"}
 		>
 			{filters.length === 0 ? (
-				<div className="rounded border border-amber-200/50 bg-amber-50/50 px-3 py-2 text-amber-900 text-xs dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+				<div className=" border border-amber-200/50 bg-amber-50/50 px-3 py-2 text-amber-900 text-xs dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
 					No filters applied
 				</div>
 			) : (
-				<div className="space-y-1.5 rounded border bg-secondary/30 p-2">
+				<div className="space-y-1.5 border bg-secondary/30 p-2">
 					{filters.slice(0, 4).map((filter, i) => (
 						<div
 							className="flex items-center gap-1.5 text-xs"
@@ -132,7 +132,7 @@ export function SaveFilterDialog({
 							</span>
 							<span className="truncate font-mono">
 								{Array.isArray(filter.value)
-									? filter.value.join(", ")
+									? filter.value.join(",")
 									: filter.value}
 							</span>
 						</div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { useId } from "react";
+import { cn } from"@/lib/utils";
+import { motion } from"framer-motion";
+import { useId } from"react";
 
 type SegmentedControlOption<T extends string> = {
 	value: T;
@@ -14,7 +14,7 @@ type SegmentedControlProps<T extends string> = {
 	value: T;
 	onValueChangeAction: (value: T) => void;
 	className?: string;
-	size?: "sm" | "default";
+	size?:"sm" |"default";
 };
 
 export function SegmentedControl<T extends string>({
@@ -22,15 +22,15 @@ export function SegmentedControl<T extends string>({
 	value,
 	onValueChangeAction,
 	className,
-	size = "default",
+	size ="default",
 }: SegmentedControlProps<T>) {
 	const layoutId = useId();
 
 	return (
 		<div
 			className={cn(
-				"relative inline-flex items-center rounded bg-accent/50 p-0.5",
-				size === "sm" ? "h-8" : "h-9",
+				"relative inline-flex items-center bg-accent/50 p-0.5",
+				size ==="sm" ?"h-8" :"h-9",
 				className
 			)}
 			role="radiogroup"
@@ -42,11 +42,11 @@ export function SegmentedControl<T extends string>({
 					<button
 						aria-checked={isSelected}
 						className={cn(
-							"relative z-10 flex items-center justify-center rounded px-2.5 font-medium  ",
-							size === "sm" ? "h-6 text-xs" : "h-7 text-xs",
+							"relative z-10 flex items-center justify-center px-2.5 font-medium",
+							size ==="sm" ?"h-6 text-xs" :"h-7 text-xs",
 							isSelected
-								? "text-primary-foreground"
-								: "text-muted-foreground hover:text-foreground"
+								?"text-primary-foreground"
+								:"text-muted-foreground hover:text-foreground"
 						)}
 						key={option.value}
 						onClick={() => onValueChangeAction(option.value)}
@@ -56,12 +56,12 @@ export function SegmentedControl<T extends string>({
 						{isSelected && (
 							<motion.span
 								className={cn(
-									"absolute inset-0 rounded bg-primary",
-									size === "sm" ? "h-6" : "h-7"
+									"absolute inset-0 bg-primary",
+									size ==="sm" ?"h-6" :"h-7"
 								)}
 								layoutId={layoutId}
 								transition={{
-									type: "spring",
+									type:"spring",
 									stiffness: 500,
 									damping: 35,
 								}}

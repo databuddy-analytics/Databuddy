@@ -1,22 +1,22 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { trackError } from "@databuddy/sdk";
-import { FlagsProvider } from "@databuddy/sdk/react";
+import { authClient } from"@databuddy/auth/client";
+import { trackError } from"@databuddy/sdk";
+import { FlagsProvider } from"@databuddy/sdk/react";
 import {
 	MutationCache,
 	QueryCache,
 	QueryClient,
 	QueryClientProvider,
 	useQuery,
-} from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { ThemeProvider } from "next-themes";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { toast } from "sonner";
-import { OrganizationsProvider } from "@/components/providers/organizations-provider";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { useToastTracking } from "@/hooks/toast-hooks";
+} from"@tanstack/react-query";
+import { ReactQueryDevtools } from"@tanstack/react-query-devtools";
+import { ThemeProvider } from"next-themes";
+import { NuqsAdapter } from"nuqs/adapters/next/app";
+import { toast } from"sonner";
+import { OrganizationsProvider } from"@/components/providers/organizations-provider";
+import { TooltipProvider } from"@/components/ui/tooltip";
+import { useToastTracking } from"@/hooks/toast-hooks";
 
 const defaultQueryClientOptions = {
 	defaultOptions: {
@@ -37,7 +37,7 @@ const defaultQueryClientOptions = {
 };
 
 function isAuthError(error: unknown): boolean {
-	if (!error || typeof error !== "object") {
+	if (!error || typeof error !=="object") {
 		return false;
 	}
 
@@ -48,7 +48,7 @@ function isAuthError(error: unknown): boolean {
 	};
 
 	const errorCode = rpcError.data?.code ?? rpcError.code;
-	if (errorCode === "UNAUTHORIZED" || errorCode === "AUTH_REQUIRED") {
+	if (errorCode ==="UNAUTHORIZED" || errorCode ==="AUTH_REQUIRED") {
 		return true;
 	}
 
@@ -74,7 +74,7 @@ const queryClient = new QueryClient({
 				return;
 			}
 
-			const message = error instanceof Error ? error.message : "Unknown error";
+			const message = error instanceof Error ? error.message :"Unknown error";
 			toast.error(message);
 			trackError(message, {
 				stack: error.stack,
@@ -89,7 +89,7 @@ const queryClient = new QueryClient({
 				return;
 			}
 
-			const message = error instanceof Error ? error.message : "Unknown error";
+			const message = error instanceof Error ? error.message :"Unknown error";
 			toast.error(message);
 			trackError(message, {
 				stack: error.stack,
@@ -113,7 +113,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 						</OrganizationsProvider>
 					</FlagsProviderWrapper>
 				</TooltipProvider>
-				{process.env.NODE_ENV === "development" && (
+				{process.env.NODE_ENV ==="development" && (
 					<ReactQueryDevtools initialIsOpen={false} />
 				)}
 			</QueryClientProvider>
@@ -122,7 +122,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 }
 
 // Query key for session - shared with other components for deduplication
-export const SESSION_QUERY_KEY = ["auth", "session"] as const;
+export const SESSION_QUERY_KEY = ["auth","session"] as const;
 
 function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
 	const { data: session, isPending } = useQuery({
@@ -135,9 +135,9 @@ function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
 		gcTime: 5 * 60 * 1000, // 5 minutes
 	});
 
-	const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+	const apiUrl = process.env.NEXT_PUBLIC_API_URL ??"http://localhost:3001";
 	const clientId =
-		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ?? "OXmNQsViBT-FOS_wZCTHc";
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ??"OXmNQsViBT-FOS_wZCTHc";
 
 	const user = session?.user
 		? { userId: session.user.id, email: session.user.email }

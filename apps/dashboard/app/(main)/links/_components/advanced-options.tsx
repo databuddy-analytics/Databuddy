@@ -1,9 +1,9 @@
 "use client";
 
-import { CaretDownIcon, GearIcon } from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { CaretDownIcon, GearIcon } from"@phosphor-icons/react";
+import { AnimatePresence, motion } from"motion/react";
+import { useState } from"react";
+import { cn } from"@/lib/utils";
 
 interface AdvancedOptionsProps {
 	children: React.ReactNode;
@@ -19,7 +19,7 @@ export function AdvancedOptions({
 	return (
 		<div className="flex flex-col">
 			<button
-				className="group flex w-full cursor-pointer items-center justify-between rounded p-3 text-left transition-colors hover:bg-accent/50"
+				className="group flex w-full cursor-pointer items-center justify-between p-3 text-left transition-colors hover:bg-accent/50"
 				onClick={() => setIsExpanded(!isExpanded)}
 				type="button"
 			>
@@ -30,7 +30,7 @@ export function AdvancedOptions({
 				<CaretDownIcon
 					className={cn(
 						"size-4 text-muted-foreground transition-transform duration-200",
-						isExpanded && "rotate-180"
+						isExpanded &&"rotate-180"
 					)}
 					weight="fill"
 				/>
@@ -39,11 +39,11 @@ export function AdvancedOptions({
 			<AnimatePresence initial={false}>
 				{isExpanded && (
 					<motion.div
-						animate={{ height: "auto", opacity: 1 }}
+						animate={{ height:"auto", opacity: 1 }}
 						className="overflow-hidden"
 						exit={{ height: 0, opacity: 0 }}
 						initial={{ height: 0, opacity: 0 }}
-						transition={{ duration: 0.2, ease: "easeInOut" }}
+						transition={{ duration: 0.2, ease:"easeInOut" }}
 					>
 						<div className="space-y-6 px-3 pt-2 pb-4">{children}</div>
 					</motion.div>

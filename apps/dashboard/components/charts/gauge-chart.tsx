@@ -1,10 +1,10 @@
 "use client";
 
-import { motion, useMotionValueEvent, useSpring } from "motion/react";
-import { memo, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { motion, useMotionValueEvent, useSpring } from"motion/react";
+import { memo, useEffect, useState } from"react";
+import { cn } from"@/lib/utils";
 
-type GaugeRating = "good" | "needs-improvement" | "poor";
+type GaugeRating ="good" |"needs-improvement" |"poor";
 
 type GaugeChartProps = {
 	/** Current value to display */
@@ -28,9 +28,9 @@ type GaugeChartProps = {
 };
 
 const RATING_COLORS: Record<GaugeRating, string> = {
-	good: "#10b981",
-	"needs-improvement": "#f59e0b",
-	poor: "#ef4444",
+	good:"#10b981",
+	"needs-improvement":"#f59e0b",
+	poor:"#ef4444",
 };
 
 export const GaugeChart = memo(function GaugeChart({
@@ -56,7 +56,7 @@ export const GaugeChart = memo(function GaugeChart({
 		springValue.set(Math.max(0, Math.min(value / max, 1)));
 	}, [value, max, springValue]);
 
-	useMotionValueEvent(springValue, "change", (latest) => {
+	useMotionValueEvent(springValue,"change", (latest) => {
 		setDisplayProgress(latest);
 	});
 
@@ -114,7 +114,7 @@ export const GaugeChart = memo(function GaugeChart({
 					return (
 						<motion.line
 							animate={{
-								stroke: isActive ? activeColor : "hsl(var(--muted))",
+								stroke: isActive ? activeColor :"hsl(var(--muted))",
 								strokeOpacity: isActive ? 1 : 0.35,
 							}}
 							initial={false}
@@ -122,7 +122,7 @@ export const GaugeChart = memo(function GaugeChart({
 							strokeLinecap="round"
 							strokeWidth={tickWidth}
 							transition={{
-								type: "spring",
+								type:"spring",
 								stiffness: 300,
 								damping: 30,
 							}}

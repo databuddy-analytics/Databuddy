@@ -1,17 +1,17 @@
 "use client";
 
-import type { LocationData } from "@databuddy/shared/types/website";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { useAtom } from "jotai";
-import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
-import { Suspense, useCallback, useMemo, useState } from "react";
-import { CountryFlag } from "@/components/icon";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
-import { useMapLocationData } from "./use-map";
+import type { LocationData } from"@databuddy/shared/types/website";
+import { GlobeIcon } from"@phosphor-icons/react/dist/ssr/Globe";
+import { useAtom } from"jotai";
+import dynamic from"next/dynamic";
+import { useParams } from"next/navigation";
+import { Suspense, useCallback, useMemo, useState } from"react";
+import { CountryFlag } from"@/components/icon";
+import { Card, CardContent, CardHeader, CardTitle } from"@/components/ui/card";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { dynamicQueryFiltersAtom } from"@/stores/jotai/filterAtoms";
+import { useMapLocationData } from"./use-map";
 
 const MapComponent = dynamic(
 	() =>
@@ -22,7 +22,7 @@ const MapComponent = dynamic(
 		loading: () => (
 			<div className="flex h-full items-center justify-center bg-accent">
 				<div className="flex flex-col items-center gap-3">
-					<div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+					<div className="size-8 animate-spin border-2 border-primary border-t-transparent" />
 					<span className="font-medium text-muted-foreground text-sm">
 						Loading map…
 					</span>
@@ -56,17 +56,17 @@ function CountryRow({
 	// Colors from globals.css: success, chart-1, warning, muted
 	const getColor = (pct: number) =>
 		pct >= 50
-			? ["oklch(0.60 0.22 150 / 0.08)", "oklch(0.60 0.22 150 / 0.8)"] // success
+			? ["oklch(0.60 0.22 150 / 0.08)","oklch(0.60 0.22 150 / 0.8)"] // success
 			: pct >= 25
-				? ["oklch(0.81 0.1 252 / 0.08)", "oklch(0.81 0.1 252 / 0.8)"] // chart-1
+				? ["oklch(0.81 0.1 252 / 0.08)","oklch(0.81 0.1 252 / 0.8)"] // chart-1
 				: pct >= 10
-					? ["oklch(0.7 0.17 76 / 0.08)", "oklch(0.7 0.17 76 / 0.8)"] // warning
-					: ["oklch(0.60 0.0079 240 / 0.06)", "oklch(0.60 0.0079 240 / 0.7)"]; // muted
+					? ["oklch(0.7 0.17 76 / 0.08)","oklch(0.7 0.17 76 / 0.8)"] // warning
+					: ["oklch(0.60 0.0079 240 / 0.06)","oklch(0.60 0.0079 240 / 0.7)"]; // muted
 	const [bgColor, accentColor] = getColor(percentage);
 
 	return (
 		<button
-			className="flex w-full items-center gap-2 rounded-none p-2 text-left hover:bg-accent sm:gap-2.5"
+			className="flex w-full items-center gap-2 p-2 text-left hover:bg-accent sm:gap-2.5"
 			onClick={() =>
 				onCountrySelect(
 					country.country_code?.toUpperCase() || country.country.toUpperCase()
@@ -113,8 +113,8 @@ function WebsiteMapPage() {
 		filters
 	);
 
-	const countriesFromQuery = getDataForQuery("map-countries", "country");
-	const regionsFromQuery = getDataForQuery("map-regions", "region");
+	const countriesFromQuery = getDataForQuery("map-countries","country");
+	const regionsFromQuery = getDataForQuery("map-regions","region");
 
 	const locationData = useMemo<LocationData>(() => {
 		const countries = (countriesFromQuery || []).map(
@@ -144,7 +144,7 @@ function WebsiteMapPage() {
 	const topCountries = useMemo(
 		() =>
 			locationData.countries
-				.filter((c) => c.country && c.country.trim() !== "")
+				.filter((c) => c.country && c.country.trim() !=="")
 				.sort((a, b) => b.visitors - a.visitors)
 				.slice(0, 5),
 		[locationData.countries]
@@ -191,7 +191,7 @@ function WebsiteMapPage() {
 										className="flex items-center gap-2 py-1 sm:gap-2.5 sm:py-1.5"
 										key={`country-skeleton-${i + 1}`}
 									>
-										<Skeleton className="size-3.5 rounded sm:size-4" />
+										<Skeleton className="size-3.5 sm:size-4" />
 										<Skeleton className="h-3 flex-1" />
 										<Skeleton className="h-3 w-8" />
 									</div>
@@ -241,7 +241,7 @@ export default function Page() {
 			fallback={
 				<div className="flex h-full items-center justify-center">
 					<div className="flex flex-col items-center gap-3">
-						<div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+						<div className="size-8 animate-spin border-2 border-primary border-t-transparent" />
 						<span className="font-medium text-muted-foreground text-sm">
 							Loading…
 						</span>

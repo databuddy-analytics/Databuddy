@@ -1,6 +1,6 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import { useMemo } from "react";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import { useMemo } from"react";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
 import type {
 	CustomEventsTrend,
 	PropertyClassification,
@@ -8,7 +8,7 @@ import type {
 	PropertyTopValue,
 	RawRecentCustomEvent,
 	RecentCustomEvent,
-} from "../_components/types";
+} from"../_components/types";
 
 interface EventSummary {
 	total_events: number;
@@ -43,8 +43,8 @@ export function useEventDetailData(
 	dateRange: DateRange
 ) {
 	const eventFilter = {
-		field: "event_name",
-		operator: "eq" as const,
+		field:"event_name",
+		operator:"eq" as const,
 		value: eventName,
 	};
 
@@ -53,35 +53,35 @@ export function useEventDetailData(
 		dateRange,
 		[
 			{
-				id: "custom_events_summary",
+				id:"custom_events_summary",
 				parameters: ["custom_events_summary"],
 				filters: [eventFilter],
 			},
 			{
-				id: "custom_events_trends",
+				id:"custom_events_trends",
 				parameters: ["custom_events_trends"],
 				filters: [eventFilter],
 			},
 			{
-				id: "custom_events_property_classification",
+				id:"custom_events_property_classification",
 				parameters: ["custom_events_property_classification"],
 				filters: [eventFilter],
 				limit: 100,
 			},
 			{
-				id: "custom_events_property_distribution",
+				id:"custom_events_property_distribution",
 				parameters: ["custom_events_property_distribution"],
 				filters: [eventFilter],
 				limit: 200,
 			},
 			{
-				id: "custom_events_property_top_values",
+				id:"custom_events_property_top_values",
 				parameters: ["custom_events_property_top_values"],
 				filters: [eventFilter],
 				limit: 100,
 			},
 			{
-				id: "custom_events_recent",
+				id:"custom_events_recent",
 				parameters: ["custom_events_recent"],
 				filters: [eventFilter],
 				limit: 50,
@@ -117,7 +117,7 @@ export function useEventDetailData(
 			let parsedProperties: Record<string, unknown> = {};
 			try {
 				parsedProperties =
-					typeof item.properties === "string"
+					typeof item.properties ==="string"
 						? JSON.parse(item.properties)
 						: item.properties;
 			} catch {
@@ -141,8 +141,8 @@ export function useEventDetailData(
 				}> = [];
 
 				if (
-					classification.render_strategy === "distribution_bar" ||
-					classification.render_strategy === "top_n_chart"
+					classification.render_strategy ==="distribution_bar" ||
+					classification.render_strategy ==="top_n_chart"
 				) {
 					const distValues = distributionsData.filter(
 						(d) => d.property_key === propKey

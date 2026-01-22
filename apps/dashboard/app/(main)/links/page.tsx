@@ -1,19 +1,19 @@
 "use client";
 
-import { SparkleIcon, TrendDownIcon } from "@phosphor-icons/react/dist/ssr";
-import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
-import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
-import { Card, CardContent } from "@/components/ui/card";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { type Link, useDeleteLink, useLinks } from "@/hooks/use-links";
-import { LinkItemSkeleton } from "./_components/link-item";
-import { LinkSheet } from "./_components/link-sheet";
-import { LinksList } from "./_components/links-list";
-import { LinksPageHeader } from "./_components/links-page-header";
-import { LinksSearchBar } from "./_components/links-search-bar";
-import { QrCodeDialog } from "./_components/qr-code-dialog";
+import { SparkleIcon, TrendDownIcon } from"@phosphor-icons/react/dist/ssr";
+import { LinkIcon } from"@phosphor-icons/react/dist/ssr/Link";
+import { useRouter } from"next/navigation";
+import { useCallback, useState } from"react";
+import { NoticeBanner } from"@/app/(main)/websites/_components/notice-banner";
+import { Card, CardContent } from"@/components/ui/card";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { type Link, useDeleteLink, useLinks } from"@/hooks/use-links";
+import { LinkItemSkeleton } from"./_components/link-item";
+import { LinkSheet } from"./_components/link-sheet";
+import { LinksList } from"./_components/links-list";
+import { LinksPageHeader } from"./_components/links-page-header";
+import { LinksSearchBar } from"./_components/links-search-bar";
+import { QrCodeDialog } from"./_components/qr-code-dialog";
 
 function LinksListSkeleton() {
 	return (
@@ -102,7 +102,7 @@ export default function LinksPage() {
 				subtitle={
 					isLoading
 						? undefined
-						: `${links.length} link${links.length !== 1 ? "s" : ""}`
+						: `${links.length} link${links.length !== 1 ?"s" :""}`
 				}
 				title="Links"
 			/>

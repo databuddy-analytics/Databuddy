@@ -10,25 +10,25 @@ import {
 	ResponsiveContainer,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { Card, CardContent } from "@/components/ui/card";
-import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
-import { cn } from "@/lib/utils";
+} from"recharts";
+import { Card, CardContent } from"@/components/ui/card";
+import { type ChartConfig, ChartContainer } from"@/components/ui/chart";
+import { cn } from"@/lib/utils";
 
 const chartConfig = {
 	value: {
-		label: "Value",
-		color: "var(--color-primary)",
+		label:"Value",
+		color:"var(--color-primary)",
 	},
 } satisfies ChartConfig;
 
 const previewData = [
-	{ date: "Mon", value: 186 },
-	{ date: "Tue", value: 305 },
-	{ date: "Wed", value: 237 },
-	{ date: "Thu", value: 73 },
-	{ date: "Fri", value: 209 },
-	{ date: "Sat", value: 214 },
+	{ date:"Mon", value: 186 },
+	{ date:"Tue", value: 305 },
+	{ date:"Wed", value: 237 },
+	{ date:"Thu", value: 73 },
+	{ date:"Fri", value: 209 },
+	{ date:"Sat", value: 214 },
 ];
 
 const ChartPreview = ({
@@ -36,7 +36,7 @@ const ChartPreview = ({
 	className,
 	size = 150,
 }: {
-	chartType: "bar" | "line" | "area" | "composed";
+	chartType:"bar" |"line" |"area" |"composed";
 	className?: string;
 	size?: number;
 }) => {
@@ -56,7 +56,7 @@ const ChartPreview = ({
 					<ResponsiveContainer height={chartHeight} width="100%">
 						{(() => {
 							switch (chartType) {
-								case "bar":
+								case"bar":
 									return (
 										<BarChart
 											data={previewData}
@@ -83,7 +83,7 @@ const ChartPreview = ({
 												</linearGradient>
 											</defs>
 											<XAxis dataKey="date" hide />
-											<YAxis domain={["dataMin", "dataMax"]} hide />
+											<YAxis domain={["dataMin","dataMax"]} hide />
 											<Bar
 												dataKey="value"
 												fill={`url(#gradient-${chartId})`}
@@ -91,14 +91,14 @@ const ChartPreview = ({
 											/>
 										</BarChart>
 									);
-								case "line":
+								case"line":
 									return (
 										<LineChart
 											data={previewData}
 											margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
 										>
 											<XAxis dataKey="date" hide />
-											<YAxis domain={["dataMin", "dataMax"]} hide />
+											<YAxis domain={["dataMin","dataMax"]} hide />
 											<Line
 												dataKey="value"
 												dot={false}
@@ -108,7 +108,7 @@ const ChartPreview = ({
 											/>
 										</LineChart>
 									);
-								case "area":
+								case"area":
 									return (
 										<AreaChart
 											data={previewData}
@@ -135,12 +135,12 @@ const ChartPreview = ({
 												</linearGradient>
 											</defs>
 											<XAxis dataKey="date" hide />
-											<YAxis domain={["dataMin", "dataMax"]} hide />
+											<YAxis domain={["dataMin","dataMax"]} hide />
 											<Area
 												activeDot={{
 													r: 2.5,
-													fill: "var(--color-primary)",
-													stroke: "var(--color-background)",
+													fill:"var(--color-primary)",
+													stroke:"var(--color-background)",
 													strokeWidth: 1.5,
 												}}
 												dataKey="value"
@@ -159,7 +159,7 @@ const ChartPreview = ({
 											margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
 										>
 											<XAxis dataKey="date" hide />
-											<YAxis domain={["dataMin", "dataMax"]} hide />
+											<YAxis domain={["dataMin","dataMax"]} hide />
 											<Bar
 												dataKey="value"
 												fill="var(--color-primary)"

@@ -1,7 +1,7 @@
 "use client";
 
-import { LlmErrorsTab } from "../_components/llm-errors-tab";
-import { LlmTabPageWrapper } from "../_components/llm-tab-page-wrapper";
+import { LlmErrorsTab } from"../_components/llm-errors-tab";
+import { LlmTabPageWrapper } from"../_components/llm-tab-page-wrapper";
 
 export default function LlmErrorsPage() {
 	return (

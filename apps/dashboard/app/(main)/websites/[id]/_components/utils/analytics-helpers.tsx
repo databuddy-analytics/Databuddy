@@ -1,14 +1,14 @@
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
-import { toast } from "sonner";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import timezone from"dayjs/plugin/timezone";
+import utc from"dayjs/plugin/utc";
+import { toast } from"sonner";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-type Granularity = "daily" | "hourly";
+type Granularity ="daily" |"hourly";
 
 interface DataItem {
 	[key: string]: any;
@@ -25,7 +25,7 @@ export const handleDataRefresh = async (
 	isRefreshing: boolean,
 	refetchFn: () => Promise<any>,
 	setIsRefreshing: (value: boolean) => void,
-	_successMessage = "Data has been updated"
+	_successMessage ="Data has been updated"
 ): Promise<void> => {
 	if (!isRefreshing) {
 		return;
@@ -53,7 +53,7 @@ export const safeParseDate = (
 		return dayjs();
 	}
 
-	if (typeof date === "object" && date instanceof Date) {
+	if (typeof date ==="object" && date instanceof Date) {
 		return dayjs(date).isValid() ? dayjs(date) : dayjs();
 	}
 
@@ -67,10 +67,10 @@ export const safeParseDate = (
 
 export const formatDateByGranularity = (
 	date: string | Date,
-	granularity: Granularity = "daily"
+	granularity: Granularity ="daily"
 ): string => {
 	const dateObj = dayjs(date);
-	return granularity === "hourly"
+	return granularity ==="hourly"
 		? dateObj.format("MMM D, h:mm A")
 		: dateObj.format("MMM D");
 };
@@ -90,7 +90,7 @@ export const createMetricToggles = <T extends string>(
 export const formatDistributionData = <T extends DataItem>(
 	data: T[] | undefined,
 	nameField: keyof T,
-	valueField: keyof T = "visitors" as keyof T
+	valueField: keyof T ="visitors" as keyof T
 ): ChartDataPoint[] => {
 	if (!data?.length) {
 		return [];
@@ -98,10 +98,10 @@ export const formatDistributionData = <T extends DataItem>(
 
 	return data.map((item) => ({
 		name:
-			typeof item[nameField] === "string"
+			typeof item[nameField] ==="string"
 				? (item[nameField] as string)?.charAt(0).toUpperCase() +
-						(item[nameField] as string)?.slice(1) || "Unknown"
-				: String(item[nameField] || "Unknown"),
+						(item[nameField] as string)?.slice(1) ||"Unknown"
+				: String(item[nameField] ||"Unknown"),
 		value: Number(item[valueField]) || 0,
 	}));
 };
@@ -139,14 +139,14 @@ export const getColorVariant = (
 	value: number,
 	dangerThreshold: number,
 	warningThreshold: number
-): "danger" | "warning" | "success" => {
+):"danger" |"warning" |"success" => {
 	if (value > dangerThreshold) {
-		return "danger";
+		return"danger";
 	}
 	if (value > warningThreshold) {
-		return "warning";
+		return"warning";
 	}
-	return "success";
+	return"success";
 };
 
 const PROTOCOL_REGEX = /^https?:\/\//;
@@ -164,12 +164,12 @@ export const formatDomainLink = (
 	if (domain) {
 		// Remove protocol if present
 		const cleanDomain = domain
-			.replace(PROTOCOL_REGEX, "")
-			.replace(SLASH_REGEX, "");
+			.replace(PROTOCOL_REGEX,"")
+			.replace(SLASH_REGEX,"");
 		// Ensure path starts with a single slash
 		let cleanPath = path.startsWith("/") ? path : `/${path}`;
 		// Remove duplicate slashes
-		cleanPath = cleanPath.replace(/\/+/g, "/");
+		cleanPath = cleanPath.replace(/\/+/g,"/");
 		const href = `https://${cleanDomain}${cleanPath}`;
 		return {
 			href,
@@ -184,7 +184,7 @@ export const formatDomainLink = (
 	};
 };
 
-// Format relative time (e.g., "2 hours ago")
+// Format relative time (e.g.,"2 hours ago")
 export const formatRelativeTime = (date: string | Date): string => {
 	const dateObj = safeParseDate(date);
 	return dateObj.fromNow();
@@ -201,18 +201,18 @@ export const calculatePercentChange = (
 };
 
 export const formatPercentChange = (change: number): string => {
-	const sign = change > 0 ? "+" : "";
+	const sign = change > 0 ?"+" :"";
 	return `${sign}${change.toFixed(1)}%`;
 };
 
 export const PERFORMANCE_THRESHOLDS = {
-	load_time: { good: 1500, average: 3000, unit: "ms" },
-	ttfb: { good: 500, average: 1000, unit: "ms" },
-	dom_ready: { good: 1000, average: 2000, unit: "ms" },
-	render_time: { good: 1000, average: 2000, unit: "ms" },
-	fcp: { good: 1800, average: 3000, unit: "ms" },
-	lcp: { good: 2500, average: 4000, unit: "ms" },
-	cls: { good: 0.1, average: 0.25, unit: "" },
+	load_time: { good: 1500, average: 3000, unit:"ms" },
+	ttfb: { good: 500, average: 1000, unit:"ms" },
+	dom_ready: { good: 1000, average: 2000, unit:"ms" },
+	render_time: { good: 1000, average: 2000, unit:"ms" },
+	fcp: { good: 1800, average: 3000, unit:"ms" },
+	lcp: { good: 2500, average: 4000, unit:"ms" },
+	cls: { good: 0.1, average: 0.25, unit:"" },
 };
 
 /**

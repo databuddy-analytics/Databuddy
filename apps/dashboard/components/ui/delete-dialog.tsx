@@ -1,8 +1,8 @@
 "use client";
 
-import { TrashIcon } from "@phosphor-icons/react";
-import { useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { TrashIcon } from"@phosphor-icons/react";
+import { useEffect, useRef } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -10,7 +10,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from"@/components/ui/dialog";
 
 interface DeleteDialogProps {
 	isOpen: boolean;
@@ -30,11 +30,11 @@ export function DeleteDialog({
 	isOpen,
 	onClose,
 	onConfirm,
-	title = "Delete",
+	title ="Delete",
 	description,
 	itemName,
-	confirmLabel = "Delete",
-	cancelLabel = "Cancel",
+	confirmLabel ="Delete",
+	cancelLabel ="Cancel",
 	isDeleting = false,
 	confirmDisabled = false,
 	children,
@@ -50,7 +50,7 @@ export function DeleteDialog({
 
 	const defaultDescription = itemName
 		? `Are you sure you want to delete ${itemName}? This action cannot be undone and will permanently remove it.`
-		: "Are you sure you want to delete this item? This action cannot be undone and will permanently remove it.";
+		:"Are you sure you want to delete this item? This action cannot be undone and will permanently remove it.";
 
 	const handleConfirm = () => {
 		onConfirm();
@@ -68,7 +68,7 @@ export function DeleteDialog({
 				{children ? (
 					<>
 						{children}
-						<div className="flex items-center gap-3 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+						<div className="flex items-center gap-3 border border-destructive/20 bg-destructive/5 p-3">
 							<div className="flex size-8 shrink-0 items-center justify-center">
 								<TrashIcon
 									className="text-destructive"
@@ -104,7 +104,7 @@ export function DeleteDialog({
 						onClick={handleConfirm}
 						disabled={isDeleting || confirmDisabled}
 					>
-						{isDeleting ? "Deleting..." : confirmLabel}
+						{isDeleting ?"Deleting..." : confirmLabel}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

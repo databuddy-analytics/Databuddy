@@ -5,24 +5,24 @@ import {
 	CaretRightIcon,
 	GlobeIcon,
 	PlusIcon,
-} from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { useState } from "react";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { EmptyState } from "@/components/empty-state";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WebsiteDialog } from "@/components/website-dialog";
-import type { Organization } from "@/hooks/use-organizations";
-import type { Website } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
+} from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import Link from"next/link";
+import { useState } from"react";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { EmptyState } from"@/components/empty-state";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { WebsiteDialog } from"@/components/website-dialog";
+import type { Organization } from"@/hooks/use-organizations";
+import type { Website } from"@/hooks/use-websites";
+import { orpc } from"@/lib/orpc";
 
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded" />
+			<Skeleton className="size-10" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
@@ -42,7 +42,7 @@ function WebsitesSkeleton() {
 			</div>
 			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
 			</div>
 		</div>
@@ -52,7 +52,7 @@ function WebsitesSkeleton() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10">
+			<div className="mb-4 flex size-16 items-center justify-center bg-destructive/10">
 				<GlobeIcon className="text-destructive" size={28} weight="duotone" />
 			</div>
 			<h3 className="mb-1 font-semibold text-lg">Failed to load</h3>
@@ -82,7 +82,7 @@ function WebsiteRow({ website }: WebsiteRowProps) {
 				className="size-10"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="flex size-10 items-center justify-center rounded border bg-background group-hover:border-primary/30 group-hover:bg-primary/5">
+					<div className="flex size-10 items-center justify-center border bg-background group-hover:border-primary/30 group-hover:bg-primary/5">
 						<GlobeIcon
 							className="text-muted-foreground group-hover:text-primary"
 							size={18}
@@ -161,7 +161,7 @@ export function WebsiteSettings({
 					</Button>
 					{!isEmpty && (
 						<RightSidebar.InfoCard
-							description={`Website${websites.length !== 1 ? "s" : ""}`}
+							description={`Website${websites.length !== 1 ?"s" :""}`}
 							icon={GlobeIcon}
 							title={String(websites.length)}
 						/>

@@ -1,28 +1,28 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	BuildingsIcon,
 	CaretRightIcon,
 	CheckCircleIcon,
 	PlusIcon,
-} from "@phosphor-icons/react";
-import { useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { toast } from "sonner";
-import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+} from"@phosphor-icons/react";
+import { useQueryClient } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useRouter } from"next/navigation";
+import { useState } from"react";
+import { toast } from"sonner";
+import { CreateOrganizationDialog } from"@/components/organizations/create-organization-dialog";
 import {
 	AUTH_QUERY_KEYS,
 	type Organization,
-} from "@/components/providers/organizations-provider";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { cn, getOrganizationInitials } from "@/lib/utils";
+} from"@/components/providers/organizations-provider";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { cn, getOrganizationInitials } from"@/lib/utils";
 
 dayjs.extend(relativeTime);
 
@@ -42,7 +42,7 @@ function EmptyState() {
 	return (
 		<>
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-				<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
+				<div className="mb-4 flex size-16 items-center justify-center bg-primary/10">
 					<BuildingsIcon className="text-primary" size={28} weight="duotone" />
 				</div>
 				<h3 className="mb-1 font-semibold text-lg">No organizations yet</h3>
@@ -79,14 +79,14 @@ function OrganizationRow({
 		<button
 			className={cn(
 				"group relative grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-3 text-left hover:bg-accent",
-				isProcessing && "pointer-events-none opacity-60"
+				isProcessing &&"pointer-events-none opacity-60"
 			)}
 			onClick={onClick}
 			type="button"
 		>
 			{isProcessing && (
 				<div className="absolute inset-0 flex items-center justify-center bg-background/50">
-					<div className="size-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+					<div className="size-5 animate-spin border-2 border-primary/30 border-t-primary" />
 				</div>
 			)}
 
@@ -146,7 +146,7 @@ export function OrganizationsList({
 				organizationId: orgId,
 			});
 			if (error) {
-				toast.error(error.message ?? "Failed to switch workspace");
+				toast.error(error.message ??"Failed to switch workspace");
 			} else {
 				await queryClient.invalidateQueries({
 					queryKey: AUTH_QUERY_KEYS.activeOrganization,

@@ -5,7 +5,7 @@ export const ErrorChartTooltip = ({ active, payload, label }: any) => {
 	}
 
 	return (
-		<div className="rounded-lg border border-sidebar-border bg-background/95 p-4 text-sm shadow-lg backdrop-blur-sm">
+		<div className=" border border-sidebar-border bg-background/95 p-4 text-sm shadow-lg backdrop-blur-sm">
 			<p className="mb-3 font-semibold text-foreground">{label}</p>
 			<div className="space-y-2">
 				{payload.map((entry: any) => (
@@ -14,7 +14,7 @@ export const ErrorChartTooltip = ({ active, payload, label }: any) => {
 						key={`tooltip-${entry.dataKey}-${entry.value}`}
 					>
 						<div
-							className="size-3 rounded-full"
+							className="size-3"
 							style={{ backgroundColor: entry.color }}
 						/>
 						<span className="text-muted-foreground">{entry.name}:</span>

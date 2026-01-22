@@ -1,7 +1,7 @@
-import { ChartLineIcon, XIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useAtom } from "jotai";
-import { useCallback, useRef, useState } from "react";
+import { ChartLineIcon, XIcon } from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useAtom } from"jotai";
+import { useCallback, useRef, useState } from"react";
 import {
 	Area,
 	CartesianGrid,
@@ -14,31 +14,31 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+} from"recharts";
+import { Label } from"@/components/ui/label";
+import { Switch } from"@/components/ui/switch";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import { usePersistentState } from"@/hooks/use-persistent-state";
 import {
 	ANNOTATION_STORAGE_KEYS,
 	CHART_ANNOTATION_STYLES,
-} from "@/lib/annotation-constants";
-import { isSingleDayAnnotation } from "@/lib/annotation-utils";
-import { cn } from "@/lib/utils";
+} from"@/lib/annotation-constants";
+import { isSingleDayAnnotation } from"@/lib/annotation-utils";
+import { cn } from"@/lib/utils";
 import {
 	metricVisibilityAtom,
 	toggleMetricAtom,
-} from "@/stores/jotai/chartAtoms";
-import type { Annotation } from "@/types/annotations";
-import { AnnotationModal } from "./annotation-modal";
-import { AnnotationsPanel } from "./annotations-panel";
+} from"@/stores/jotai/chartAtoms";
+import type { Annotation } from"@/types/annotations";
+import { AnnotationModal } from"./annotation-modal";
+import { AnnotationsPanel } from"./annotations-panel";
 import {
 	type ChartDataRow,
 	METRICS,
 	type MetricConfig,
-} from "./metrics-constants";
-import { RangeSelectionPopup } from "./range-selection-popup";
-import { SkeletonChart } from "./skeleton-chart";
+} from"./metrics-constants";
+import { RangeSelectionPopup } from"./range-selection-popup";
+import { SkeletonChart } from"./skeleton-chart";
 
 type TooltipPayloadEntry = {
 	dataKey: string;
@@ -72,9 +72,9 @@ const CustomTooltip = ({
 	}
 
 	return (
-		<div className="min-w-[200px] rounded border bg-popover p-3 shadow-lg">
+		<div className="min-w-[200px] border bg-popover p-3 shadow-lg">
 			<div className="mb-2 flex items-center gap-2 border-b pb-2">
-				<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+				<div className="h-1.5 w-1.5 animate-pulse bg-primary" />
 				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
 			<div className="space-y-1.5">
@@ -95,7 +95,7 @@ const CustomTooltip = ({
 						>
 							<div className="flex items-center gap-2">
 								<div
-									className="size-2.5 rounded-full"
+									className="size-2.5"
 									style={{ backgroundColor: entry.color }}
 								/>
 								<span className="text-muted-foreground text-xs">
@@ -153,12 +153,12 @@ type UseDynamicDasharrayProps = {
 	defaultDashPattern?: number[];
 	curveAdjustment?: number;
 	chartType?:
-		| "linear"
-		| "monotone"
-		| "natural"
-		| "step"
-		| "stepBefore"
-		| "stepAfter";
+		|"linear"
+		|"monotone"
+		|"natural"
+		|"step"
+		|"stepBefore"
+		|"stepAfter";
 };
 
 type LineDasharray = {
@@ -171,7 +171,7 @@ function useDynamicDasharray({
 	splitIndex = -2,
 	defaultDashPattern: dashPattern = [5, 3],
 	curveAdjustment = 1,
-	chartType = "linear",
+	chartType ="linear",
 }: UseDynamicDasharrayProps): [
 	(props: CustomizedChartProps) => null,
 	LineDasharray,
@@ -196,9 +196,9 @@ function useDynamicDasharray({
 
 					// For step charts, calculate actual step path length (horizontal + vertical)
 					if (
-						chartType === "step" ||
-						chartType === "stepBefore" ||
-						chartType === "stepAfter"
+						chartType ==="step" ||
+						chartType ==="stepBefore" ||
+						chartType ==="stepAfter"
 					) {
 						return total + dx + dy;
 					}
@@ -240,11 +240,11 @@ function useDynamicDasharray({
 					const repetitions = Math.ceil(dashedLength / patternSegmentLength);
 					const dashedPatternSegments = Array.from(
 						{ length: repetitions },
-						() => targetDashPattern.join(" ")
+						() => targetDashPattern.join("")
 					);
 
 					const finalDasharray = `${solidDasharrayPart} ${dashedPatternSegments.join(
-						" "
+						""
 					)}`;
 					newLineDasharrays.push({
 						name: lineName,
@@ -285,7 +285,7 @@ type MetricsChartProps = {
 	showLegend?: boolean;
 	onRangeSelect?: (dateRange: DateRangeState) => void;
 	onCreateAnnotation?: (annotation: {
-		annotationType: "range";
+		annotationType:"range";
 		xValue: string;
 		xEndValue: string;
 		text: string;
@@ -299,7 +299,7 @@ type MetricsChartProps = {
 	showAnnotations?: boolean;
 	onToggleAnnotations?: (show: boolean) => void;
 	websiteId?: string;
-	granularity?: "hourly" | "daily" | "weekly" | "monthly";
+	granularity?:"hourly" |"daily" |"weekly" |"monthly";
 };
 
 const DEFAULT_METRICS = [
@@ -326,7 +326,7 @@ export function MetricsChart({
 	showAnnotations = true,
 	onToggleAnnotations,
 	websiteId,
-	granularity = "daily",
+	granularity ="daily",
 }: MetricsChartProps) {
 	const rawData = data || [];
 	const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
@@ -345,7 +345,7 @@ export function MetricsChart({
 	const [tipDismissed, setTipDismissed] = usePersistentState(
 		websiteId
 			? ANNOTATION_STORAGE_KEYS.tipDismissed(websiteId)
-			: "chart-tip-dismissed",
+			:"chart-tip-dismissed",
 		false
 	);
 
@@ -366,9 +366,9 @@ export function MetricsChart({
 		splitIndex: chartData.length - 2,
 		chartType: chartStepType,
 		curveAdjustment:
-			chartStepType === "step" ||
-			chartStepType === "stepBefore" ||
-			chartStepType === "stepAfter"
+			chartStepType ==="step" ||
+			chartStepType ==="stepBefore" ||
+			chartStepType ==="stepAfter"
 				? 0
 				: 1,
 	});
@@ -436,7 +436,7 @@ export function MetricsChart({
 	};
 
 	const handleInternalCreateAnnotation = async (annotation: {
-		annotationType: "range";
+		annotationType:"range";
 		xValue: string;
 		xEndValue: string;
 		text: string;
@@ -456,13 +456,13 @@ export function MetricsChart({
 		return (
 			<div
 				className={cn(
-					"w-full overflow-hidden rounded border bg-card",
+					"w-full overflow-hidden border bg-card",
 					className
 				)}
 			>
 				<div className="flex items-center justify-center p-8">
 					<div className="flex flex-col items-center py-12 text-center">
-						<div className="relative flex size-12 items-center justify-center rounded bg-accent">
+						<div className="relative flex size-12 items-center justify-center bg-accent">
 							<ChartLineIcon className="size-6 text-foreground" />
 						</div>
 						<p className="mt-6 font-medium text-foreground text-lg">
@@ -480,7 +480,7 @@ export function MetricsChart({
 
 	return (
 		<div
-			className={cn("w-full overflow-hidden rounded border bg-card", className)}
+			className={cn("w-full overflow-hidden border bg-card", className)}
 		>
 			{/* Annotations Panel */}
 			{annotations.length > 0 && (
@@ -488,7 +488,7 @@ export function MetricsChart({
 					<div className="flex items-center gap-3">
 						<span className="text-foreground text-sm">
 							{annotations.length} annotation
-							{annotations.length !== 1 ? "s" : ""} on this chart
+							{annotations.length !== 1 ?"s" :""} on this chart
 						</span>
 						{onToggleAnnotations !== undefined && (
 							<div className="flex items-center gap-2">
@@ -519,16 +519,16 @@ export function MetricsChart({
 				<div
 					className="relative select-none"
 					style={{
-						width: "100%",
+						width:"100%",
 						height: height + 20,
-						userSelect: refAreaLeft ? "none" : "auto",
-						WebkitUserSelect: refAreaLeft ? "none" : "auto",
+						userSelect: refAreaLeft ?"none" :"auto",
+						WebkitUserSelect: refAreaLeft ?"none" :"auto",
 					}}
 				>
 					{/* Range Selection Instructions */}
 					{refAreaLeft !== null && refAreaRight === null && (
 						<div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 transform">
-							<div className="rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs shadow-lg">
+							<div className=" bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs shadow-lg">
 								Drag to select range or click to annotate this point
 							</div>
 						</div>
@@ -536,7 +536,7 @@ export function MetricsChart({
 
 					{!refAreaLeft && annotations.length === 0 && !tipDismissed && (
 						<div className="absolute top-4 right-4 z-10">
-							<div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-sm">
+							<div className="flex items-center gap-2 border bg-card px-3 py-2 shadow-sm">
 								<span className="text-muted-foreground text-xs">
 									Click or drag on chart to create annotations
 								</span>
@@ -596,12 +596,12 @@ export function MetricsChart({
 							<XAxis
 								axisLine={false}
 								dataKey="date"
-								tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 11, fill:"var(--muted-foreground)" }}
 								tickLine={false}
 							/>
 							<YAxis
 								axisLine={false}
-								tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 11, fill:"var(--muted-foreground)" }}
 								tickLine={false}
 								width={45}
 							/>
@@ -616,8 +616,8 @@ export function MetricsChart({
 									suppressTooltip
 										? false
 										: {
-												stroke: "var(--color-primary)",
-												strokeDasharray: "4 4",
+												stroke:"var(--color-primary)",
+												strokeDasharray:"4 4",
 												strokeOpacity: 0.5,
 											}
 								}
@@ -696,7 +696,7 @@ export function MetricsChart({
 									}
 
 									if (
-										annotation.annotationType === "range" &&
+										annotation.annotationType ==="range" &&
 										annotation.xEndValue
 									) {
 										const isSingleDay = isSingleDayAnnotation(annotation);
@@ -707,7 +707,7 @@ export function MetricsChart({
 													key={annotation.id}
 													label={{
 														value: annotation.text,
-														position: index % 2 === 0 ? "top" : "insideTopLeft",
+														position: index % 2 === 0 ?"top" :"insideTopLeft",
 														fill: annotation.color,
 														fontSize: CHART_ANNOTATION_STYLES.fontSize,
 														fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
@@ -730,7 +730,7 @@ export function MetricsChart({
 												key={annotation.id}
 												label={{
 													value: annotation.text,
-													position: index % 2 === 0 ? "top" : "insideTop",
+													position: index % 2 === 0 ?"top" :"insideTop",
 													fill: annotation.color,
 													fontSize: CHART_ANNOTATION_STYLES.fontSize,
 													fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
@@ -751,7 +751,7 @@ export function MetricsChart({
 											key={annotation.id}
 											label={{
 												value: annotation.text,
-												position: index % 2 === 0 ? "top" : "insideTopLeft",
+												position: index % 2 === 0 ?"top" :"insideTopLeft",
 												fill: annotation.color,
 												fontSize: CHART_ANNOTATION_STYLES.fontSize,
 												fontWeight: CHART_ANNOTATION_STYLES.fontWeight,
@@ -775,8 +775,8 @@ export function MetricsChart({
 											<span
 												className={`cursor-pointer text-xs ${
 													isHidden
-														? "text-muted-foreground line-through opacity-50"
-														: "text-muted-foreground hover:text-foreground"
+														?"text-muted-foreground line-through opacity-50"
+														:"text-muted-foreground hover:text-foreground"
 												}`}
 											>
 												{label}
@@ -792,7 +792,7 @@ export function MetricsChart({
 										}
 									}}
 									verticalAlign="bottom"
-									wrapperStyle={{ paddingTop: "20px", fontSize: "12px" }}
+									wrapperStyle={{ paddingTop:"20px", fontSize:"12px" }}
 								/>
 							)}
 							{metrics.map((metric) => (
@@ -814,7 +814,7 @@ export function MetricsChart({
 									stroke={metric.color}
 									strokeDasharray={
 										lineDasharrays.find((line) => line.name === metric.key)
-											?.strokeDasharray || "0 0"
+											?.strokeDasharray ||"0 0"
 									}
 									strokeWidth={2.5}
 									type={chartStepType}

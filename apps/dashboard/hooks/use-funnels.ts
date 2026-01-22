@@ -1,16 +1,16 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import {
 	useMutation,
 	useQueries,
 	useQuery,
 	useQueryClient,
-} from "@tanstack/react-query";
-import { useMemo } from "react";
-import { toast } from "sonner";
-import { orpc } from "@/lib/orpc";
+} from"@tanstack/react-query";
+import { useMemo } from"react";
+import { toast } from"sonner";
+import { orpc } from"@/lib/orpc";
 
 export interface FunnelStep {
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
+	type:"PAGE_VIEW" |"EVENT" |"CUSTOM";
 	target: string;
 	name: string;
 	conditions?: Record<string, unknown>;
@@ -18,7 +18,7 @@ export interface FunnelStep {
 
 export interface FunnelFilter {
 	field: string;
-	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
+	operator:"equals" |"contains" |"not_equals" |"in" |"not_in";
 	value: string | string[];
 	label?: string;
 }

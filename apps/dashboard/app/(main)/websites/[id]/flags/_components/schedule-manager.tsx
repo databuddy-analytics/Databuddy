@@ -1,6 +1,6 @@
 "use client";
 
-import { DATE_FORMATS, formatDate } from "@lib/formatters";
+import { DATE_FORMATS, formatDate } from"@lib/formatters";
 import {
 	CalendarIcon,
 	ClockIcon,
@@ -9,21 +9,21 @@ import {
 	PowerIcon,
 	TrashIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { FormField, FormItem } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from"@phosphor-icons/react";
+import { AnimatePresence, motion } from"framer-motion";
+import { Button } from"@/components/ui/button";
+import { Calendar } from"@/components/ui/calendar";
+import { FormField, FormItem } from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import type { ScheduleManagerProps } from "./types";
+} from"@/components/ui/popover";
+import { cn } from"@/lib/utils";
+import type { ScheduleManagerProps } from"./types";
 
-type ScheduleType = "enable" | "disable" | "update_rollout";
+type ScheduleType ="enable" |"disable" |"update_rollout";
 
 function DateTimePicker({
 	value,
@@ -40,7 +40,7 @@ function DateTimePicker({
 				<Button
 					className={cn(
 						"h-9 w-full justify-start gap-2 text-left font-normal",
-						!value && "text-muted-foreground"
+						!value &&"text-muted-foreground"
 					)}
 					type="button"
 					variant="outline"
@@ -48,7 +48,7 @@ function DateTimePicker({
 					<CalendarIcon size={14} />
 					{value
 						? formatDate(new Date(value), DATE_FORMATS.DATE_TIME_12H)
-						: "Select date & time…"}
+						:"Select date & time…"}
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-auto p-0">
@@ -69,7 +69,7 @@ function DateTimePicker({
 					<Input
 						className="h-8 flex-1"
 						defaultValue={
-							value ? formatDate(new Date(value), DATE_FORMATS.TIME_ONLY) : ""
+							value ? formatDate(new Date(value), DATE_FORMATS.TIME_ONLY) :""
 						}
 						onChange={(e) => {
 							const date = dateValue || new Date();
@@ -90,7 +90,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 	const scheduleType = form.watch("schedule.type") as ScheduleType | undefined;
 	const rolloutSteps = form.watch("schedule.rolloutSteps") || [];
 	const flagType = form.watch("flag.type");
-	const isRolloutFlag = flagType === "rollout";
+	const isRolloutFlag = flagType ==="rollout";
 
 	const enableSchedule = (type: ScheduleType) => {
 		form.setValue("schedule.isEnabled", true);
@@ -98,7 +98,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 		if (flagId) {
 			form.setValue("schedule.flagId", flagId);
 		}
-		if (type === "update_rollout" && rolloutSteps.length === 0) {
+		if (type ==="update_rollout" && rolloutSteps.length === 0) {
 			form.setValue("schedule.rolloutSteps", [
 				{
 					scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -133,14 +133,14 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 	const removeRolloutStep = (index: number) => {
 		const filtered = rolloutSteps.filter((_, i) => i !== index);
 		form.setValue("schedule.rolloutSteps", filtered);
-		if (filtered.length === 0 && scheduleType === "update_rollout") {
+		if (filtered.length === 0 && scheduleType ==="update_rollout") {
 			disableSchedule();
 		}
 	};
 
 	const updateRolloutStep = (
 		index: number,
-		field: "scheduledAt" | "value",
+		field:"scheduledAt" |"value",
 		value: string | number
 	) => {
 		const newSteps = [...rolloutSteps];
@@ -154,11 +154,11 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 			<div className="space-y-2">
 				<div className="grid gap-2 sm:grid-cols-2">
 					<button
-						className="flex items-center gap-3 rounded border border-transparent bg-secondary p-3 text-left transition-all hover:border-green-500/30 hover:bg-green-500/5"
+						className="flex items-center gap-3 border border-transparent bg-secondary p-3 text-left transition-all hover:border-green-500/30 hover:bg-green-500/5"
 						onClick={() => enableSchedule("enable")}
 						type="button"
 					>
-						<div className="flex size-8 items-center justify-center rounded bg-green-500/10">
+						<div className="flex size-8 items-center justify-center bg-green-500/10">
 							<PowerIcon className="text-green-500" size={16} weight="fill" />
 						</div>
 						<div>
@@ -168,11 +168,11 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 					</button>
 
 					<button
-						className="flex items-center gap-3 rounded border border-transparent bg-secondary p-3 text-left transition-all hover:border-red-500/30 hover:bg-red-500/5"
+						className="flex items-center gap-3 border border-transparent bg-secondary p-3 text-left transition-all hover:border-red-500/30 hover:bg-red-500/5"
 						onClick={() => enableSchedule("disable")}
 						type="button"
 					>
-						<div className="flex size-8 items-center justify-center rounded bg-red-500/10">
+						<div className="flex size-8 items-center justify-center bg-red-500/10">
 							<PowerIcon
 								className="rotate-180 text-red-500"
 								size={16}
@@ -188,11 +188,11 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 
 				{isRolloutFlag && (
 					<button
-						className="flex w-full items-center gap-3 rounded border border-transparent bg-secondary p-3 text-left transition-all hover:border-primary/30 hover:bg-primary/5"
+						className="flex w-full items-center gap-3 border border-transparent bg-secondary p-3 text-left transition-all hover:border-primary/30 hover:bg-primary/5"
 						onClick={() => enableSchedule("update_rollout")}
 						type="button"
 					>
-						<div className="flex size-8 items-center justify-center rounded bg-primary/10">
+						<div className="flex size-8 items-center justify-center bg-primary/10">
 							<LightningIcon className="text-primary" size={16} weight="fill" />
 						</div>
 						<div>
@@ -213,29 +213,29 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
-					{scheduleType === "enable" && (
+					{scheduleType ==="enable" && (
 						<PowerIcon className="text-green-500" size={16} weight="fill" />
 					)}
-					{scheduleType === "disable" && (
+					{scheduleType ==="disable" && (
 						<PowerIcon
 							className="rotate-180 text-red-500"
 							size={16}
 							weight="fill"
 						/>
 					)}
-					{scheduleType === "update_rollout" && (
+					{scheduleType ==="update_rollout" && (
 						<LightningIcon className="text-primary" size={16} weight="fill" />
 					)}
 					<span className="font-medium text-sm">
-						{scheduleType === "enable"
-							? "Enable on schedule"
-							: scheduleType === "disable"
-								? "Disable on schedule"
-								: "Gradual rollout"}
+						{scheduleType ==="enable"
+							?"Enable on schedule"
+							: scheduleType ==="disable"
+								?"Disable on schedule"
+								:"Gradual rollout"}
 					</span>
 				</div>
 				<button
-					className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+					className="flex size-6 items-center justify-center text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
 					onClick={disableSchedule}
 					type="button"
 				>
@@ -244,7 +244,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 			</div>
 
 			{/* Simple enable/disable */}
-			{scheduleType !== "update_rollout" && (
+			{scheduleType !=="update_rollout" && (
 				<FormField
 					control={form.control}
 					name="schedule.scheduledAt"
@@ -257,7 +257,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 			)}
 
 			{/* Rollout steps */}
-			{scheduleType === "update_rollout" && (
+			{scheduleType ==="update_rollout" && (
 				<div className="space-y-3">
 					<AnimatePresence mode="popLayout">
 						{rolloutSteps.map((step, index) => (
@@ -271,7 +271,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 							>
 								<DateTimePicker
 									onChange={(date) =>
-										updateRolloutStep(index, "scheduledAt", date)
+										updateRolloutStep(index,"scheduledAt", date)
 									}
 									value={step.scheduledAt}
 								/>
@@ -281,7 +281,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 										max={100}
 										min={0}
 										onChange={(e) =>
-											updateRolloutStep(index, "value", Number(e.target.value))
+											updateRolloutStep(index,"value", Number(e.target.value))
 										}
 										type="number"
 										value={step.value}
@@ -289,7 +289,7 @@ export function ScheduleManager({ form, flagId }: ScheduleManagerProps) {
 									<span className="text-muted-foreground text-sm">%</span>
 								</div>
 								<button
-									className="flex size-9 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+									className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 									onClick={() => removeRolloutStep(index)}
 									type="button"
 								>

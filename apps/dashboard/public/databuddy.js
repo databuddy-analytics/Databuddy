@@ -290,22 +290,22 @@
 		}
 
 	compileGlobToRegex(pattern) {
-		const doubleAsteriskToken = "__DOUBLE_ASTERISK_TOKEN__";
-		const singleAsteriskToken = "__SINGLE_ASTERISK_TOKEN__";
+		const doubleAsteriskToken ="__DOUBLE_ASTERISK_TOKEN__";
+		const singleAsteriskToken ="__SINGLE_ASTERISK_TOKEN__";
 
 		let regexString = pattern
 			.replace(/\*\*/g, doubleAsteriskToken)
 			.replace(/\*/g, singleAsteriskToken);
 
-		regexString = regexString.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+		regexString = regexString.replace(/[.+?^${}()|[\]\\]/g,"\\$&");
 
-		regexString = regexString.replace(new RegExp(`/${doubleAsteriskToken}/`, "g"), "/(?:.+/)?");
-		regexString = regexString.replace(new RegExp(doubleAsteriskToken, "g"), ".*");
-		regexString = regexString.replace(/\//g, "\\/");
+		regexString = regexString.replace(new RegExp(`/${doubleAsteriskToken}/`,"g"),"/(?:.+/)?");
+		regexString = regexString.replace(new RegExp(doubleAsteriskToken,"g"),".*");
+		regexString = regexString.replace(/\//g,"\\/");
 
-		const finalRegexString = regexString.replace(new RegExp(singleAsteriskToken, "g"), "[^/]+");
+		const finalRegexString = regexString.replace(new RegExp(singleAsteriskToken,"g"),"[^/]+");
 
-		return new RegExp("^" + finalRegexString + "$");
+		return new RegExp("^" + finalRegexString +"$");
 	}
 
 	matchPath(path, patterns) {

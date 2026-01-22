@@ -1,7 +1,7 @@
 "use client";
 
 import { useFlags } from "@databuddy/sdk/react";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,7 @@ export function MobileCategorySelector({
 	const currentCategory = categories.find((cat) => cat.id === activeCategory);
 
 	return (
-		<div className="border-sidebar-border border-b p-3 md:hidden">
+		<div className="border-border border-b p-3 md:hidden">
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
@@ -89,16 +89,13 @@ export function MobileCategorySelector({
 					>
 						<div className="flex items-center gap-2">
 							{currentCategory?.icon ? (
-								<currentCategory.icon
-									className="size-4 text-sidebar-foreground"
-									weight="duotone"
-								/>
+								<currentCategory.icon className="size-4 text-foreground" />
 							) : null}
-							<span className="text-sidebar-foreground text-sm">
+							<span className="text-foreground text-sm">
 								{currentCategory?.name || "Select Category"}
 							</span>
 						</div>
-						<CaretDownIcon className="size-4" />
+						<ChevronDownIcon className="size-4" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent className="z-120 w-full min-w-(--radix-dropdown-menu-trigger-width)">
@@ -109,9 +106,7 @@ export function MobileCategorySelector({
 							<DropdownMenuItem
 								className={cn(
 									"flex cursor-pointer items-center gap-2",
-									isActive
-										? "bg-sidebar-accent text-sidebar-accent-foreground"
-										: ""
+									isActive ? "bg-muted text-foreground" : ""
 								)}
 								key={category.id}
 								onClick={() => onCategoryChangeAction?.(category.id)}
@@ -119,9 +114,8 @@ export function MobileCategorySelector({
 								<Icon
 									className={cn(
 										"size-4",
-										isActive ? "text-sidebar-ring" : "text-muted-foreground"
+										isActive ? "text-foreground" : "text-muted-foreground"
 									)}
-									weight={isActive ? "fill" : "duotone"}
 								/>
 								<span>{category.name}</span>
 							</DropdownMenuItem>

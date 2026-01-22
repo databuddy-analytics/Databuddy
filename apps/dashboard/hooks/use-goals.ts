@@ -1,9 +1,9 @@
-import type { goals, InferInsertModel, InferSelectModel } from "@databuddy/db";
-import type { GoalFilter } from "@databuddy/shared/types/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { toast } from "sonner";
-import { orpc } from "@/lib/orpc";
+import type { goals, InferInsertModel, InferSelectModel } from"@databuddy/db";
+import type { GoalFilter } from"@databuddy/shared/types/api";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { toast } from"sonner";
+import { orpc } from"@/lib/orpc";
 
 export type Goal = InferSelectModel<typeof goals>;
 export type CreateGoalData = InferInsertModel<typeof goals>;
@@ -12,7 +12,7 @@ export type UpdateGoalData = Partial<InferInsertModel<typeof goals>>;
 // RPC input types matching the API schema exactly
 interface CreateGoalInput {
 	websiteId: string;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
+	type:"PAGE_VIEW" |"EVENT" |"CUSTOM";
 	target: string;
 	name: string;
 	description?: string | null;
@@ -22,7 +22,7 @@ interface CreateGoalInput {
 
 interface UpdateGoalInput {
 	id: string;
-	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
+	type?:"PAGE_VIEW" |"EVENT" |"CUSTOM";
 	target?: string;
 	name?: string;
 	description?: string | null;
@@ -42,7 +42,7 @@ export function useGoals(websiteId: string, enabled = true) {
 		() =>
 			(query.data ?? []).map((goal) => ({
 				...goal,
-				type: goal.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
+				type: goal.type as"PAGE_VIEW" |"EVENT" |"CUSTOM",
 				filters: (goal.filters as GoalFilter[]) ?? [],
 			})),
 		[query.data]
@@ -95,7 +95,7 @@ export function useGoals(websiteId: string, enabled = true) {
 		createGoal: (goalData: CreateGoalData) => {
 			const input: CreateGoalInput = {
 				websiteId: goalData.websiteId,
-				type: goalData.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
+				type: goalData.type as"PAGE_VIEW" |"EVENT" |"CUSTOM",
 				target: goalData.target,
 				name: goalData.name,
 				description: goalData.description ?? null,
@@ -117,7 +117,7 @@ export function useGoals(websiteId: string, enabled = true) {
 
 			// Only include RPC-accepted fields, excluding extraneous ones like websiteId/createdBy/createdAt/updatedAt/deletedAt
 			if (updates.type !== undefined) {
-				input.type = updates.type as "PAGE_VIEW" | "EVENT" | "CUSTOM";
+				input.type = updates.type as"PAGE_VIEW" |"EVENT" |"CUSTOM";
 			}
 			if (updates.target !== undefined) {
 				input.target = updates.target;

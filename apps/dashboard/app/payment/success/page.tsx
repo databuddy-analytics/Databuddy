@@ -1,7 +1,7 @@
-import { CheckCircle } from "@phosphor-icons/react/ssr";
-import Link from "next/link";
-import { Logo } from "@/components/layout/logo";
-import { Button } from "@/components/ui/button";
+import { CheckCircle } from"@phosphor-icons/react/ssr";
+import Link from"next/link";
+import { Logo } from"@/components/layout/logo";
+import { Button } from"@/components/ui/button";
 
 export default function PaymentSuccess() {
 	return (
@@ -31,13 +31,13 @@ export default function PaymentSuccess() {
 				</Button>
 			</div>
 
-			<div className="absolute bottom-8 rounded-md border border-accent bg-accent/50 px-4 py-2 font-mono text-muted-foreground text-xs">
+			<div className="absolute bottom-8 border border-accent bg-accent/50 px-4 py-2 font-mono text-muted-foreground text-xs">
 				<code>PAYMENT_SUCCESS @ /payment/success</code>
 			</div>
 
 			<div className="pointer-events-none absolute inset-0 overflow-hidden opacity-5">
-				<div className="absolute -top-24 -right-24 size-96 rounded-full border-8 border-green-500 border-dashed" />
-				<div className="absolute -bottom-24 -left-24 size-96 rounded-full border-8 border-green-500 border-dashed" />
+				<div className="absolute -top-24 -right-24 size-96 border-8 border-green-500 border-dashed" />
+				<div className="absolute -bottom-24 -left-24 size-96 border-8 border-green-500 border-dashed" />
 			</div>
 		</div>
 	);

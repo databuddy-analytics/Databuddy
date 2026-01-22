@@ -1,11 +1,11 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
-import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import type { Icon } from"@phosphor-icons/react";
+import { ArrowLeftIcon } from"@phosphor-icons/react";
+import { motion } from"framer-motion";
+import Link from"next/link";
+import { usePathname } from"next/navigation";
+import { cn } from"@/lib/utils";
 
 interface TabItem {
 	id: string;
@@ -21,12 +21,12 @@ interface BreadcrumbItem {
 }
 
 interface PageNavigationTabsProps {
-	variant: "tabs";
+	variant:"tabs";
 	tabs: TabItem[];
 }
 
 interface PageNavigationBreadcrumbProps {
-	variant: "breadcrumb";
+	variant:"breadcrumb";
 	breadcrumb: BreadcrumbItem;
 	currentPage: string;
 }
@@ -38,7 +38,7 @@ type PageNavigationProps =
 export function PageNavigation(props: PageNavigationProps) {
 	const pathname = usePathname();
 
-	if (props.variant === "breadcrumb") {
+	if (props.variant ==="breadcrumb") {
 		return (
 			<div className="box-border flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3">
 				<Link
@@ -47,7 +47,7 @@ export function PageNavigation(props: PageNavigationProps) {
 				>
 					<motion.span
 						className="inline-flex"
-						transition={{ type: "spring", stiffness: 400, damping: 25 }}
+						transition={{ type:"spring", stiffness: 400, damping: 25 }}
 						whileHover={{ x: -2 }}
 					>
 						<ArrowLeftIcon className="size-3.5" weight="bold" />
@@ -67,7 +67,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					className="font-medium text-foreground text-sm"
 					initial={{ opacity: 0, x: -8 }}
 					transition={{
-						type: "spring",
+						type:"spring",
 						stiffness: 300,
 						damping: 25,
 						delay: 0.05,
@@ -90,8 +90,8 @@ export function PageNavigation(props: PageNavigationProps) {
 						className={cn(
 							"relative flex cursor-pointer items-center gap-2 px-3 py-2.5 font-medium text-sm transition-colors",
 							isActive
-								? "text-foreground"
-								: "text-muted-foreground hover:text-foreground"
+								?"text-foreground"
+								:"text-muted-foreground hover:text-foreground"
 						)}
 						href={tab.href}
 						key={tab.id}
@@ -100,14 +100,14 @@ export function PageNavigation(props: PageNavigationProps) {
 							<motion.span
 								animate={{ scale: isActive ? 1 : 0.95 }}
 								className="inline-flex"
-								transition={{ type: "spring", stiffness: 400, damping: 25 }}
+								transition={{ type:"spring", stiffness: 400, damping: 25 }}
 							>
 								<IconComponent
 									className={cn(
 										"size-4 transition-colors",
-										isActive && "text-primary"
+										isActive &&"text-primary"
 									)}
-									weight={isActive ? "fill" : "duotone"}
+									weight={isActive ?"fill" :"duotone"}
 								/>
 							</motion.span>
 						)}
@@ -116,14 +116,14 @@ export function PageNavigation(props: PageNavigationProps) {
 							<motion.span
 								animate={{
 									scale: 1,
-									backgroundColor: isActive ? "var(--primary)" : "var(--muted)",
+									backgroundColor: isActive ?"var(--primary)" :"var(--muted)",
 								}}
 								className={cn(
-									"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums",
-									isActive ? "text-primary-foreground" : "text-foreground"
+									"flex min-w-5 items-center justify-center px-1.5 py-0.5 font-semibold text-xs tabular-nums",
+									isActive ?"text-primary-foreground" :"text-foreground"
 								)}
 								initial={{ scale: 0.8 }}
-								transition={{ type: "spring", stiffness: 400, damping: 25 }}
+								transition={{ type:"spring", stiffness: 400, damping: 25 }}
 							>
 								{tab.count}
 							</motion.span>
@@ -132,7 +132,7 @@ export function PageNavigation(props: PageNavigationProps) {
 							<motion.div
 								className="absolute inset-x-0 bottom-0 h-0.5 bg-primary"
 								layoutId="page-nav-indicator"
-								transition={{ type: "spring", stiffness: 400, damping: 30 }}
+								transition={{ type:"spring", stiffness: 400, damping: 30 }}
 							/>
 						)}
 					</Link>

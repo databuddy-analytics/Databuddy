@@ -5,20 +5,20 @@ import {
 	DotsThreeIcon,
 	PencilSimpleIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation, useQueryClient } from"@tanstack/react-query";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
-import type { Flag } from "../../_components/types";
+} from"@/components/ui/dropdown-menu";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
+import type { Flag } from"../../_components/types";
 
 interface ArchivedFlagItemProps {
 	flag: Flag;
@@ -40,7 +40,7 @@ export function ArchivedFlagItem({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId: flag.websiteId ??"" },
 				}),
 			});
 		},
@@ -49,7 +49,7 @@ export function ArchivedFlagItem({
 	const handleRestore = () => {
 		restoreMutation.mutate({
 			id: flag.id,
-			status: "inactive",
+			status:"inactive",
 		});
 	};
 
@@ -72,7 +72,7 @@ export function ArchivedFlagItem({
 								{flag.type}
 							</Badge>
 							<Badge className="gap-1.5" variant="amber">
-								<span className="size-1.5 rounded bg-amber-500" />
+								<span className="size-1.5 bg-amber-500" />
 								Archived
 							</Badge>
 						</div>

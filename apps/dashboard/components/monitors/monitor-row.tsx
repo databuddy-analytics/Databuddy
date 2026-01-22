@@ -6,30 +6,30 @@ import {
 	HeartbeatIcon,
 	PencilIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import Link from "next/link";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation } from"@tanstack/react-query";
+import Link from"next/link";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { orpc } from "@/lib/orpc";
+} from"@/components/ui/dropdown-menu";
+import { orpc } from"@/lib/orpc";
 
 const granularityLabels: Record<string, string> = {
-	minute: "Every minute",
-	five_minutes: "Every 5 minutes",
-	ten_minutes: "Every 10 minutes",
-	thirty_minutes: "Every 30 minutes",
-	hour: "Hourly",
-	six_hours: "Every 6 hours",
-	twelve_hours: "Every 12 hours",
-	day: "Daily",
+	minute:"Every minute",
+	five_minutes:"Every 5 minutes",
+	ten_minutes:"Every 10 minutes",
+	thirty_minutes:"Every 30 minutes",
+	hour:"Hourly",
+	six_hours:"Every 6 hours",
+	twelve_hours:"Every 12 hours",
+	day:"Daily",
 };
 
 interface MonitorRowProps {
@@ -85,7 +85,7 @@ export function MonitorRow({
 			onRefetchAction();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update monitor";
+				error instanceof Error ? error.message :"Failed to update monitor";
 			toast.error(errorMessage);
 		} finally {
 			setIsPausing(false);
@@ -99,15 +99,15 @@ export function MonitorRow({
 			onDeleteAction();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to delete monitor";
+				error instanceof Error ? error.message :"Failed to delete monitor";
 			toast.error(errorMessage);
 		}
 	};
 
 	const isWebsiteMonitor = !!schedule.websiteId;
 	const displayName = isWebsiteMonitor
-		? schedule.website?.name || schedule.website?.domain || "Unknown"
-		: schedule.name || schedule.url || "Unknown";
+		? schedule.website?.name || schedule.website?.domain ||"Unknown"
+		: schedule.name || schedule.url ||"Unknown";
 	const displayUrl = isWebsiteMonitor ? schedule.website?.domain : schedule.url;
 
 	return (
@@ -117,7 +117,7 @@ export function MonitorRow({
 					className="flex flex-1 cursor-pointer items-center gap-4 px-4 py-3 text-left sm:px-6 sm:py-4"
 					href={`/monitors/${schedule.id}`}
 				>
-					<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-secondary">
+					<div className="flex size-10 shrink-0 items-center justify-center border bg-secondary">
 						<HeartbeatIcon
 							className="text-accent-foreground"
 							size={20}
@@ -130,15 +130,15 @@ export function MonitorRow({
 								{displayName}
 							</h3>
 							<Badge
-								className={schedule.isPaused ? "gap-1.5" : "gap-1.5"}
-								variant={schedule.isPaused ? "amber" : "green"}
+								className={schedule.isPaused ?"gap-1.5" :"gap-1.5"}
+								variant={schedule.isPaused ?"amber" :"green"}
 							>
 								<span
-									className={`size-1.5 rounded ${
-										schedule.isPaused ? "bg-amber-500" : "bg-green-500"
+									className={`size-1.5 ${
+										schedule.isPaused ?"bg-amber-500" :"bg-green-500"
 									}`}
 								/>
-								{schedule.isPaused ? "Paused" : "Active"}
+								{schedule.isPaused ?"Paused" :"Active"}
 							</Badge>
 						</div>
 						<div className="mt-0.5 flex items-center gap-2">
@@ -180,7 +180,7 @@ export function MonitorRow({
 							onClick={handleTogglePause}
 						>
 							<HeartbeatIcon className="size-4" weight="duotone" />
-							{schedule.isPaused ? "Resume" : "Pause"}
+							{schedule.isPaused ?"Resume" :"Pause"}
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							className="text-destructive focus:text-destructive"

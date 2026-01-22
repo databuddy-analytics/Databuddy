@@ -2,21 +2,21 @@ import {
 	type ColumnDef,
 	getCoreRowModel,
 	useReactTable,
-} from "@tanstack/react-table";
-import type React from "react";
-import { useState } from "react";
-import ReactDOM from "react-dom";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { FullScreenModal } from "./fullscreen-modal";
-import { useFullScreen } from "./hooks/use-fullscreen";
-import { TableContent } from "./table-content";
-import { TableTabs } from "./table-tabs";
-import { TableToolbar } from "./table-toolbar";
+} from"@tanstack/react-table";
+import type React from"react";
+import { useState } from"react";
+import ReactDOM from"react-dom";
+import { Skeleton } from"@/components/ui/skeleton";
+import { cn } from"@/lib/utils";
+import { FullScreenModal } from"./fullscreen-modal";
+import { useFullScreen } from"./hooks/use-fullscreen";
+import { TableContent } from"./table-content";
+import { TableTabs } from"./table-tabs";
+import { TableToolbar } from"./table-toolbar";
 
 const DEFAULT_MIN_HEIGHT = 200;
-const FULLSCREEN_HEIGHT = "h-[92vh]";
-const FULLSCREEN_WIDTH = "w-[92vw]";
+const FULLSCREEN_HEIGHT ="h-[92vh]";
+const FULLSCREEN_WIDTH ="w-[92vw]";
 
 export type TabConfig<TData> = {
 	id: string;
@@ -52,27 +52,27 @@ type DataTableProps<TData extends { name: string | number }, TValue> = {
 const EnhancedSkeleton = ({ minHeight }: { minHeight: string | number }) => (
 	<div className="animate-pulse space-y-3" style={{ minHeight }}>
 		<div className="flex items-center justify-between">
-			<Skeleton className="h-4 w-24 rounded" />
-			<Skeleton className="h-8 w-32 rounded" />
+			<Skeleton className="h-4 w-24" />
+			<Skeleton className="h-8 w-32" />
 		</div>
 		<div className="space-y-2">
 			{Array.from({ length: 5 }, (_, index) => index).map((itemIndex) => (
 				<div
-					className="flex animate-pulse items-center space-x-4 rounded bg-sidebar-accent/20 p-3"
+					className="flex animate-pulse items-center space-x-4 bg-sidebar-accent/20 p-3"
 					key={`skeleton-${itemIndex}`}
 				>
-					<Skeleton className="size-6 shrink-0 rounded-full" />
+					<Skeleton className="size-6 shrink-0" />
 					<div className="flex-1 space-y-2">
-						<Skeleton className="h-4 w-full rounded" />
+						<Skeleton className="h-4 w-full" />
 						<div className="flex items-center space-x-2">
-							<Skeleton className="h-3 w-16 rounded" />
-							<Skeleton className="h-3 w-12 rounded" />
-							<Skeleton className="h-3 w-8 rounded" />
+							<Skeleton className="h-3 w-16" />
+							<Skeleton className="h-3 w-12" />
+							<Skeleton className="h-3 w-8" />
 						</div>
 					</div>
 					<div className="space-y-1 text-right">
-						<Skeleton className="h-4 w-12 rounded" />
-						<Skeleton className="h-3 w-8 rounded" />
+						<Skeleton className="h-4 w-12" />
+						<Skeleton className="h-3 w-8" />
 					</div>
 				</div>
 			))}
@@ -87,7 +87,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	title,
 	description,
 	isLoading = false,
-	emptyMessage = "No data available",
+	emptyMessage ="No data available",
 	className,
 	onRowClick,
 	minHeight = DEFAULT_MIN_HEIGHT,
@@ -97,7 +97,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	onAddFilter,
 	onRowAction,
 }: DataTableProps<TData, TValue>) {
-	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id || "");
+	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id ||"");
 
 	const { fullScreen, setFullScreen, hasMounted, modalRef } = useFullScreen();
 
@@ -108,7 +108,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	const table = useReactTable({
 		data: tableData,
 		columns: tableColumns,
-		getRowId: (_row, index) => `${activeTab || "row"}-${index}`,
+		getRowId: (_row, index) => `${activeTab ||"row"}-${index}`,
 		getCoreRowModel: getCoreRowModel(),
 	});
 
@@ -123,15 +123,15 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		return (
 			<div
 				className={cn(
-					"w-full overflow-hidden rounded border bg-accent/50 backdrop-blur-sm",
+					"w-full overflow-hidden border bg-accent/50 backdrop-blur-sm",
 					className
 				)}
 			>
 				<div className="p-4 px-2 pb-2 sm:px-3">
 					<div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
 						<div className="min-w-0 flex-1">
-							<Skeleton className="h-5 w-32 rounded" />
-							{description && <Skeleton className="mt-0.5 h-3 w-48 rounded" />}
+							<Skeleton className="h-5 w-32" />
+							{description && <Skeleton className="mt-0.5 h-3 w-48" />}
 						</div>
 					</div>
 
@@ -139,7 +139,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 						<div className="mt-3">
 							<div className="flex gap-1 border-b">
 								{tabs.map((tab) => (
-									<Skeleton className="h-8 w-20 rounded" key={tab.id} />
+									<Skeleton className="h-8 w-20" key={tab.id} />
 								))}
 							</div>
 						</div>
@@ -156,7 +156,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		<>
 			<div
 				className={cn(
-					"w-full overflow-hidden rounded border bg-card backdrop-blur-sm",
+					"w-full overflow-hidden border bg-card backdrop-blur-sm",
 					className
 				)}
 			>
@@ -207,7 +207,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 						<div className="absolute inset-0 animate-fadein bg-black/70 backdrop-blur-[3px] transition-opacity" />
 						<div
 							className={cn(
-								"relative flex scale-100 animate-scalein flex-col overflow-hidden rounded border border-border bg-background shadow-2xl",
+								"relative flex scale-100 animate-scalein flex-col overflow-hidden border border-border bg-background shadow-2xl",
 								FULLSCREEN_HEIGHT,
 								FULLSCREEN_WIDTH
 							)}

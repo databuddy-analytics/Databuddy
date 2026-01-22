@@ -5,17 +5,17 @@ import {
 	PlusIcon,
 	UsersThreeIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { AnimatePresence, motion } from"framer-motion";
+import { useState } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import type { GroupSelectorProps, TargetGroup } from "../../_components/types";
+} from"@/components/ui/popover";
+import { cn } from"@/lib/utils";
+import type { GroupSelectorProps, TargetGroup } from"../../_components/types";
 
 function GroupPill({
 	group,
@@ -27,7 +27,7 @@ function GroupPill({
 	return (
 		<motion.div
 			animate={{ opacity: 1, scale: 1 }}
-			className="group relative flex items-center gap-1.5 overflow-hidden rounded border bg-card py-1.5 pr-1.5 pl-3 text-sm shadow-sm transition-shadow hover:shadow-md"
+			className="group relative flex items-center gap-1.5 overflow-hidden border bg-card py-1.5 pr-1.5 pl-3 text-sm shadow-sm transition-shadow hover:shadow-md"
 			exit={{ opacity: 0, scale: 0.9 }}
 			initial={{ opacity: 0, scale: 0.9 }}
 			layout
@@ -37,7 +37,7 @@ function GroupPill({
 				{group.name}
 			</span>
 			<button
-				className="relative flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+				className="relative flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 				onClick={(e) => {
 					e.stopPropagation();
 					onRemove();
@@ -62,8 +62,8 @@ function GroupOption({
 	return (
 		<button
 			className={cn(
-				"relative flex w-full items-center gap-3 overflow-hidden rounded p-2.5 text-left transition-all",
-				isSelected ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-accent"
+				"relative flex w-full items-center gap-3 overflow-hidden p-2.5 text-left transition-all",
+				isSelected ?"bg-primary/10 hover:bg-primary/15" :"hover:bg-accent"
 			)}
 			onClick={onToggle}
 			type="button"
@@ -75,7 +75,7 @@ function GroupOption({
 				/>
 			)}
 			<div
-				className="flex size-8 shrink-0 items-center justify-center rounded shadow-sm"
+				className="flex size-8 shrink-0 items-center justify-center shadow-sm"
 				style={{
 					background: `linear-gradient(135deg, ${group.color}25 0%, ${group.color}15 100%)`,
 				}}
@@ -96,8 +96,8 @@ function GroupOption({
 			</div>
 			<div
 				className={cn(
-					"flex size-5 shrink-0 items-center justify-center rounded border transition-all",
-					isSelected ? "border-transparent shadow-sm" : "border-border"
+					"flex size-5 shrink-0 items-center justify-center border transition-all",
+					isSelected ?"border-transparent shadow-sm" :"border-border"
 				)}
 				style={isSelected ? { backgroundColor: group.color } : undefined}
 			>
@@ -134,7 +134,7 @@ export function GroupSelector({
 
 	if (availableGroups.length === 0) {
 		return (
-			<div className="rounded border border-dashed bg-accent/50 p-4 text-center">
+			<div className=" border border-dashed bg-accent/50 p-4 text-center">
 				<UsersThreeIcon
 					className="mx-auto mb-2 size-8 text-muted-foreground"
 					weight="duotone"
@@ -174,7 +174,7 @@ export function GroupSelector({
 						variant="outline"
 					>
 						<PlusIcon size={14} />
-						{selectedGroups.length > 0 ? "Add More Groups" : "Add Groups"}
+						{selectedGroups.length > 0 ?"Add More Groups" :"Add Groups"}
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-72 p-2" side="bottom">

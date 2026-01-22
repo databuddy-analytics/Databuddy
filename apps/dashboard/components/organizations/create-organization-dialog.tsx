@@ -1,10 +1,10 @@
 "use client";
 
-import { BuildingsIcon, UsersIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { BuildingsIcon, UsersIcon } from"@phosphor-icons/react";
+import { useEffect, useMemo, useState } from"react";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
 	Sheet,
 	SheetBody,
@@ -13,8 +13,8 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { useOrganizations } from "@/hooks/use-organizations";
+} from"@/components/ui/sheet";
+import { useOrganizations } from"@/hooks/use-organizations";
 
 const SLUG_ALLOWED_REGEX = /^[a-z0-9-]+$/;
 const REGEX_NON_SLUG_NAME_CHARS = /[^a-z0-9\s-]/g;
@@ -47,10 +47,10 @@ export function CreateOrganizationDialog({
 		if (!(slugManuallyEdited && slug)) {
 			const generatedSlug = name
 				.toLowerCase()
-				.replace(REGEX_NON_SLUG_NAME_CHARS, "")
-				.replace(REGEX_SPACES_TO_DASH, "-")
-				.replace(REGEX_MULTI_DASH, "-")
-				.replace(REGEX_TRIM_DASH, "");
+				.replace(REGEX_NON_SLUG_NAME_CHARS,"")
+				.replace(REGEX_SPACES_TO_DASH,"-")
+				.replace(REGEX_MULTI_DASH,"-")
+				.replace(REGEX_TRIM_DASH,"");
 			setSlug(generatedSlug);
 		}
 	}, [name, slug, slugManuallyEdited]);
@@ -71,11 +71,11 @@ export function CreateOrganizationDialog({
 		setSlugManuallyEdited(true);
 		const cleanSlug = value
 			.toLowerCase()
-			.replace(REGEX_INVALID_SLUG_CHARS, "")
-			.replace(REGEX_MULTI_DASH, "-")
-			.replace(REGEX_TRIM_DASH, "");
+			.replace(REGEX_INVALID_SLUG_CHARS,"")
+			.replace(REGEX_MULTI_DASH,"-")
+			.replace(REGEX_TRIM_DASH,"");
 		setSlug(cleanSlug);
-		if (cleanSlug === "") {
+		if (cleanSlug ==="") {
 			setSlugManuallyEdited(false);
 		}
 	};
@@ -115,7 +115,7 @@ export function CreateOrganizationDialog({
 			<SheetContent className="sm:max-w-lg" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+						<div className="flex h-11 w-11 items-center justify-center border bg-secondary-brighter">
 							<BuildingsIcon
 								className="text-accent-foreground"
 								size={22}
@@ -216,7 +216,7 @@ export function CreateOrganizationDialog({
 							/>
 							<Label className="font-medium">Getting Started</Label>
 						</div>
-						<div className="rounded border bg-muted/20 p-4">
+						<div className=" border bg-muted/20 p-4">
 							<p className="text-muted-foreground text-sm">
 								After creating your organization, you'll be able to:
 							</p>

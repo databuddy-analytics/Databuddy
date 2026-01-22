@@ -1,15 +1,15 @@
 "use client";
 
-import { Info } from "@phosphor-icons/react";
+import { Info } from"@phosphor-icons/react";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/hover-card";
+import { cn } from"@/lib/utils";
 
 interface PricingTier {
-	to: number | "inf";
+	to: number |"inf";
 	amount: number;
 }
 
@@ -27,7 +27,7 @@ export function PricingTiersTooltip({
 	const formatTierRange = (tier: PricingTier, index: number) => {
 		const prevTier = index > 0 ? tiers[index - 1] : null;
 		const from = prevTier
-			? typeof prevTier.to === "number"
+			? typeof prevTier.to ==="number"
 				? prevTier.to + 1
 				: 0
 			: 0;
@@ -43,15 +43,15 @@ export function PricingTiersTooltip({
 			return num.toLocaleString();
 		};
 
-		if (to === "inf") {
+		if (to ==="inf") {
 			return `${formatNumber(from)}+`;
 		}
 
 		if (from === 0) {
-			return `0 - ${formatNumber(typeof to === "number" ? to : 0)}`;
+			return `0 - ${formatNumber(typeof to ==="number" ? to : 0)}`;
 		}
 
-		return `${formatNumber(from)} - ${formatNumber(typeof to === "number" ? to : 0)}`;
+		return `${formatNumber(from)} - ${formatNumber(typeof to ==="number" ? to : 0)}`;
 	};
 
 	return (
@@ -60,7 +60,7 @@ export function PricingTiersTooltip({
 				<button
 					className={cn(
 						"inline-flex cursor-help items-center gap-1 text-muted-foreground text-xs hover:text-foreground",
-						!showText && "rounded-full p-1 hover:bg-muted/50",
+						!showText &&" p-1 hover:bg-muted/50",
 						className
 					)}
 					type="button"

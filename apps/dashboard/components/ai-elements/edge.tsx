@@ -7,7 +7,7 @@ import {
 	type Node,
 	Position,
 	useInternalNode,
-} from "@xyflow/react";
+} from"@xyflow/react";
 
 const Temporary = ({
 	id,
@@ -33,7 +33,7 @@ const Temporary = ({
 			id={id}
 			path={edgePath}
 			style={{
-				strokeDasharray: "5, 5",
+				strokeDasharray:"5, 5",
 			}}
 		/>
 	);
@@ -44,7 +44,7 @@ const getHandleCoordsByPosition = (
 	handlePosition: Position
 ) => {
 	// Choose the handle type based on position - Left is for target, Right is for source
-	const handleType = handlePosition === Position.Left ? "target" : "source";
+	const handleType = handlePosition === Position.Left ?"target" :"source";
 
 	const handle = node.internals.handleBounds?.[handleType]?.find(
 		(h) => h.position === handlePosition

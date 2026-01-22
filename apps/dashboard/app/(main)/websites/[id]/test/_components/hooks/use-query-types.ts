@@ -1,7 +1,7 @@
-import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
-import { useQuery } from "@tanstack/react-query";
+import type { QueryBuilderMeta } from"@databuddy/shared/types/query";
+import { useQuery } from"@tanstack/react-query";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001";
 
 interface QueryTypesResponse {
 	success: boolean;
@@ -31,7 +31,7 @@ async function fetchQueryTypes(): Promise<QueryTypeOption[]> {
 	const response = await fetch(
 		`${API_BASE_URL}/v1/query/types?include_meta=true`,
 		{
-			credentials: "include",
+			credentials:"include",
 		}
 	);
 
@@ -56,7 +56,7 @@ async function fetchQueryTypes(): Promise<QueryTypeOption[]> {
 				key,
 				title: meta.title,
 				description: meta.description,
-				category: meta.category || "Other",
+				category: meta.category ||"Other",
 				outputFields: meta.output_fields || [],
 				defaultVisualization: meta.default_visualization,
 				supportsGranularity: meta.supports_granularity,

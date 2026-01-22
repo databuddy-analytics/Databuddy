@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowClockwiseIcon as ArrowClockwise } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { TargetIcon as Target } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrendUpIcon as TrendUp } from "@phosphor-icons/react/dist/ssr/TrendUp";
-import { UsersIcon as Users } from "@phosphor-icons/react/dist/ssr/Users";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowClockwiseIcon as ArrowClockwise } from"@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { TargetIcon as Target } from"@phosphor-icons/react/dist/ssr/Target";
+import { TrendUpIcon as TrendUp } from"@phosphor-icons/react/dist/ssr/TrendUp";
+import { UsersIcon as Users } from"@phosphor-icons/react/dist/ssr/Users";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from"@/components/ui/card";
 
 interface GoalAnalyticsProps {
 	isLoading: boolean;
@@ -31,10 +31,10 @@ export function GoalAnalytics({
 			<div className="space-y-4">
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 					{[...new Array(3)].map((_, i) => (
-						<Card className="animate-pulse rounded" key={i}>
+						<Card className="animate-pulse" key={i}>
 							<CardContent className="p-6">
-								<div className="mb-2 h-4 w-24 rounded bg-muted" />
-								<div className="h-8 w-16 rounded bg-muted" />
+								<div className="mb-2 h-4 w-24 bg-muted" />
+								<div className="h-8 w-16 bg-muted" />
 							</CardContent>
 						</Card>
 					))}
@@ -45,7 +45,7 @@ export function GoalAnalytics({
 
 	if (error) {
 		return (
-			<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+			<Card className=" border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 				<CardContent className="pt-6">
 					<div className="flex items-center justify-between">
 						<div>
@@ -71,7 +71,7 @@ export function GoalAnalytics({
 
 	if (!(data?.success && data.data)) {
 		return (
-			<Card className="rounded">
+			<Card className="">
 				<CardContent className="p-6">
 					<p className="text-center text-muted-foreground">
 						No analytics data available
@@ -97,10 +97,10 @@ export function GoalAnalytics({
 		<div className="space-y-4">
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 				{/* Total Users */}
-				<Card className="rounded">
+				<Card className="">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
-							<div className="flex size-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
+							<div className="flex size-10 items-center justify-center bg-blue-100 dark:bg-blue-900/20">
 								<Users className="text-foreground" size={20} weight="duotone" />
 							</div>
 							<div>
@@ -116,10 +116,10 @@ export function GoalAnalytics({
 				</Card>
 
 				{/* Completions */}
-				<Card className="rounded">
+				<Card className="">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
-							<div className="flex size-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/20">
+							<div className="flex size-10 items-center justify-center bg-green-100 dark:bg-green-900/20">
 								<Target
 									className="text-green-600 dark:text-green-400"
 									size={20}
@@ -139,10 +139,10 @@ export function GoalAnalytics({
 				</Card>
 
 				{/* Conversion Rate */}
-				<Card className="rounded">
+				<Card className="">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
-							<div className="flex size-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/20">
+							<div className="flex size-10 items-center justify-center bg-purple-100 dark:bg-purple-900/20">
 								<TrendUp
 									className="text-purple-600 dark:text-purple-400"
 									size={20}
@@ -163,13 +163,13 @@ export function GoalAnalytics({
 			</div>
 
 			{/* Goal Details */}
-			<Card className="rounded">
+			<Card className="">
 				<CardHeader className="pb-3">
 					<CardTitle className="text-lg">Goal Performance</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<div className="space-y-4">
-						<div className="rounded-lg bg-muted/30 p-4">
+						<div className=" bg-muted/30 p-4">
 							<div className="mb-2 flex items-center justify-between">
 								<span className="font-medium text-sm">Performance Summary</span>
 								<span className="text-muted-foreground text-xs">
@@ -183,7 +183,7 @@ export function GoalAnalytics({
 										Users who reached goal
 									</p>
 									<p className="font-semibold text-lg">
-										{formatNumber(summaryStats.completions)} /{" "}
+										{formatNumber(summaryStats.completions)} /{""}
 										{formatNumber(summaryStats.totalUsers)}
 									</p>
 								</div>
@@ -199,7 +199,7 @@ export function GoalAnalytics({
 						</div>
 
 						{data.data.avg_completion_time > 0 && (
-							<div className="rounded-lg bg-muted/30 p-4">
+							<div className=" bg-muted/30 p-4">
 								<div className="flex items-center justify-between">
 									<span className="font-medium text-sm">
 										Average Time to Complete

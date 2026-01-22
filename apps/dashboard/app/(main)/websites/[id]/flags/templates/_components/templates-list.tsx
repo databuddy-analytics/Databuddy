@@ -1,9 +1,9 @@
 "use client";
 
-import { LayoutIcon } from "@phosphor-icons/react/dist/ssr/Layout";
-import { EmptyState } from "@/components/empty-state";
-import type { TemplatesListProps } from "../../_components/types";
-import { TemplateItem } from "./template-item";
+import { LayoutIcon } from"@phosphor-icons/react/dist/ssr/Layout";
+import { EmptyState } from"@/components/empty-state";
+import type { TemplatesListProps } from"../../_components/types";
+import { TemplateItem } from"./template-item";
 
 export function TemplatesList({
 	templates,

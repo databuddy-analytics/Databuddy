@@ -1,16 +1,16 @@
-import type { CustomerProduct } from "autumn-js";
-import { useCustomer, usePricingTable } from "autumn-js/react";
-import dayjs from "dayjs";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import AttachDialog from "@/components/autumn/attach-dialog";
-import { trackCancelFeedbackAction } from "../actions/cancel-feedback-action";
-import type { CancelFeedback } from "../components/cancel-subscription-dialog";
+import type { CustomerProduct } from"autumn-js";
+import { useCustomer, usePricingTable } from"autumn-js/react";
+import dayjs from"dayjs";
+import { useMemo, useState } from"react";
+import { toast } from"sonner";
+import AttachDialog from"@/components/autumn/attach-dialog";
+import { trackCancelFeedbackAction } from"../actions/cancel-feedback-action";
+import type { CancelFeedback } from"../components/cancel-subscription-dialog";
 import {
 	calculateFeatureUsage,
 	type FeatureUsage,
 	type PricingTier,
-} from "../utils/feature-usage";
+} from"../utils/feature-usage";
 
 export interface Usage {
 	features: FeatureUsage[];
@@ -21,9 +21,9 @@ export interface CancelTarget {
 	currentPeriodEnd?: number;
 }
 
-export type { Customer, CustomerInvoice as Invoice } from "autumn-js";
-export type { CancelFeedback } from "../components/cancel-subscription-dialog";
-export type { CustomerWithPaymentMethod } from "../types/billing";
+export type { Customer, CustomerInvoice as Invoice } from"autumn-js";
+export type { CancelFeedback } from"../components/cancel-subscription-dialog";
+export type { CustomerWithPaymentMethod } from"../types/billing";
 
 export function useBilling(refetch?: () => void) {
 	const { attach, cancel, check, track, openBillingPortal } = useCustomer();
@@ -39,7 +39,7 @@ export function useBilling(refetch?: () => void) {
 			});
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "An unexpected error occurred."
+				error instanceof Error ? error.message :"An unexpected error occurred."
 			);
 		}
 	};
@@ -53,8 +53,8 @@ export function useBilling(refetch?: () => void) {
 			});
 			toast.success(
 				immediate
-					? "Subscription cancelled immediately."
-					: "Subscription cancelled."
+					?"Subscription cancelled immediately."
+					:"Subscription cancelled."
 			);
 			if (refetch) {
 				setTimeout(refetch, 500);
@@ -63,7 +63,7 @@ export function useBilling(refetch?: () => void) {
 			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to cancel subscription."
+					:"Failed to cancel subscription."
 			);
 		} finally {
 			setIsLoading(false);
@@ -74,13 +74,13 @@ export function useBilling(refetch?: () => void) {
 		if (product.canceled_at && product.current_period_end) {
 			return `Access until ${dayjs(product.current_period_end).format("MMM D, YYYY")}`;
 		}
-		if (product.status === "scheduled") {
+		if (product.status ==="scheduled") {
 			return `Starts on ${dayjs(product.started_at).format("MMM D, YYYY")}`;
 		}
 		if (product.current_period_end) {
 			return `Renews on ${dayjs(product.current_period_end).format("MMM D, YYYY")}`;
 		}
-		return "";
+		return"";
 	};
 
 	return {
@@ -121,7 +121,7 @@ export function useBillingData() {
 		isLoading: isCustomerLoading,
 		error: customerError,
 		refetch: refetchCustomer,
-	} = useCustomer({ expand: ["invoices", "payment_method"] });
+	} = useCustomer({ expand: ["invoices","payment_method"] });
 
 	const {
 		products,
@@ -135,13 +135,13 @@ export function useBillingData() {
 
 		const activeProduct = customer?.products?.find(
 			(p) =>
-				p.status === "active" ||
+				p.status ==="active" ||
 				(p.canceled_at && dayjs(p.current_period_end).isAfter(dayjs()))
 		);
 
 		for (const item of activeProduct?.items ?? []) {
 			if (item.feature_id) {
-				if (typeof item.included_usage === "number") {
+				if (typeof item.included_usage ==="number") {
 					limits[item.feature_id] = item.included_usage;
 				}
 				// Tiers exist on priced_feature items but aren't in the type
@@ -169,7 +169,7 @@ export function useBillingData() {
 
 	const refetch = () => {
 		refetchCustomer();
-		if (typeof refetchPricing === "function") {
+		if (typeof refetchPricing ==="function") {
 			refetchPricing();
 		}
 	};

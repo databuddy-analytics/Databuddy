@@ -5,18 +5,18 @@ import {
 	CircleIcon,
 	PlusIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from"@phosphor-icons/react";
+import { AnimatePresence, motion } from"framer-motion";
+import { useState } from"react";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import type { DependencySelectorProps, Flag } from "./types";
+} from"@/components/ui/popover";
+import { cn } from"@/lib/utils";
+import type { DependencySelectorProps, Flag } from"./types";
 
 export function DependencySelector({
 	value = [],
@@ -65,11 +65,11 @@ export function DependencySelector({
 				<div className="flex flex-wrap gap-1.5">
 					<AnimatePresence mode="popLayout">
 						{selectedFlags.map((flag) => {
-							const isActive = flag.status === "active";
+							const isActive = flag.status ==="active";
 							return (
 								<motion.div
 									animate={{ opacity: 1, scale: 1 }}
-									className="group flex items-center gap-1.5 rounded bg-secondary px-2 py-1"
+									className="group flex items-center gap-1.5 bg-secondary px-2 py-1"
 									exit={{ opacity: 0, scale: 0.9 }}
 									initial={{ opacity: 0, scale: 0.9 }}
 									key={flag.key}
@@ -77,8 +77,8 @@ export function DependencySelector({
 								>
 									<div
 										className={cn(
-											"size-1.5 rounded-full",
-											isActive ? "bg-green-500" : "bg-amber-500"
+											"size-1.5",
+											isActive ?"bg-green-500" :"bg-amber-500"
 										)}
 									/>
 									<span className="text-sm">{flag.name || flag.key}</span>
@@ -126,10 +126,10 @@ export function DependencySelector({
 						>
 							{filteredFlags.length > 0 ? (
 								filteredFlags.map((flag) => {
-									const isActive = flag.status === "active";
+									const isActive = flag.status ==="active";
 									return (
 										<button
-											className="flex w-full items-center gap-2 rounded p-2 text-left text-sm transition-colors hover:bg-accent"
+											className="flex w-full items-center gap-2 p-2 text-left text-sm transition-colors hover:bg-accent"
 											key={flag.key}
 											onClick={() => {
 												handleSelect(flag.key);

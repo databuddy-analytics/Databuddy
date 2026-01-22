@@ -1,33 +1,33 @@
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { useCallback } from "react";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
+import { useCallback } from"react";
 
 export const operatorOptions = [
-	{ value: "eq", label: "equals" },
-	{ value: "ne", label: "does not equal" },
-	{ value: "contains", label: "contains" },
-	{ value: "not_contains", label: "does not contain" },
-	{ value: "starts_with", label: "starts with" },
+	{ value:"eq", label:"equals" },
+	{ value:"ne", label:"does not equal" },
+	{ value:"contains", label:"contains" },
+	{ value:"not_contains", label:"does not contain" },
+	{ value:"starts_with", label:"starts with" },
 ] as const;
 
 // Operator options for GoalFilter and FunnelFilter
 export const goalFunnelOperatorOptions = [
-	{ value: "equals", label: "equals" },
-	{ value: "not_equals", label: "does not equal" },
-	{ value: "contains", label: "contains" },
-	{ value: "in", label: "in" },
-	{ value: "not_in", label: "not in" },
+	{ value:"equals", label:"equals" },
+	{ value:"not_equals", label:"does not equal" },
+	{ value:"contains", label:"contains" },
+	{ value:"in", label:"in" },
+	{ value:"not_in", label:"not in" },
 ] as const;
 
 export const operatorLabels: Record<string, string> = {
-	eq: "=",
-	ne: "≠",
-	contains: "contains",
-	not_contains: "doesn't contain",
-	starts_with: "starts with",
-	equals: "=",
-	not_equals: "≠",
-	in: "in",
-	not_in: "not in",
+	eq:"=",
+	ne:"≠",
+	contains:"contains",
+	not_contains:"doesn't contain",
+	starts_with:"starts with",
+	equals:"=",
+	not_equals:"≠",
+	in:"in",
+	not_in:"not in",
 };
 
 export function getOperatorLabel(operator: string): string {

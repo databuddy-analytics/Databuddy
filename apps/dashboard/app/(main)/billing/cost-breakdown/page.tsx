@@ -1,13 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Suspense, useMemo, useState } from "react";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/lib/orpc";
-import { ConsumptionChart } from "./components/consumption-chart";
-import { UsageBreakdownTable } from "./components/usage-breakdown-table";
-import type { OverageInfo } from "./utils/billing-utils";
+import { useQuery } from"@tanstack/react-query";
+import { Suspense, useMemo, useState } from"react";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { Skeleton } from"@/components/ui/skeleton";
+import { orpc } from"@/lib/orpc";
+import { ConsumptionChart } from"./components/consumption-chart";
+import { UsageBreakdownTable } from"./components/usage-breakdown-table";
+import type { OverageInfo } from"./utils/billing-utils";
 
 function getDefaultDateRange() {
 	const end = new Date();

@@ -1,12 +1,12 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { DynamicQueryRequest } from "@databuddy/shared/types/api";
-import { useMemo } from "react";
-import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import { DataTable, type TabConfig } from "@/components/table/data-table";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { formatTokenCount } from "../_lib/llm-analytics-utils";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { DynamicQueryRequest } from"@databuddy/shared/types/api";
+import { useMemo } from"react";
+import { SimpleMetricsChart } from"@/components/charts/simple-metrics-chart";
+import { DataTable, type TabConfig } from"@/components/table/data-table";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { formatTokenCount } from"../_lib/llm-analytics-utils";
 import {
 	createErrorColumns,
 	createHttpStatusColumns,
@@ -14,7 +14,7 @@ import {
 	type LlmErrorBreakdownRow,
 	type LlmHttpStatusRow,
 	type LlmRecentErrorRow,
-} from "./llm-columns";
+} from"./llm-columns";
 
 interface LlmErrorsTabProps {
 	websiteId: string;
@@ -29,10 +29,10 @@ interface LlmErrorRateSeriesRow {
 
 export function LlmErrorsTab({ websiteId, dateRange }: LlmErrorsTabProps) {
 	const queries: DynamicQueryRequest[] = [
-		{ id: "llm-error-series", parameters: ["llm_error_rate_time_series"] },
-		{ id: "llm-errors", parameters: ["llm_error_breakdown"] },
-		{ id: "llm-status", parameters: ["llm_http_status_breakdown"] },
-		{ id: "llm-recent-errors", parameters: ["llm_recent_errors"] },
+		{ id:"llm-error-series", parameters: ["llm_error_rate_time_series"] },
+		{ id:"llm-errors", parameters: ["llm_error_breakdown"] },
+		{ id:"llm-status", parameters: ["llm_http_status_breakdown"] },
+		{ id:"llm-recent-errors", parameters: ["llm_recent_errors"] },
 	];
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
@@ -84,8 +84,8 @@ export function LlmErrorsTab({ websiteId, dateRange }: LlmErrorsTabProps) {
 
 		if (errorBreakdown.length > 0) {
 			tabs.push({
-				id: "errors",
-				label: "Errors",
+				id:"errors",
+				label:"Errors",
 				data: errorBreakdown,
 				columns: createErrorColumns(),
 			});
@@ -93,8 +93,8 @@ export function LlmErrorsTab({ websiteId, dateRange }: LlmErrorsTabProps) {
 
 		if (statusBreakdown.length > 0) {
 			tabs.push({
-				id: "http-status",
-				label: "HTTP Status",
+				id:"http-status",
+				label:"HTTP Status",
 				data: statusBreakdown,
 				columns: createHttpStatusColumns(),
 			});
@@ -112,15 +112,15 @@ export function LlmErrorsTab({ websiteId, dateRange }: LlmErrorsTabProps) {
 				isLoading={isLoading}
 				metrics={[
 					{
-						key: "errors",
-						label: "Errors",
-						color: "#ef4444",
+						key:"errors",
+						label:"Errors",
+						color:"#ef4444",
 						formatValue: (value) => formatTokenCount(value),
 					},
 					{
-						key: "rate",
-						label: "Error Rate",
-						color: "#f59e0b",
+						key:"rate",
+						label:"Error Rate",
+						color:"#f59e0b",
 						formatValue: (value) => `${value.toFixed(1)}%`,
 					},
 				]}

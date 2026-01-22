@@ -1,6 +1,6 @@
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { PercentageBadge } from "@/app/(main)/websites/[id]/_components/utils/technology-helpers";
+import type { CellContext, ColumnDef } from"@tanstack/react-table";
+import { useMemo } from"react";
+import { PercentageBadge } from"@/app/(main)/websites/[id]/_components/utils/technology-helpers";
 
 // Generic data item that all tab data should extend
 export interface BaseTabItem {
@@ -43,10 +43,10 @@ export function addPercentages<T extends BaseTabItem>(data: T[]): T[] {
 // Utility for compact number formatting
 const formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -65,12 +65,12 @@ export function createTabColumns<T extends BaseTabItem>(
 				customCell ||
 				((info: CellContext<T, unknown>) => {
 					const value = info.getValue() as string;
-					return <span className="font-medium">{value || "Unknown"}</span>;
+					return <span className="font-medium">{value ||"Unknown"}</span>;
 				}),
 		},
 		{
-			accessorKey: "visitors",
-			header: "Visitors",
+			accessorKey:"visitors",
+			header:"Visitors",
 			cell: (info: CellContext<T, unknown>) => (
 				<span className="font-medium">
 					{formatNumber(info.getValue() as number)}
@@ -78,8 +78,8 @@ export function createTabColumns<T extends BaseTabItem>(
 			),
 		},
 		{
-			accessorKey: "pageviews",
-			header: "Views",
+			accessorKey:"pageviews",
+			header:"Views",
 			cell: (info: CellContext<T, unknown>) => (
 				<span className="font-medium">
 					{formatNumber(info.getValue() as number)}
@@ -87,8 +87,8 @@ export function createTabColumns<T extends BaseTabItem>(
 			),
 		},
 		{
-			accessorKey: "percentage",
-			header: "Share",
+			accessorKey:"percentage",
+			header:"Share",
 			cell: (info: CellContext<T, unknown>) => {
 				const percentage = info.getValue() as number;
 				return <PercentageBadge percentage={percentage} />;

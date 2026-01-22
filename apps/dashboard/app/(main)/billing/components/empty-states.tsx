@@ -4,8 +4,8 @@ import {
 	ArrowClockwiseIcon,
 	TrendUpIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { Button } from"@/components/ui/button";
 
 /**
  * Empty state for the usage section when no features have been used yet.
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 export function EmptyUsageState() {
 	return (
 		<div className="flex flex-col items-center justify-center py-16 text-center">
-			<div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+			<div className="mb-4 flex h-14 w-14 items-center justify-center bg-secondary">
 				<TrendUpIcon
 					className="text-secondary-foreground"
 					size={24}
@@ -40,11 +40,11 @@ type ErrorStateProps = {
  */
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
 	const errorMessage =
-		error instanceof Error ? error.message : "Failed to load billing data";
+		error instanceof Error ? error.message :"Failed to load billing data";
 
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8">
-			<div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+			<div className="mb-4 flex h-14 w-14 items-center justify-center bg-destructive/10">
 				<WarningCircleIcon
 					className="text-destructive"
 					size={24}

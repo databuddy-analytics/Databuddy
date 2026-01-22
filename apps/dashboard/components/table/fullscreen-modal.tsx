@@ -1,11 +1,11 @@
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from"@phosphor-icons/react";
 import {
 	type ColumnDef,
 	getCoreRowModel,
 	useReactTable,
-} from "@tanstack/react-table";
-import { TableContent } from "./table-content";
-import { TableTabs } from "./table-tabs";
+} from"@tanstack/react-table";
+import { TableContent } from"./table-content";
+import { TableTabs } from"./table-tabs";
 
 interface TabConfig<TData> {
 	id: string;
@@ -59,7 +59,7 @@ export function FullScreenModal<TData extends { name: string | number }>({
 	const table = useReactTable({
 		data: tableData,
 		columns: tableColumns,
-		getRowId: (_row, index) => `${activeTab || "row"}-${index}`,
+		getRowId: (_row, index) => `${activeTab ||"row"}-${index}`,
 		getCoreRowModel: getCoreRowModel(),
 	});
 
@@ -85,7 +85,7 @@ export function FullScreenModal<TData extends { name: string | number }>({
 				<div className="flex items-center gap-2">
 					<button
 						aria-label="Close full screen"
-						className="ml-2 flex items-center justify-center rounded bg-sidebar-accent/60 p-2 text-sidebar-foreground hover:bg-sidebar-accent"
+						className="ml-2 flex items-center justify-center bg-sidebar-accent/60 p-2 text-sidebar-foreground hover:bg-sidebar-accent"
 						onClick={onClose}
 						style={{ minWidth: 40, minHeight: 40 }}
 						tabIndex={0}
@@ -100,7 +100,7 @@ export function FullScreenModal<TData extends { name: string | number }>({
 			{tabs && tabs.length > 1 && (
 				<div className="mt-2">
 					<TableTabs
-						activeTab={activeTab ?? ""}
+						activeTab={activeTab ??""}
 						onTabChange={handleTabChange}
 						tabs={tabs}
 					/>

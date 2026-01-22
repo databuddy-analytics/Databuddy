@@ -10,31 +10,31 @@ import {
 	PencilSimpleIcon,
 	ShareNetworkIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation, useQueryClient } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+} from"@/components/ui/dropdown-menu";
+import { Skeleton } from"@/components/ui/skeleton";
+import { Switch } from"@/components/ui/switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
-import { FlagKey } from "./flag-key";
-import { FlagVariants } from "./flag-variants";
-import { RolloutProgress } from "./rollout-progress";
-import type { Flag, TargetGroup } from "./types";
+} from"@/components/ui/tooltip";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
+import { FlagKey } from"./flag-key";
+import { FlagVariants } from"./flag-variants";
+import { RolloutProgress } from"./rollout-progress";
+import type { Flag, TargetGroup } from"./types";
 
 interface FlagsListProps {
 	flags: Flag[];
@@ -44,12 +44,12 @@ interface FlagsListProps {
 }
 
 const TYPE_CONFIG = {
-	boolean: { icon: FlagIcon, label: "Boolean", color: "text-blue-500" },
-	rollout: { icon: GaugeIcon, label: "Rollout", color: "text-violet-500" },
+	boolean: { icon: FlagIcon, label:"Boolean", color:"text-blue-500" },
+	rollout: { icon: GaugeIcon, label:"Rollout", color:"text-violet-500" },
 	multivariant: {
 		icon: FlaskIcon,
-		label: "Multivariant",
-		color: "text-pink-500",
+		label:"Multivariant",
+		color:"text-pink-500",
 	},
 } as const;
 
@@ -65,7 +65,7 @@ function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 					<Tooltip delayDuration={200} key={group.id}>
 						<TooltipTrigger asChild>
 							<span
-								className="size-4 rounded border border-background"
+								className="size-4 border border-background"
 								style={{ backgroundColor: group.color }}
 							/>
 						</TooltipTrigger>
@@ -84,14 +84,14 @@ function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 
 function StatusToggle({ flag }: { flag: Flag }) {
 	const queryClient = useQueryClient();
-	const isActive = flag.status === "active";
+	const isActive = flag.status ==="active";
 
 	const updateStatusMutation = useMutation({
 		...orpc.flags.update.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId: flag.websiteId ??"" },
 				}),
 			});
 		},
@@ -100,30 +100,30 @@ function StatusToggle({ flag }: { flag: Flag }) {
 	const handleChange = (checked: boolean) => {
 		updateStatusMutation.mutate({
 			id: flag.id,
-			status: checked ? "active" : "inactive",
+			status: checked ?"active" :"inactive",
 		});
 	};
 
 	return (
 		<div className="flex items-center gap-2">
 			<Switch
-				aria-label={isActive ? "Disable flag" : "Enable flag"}
+				aria-label={isActive ?"Disable flag" :"Enable flag"}
 				checked={isActive}
 				className={cn(
-					updateStatusMutation.isPending && "pointer-events-none opacity-60"
+					updateStatusMutation.isPending &&"pointer-events-none opacity-60"
 				)}
-				disabled={updateStatusMutation.isPending || flag.status === "archived"}
+				disabled={updateStatusMutation.isPending || flag.status ==="archived"}
 				onCheckedChange={handleChange}
 			/>
 			<span
 				className={cn(
 					"font-medium text-xs",
 					isActive
-						? "text-green-600 dark:text-green-400"
-						: "text-muted-foreground"
+						?"text-green-600 dark:text-green-400"
+						:"text-muted-foreground"
 				)}
 			>
-				{isActive ? "On" : "Off"}
+				{isActive ?"On" :"Off"}
 			</span>
 		</div>
 	);
@@ -145,7 +145,7 @@ function FlagActions({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId: flag.websiteId ??"" },
 				}),
 			});
 		},
@@ -154,7 +154,7 @@ function FlagActions({
 	const handleArchive = () => {
 		updateStatusMutation.mutate({
 			id: flag.id,
-			status: flag.status === "archived" ? "inactive" : "archived",
+			status: flag.status ==="archived" ?"inactive" :"archived",
 		});
 	};
 
@@ -177,7 +177,7 @@ function FlagActions({
 				</DropdownMenuItem>
 				<DropdownMenuItem className="gap-2" onClick={handleArchive}>
 					<ArchiveIcon className="size-4" weight="duotone" />
-					{flag.status === "archived" ? "Restore" : "Archive"}
+					{flag.status ==="archived" ?"Restore" :"Archive"}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
@@ -211,7 +211,7 @@ function DependencyBadges({
 			{dependencies.length > 0 && (
 				<Tooltip delayDuration={200}>
 					<TooltipTrigger asChild>
-						<div className="flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-600 dark:text-blue-400">
+						<div className="flex items-center gap-1 bg-blue-500/10 px-1.5 py-0.5 text-blue-600 dark:text-blue-400">
 							<LinkIcon className="size-3" />
 							<span className="font-medium text-xs">{dependencies.length}</span>
 						</div>
@@ -221,13 +221,13 @@ function DependencyBadges({
 						<div className="flex flex-col gap-1">
 							{dependencies.map((depKey) => {
 								const dep = flagMap.get(depKey);
-								const isActive = dep?.status === "active";
+								const isActive = dep?.status ==="active";
 								return (
 									<div className="flex items-center gap-1.5" key={depKey}>
 										<span
 											className={cn(
-												"size-1.5 rounded-full",
-												isActive ? "bg-green-500" : "bg-amber-500"
+												"size-1.5",
+												isActive ?"bg-green-500" :"bg-amber-500"
 											)}
 										/>
 										<span className="font-mono text-xs">{depKey}</span>
@@ -241,7 +241,7 @@ function DependencyBadges({
 			{dependents.length > 0 && (
 				<Tooltip delayDuration={200}>
 					<TooltipTrigger asChild>
-						<div className="flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-violet-600 dark:text-violet-400">
+						<div className="flex items-center gap-1 bg-violet-500/10 px-1.5 py-0.5 text-violet-600 dark:text-violet-400">
 							<ShareNetworkIcon className="size-3" weight="fill" />
 							<span className="font-medium text-xs">{dependents.length}</span>
 						</div>
@@ -250,13 +250,13 @@ function DependencyBadges({
 						<p className="mb-1.5 font-medium text-xs">Used by:</p>
 						<div className="flex flex-col gap-1">
 							{dependents.map((dep) => {
-								const isActive = dep.status === "active";
+								const isActive = dep.status ==="active";
 								return (
 									<div className="flex items-center gap-1.5" key={dep.id}>
 										<span
 											className={cn(
-												"size-1.5 rounded-full",
-												isActive ? "bg-green-500" : "bg-amber-500"
+												"size-1.5",
+												isActive ?"bg-green-500" :"bg-amber-500"
 											)}
 										/>
 										<span className="font-mono text-xs">{dep.key}</span>
@@ -298,7 +298,7 @@ function FlagRow({
 		<button
 			className={cn(
 				"group flex min-w-full cursor-pointer items-center gap-4 border-b px-4 py-3 text-left transition-colors hover:bg-accent/50",
-				{ "opacity-50": flag.status === "archived" }
+				{"opacity-50": flag.status ==="archived" }
 			)}
 			onClick={() => onEdit(flag)}
 			type="button"
@@ -311,7 +311,7 @@ function FlagRow({
 				role="presentation"
 			>
 				<div
-					className={cn("shrink-0 rounded bg-accent p-1.5", typeConfig.color)}
+					className={cn("shrink-0 bg-accent p-1.5", typeConfig.color)}
 				>
 					<TypeIconComponent className="size-4" weight="duotone" />
 				</div>
@@ -348,7 +348,7 @@ function FlagRow({
 
 			{/* Rollout */}
 			<div className="w-20 shrink-0 text-center">
-				{flag.type === "rollout" && rollout > 0 && (
+				{flag.type ==="rollout" && rollout > 0 && (
 					<RolloutProgress percentage={rollout} />
 				)}
 			</div>
@@ -359,7 +359,7 @@ function FlagRow({
 					<div className="flex flex-col gap-0.5 text-muted-foreground text-xs">
 						{ruleCount > 0 && (
 							<span>
-								{ruleCount} {ruleCount !== 1 ? "rules" : "rule"}
+								{ruleCount} {ruleCount !== 1 ?"rules" :"rule"}
 							</span>
 						)}
 						{variantCount > 0 && (
@@ -381,7 +381,7 @@ function FlagRow({
 				onKeyDown={(e) => e.stopPropagation()}
 				role="presentation"
 			>
-				{flag.status === "archived" ? (
+				{flag.status ==="archived" ? (
 					<Badge className="gap-1" variant="amber">
 						<ArchiveIcon className="size-3" weight="duotone" />
 						Archived
@@ -453,7 +453,7 @@ export function FlagsListSkeleton() {
 					key={`skeleton-${i + 1}`}
 				>
 					<div className="flex min-w-[280px] shrink-0 items-center gap-3">
-						<Skeleton className="size-7 rounded" />
+						<Skeleton className="size-7" />
 						<Skeleton className="h-4 w-28" />
 						<Skeleton className="h-5 w-20" />
 					</div>
@@ -464,7 +464,7 @@ export function FlagsListSkeleton() {
 						<Skeleton className="h-5 w-16" />
 					</div>
 					<div className="w-[100px] shrink-0">
-						<Skeleton className="h-9 w-9 rounded-full" />
+						<Skeleton className="h-9 w-9" />
 					</div>
 					<div className="w-[100px] shrink-0">
 						<Skeleton className="h-3 w-12" />
@@ -476,7 +476,7 @@ export function FlagsListSkeleton() {
 						<Skeleton className="h-5 w-14" />
 					</div>
 					<div className="w-[60px] shrink-0">
-						<Skeleton className="size-8 rounded" />
+						<Skeleton className="size-8" />
 					</div>
 				</div>
 			))}

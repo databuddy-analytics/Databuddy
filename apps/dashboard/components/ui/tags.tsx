@@ -91,7 +91,7 @@ export function TagsChat({
 	};
 
 	return (
-		<div className={cn('rounded border bg-background', className)}>
+		<div className={cn(' border bg-background', className)}>
 			<div className="max-h-56 overflow-auto p-3" ref={areaRef}>
 				{values.length === 0 ? (
 					<div className="text-muted-foreground text-sm">
@@ -101,7 +101,7 @@ export function TagsChat({
 					<div className="flex flex-wrap gap-2">
 						{values.map((tag, index) => (
 							<div
-								className="group relative inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-foreground text-sm"
+								className="group relative inline-flex items-center gap-1 bg-muted px-3 py-1 text-foreground text-sm"
 								key={`${tag}-${index}`}
 							>
 								<span className="max-w-32 truncate">{tag}</span>
@@ -142,7 +142,7 @@ export function TagsChat({
 					<div className="mt-2 flex flex-wrap items-center gap-2">
 						{visibleSuggestions.map((s) => (
 							<button
-								className="rounded border px-2 py-0.5 text-muted-foreground text-xs hover:border-primary/50 hover:text-foreground"
+								className=" border px-2 py-0.5 text-muted-foreground text-xs hover:border-primary/50 hover:text-foreground"
 								key={s}
 								onClick={(e) => {
 									e.preventDefault();

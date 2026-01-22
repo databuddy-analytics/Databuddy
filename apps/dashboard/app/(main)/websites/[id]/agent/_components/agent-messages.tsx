@@ -1,26 +1,26 @@
 "use client";
 
-import type { UIMessage } from "ai";
-import { useRef } from "react";
+import type { UIMessage } from"ai";
+import { useRef } from"react";
 import {
 	ChainOfThought,
 	ChainOfThoughtContent,
 	ChainOfThoughtHeader,
 	ChainOfThoughtStep,
-} from "@/components/ai-elements/chain-of-thought";
+} from"@/components/ai-elements/chain-of-thought";
 import {
 	Message,
 	MessageContent,
 	MessageResponse,
-} from "@/components/ai-elements/message";
+} from"@/components/ai-elements/message";
 import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
-} from "@/components/ai-elements/reasoning";
-import { useChat } from "@/contexts/chat-context";
-import { cn } from "@/lib/utils";
-import { useChatStatus } from "./hooks/use-chat-status";
+} from"@/components/ai-elements/reasoning";
+import { useChat } from"@/contexts/chat-context";
+import { cn } from"@/lib/utils";
+import { useChatStatus } from"./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -64,7 +64,7 @@ function getResultCount(obj: Record<string, unknown>): number | null {
 }
 
 function getErrorText(obj: Record<string, unknown>): string | null {
-	if ("errorText" in obj && typeof obj.errorText === "string") {
+	if ("errorText" in obj && typeof obj.errorText ==="string") {
 		return obj.errorText;
 	}
 	return null;
@@ -75,7 +75,7 @@ function formatToolOutput(output: unknown) {
 		return null;
 	}
 
-	if (typeof output === "object" && output !== null) {
+	if (typeof output ==="object" && output !== null) {
 		const obj = output as Record<string, unknown>;
 		const errorText = getErrorText(obj);
 		if (errorText) {
@@ -87,7 +87,7 @@ function formatToolOutput(output: unknown) {
 		}
 	}
 
-	if (typeof output === "string") {
+	if (typeof output ==="string") {
 		try {
 			const obj = JSON.parse(output) as Record<string, unknown>;
 			const errorText = getErrorText(obj);
@@ -168,7 +168,7 @@ function renderMessagePart(
 	const key = `${messageId}-${partIndex}`;
 	const isCurrentlyStreaming = isLastMessage && isStreaming;
 	const mode =
-		role === "user" || !isCurrentlyStreaming ? "static" : "streaming";
+		role ==="user" || !isCurrentlyStreaming ?"static" :"streaming";
 
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
@@ -190,7 +190,7 @@ function renderMessagePart(
 		);
 	}
 
-	if (part.type === "reasoning") {
+	if (part.type ==="reasoning") {
 		return (
 			<ReasoningMessage
 				isStreaming={isCurrentlyStreaming}
@@ -200,7 +200,7 @@ function renderMessagePart(
 		);
 	}
 
-	if (part.type === "text") {
+	if (part.type ==="text") {
 		const textPart = part as { text: string };
 		if (!textPart.text?.trim()) {
 			return null;
@@ -232,9 +232,9 @@ function renderMessagePart(
 
 export function AgentMessages() {
 	const { status, messages } = useChat();
-	const hasError = status === "error";
+	const hasError = status ==="error";
 	const chatStatus = useChatStatus(messages, status);
-	const isStreaming = status === "streaming" || status === "submitted";
+	const isStreaming = status ==="streaming" || status ==="submitted";
 
 	if (messages.length === 0) {
 		return null;
@@ -245,7 +245,7 @@ export function AgentMessages() {
 			{messages.map((message, index) => {
 				const isLastMessage = index === messages.length - 1;
 				const showError =
-					isLastMessage && hasError && message.role === "assistant";
+					isLastMessage && hasError && message.role ==="assistant";
 
 				const groupedParts = message.parts
 					? groupConsecutiveToolCalls(message.parts)
@@ -254,7 +254,7 @@ export function AgentMessages() {
 				return (
 					<Message from={message.role} key={message.id}>
 						<MessageContent
-							className={cn(message.role === "assistant" ? "w-full" : "")}
+							className={cn(message.role ==="assistant" ?"w-full" :"")}
 						>
 							{groupedParts.map((part, partIndex) =>
 								renderMessagePart(
@@ -304,7 +304,7 @@ function StreamingIndicator({ statusText }: { statusText?: string }) {
 			<div className="flex w-full items-center justify-start gap-2">
 				<div className="flex w-full flex-col gap-2">
 					<div className="flex items-center gap-1 text-muted-foreground text-sm">
-						<span className="animate-pulse">{statusText || "Thinking"}</span>
+						<span className="animate-pulse">{statusText ||"Thinking"}</span>
 						<span className="inline-flex">
 							<span className="animate-bounce [animation-delay:0ms]">.</span>
 							<span className="animate-bounce [animation-delay:150ms]">.</span>

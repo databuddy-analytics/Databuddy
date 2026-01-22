@@ -1,10 +1,10 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { DynamicQueryRequest } from "@databuddy/shared/types/api";
-import { useMemo } from "react";
-import { DataTable } from "@/components/table/data-table";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { DynamicQueryRequest } from"@databuddy/shared/types/api";
+import { useMemo } from"react";
+import { DataTable } from"@/components/table/data-table";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
 import {
 	createRecentCallColumns,
 	createToolNameColumns,
@@ -12,7 +12,7 @@ import {
 	type LlmRecentCallRow,
 	type LlmToolNameRow,
 	type LlmTraceSummaryRow,
-} from "./llm-columns";
+} from"./llm-columns";
 
 interface LlmTracesTabProps {
 	websiteId: string;
@@ -21,9 +21,9 @@ interface LlmTracesTabProps {
 
 export function LlmTracesTab({ websiteId, dateRange }: LlmTracesTabProps) {
 	const queries: DynamicQueryRequest[] = [
-		{ id: "llm-traces", parameters: ["llm_trace_summary"] },
-		{ id: "llm-tool-names", parameters: ["llm_tool_name_breakdown"] },
-		{ id: "llm-recent-calls", parameters: ["llm_recent_calls"] },
+		{ id:"llm-traces", parameters: ["llm_trace_summary"] },
+		{ id:"llm-tool-names", parameters: ["llm_tool_name_breakdown"] },
+		{ id:"llm-recent-calls", parameters: ["llm_recent_calls"] },
 	];
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(

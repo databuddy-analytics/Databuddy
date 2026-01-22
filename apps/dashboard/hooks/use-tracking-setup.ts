@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
-import { orpc } from "@/lib/orpc";
+import { useQuery } from"@tanstack/react-query";
+import { usePathname } from"next/navigation";
+import { orpc } from"@/lib/orpc";
 
 export function useTrackingSetup(websiteId: string) {
 	const pathname = usePathname();

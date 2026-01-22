@@ -1,25 +1,25 @@
 "use client";
 
-import { BuildingsIcon, EnvelopeIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Link from "next/link";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BuildingsIcon, EnvelopeIcon } from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import Link from"next/link";
+import { useState } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from"@/components/ui/dropdown-menu";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useUserInvitations } from "@/hooks/use-user-invitations";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { useUserInvitations } from"@/hooks/use-user-invitations";
+import { cn } from"@/lib/utils";
 
 dayjs.extend(relativeTime);
 
@@ -49,13 +49,13 @@ export function PendingInvitationsButton() {
 								)}
 								variant="destructive"
 							>
-								{count > 9 ? "9+" : count}
+								{count > 9 ?"9+" : count}
 							</Badge>
 						</Button>
 					</DropdownMenuTrigger>
 				</TooltipTrigger>
 				<TooltipContent side="right">
-					{count} pending invitation{count !== 1 ? "s" : ""}
+					{count} pending invitation{count !== 1 ?"s" :""}
 				</TooltipContent>
 			</Tooltip>
 
@@ -74,7 +74,7 @@ export function PendingInvitationsButton() {
 							href={`/invitations/${invitation.id}`}
 							onClick={() => setIsOpen(false)}
 						>
-							<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
+							<div className="flex size-8 shrink-0 items-center justify-center bg-primary/10">
 								<BuildingsIcon
 									className="size-4 text-primary"
 									weight="duotone"
@@ -85,7 +85,7 @@ export function PendingInvitationsButton() {
 									{invitation.organizationName}
 								</p>
 								<p className="text-muted-foreground text-xs">
-									{invitation.role} · expires{" "}
+									{invitation.role} · expires{""}
 									{dayjs(invitation.expiresAt).fromNow()}
 								</p>
 							</div>

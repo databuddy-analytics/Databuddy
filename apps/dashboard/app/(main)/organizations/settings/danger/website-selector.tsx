@@ -1,9 +1,9 @@
 "use client";
 
-import type { Website } from "@databuddy/shared/types/website";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { cn } from "@/lib/utils";
+import type { Website } from"@databuddy/shared/types/website";
+import { GlobeIcon } from"@phosphor-icons/react";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { cn } from"@/lib/utils";
 
 function WebsiteCard({
 	website,
@@ -17,20 +17,20 @@ function WebsiteCard({
 	return (
 		<button
 			className={cn(
-				"flex w-full items-center gap-3 rounded border p-2 text-left transition-all duration-200",
+				"flex w-full items-center gap-3 border p-2 text-left transition-all duration-200",
 				selected
-					? "border-primary/30 bg-primary/10 shadow-sm ring-1 ring-primary/20"
-					: "border-border/30 bg-background/50 hover:border-border/60 hover:bg-muted/60"
+					?"border-primary/30 bg-primary/10 shadow-sm ring-1 ring-primary/20"
+					:"border-border/30 bg-background/50 hover:border-border/60 hover:bg-muted/60"
 			)}
 			onClick={onClick}
 			type="button"
 		>
 			<FaviconImage
 				altText={`${website.name} favicon`}
-				className="shrink-0 rounded"
+				className="shrink-0"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="rounded bg-primary/10 p-1">
+					<div className=" bg-primary/10 p-1">
 						<GlobeIcon className="size-3 text-primary" size={12} />
 					</div>
 				}

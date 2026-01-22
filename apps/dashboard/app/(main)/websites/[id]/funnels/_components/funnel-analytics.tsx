@@ -9,20 +9,20 @@ import {
 	TrendDownIcon,
 	UsersIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
-import { StatCard } from "@/components/analytics/stat-card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import type { FunnelAnalyticsByReferrerResult } from "@/hooks/use-funnels";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useParams } from"next/navigation";
+import { useMemo } from"react";
+import { StatCard } from"@/components/analytics/stat-card";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import type { FunnelAnalyticsByReferrerResult } from"@/hooks/use-funnels";
 import type {
 	FunnelAnalyticsData,
 	FunnelTimeSeriesPoint,
-} from "@/types/funnels";
-import { FunnelFlow } from "./funnel-flow";
+} from"@/types/funnels";
+import { FunnelFlow } from"./funnel-flow";
 
 function createChartData(
 	timeSeries: FunnelTimeSeriesPoint[] | undefined,
@@ -61,13 +61,13 @@ function AnalyticsSkeleton() {
 			<div className="space-y-3">
 				{[1, 2, 3].map((i) => (
 					<div
-						className="flex items-center gap-4 rounded border border-border bg-card p-4"
+						className="flex items-center gap-4 border border-border bg-card p-4"
 						key={i}
 					>
-						<Skeleton className="size-10 shrink-0 rounded-full" />
+						<Skeleton className="size-10 shrink-0" />
 						<div className="min-w-0 flex-1 space-y-2">
 							<Skeleton className="h-4 w-32" />
-							<Skeleton className="h-5 w-full rounded" />
+							<Skeleton className="h-5 w-full" />
 						</div>
 						<Skeleton className="h-6 w-14" />
 					</div>
@@ -88,15 +88,15 @@ export function FunnelAnalytics({
 	const { id: websiteId } = useParams<{ id: string }>();
 	const { chartType, chartStepType } = useChartPreferences("funnels");
 	const selectedReferrerData = useMemo(() => {
-		if (!selectedReferrer || selectedReferrer === "all" || !referrerAnalytics) {
+		if (!selectedReferrer || selectedReferrer ==="all" || !referrerAnalytics) {
 			return null;
 		}
 
 		const referrer = referrerAnalytics.find(
 			(r) =>
 				r.referrer === selectedReferrer ||
-				(selectedReferrer === "direct" &&
-					(r.referrer === "direct" || r.referrer === ""))
+				(selectedReferrer ==="direct" &&
+					(r.referrer ==="direct" || r.referrer ===""))
 		);
 
 		return referrer ?? null;
@@ -108,7 +108,7 @@ export function FunnelAnalytics({
 				total_users_completed: selectedReferrerData.completed_users,
 				overall_conversion_rate: selectedReferrerData.conversion_rate,
 				avg_completion_time: 0,
-				avg_completion_time_formatted: "0s",
+				avg_completion_time_formatted:"0s",
 				biggest_dropoff_step: 1,
 				biggest_dropoff_rate: 100 - selectedReferrerData.conversion_rate,
 				steps_analytics:
@@ -139,10 +139,10 @@ export function FunnelAnalytics({
 
 	if (error) {
 		return (
-			<div className="red-angled-rectangle-gradient rounded border border-destructive/30 bg-destructive/5 p-4">
+			<div className="red-angled-rectangle-gradient border border-destructive/30 bg-destructive/5 p-4">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<div className="flex size-9 items-center justify-center rounded bg-destructive/10">
+						<div className="flex size-9 items-center justify-center bg-destructive/10">
 							<WarningCircleIcon
 								className="size-5 text-destructive"
 								weight="fill"
@@ -176,10 +176,10 @@ export function FunnelAnalytics({
 	}
 
 	const timeSeries = data?.time_series;
-	const usersChartData = createChartData(timeSeries, "users");
-	const conversionChartData = createChartData(timeSeries, "conversion_rate");
-	const dropoffChartData = createChartData(timeSeries, "dropoffs");
-	const avgTimeChartData = createChartData(timeSeries, "avg_time");
+	const usersChartData = createChartData(timeSeries,"users");
+	const conversionChartData = createChartData(timeSeries,"conversion_rate");
+	const dropoffChartData = createChartData(timeSeries,"dropoffs");
+	const avgTimeChartData = createChartData(timeSeries,"avg_time");
 
 	const hasChartData = usersChartData.length > 1;
 
@@ -232,14 +232,14 @@ export function FunnelAnalytics({
 					icon={ClockIcon}
 					showChart={hasChartData}
 					title="Avg Time"
-					value={displayData.avg_completion_time_formatted || "—"}
+					value={displayData.avg_completion_time_formatted ||"—"}
 				/>
 			</div>
 
 			{/* Error Insights Banner */}
 			{hasErrorCorrelation && (
-				<div className="amber-angled-rectangle-gradient flex items-center gap-3 rounded border border-warning/20 bg-warning/5 p-3">
-					<div className="flex size-8 shrink-0 items-center justify-center rounded bg-warning/10">
+				<div className="amber-angled-rectangle-gradient flex items-center gap-3 border border-warning/20 bg-warning/5 p-3">
+					<div className="flex size-8 shrink-0 items-center justify-center bg-warning/10">
 						<BugIcon className="size-4 text-warning" weight="duotone" />
 					</div>
 					<div className="min-w-0 flex-1">
@@ -248,7 +248,7 @@ export function FunnelAnalytics({
 							had errors
 						</p>
 						<p className="text-muted-foreground text-xs">
-							{errorInsights.dropoffs_with_errors} of{" "}
+							{errorInsights.dropoffs_with_errors} of{""}
 							{errorInsights.sessions_with_errors} sessions with errors dropped
 							off · {errorInsights.total_errors} total errors in funnel
 						</p>

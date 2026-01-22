@@ -1,17 +1,17 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	CheckIcon,
 	SpinnerGapIcon,
 	UsersThreeIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation, useQueryClient } from"@tanstack/react-query";
+import { useCallback, useEffect, useState } from"react";
+import { useForm } from"react-hook-form";
+import { toast } from"sonner";
+import { z } from"zod";
+import { Button } from"@/components/ui/button";
 import {
 	Form,
 	FormControl,
@@ -19,8 +19,8 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
 import {
 	Sheet,
 	SheetBody,
@@ -29,24 +29,24 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/sheet";
+import { Textarea } from"@/components/ui/textarea";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
 import {
 	GROUP_COLORS,
 	type GroupSheetProps,
 	type UserRule,
-} from "../../_components/types";
-import { UserRulesBuilder } from "../../_components/user-rules-builder";
+} from"../../_components/types";
+import { UserRulesBuilder } from"../../_components/user-rules-builder";
 
 const groupFormSchema = z.object({
-	name: z.string().min(1, "Name is required").max(100),
+	name: z.string().min(1,"Name is required").max(100),
 	description: z.string().max(500).optional(),
 	color: z.string(),
 	rules: z.array(
 		z.object({
-			type: z.enum(["user_id", "email", "property"]),
+			type: z.enum(["user_id","email","property"]),
 			operator: z.enum([
 				"equals",
 				"contains",
@@ -84,8 +84,8 @@ export function GroupSheet({
 	const form = useForm<GroupFormData>({
 		resolver: zodResolver(groupFormSchema),
 		defaultValues: {
-			name: "",
-			description: "",
+			name:"",
+			description:"",
 			color: GROUP_COLORS[0].value,
 			rules: [],
 		},
@@ -103,15 +103,15 @@ export function GroupSheet({
 		if (group && isEditing) {
 			form.reset({
 				name: group.name,
-				description: group.description ?? "",
+				description: group.description ??"",
 				color: group.color,
 				rules: group.rules as UserRule[],
 			});
 			setSelectedColor(group.color);
 		} else {
 			form.reset({
-				name: "",
-				description: "",
+				name:"",
+				description:"",
 				color: GROUP_COLORS[0].value,
 				rules: [],
 			});
@@ -156,7 +156,7 @@ export function GroupSheet({
 				});
 			}
 
-			toast.success(`Group ${isEditing ? "updated" : "created"} successfully`);
+			toast.success(`Group ${isEditing ?"updated" :"created"} successfully`);
 
 			queryClient.invalidateQueries({
 				queryKey: orpc.targetGroups.list.key({ input: { websiteId } }),
@@ -166,9 +166,9 @@ export function GroupSheet({
 		} catch (error) {
 			console.error("Group mutation error:", JSON.stringify(error));
 			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
+				error instanceof Error ? error.message :"Unknown error";
 			toast.error(
-				`Failed to ${isEditing ? "update" : "create"} group: ${errorMessage}`
+				`Failed to ${isEditing ?"update" :"create"} group: ${errorMessage}`
 			);
 		}
 	};
@@ -181,7 +181,7 @@ export function GroupSheet({
 				<SheetHeader>
 					<div className="flex items-center gap-4">
 						<div
-							className="flex size-11 items-center justify-center rounded border"
+							className="flex size-11 items-center justify-center border"
 							style={{ backgroundColor: `${selectedColor}15` }}
 						>
 							<UsersThreeIcon
@@ -192,12 +192,12 @@ export function GroupSheet({
 						</div>
 						<div>
 							<SheetTitle className="text-lg">
-								{isEditing ? "Edit Group" : "Create Group"}
+								{isEditing ?"Edit Group" :"Create Group"}
 							</SheetTitle>
 							<SheetDescription>
 								{isEditing
 									? `Editing ${group?.name}`
-									: "Create a reusable targeting group"}
+									:"Create a reusable targeting group"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -264,7 +264,7 @@ export function GroupSheet({
 													{GROUP_COLORS.map((color) => (
 														<button
 															className={cn(
-																"relative flex size-9 items-center justify-center rounded shadow-sm transition-all hover:scale-110 hover:shadow-md",
+																"relative flex size-9 items-center justify-center shadow-sm transition-all hover:scale-110 hover:shadow-md",
 																field.value === color.value &&
 																	"ring-2 ring-offset-2 ring-offset-background"
 															)}
@@ -312,7 +312,7 @@ export function GroupSheet({
 										</p>
 									</div>
 									{watchedRules.length > 0 && (
-										<span className="flex size-6 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+										<span className="flex size-6 items-center justify-center bg-primary font-medium text-primary-foreground text-xs">
 											{watchedRules.length}
 										</span>
 									)}
@@ -339,7 +339,7 @@ export function GroupSheet({
 								{isLoading ? (
 									<>
 										<SpinnerGapIcon className="animate-spin" size={16} />
-										{isEditing ? "Saving…" : "Creating…"}
+										{isEditing ?"Saving…" :"Creating…"}
 									</>
 								) : isEditing ? (
 									"Save Changes"

@@ -5,7 +5,7 @@ import {
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
 	PLAN_IDS,
-} from "@databuddy/shared/types/features";
+} from"@databuddy/shared/types/features";
 import {
 	ArrowRightIcon,
 	CrownIcon,
@@ -13,30 +13,30 @@ import {
 	RocketLaunchIcon,
 	SparkleIcon,
 	StarIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { useBillingContext } from "@/components/providers/billing-provider";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import type { ReactNode } from"react";
+import { useBillingContext } from"@/components/providers/billing-provider";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent, CardHeader } from"@/components/ui/card";
+import { cn } from"@/lib/utils";
 
 const PLAN_CONFIG: Record<
 	string,
 	{ name: string; icon: typeof StarIcon; color: string }
 > = {
 	[PLAN_IDS.FREE]: {
-		name: "Free",
+		name:"Free",
 		icon: SparkleIcon,
-		color: "text-muted-foreground",
+		color:"text-muted-foreground",
 	},
 	[PLAN_IDS.HOBBY]: {
-		name: "Hobby",
+		name:"Hobby",
 		icon: RocketLaunchIcon,
-		color: "text-success",
+		color:"text-success",
 	},
-	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
-	[PLAN_IDS.SCALE]: { name: "Scale", icon: CrownIcon, color: "text-amber-500" },
+	[PLAN_IDS.PRO]: { name:"Pro", icon: StarIcon, color:"text-primary" },
+	[PLAN_IDS.SCALE]: { name:"Scale", icon: CrownIcon, color:"text-amber-500" },
 };
 
 interface FeatureGateProps {
@@ -78,7 +78,7 @@ export function FeatureGate({
 		<div className="flex h-full min-h-[400px] items-center justify-center p-4">
 			<Card className="w-full max-w-md overflow-hidden pt-0">
 				<CardHeader className="dotted-bg flex flex-col items-center gap-4 border-b bg-accent py-8">
-					<div className="flex size-14 items-center justify-center rounded border bg-card">
+					<div className="flex size-14 items-center justify-center border bg-card">
 						<LockSimpleIcon
 							className="size-7 text-muted-foreground"
 							weight="duotone"
@@ -86,7 +86,7 @@ export function FeatureGate({
 					</div>
 					<div className="text-center">
 						<h2 className="font-semibold text-lg">
-							{title ?? `Unlock ${metadata?.name ?? "this feature"}`}
+							{title ?? `Unlock ${metadata?.name ??"this feature"}`}
 						</h2>
 						<p className="mt-1 text-muted-foreground text-sm">
 							{description ??
@@ -98,7 +98,7 @@ export function FeatureGate({
 
 				<CardContent className="space-y-4 p-4">
 					{/* Required plan */}
-					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2.5">
+					<div className="flex items-center justify-between border bg-accent/50 px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Required plan</span>
 						<div className="flex items-center gap-1.5">
 							<PlanIcon
@@ -112,7 +112,7 @@ export function FeatureGate({
 					</div>
 
 					{/* Current plan */}
-					<div className="flex items-center justify-between rounded border px-3 py-2.5">
+					<div className="flex items-center justify-between border px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Your plan</span>
 						<div className="flex items-center gap-1.5">
 							<CurrentIcon
@@ -135,7 +135,7 @@ export function FeatureGate({
 							</Link>
 						</Button>
 					) : (
-						<div className="rounded-md border bg-muted/50 px-4 py-3 text-center">
+						<div className=" border bg-muted/50 px-4 py-3 text-center">
 							<p className="font-medium text-muted-foreground text-sm">
 								Contact your organization owner to upgrade
 							</p>

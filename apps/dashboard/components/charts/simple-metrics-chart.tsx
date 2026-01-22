@@ -1,7 +1,7 @@
 "use client";
 
-import { ChartLineIcon } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { ChartLineIcon } from"@phosphor-icons/react";
+import { useMemo } from"react";
 import {
 	Area,
 	AreaChart,
@@ -9,15 +9,15 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { Card } from "@/components/ui/card";
+} from"recharts";
+import { Card } from"@/components/ui/card";
 import {
 	ChartTooltip,
 	createTooltipEntries,
 	formatTooltipDate,
-} from "@/components/ui/chart-tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/chart-tooltip";
+import { Skeleton } from"@/components/ui/skeleton";
+import { cn } from"@/lib/utils";
 
 type DataPoint = {
 	date: string;
@@ -41,7 +41,7 @@ type SimpleMetricsChartProps = {
 	className?: string;
 };
 
-const DEFAULT_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const DEFAULT_COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"];
 
 export function SimpleMetricsChart({
 	data,
@@ -75,8 +75,8 @@ export function SimpleMetricsChart({
 						<Skeleton className="h-3 w-32" />
 					</div>
 					<div className="flex gap-1.5">
-						<Skeleton className="h-5 w-12 rounded-full" />
-						<Skeleton className="h-5 w-12 rounded-full" />
+						<Skeleton className="h-5 w-12" />
+						<Skeleton className="h-5 w-12" />
 					</div>
 				</div>
 			</Card>
@@ -136,10 +136,10 @@ export function SimpleMetricsChart({
 								<XAxis
 									axisLine={false}
 									dataKey="date"
-									tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+									tick={{ fontSize: 11, fill:"var(--muted-foreground)" }}
 									tickLine={false}
 								/>
-								<YAxis domain={["dataMin", "dataMax"]} hide />
+								<YAxis domain={["dataMin","dataMax"]} hide />
 
 								<Tooltip
 									content={({ active, payload, label }) => (
@@ -158,7 +158,7 @@ export function SimpleMetricsChart({
 										/>
 									)}
 									cursor={{
-										stroke: "var(--color-primary)",
+										stroke:"var(--color-primary)",
 										strokeOpacity: 0.3,
 									}}
 								/>
@@ -168,7 +168,7 @@ export function SimpleMetricsChart({
 										activeDot={{
 											r: 2.5,
 											fill: metric.color,
-											stroke: "var(--color-background)",
+											stroke:"var(--color-background)",
 											strokeWidth: 1.5,
 										}}
 										dataKey={metric.key}
@@ -219,11 +219,11 @@ export function SimpleMetricsChart({
 				<div className="flex shrink-0 flex-wrap justify-end gap-1">
 					{metricsWithColors.map((metric) => (
 						<div
-							className="flex items-center gap-1 rounded-full border bg-background px-1.5 py-0.5"
+							className="flex items-center gap-1 border bg-background px-1.5 py-0.5"
 							key={metric.key}
 						>
 							<div
-								className="size-1.5 rounded-full"
+								className="size-1.5"
 								style={{ backgroundColor: metric.color }}
 							/>
 							<span className="text-[10px] text-muted-foreground">

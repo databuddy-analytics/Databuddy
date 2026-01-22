@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from"react";
 
 interface ChatRecord {
 	id: string;
@@ -12,12 +12,12 @@ interface ChatListState {
 	isLoading: boolean;
 }
 
-const DB_NAME = "databunny-agent";
+const DB_NAME ="databunny-agent";
 const DB_VERSION = 1;
-const STORE_NAME = "chats";
+const STORE_NAME ="chats";
 
 const getDb = async (): Promise<IDBDatabase | null> => {
-	if (typeof indexedDB === "undefined") {
+	if (typeof indexedDB ==="undefined") {
 		return null;
 	}
 
@@ -27,8 +27,8 @@ const getDb = async (): Promise<IDBDatabase | null> => {
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
-				const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-				store.createIndex("websiteId", "websiteId", { unique: false });
+				const store = db.createObjectStore(STORE_NAME, { keyPath:"id" });
+				store.createIndex("websiteId","websiteId", { unique: false });
 			}
 		};
 
@@ -64,7 +64,7 @@ const listChats = async (websiteId: string): Promise<ChatRecord[]> => {
 	}
 
 	const records = await new Promise<ChatRecord[]>((resolve, reject) => {
-		const tx = db.transaction(STORE_NAME, "readonly");
+		const tx = db.transaction(STORE_NAME,"readonly");
 		const store = tx.objectStore(STORE_NAME);
 		const index = store.index("websiteId");
 		const request = index.getAll(websiteId);
@@ -87,7 +87,7 @@ const upsertChat = async (chat: ChatRecord) => {
 		return;
 	}
 
-	await runStoreRequest(db, "readwrite", (store) => store.put(chat));
+	await runStoreRequest(db,"readwrite", (store) => store.put(chat));
 };
 
 const deleteChat = async (chatId: string) => {
@@ -96,7 +96,7 @@ const deleteChat = async (chatId: string) => {
 		return;
 	}
 
-	await runStoreRequest(db, "readwrite", (store) => store.delete(chatId));
+	await runStoreRequest(db,"readwrite", (store) => store.delete(chatId));
 };
 
 const chatListCache = new Map<string, ChatListState>();
@@ -180,7 +180,7 @@ export function useChatList(websiteId: string) {
 	);
 
 	const saveChat = useCallback(
-		async (chat: Omit<ChatRecord, "updatedAt"> & { updatedAt?: string }) => {
+		async (chat: Omit<ChatRecord,"updatedAt"> & { updatedAt?: string }) => {
 			await upsertChat({
 				...chat,
 				websiteId,

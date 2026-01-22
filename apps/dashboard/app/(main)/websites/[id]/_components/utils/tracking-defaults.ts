@@ -1,4 +1,4 @@
-import type { TrackingOptions } from "./types";
+import type { TrackingOptions } from"./types";
 
 // Library defaults - what the actual SDK uses when no options are provided
 // Reference: packages/sdk/src/core/types.ts

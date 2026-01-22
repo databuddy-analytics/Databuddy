@@ -2,7 +2,7 @@
 
 type UserAvatarProps = {
 	visitorId: string;
-	size?: "sm" | "md" | "lg";
+	size?:"sm" |"md" |"lg";
 	className?: string;
 };
 
@@ -24,7 +24,7 @@ function hslToHex(h: number, s: number, l: number): string {
 		const color = lNorm - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
 		return Math.round(255 * color)
 			.toString(16)
-			.padStart(2, "0");
+			.padStart(2,"0");
 	};
 
 	return `#${f(0)}${f(8)}${f(4)}`;
@@ -66,22 +66,22 @@ function getGradient(visitorId: string): {
 
 export function UserAvatar({
 	visitorId,
-	size = "md",
+	size ="md",
 	className,
 }: UserAvatarProps) {
 	const { from, to, angle } = getGradient(visitorId);
 
 	const sizeClasses = {
-		sm: "size-6",
-		md: "size-8",
-		lg: "size-10",
+		sm:"size-6",
+		md:"size-8",
+		lg:"size-10",
 	};
 
 	const sizeClass = sizeClasses[size];
 
 	return (
 		<div
-			className={`shrink-0 rounded-full ${sizeClass}${className ? ` ${className}` : ""}`}
+			className={`shrink-0 ${sizeClass}${className ? ` ${className}` :""}`}
 			style={{ background: `linear-gradient(${angle}deg, ${from}, ${to})` }}
 		/>
 	);

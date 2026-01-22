@@ -1,13 +1,13 @@
-import type { CustomQueryConfig } from "@databuddy/shared/types/custom-query";
-import type { StatCardDisplayMode } from "@/components/analytics/stat-card";
+import type { CustomQueryConfig } from"@databuddy/shared/types/custom-query";
+import type { StatCardDisplayMode } from"@/components/analytics/stat-card";
 
 /** Filter operator types */
 export type FilterOperator =
-	| "eq"
-	| "ne"
-	| "contains"
-	| "not_contains"
-	| "starts_with";
+	|"eq"
+	|"ne"
+	|"contains"
+	|"not_contains"
+	|"starts_with";
 
 /** Single filter condition */
 export interface CardFilter {
@@ -18,18 +18,18 @@ export interface CardFilter {
 
 /** Date range preset for cards */
 export type DateRangePreset =
-	| "global"
-	| "today"
-	| "yesterday"
-	| "last_7_days"
-	| "last_14_days"
-	| "last_30_days"
-	| "last_90_days"
-	| "this_month"
-	| "last_month";
+	|"global"
+	|"today"
+	|"yesterday"
+	|"last_7_days"
+	|"last_14_days"
+	|"last_30_days"
+	|"last_90_days"
+	|"this_month"
+	|"last_month";
 
 /** Data source mode for cards */
-export type DataSourceMode = "predefined" | "custom";
+export type DataSourceMode ="predefined" |"custom";
 
 /** Base config all dashboard widgets share */
 export interface DashboardWidgetBase {
@@ -50,7 +50,7 @@ export interface DashboardWidgetBase {
 
 /** Card widget - displays a single value with optional chart */
 export interface DashboardCardConfig extends DashboardWidgetBase {
-	type: "card";
+	type:"card";
 	field: string;
 	label: string;
 	displayMode: StatCardDisplayMode;
@@ -58,7 +58,7 @@ export interface DashboardCardConfig extends DashboardWidgetBase {
 
 /** Table widget - displays multiple rows with multiple columns */
 export interface DashboardTableConfig extends DashboardWidgetBase {
-	type: "table";
+	type:"table";
 	fields: string[];
 	labels?: Record<string, string>;
 	limit?: number;
@@ -66,10 +66,10 @@ export interface DashboardTableConfig extends DashboardWidgetBase {
 
 /** Chart widget - displays time series with multiple series */
 export interface DashboardChartConfig extends DashboardWidgetBase {
-	type: "chart";
+	type:"chart";
 	fields: string[];
 	labels?: Record<string, string>;
-	chartType: "area" | "bar" | "line";
+	chartType:"area" |"bar" |"line";
 }
 
 /** Union of all widget types */

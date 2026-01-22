@@ -1,7 +1,7 @@
 "use client";
 
-import { Color, Mesh, Program, Renderer, Triangle } from "ogl";
-import { useEffect, useRef } from "react";
+import { Color, Mesh, Program, Renderer, Triangle } from"ogl";
+import { useEffect, useRef } from"react";
 
 const vertexShader = `
 attribute vec2 uv;
@@ -10,8 +10,8 @@ attribute vec2 position;
 varying vec2 vUv;
 
 void main() {
-  vUv = uv;
-  gl_Position = vec4(position, 0, 1);
+ vUv = uv;
+ gl_Position = vec4(position, 0, 1);
 }
 `;
 
@@ -28,23 +28,23 @@ uniform float uSpeed;
 varying vec2 vUv;
 
 void main() {
-  float mr = min(uResolution.x, uResolution.y);
-  vec2 uv = (vUv.xy * 2.0 - 1.0) * uResolution.xy / mr;
+ float mr = min(uResolution.x, uResolution.y);
+ vec2 uv = (vUv.xy * 2.0 - 1.0) * uResolution.xy / mr;
 
-  // Add a subtle offset based on the mouse position
-  uv += (uMouse - vec2(0.5)) * uAmplitude;
+ // Add a subtle offset based on the mouse position
+ uv += (uMouse - vec2(0.5)) * uAmplitude;
 
-  float d = -uTime * 0.5 * uSpeed;
-  float a = 0.0;
-  for (float i = 0.0; i < 8.0; ++i) {
-    a += cos(i - d - a * uv.x);
-    d += sin(uv.y * i + a);
-  }
-  d += uTime * 0.5 * uSpeed;
-  vec3 col = vec3(cos(uv * vec2(d, a)) * 0.6 + 0.4, cos(a + d) * 0.5 + 0.5);
-  vec3 spectrum = cos(col * cos(vec3(d, a, 2.5)) * 0.5 + 0.5);
-  float gray = dot(spectrum, vec3(0.299, 0.587, 0.114));
-  gl_FragColor = vec4(vec3(gray) * uColor, 1.0);
+ float d = -uTime * 0.5 * uSpeed;
+ float a = 0.0;
+ for (float i = 0.0; i < 8.0; ++i) {
+ a += cos(i - d - a * uv.x);
+ d += sin(uv.y * i + a);
+ }
+ d += uTime * 0.5 * uSpeed;
+ vec3 col = vec3(cos(uv * vec2(d, a)) * 0.6 + 0.4, cos(a + d) * 0.5 + 0.5);
+ vec3 spectrum = cos(col * cos(vec3(d, a, 2.5)) * 0.5 + 0.5);
+ float gray = dot(spectrum, vec3(0.299, 0.587, 0.114));
+ gl_FragColor = vec4(vec3(gray) * uColor, 1.0);
 }
 `;
 

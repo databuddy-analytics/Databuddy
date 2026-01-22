@@ -8,7 +8,7 @@ import {
 	PhoneIcon,
 	TableIcon,
 	TerminalIcon,
-} from "@phosphor-icons/react";
+} from"@phosphor-icons/react";
 
 export const getErrorTypeIcon = (type: string) => {
 	if (!type) {
@@ -38,11 +38,11 @@ export const getDeviceIcon = (deviceType: string) => {
 	}
 
 	switch (deviceType.toLowerCase()) {
-		case "mobile":
+		case"mobile":
 			return <PhoneIcon className="size-3.5 text-chart-2" weight="duotone" />;
-		case "tablet":
+		case"tablet":
 			return <TableIcon className="size-3.5 text-chart-2" weight="duotone" />;
-		case "desktop":
+		case"desktop":
 			return <LaptopIcon className="size-3.5 text-chart-2" weight="duotone" />;
 		default:
 			return <MonitorIcon className="size-3.5 text-chart-2" weight="duotone" />;

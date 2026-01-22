@@ -1,5 +1,5 @@
-import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
-import type { TrackingOptions } from "./types";
+import { RECOMMENDED_DEFAULTS } from"./tracking-defaults";
+import type { TrackingOptions } from"./types";
 
 /**
  * Toggle a specific tracking option

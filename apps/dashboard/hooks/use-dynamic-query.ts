@@ -1,18 +1,18 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import type {
 	BatchQueryResponse,
 	DynamicQueryRequest,
 	DynamicQueryResponse,
-} from "@databuddy/shared/types/api";
+} from"@databuddy/shared/types/api";
 import type {
 	ExtractDataTypes,
 	ParameterDataMap,
-} from "@databuddy/shared/types/parameters";
-import { type UseQueryOptions, useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
-import { getUserTimezone } from "@/lib/timezone";
+} from"@databuddy/shared/types/parameters";
+import { type UseQueryOptions, useQuery } from"@tanstack/react-query";
+import { useCallback, useMemo } from"react";
+import { getUserTimezone } from"@/lib/timezone";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001";
 
 interface BuildParamsOptions {
 	websiteId?: string;
@@ -64,12 +64,12 @@ const defaultQueryOptions = {
 	refetchOnMount: true,
 	refetchInterval: 10 * 60 * 1000,
 	retry: (failureCount: number, error: Error) => {
-		if (error instanceof DOMException && error.name === "AbortError") {
+		if (error instanceof DOMException && error.name ==="AbortError") {
 			return false;
 		}
 		return failureCount < 2;
 	},
-	networkMode: "online" as const,
+	networkMode:"online" as const,
 	refetchIntervalInBackground: false,
 	placeholderData: undefined,
 };
@@ -98,7 +98,7 @@ async function fetchDynamicQuery(
 
 	// Support both old string API (websiteId) and new options object
 	const options: FetchOptions =
-		typeof idOrOptions === "string"
+		typeof idOrOptions ==="string"
 			? { websiteId: idOrOptions }
 			: idOrOptions;
 
@@ -119,7 +119,7 @@ async function fetchDynamicQuery(
 		limit: query.limit || 100,
 		page: query.page || 1,
 		filters: transformFilters(query.filters),
-		granularity: query.granularity || dateRange.granularity || "daily",
+		granularity: query.granularity || dateRange.granularity ||"daily",
 		groupBy: query.groupBy,
 	});
 
@@ -128,11 +128,11 @@ async function fetchDynamicQuery(
 		: buildQuery(queryData);
 
 	const response = await fetch(url, {
-		method: "POST",
+		method:"POST",
 		headers: {
-			"Content-Type": "application/json",
+			"Content-Type":"application/json",
 		},
-		credentials: "include",
+		credentials:"include",
 		signal,
 		body: JSON.stringify(requestBody),
 	});
@@ -146,7 +146,7 @@ async function fetchDynamicQuery(
 	const data = await response.json();
 
 	if (!data.success) {
-		throw new Error(data.error || "Failed to fetch dynamic query data");
+		throw new Error(data.error ||"Failed to fetch dynamic query data");
 	}
 
 	return data;
@@ -234,7 +234,7 @@ export function useBatchDynamicQuery(
 ) {
 	// Support both old string API (websiteId) and new options object
 	const queryOptions: BatchQueryOptions =
-		typeof idOrOptions === "string"
+		typeof idOrOptions ==="string"
 			? { websiteId: idOrOptions }
 			: idOrOptions;
 
@@ -300,8 +300,8 @@ export function useBatchDynamicQuery(
 				}
 			} else {
 				processedResult.errors.push({
-					parameter: "query",
-					error: "No data array found in response",
+					parameter:"query",
+					error:"No data array found in response",
 				});
 			}
 

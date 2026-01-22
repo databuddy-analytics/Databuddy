@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useRef } from "react";
+import { type RefObject, useRef } from"react";
 
 export interface UseEnterSubmitProps {
 	formRef: RefObject<HTMLFormElement>;
@@ -16,7 +16,7 @@ export function useEnterSubmit(): UseEnterSubmitProps {
 		event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
 	): void => {
 		if (
-			event.key === "Enter" &&
+			event.key ==="Enter" &&
 			!event.shiftKey &&
 			!event.nativeEvent.isComposing
 		) {

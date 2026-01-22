@@ -1,9 +1,9 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { CustomQueryConfig } from "@databuddy/shared/types/custom-query";
-import type { QueryOutputField } from "@databuddy/shared/types/query";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { CustomQueryConfig } from"@databuddy/shared/types/custom-query";
+import type { QueryOutputField } from"@databuddy/shared/types/query";
 import {
 	CalendarDotsIcon,
 	CaretDownIcon,
@@ -19,12 +19,12 @@ import {
 	SquaresFourIcon,
 	TextTIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { StatCardDisplayMode } from "@/components/analytics/stat-card";
-import { StatCard } from "@/components/analytics/stat-card";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import type { StatCardDisplayMode } from"@/components/analytics/stat-card";
+import { StatCard } from"@/components/analytics/stat-card";
+import { AutocompleteInput } from"@/components/ui/autocomplete-input";
+import { Button } from"@/components/ui/button";
 import {
 	Command,
 	CommandEmpty,
@@ -32,22 +32,22 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "@/components/ui/command";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@/components/ui/command";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
+} from"@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import {
 	Sheet,
 	SheetBody,
@@ -56,30 +56,30 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
-import { operatorOptions } from "@/hooks/use-filters";
-import { useAutocompleteData } from "@/hooks/use-funnels";
-import { cn } from "@/lib/utils";
-import { CustomQueryBuilder } from "./custom-query-builder";
-import { useDashboardData } from "./hooks/use-dashboard-data";
-import type { QueryTypeOption } from "./hooks/use-query-types";
-import { useQueryTypes } from "./hooks/use-query-types";
-import { getCategoryIcon } from "./utils/category-utils";
+} from"@/components/ui/sheet";
+import { Skeleton } from"@/components/ui/skeleton";
+import { operatorOptions } from"@/hooks/use-filters";
+import { useAutocompleteData } from"@/hooks/use-funnels";
+import { cn } from"@/lib/utils";
+import { CustomQueryBuilder } from"./custom-query-builder";
+import { useDashboardData } from"./hooks/use-dashboard-data";
+import type { QueryTypeOption } from"./hooks/use-query-types";
+import { useQueryTypes } from"./hooks/use-query-types";
+import { getCategoryIcon } from"./utils/category-utils";
 import {
 	DATE_RANGE_PRESETS,
 	getPresetLabel,
 	resolveDateRange,
-} from "./utils/date-presets";
+} from"./utils/date-presets";
 import type {
 	CardFilter,
 	DashboardCardConfig,
 	DataSourceMode,
 	DateRangePreset,
-} from "./utils/types";
+} from"./utils/types";
 
 // Re-export for convenience
-export type { DashboardCardConfig } from "./utils/types";
+export type { DashboardCardConfig } from"./utils/types";
 
 /** Visualization types compatible with stat cards */
 const CARD_COMPATIBLE_VISUALIZATIONS = new Set([
@@ -103,21 +103,21 @@ function mapVisualizationToDisplayMode(
 	viz: QueryTypeOption["defaultVisualization"]
 ): StatCardDisplayMode {
 	switch (viz) {
-		case "timeseries":
-		case "area":
-		case "line":
-			return "chart";
+		case"timeseries":
+		case"area":
+		case"line":
+			return"chart";
 		default:
-			return "text";
+			return"text";
 	}
 }
 
 function isMetricType(viz: QueryTypeOption["defaultVisualization"]): boolean {
-	return viz === "metric";
+	return viz ==="metric";
 }
 
 function isTrendType(viz: QueryTypeOption["defaultVisualization"]): boolean {
-	return viz === "timeseries" || viz === "area" || viz === "line";
+	return viz ==="timeseries" || viz ==="area" || viz ==="line";
 }
 
 export function CardSheet({
@@ -156,14 +156,14 @@ export function CardSheet({
 
 	// Check if form is valid for saving
 	const canSave =
-		dataSourceMode === "predefined"
+		dataSourceMode ==="predefined"
 			? Boolean(selectedQueryType && selectedField)
 			: Boolean(customQuery?.table);
 
 	// Filter and group query types for cards
 	const { metricTypes, trendTypes } = useMemo(() => {
 		const compatible = queryTypes.filter((t) =>
-			CARD_COMPATIBLE_VISUALIZATIONS.has(t.defaultVisualization || "")
+			CARD_COMPATIBLE_VISUALIZATIONS.has(t.defaultVisualization ||"")
 		);
 
 		return {
@@ -186,11 +186,11 @@ export function CardSheet({
 			selectedQueryType
 				? [
 						{
-							id: "preview",
+							id:"preview",
 							queryType: selectedQueryType.key,
-							type: "card" as const,
-							field: selectedField?.name || "",
-							label: selectedField?.label || "",
+							type:"card" as const,
+							field: selectedField?.name ||"",
+							label: selectedField?.label ||"",
 							displayMode,
 							filters,
 						},
@@ -221,10 +221,10 @@ export function CardSheet({
 
 	const initializeFromCard = (card: DashboardCardConfig) => {
 		// Set data source mode
-		const mode = card.dataSourceMode || "predefined";
+		const mode = card.dataSourceMode ||"predefined";
 		setDataSourceMode(mode);
 
-		if (mode === "custom" && card.customQuery) {
+		if (mode ==="custom" && card.customQuery) {
 			setCustomQuery(card.customQuery);
 			setSelectedQueryType(null);
 			setSelectedField(null);
@@ -241,8 +241,8 @@ export function CardSheet({
 		}
 
 		setDisplayMode(card.displayMode);
-		setCustomTitle(card.title || "");
-		setDateRangePreset(card.dateRangePreset || "global");
+		setCustomTitle(card.title ||"");
+		setDateRangePreset(card.dateRangePreset ||"global");
 		setFilters(card.filters || []);
 	};
 
@@ -279,7 +279,7 @@ export function CardSheet({
 	};
 
 	const handleSubmit = () => {
-		if (dataSourceMode === "predefined") {
+		if (dataSourceMode ==="predefined") {
 			if (!(selectedQueryType && selectedField)) {
 				return;
 			}
@@ -288,7 +288,7 @@ export function CardSheet({
 
 			const card: DashboardCardConfig = {
 				id: editingCard?.id || `card-${Date.now()}`,
-				type: "card",
+				type:"card",
 				queryType: selectedQueryType.key,
 				field: selectedField.name,
 				label: selectedField.label || selectedField.name,
@@ -296,9 +296,9 @@ export function CardSheet({
 				title: customTitle.trim() || undefined,
 				category: selectedQueryType.category,
 				dateRangePreset:
-					dateRangePreset !== "global" ? dateRangePreset : undefined,
+					dateRangePreset !=="global" ? dateRangePreset : undefined,
 				filters: filters.length > 0 ? filters : undefined,
-				dataSourceMode: "predefined",
+				dataSourceMode:"predefined",
 			};
 
 			onSaveAction(card);
@@ -316,16 +316,16 @@ export function CardSheet({
 
 			const card: DashboardCardConfig = {
 				id: editingCard?.id || `card-${Date.now()}`,
-				type: "card",
+				type:"card",
 				queryType: `custom_${customQuery.table}`,
-				field: firstSelect?.field || "",
+				field: firstSelect?.field ||"",
 				label,
-				displayMode: "text", // Custom queries only support text for now
+				displayMode:"text", // Custom queries only support text for now
 				title: customTitle.trim() || undefined,
-				category: "Custom",
+				category:"Custom",
 				dateRangePreset:
-					dateRangePreset !== "global" ? dateRangePreset : undefined,
-				dataSourceMode: "custom",
+					dateRangePreset !=="global" ? dateRangePreset : undefined,
+				dataSourceMode:"custom",
 				customQuery,
 			};
 
@@ -339,7 +339,7 @@ export function CardSheet({
 	const handleAddFilter = () => {
 		setFilters((prev) => [
 			...prev,
-			{ field: "browser_name", operator: "eq", value: "" },
+			{ field:"browser_name", operator:"eq", value:"" },
 		]);
 	};
 
@@ -365,21 +365,21 @@ export function CardSheet({
 			}
 
 			switch (field) {
-				case "browser_name":
+				case"browser_name":
 					return data.browsers || [];
-				case "os_name":
+				case"os_name":
 					return data.operatingSystems || [];
-				case "country":
+				case"country":
 					return data.countries || [];
-				case "device_type":
+				case"device_type":
 					return data.deviceTypes || [];
-				case "path":
+				case"path":
 					return data.pagePaths || [];
-				case "utm_source":
+				case"utm_source":
 					return data.utmSources || [];
-				case "utm_medium":
+				case"utm_medium":
 					return data.utmMediums || [];
-				case "utm_campaign":
+				case"utm_campaign":
 					return data.utmCampaigns || [];
 				default:
 					return [];
@@ -396,16 +396,16 @@ export function CardSheet({
 	};
 
 	const previewTitle =
-		customTitle || selectedField?.label || selectedField?.name || "Value";
+		customTitle || selectedField?.label || selectedField?.name ||"Value";
 	const previewIcon = selectedQueryType
 		? getCategoryIcon(selectedQueryType.category)
 		: undefined;
 	const previewValue =
 		selectedQueryType && selectedField
 			? getValue("preview", selectedQueryType.key, selectedField.name)
-			: "—";
+			:"—";
 	const previewChartData =
-		displayMode === "chart" && selectedQueryType && selectedField
+		displayMode ==="chart" && selectedQueryType && selectedField
 			? getChartData("preview", selectedQueryType.key, selectedField.name)
 			: undefined;
 
@@ -418,7 +418,7 @@ export function CardSheet({
 			<SheetContent className="sm:max-w-md" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
+						<div className="flex size-11 items-center justify-center border bg-secondary">
 							{isEditMode ? (
 								<PencilSimpleIcon
 									className="size-5 text-primary"
@@ -433,12 +433,12 @@ export function CardSheet({
 						</div>
 						<div>
 							<SheetTitle className="text-lg">
-								{isEditMode ? "Edit Card" : "Add Card"}
+								{isEditMode ?"Edit Card" :"Add Card"}
 							</SheetTitle>
 							<SheetDescription>
 								{isEditMode
-									? "Modify your stat card configuration"
-									: "Create a new stat card from your analytics data"}
+									?"Modify your stat card configuration"
+									:"Create a new stat card from your analytics data"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -471,7 +471,7 @@ export function CardSheet({
 							<Button
 								className={cn(
 									"flex-1 justify-start gap-2",
-									dataSourceMode === "predefined" &&
+									dataSourceMode ==="predefined" &&
 										"border-primary bg-primary/5"
 								)}
 								onClick={() => setDataSourceMode("predefined")}
@@ -484,7 +484,7 @@ export function CardSheet({
 							<Button
 								className={cn(
 									"flex-1 justify-start gap-2",
-									dataSourceMode === "custom" && "border-primary bg-primary/5"
+									dataSourceMode ==="custom" &&"border-primary bg-primary/5"
 								)}
 								onClick={() => setDataSourceMode("custom")}
 								type="button"
@@ -496,7 +496,7 @@ export function CardSheet({
 						</div>
 					</div>
 
-					{dataSourceMode === "predefined" ? (
+					{dataSourceMode ==="predefined" ? (
 						<>
 							{/* Query Type Selector */}
 							<div className="space-y-2">
@@ -583,8 +583,8 @@ export function CardSheet({
 																			className={cn(
 																				"mr-2 size-4 shrink-0",
 																				selectedQueryType?.key === type.key
-																					? "opacity-100"
-																					: "opacity-0"
+																					?"opacity-100"
+																					:"opacity-0"
 																			)}
 																		/>
 																		<Icon
@@ -633,8 +633,8 @@ export function CardSheet({
 																			className={cn(
 																				"mr-2 size-4 shrink-0",
 																				selectedQueryType?.key === type.key
-																					? "opacity-100"
-																					: "opacity-0"
+																					?"opacity-100"
+																					:"opacity-0"
 																			)}
 																		/>
 																		<Icon
@@ -707,8 +707,8 @@ export function CardSheet({
 																	className={cn(
 																		"mr-2 size-4",
 																		selectedField?.name === field.name
-																			? "opacity-100"
-																			: "opacity-0"
+																			?"opacity-100"
+																			:"opacity-0"
 																	)}
 																/>
 																<div className="min-w-0 flex-1">
@@ -743,8 +743,8 @@ export function CardSheet({
 									<div className="flex gap-2">
 										{(
 											[
-												{ value: "text", label: "Text", icon: TextTIcon },
-												{ value: "chart", label: "Chart", icon: ChartBarIcon },
+												{ value:"text", label:"Text", icon: TextTIcon },
+												{ value:"chart", label:"Chart", icon: ChartBarIcon },
 											] as const
 										).map((mode) => {
 											const isSelected = displayMode === mode.value;
@@ -752,10 +752,10 @@ export function CardSheet({
 											return (
 												<button
 													className={cn(
-														"flex flex-1 cursor-pointer items-center justify-center gap-2 rounded border py-2.5 transition-all",
+														"flex flex-1 cursor-pointer items-center justify-center gap-2 border py-2.5 transition-all",
 														isSelected
-															? "border-primary bg-primary/5 text-foreground"
-															: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
+															?"border-primary bg-primary/5 text-foreground"
+															:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
 													)}
 													key={mode.value}
 													onClick={() => setDisplayMode(mode.value)}
@@ -765,8 +765,8 @@ export function CardSheet({
 														className={cn(
 															"size-4",
 															isSelected
-																? "text-primary"
-																: "text-muted-foreground"
+																?"text-primary"
+																:"text-muted-foreground"
 														)}
 														weight="duotone"
 													/>
@@ -819,7 +819,7 @@ export function CardSheet({
 										id="customTitle"
 										onChange={(e) => setCustomTitle(e.target.value)}
 										placeholder={
-											customQuery.selects.at(0)?.alias || "Custom metric"
+											customQuery.selects.at(0)?.alias ||"Custom metric"
 										}
 										value={customTitle}
 									/>
@@ -852,7 +852,7 @@ export function CardSheet({
 										>
 											<span
 												className={cn(
-													dateRangePreset === "global" &&
+													dateRangePreset ==="global" &&
 														"text-muted-foreground"
 												)}
 											>
@@ -882,8 +882,8 @@ export function CardSheet({
 																className={cn(
 																	"mr-2 size-4",
 																	dateRangePreset === preset.value
-																		? "opacity-100"
-																		: "opacity-0"
+																		?"opacity-100"
+																		:"opacity-0"
 																)}
 															/>
 															{preset.label}
@@ -907,12 +907,12 @@ export function CardSheet({
 									<div className="space-y-2">
 										{filters.map((filter, index) => (
 											<div
-												className="flex items-center gap-2 rounded border bg-card p-2.5"
+												className="flex items-center gap-2 border bg-card p-2.5"
 												key={`filter-${index}`}
 											>
 												<Select
 													onValueChange={(value) =>
-														handleUpdateFilter(index, "field", value)
+														handleUpdateFilter(index,"field", value)
 													}
 													value={filter.field}
 												>
@@ -933,7 +933,7 @@ export function CardSheet({
 
 												<Select
 													onValueChange={(value) =>
-														handleUpdateFilter(index, "operator", value)
+														handleUpdateFilter(index,"operator", value)
 													}
 													value={filter.operator}
 												>
@@ -956,7 +956,7 @@ export function CardSheet({
 													className="flex-1 text-xs"
 													inputClassName="h-8"
 													onValueChange={(value) =>
-														handleUpdateFilter(index, "value", value)
+														handleUpdateFilter(index,"value", value)
 													}
 													placeholder="Value…"
 													suggestions={getSuggestions(filter.field)}
@@ -1019,7 +1019,7 @@ export function CardSheet({
 							{isSubmitting ? (
 								<>
 									<SpinnerGapIcon className="animate-spin" size={16} />
-									{isEditMode ? "Saving…" : "Adding…"}
+									{isEditMode ?"Saving…" :"Adding…"}
 								</>
 							) : isEditMode ? (
 								"Save Changes"

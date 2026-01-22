@@ -1,16 +1,16 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { FunnelIcon } from "@phosphor-icons/react/dist/ssr/Funnel";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
-import { useAtomValue } from "jotai";
-import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { FeatureGate } from "@/components/feature-gate";
-import { Card, CardContent } from "@/components/ui/card";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { useDateFilters } from "@/hooks/use-date-filters";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
+import { FunnelIcon } from"@phosphor-icons/react/dist/ssr/Funnel";
+import { TrendDownIcon } from"@phosphor-icons/react/dist/ssr/TrendDown";
+import { useAtomValue } from"jotai";
+import dynamic from"next/dynamic";
+import { useParams } from"next/navigation";
+import { useMemo, useState } from"react";
+import { FeatureGate } from"@/components/feature-gate";
+import { Card, CardContent } from"@/components/ui/card";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { useDateFilters } from"@/hooks/use-date-filters";
 import {
 	type CreateFunnelData,
 	useAutocompleteData,
@@ -18,17 +18,17 @@ import {
 	useFunnelAnalyticsByReferrer,
 	useFunnelPerformance,
 	useFunnels,
-} from "@/hooks/use-funnels";
-import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
-import type { FunnelAnalyticsData } from "@/types/funnels";
-import { WebsitePageHeader } from "../_components/website-page-header";
+} from"@/hooks/use-funnels";
+import { isAnalyticsRefreshingAtom } from"@/stores/jotai/filterAtoms";
+import type { FunnelAnalyticsData } from"@/types/funnels";
+import { WebsitePageHeader } from"../_components/website-page-header";
 import {
 	FunnelAnalytics,
 	FunnelAnalyticsByReferrer,
 	type FunnelItemData,
 	FunnelItemSkeleton,
 	FunnelsList,
-} from "./_components";
+} from"./_components";
 
 const EditFunnelDialog = dynamic(
 	() =>
@@ -81,7 +81,7 @@ export default function FunnelsPage() {
 		isLoading: analyticsLoading,
 		error: analyticsError,
 		refetch: refetchAnalytics,
-	} = useFunnelAnalytics(websiteId, expandedFunnelId ?? "", dateRange, {
+	} = useFunnelAnalytics(websiteId, expandedFunnelId ??"", dateRange, {
 		enabled: !!expandedFunnelId,
 	});
 
@@ -91,7 +91,7 @@ export default function FunnelsPage() {
 		error: referrerAnalyticsError,
 	} = useFunnelAnalyticsByReferrer(
 		websiteId,
-		expandedFunnelId ?? "",
+		expandedFunnelId ??"",
 		{
 			start_date: formattedDateRangeState.startDate,
 			end_date: formattedDateRangeState.endDate,
@@ -148,7 +148,7 @@ export default function FunnelsPage() {
 				funnelId: funnel.id,
 				updates: {
 					name: funnel.name,
-					description: funnel.description ?? "",
+					description: funnel.description ??"",
 					steps: funnel.steps,
 					filters: funnel.filters,
 					ignoreHistoricData: funnel.ignoreHistoricData,
@@ -229,7 +229,7 @@ export default function FunnelsPage() {
 					subtitle={
 						funnelsLoading
 							? undefined
-							: `${funnels.length} funnel${funnels.length !== 1 ? "s" : ""}`
+							: `${funnels.length} funnel${funnels.length !== 1 ?"s" :""}`
 					}
 					title="Conversion Funnels"
 					websiteId={websiteId}

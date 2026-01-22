@@ -1,14 +1,14 @@
 "use client";
 
-import { BuildingsIcon, FloppyDiskIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { type Organization, useOrganizations } from "@/hooks/use-organizations";
-import { OrganizationAvatarEditor } from "./organization-avatar-editor";
+import { BuildingsIcon, FloppyDiskIcon } from"@phosphor-icons/react";
+import { useEffect, useState } from"react";
+import { toast } from"sonner";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { type Organization, useOrganizations } from"@/hooks/use-organizations";
+import { OrganizationAvatarEditor } from"./organization-avatar-editor";
 
 export function GeneralSettings({
 	organization,
@@ -29,9 +29,9 @@ export function GeneralSettings({
 	const cleanSlug = (value: string) =>
 		value
 			.toLowerCase()
-			.replace(/[^a-z0-9-]/g, "-")
-			.replace(/-+/g, "-")
-			.replace(/^-|-$/g, "");
+			.replace(/[^a-z0-9-]/g,"-")
+			.replace(/-+/g,"-")
+			.replace(/^-|-$/g,"");
 
 	const handleSlugChange = (value: string) => {
 		setSlug(cleanSlug(value));
@@ -112,8 +112,8 @@ export function GeneralSettings({
 									value={slug}
 								/>
 								<p className="text-muted-foreground text-xs">
-									Used in URLs:{" "}
-									<code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
+									Used in URLs:{""}
+									<code className=" bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
 										/{slug}
 									</code>
 								</p>
@@ -131,7 +131,7 @@ export function GeneralSettings({
 						<Button disabled={isSaving} onClick={handleSave} size="sm">
 							{isSaving ? (
 								<>
-									<div className="mr-2 size-3 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+									<div className="mr-2 size-3 animate-spin border-2 border-primary-foreground/30 border-t-primary-foreground" />
 									Saving…
 								</>
 							) : (

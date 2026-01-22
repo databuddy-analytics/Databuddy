@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerFlagsManager } from "@databuddy/sdk/node";
+import { createServerFlagsManager } from"@databuddy/sdk/node";
 
 export interface ExamplesDisplayStrategy {
 	exampleCount: number; // 0, 3, or 6
@@ -21,13 +21,13 @@ export interface ExamplesDisplayStrategy {
 export async function getExamplesDisplayStrategy(
 	websiteId: string,
 	userId?: string,
-	environment: string = process.env.NODE_ENV || "development"
+	environment: string = process.env.NODE_ENV ||"development"
 ): Promise<ExamplesDisplayStrategy> {
 	const flagsManager = createServerFlagsManager({
 		clientId: websiteId,
-		apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+		apiUrl: process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001",
 		user: { userId },
-		debug: process.env.NODE_ENV === "development",
+		debug: process.env.NODE_ENV ==="development",
 		environment,
 	});
 
@@ -39,15 +39,15 @@ export async function getExamplesDisplayStrategy(
 
 		console.log("🚀 Flag result:", result);
 
-		const variantKey = result.payload?.variantKey || "unknown";
+		const variantKey = result.payload?.variantKey ||"unknown";
 		const variantValue = result.value;
-		const exampleCount = typeof variantValue === "number" ? variantValue : 0;
+		const exampleCount = typeof variantValue ==="number" ? variantValue : 0;
 
 		return {
 			exampleCount,
 			variant: variantKey,
 			variantValue,
-			testCondition: "multi-variant-sticky-assignment",
+			testCondition:"multi-variant-sticky-assignment",
 			environment,
 		};
 	} catch (error) {
@@ -56,9 +56,9 @@ export async function getExamplesDisplayStrategy(
 		// Graceful fallback
 		return {
 			exampleCount: 6,
-			variant: "error-fallback",
+			variant:"error-fallback",
 			variantValue: 6,
-			testCondition: "error",
+			testCondition:"error",
 			environment,
 		};
 	}
@@ -71,9 +71,9 @@ export const getShouldShowExamples = async (
 ) => {
 	const flagsManager = createServerFlagsManager({
 		clientId: websiteId,
-		apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+		apiUrl: process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001",
 		user: { userId },
-		debug: process.env.NODE_ENV === "development",
+		debug: process.env.NODE_ENV ==="development",
 		environment,
 	});
 	await flagsManager.waitForInitialization();

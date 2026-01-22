@@ -6,16 +6,16 @@ import {
 	TableIcon,
 	UserPlusIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useMemo, useState } from "react";
-import { StatCard } from "@/components/analytics";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useDynamicQuery } from "@/hooks/use-dynamic-query";
-import { RetentionCohortsGrid } from "./retention-cohorts-grid";
-import { RetentionRateChart } from "./retention-rate-chart";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useMemo, useState } from"react";
+import { StatCard } from"@/components/analytics";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from"@/components/ui/tabs";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useDynamicQuery } from"@/hooks/use-dynamic-query";
+import { RetentionCohortsGrid } from"./retention-cohorts-grid";
+import { RetentionRateChart } from"./retention-rate-chart";
 
 type RetentionContentProps = {
 	websiteId: string;
@@ -48,8 +48,8 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 		websiteId,
 		dateRange,
 		{
-			id: "retention-metrics",
-			parameters: ["retention_cohorts", "retention_rate"],
+			id:"retention-metrics",
+			parameters: ["retention_cohorts","retention_rate"],
 		},
 		{
 			staleTime: 5 * 60 * 1000,
@@ -199,7 +199,7 @@ export function RetentionContent({ websiteId }: RetentionContentProps) {
 				onValueChange={setActiveTab}
 				value={activeTab}
 			>
-				<div className="shrink-0 rounded border bg-card">
+				<div className="shrink-0 border bg-card">
 					<div className="flex items-center justify-between border-b px-4 py-3">
 						<div>
 							<h2 className="font-semibold text-foreground">

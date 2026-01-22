@@ -6,9 +6,9 @@ import {
 	CurrencyDollarIcon,
 	TableIcon,
 	WarningIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import { useParams, usePathname } from "next/navigation";
-import { PageNavigation } from "@/components/layout/page-navigation";
+} from"@phosphor-icons/react/dist/ssr";
+import { useParams, usePathname } from"next/navigation";
+import { PageNavigation } from"@/components/layout/page-navigation";
 
 export default function LlmAnalyticsLayout({
 	children,
@@ -28,32 +28,32 @@ export default function LlmAnalyticsLayout({
 			<PageNavigation
 				tabs={[
 					{
-						id: "overview",
-						label: "Overview",
+						id:"overview",
+						label:"Overview",
 						href: basePath,
 						icon: BrainIcon,
 					},
 					{
-						id: "performance",
-						label: "Performance",
+						id:"performance",
+						label:"Performance",
 						href: `${basePath}/performance`,
 						icon: ChartLineIcon,
 					},
 					{
-						id: "cost",
-						label: "Cost",
+						id:"cost",
+						label:"Cost",
 						href: `${basePath}/cost`,
 						icon: CurrencyDollarIcon,
 					},
 					{
-						id: "errors",
-						label: "Errors",
+						id:"errors",
+						label:"Errors",
 						href: `${basePath}/errors`,
 						icon: WarningIcon,
 					},
 					{
-						id: "traces",
-						label: "Traces",
+						id:"traces",
+						label:"Traces",
 						href: `${basePath}/traces`,
 						icon: TableIcon,
 					},

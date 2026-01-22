@@ -1,19 +1,19 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { useAtom, useSetAtom } from "jotai";
-import { useParams, usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { toast } from "sonner";
-import { WebsiteErrorState } from "@/components/website-error-state";
-import { useTrackingSetup } from "@/hooks/use-tracking-setup";
-import { useWebsite } from "@/hooks/use-websites";
+import { useQueryClient } from"@tanstack/react-query";
+import { useAtom, useSetAtom } from"jotai";
+import { useParams, usePathname } from"next/navigation";
+import { useEffect } from"react";
+import { toast } from"sonner";
+import { WebsiteErrorState } from"@/components/website-error-state";
+import { useTrackingSetup } from"@/hooks/use-tracking-setup";
+import { useWebsite } from"@/hooks/use-websites";
 import {
 	currentFilterWebsiteIdAtom,
 	isAnalyticsRefreshingAtom,
-} from "@/stores/jotai/filterAtoms";
-import { AnalyticsToolbar } from "./_components/analytics-toolbar";
-import { WebsiteTrackingSetupTab } from "./_components/tabs/tracking-setup-tab";
+} from"@/stores/jotai/filterAtoms";
+import { AnalyticsToolbar } from"./_components/analytics-toolbar";
+import { WebsiteTrackingSetupTab } from"./_components/tabs/tracking-setup-tab";
 
 const NO_TOOLBAR_ROUTES = [
 	"/assistant",
@@ -58,7 +58,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		useTrackingSetup(websiteId);
 
 	if (!id) {
-		return <WebsiteErrorState error={{ data: { code: "NOT_FOUND" } }} />;
+		return <WebsiteErrorState error={{ data: { code:"NOT_FOUND" } }} />;
 	}
 
 	if (!isWebsiteLoading && isWebsiteError) {
@@ -83,7 +83,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: ["websites", id] }),
 				queryClient.invalidateQueries({
-					queryKey: ["websites", "isTrackingSetup", id],
+					queryKey: ["websites","isTrackingSetup", id],
 				}),
 				queryClient.invalidateQueries({ queryKey: ["dynamic-query", id] }),
 				queryClient.invalidateQueries({
@@ -131,8 +131,8 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			<div
 				className={
 					hideToolbar
-						? "min-h-0 flex-1"
-						: "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+						?"min-h-0 flex-1"
+						:"min-h-0 flex-1 overflow-y-auto overscroll-contain"
 				}
 			>
 				{renderContent()}

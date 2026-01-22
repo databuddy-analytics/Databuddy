@@ -1,10 +1,10 @@
 "use client";
 
-import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr/Spinner";
-import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
-import dayjs from "dayjs";
-import { useMemo } from "react";
-import { EmptyState } from "@/components/empty-state";
+import { SpinnerIcon } from"@phosphor-icons/react/dist/ssr/Spinner";
+import { TableIcon } from"@phosphor-icons/react/dist/ssr/Table";
+import dayjs from"dayjs";
+import { useMemo } from"react";
+import { EmptyState } from"@/components/empty-state";
 
 interface RetentionCohort {
 	cohort: string;
@@ -30,24 +30,24 @@ interface RetentionColor {
 
 const getRetentionColor = (percentage: number | null): RetentionColor => {
 	if (!percentage || Number.isNaN(percentage)) {
-		return { className: "bg-muted/20 text-muted-foreground/50" };
+		return { className:"bg-muted/20 text-muted-foreground/50" };
 	}
 
 	const normalizedPct = Math.min(percentage, 100) / 100;
 
 	if (normalizedPct >= 0.7) {
-		return { className: "bg-primary text-primary-foreground" };
+		return { className:"bg-primary text-primary-foreground" };
 	}
 	if (normalizedPct >= 0.5) {
-		return { className: "bg-primary/70 text-primary-foreground" };
+		return { className:"bg-primary/70 text-primary-foreground" };
 	}
 	if (normalizedPct >= 0.3) {
-		return { className: "bg-primary/40 text-foreground" };
+		return { className:"bg-primary/40 text-foreground" };
 	}
 	if (normalizedPct >= 0.1) {
-		return { className: "bg-primary/20 text-foreground" };
+		return { className:"bg-primary/20 text-foreground" };
 	}
-	return { className: "bg-primary/10 text-foreground" };
+	return { className:"bg-primary/10 text-foreground" };
 };
 
 const formatCohortDate = (dateStr: string): string => {
@@ -137,8 +137,8 @@ export function RetentionCohortsGrid({
 							<tr
 								className={`hover:bg-accent ${
 									rowIndex !== sortedCohorts.length - 1
-										? "border-border border-b"
-										: ""
+										?"border-border border-b"
+										:""
 								}`}
 								key={cohort.cohort}
 							>
@@ -161,11 +161,11 @@ export function RetentionCohortsGrid({
 											key={`${cohort.cohort}-week-${index}`}
 										>
 											<div
-												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums ${className}`}
+												className={`flex h-8 items-center justify-center font-medium text-xs tabular-nums ${className}`}
 											>
 												{percentage !== null
 													? `${percentage.toFixed(0)}%`
-													: "—"}
+													:"—"}
 											</div>
 										</td>
 									);

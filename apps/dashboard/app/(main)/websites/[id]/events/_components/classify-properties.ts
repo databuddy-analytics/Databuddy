@@ -5,7 +5,7 @@ import type {
 	PropertyClassification,
 	PropertyDistribution,
 	PropertyTopValue,
-} from "./types";
+} from"./types";
 
 function groupClassificationsByEvent(
 	classifications: PropertyClassification[]
@@ -85,11 +85,11 @@ export function classifyEventProperties(
 			let values: PropertyTopValue[] | PropertyDistribution[] = [];
 
 			if (
-				classification.render_strategy === "distribution_bar" ||
-				classification.render_strategy === "top_n_chart"
+				classification.render_strategy ==="distribution_bar" ||
+				classification.render_strategy ==="top_n_chart"
 			) {
 				values = eventDistributions?.get(propKey) ?? [];
-			} else if (classification.render_strategy === "top_n_with_other") {
+			} else if (classification.render_strategy ==="top_n_with_other") {
 				values = eventTopValues?.get(propKey) ?? [];
 			}
 
@@ -99,7 +99,7 @@ export function classifyEventProperties(
 				values,
 			};
 
-			if (classification.render_strategy === "detail_only") {
+			if (classification.render_strategy ==="detail_only") {
 				detailProperties.push(classifiedProp);
 			} else {
 				summaryProperties.push(classifiedProp);
@@ -138,23 +138,23 @@ export function getPropertyTypeLabel(
 	classification: PropertyClassification
 ): string {
 	switch (classification.inferred_type) {
-		case "boolean":
-			return "Yes/No";
-		case "numeric":
-			return "Number";
-		case "datetime":
-			return "Date";
-		case "url":
-			return "URL";
-		case "categorical":
-			return "Category";
-		case "aggregatable":
-			return "Top Values";
-		case "text":
-			return "Text";
-		case "high_cardinality":
-			return "Unique";
+		case"boolean":
+			return"Yes/No";
+		case"numeric":
+			return"Number";
+		case"datetime":
+			return"Date";
+		case"url":
+			return"URL";
+		case"categorical":
+			return"Category";
+		case"aggregatable":
+			return"Top Values";
+		case"text":
+			return"Text";
+		case"high_cardinality":
+			return"Unique";
 		default:
-			return "Unknown";
+			return"Unknown";
 	}
 }

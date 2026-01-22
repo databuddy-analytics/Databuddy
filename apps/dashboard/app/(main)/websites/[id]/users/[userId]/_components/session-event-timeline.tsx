@@ -1,15 +1,15 @@
 "use client";
 
-import type { SessionEvent } from "@databuddy/shared/types/sessions";
+import type { SessionEvent } from"@databuddy/shared/types/sessions";
 import {
 	CursorClickIcon,
 	FileTextIcon,
 	LightningIcon,
 	SparkleIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { Badge } from "@/components/ui/badge";
-import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { Badge } from"@/components/ui/badge";
+import { cleanUrl, formatPropertyValue, getDisplayPath } from"./session-utils";
 
 interface SessionEventTimelineProps {
 	events: SessionEvent[];
@@ -18,11 +18,11 @@ interface SessionEventTimelineProps {
 function getEventIcon(eventName: string, hasProperties: boolean) {
 	if (hasProperties) return SparkleIcon;
 	switch (eventName) {
-		case "screen_view":
-		case "page_view":
+		case"screen_view":
+		case"page_view":
 			return FileTextIcon;
-		case "click":
-		case "player-page-tab":
+		case"click":
+		case"player-page-tab":
 			return CursorClickIcon;
 		default:
 			return LightningIcon;
@@ -40,8 +40,8 @@ function EventItem({
 		event.properties && Object.keys(event.properties).length > 0
 	);
 	const Icon = getEventIcon(event.event_name, hasProperties);
-	const displayPath = getDisplayPath(event.path || "");
-	const fullPath = cleanUrl(event.path || "");
+	const displayPath = getDisplayPath(event.path ||"");
+	const fullPath = cleanUrl(event.path ||"");
 	const time = dayjs(event.time).format("h:mm:ss A");
 
 	return (
@@ -53,7 +53,7 @@ function EventItem({
 
 			{/* Icon */}
 			<Icon
-				className={`size-4 ${hasProperties ? "text-primary" : "text-muted-foreground"}`}
+				className={`size-4 ${hasProperties ?"text-primary" :"text-muted-foreground"}`}
 			/>
 
 			{/* Event Name */}
@@ -64,7 +64,7 @@ function EventItem({
 				className="truncate font-mono text-muted-foreground text-xs"
 				title={fullPath}
 			>
-				{displayPath || "—"}
+				{displayPath ||"—"}
 			</span>
 
 			{/* Custom Badge */}
@@ -99,7 +99,7 @@ function EventProperties({
 		<div className="ml-12 flex flex-wrap gap-1.5 pb-2">
 			{entries.map(([key, value]) => (
 				<div
-					className="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5 text-xs"
+					className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 text-xs"
 					key={key}
 				>
 					<span className="font-mono text-muted-foreground">{key}:</span>
@@ -122,7 +122,7 @@ export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 	}
 
 	return (
-		<div className="max-h-[280px] overflow-y-auto rounded border bg-background">
+		<div className="max-h-[280px] overflow-y-auto border bg-background">
 			{/* Header */}
 			<div className="sticky top-0 grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 border-b bg-accent px-2 py-1.5 font-medium text-muted-foreground text-xs">
 				<span className="text-right">#</span>

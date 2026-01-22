@@ -1,25 +1,25 @@
 "use client";
 
-import { HeartbeatIcon } from "@phosphor-icons/react/dist/ssr/Heartbeat";
-import dayjs from "dayjs";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
-import { RESGaugeCard } from "@/components/analytics/res-gauge-card";
+import { HeartbeatIcon } from"@phosphor-icons/react/dist/ssr/Heartbeat";
+import dayjs from"dayjs";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { useCallback, useMemo } from"react";
+import { RESGaugeCard } from"@/components/analytics/res-gauge-card";
 import {
 	type TrendData,
 	VITAL_CONFIGS,
 	VitalGaugeCard,
-} from "@/components/analytics/vital-gauge-card";
-import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import { DataTable, type TabConfig } from "@/components/table/data-table";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+} from"@/components/analytics/vital-gauge-card";
+import { SimpleMetricsChart } from"@/components/charts/simple-metrics-chart";
+import { DataTable, type TabConfig } from"@/components/table/data-table";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { usePersistentState } from"@/hooks/use-persistent-state";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
-} from "@/stores/jotai/filterAtoms";
+} from"@/stores/jotai/filterAtoms";
 import {
 	createBrowserColumns,
 	createCityColumns,
@@ -27,7 +27,7 @@ import {
 	createPageColumns,
 	createRegionColumns,
 	type VitalsBreakdownData,
-} from "./columns";
+} from"./columns";
 
 interface VitalMetric {
 	metric_name: string;
@@ -63,7 +63,7 @@ interface VitalByPageRow {
 }
 
 type VitalVisibility = Record<string, boolean>;
-type PercentileKey = "p50" | "p75" | "p90" | "p95" | "p99";
+type PercentileKey ="p50" |"p75" |"p90" |"p95" |"p99";
 
 const DEFAULT_VISIBILITY: VitalVisibility = {
 	LCP: true,
@@ -79,25 +79,25 @@ const PERCENTILE_OPTIONS: {
 	label: string;
 	description: string;
 }[] = [
-	{ value: "p50", label: "p50", description: "Median" },
-	{ value: "p75", label: "p75", description: "Google's threshold" },
-	{ value: "p90", label: "p90", description: "90th percentile" },
-	{ value: "p95", label: "p95", description: "95th percentile" },
-	{ value: "p99", label: "p99", description: "99th percentile" },
+	{ value:"p50", label:"p50", description:"Median" },
+	{ value:"p75", label:"p75", description:"Google's threshold" },
+	{ value:"p90", label:"p90", description:"90th percentile" },
+	{ value:"p95", label:"p95", description:"95th percentile" },
+	{ value:"p99", label:"p99", description:"99th percentile" },
 ];
 
 function calculatePreviousPeriod(dateRange: {
 	start_date: string;
 	end_date: string;
-	granularity: "daily" | "hourly";
+	granularity:"daily" |"hourly";
 }) {
 	const startDate = dayjs(dateRange.start_date);
-	const daysDiff = dayjs(dateRange.end_date).diff(startDate, "day");
+	const daysDiff = dayjs(dateRange.end_date).diff(startDate,"day");
 
 	return {
-		start_date: startDate.subtract(daysDiff + 1, "day").format("YYYY-MM-DD"),
-		end_date: startDate.subtract(1, "day").format("YYYY-MM-DD"),
-		granularity: dateRange.granularity as "daily" | "hourly",
+		start_date: startDate.subtract(daysDiff + 1,"day").format("YYYY-MM-DD"),
+		end_date: startDate.subtract(1,"day").format("YYYY-MM-DD"),
+		granularity: dateRange.granularity as"daily" |"hourly",
 	};
 }
 
@@ -123,7 +123,7 @@ export default function VitalsPage() {
 		);
 
 	const [selectedPercentile, setSelectedPercentile] =
-		usePersistentState<PercentileKey>(`vitals-percentile-${websiteId}`, "p75");
+		usePersistentState<PercentileKey>(`vitals-percentile-${websiteId}`,"p75");
 
 	// Calculate previous period for comparison
 	const previousPeriodRange = useMemo(
@@ -133,50 +133,50 @@ export default function VitalsPage() {
 
 	const queries = [
 		{
-			id: "vitals-overview",
+			id:"vitals-overview",
 			parameters: ["vitals_overview"],
 			filters,
 		},
 		{
-			id: "vitals-previous",
+			id:"vitals-previous",
 			parameters: [
 				{
-					name: "vitals_overview",
+					name:"vitals_overview",
 					start_date: previousPeriodRange.start_date,
 					end_date: previousPeriodRange.end_date,
 					granularity: previousPeriodRange.granularity,
-					id: "previous_vitals_overview",
+					id:"previous_vitals_overview",
 				},
 			],
 			filters,
 		},
 		{
-			id: "vitals-time-series",
+			id:"vitals-time-series",
 			parameters: ["vitals_time_series"],
 			filters,
 		},
 		{
-			id: "vitals-by-page",
+			id:"vitals-by-page",
 			parameters: ["vitals_by_page"],
 			filters,
 		},
 		{
-			id: "vitals-by-country",
+			id:"vitals-by-country",
 			parameters: ["vitals_by_country"],
 			filters,
 		},
 		{
-			id: "vitals-by-browser",
+			id:"vitals-by-browser",
 			parameters: ["vitals_by_browser"],
 			filters,
 		},
 		{
-			id: "vitals-by-region",
+			id:"vitals-by-region",
 			parameters: ["vitals_by_region"],
 			filters,
 		},
 		{
-			id: "vitals-by-city",
+			id:"vitals-by-city",
 			parameters: ["vitals_by_city"],
 			filters,
 		},
@@ -189,7 +189,7 @@ export default function VitalsPage() {
 	);
 
 	const overviewData =
-		(getDataForQuery("vitals-overview", "vitals_overview") as VitalMetric[]) ??
+		(getDataForQuery("vitals-overview","vitals_overview") as VitalMetric[]) ??
 		[];
 
 	const previousOverviewData =
@@ -205,29 +205,29 @@ export default function VitalsPage() {
 		) as VitalTimeSeriesRow[]) ?? [];
 
 	const pageBreakdownData =
-		(getDataForQuery("vitals-by-page", "vitals_by_page") as VitalByPageRow[]) ??
+		(getDataForQuery("vitals-by-page","vitals_by_page") as VitalByPageRow[]) ??
 		[];
 
 	const countryBreakdownData =
-		(getDataForQuery("vitals-by-country", "vitals_by_country") as Record<
+		(getDataForQuery("vitals-by-country","vitals_by_country") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const browserBreakdownData =
-		(getDataForQuery("vitals-by-browser", "vitals_by_browser") as Record<
+		(getDataForQuery("vitals-by-browser","vitals_by_browser") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const regionBreakdownData =
-		(getDataForQuery("vitals-by-region", "vitals_by_region") as Record<
+		(getDataForQuery("vitals-by-region","vitals_by_region") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const cityBreakdownData =
-		(getDataForQuery("vitals-by-city", "vitals_by_city") as Record<
+		(getDataForQuery("vitals-by-city","vitals_by_city") as Record<
 			string,
 			unknown
 		>[]) ?? [];
@@ -266,7 +266,7 @@ export default function VitalsPage() {
 					label: config.name,
 					color: config.color,
 					formatValue: (v: number) =>
-						config.name === "CLS"
+						config.name ==="CLS"
 							? v.toFixed(2)
 							: `${Math.round(v)}${config.unit}`,
 				})),
@@ -328,7 +328,7 @@ export default function VitalsPage() {
 
 	const handleAddFilter = useCallback(
 		(field: string, value: string, _label?: string) => {
-			addFilter({ field, operator: "eq", value });
+			addFilter({ field, operator:"eq", value });
 		},
 		[addFilter]
 	);
@@ -359,12 +359,12 @@ export default function VitalsPage() {
 			if (pageData) {
 				pageData.samples += row.samples;
 				const metricKey = row.metric_name.toLowerCase() as
-					| "lcp"
-					| "fcp"
-					| "cls"
-					| "inp"
-					| "ttfb"
-					| "fps";
+					|"lcp"
+					|"fcp"
+					|"cls"
+					|"inp"
+					|"ttfb"
+					|"fps";
 				pageData[metricKey] = row[selectedPercentile];
 			}
 		}
@@ -375,7 +375,7 @@ export default function VitalsPage() {
 	const countryData = useMemo(
 		(): VitalsBreakdownData[] =>
 			countryBreakdownData.map((item) => ({
-				name: (item.name as string) || "",
+				name: (item.name as string) ||"",
 				samples: (item.samples as number) || 0,
 				visitors: (item.visitors as number) || undefined,
 				lcp: (item.p50_lcp as number) || undefined,
@@ -392,7 +392,7 @@ export default function VitalsPage() {
 	const browserData = useMemo(
 		(): VitalsBreakdownData[] =>
 			browserBreakdownData.map((item) => ({
-				name: (item.name as string) || "",
+				name: (item.name as string) ||"",
 				samples: (item.samples as number) || 0,
 				visitors: (item.visitors as number) || undefined,
 				lcp: (item.p50_lcp as number) || undefined,
@@ -407,7 +407,7 @@ export default function VitalsPage() {
 	const regionData = useMemo(
 		(): VitalsBreakdownData[] =>
 			regionBreakdownData.map((item) => ({
-				name: (item.name as string) || "",
+				name: (item.name as string) ||"",
 				samples: (item.samples as number) || 0,
 				visitors: (item.visitors as number) || undefined,
 				lcp: (item.p50_lcp as number) || undefined,
@@ -424,7 +424,7 @@ export default function VitalsPage() {
 	const cityData = useMemo(
 		(): VitalsBreakdownData[] =>
 			cityBreakdownData.map((item) => ({
-				name: (item.name as string) || "",
+				name: (item.name as string) ||"",
 				samples: (item.samples as number) || 0,
 				visitors: (item.visitors as number) || undefined,
 				lcp: (item.p50_lcp as number) || undefined,
@@ -443,32 +443,32 @@ export default function VitalsPage() {
 
 		if (pageVitalsTable.length > 0) {
 			tabs.push({
-				id: "pages",
-				label: "Pages",
+				id:"pages",
+				label:"Pages",
 				data: pageVitalsTable,
 				columns: createPageColumns(),
-				getFilter: (row) => ({ field: "path", value: row.name }),
+				getFilter: (row) => ({ field:"path", value: row.name }),
 			});
 		}
 
 		if (countryData.length > 0) {
 			tabs.push({
-				id: "countries",
-				label: "Countries",
+				id:"countries",
+				label:"Countries",
 				data: countryData,
 				columns: createCountryColumns(),
-				getFilter: (row) => ({ field: "country", value: row.name }),
+				getFilter: (row) => ({ field:"country", value: row.name }),
 			});
 		}
 
 		if (regionData.length > 0) {
 			tabs.push({
-				id: "regions",
-				label: "Regions",
+				id:"regions",
+				label:"Regions",
 				data: regionData,
 				columns: createRegionColumns(),
 				getFilter: (row) => ({
-					field: "region",
+					field:"region",
 					value: row.name.split(",")[0]?.trim() || row.name,
 				}),
 			});
@@ -476,12 +476,12 @@ export default function VitalsPage() {
 
 		if (cityData.length > 0) {
 			tabs.push({
-				id: "cities",
-				label: "Cities",
+				id:"cities",
+				label:"Cities",
 				data: cityData,
 				columns: createCityColumns(),
 				getFilter: (row) => ({
-					field: "city",
+					field:"city",
 					value: row.name.split(",")[0]?.trim() || row.name,
 				}),
 			});
@@ -489,11 +489,11 @@ export default function VitalsPage() {
 
 		if (browserData.length > 0) {
 			tabs.push({
-				id: "browsers",
-				label: "Browsers",
+				id:"browsers",
+				label:"Browsers",
 				data: browserData,
 				columns: createBrowserColumns(),
-				getFilter: (row) => ({ field: "browser_name", value: row.name }),
+				getFilter: (row) => ({ field:"browser_name", value: row.name }),
 			});
 		}
 
@@ -547,7 +547,7 @@ export default function VitalsPage() {
 						title="Performance Trend"
 					/>
 				) : (
-					<div className="rounded border bg-card p-8 text-center">
+					<div className=" border bg-card p-8 text-center">
 						<p className="mx-auto text-muted-foreground text-sm">
 							Click on a metric above to add it to the chart
 						</p>
@@ -566,7 +566,7 @@ export default function VitalsPage() {
 					/>
 				) : (
 					!isLoading && (
-						<div className="rounded border bg-card p-8 text-center">
+						<div className=" border bg-card p-8 text-center">
 							<p className="mx-auto text-muted-foreground text-sm">
 								No breakdown data available. Vitals breakdowns will appear here
 								once data is collected.
@@ -576,7 +576,7 @@ export default function VitalsPage() {
 				)}
 
 				{!isLoading && overviewData.length === 0 && (
-					<div className="rounded border bg-card p-8 text-center">
+					<div className=" border bg-card p-8 text-center">
 						<HeartbeatIcon
 							className="mx-auto size-12 text-muted-foreground/40"
 							weight="duotone"
@@ -586,10 +586,10 @@ export default function VitalsPage() {
 						</h3>
 						<p className="mx-auto mt-1 max-w-md text-balance text-muted-foreground text-sm">
 							Web Vitals will appear here once your tracker starts collecting
-							performance data from real users. Make sure{" "}
-							<code className="rounded bg-muted px-1 py-0.5 text-xs">
+							performance data from real users. Make sure{""}
+							<code className=" bg-muted px-1 py-0.5 text-xs">
 								trackWebVitals
-							</code>{" "}
+							</code>{""}
 							is enabled in your tracker configuration.
 						</p>
 					</div>

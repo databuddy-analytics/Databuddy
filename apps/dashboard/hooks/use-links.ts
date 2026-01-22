@@ -1,13 +1,13 @@
 "use client";
 
-import type { InferSelectModel, links } from "@databuddy/db";
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { QueryKey } from "@tanstack/react-query";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { orpc } from "@/lib/orpc";
+import type { InferSelectModel, links } from"@databuddy/db";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { QueryKey } from"@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { orpc } from"@/lib/orpc";
 
 export type Link = InferSelectModel<typeof links>;
 
@@ -52,7 +52,7 @@ export interface LinkStats {
 
 export const getLinksListKey = (organizationId?: string): QueryKey =>
 	orpc.links.list.queryKey({
-		input: { organizationId: organizationId ?? "" },
+		input: { organizationId: organizationId ??"" },
 	});
 
 export const getLinkByIdKey = (id: string, organizationId: string): QueryKey =>
@@ -99,7 +99,7 @@ export function useLinks(options?: { enabled?: boolean }) {
 
 	const query = useQuery({
 		...orpc.links.list.queryOptions({
-			input: { organizationId: activeOrganization?.id ?? "" },
+			input: { organizationId: activeOrganization?.id ??"" },
 		}),
 		enabled: options?.enabled !== false && !isLoadingOrganization && !!activeOrganization?.id,
 	});
@@ -134,7 +134,7 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 	const queries = useMemo(
 		() => [
 			{
-				id: "link-stats",
+				id:"link-stats",
 				parameters: [
 					"link_total_clicks",
 					"link_clicks_by_day",
@@ -161,15 +161,15 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 	);
 
 	const stats = useMemo<LinkStats>(() => {
-		const totalClicksData = getDataForQuery("link-stats", "link_total_clicks");
-		const clicksByDayData = getDataForQuery("link-stats", "link_clicks_by_day");
-		const referrersByDayData = getDataForQuery("link-stats", "link_referrers_by_day") as TimeSeriesEntry[];
-		const countriesByDayData = getDataForQuery("link-stats", "link_countries_by_day") as TimeSeriesEntry[];
-		const topReferrersData = getDataForQuery("link-stats", "link_top_referrers") as Array<{ name: string; referrer: string; clicks: number }>;
-		const topCountriesData = getDataForQuery("link-stats", "link_top_countries") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topRegionsData = getDataForQuery("link-stats", "link_top_regions") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topCitiesData = getDataForQuery("link-stats", "link_top_cities") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topDevicesData = getDataForQuery("link-stats", "link_top_devices") as Array<{ name: string; clicks: number }>;
+		const totalClicksData = getDataForQuery("link-stats","link_total_clicks");
+		const clicksByDayData = getDataForQuery("link-stats","link_clicks_by_day");
+		const referrersByDayData = getDataForQuery("link-stats","link_referrers_by_day") as TimeSeriesEntry[];
+		const countriesByDayData = getDataForQuery("link-stats","link_countries_by_day") as TimeSeriesEntry[];
+		const topReferrersData = getDataForQuery("link-stats","link_top_referrers") as Array<{ name: string; referrer: string; clicks: number }>;
+		const topCountriesData = getDataForQuery("link-stats","link_top_countries") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
+		const topRegionsData = getDataForQuery("link-stats","link_top_regions") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
+		const topCitiesData = getDataForQuery("link-stats","link_top_cities") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
+		const topDevicesData = getDataForQuery("link-stats","link_top_devices") as Array<{ name: string; clicks: number }>;
 
 		return {
 			totalClicks: (totalClicksData[0] as { total?: number })?.total ?? 0,

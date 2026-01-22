@@ -6,10 +6,10 @@ import {
 	Smartphone,
 	Tablet,
 	Tv,
-} from "lucide-react";
-import Image from "next/image";
-import type React from "react";
-import { BrowserIcon, OSIcon } from "@/components/icon";
+} from"lucide-react";
+import Image from"next/image";
+import type React from"react";
+import { BrowserIcon, OSIcon } from"@/components/icon";
 
 // Regex patterns for browser name processing
 const MOBILE_PREFIX_REGEX = /^Mobile\s+/;
@@ -43,12 +43,12 @@ export type TechnologyTableEntry = {
 
 export const getDeviceTypeIcon = (
 	deviceType: string | null | undefined,
-	size: "sm" | "md" | "lg" = "md"
+	size:"sm" |"md" |"lg" ="md"
 ) => {
 	const sizeClasses = {
-		sm: "size-3",
-		md: "size-4",
-		lg: "size-5",
+		sm:"size-3",
+		md:"size-4",
+		lg:"size-5",
 	};
 
 	if (!deviceType) {
@@ -93,7 +93,7 @@ export const processDeviceData = (
 	const deviceGroups: Record<string, number> = {};
 
 	for (const item of deviceTypes) {
-		const deviceType = item.device_type || "Unknown";
+		const deviceType = item.device_type ||"Unknown";
 		const capitalizedType =
 			deviceType.charAt(0).toUpperCase() + deviceType.slice(1);
 		deviceGroups[capitalizedType] =
@@ -113,8 +113,8 @@ export const processDeviceData = (
 			visitors,
 			percentage:
 				totalVisitors > 0 ? Math.round((visitors / totalVisitors) * 100) : 0,
-			iconComponent: getDeviceTypeIcon(name, "md"),
-			category: "device",
+			iconComponent: getDeviceTypeIcon(name,"md"),
+			category:"device",
 		}));
 };
 
@@ -124,10 +124,10 @@ export const processBrowserData = (
 	const browserGroups: Record<string, number> = {};
 
 	for (const item of browserVersions) {
-		let browserName = item.browser || "Unknown";
+		let browserName = item.browser ||"Unknown";
 		browserName = browserName
-			.replace(MOBILE_PREFIX_REGEX, "")
-			.replace(MOBILE_SUFFIX_REGEX, "");
+			.replace(MOBILE_PREFIX_REGEX,"")
+			.replace(MOBILE_SUFFIX_REGEX,"");
 		browserGroups[browserName] =
 			(browserGroups[browserName] || 0) + (item.visitors || 0);
 	}
@@ -146,27 +146,27 @@ export const processBrowserData = (
 			percentage:
 				totalVisitors > 0 ? Math.round((visitors / totalVisitors) * 100) : 0,
 			iconComponent: <BrowserIcon name={name} size="md" />,
-			category: "browser",
+			category:"browser",
 		}));
 };
 
 export const TechnologyIcon = ({
 	entry,
-	size = "md",
+	size ="md",
 }: {
 	entry: TechnologyTableEntry;
-	size?: "sm" | "md" | "lg";
+	size?:"sm" |"md" |"lg";
 }) => {
 	if (entry.iconComponent) {
 		return <>{entry.iconComponent}</>;
 	}
 
 	// Use unified icon components for better consistency
-	if (entry.category === "browser") {
+	if (entry.category ==="browser") {
 		return <BrowserIcon name={entry.name} size={size} />;
 	}
 
-	if (entry.category === "os") {
+	if (entry.category ==="os") {
 		return <OSIcon name={entry.name} size={size} />;
 	}
 
@@ -201,20 +201,20 @@ export const TechnologyIcon = ({
 export const PercentageBadge = ({ percentage }: { percentage: number }) => {
 	const getColorClass = (pct: number) => {
 		if (pct >= 50) {
-			return "bg-green-100 border border-green-800/50 green-angled-rectangle-gradient text-green-800 dark:bg-green-900/30 dark:text-green-400";
+			return"bg-green-100 border border-green-800/50 green-angled-rectangle-gradient text-green-800 dark:bg-green-900/30 dark:text-green-400";
 		}
 		if (pct >= 25) {
-			return "bg-blue-100 border border-blue-800/50 blue-angled-rectangle-gradient text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+			return"bg-blue-100 border border-blue-800/50 blue-angled-rectangle-gradient text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
 		}
 		if (pct >= 10) {
-			return "bg-amber-100 border border-amber-800/40 amber-angled-rectangle-gradient text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+			return"bg-amber-100 border border-amber-800/40 amber-angled-rectangle-gradient text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
 		}
-		return "bg-accent-brighter border border-accent-foreground/30 badge-angled-rectangle-gradient text-accent-foreground";
+		return"bg-accent-brighter border border-accent-foreground/30 badge-angled-rectangle-gradient text-accent-foreground";
 	};
 
 	return (
 		<span
-			className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs ${getColorClass(percentage)}`}
+			className={`inline-flex items-center px-2 py-0.5 font-medium text-xs ${getColorClass(percentage)}`}
 		>
 			{percentage}%
 		</span>

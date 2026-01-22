@@ -5,17 +5,17 @@ import {
 	CaretDownIcon,
 	CheckCircleIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useLayoutEffect, useRef, useState } from "react";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useParams } from"next/navigation";
+import { useLayoutEffect, useRef, useState } from"react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import type { FunnelStepAnalytics } from "@/types/funnels";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
+import type { FunnelStepAnalytics } from"@/types/funnels";
 
 interface FunnelFlowProps {
 	steps: FunnelStepAnalytics[];
@@ -23,7 +23,7 @@ interface FunnelFlowProps {
 
 function formatTime(seconds: number): string {
 	if (!seconds || seconds <= 0) {
-		return "—";
+		return"—";
 	}
 	if (seconds < 60) {
 		return `${Math.round(seconds)}s`;
@@ -65,7 +65,7 @@ function LineProgress({ percentage, isLast }: LineProgressProps) {
 
 	return (
 		<div
-			className="flex h-5 items-center gap-[2px] rounded bg-secondary px-1"
+			className="flex h-5 items-center gap-[2px] bg-secondary px-1"
 			ref={containerRef}
 		>
 			{Array.from({ length: lineCount }).map((_, index) => {
@@ -73,12 +73,12 @@ function LineProgress({ percentage, isLast }: LineProgressProps) {
 				return (
 					<div
 						className={cn(
-							"h-3 w-px rounded-full transition-all duration-300",
+							"h-3 w-px transition-all duration-300",
 							isActive
 								? isLast
-									? "scale-y-100 bg-success"
-									: "scale-y-100 bg-chart-2"
-								: "scale-y-[0.5] bg-border"
+									?"scale-y-100 bg-success"
+									:"scale-y-100 bg-chart-2"
+								:"scale-y-[0.5] bg-border"
 						)}
 						key={index.toString()}
 					/>
@@ -93,7 +93,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 
 	if (!steps.length) {
 		return (
-			<div className="flex h-[120px] items-center justify-center rounded border border-border bg-card text-muted-foreground text-sm">
+			<div className="flex h-[120px] items-center justify-center border border-border bg-card text-muted-foreground text-sm">
 				No funnel steps configured
 			</div>
 		);
@@ -103,7 +103,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 	const lastStep = steps.at(-1);
 
 	return (
-		<div className="rounded border border-border bg-card">
+		<div className=" border border-border bg-card">
 			{steps.map((step, index) => {
 				const prevStep = index > 0 ? steps[index - 1] : null;
 				const droppedUsers = prevStep ? prevStep.users - step.users : 0;
@@ -145,10 +145,10 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 							{/* Step number badge */}
 							<div
 								className={cn(
-									"flex size-10 shrink-0 items-center justify-center rounded-full font-semibold text-sm",
+									"flex size-10 shrink-0 items-center justify-center font-semibold text-sm",
 									isLast
-										? "bg-success/15 text-success"
-										: "bg-secondary text-muted-foreground"
+										?"bg-success/15 text-success"
+										:"bg-secondary text-muted-foreground"
 								)}
 							>
 								{isLast ? (
@@ -168,7 +168,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 										{step.error_count > 0 && (
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<div className="flex shrink-0 cursor-help items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-destructive text-xs">
+													<div className="flex shrink-0 cursor-help items-center gap-1 bg-destructive/10 px-1.5 py-0.5 text-destructive text-xs">
 														<WarningCircleIcon
 															className="size-3"
 															weight="fill"
@@ -182,7 +182,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 													<div className="space-y-1.5">
 														<p className="font-medium text-sm">
 															{step.error_count} error
-															{step.error_count !== 1 ? "s" : ""} (
+															{step.error_count !== 1 ?"s" :""} (
 															{step.error_rate}% of users)
 														</p>
 														{step.top_errors.length > 0 && (
@@ -192,7 +192,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 																		className="flex items-start gap-1.5 text-xs"
 																		key={`${err.error_type}-${err.message}`}
 																	>
-																		<span className="rounded bg-muted px-1 font-mono">
+																		<span className=" bg-muted px-1 font-mono">
 																			{err.error_type}
 																		</span>
 																		<span className="line-clamp-2 text-muted-foreground">
@@ -230,7 +230,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 							<div
 								className={cn(
 									"w-16 shrink-0 text-right font-bold text-lg tabular-nums",
-									isLast ? "text-success" : "text-foreground"
+									isLast ?"text-success" :"text-foreground"
 								)}
 							>
 								{totalConversion.toFixed(0)}%
@@ -249,7 +249,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 					<span className="font-bold text-success tabular-nums">
 						{((lastStep.users / firstStepUsers) * 100).toFixed(1)}%
 						<span className="ml-1.5 font-normal text-muted-foreground text-sm">
-							({lastStep.users.toLocaleString()} of{" "}
+							({lastStep.users.toLocaleString()} of{""}
 							{firstStepUsers.toLocaleString()})
 						</span>
 					</span>

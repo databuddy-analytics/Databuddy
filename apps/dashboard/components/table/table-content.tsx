@@ -2,10 +2,10 @@ import {
 	ArrowDownIcon,
 	ArrowUpIcon,
 	DatabaseIcon,
-} from "@phosphor-icons/react";
-import { flexRender, type Table } from "@tanstack/react-table";
-import type React from "react";
-import { Fragment, memo, useCallback, useState } from "react";
+} from"@phosphor-icons/react";
+import { flexRender, type Table } from"@tanstack/react-table";
+import type React from"react";
+import { Fragment, memo, useCallback, useState } from"react";
 import {
 	TableBody,
 	TableCell,
@@ -13,9 +13,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
-import { TableEmptyState } from "./table-empty-state";
+} from"@/components/ui/table";
+import { cn } from"@/lib/utils";
+import { TableEmptyState } from"./table-empty-state";
 
 const PERCENTAGE_THRESHOLDS = {
 	HIGH: 50,
@@ -24,8 +24,8 @@ const PERCENTAGE_THRESHOLDS = {
 } as const;
 
 const DEFAULT_CELL_STYLE = {
-	maxWidth: "300px",
-	minWidth: "80px",
+	maxWidth:"300px",
+	minWidth:"80px",
 } as const;
 
 const cellStyleCache = new Map<number, React.CSSProperties>();
@@ -42,8 +42,8 @@ function getCellStyle(size: number): React.CSSProperties {
 
 	const style = {
 		width: `${Math.min(size, 300)}px`,
-		maxWidth: "300px",
-		minWidth: "80px",
+		maxWidth:"300px",
+		minWidth:"80px",
 	} as const;
 
 	cellStyleCache.set(size, style);
@@ -61,7 +61,7 @@ function getRowPercentage(row: PercentageRow): number {
 
 const GRADIENT_COLORS = {
 	high: {
-		rgb: "34, 197, 94",
+		rgb:"34, 197, 94",
 		opacity: {
 			background: 0.08,
 			hover: 0.12,
@@ -71,7 +71,7 @@ const GRADIENT_COLORS = {
 		},
 	},
 	medium: {
-		rgb: "59, 130, 246",
+		rgb:"59, 130, 246",
 		opacity: {
 			background: 0.08,
 			hover: 0.12,
@@ -81,7 +81,7 @@ const GRADIENT_COLORS = {
 		},
 	},
 	low: {
-		rgb: "245, 158, 11",
+		rgb:"245, 158, 11",
 		opacity: {
 			background: 0.08,
 			hover: 0.12,
@@ -91,7 +91,7 @@ const GRADIENT_COLORS = {
 		},
 	},
 	default: {
-		rgb: "107, 114, 128",
+		rgb:"107, 114, 128",
 		opacity: {
 			background: 0.08,
 			hover: 0.12,
@@ -191,7 +191,7 @@ function TableContentInner<TData extends { name: string | number }>({
 	onRowClick,
 	tabs,
 	activeTab,
-	emptyMessage = "No data available",
+	emptyMessage ="No data available",
 	className,
 }: TableContentProps<TData>) {
 	const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -264,8 +264,8 @@ function TableContentInner<TData extends { name: string | number }>({
 											header.getSize() !== 150
 												? `${Math.min(header.getSize(), 300)}px`
 												: undefined,
-										maxWidth: "300px",
-										minWidth: "80px",
+										maxWidth:"300px",
+										minWidth:"80px",
 									}}
 								>
 									<span className="truncate">
@@ -295,20 +295,20 @@ function TableContentInner<TData extends { name: string | number }>({
 								<TableRow
 									className={cn(
 										"relative h-11 border border-border border-r-0 bg-accent-brighter/30! pl-3 transition-all duration-300 ease-in-out",
-										(isInteractive || hasSubRows) && "cursor-pointer",
+										(isInteractive || hasSubRows) &&"cursor-pointer",
 										!gradient &&
-											(rowIndex % 2 === 0 ? "bg-accent/50" : "bg-accent/10")
+											(rowIndex % 2 === 0 ?"bg-accent/50" :"bg-accent/10")
 									)}
 									onClick={() =>
 										handleRowClick(row.original, hasSubRows, row.id)
 									}
 									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
+										if (e.key ==="Enter" || e.key ==="") {
 											e.preventDefault();
 											e.currentTarget.click();
 										}
 									}}
-									role={isInteractive || hasSubRows ? "button" : undefined}
+									role={isInteractive || hasSubRows ?"button" : undefined}
 									style={{
 										background: gradient?.background,
 										boxShadow: gradient
@@ -337,10 +337,10 @@ function TableContentInner<TData extends { name: string | number }>({
 														<button
 															aria-label={
 																expandedRow === row.id
-																	? "Collapse row"
-																	: "Expand row"
+																	?"Collapse row"
+																	:"Expand row"
 															}
-															className="shrink-0 rounded p-0.5 hover:bg-sidebar-accent/60"
+															className="shrink-0 p-0.5 hover:bg-sidebar-accent/60"
 															onClick={(e) => {
 																e.stopPropagation();
 																toggleRowExpansion(row.id);
@@ -391,7 +391,7 @@ function TableContentInner<TData extends { name: string | number }>({
 														<TableCell
 															className={cn(
 																"py-2 text-sidebar-foreground/70 text-sm",
-																cellIndex === 0 ? "pl-8" : "px-2"
+																cellIndex === 0 ?"pl-8" :"px-2"
 															)}
 															key={`sub-${cell.id}`}
 															style={subCellStyle}
@@ -400,7 +400,7 @@ function TableContentInner<TData extends { name: string | number }>({
 																{cellIndex === 0 && (
 																	<span className="text-xs">↳ </span>
 																)}
-																{(subRow as any)[cell.column.id] || ""}
+																{(subRow as any)[cell.column.id] ||""}
 															</div>
 														</TableCell>
 													);

@@ -3,10 +3,10 @@ import {
 	TrendUpIcon,
 	UsersIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import type { ErrorSummary } from "./types";
+} from"@phosphor-icons/react";
+import { Card } from"@/components/ui/card";
+import { cn } from"@/lib/utils";
+import type { ErrorSummary } from"./types";
 
 interface ErrorSummaryStatsProps {
 	errorSummary: ErrorSummary;
@@ -16,25 +16,25 @@ function ErrorStatCard({
 	title,
 	value,
 	icon: Icon,
-	variant = "default",
+	variant ="default",
 }: {
 	title: string;
 	value: string;
 	icon: typeof WarningCircleIcon;
-	variant?: "default" | "destructive" | "warning";
+	variant?:"default" |"destructive" |"warning";
 }) {
 	const variantStyles = {
 		default: {
-			iconBg: "bg-accent",
-			iconColor: "text-muted-foreground",
+			iconBg:"bg-accent",
+			iconColor:"text-muted-foreground",
 		},
 		destructive: {
-			iconBg: "bg-destructive/10",
-			iconColor: "text-destructive",
+			iconBg:"bg-destructive/10",
+			iconColor:"text-destructive",
 		},
 		warning: {
-			iconBg: "bg-amber-500/10",
-			iconColor: "text-amber-600 dark:text-amber-400",
+			iconBg:"bg-amber-500/10",
+			iconColor:"text-amber-600 dark:text-amber-400",
 		},
 	};
 
@@ -45,7 +45,7 @@ function ErrorStatCard({
 			<div className="flex items-center gap-2.5 px-2.5 py-2.5">
 				<div
 					className={cn(
-						"flex size-7 shrink-0 items-center justify-center rounded",
+						"flex size-7 shrink-0 items-center justify-center",
 						styles.iconBg
 					)}
 				>

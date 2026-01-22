@@ -1,6 +1,6 @@
-import { AutumnProvider } from "autumn-js/react";
-import { Sidebar } from "@/components/layout/sidebar";
-import { BillingProvider } from "@/components/providers/billing-provider";
+import { AutumnProvider } from"autumn-js/react";
+import { Sidebar } from"@/components/layout/sidebar";
+import { BillingProvider } from"@/components/providers/billing-provider";
 
 export default async function DemoLayout({
 	children,
@@ -9,7 +9,7 @@ export default async function DemoLayout({
 }) {
 	return (
 		<AutumnProvider
-			backendUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}
+			backendUrl={process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001"}
 		>
 			<BillingProvider>
 				<div className="h-dvh overflow-hidden text-foreground">

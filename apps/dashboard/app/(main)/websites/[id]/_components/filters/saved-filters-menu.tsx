@@ -1,25 +1,25 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
 import {
 	BookmarkIcon,
 	CheckIcon,
 	CopyIcon,
 	PencilIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { getOperatorLabel } from "@/hooks/use-filters";
-import type { SavedFilter } from "@/hooks/use-saved-filters";
+} from"@/components/ui/dropdown-menu";
+import { getOperatorLabel } from"@/hooks/use-filters";
+import type { SavedFilter } from"@/hooks/use-saved-filters";
 
 interface SavedFiltersMenuProps {
 	savedFilters: SavedFilter[];
@@ -75,7 +75,7 @@ export function SavedFiltersMenu({
 				variant="outline"
 			>
 				<BookmarkIcon className="size-3.5" weight="duotone" />
-				{isLoading ? "Loading…" : "No saved"}
+				{isLoading ?"Loading…" :"No saved"}
 			</Button>
 		);
 	}
@@ -131,7 +131,7 @@ export function SavedFiltersMenu({
 									<div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
 										<button
 											aria-label="Edit"
-											className="rounded p-1 hover:bg-accent"
+											className=" p-1 hover:bg-accent"
 											onClick={(e) => {
 												e.stopPropagation();
 												onEditFilter(saved.id);
@@ -143,7 +143,7 @@ export function SavedFiltersMenu({
 										</button>
 										<button
 											aria-label="Duplicate"
-											className="rounded p-1 hover:bg-accent"
+											className=" p-1 hover:bg-accent"
 											onClick={(e) => {
 												e.stopPropagation();
 												onDuplicateFilter(saved.id);
@@ -154,7 +154,7 @@ export function SavedFiltersMenu({
 										</button>
 										<button
 											aria-label="Delete"
-											className="rounded p-1 text-destructive hover:bg-destructive/10"
+											className=" p-1 text-destructive hover:bg-destructive/10"
 											onClick={(e) => {
 												e.stopPropagation();
 												onDeleteFilter(saved.id);
@@ -169,14 +169,14 @@ export function SavedFiltersMenu({
 								<div className="flex flex-wrap gap-1">
 									{saved.filters.slice(0, 2).map((filter, i) => (
 										<span
-											className="rounded bg-secondary px-1.5 py-0.5 text-muted-foreground text-xs"
+											className=" bg-secondary px-1.5 py-0.5 text-muted-foreground text-xs"
 											key={`${filter.field}-${i.toString()}`}
 										>
-											{getFieldLabel(filter.field)}{" "}
-											{getOperatorLabel(filter.operator)}{" "}
+											{getFieldLabel(filter.field)}{""}
+											{getOperatorLabel(filter.operator)}{""}
 											<span className="font-mono">
 												{Array.isArray(filter.value)
-													? filter.value.join(", ")
+													? filter.value.join(",")
 													: filter.value}
 											</span>
 										</span>

@@ -1,15 +1,15 @@
-import dayjs from "dayjs";
-import { parseAsString, useQueryState } from "nuqs";
-import { useCallback, useMemo } from "react";
+import dayjs from"dayjs";
+import { parseAsString, useQueryState } from"nuqs";
+import { useCallback, useMemo } from"react";
 import type {
 	DateRangeState,
 	TimeGranularity,
-} from "@/stores/jotai/filterAtoms";
+} from"@/stores/jotai/filterAtoms";
 
 const MAX_HOURLY_DAYS = 7;
 const AUTO_HOURLY_DAYS = 2;
 
-const initialStartDate = dayjs().subtract(30, "day").format("YYYY-MM-DD");
+const initialStartDate = dayjs().subtract(30,"day").format("YYYY-MM-DD");
 const initialEndDate = dayjs().format("YYYY-MM-DD");
 
 export function useDateFilters() {
@@ -28,19 +28,19 @@ export function useDateFilters() {
 
 	// Validate granularity
 	const granularity: TimeGranularity =
-		granularityStr === "daily" || granularityStr === "hourly"
+		granularityStr ==="daily" || granularityStr ==="hourly"
 			? granularityStr
-			: "daily";
+			:"daily";
 
 	// Helper to auto-adjust granularity based on date range
 	const getAutoGranularity = useCallback(
 		(startDate: string, endDate: string): TimeGranularity => {
-			const rangeDays = dayjs(endDate).diff(dayjs(startDate), "day");
+			const rangeDays = dayjs(endDate).diff(dayjs(startDate),"day");
 			if (rangeDays > MAX_HOURLY_DAYS) {
-				return "daily";
+				return"daily";
 			}
 			if (rangeDays <= AUTO_HOURLY_DAYS) {
-				return "hourly";
+				return"hourly";
 			}
 			return granularity;
 		},

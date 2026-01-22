@@ -1,11 +1,11 @@
 "use client";
 
-import { EyeIcon, EyeSlashIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { EyeIcon, EyeSlashIcon, PlusIcon, XIcon } from"@phosphor-icons/react";
+import { Loader2 } from"lucide-react";
+import { useEffect, useState } from"react";
+import { useHotkeys } from"react-hotkeys-hook";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -13,27 +13,27 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+} from"@/components/ui/dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Switch } from"@/components/ui/switch";
+import { Textarea } from"@/components/ui/textarea";
 import {
 	ANNOTATION_COLORS,
 	COMMON_ANNOTATION_TAGS,
 	DEFAULT_ANNOTATION_VALUES,
-} from "@/lib/annotation-constants";
+} from"@/lib/annotation-constants";
 import {
 	formatAnnotationDateRange,
 	sanitizeAnnotationText,
 	validateAnnotationForm,
-} from "@/lib/annotation-utils";
-import { cn } from "@/lib/utils";
-import type { Annotation, AnnotationFormData } from "@/types/annotations";
+} from"@/lib/annotation-utils";
+import { cn } from"@/lib/utils";
+import type { Annotation, AnnotationFormData } from"@/types/annotations";
 
 type EditModeProps = {
 	isOpen: boolean;
-	mode: "edit";
+	mode:"edit";
 	annotation: Annotation;
 	onClose: () => void;
 	onSubmit: (id: string, updates: AnnotationFormData) => Promise<void>;
@@ -42,11 +42,11 @@ type EditModeProps = {
 
 type CreateModeProps = {
 	isOpen: boolean;
-	mode: "create";
+	mode:"create";
 	dateRange: { startDate: Date; endDate: Date };
 	onClose: () => void;
 	onCreate: (annotation: {
-		annotationType: "range";
+		annotationType:"range";
 		xValue: string;
 		xEndValue: string;
 		text: string;
@@ -79,7 +79,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 			return;
 		}
 
-		if (mode === "edit") {
+		if (mode ==="edit") {
 			const { annotation } = props as EditModeProps;
 			setText(annotation.text);
 			setSelectedTags(annotation.tags || []);
@@ -145,13 +145,13 @@ export function AnnotationModal(props: AnnotationModalProps) {
 		setSubmitting(true);
 
 		try {
-			if (mode === "edit") {
+			if (mode ==="edit") {
 				const { annotation, onSubmit } = props as EditModeProps;
 				await onSubmit(annotation.id, formData);
 			} else {
 				const { dateRange, onCreate } = props as CreateModeProps;
 				await onCreate({
-					annotationType: "range",
+					annotationType:"range",
 					xValue: dateRange.startDate.toISOString(),
 					xEndValue: dateRange.endDate.toISOString(),
 					...formData,
@@ -166,7 +166,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 	};
 
 	const getDateRangeText = () => {
-		if (mode === "edit") {
+		if (mode ==="edit") {
 			const { annotation } = props as EditModeProps;
 			return formatAnnotationDateRange(
 				annotation.xValue,
@@ -176,19 +176,19 @@ export function AnnotationModal(props: AnnotationModalProps) {
 		}
 		const { dateRange } = props as CreateModeProps;
 		const start = dateRange.startDate.toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
+			month:"short",
+			day:"numeric",
 		});
 		const end = dateRange.endDate.toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
+			month:"short",
+			day:"numeric",
 		});
 		return dateRange.startDate.getTime() !== dateRange.endDate.getTime()
 			? `${start} – ${end}`
 			: start;
 	};
 
-	const isCreate = mode === "create";
+	const isCreate = mode ==="create";
 	const loading = submitting || isSubmitting;
 
 	return (
@@ -196,7 +196,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 			<DialogContent className="w-[95vw] max-w-sm sm:w-full">
 				<DialogHeader>
 					<DialogTitle>
-						{isCreate ? "New Annotation" : "Edit Annotation"}
+						{isCreate ?"New Annotation" :"Edit Annotation"}
 					</DialogTitle>
 					<DialogDescription>{getDateRangeText()}</DialogDescription>
 				</DialogHeader>
@@ -235,8 +235,8 @@ export function AnnotationModal(props: AnnotationModalProps) {
 								className={cn(
 									"text-xs tabular-nums",
 									text.length > DEFAULT_ANNOTATION_VALUES.maxTextLength * 0.9
-										? "text-warning"
-										: "text-muted-foreground"
+										?"text-warning"
+										:"text-muted-foreground"
 								)}
 							>
 								{text.length}/{DEFAULT_ANNOTATION_VALUES.maxTextLength}
@@ -268,7 +268,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 								disabled={loading}
 								onChange={(e) => setCustomTag(e.target.value)}
 								onKeyDown={(e) => {
-									if (e.key === "Enter") {
+									if (e.key ==="Enter") {
 										e.preventDefault();
 										handleCustomTagSubmit();
 									}
@@ -293,14 +293,14 @@ export function AnnotationModal(props: AnnotationModalProps) {
 								.slice(0, 5)
 								.map((tag) => (
 									<button
-										className="flex cursor-pointer items-center gap-1.5 rounded border bg-background px-2 py-1 text-muted-foreground text-xs transition-all hover:border-primary hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+										className="flex cursor-pointer items-center gap-1.5 border bg-background px-2 py-1 text-muted-foreground text-xs transition-all hover:border-primary hover:bg-accent hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
 										disabled={loading}
 										key={tag.value}
 										onClick={() => addTag(tag.value)}
 										type="button"
 									>
 										<div
-											className="size-2 rounded-full"
+											className="size-2"
 											style={{ backgroundColor: tag.color }}
 										/>
 										{tag.label}
@@ -316,10 +316,10 @@ export function AnnotationModal(props: AnnotationModalProps) {
 							{ANNOTATION_COLORS.map((color) => (
 								<button
 									className={cn(
-										"size-7 cursor-pointer rounded-full border-2 shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50",
+										"size-7 cursor-pointer border-2 shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50",
 										selectedColor === color.value
-											? "scale-110 border-foreground ring-2 ring-ring"
-											: "border-transparent hover:border-muted-foreground"
+											?"scale-110 border-foreground ring-2 ring-ring"
+											:"border-transparent hover:border-muted-foreground"
 									)}
 									disabled={loading}
 									key={color.value}
@@ -333,7 +333,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 					</div>
 
 					{/* Visibility */}
-					<div className="flex items-center justify-between rounded border bg-accent px-3 py-2.5">
+					<div className="flex items-center justify-between border bg-accent px-3 py-2.5">
 						<div className="flex items-center gap-2">
 							{isPublic ? (
 								<EyeIcon className="size-4 text-primary" weight="duotone" />
@@ -375,7 +375,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 						onClick={handleSubmit}
 					>
 						{loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-						{isCreate ? "Create annotation" : "Save changes"}
+						{isCreate ?"Create annotation" :"Save changes"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

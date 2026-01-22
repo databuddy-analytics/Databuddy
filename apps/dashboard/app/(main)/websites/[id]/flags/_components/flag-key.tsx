@@ -1,14 +1,14 @@
-import { CheckIcon } from "@phosphor-icons/react/dist/ssr/Check";
-import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
-import { Button } from "@/components/ui/button";
+import { CheckIcon } from"@phosphor-icons/react/dist/ssr/Check";
+import { CopyIcon } from"@phosphor-icons/react/dist/ssr/Copy";
+import { Button } from"@/components/ui/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
-import { cn } from "@/lib/utils";
-import type { Flag } from "./types";
+} from"@/components/ui/tooltip";
+import { useCopyToClipboard } from"@/hooks/use-copy-to-clipboard";
+import { cn } from"@/lib/utils";
+import type { Flag } from"./types";
 
 export function FlagKey({
 	flag,
@@ -39,7 +39,7 @@ export function FlagKey({
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">
-				{isCopied ? "Copied!" : "Click to copy key"}
+				{isCopied ?"Copied!" :"Click to copy key"}
 			</TooltipContent>
 		</Tooltip>
 	);

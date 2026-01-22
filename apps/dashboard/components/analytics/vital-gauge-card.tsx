@@ -1,15 +1,15 @@
 "use client";
 
-import { InfoIcon, TrendDownIcon, TrendUpIcon } from "@phosphor-icons/react";
-import { GaugeChart, type GaugeRating } from "@/components/charts/gauge-chart";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { InfoIcon, TrendDownIcon, TrendUpIcon } from"@phosphor-icons/react";
+import { GaugeChart, type GaugeRating } from"@/components/charts/gauge-chart";
+import { Card } from"@/components/ui/card";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 
 interface VitalConfig {
 	name: string;
@@ -32,9 +32,9 @@ interface VitalConfig {
 
 export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 	LCP: {
-		name: "LCP",
-		label: "Largest Contentful Paint",
-		description: "Loading performance",
+		name:"LCP",
+		label:"Largest Contentful Paint",
+		description:"Loading performance",
 		explanation:
 			"Measures how long it takes for the largest visible content (image or text block) to appear. Users perceive this as the page being 'ready'. A slow LCP makes your site feel sluggish.",
 		improvementTips: [
@@ -43,17 +43,17 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Preload critical resources",
 			"Use a CDN for static assets",
 		],
-		unit: "ms",
+		unit:"ms",
 		goodThreshold: 2500,
 		poorThreshold: 4000,
 		lowerIsBetter: true,
 		maxValue: 6000,
-		color: "#3b82f6",
+		color:"#3b82f6",
 	},
 	FCP: {
-		name: "FCP",
-		label: "First Contentful Paint",
-		description: "Initial render",
+		name:"FCP",
+		label:"First Contentful Paint",
+		description:"Initial render",
 		explanation:
 			"Measures when the first content appears on screen. This is the user's first visual feedback that the page is loading. A fast FCP gives users confidence your site is working.",
 		improvementTips: [
@@ -62,17 +62,17 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Inline critical CSS",
 			"Preconnect to required origins",
 		],
-		unit: "ms",
+		unit:"ms",
 		goodThreshold: 1800,
 		poorThreshold: 3000,
 		lowerIsBetter: true,
 		maxValue: 4500,
-		color: "#10b981",
+		color:"#10b981",
 	},
 	CLS: {
-		name: "CLS",
-		label: "Cumulative Layout Shift",
-		description: "Visual stability",
+		name:"CLS",
+		label:"Cumulative Layout Shift",
+		description:"Visual stability",
 		explanation:
 			"Measures unexpected layout shifts during the page's lifetime. High CLS means content 'jumps around' as the page loads—frustrating users who may click the wrong thing or lose their place.",
 		improvementTips: [
@@ -81,17 +81,17 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Avoid inserting content above existing content",
 			"Use CSS transform for animations",
 		],
-		unit: "",
+		unit:"",
 		goodThreshold: 0.1,
 		poorThreshold: 0.25,
 		lowerIsBetter: true,
 		maxValue: 0.5,
-		color: "#ec4899",
+		color:"#ec4899",
 	},
 	INP: {
-		name: "INP",
-		label: "Interaction to Next Paint",
-		description: "Responsiveness",
+		name:"INP",
+		label:"Interaction to Next Paint",
+		description:"Responsiveness",
 		explanation:
 			"Measures how quickly your page responds to user interactions (clicks, taps, key presses). A slow INP makes your site feel unresponsive and laggy, causing users to abandon actions.",
 		improvementTips: [
@@ -100,17 +100,17 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Use web workers for heavy computation",
 			"Reduce DOM size",
 		],
-		unit: "ms",
+		unit:"ms",
 		goodThreshold: 200,
 		poorThreshold: 500,
 		lowerIsBetter: true,
 		maxValue: 750,
-		color: "#8b5cf6",
+		color:"#8b5cf6",
 	},
 	TTFB: {
-		name: "TTFB",
-		label: "Time to First Byte",
-		description: "Server speed",
+		name:"TTFB",
+		label:"Time to First Byte",
+		description:"Server speed",
 		explanation:
 			"Measures how long it takes for the server to respond with the first byte of data. A slow TTFB indicates server-side issues—everything else waits for the server.",
 		improvementTips: [
@@ -119,17 +119,17 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Implement caching strategies",
 			"Upgrade server resources",
 		],
-		unit: "ms",
+		unit:"ms",
 		goodThreshold: 800,
 		poorThreshold: 1800,
 		lowerIsBetter: true,
 		maxValue: 2700,
-		color: "#f59e0b",
+		color:"#f59e0b",
 	},
 	FPS: {
-		name: "FPS",
-		label: "Frames Per Second",
-		description: "Smoothness",
+		name:"FPS",
+		label:"Frames Per Second",
+		description:"Smoothness",
 		explanation:
 			"Measures animation smoothness. Higher is better—60 FPS means smooth scrolling and animations. Low FPS causes visible stuttering and makes your site feel janky.",
 		improvementTips: [
@@ -138,40 +138,40 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 			"Debounce scroll/resize handlers",
 			"Reduce paint complexity",
 		],
-		unit: "fps",
+		unit:"fps",
 		goodThreshold: 55,
 		poorThreshold: 30,
 		lowerIsBetter: false,
 		maxValue: 60,
-		color: "#ef4444",
+		color:"#ef4444",
 	},
 };
 
 function getRating(value: number, config: VitalConfig): GaugeRating {
 	if (config.lowerIsBetter !== false) {
 		if (value <= config.goodThreshold) {
-			return "good";
+			return"good";
 		}
 		if (value <= config.poorThreshold) {
-			return "needs-improvement";
+			return"needs-improvement";
 		}
-		return "poor";
+		return"poor";
 	}
 	// Higher is better (FPS)
 	if (value >= config.goodThreshold) {
-		return "good";
+		return"good";
 	}
 	if (value >= config.poorThreshold) {
-		return "needs-improvement";
+		return"needs-improvement";
 	}
-	return "poor";
+	return"poor";
 }
 
 const RATING_LABELS: Record<GaugeRating, { label: string; className: string }> =
 	{
-		good: { label: "Good", className: "text-success" },
-		"needs-improvement": { label: "Needs work", className: "text-warning" },
-		poor: { label: "Poor", className: "text-destructive" },
+		good: { label:"Good", className:"text-success" },
+		"needs-improvement": { label:"Needs work", className:"text-warning" },
+		poor: { label:"Poor", className:"text-destructive" },
 	};
 
 interface TrendData {
@@ -217,7 +217,7 @@ export function VitalGaugeCard({
 				className={cn("gap-0 overflow-hidden border bg-card py-0", className)}
 			>
 				<div className="dotted-bg flex items-center justify-center bg-accent py-3">
-					<Skeleton className="size-24 rounded-full" />
+					<Skeleton className="size-24" />
 				</div>
 				<div className="flex items-center gap-2 border-t px-2.5 py-2">
 					<div className="min-w-0 flex-1 space-y-1">
@@ -235,7 +235,7 @@ export function VitalGaugeCard({
 	const ratingInfo = rating ? RATING_LABELS[rating] : null;
 
 	const formatValue = (v: number) => {
-		if (config.name === "CLS") {
+		if (config.name ==="CLS") {
 			return v.toFixed(2);
 		}
 		return Math.round(v).toLocaleString();
@@ -264,23 +264,23 @@ export function VitalGaugeCard({
 		<Card
 			className={cn(
 				"gap-0 overflow-hidden border bg-card py-0 transition-all",
-				isClickable && "cursor-pointer hover:border-primary",
-				isActive && isClickable && "ring-2 ring-primary/20",
-				!isActive && "opacity-50 grayscale",
+				isClickable &&"cursor-pointer hover:border-primary",
+				isActive && isClickable &&"ring-2 ring-primary/20",
+				!isActive &&"opacity-50 grayscale",
 				className
 			)}
 			onClick={onToggleAction}
 			onKeyDown={
 				isClickable
 					? (e) => {
-							if (e.key === "Enter" || e.key === " ") {
+							if (e.key ==="Enter" || e.key ==="") {
 								e.preventDefault();
 								onToggleAction?.();
 							}
 						}
 					: undefined
 			}
-			role={isClickable ? "button" : undefined}
+			role={isClickable ?"button" : undefined}
 			tabIndex={isClickable ? 0 : undefined}
 		>
 			<div className="dotted-bg relative flex items-center justify-center bg-accent py-3">
@@ -294,7 +294,7 @@ export function VitalGaugeCard({
 						value={value}
 					/>
 				) : (
-					<div className="flex size-24 items-center justify-center rounded-full border-4 border-muted bg-background">
+					<div className="flex size-24 items-center justify-center border-4 border-muted bg-background">
 						<span className="text-muted-foreground text-sm">—</span>
 					</div>
 				)}
@@ -304,7 +304,7 @@ export function VitalGaugeCard({
 						<TooltipTrigger asChild>
 							<button
 								aria-label={`Learn more about ${config.label}`}
-								className="rounded p-1 text-muted-foreground/60 transition-colors hover:bg-background/50 hover:text-foreground"
+								className=" p-1 text-muted-foreground/60 transition-colors hover:bg-background/50 hover:text-foreground"
 								onClick={(e) => e.stopPropagation()}
 								type="button"
 							>
@@ -320,7 +320,7 @@ export function VitalGaugeCard({
 									{config.explanation}
 								</p>
 							</div>
-							{rating === "poor" && config.improvementTips.length > 0 && (
+							{rating ==="poor" && config.improvementTips.length > 0 && (
 								<div className="border-b px-3 py-2">
 									<p className="mb-1 font-medium text-warning text-xs">
 										How to improve:
@@ -336,14 +336,14 @@ export function VitalGaugeCard({
 							)}
 							<div className="flex justify-between bg-accent px-3 py-1.5">
 								<span className="text-muted-foreground text-xs">
-									Good: {config.lowerIsBetter !== false ? "≤" : "≥"}{" "}
-									{config.name === "CLS"
+									Good: {config.lowerIsBetter !== false ?"≤" :"≥"}{""}
+									{config.name ==="CLS"
 										? config.goodThreshold
 										: `${config.goodThreshold}${config.unit}`}
 								</span>
 								<span className="text-muted-foreground text-xs">
-									Poor: {config.lowerIsBetter !== false ? ">" : "<"}{" "}
-									{config.name === "CLS"
+									Poor: {config.lowerIsBetter !== false ?">" :"<"}{""}
+									{config.name ==="CLS"
 										? config.poorThreshold
 										: `${config.poorThreshold}${config.unit}`}
 								</span>
@@ -355,9 +355,9 @@ export function VitalGaugeCard({
 				{hasTrend && trendChange !== null && Math.abs(trendChange) >= 1 && (
 					<div
 						className={cn(
-							"absolute bottom-2 left-2 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium text-xs",
-							trendIsPositive && "bg-success/10 text-success",
-							trendIsNegative && "bg-destructive/10 text-destructive",
+							"absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 font-medium text-xs",
+							trendIsPositive &&"bg-success/10 text-success",
+							trendIsNegative &&"bg-destructive/10 text-destructive",
 							!(trendIsPositive || trendIsNegative) &&
 								"bg-muted text-muted-foreground"
 						)}

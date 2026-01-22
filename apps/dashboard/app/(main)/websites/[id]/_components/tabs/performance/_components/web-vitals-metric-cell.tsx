@@ -1,25 +1,25 @@
 "use client";
 
-import { CheckCircleIcon as CheckCircle } from "@phosphor-icons/react/dist/ssr/CheckCircle";
-import { WarningIcon as Warning } from "@phosphor-icons/react/dist/ssr/Warning";
-import { formatPerformanceTime } from "../_utils/performance-utils";
+import { CheckCircleIcon as CheckCircle } from"@phosphor-icons/react/dist/ssr/CheckCircle";
+import { WarningIcon as Warning } from"@phosphor-icons/react/dist/ssr/Warning";
+import { formatPerformanceTime } from"../_utils/performance-utils";
 
 interface WebVitalsMetricCellProps {
 	value?: number;
-	metric: "lcp" | "fcp" | "fid" | "inp" | "cls";
+	metric:"lcp" |"fcp" |"fid" |"inp" |"cls";
 }
 
 const getWebVitalsThresholds = (metric: string) => {
 	switch (metric) {
-		case "lcp":
+		case"lcp":
 			return { good: 2500, poor: 4000 };
-		case "fcp":
+		case"fcp":
 			return { good: 1800, poor: 3000 };
-		case "fid":
+		case"fid":
 			return { good: 100, poor: 300 };
-		case "inp":
+		case"inp":
 			return { good: 200, poor: 500 };
-		case "cls":
+		case"cls":
 			return { good: 0.1, poor: 0.25 };
 		default:
 			return { good: 0, poor: 0 };
@@ -31,7 +31,7 @@ const getMetricStyles = (value: number, metric: string) => {
 
 	if (value <= thresholds.good) {
 		return {
-			colorClass: "text-green-600",
+			colorClass:"text-green-600",
 			isGood: true,
 			isPoor: false,
 		};
@@ -39,14 +39,14 @@ const getMetricStyles = (value: number, metric: string) => {
 
 	if (value <= thresholds.poor) {
 		return {
-			colorClass: "text-yellow-600",
+			colorClass:"text-yellow-600",
 			isGood: false,
 			isPoor: false,
 		};
 	}
 
 	return {
-		colorClass: "text-red-600",
+		colorClass:"text-red-600",
 		isGood: false,
 		isPoor: true,
 	};
@@ -61,7 +61,7 @@ export function WebVitalsMetricCell({
 	}
 
 	const formatted =
-		metric === "cls" ? value.toFixed(3) : formatPerformanceTime(value);
+		metric ==="cls" ? value.toFixed(3) : formatPerformanceTime(value);
 	const { colorClass, isGood, isPoor } = getMetricStyles(value, metric);
 	const showIcon = isGood || isPoor;
 

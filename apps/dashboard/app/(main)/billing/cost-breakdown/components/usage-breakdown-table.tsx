@@ -1,6 +1,6 @@
 "use client";
 
-import type { UsageResponse } from "@databuddy/shared/types/billing";
+import type { UsageResponse } from"@databuddy/shared/types/billing";
 import {
 	BugIcon,
 	ChartBarIcon,
@@ -8,42 +8,42 @@ import {
 	LinkIcon,
 	SparkleIcon,
 	TableIcon,
-} from "@phosphor-icons/react";
-import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
+} from"@phosphor-icons/react";
+import { EmptyState } from"@/components/empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Skeleton } from"@/components/ui/skeleton";
+import { calculateOverageCost, type OverageInfo } from"../utils/billing-utils";
 
 const EVENT_TYPE_CONFIG = {
 	event: {
-		name: "Page Views & Events",
-		description: "Standard analytics events and page views",
+		name:"Page Views & Events",
+		description:"Standard analytics events and page views",
 		icon: ChartBarIcon,
-		color: "blue",
+		color:"blue",
 	},
 	error: {
-		name: "Error Events",
-		description: "JavaScript errors and exceptions",
+		name:"Error Events",
+		description:"JavaScript errors and exceptions",
 		icon: BugIcon,
-		color: "red",
+		color:"red",
 	},
 	web_vitals: {
-		name: "Web Vitals",
-		description: "Core Web Vitals performance metrics",
+		name:"Web Vitals",
+		description:"Core Web Vitals performance metrics",
 		icon: LightningIcon,
-		color: "green",
+		color:"green",
 	},
 	custom_event: {
-		name: "Custom Events",
-		description: "Custom tracking events",
+		name:"Custom Events",
+		description:"Custom tracking events",
 		icon: SparkleIcon,
-		color: "purple",
+		color:"purple",
 	},
 	outgoing_link: {
-		name: "Outgoing Links",
-		description: "External link click tracking",
+		name:"Outgoing Links",
+		description:"External link click tracking",
 		icon: LinkIcon,
-		color: "orange",
+		color:"orange",
 	},
 } as const;
 
@@ -64,7 +64,7 @@ export function UsageBreakdownTable({
 				<div className="space-y-3">
 					{Array.from({ length: 5 }).map((_, i) => (
 						<div className="flex items-center gap-4" key={i}>
-							<Skeleton className="size-10 shrink-0 rounded border" />
+							<Skeleton className="size-10 shrink-0 border" />
 							<div className="min-w-0 flex-1 space-y-1">
 								<Skeleton className="h-4 w-32" />
 								<Skeleton className="h-3 w-48" />
@@ -133,7 +133,7 @@ export function UsageBreakdownTable({
 							className="group flex items-center gap-4 px-4 py-3 hover:bg-accent/50 sm:px-6 sm:py-4"
 							key={item.event_category}
 						>
-							<div className="flex size-10 shrink-0 items-center justify-center rounded border border-accent-foreground/10 bg-secondary">
+							<div className="flex size-10 shrink-0 items-center justify-center border border-accent-foreground/10 bg-secondary">
 								<IconComponent
 									className="size-5 text-accent-foreground"
 									weight="duotone"

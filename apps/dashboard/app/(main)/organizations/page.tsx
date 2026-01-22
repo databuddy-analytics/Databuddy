@@ -1,19 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { Skeleton } from "@/components/ui/skeleton";
-import { OrganizationsList } from "./components/organizations-list";
+import { Suspense } from"react";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { Skeleton } from"@/components/ui/skeleton";
+import { OrganizationsList } from"./components/organizations-list";
 
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded-full" />
+			<Skeleton className="size-10" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-24" />
 			</div>
-			<Skeleton className="h-6 w-14 rounded-full" />
+			<Skeleton className="h-6 w-14" />
 		</div>
 	);
 }
@@ -27,9 +27,9 @@ function PageSkeleton() {
 				<SkeletonRow />
 			</div>
 			<div className="space-y-4 bg-card p-5">
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-20 w-full rounded" />
+				<Skeleton className="h-20 w-full" />
 			</div>
 		</div>
 	);

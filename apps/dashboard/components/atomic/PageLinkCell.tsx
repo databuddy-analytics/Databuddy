@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowSquareOutIcon, FileTextIcon } from "@phosphor-icons/react";
-import type React from "react";
-import { formatDomainLink } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
-import { cn } from "@/lib/utils";
+import { ArrowSquareOutIcon, FileTextIcon } from"@phosphor-icons/react";
+import type React from"react";
+import { formatDomainLink } from"@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
+import { cn } from"@/lib/utils";
 
 export type PageLinkCellData = {
 	path: string;
@@ -23,8 +23,8 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 	path,
 	websiteDomain,
 	className,
-	iconClassName = "size-4 text-muted-foreground",
-	textClassName = "text-sm",
+	iconClassName ="size-4 text-muted-foreground",
+	textClassName ="text-sm",
 	maxLength = 35,
 }) => {
 	if (!path) {
@@ -46,8 +46,8 @@ export const PageLinkCell: React.FC<PageLinkCellProps> = ({
 			)}
 			href={href}
 			id={id}
-			rel={isExternal ? "noopener noreferrer" : undefined}
-			target={isExternal ? "_blank" : undefined}
+			rel={isExternal ?"noopener noreferrer" : undefined}
+			target={isExternal ?"_blank" : undefined}
 		>
 			<FileTextIcon
 				className={cn("shrink-0", iconClassName)}

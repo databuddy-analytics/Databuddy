@@ -1,16 +1,16 @@
 "use client";
 
-import { type IconProps, PlusIcon } from "@phosphor-icons/react";
-import { cloneElement, memo, type ReactElement, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { type IconProps, PlusIcon } from"@phosphor-icons/react";
+import { cloneElement, memo, type ReactElement, type ReactNode } from"react";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
+import { cn } from"@/lib/utils";
 
 export interface EmptyStateAction {
 	label: string;
 	onClick: () => void;
-	variant?: "default" | "outline" | "secondary";
-	size?: "default" | "sm" | "lg" | "icon";
+	variant?:"default" |"outline" |"secondary";
+	size?:"default" |"sm" |"lg" |"icon";
 }
 
 export interface EmptyStateProps {
@@ -25,15 +25,15 @@ export interface EmptyStateProps {
 	/** Secondary action button */
 	secondaryAction?: EmptyStateAction;
 	/** Custom styling variants */
-	variant?: "default" | "simple" | "minimal" | "error";
+	variant?:"default" |"simple" |"minimal" |"error";
 	/** Custom className */
 	className?: string;
 	/** Whether to show the plus badge on the icon */
 	showPlusBadge?: boolean;
 	/** Custom padding */
-	padding?: "sm" | "md" | "lg";
+	padding?:"sm" |"md" |"lg";
 	/** Custom role for accessibility (defaults to 'region') */
-	role?: "region" | "complementary" | "main";
+	role?:"region" |"complementary" |"main";
 	/** Custom aria-label for screen readers */
 	"aria-label"?: string;
 	/** Whether this is the main content area */
@@ -46,41 +46,41 @@ export const EmptyState = memo(function EmptyState({
 	description,
 	action,
 	secondaryAction,
-	variant = "minimal",
+	variant ="minimal",
 	className,
 	showPlusBadge = true,
-	padding = "lg",
-	role = "region",
+	padding ="lg",
+	role ="region",
 	"aria-label": ariaLabel,
 	isMainContent = false,
 }: EmptyStateProps) {
 	const getPadding = () => {
 		switch (padding) {
-			case "sm":
-				return "px-6 py-12";
-			case "md":
-				return "px-8 py-14";
-			case "lg":
-				return "px-8";
+			case"sm":
+				return"px-6 py-12";
+			case"md":
+				return"px-8 py-14";
+			case"lg":
+				return"px-8";
 			default:
-				return "px-8";
+				return"px-8";
 		}
 	};
 
 	const renderIcon = () => {
-		if (!icon || typeof icon !== "object" || !("type" in icon)) {
+		if (!icon || typeof icon !=="object" || !("type" in icon)) {
 			return null;
 		}
 
 		const iconProps = icon.props || {};
 
-		if (variant === "simple" || variant === "minimal" || variant === "error") {
+		if (variant ==="simple" || variant ==="minimal" || variant ==="error") {
 			return (
 				<div
 					aria-hidden="true"
 					className={cn(
-						"flex size-12 items-center justify-center rounded-2xl bg-accent-foreground",
-						variant === "error" && "bg-destructive/10"
+						"flex size-12 items-center justify-center bg-accent-foreground",
+						variant ==="error" &&"bg-destructive/10"
 					)}
 					role="img"
 				>
@@ -88,12 +88,12 @@ export const EmptyState = memo(function EmptyState({
 						...iconProps,
 						className: cn(
 							"size-6 text-accent",
-							variant === "error" && "text-destructive",
+							variant ==="error" &&"text-destructive",
 							iconProps.className
 						),
-						"aria-hidden": "true",
+						"aria-hidden":"true",
 						size: 24,
-						weight: "fill",
+						weight:"fill",
 					})}
 				</div>
 			);
@@ -103,27 +103,27 @@ export const EmptyState = memo(function EmptyState({
 			<div className="group relative mb-8">
 				<div
 					aria-hidden="true"
-					className="rounded-full border-2 border-primary/10 bg-primary/5 p-6"
+					className=" border-2 border-primary/10 bg-primary/5 p-6"
 					role="img"
 				>
 					{cloneElement(icon, {
 						...iconProps,
 						className: cn("size-6 text-primary", iconProps.className),
-						"aria-hidden": "true",
+						"aria-hidden":"true",
 						size: 24,
-						weight: "duotone",
+						weight:"duotone",
 					})}
 				</div>
 				{showPlusBadge && (
 					<button
 						aria-label="Create new item"
-						className="absolute -top-2 -right-2 cursor-pointer select-none rounded-full border-2 border-primary/10 bg-background p-2"
+						className="absolute -top-2 -right-2 cursor-pointer select-none border-2 border-primary/10 bg-background p-2"
 						onClick={(e) => {
 							e.stopPropagation();
 							action?.onClick();
 						}}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
+							if (e.key ==="Enter" || e.key ==="") {
 								e.preventDefault();
 								action?.onClick();
 							}
@@ -140,13 +140,13 @@ export const EmptyState = memo(function EmptyState({
 
 	const renderCard = () => {
 		const cardClasses = cn(
-			variant === "default" &&
-				"rounded-xl border-2 border-dashed bg-gradient-to-br from-background to-muted/10",
-			variant === "simple" && "rounded border-dashed bg-muted/10",
-			variant === "minimal" &&
-				"flex flex-1 rounded border-none bg-transparent shadow-none",
-			variant === "error" &&
-				"flex flex-1 rounded border-none bg-transparent shadow-none",
+			variant ==="default" &&
+				" border-2 border-dashed bg-gradient-to-br from-background to-muted/10",
+			variant ==="simple" &&" border-dashed bg-muted/10",
+			variant ==="minimal" &&
+				"flex flex-1 border-none bg-transparent shadow-none",
+			variant ==="error" &&
+				"flex flex-1 border-none bg-transparent shadow-none",
 			"safe-area-inset-4 sm:safe-area-inset-6 lg:safe-area-inset-8",
 			className
 		);
@@ -161,24 +161,24 @@ export const EmptyState = memo(function EmptyState({
 			<Card
 				aria-label={ariaLabel || `${title} - Empty State`}
 				className={cardClasses}
-				role={isMainContent ? "main" : role}
+				role={isMainContent ?"main" : role}
 			>
 				<CardContent className={contentClasses}>
 					{renderIcon()}
 					<div
 						className={cn(
 							"space-y-4",
-							variant === "minimal" && "max-w-sm",
-							variant !== "minimal" && "max-w-md lg:max-w-lg"
+							variant ==="minimal" &&"max-w-sm",
+							variant !=="minimal" &&"max-w-md lg:max-w-lg"
 						)}
 					>
 						{isMainContent ? (
 							<h1
 								className={cn(
 									"font-semibold text-foreground",
-									variant === "minimal" || variant === "error"
-										? "text-lg"
-										: "text-2xl lg:text-3xl"
+									variant ==="minimal" || variant ==="error"
+										?"text-lg"
+										:"text-2xl lg:text-3xl"
 								)}
 							>
 								{title}
@@ -187,17 +187,17 @@ export const EmptyState = memo(function EmptyState({
 							<div
 								className={cn(
 									"text-muted-foreground leading-relaxed",
-									variant === "minimal" || variant === "error"
-										? "text-sm"
-										: "text-base lg:text-lg"
+									variant ==="minimal" || variant ==="error"
+										?"text-sm"
+										:"text-base lg:text-lg"
 								)}
 							>
 								<h2
 									className={cn(
 										"mt-5 font-medium text-foreground",
-										variant === "minimal" || variant === "error"
-											? "text-lg"
-											: "text-2xl lg:text-3xl"
+										variant ==="minimal" || variant ==="error"
+											?"text-lg"
+											:"text-2xl lg:text-3xl"
 									)}
 								>
 									{title}
@@ -215,21 +215,21 @@ export const EmptyState = memo(function EmptyState({
 								{action && (
 									<Button
 										onClick={action.onClick}
-										size={action.size || "default"}
+										size={action.size ||"default"}
 										type="button"
-										variant={action.variant || "default"}
+										variant={action.variant ||"default"}
 									>
-										{variant === "default" && (
+										{variant ==="default" && (
 											<div className="absolute inset-0 translate-x-full bg-linear-to-r from-white/0 via-white/20 to-white/0 transition-transform duration-700 group-hover:translate-x-full motion-reduce:transform-none" />
 										)}
-										{variant === "default" && (
+										{variant ==="default" && (
 											<PlusIcon
 												className="relative z-10 size-5 transition-transform duration-300 group-hover:rotate-90 motion-reduce:transform-none"
 												size={20}
 											/>
 										)}
 										<span
-											className={cn(variant === "default" && "relative z-10")}
+											className={cn(variant ==="default" &&"relative z-10")}
 										>
 											{action.label}
 										</span>
@@ -243,7 +243,7 @@ export const EmptyState = memo(function EmptyState({
 										onClick={secondaryAction.onClick}
 										size="lg"
 										type="button"
-										variant={secondaryAction.variant || "outline"}
+										variant={secondaryAction.variant ||"outline"}
 									>
 										{secondaryAction.label}
 									</Button>
@@ -259,7 +259,7 @@ export const EmptyState = memo(function EmptyState({
 	return renderCard();
 });
 
-EmptyState.displayName = "EmptyState";
+EmptyState.displayName ="EmptyState";
 
 export function FeatureEmptyState({
 	icon,

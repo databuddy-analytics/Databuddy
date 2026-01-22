@@ -1,11 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
-import { type SubmitHandler, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { useEffect } from"react";
+import { type SubmitHandler, useForm } from"react-hook-form";
+import { toast } from"sonner";
+import { z } from"zod";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
 import {
 	Form,
 	FormControl,
@@ -13,14 +13,14 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { FormDialog } from "@/components/ui/form-dialog";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/form";
+import { FormDialog } from"@/components/ui/form-dialog";
+import { Input } from"@/components/ui/input";
 import {
 	useCreateWebsite,
 	useUpdateWebsite,
 	type Website,
-} from "@/hooks/use-websites";
+} from"@/hooks/use-websites";
 
 interface UpdateWebsiteInput {
 	id: string;
@@ -44,12 +44,12 @@ const formSchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, "Name is required")
-		.regex(/^[a-zA-Z0-9\s\-_]+$/, "Use alphanumeric, spaces, -, _"),
+		.min(1,"Name is required")
+		.regex(/^[a-zA-Z0-9\s\-_]+$/,"Use alphanumeric, spaces, -, _"),
 	domain: z
 		.string()
-		.min(1, "Domain is required")
-		.regex(domainRegex, "Invalid domain format"),
+		.min(1,"Domain is required")
+		.regex(domainRegex,"Invalid domain format"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -76,23 +76,23 @@ export function WebsiteDialog({
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		mode: "onChange",
+		mode:"onChange",
 		defaultValues: {
-			name: "",
-			domain: "",
+			name:"",
+			domain:"",
 		},
 	});
 
 	useEffect(() => {
 		if (website) {
-			form.reset({ name: website.name || "", domain: website.domain || "" });
+			form.reset({ name: website.name ||"", domain: website.domain ||"" });
 		} else {
-			form.reset({ name: "", domain: "" });
+			form.reset({ name:"", domain:"" });
 		}
 	}, [website, form]);
 
 	const getErrorMessage = (error: unknown, isEditingMode: boolean): string => {
-		const defaultMessage = `Failed to ${isEditingMode ? "update" : "create"} website.`;
+		const defaultMessage = `Failed to ${isEditingMode ?"update" :"create"} website.`;
 
 		const rpcError = error as {
 			data?: { code?: string };
@@ -101,18 +101,18 @@ export function WebsiteDialog({
 
 		if (rpcError?.data?.code) {
 			switch (rpcError.data.code) {
-				case "CONFLICT":
-					return "A website with this domain already exists.";
-				case "FORBIDDEN":
+				case"CONFLICT":
+					return"A website with this domain already exists.";
+				case"FORBIDDEN":
 					return (
 						rpcError.message ||
 						"You do not have permission to perform this action."
 					);
-				case "UNAUTHORIZED":
-					return "You must be logged in to perform this action.";
-				case "BAD_REQUEST":
+				case"UNAUTHORIZED":
+					return"You must be logged in to perform this action.";
+				case"BAD_REQUEST":
 					return (
-						rpcError.message || "Invalid request. Please check your input."
+						rpcError.message ||"Invalid request. Please check your input."
 					);
 				default:
 					return rpcError.message || defaultMessage;
@@ -167,16 +167,16 @@ export function WebsiteDialog({
 		<FormDialog
 			description={
 				isEditing
-					? "Update the details of your existing website."
-					: "A new website to start tracking analytics."
+					?"Update the details of your existing website."
+					:"A new website to start tracking analytics."
 			}
 			isSubmitting={isPending}
 			onOpenChange={onOpenChange}
 			onSubmit={form.handleSubmit(handleSubmit)}
 			open={open}
 			submitDisabled={isSubmitDisabled}
-			submitLabel={isEditing ? "Save changes" : "Create website"}
-			title={isEditing ? "Edit Website" : "Create a new website"}
+			submitLabel={isEditing ?"Save changes" :"Create website"}
+			title={isEditing ?"Edit Website" :"Create a new website"}
 		>
 			<Form {...form}>
 				<FormField
@@ -200,13 +200,13 @@ export function WebsiteDialog({
 							<FormLabel>Domain</FormLabel>
 							<FormControl>
 								<div className="flex items-center">
-									<span className="inline-flex h-9 items-center rounded-none border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
+									<span className="inline-flex h-9 items-center border border-r-0 bg-dialog px-3 text-accent-foreground text-sm">
 										https://
 									</span>
 									<Input
 										placeholder="your-company.com"
 										{...field}
-										className="rounded-l-none border border-border border-l-0"
+										className=" border border-border border-l-0"
 										onChange={(e) => {
 											let domain = e.target.value.trim();
 											if (
@@ -219,7 +219,7 @@ export function WebsiteDialog({
 													// Do nothing
 												}
 											}
-											field.onChange(domain.replace(wwwRegex, ""));
+											field.onChange(domain.replace(wwwRegex,""));
 										}}
 									/>
 								</div>

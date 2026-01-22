@@ -1,8 +1,8 @@
 "use client";
 
-import { Provider as ChatProvider, createChatStore } from "@ai-sdk-tools/store";
-import type { UIMessage } from "ai";
-import { useMemo } from "react";
+import { Provider as ChatProvider, createChatStore } from"@ai-sdk-tools/store";
+import type { UIMessage } from"ai";
+import { useMemo } from"react";
 
 type ChatProviderWrapperProps = {
 	chatId: string;

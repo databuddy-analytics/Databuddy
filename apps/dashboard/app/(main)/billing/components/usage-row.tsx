@@ -8,16 +8,16 @@ import {
 	LightningIcon,
 	UsersIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { memo } from "react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { memo } from"react";
+import { Badge } from"@/components/ui/badge";
+import { cn } from"@/lib/utils";
 import {
 	type FeatureUsage,
 	formatCompactNumber,
 	getResetText,
-} from "../utils/feature-usage";
+} from"../utils/feature-usage";
 
 function formatCurrency(amount: number): string {
 	if (amount >= 1000) {
@@ -67,7 +67,7 @@ export const UsageRow = memo(function UsageRowComponent({
 		<div className="px-5 py-4">
 			<div className="mb-3 flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-background">
+					<div className="flex size-10 shrink-0 items-center justify-center border bg-background">
 						<Icon
 							className="text-muted-foreground"
 							size={18}
@@ -126,7 +126,7 @@ export const UsageRow = memo(function UsageRowComponent({
 						<span
 							className={cn(
 								"font-mono text-base",
-								isLow ? "text-warning" : "text-foreground"
+								isLow ?"text-warning" :"text-foreground"
 							)}
 						>
 							{formatCompactNumber(used)} / {formatCompactNumber(feature.limit)}
@@ -138,17 +138,17 @@ export const UsageRow = memo(function UsageRowComponent({
 
 			{hasNormalLimit && (
 				<div className="flex items-center gap-3">
-					<div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+					<div className="h-2 flex-1 overflow-hidden bg-muted">
 						<div
 							className={cn(
 								"h-full transition-all",
 								hasOverage
-									? "bg-destructive"
+									?"bg-destructive"
 									: isLow
-										? "bg-warning"
-										: "bg-primary"
+										?"bg-warning"
+										:"bg-primary"
 							)}
-							style={{ width: hasOverage ? "100%" : `${usedPercent}%` }}
+							style={{ width: hasOverage ?"100%" : `${usedPercent}%` }}
 						/>
 					</div>
 					{(isLow || hasOverage) && (

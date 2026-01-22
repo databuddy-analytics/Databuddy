@@ -1,6 +1,6 @@
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import type { ReactNode } from "react";
-import { PercentageBadge } from "@/components/ui/percentage-badge";
+import type { CellContext, ColumnDef } from"@tanstack/react-table";
+import type { ReactNode } from"react";
+import { PercentageBadge } from"@/components/ui/percentage-badge";
 
 export interface IconTextEntry {
 	name: string;
@@ -19,7 +19,7 @@ interface IconTextRowProps {
 
 export function createIconTextColumns({
 	header,
-	accessorKey = "name",
+	accessorKey ="name",
 	getIcon,
 	getSubtitle,
 	includeMetrics = true,
@@ -30,7 +30,7 @@ export function createIconTextColumns({
 			accessorKey,
 			header,
 			cell: (info: CellContext<IconTextEntry, any>) => {
-				const name = (info.getValue() as string) || "";
+				const name = (info.getValue() as string) ||"";
 				const entry = info.row.original;
 				const subtitle = getSubtitle?.(entry);
 
@@ -52,27 +52,27 @@ export function createIconTextColumns({
 	if (includeMetrics) {
 		const formatNumber = (value: number | null | undefined): string => {
 			if (value == null || Number.isNaN(value)) {
-				return "0";
+				return"0";
 			}
 			return Intl.NumberFormat(undefined, {
-				notation: "compact",
+				notation:"compact",
 				maximumFractionDigits: 1,
 			}).format(value);
 		};
 
 		columns.push(
 			{
-				id: "visitors",
-				accessorKey: "visitors",
-				header: "Visitors",
+				id:"visitors",
+				accessorKey:"visitors",
+				header:"Visitors",
 				cell: (info: CellContext<IconTextEntry, any>) => (
 					<span className="font-medium">{formatNumber(info.getValue())}</span>
 				),
 			},
 			{
-				id: "percentage",
-				accessorKey: "percentage",
-				header: "Share",
+				id:"percentage",
+				accessorKey:"percentage",
+				header:"Share",
 				cell: (info: CellContext<IconTextEntry, any>) => {
 					const percentage = info.getValue() as number;
 					return <PercentageBadge percentage={percentage} />;

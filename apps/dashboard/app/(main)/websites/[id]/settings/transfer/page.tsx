@@ -6,13 +6,13 @@ import {
 	BuildingsIcon,
 	InfoIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import { useParams, useRouter } from "next/navigation";
-import { Suspense, useCallback, useState } from "react";
-import { toast } from "sonner";
-import { PageHeader } from "@/app/(main)/websites/_components/page-header";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useParams, useRouter } from"next/navigation";
+import { Suspense, useCallback, useState } from"react";
+import { toast } from"sonner";
+import { PageHeader } from"@/app/(main)/websites/_components/page-header";
+import { Alert, AlertDescription } from"@/components/ui/alert";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -20,19 +20,19 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+} from"@/components/ui/dialog";
+import { Label } from"@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { type Organization, useOrganizations } from "@/hooks/use-organizations";
-import { useWebsiteTransferToOrg } from "@/hooks/use-website-transfer-to-org";
-import { useWebsite } from "@/hooks/use-websites";
-import { NoticeBanner } from "../../../_components/notice-banner";
+} from"@/components/ui/select";
+import { type Organization, useOrganizations } from"@/hooks/use-organizations";
+import { useWebsiteTransferToOrg } from"@/hooks/use-website-transfer-to-org";
+import { useWebsite } from"@/hooks/use-websites";
+import { NoticeBanner } from"../../../_components/notice-banner";
 
 function TransferPageContent() {
 	const params = useParams();
@@ -66,7 +66,7 @@ function TransferPageContent() {
 			{
 				onSuccess: () => {
 					toast.success(
-						`Website "${websiteData.name}" has been transferred to "${targetOrg.name}"`
+						`Website"${websiteData.name}" has been transferred to"${targetOrg.name}"`
 					);
 					setShowConfirmDialog(false);
 					setSelectedOrgId("");
@@ -96,7 +96,7 @@ function TransferPageContent() {
 				/>
 				<div className="flex flex-1 items-center justify-center">
 					<div className="flex flex-col items-center gap-3">
-						<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+						<div className="size-8 animate-spin border-2 border-primary/20 border-t-primary" />
 						<p className="text-muted-foreground text-sm">
 							Loading transfer options...
 						</p>
@@ -112,9 +112,9 @@ function TransferPageContent() {
 	const currentOrg = organizations?.find(
 		(org: Organization) => org.id === websiteOrgId
 	) || {
-		id: websiteOrgId ?? "",
-		name: "Current Workspace",
-		slug: "",
+		id: websiteOrgId ??"",
+		name:"Current Workspace",
+		slug:"",
 		logo: null as string | null,
 		createdAt: new Date(),
 	};
@@ -142,7 +142,7 @@ function TransferPageContent() {
 					<div className="space-y-4">
 						<div className="flex items-center gap-3">
 							{/* Current Workspace */}
-							<div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-secondary p-3">
+							<div className="flex min-w-0 flex-1 items-center gap-3 border bg-secondary p-3">
 								<BuildingsIcon className="size-5 shrink-0 text-muted-foreground" />
 								<div className="min-w-0 flex-1">
 									<p className="mb-0.5 text-muted-foreground text-xs">From</p>
@@ -156,12 +156,12 @@ function TransferPageContent() {
 							<ArrowRightIcon className="size-4 shrink-0 text-muted-foreground" />
 
 							{/* Target Organization */}
-							<div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-secondary p-3">
+							<div className="flex min-w-0 flex-1 items-center gap-3 border bg-secondary p-3">
 								<BuildingsIcon className="size-5 shrink-0 text-muted-foreground" />
 								<div className="min-w-0 flex-1">
 									<p className="mb-0.5 text-muted-foreground text-xs">To</p>
 									<p className="truncate font-medium text-sm">
-										{selectedOrg?.name || "Select organization"}
+										{selectedOrg?.name ||"Select organization"}
 									</p>
 								</div>
 							</div>
@@ -229,7 +229,7 @@ function TransferPageContent() {
 								<div>
 									<strong className="font-semibold">Important:</strong> This
 									action is irreversible. All data, settings, and analytics will
-									be transferred to{" "}
+									be transferred to{""}
 									<strong className="font-semibold">{selectedOrg?.name}</strong>
 									. Ensure you have the necessary permissions on both
 									organizations.
@@ -243,8 +243,8 @@ function TransferPageContent() {
 				<section className="angled-rectangle-gradient mt-auto flex items-center justify-between gap-3 border-t bg-secondary px-5 py-4">
 					<p className="text-muted-foreground text-sm">
 						{selectedOrgId
-							? "Review the details and confirm to proceed"
-							: "Select a target organization to continue"}
+							?"Review the details and confirm to proceed"
+							:"Select a target organization to continue"}
 					</p>
 					<Button
 						disabled={!selectedOrgId || isTransferring}
@@ -267,8 +267,8 @@ function TransferPageContent() {
 
 					<div className="space-y-3">
 						{/* Website being transferred */}
-						<div className="flex items-center gap-2.5 rounded border bg-accent/50 p-2.5">
-							<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
+						<div className="flex items-center gap-2.5 border bg-accent/50 p-2.5">
+							<div className="flex size-8 shrink-0 items-center justify-center bg-primary/10">
 								<span className="font-semibold text-primary text-xs">
 									{websiteData.name?.charAt(0).toUpperCase() ||
 										websiteData.domain.charAt(0).toUpperCase()}
@@ -286,12 +286,12 @@ function TransferPageContent() {
 
 						{/* Transfer flow - stacked layout */}
 						<div className="space-y-2">
-							<div className="flex items-center gap-2.5 rounded border p-2.5">
-								<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
+							<div className="flex items-center gap-2.5 border p-2.5">
+								<div className="flex size-8 shrink-0 items-center justify-center border bg-background">
 									{currentOrg.logo ? (
 										<img
 											alt={currentOrg.name}
-											className="size-full rounded object-cover"
+											className="size-full object-cover"
 											height={32}
 											src={currentOrg.logo}
 											width={32}
@@ -315,12 +315,12 @@ function TransferPageContent() {
 								/>
 							</div>
 
-							<div className="flex items-center gap-2.5 rounded border border-primary/30 bg-primary/5 p-2.5">
-								<div className="flex size-8 shrink-0 items-center justify-center rounded border border-primary/30 bg-background">
+							<div className="flex items-center gap-2.5 border border-primary/30 bg-primary/5 p-2.5">
+								<div className="flex size-8 shrink-0 items-center justify-center border border-primary/30 bg-background">
 									{selectedOrg?.logo ? (
 										<img
 											alt={selectedOrg.name}
-											className="size-full rounded object-cover"
+											className="size-full object-cover"
 											height={32}
 											src={selectedOrg.logo}
 											width={32}
@@ -341,10 +341,10 @@ function TransferPageContent() {
 						{/* Warning */}
 						<p className="text-muted-foreground text-xs leading-relaxed">
 							All ownership, data, settings, and analytics will be transferred.
-							Members of{" "}
+							Members of{""}
 							<span className="font-medium text-foreground">
 								{selectedOrg?.name}
-							</span>{" "}
+							</span>{""}
 							will gain full access.
 						</p>
 					</div>
@@ -360,7 +360,7 @@ function TransferPageContent() {
 						<Button disabled={isTransferring} onClick={handleTransfer}>
 							{isTransferring ? (
 								<>
-									<div className="mr-2 size-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+									<div className="mr-2 size-4 animate-spin border-2 border-white/20 border-t-white" />
 									Transferring…
 								</>
 							) : (
@@ -389,7 +389,7 @@ export default function TransferPage() {
 					/>
 					<div className="flex flex-1 items-center justify-center">
 						<div className="flex flex-col items-center gap-3">
-							<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+							<div className="size-8 animate-spin border-2 border-primary/20 border-t-primary" />
 							<p className="text-muted-foreground text-sm">Loading...</p>
 						</div>
 					</div>

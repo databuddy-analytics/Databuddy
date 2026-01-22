@@ -1,7 +1,7 @@
-import type { ChatStatus, UIMessage } from "ai";
-import { useMemo } from "react";
-import type { AgentStatus } from "../agent-atoms";
-import { getToolMessage } from "../agent-commands";
+import type { ChatStatus, UIMessage } from"ai";
+import { useMemo } from"react";
+import type { AgentStatus } from"../agent-atoms";
+import { getToolMessage } from"../agent-commands";
 
 type ChatStatusResult = {
 	agentStatus: AgentStatus;
@@ -14,11 +14,11 @@ type ChatStatusResult = {
 
 function getTextContent(message: UIMessage): string {
 	if (!message.parts) {
-		return "";
+		return"";
 	}
 	return message.parts
 		.filter(
-			(part): part is { type: "text"; text: string } => part.type === "text"
+			(part): part is { type:"text"; text: string } => part.type ==="text"
 		)
 		.map((part) => part.text)
 		.join("");
@@ -29,8 +29,8 @@ export function useChatStatus(
 	status: ChatStatus
 ): ChatStatusResult {
 	return useMemo(() => {
-		const isLoading = status === "streaming" || status === "submitted";
-		const agentStatus: AgentStatus = isLoading ? "generating" : "idle";
+		const isLoading = status ==="streaming" || status ==="submitted";
+		const agentStatus: AgentStatus = isLoading ?"generating" :"idle";
 
 		const defaultResult: ChatStatusResult = {
 			agentStatus,
@@ -46,7 +46,7 @@ export function useChatStatus(
 		}
 
 		const lastMessage = messages.at(-1);
-		if (lastMessage?.role !== "assistant") {
+		if (lastMessage?.role !=="assistant") {
 			return { ...defaultResult, displayMessage: null };
 		}
 

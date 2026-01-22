@@ -1,9 +1,9 @@
 "use client";
 
-import { LinkIcon } from "@phosphor-icons/react";
-import { useMemo } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LinkIcon } from"@phosphor-icons/react";
+import { useMemo } from"react";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 
 const PROTOCOL_REGEX = /^https?:\/\//;
 
@@ -23,50 +23,50 @@ interface UtmBuilderProps {
 
 const UTM_FIELDS = [
 	{
-		key: "utm_source" as const,
-		label: "Source",
-		placeholder: "google, newsletter, twitter…",
-		description: "Where the traffic comes from",
+		key:"utm_source" as const,
+		label:"Source",
+		placeholder:"google, newsletter, twitter…",
+		description:"Where the traffic comes from",
 	},
 	{
-		key: "utm_medium" as const,
-		label: "Medium",
-		placeholder: "cpc, email, social…",
-		description: "Marketing medium",
+		key:"utm_medium" as const,
+		label:"Medium",
+		placeholder:"cpc, email, social…",
+		description:"Marketing medium",
 	},
 	{
-		key: "utm_campaign" as const,
-		label: "Campaign",
-		placeholder: "spring-sale, product-launch…",
-		description: "Campaign name",
+		key:"utm_campaign" as const,
+		label:"Campaign",
+		placeholder:"spring-sale, product-launch…",
+		description:"Campaign name",
 	},
 	{
-		key: "utm_content" as const,
-		label: "Content",
-		placeholder: "banner-ad, text-link…",
-		description: "Differentiate ads/links",
+		key:"utm_content" as const,
+		label:"Content",
+		placeholder:"banner-ad, text-link…",
+		description:"Differentiate ads/links",
 	},
 	{
-		key: "utm_term" as const,
-		label: "Term",
-		placeholder: "running+shoes…",
-		description: "Paid search keywords",
+		key:"utm_term" as const,
+		label:"Term",
+		placeholder:"running+shoes…",
+		description:"Paid search keywords",
 	},
 ] as const;
 
 export function parseUtmFromUrl(url: string): UtmParams {
 	const params: UtmParams = {
-		utm_source: "",
-		utm_medium: "",
-		utm_campaign: "",
-		utm_content: "",
-		utm_term: "",
+		utm_source:"",
+		utm_medium:"",
+		utm_campaign:"",
+		utm_content:"",
+		utm_term:"",
 	};
 
 	try {
 		const urlObj = new URL(url.startsWith("http") ? url : `https://${url}`);
 		for (const field of UTM_FIELDS) {
-			params[field.key] = urlObj.searchParams.get(field.key) ?? "";
+			params[field.key] = urlObj.searchParams.get(field.key) ??"";
 		}
 	} catch {
 		// Invalid URL, return empty params
@@ -100,7 +100,7 @@ export function appendUtmToUrl(url: string, params: UtmParams): string {
 
 		// Return URL without the protocol if the original didn't have one
 		if (!url.startsWith("http")) {
-			return urlObj.toString().replace(PROTOCOL_REGEX, "");
+			return urlObj.toString().replace(PROTOCOL_REGEX,"");
 		}
 
 		return urlObj.toString();
@@ -119,7 +119,7 @@ export function stripUtmFromUrl(url: string): string {
 
 		// Return URL without the protocol if the original didn't have one
 		if (!url.startsWith("http")) {
-			return urlObj.toString().replace(PROTOCOL_REGEX, "");
+			return urlObj.toString().replace(PROTOCOL_REGEX,"");
 		}
 
 		return urlObj.toString();
@@ -171,7 +171,7 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 			{previewUrl && previewUrl !== baseUrl && (
 				<div className="space-y-1.5">
 					<Label className="text-muted-foreground text-xs">Preview URL</Label>
-					<div className="break-all rounded border bg-muted/50 p-2 font-mono text-xs">
+					<div className="break-all border bg-muted/50 p-2 font-mono text-xs">
 						{previewUrl}
 					</div>
 				</div>

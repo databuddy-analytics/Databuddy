@@ -1,4 +1,4 @@
-import type { PerformanceEntry, PerformanceSummary } from "@/types/performance";
+import type { PerformanceEntry, PerformanceSummary } from"@/types/performance";
 
 export const SCORE_THRESHOLDS = {
 	FAST: 1000,

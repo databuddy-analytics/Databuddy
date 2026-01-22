@@ -8,17 +8,17 @@ import {
 	PencilSimpleIcon,
 	TrashIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { Label } from "@/components/ui/label";
-import { WebsiteDialog } from "@/components/website-dialog";
-import { useDeleteWebsite, useWebsite } from "@/hooks/use-websites";
-import { PageHeader } from "../../../_components/page-header";
-import { TOAST_MESSAGES } from "../../_components/shared/tracking-constants";
+} from"@phosphor-icons/react";
+import { useParams, useRouter } from"next/navigation";
+import { useCallback, useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { Label } from"@/components/ui/label";
+import { WebsiteDialog } from"@/components/website-dialog";
+import { useDeleteWebsite, useWebsite } from"@/hooks/use-websites";
+import { PageHeader } from"../../../_components/page-header";
+import { TOAST_MESSAGES } from"../../_components/shared/tracking-constants";
 
 export default function GeneralSettingsPage() {
 	const params = useParams();
@@ -67,7 +67,7 @@ export default function GeneralSettingsPage() {
 	if (!websiteData) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+				<div className="size-8 animate-spin border-2 border-primary/20 border-t-primary" />
 			</div>
 		);
 	}
@@ -115,7 +115,7 @@ export default function GeneralSettingsPage() {
 						<div className="min-w-0">
 							<Label className="block font-medium text-sm">Name</Label>
 							<p className="truncate text-muted-foreground text-sm">
-								{websiteData.name || "Not set"}
+								{websiteData.name ||"Not set"}
 							</p>
 						</div>
 						<Button
@@ -134,7 +134,7 @@ export default function GeneralSettingsPage() {
 						<div className="min-w-0">
 							<Label className="block font-medium text-sm">Domain</Label>
 							<p className="truncate text-muted-foreground text-sm">
-								{websiteData.domain || "Not set"}
+								{websiteData.domain ||"Not set"}
 							</p>
 						</div>
 						<Button
@@ -204,7 +204,7 @@ export default function GeneralSettingsPage() {
 				onConfirm={handleDeleteWebsite}
 				title="Delete Website"
 			>
-				<div className="rounded-md bg-secondary p-3 text-sm">
+				<div className=" bg-secondary p-3 text-sm">
 					<div className="flex items-start gap-2">
 						<WarningCircleIcon className="size-5 shrink-0" />
 						<div className="space-y-1">

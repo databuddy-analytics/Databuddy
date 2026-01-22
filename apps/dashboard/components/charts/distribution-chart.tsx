@@ -1,5 +1,5 @@
-import { PieChartIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { PieChartIcon } from"lucide-react";
+import { useCallback, useMemo, useState } from"react";
 import {
 	Cell,
 	Legend,
@@ -8,15 +8,15 @@ import {
 	ResponsiveContainer,
 	Sector,
 	Tooltip,
-} from "recharts";
+} from"recharts";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
-import { SkeletonChart } from "./skeleton-chart";
+} from"@/components/ui/card";
+import { SkeletonChart } from"./skeleton-chart";
 
 // Simple color palette
 const COLORS = [
@@ -61,7 +61,7 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 		percent: number;
 	};
 	return (
-		<div className="rounded-md border border-border bg-background p-2 text-xs shadow-md">
+		<div className=" border border-border bg-background p-2 text-xs shadow-md">
 			<p className="font-semibold">{data.name}</p>
 			<p>
 				<span className="text-muted-foreground">Count: </span>
@@ -173,7 +173,7 @@ export function DistributionChart({
 				)}
 			</CardHeader>
 			<CardContent className="px-0 pt-0 pb-4">
-				<div style={{ width: "100%", height: height - 50 }}>
+				<div style={{ width:"100%", height: height - 50 }}>
 					<ResponsiveContainer height="100%" width="100%">
 						<PieChart>
 							<Pie
@@ -211,7 +211,7 @@ export function DistributionChart({
 										}
 									/>
 								}
-								wrapperStyle={{ outline: "none" }}
+								wrapperStyle={{ outline:"none" }}
 							/>
 							<Legend
 								align="center"
@@ -219,7 +219,7 @@ export function DistributionChart({
 									const item = entry.payload;
 									const percentage = item.percent
 										? ` (${(item.percent * 100).toFixed(0)}%)`
-										: "";
+										:"";
 									return (
 										<span className="text-xs">
 											{value}
@@ -229,7 +229,7 @@ export function DistributionChart({
 								}}
 								layout="horizontal"
 								verticalAlign="bottom"
-								wrapperStyle={{ fontSize: "10px", bottom: 0 }}
+								wrapperStyle={{ fontSize:"10px", bottom: 0 }}
 							/>
 						</PieChart>
 					</ResponsiveContainer>

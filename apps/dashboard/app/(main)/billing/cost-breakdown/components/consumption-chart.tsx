@@ -1,8 +1,8 @@
 "use client";
 
-import type { UsageResponse } from "@databuddy/shared/types/billing";
-import { CalendarIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import type { UsageResponse } from"@databuddy/shared/types/billing";
+import { CalendarIcon } from"@phosphor-icons/react";
+import { useMemo, useState } from"react";
 import {
 	Bar,
 	BarChart,
@@ -11,17 +11,17 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { DateRangePicker } from "@/components/date-range-picker";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
+} from"recharts";
+import { DateRangePicker } from"@/components/date-range-picker";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { calculateOverageCost, type OverageInfo } from"../utils/billing-utils";
 
-type ViewMode = "daily" | "cumulative";
+type ViewMode ="daily" |"cumulative";
 
-import { METRIC_COLORS } from "@/components/charts/metrics-constants";
-import { EmptyState } from "@/components/empty-state";
-import { cn } from "@/lib/utils";
+import { METRIC_COLORS } from"@/components/charts/metrics-constants";
+import { EmptyState } from"@/components/empty-state";
+import { cn } from"@/lib/utils";
 
 const EVENT_TYPE_COLORS = {
 	event: METRIC_COLORS.pageviews.primary, // blue
@@ -91,8 +91,8 @@ export function ConsumptionChart({
 		return entries.map(([date, eventCounts]) => {
 			const dayData: any = {
 				date: new Date(date).toLocaleDateString("en-US", {
-					month: "short",
-					day: "numeric",
+					month:"short",
+					day:"numeric",
 				}),
 				fullDate: date,
 			};
@@ -105,7 +105,7 @@ export function ConsumptionChart({
 				}
 				const actualAmount = eventCounts[eventType] || 0;
 
-				if (viewMode === "cumulative") {
+				if (viewMode ==="cumulative") {
 					runningTotals[eventType] += actualAmount;
 					dayData[eventType] = runningTotals[eventType];
 				} else {
@@ -130,7 +130,7 @@ export function ConsumptionChart({
 					</div>
 				</div>
 				<div className="bg-card p-4 sm:p-6">
-					<Skeleton className="h-[350px] w-full rounded" />
+					<Skeleton className="h-[350px] w-full" />
 				</div>
 			</div>
 		);
@@ -183,20 +183,20 @@ export function ConsumptionChart({
 								to: new Date(usageData.dateRange.endDate),
 							}}
 						/>
-						<div className="flex rounded border border-border">
+						<div className="flex border border-border">
 							<Button
-								className="rounded-r-none border-border border-r"
+								className=" border-border border-r"
 								onClick={() => setViewMode("cumulative")}
 								size="sm"
-								variant={viewMode === "cumulative" ? "default" : "ghost"}
+								variant={viewMode ==="cumulative" ?"default" :"ghost"}
 							>
 								Cumulative
 							</Button>
 							<Button
-								className="rounded-l-none"
+								className=""
 								onClick={() => setViewMode("daily")}
 								size="sm"
-								variant={viewMode === "daily" ? "default" : "ghost"}
+								variant={viewMode ==="daily" ?"default" :"ghost"}
 							>
 								Daily
 							</Button>
@@ -211,7 +211,7 @@ export function ConsumptionChart({
 							data={chartData}
 							margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
 							style={{
-								cursor: "default",
+								cursor:"default",
 							}}
 						>
 							<defs>
@@ -230,11 +230,11 @@ export function ConsumptionChart({
 								))}
 							</defs>
 							<XAxis
-								axisLine={{ stroke: "var(--border)", strokeOpacity: 0.5 }}
+								axisLine={{ stroke:"var(--border)", strokeOpacity: 0.5 }}
 								dataKey="date"
 								tick={{
 									fontSize: 11,
-									fill: "var(--muted-foreground)",
+									fill:"var(--muted-foreground)",
 									fontWeight: 500,
 								}}
 								tickLine={false}
@@ -244,7 +244,7 @@ export function ConsumptionChart({
 								domain={[0, yAxisMax]}
 								tick={{
 									fontSize: 11,
-									fill: "var(--muted-foreground)",
+									fill:"var(--muted-foreground)",
 									fontWeight: 500,
 								}}
 								tickFormatter={(value) => {
@@ -263,7 +263,7 @@ export function ConsumptionChart({
 								content={({ active, payload, label }) => {
 									if (active && payload && payload.length) {
 										return (
-											<div className="min-w-[200px] rounded border border-border bg-popover p-3 shadow-lg">
+											<div className="min-w-[200px] border border-border bg-popover p-3 shadow-lg">
 												<div className="mb-2 flex items-center gap-2 border-border border-b pb-2">
 													<p className="font-semibold text-foreground text-sm">
 														{label}
@@ -295,13 +295,13 @@ export function ConsumptionChart({
 																>
 																	<div className="flex items-center gap-2">
 																		<div
-																			className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
+																			className="size-2.5 shrink-0 ring-2 ring-background"
 																			style={{ backgroundColor: color }}
 																		/>
 																		<span className="font-medium text-muted-foreground text-xs capitalize">
 																			{entry.dataKey
 																				?.toString()
-																				.replace("_", " ")}
+																				.replace("_","")}
 																		</span>
 																	</div>
 																	<div className="text-right">
@@ -324,12 +324,12 @@ export function ConsumptionChart({
 									return null;
 								}}
 								cursor={{
-									fill: "var(--muted)",
+									fill:"var(--muted)",
 									fillOpacity: 0.1,
-									stroke: "var(--primary)",
+									stroke:"var(--primary)",
 									strokeOpacity: 0.2,
 								}}
-								wrapperStyle={{ outline: "none" }}
+								wrapperStyle={{ outline:"none" }}
 							/>
 							<Legend
 								align="center"
@@ -341,11 +341,11 @@ export function ConsumptionChart({
 											className={cn(
 												"inline-flex select-none items-center font-medium text-xs capitalize leading-none transition-all duration-200",
 												isHidden
-													? "text-muted-foreground line-through decoration-1 opacity-40"
-													: "text-muted-foreground opacity-100"
+													?"text-muted-foreground line-through decoration-1 opacity-40"
+													:"text-muted-foreground opacity-100"
 											)}
 										>
-											{key.replace("_", " ")}
+											{key.replace("_","")}
 										</span>
 									);
 								}}
@@ -366,13 +366,13 @@ export function ConsumptionChart({
 								}}
 								verticalAlign="bottom"
 								wrapperStyle={{
-									display: "flex",
-									justifyContent: "center",
+									display:"flex",
+									justifyContent:"center",
 									gap: 12,
-									fontSize: "12px",
-									paddingTop: "20px",
+									fontSize:"12px",
+									paddingTop:"20px",
 									fontWeight: 500,
-									cursor: "pointer",
+									cursor:"pointer",
 								}}
 							/>
 							{Object.keys(EVENT_TYPE_COLORS).map((eventType) => (
@@ -389,8 +389,8 @@ export function ConsumptionChart({
 									}
 									strokeWidth={0.5}
 									style={{
-										filter: "none",
-										transition: "none",
+										filter:"none",
+										transition:"none",
 									}}
 								/>
 							))}

@@ -1,6 +1,6 @@
 export const formatPerformanceTime = (value: number): string => {
 	if (!value || value === 0) {
-		return "N/A";
+		return"N/A";
 	}
 	if (value < 1000) {
 		return `${Math.round(value)}ms`;
@@ -13,10 +13,10 @@ export const formatPerformanceTime = (value: number): string => {
 
 export const formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -24,33 +24,33 @@ export const formatNumber = (value: number | null | undefined): string => {
 export const getPerformanceRating = (
 	score: number
 ): { rating: string; className: string } => {
-	if (typeof score !== "number" || Number.isNaN(score)) {
-		return { rating: "Unknown", className: "text-muted-foreground" };
+	if (typeof score !=="number" || Number.isNaN(score)) {
+		return { rating:"Unknown", className:"text-muted-foreground" };
 	}
 	if (score >= 90) {
-		return { rating: "Excellent", className: "text-green-600" };
+		return { rating:"Excellent", className:"text-green-600" };
 	}
 	if (score >= 70) {
-		return { rating: "Good", className: "text-green-600" };
+		return { rating:"Good", className:"text-green-600" };
 	}
 	if (score >= 50) {
-		return { rating: "Moderate", className: "text-yellow-600" };
+		return { rating:"Moderate", className:"text-yellow-600" };
 	}
 	if (score >= 30) {
-		return { rating: "Poor", className: "text-orange-600" };
+		return { rating:"Poor", className:"text-orange-600" };
 	}
-	return { rating: "Very Poor", className: "text-red-600" };
+	return { rating:"Very Poor", className:"text-red-600" };
 };
 
-export const getMetricStyles = (value: number, type: "time" | "cls") => {
-	if (type === "cls") {
+export const getMetricStyles = (value: number, type:"time" |"cls") => {
+	if (type ==="cls") {
 		return {
 			colorClass:
 				value < 0.1
-					? "text-green-600"
+					?"text-green-600"
 					: value < 0.25
-						? "text-yellow-600"
-						: "text-red-600",
+						?"text-yellow-600"
+						:"text-red-600",
 			isGood: value < 0.1,
 			isPoor: value >= 0.25,
 		};
@@ -59,10 +59,10 @@ export const getMetricStyles = (value: number, type: "time" | "cls") => {
 	return {
 		colorClass:
 			value < 1000
-				? "text-green-600"
+				?"text-green-600"
 				: value < 3000
-					? "text-yellow-600"
-					: "text-red-600",
+					?"text-yellow-600"
+					:"text-red-600",
 		isGood: value < 1000,
 		isPoor: value >= 3000,
 	};
@@ -70,14 +70,14 @@ export const getMetricStyles = (value: number, type: "time" | "cls") => {
 
 export const getPerformanceColor = (avgLoadTime: number): string =>
 	avgLoadTime < 1500
-		? "text-green-600"
+		?"text-green-600"
 		: avgLoadTime < 3000
-			? "text-yellow-600"
-			: "text-red-600";
+			?"text-yellow-600"
+			:"text-red-600";
 
 export const getPerformanceScoreColor = (score: number): string =>
 	score >= 80
-		? "text-green-600"
+		?"text-green-600"
 		: score >= 60
-			? "text-yellow-600"
-			: "text-red-600";
+			?"text-yellow-600"
+			:"text-red-600";

@@ -1,35 +1,35 @@
 "use client";
 
-import { useFeature } from "@databuddy/sdk/react";
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { useFeature } from"@databuddy/sdk/react";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
 import {
 	ArchiveIcon,
 	FlagIcon,
 	InfoIcon,
 	LayoutIcon,
 	UsersThreeIcon,
-} from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useParams, usePathname } from "next/navigation";
-import { useCallback, useMemo } from "react";
-import { PageNavigation } from "@/components/layout/page-navigation";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import { useAtom } from"jotai";
+import { useParams, usePathname } from"next/navigation";
+import { useCallback, useMemo } from"react";
+import { PageNavigation } from"@/components/layout/page-navigation";
+import { Badge } from"@/components/ui/badge";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useWebsite } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
-import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
+} from"@/components/ui/tooltip";
+import { useWebsite } from"@/hooks/use-websites";
+import { orpc } from"@/lib/orpc";
+import { isAnalyticsRefreshingAtom } from"@/stores/jotai/filterAtoms";
 import {
 	isFlagSheetOpenAtom,
 	isGroupSheetOpenAtom,
-} from "@/stores/jotai/flagsAtoms";
-import { WebsitePageHeader } from "../_components/website-page-header";
-import { HARDCODED_TEMPLATES } from "./templates/_data/templates";
+} from"@/stores/jotai/flagsAtoms";
+import { WebsitePageHeader } from"../_components/website-page-header";
+import { HARDCODED_TEMPLATES } from"./templates/_data/templates";
 
 export default function FlagsLayout({
 	children,
@@ -64,11 +64,11 @@ export default function FlagsLayout({
 	const templates = useMemo(() => HARDCODED_TEMPLATES, []);
 
 	const activeFlags = useMemo(
-		() => flags?.filter((f) => f.status !== "archived") ?? [],
+		() => flags?.filter((f) => f.status !=="archived") ?? [],
 		[flags]
 	);
 	const archivedFlags = useMemo(
-		() => flags?.filter((f) => f.status === "archived") ?? [],
+		() => flags?.filter((f) => f.status ==="archived") ?? [],
 		[flags]
 	);
 
@@ -110,8 +110,8 @@ export default function FlagsLayout({
 					isTemplatesPage || isArchivePage
 						? undefined
 						: isGroupsPage
-							? "Create Group"
-							: "Create Flag"
+							?"Create Group"
+							:"Create Flag"
 				}
 				currentUsage={
 					isTemplatesPage
@@ -124,12 +124,12 @@ export default function FlagsLayout({
 				}
 				description={
 					isTemplatesPage
-						? "Pre-configured flag templates for common use cases"
+						?"Pre-configured flag templates for common use cases"
 						: isGroupsPage
-							? "Reusable targeting rules for your flags"
+							?"Reusable targeting rules for your flags"
 							: isArchivePage
-								? "Flags that have been archived"
-								: "Control feature rollouts and A/B testing"
+								?"Flags that have been archived"
+								:"Control feature rollouts and A/B testing"
 				}
 				docsUrl="https://www.databuddy.cc/docs/features/feature-flags"
 				feature={
@@ -166,21 +166,21 @@ export default function FlagsLayout({
 					isLoading
 						? undefined
 						: isTemplatesPage
-							? `${templates?.length ?? 0} template${(templates?.length ?? 0) !== 1 ? "s" : ""}`
+							? `${templates?.length ?? 0} template${(templates?.length ?? 0) !== 1 ?"s" :""}`
 							: isGroupsPage
-								? `${groups?.length ?? 0} group${(groups?.length ?? 0) !== 1 ? "s" : ""}`
+								? `${groups?.length ?? 0} group${(groups?.length ?? 0) !== 1 ?"s" :""}`
 								: isArchivePage
 									? `${archivedFlags.length} archived`
-									: `${activeFlags.length} flag${activeFlags.length !== 1 ? "s" : ""}`
+									: `${activeFlags.length} flag${activeFlags.length !== 1 ?"s" :""}`
 				}
 				title={
 					isTemplatesPage
-						? "Flag Templates"
+						?"Flag Templates"
 						: isGroupsPage
-							? "Target Groups"
+							?"Target Groups"
 							: isArchivePage
-								? "Archived Flags"
-								: "Feature Flags"
+								?"Archived Flags"
+								:"Feature Flags"
 				}
 				websiteId={websiteId}
 				websiteName={website?.name ?? undefined}
@@ -190,29 +190,29 @@ export default function FlagsLayout({
 			<PageNavigation
 				tabs={[
 					{
-						id: "flags",
-						label: "Flags",
+						id:"flags",
+						label:"Flags",
 						href: `/websites/${websiteId}/flags`,
 						icon: FlagIcon,
 						count: activeFlags.length,
 					},
 					{
-						id: "groups",
-						label: "Groups",
+						id:"groups",
+						label:"Groups",
 						href: `/websites/${websiteId}/flags/groups`,
 						icon: UsersThreeIcon,
 						count: groups?.length,
 					},
 					{
-						id: "templates",
-						label: "Templates",
+						id:"templates",
+						label:"Templates",
 						href: `/websites/${websiteId}/flags/templates`,
 						icon: LayoutIcon,
 						count: templates?.length,
 					},
 					{
-						id: "archive",
-						label: "Archive",
+						id:"archive",
+						label:"Archive",
 						href: `/websites/${websiteId}/flags/archive`,
 						icon: ArchiveIcon,
 						count: archivedFlags.length,
@@ -226,10 +226,10 @@ export default function FlagsLayout({
 				{experimentLoading || !flags ? (
 					<div className="flex items-center gap-3">
 						<div className="flex items-center gap-2">
-							<Skeleton className="size-4 rounded" />
-							<Skeleton className="h-5 w-20 rounded" />
+							<Skeleton className="size-4" />
+							<Skeleton className="h-5 w-20" />
 						</div>
-						<Skeleton className="h-4 w-32 rounded sm:w-40" />
+						<Skeleton className="h-4 w-32 sm:w-40" />
 					</div>
 				) : (
 					<div className="flex items-center gap-3">
@@ -261,8 +261,8 @@ export default function FlagsLayout({
 									<p className="text-xs leading-relaxed">
 										This is a proof-of-concept feature flag demonstrating A/B
 										testing capabilities. Approximately 50% of users are
-										randomly assigned to the "Red Team" experience, while the
-										other 50% see the "Blue Team" experience.
+										randomly assigned to the"Red Team" experience, while the
+										other 50% see the"Blue Team" experience.
 									</p>
 								</div>
 							</TooltipContent>

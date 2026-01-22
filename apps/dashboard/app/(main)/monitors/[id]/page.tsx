@@ -9,16 +9,16 @@ import {
 	PencilIcon,
 	PlayIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { EmptyState } from "@/components/empty-state";
-import { MonitorSheet } from "@/components/monitors/monitor-sheet";
+} from"@phosphor-icons/react";
+import { useMutation, useQuery } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import Link from"next/link";
+import { useParams, useRouter } from"next/navigation";
+import { useMemo, useState } from"react";
+import { toast } from"sonner";
+import { EmptyState } from"@/components/empty-state";
+import { MonitorSheet } from"@/components/monitors/monitor-sheet";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -28,27 +28,27 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { orpc } from "@/lib/orpc";
-import { RecentActivity } from "../../websites/[id]/pulse/_components/recent-activity";
-import { UptimeHeatmap } from "../../websites/[id]/pulse/_components/uptime-heatmap";
-import { PageHeader } from "../_components/page-header";
+} from"@/components/ui/alert-dialog";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { orpc } from"@/lib/orpc";
+import { RecentActivity } from"../../websites/[id]/pulse/_components/recent-activity";
+import { UptimeHeatmap } from"../../websites/[id]/pulse/_components/uptime-heatmap";
+import { PageHeader } from"../_components/page-header";
 
 dayjs.extend(relativeTime);
 
 const granularityLabels: Record<string, string> = {
-	minute: "Every minute",
-	five_minutes: "Every 5 minutes",
-	ten_minutes: "Every 10 minutes",
-	thirty_minutes: "Every 30 minutes",
-	hour: "Hourly",
-	six_hours: "Every 6 hours",
-	twelve_hours: "Every 12 hours",
-	day: "Daily",
+	minute:"Every minute",
+	five_minutes:"Every 5 minutes",
+	ten_minutes:"Every 10 minutes",
+	thirty_minutes:"Every 30 minutes",
+	hour:"Hourly",
+	six_hours:"Every 6 hours",
+	twelve_hours:"Every 12 hours",
+	day:"Daily",
 };
 
 export default function MonitorDetailsPage() {
@@ -63,7 +63,7 @@ export default function MonitorDetailsPage() {
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
+			mode:"auto" |"manual";
 			fields?: string[];
 		} | null;
 	} | null>(null);
@@ -109,7 +109,7 @@ export default function MonitorDetailsPage() {
 	const uptimeQueries = useMemo(
 		() => [
 			{
-				id: "uptime-recent-checks",
+				id:"uptime-recent-checks",
 				parameters: ["uptime_recent_checks"],
 				limit: 20,
 			},
@@ -128,11 +128,11 @@ export default function MonitorDetailsPage() {
 	const heatmapDateRange = useMemo(
 		() => ({
 			start_date: dayjs()
-				.subtract(89, "day")
+				.subtract(89,"day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
 			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
+			granularity:"daily" as const,
 		}),
 		[]
 	);
@@ -140,9 +140,9 @@ export default function MonitorDetailsPage() {
 	const heatmapQueries = useMemo(
 		() => [
 			{
-				id: "uptime-heatmap",
+				id:"uptime-heatmap",
 				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
+				granularity:"daily" as const,
 			},
 		],
 		[]
@@ -157,9 +157,9 @@ export default function MonitorDetailsPage() {
 	});
 
 	const recentChecks =
-		getDataForQuery("uptime-recent-checks", "uptime_recent_checks") || [];
+		getDataForQuery("uptime-recent-checks","uptime_recent_checks") || [];
 	const heatmapData =
-		getHeatmapData("uptime-heatmap", "uptime_time_series") || [];
+		getHeatmapData("uptime-heatmap","uptime_time_series") || [];
 
 	const handleEditMonitor = () => {
 		if (schedule) {
@@ -170,7 +170,7 @@ export default function MonitorDetailsPage() {
 				granularity: schedule.granularity,
 				jsonParsingConfig: schedule.jsonParsingConfig as {
 					enabled: boolean;
-					mode: "auto" | "manual";
+					mode:"auto" |"manual";
 					fields?: string[];
 				} | null,
 			});
@@ -195,7 +195,7 @@ export default function MonitorDetailsPage() {
 			await refetchSchedule();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update monitor";
+				error instanceof Error ? error.message :"Failed to update monitor";
 			toast.error(errorMessage);
 		} finally {
 			setIsPausing(false);
@@ -219,7 +219,7 @@ export default function MonitorDetailsPage() {
 			router.push("/monitors");
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to delete monitor";
+				error instanceof Error ? error.message :"Failed to delete monitor";
 			toast.error(errorMessage);
 		}
 	};
@@ -250,7 +250,7 @@ export default function MonitorDetailsPage() {
 			<div className="flex h-full items-center justify-center p-6">
 				<EmptyState
 					action={{
-						label: "Back to Monitors",
+						label:"Back to Monitors",
 						onClick: () => router.push("/monitors"),
 					}}
 					description="The monitor you are looking for does not exist or you don't have permission to view it."
@@ -265,11 +265,11 @@ export default function MonitorDetailsPage() {
 	const latestCheck = recentChecks[0];
 	const currentStatus = latestCheck
 		? latestCheck.status === 1
-			? "up"
+			?"up"
 			: latestCheck.status === 2
-				? "unknown"
-				: "down"
-		: "unknown";
+				?"unknown"
+				:"down"
+		:"unknown";
 
 	// Determine display name - prefer website name/domain for website monitors
 	const isWebsiteMonitor = !!schedule.websiteId;
@@ -278,7 +278,7 @@ export default function MonitorDetailsPage() {
 			schedule.website?.domain ||
 			schedule.name ||
 			"Uptime Monitor"
-		: schedule.name || schedule.url || "Uptime Monitor";
+		: schedule.name || schedule.url ||"Uptime Monitor";
 
 	return (
 		<div className="flex h-full flex-col">
@@ -303,7 +303,7 @@ export default function MonitorDetailsPage() {
 							variant="secondary"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={isRefreshing ?"animate-spin" :""}
 								size={16}
 							/>
 						</Button>
@@ -352,25 +352,25 @@ export default function MonitorDetailsPage() {
 							<span className="text-muted-foreground">Status:</span>
 							<Badge
 								className={
-									!schedule.isPaused && currentStatus === "up"
-										? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
-										: ""
+									!schedule.isPaused && currentStatus ==="up"
+										?"border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+										:""
 								}
 								variant={
 									schedule.isPaused
-										? "secondary"
-										: currentStatus === "down"
-											? "destructive"
-											: "default"
+										?"secondary"
+										: currentStatus ==="down"
+											?"destructive"
+											:"default"
 								}
 							>
 								{schedule.isPaused
-									? "Paused"
-									: currentStatus === "down"
-										? "Outage"
-										: currentStatus === "up"
-											? "Operational"
-											: "Unknown"}
+									?"Paused"
+									: currentStatus ==="down"
+										?"Outage"
+										: currentStatus ==="up"
+											?"Operational"
+											:"Unknown"}
 							</Badge>
 						</div>
 						<div className="flex items-center gap-2">
@@ -441,7 +441,7 @@ export default function MonitorDetailsPage() {
 							disabled={deleteMutation.isPending}
 							onClick={handleDeleteMonitor}
 						>
-							{deleteMutation.isPending ? "Deleting..." : "Delete Monitor"}
+							{deleteMutation.isPending ?"Deleting..." :"Delete Monitor"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

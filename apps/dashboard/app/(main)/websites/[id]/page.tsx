@@ -1,20 +1,20 @@
 "use client";
 
-import { WarningIcon } from "@phosphor-icons/react/dist/ssr/Warning";
-import { useAtom } from "jotai";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useWebsite } from "@/hooks/use-websites";
+import { WarningIcon } from"@phosphor-icons/react/dist/ssr/Warning";
+import { useAtom } from"jotai";
+import Link from"next/link";
+import { useParams } from"next/navigation";
+import { Button } from"@/components/ui/button";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useWebsite } from"@/hooks/use-websites";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 	isAnalyticsRefreshingAtom,
-} from "@/stores/jotai/filterAtoms";
-import { WebsiteOverviewTab } from "./_components/tabs/overview-tab";
-import type { FullTabProps } from "./_components/utils/types";
-import { EmptyState } from "./_components/utils/ui-components";
+} from"@/stores/jotai/filterAtoms";
+import { WebsiteOverviewTab } from"./_components/tabs/overview-tab";
+import type { FullTabProps } from"./_components/utils/types";
+import { EmptyState } from"./_components/utils/ui-components";
 
 export default function WebsiteDetailsPage() {
 	const { id } = useParams();

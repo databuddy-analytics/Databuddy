@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { GeneralSettings } from "../components/general-settings";
+import { Suspense } from"react";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useOrganizations } from"@/hooks/use-organizations";
+import { GeneralSettings } from"../components/general-settings";
 
 function PageSkeleton() {
 	return (
@@ -11,7 +11,7 @@ function PageSkeleton() {
 			<div className="space-y-6 border-b p-5 lg:border-b-0">
 				{/* Logo */}
 				<div className="flex items-center gap-3">
-					<Skeleton className="size-16 rounded-full" />
+					<Skeleton className="size-16" />
 					<div className="space-y-2">
 						<Skeleton className="h-4 w-32" />
 						<Skeleton className="h-3 w-48" />
@@ -31,9 +31,9 @@ function PageSkeleton() {
 				</div>
 			</div>
 			<div className="space-y-4 bg-card p-5">
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="mt-auto h-20 w-full rounded" />
+				<Skeleton className="mt-auto h-20 w-full" />
 			</div>
 		</div>
 	);

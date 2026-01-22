@@ -1,9 +1,9 @@
-import { formatMetricNumber } from "@/lib/formatters";
-import type { QueryCell } from "./types";
+import { formatMetricNumber } from"@/lib/formatters";
+import type { QueryCell } from"./types";
 
 export interface FormatOptions {
 	/** Override auto-detection of field type */
-	forceType?: "rate" | "duration" | "number" | "string";
+	forceType?:"rate" |"duration" |"number" |"string";
 }
 
 /**
@@ -16,15 +16,15 @@ export function formatWidgetValue(
 	options?: FormatOptions
 ): string {
 	if (value === null || value === undefined) {
-		return "—";
+		return"—";
 	}
 
-	if (typeof value === "boolean") {
-		return value ? "True" : "False";
+	if (typeof value ==="boolean") {
+		return value ?"True" :"False";
 	}
 
-	const num = typeof value === "number" ? value : Number(value);
-	const isValidNumber = typeof value === "number" || !Number.isNaN(num);
+	const num = typeof value ==="number" ? value : Number(value);
+	const isValidNumber = typeof value ==="number" || !Number.isNaN(num);
 
 	if (!isValidNumber) {
 		return String(value);
@@ -33,11 +33,11 @@ export function formatWidgetValue(
 	const fieldType = options?.forceType ?? detectFieldType(field);
 
 	switch (fieldType) {
-		case "rate":
+		case"rate":
 			return `${num.toFixed(1)}%`;
-		case "duration":
+		case"duration":
 			return formatDuration(num);
-		case "number":
+		case"number":
 			return formatMetricNumber(num);
 		default:
 			return String(value);
@@ -46,18 +46,18 @@ export function formatWidgetValue(
 
 function detectFieldType(
 	field: string
-): "rate" | "duration" | "number" | "string" {
+):"rate" |"duration" |"number" |"string" {
 	const lower = field.toLowerCase();
 
 	if (lower.includes("rate") || lower.includes("percentage")) {
-		return "rate";
+		return"rate";
 	}
 
 	if (lower.includes("duration") || lower.includes("time")) {
-		return "duration";
+		return"duration";
 	}
 
-	return "number";
+	return"number";
 }
 
 function formatDuration(seconds: number): string {
@@ -77,11 +77,11 @@ export function parseNumericValue(value: QueryCell | undefined): number {
 		return 0;
 	}
 
-	if (typeof value === "number") {
+	if (typeof value ==="number") {
 		return Number.isNaN(value) ? 0 : value;
 	}
 
-	if (typeof value === "string") {
+	if (typeof value ==="string") {
 		const num = Number(value);
 		return Number.isNaN(num) ? 0 : num;
 	}

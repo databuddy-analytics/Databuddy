@@ -1,10 +1,10 @@
-import { atom } from "jotai";
-import { atomWithReset, RESET } from "jotai/utils";
+import { atom } from"jotai";
+import { atomWithReset, RESET } from"jotai/utils";
 import {
 	dynamicQueryFiltersAtom,
 	formattedDateRangeAtom,
 	timeGranularityAtom,
-} from "./filterAtoms";
+} from"./filterAtoms";
 
 // Create a dependency atom that changes when filters/date range change
 const filterDependencyAtom = atom((get) => ({

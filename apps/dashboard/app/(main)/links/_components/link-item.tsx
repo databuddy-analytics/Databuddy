@@ -7,27 +7,27 @@ import {
 	PencilSimpleIcon,
 	QrCodeIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useCallback } from "react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useCallback } from"react";
+import { toast } from"sonner";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Link } from "@/hooks/use-links";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dropdown-menu";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { Link } from"@/hooks/use-links";
+import { cn } from"@/lib/utils";
 
 dayjs.extend(relativeTime);
 
-const LINKS_BASE_URL = "https://dby.sh";
+const LINKS_BASE_URL ="https://dby.sh";
 
 interface LinkItemProps {
 	link: Link;
@@ -46,7 +46,7 @@ export function LinkItem({
 	onShowQr,
 	className,
 }: LinkItemProps) {
-	const shortUrl = `${LINKS_BASE_URL.replace("https://", "")}/${link.slug}`;
+	const shortUrl = `${LINKS_BASE_URL.replace("https://","")}/${link.slug}`;
 
 	const handleCopy = useCallback(
 		async (e: React.MouseEvent) => {
@@ -66,7 +66,7 @@ export function LinkItem({
 	try {
 		const parsed = new URL(link.targetUrl);
 		displayTargetUrl =
-			parsed.host + (parsed.pathname !== "/" ? parsed.pathname : "");
+			parsed.host + (parsed.pathname !=="/" ? parsed.pathname :"");
 		if (displayTargetUrl.length > 50) {
 			displayTargetUrl = `${displayTargetUrl.slice(0, 47)}...`;
 		}
@@ -86,7 +86,7 @@ export function LinkItem({
 			type="button"
 		>
 			{/* Link icon */}
-			<div className="shrink-0 rounded bg-accent p-1.5 text-primary">
+			<div className="shrink-0 bg-accent p-1.5 text-primary">
 				<LinkIcon className="size-4" weight="duotone" />
 			</div>
 
@@ -97,7 +97,7 @@ export function LinkItem({
 						{link.name}
 					</h3>
 					<button
-						className="flex shrink-0 items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs transition-colors hover:bg-muted/80"
+						className="flex shrink-0 items-center gap-1 bg-muted px-1.5 py-0.5 font-mono text-xs transition-colors hover:bg-muted/80"
 						onClick={handleCopy}
 						type="button"
 					>
@@ -184,7 +184,7 @@ export function LinkItem({
 export function LinkItemSkeleton() {
 	return (
 		<div className="flex items-center gap-4 border-b px-4 py-3 sm:px-6 sm:py-4">
-			<Skeleton className="size-7 shrink-0 rounded" />
+			<Skeleton className="size-7 shrink-0" />
 			<div className="min-w-0 flex-1 space-y-1.5">
 				<div className="flex items-center gap-2">
 					<Skeleton className="h-4 w-32" />
@@ -201,7 +201,7 @@ export function LinkItemSkeleton() {
 					<Skeleton className="ml-auto h-4 w-16" />
 				</div>
 			</div>
-			<Skeleton className="size-8 shrink-0 rounded" />
+			<Skeleton className="size-8 shrink-0" />
 		</div>
 	);
 }

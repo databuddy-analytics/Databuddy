@@ -1,14 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { InvitationsView } from "./invitations-view";
+import { Suspense } from"react";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useOrganizations } from"@/hooks/use-organizations";
+import { InvitationsView } from"./invitations-view";
 
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-8 rounded-full" />
+			<Skeleton className="size-8" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-48" />
 				<Skeleton className="h-3 w-32" />
@@ -35,7 +35,7 @@ function PageSkeleton() {
 			</div>
 			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
 			</div>
 		</div>

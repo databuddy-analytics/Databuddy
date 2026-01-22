@@ -8,27 +8,27 @@ import {
 	TagIcon,
 	UserIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
-import { useMemo } from "react";
-import { StatCard } from "@/components/analytics";
-import { EmptyState } from "@/components/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useEventDetailData } from "./use-event-detail";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import Link from"next/link";
+import { notFound, useParams } from"next/navigation";
+import { useMemo } from"react";
+import { StatCard } from"@/components/analytics";
+import { EmptyState } from"@/components/empty-state";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useEventDetailData } from"./use-event-detail";
 
 dayjs.extend(relativeTime);
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -63,7 +63,7 @@ export default function EventDetailPage() {
 			};
 		}
 		const formatDate = (date: string) =>
-			dateRange.granularity === "hourly" ? date : date.slice(0, 10);
+			dateRange.granularity ==="hourly" ? date : date.slice(0, 10);
 
 		return {
 			total_events: data.trends.map((t) => ({
@@ -88,9 +88,9 @@ export default function EventDetailPage() {
 	if (error) {
 		return (
 			<div className="p-3 sm:p-4">
-				<div className="rounded border border-destructive/20 bg-destructive/5 p-6">
+				<div className=" border border-destructive/20 bg-destructive/5 p-6">
 					<div className="flex flex-col items-center text-center">
-						<div className="mb-4 flex size-12 items-center justify-center rounded bg-destructive/10">
+						<div className="mb-4 flex size-12 items-center justify-center bg-destructive/10">
 							<LightningIcon
 								className="size-6 text-destructive"
 								weight="duotone"
@@ -127,7 +127,7 @@ export default function EventDetailPage() {
 					<EmptyState
 						description="This event has no data in the selected time range."
 						icon={<LightningIcon />}
-						title={`No events found for "${eventName}"`}
+						title={`No events found for"${eventName}"`}
 						variant="minimal"
 					/>
 				</div>
@@ -181,7 +181,7 @@ export default function EventDetailPage() {
 					</div>
 
 					{properties.length > 0 && (
-						<div className="rounded border bg-card">
+						<div className=" border bg-card">
 							<div className="border-b px-4 py-3">
 								<h3 className="font-medium text-foreground">Properties</h3>
 								<p className="text-muted-foreground text-sm">
@@ -196,7 +196,7 @@ export default function EventDetailPage() {
 						</div>
 					)}
 
-					<div className="rounded border bg-card">
+					<div className=" border bg-card">
 						<div className="border-b px-4 py-3">
 							<h3 className="font-medium text-foreground">Recent Events</h3>
 							<p className="text-muted-foreground text-sm">
@@ -238,7 +238,7 @@ export default function EventDetailPage() {
 														.slice(0, 4)
 														.map(([key, value]) => (
 															<span
-																className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-xs"
+																className="inline-flex items-center gap-1 bg-secondary px-1.5 py-0.5 text-xs"
 																key={key}
 															>
 																<span className="text-secondary-foreground/70">
@@ -298,7 +298,7 @@ function PropertyCard({ property }: PropertyCardProps) {
 	const maxCount = Math.max(...values.map((v) => v.count), 1);
 
 	return (
-		<div className="rounded border bg-background">
+		<div className=" border bg-background">
 			<div className="flex items-center justify-between border-b px-3 py-2">
 				<div className="flex items-center gap-2">
 					<TagIcon
@@ -318,11 +318,11 @@ function PropertyCard({ property }: PropertyCardProps) {
 					const barWidth = (value.count / maxCount) * 100;
 					return (
 						<div
-							className="group relative flex items-center gap-2 rounded px-2 py-1.5"
+							className="group relative flex items-center gap-2 px-2 py-1.5"
 							key={`${value.property_value}-${idx}`}
 						>
 							<div
-								className="absolute inset-y-0 left-0 rounded bg-primary/8"
+								className="absolute inset-y-0 left-0 bg-primary/8"
 								style={{ width: `${barWidth}%` }}
 							/>
 							<div className="relative z-10 flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -330,7 +330,7 @@ function PropertyCard({ property }: PropertyCardProps) {
 									className="truncate text-foreground text-sm"
 									title={value.property_value}
 								>
-									{value.property_value || "(empty)"}
+									{value.property_value ||"(empty)"}
 								</span>
 								<div className="flex shrink-0 items-center gap-2">
 									<span className="text-muted-foreground text-xs tabular-nums">
@@ -359,10 +359,10 @@ function EventDetailSkeleton() {
 		<div className="space-y-3 sm:space-y-4">
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
 				{Array.from({ length: 4 }).map((_, i) => (
-					<div className="rounded border bg-card p-3 sm:p-4" key={`stat-${i}`}>
+					<div className=" border bg-card p-3 sm:p-4" key={`stat-${i}`}>
 						<div className="flex items-center justify-between">
 							<Skeleton className="h-4 w-20" />
-							<Skeleton className="size-8 rounded" />
+							<Skeleton className="size-8" />
 						</div>
 						<Skeleton className="mt-2 h-8 w-24" />
 						<Skeleton className="mt-3 h-16 w-full" />
@@ -370,14 +370,14 @@ function EventDetailSkeleton() {
 				))}
 			</div>
 
-			<div className="rounded border bg-card">
+			<div className=" border bg-card">
 				<div className="border-b px-4 py-3">
 					<Skeleton className="h-5 w-24" />
 					<Skeleton className="mt-1 h-3 w-40" />
 				</div>
 				<div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
 					{Array.from({ length: 3 }).map((_, i) => (
-						<div className="rounded border bg-background" key={`prop-${i}`}>
+						<div className=" border bg-background" key={`prop-${i}`}>
 							<div className="flex items-center justify-between border-b px-3 py-2">
 								<Skeleton className="h-4 w-16" />
 								<Skeleton className="h-3 w-12" />
@@ -398,7 +398,7 @@ function EventDetailSkeleton() {
 				</div>
 			</div>
 
-			<div className="rounded border bg-card">
+			<div className=" border bg-card">
 				<div className="border-b px-4 py-3">
 					<Skeleton className="h-5 w-28" />
 					<Skeleton className="mt-1 h-3 w-44" />
@@ -409,13 +409,13 @@ function EventDetailSkeleton() {
 							className="flex items-start gap-3 px-4 py-3"
 							key={`event-${i}`}
 						>
-							<Skeleton className="size-4 rounded" />
+							<Skeleton className="size-4" />
 							<div className="flex-1">
 								<Skeleton className="h-4 w-24" />
 								<Skeleton className="mt-1 h-3 w-32" />
 								<div className="mt-1.5 flex gap-1">
-									<Skeleton className="h-5 w-16 rounded" />
-									<Skeleton className="h-5 w-20 rounded" />
+									<Skeleton className="h-5 w-16" />
+									<Skeleton className="h-5 w-20" />
 								</div>
 							</div>
 						</div>

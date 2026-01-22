@@ -1,6 +1,6 @@
-import { track } from "@databuddy/sdk";
-import { useEffect, useRef } from "react";
-import { useSonner } from "sonner";
+import { track } from"@databuddy/sdk";
+import { useEffect, useRef } from"react";
+import { useSonner } from"sonner";
 
 export function useToastTracking() {
 	const { toasts } = useSonner();

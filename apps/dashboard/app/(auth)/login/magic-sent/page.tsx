@@ -1,16 +1,16 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	ArrowLeftIcon,
 	EnvelopeIcon,
 	SpinnerIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { parseAsString, useQueryState } from"nuqs";
+import { Suspense, useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
 
 function MagicSentPage() {
 	const [email] = useQueryState("email", parseAsString.withDefault(""));
@@ -26,7 +26,7 @@ function MagicSentPage() {
 
 		await authClient.signIn.magicLink({
 			email,
-			callbackURL: "/home",
+			callbackURL:"/home",
 			fetchOptions: {
 				onSuccess: () => {
 					setIsLoading(false);
@@ -49,17 +49,17 @@ function MagicSentPage() {
 					Check your email
 				</h1>
 				<p className="text-muted-foreground text-sm">
-					Magic link sent to{" "}
+					Magic link sent to{""}
 					<strong className="font-medium text-primary">{email}</strong>
 				</p>
 			</div>
 			<div className="relative px-6">
 				<div className="relative z-10">
 					<div className="space-y-5">
-						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-4">
+						<div className="flex items-center gap-3 border border-border bg-muted/30 p-4">
 							<EnvelopeIcon className="size-5 shrink-0 text-primary" />
 							<p className="text-muted-foreground text-sm">
-								We&apos;ve sent a magic link to{" "}
+								We&apos;ve sent a magic link to{""}
 								<strong className="text-foreground">{email}</strong>. Please
 								check your inbox and click the link to sign in instantly.
 							</p>
@@ -101,7 +101,7 @@ export default function Page() {
 			fallback={
 				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
-						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<div className="absolute inset-0 animate-ping bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>

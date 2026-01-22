@@ -5,26 +5,26 @@ import {
 	CodeIcon,
 	GlobeIcon,
 	StackIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useCallback, useMemo, useState } from "react";
-import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
-import { DataTable } from "@/components/table/data-table";
-import { Badge } from "@/components/ui/badge";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useCallback, useMemo, useState } from"react";
+import { BrowserIcon, CountryFlag, OSIcon } from"@/components/icon";
+import { DataTable } from"@/components/table/data-table";
+import { Badge } from"@/components/ui/badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ErrorDetailModal } from "./error-detail-modal";
-import { getDeviceIcon, getErrorTypeIcon } from "./error-icons";
-import type { RecentError } from "./types";
+} from"@/components/ui/tooltip";
+import { ErrorDetailModal } from"./error-detail-modal";
+import { getDeviceIcon, getErrorTypeIcon } from"./error-icons";
+import type { RecentError } from"./types";
 import {
 	formatDateTimeSeconds,
 	getErrorCategory,
 	getSeverityColor,
-} from "./utils";
+} from"./utils";
 
 dayjs.extend(relativeTime);
 
@@ -32,16 +32,16 @@ type Props = {
 	recentErrors: RecentError[];
 };
 
-const SeverityDot = ({ severity }: { severity: "high" | "medium" | "low" }) => {
+const SeverityDot = ({ severity }: { severity:"high" |"medium" |"low" }) => {
 	const colors = {
-		high: "bg-primary",
-		medium: "bg-chart-2",
-		low: "bg-chart-3",
+		high:"bg-primary",
+		medium:"bg-chart-2",
+		low:"bg-chart-3",
 	};
 
 	return (
 		<span
-			className={`size-2 shrink-0 rounded-full ${colors[severity]}`}
+			className={`size-2 shrink-0 ${colors[severity]}`}
 			title={`${severity} severity`}
 		/>
 	);
@@ -50,7 +50,7 @@ const SeverityDot = ({ severity }: { severity: "high" | "medium" | "low" }) => {
 const getRelativeTime = (timestamp: string): string => {
 	const date = dayjs(timestamp);
 	if (!date.isValid()) {
-		return "";
+		return"";
 	}
 	return date.fromNow();
 };
@@ -76,9 +76,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 	const columns = useMemo(
 		() => [
 			{
-				id: "severity",
-				accessorKey: "message",
-				header: "",
+				id:"severity",
+				accessorKey:"message",
+				header:"",
 				size: 24,
 				cell: (info: { getValue: () => unknown }) => {
 					const message = info.getValue() as string;
@@ -91,9 +91,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				},
 			},
 			{
-				id: "message",
-				accessorKey: "message",
-				header: "Error",
+				id:"message",
+				accessorKey:"message",
+				header:"Error",
 				cell: (info: {
 					getValue: () => unknown;
 					row: { original: RecentError };
@@ -105,7 +105,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 					return (
 						<div className="flex max-w-md flex-col gap-1.5">
 							<div className="flex items-center gap-2">
-								<div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10">
+								<div className="flex size-5 shrink-0 items-center justify-center bg-primary/10">
 									{getErrorTypeIcon(type)}
 								</div>
 								<Badge
@@ -138,9 +138,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				},
 			},
 			{
-				id: "path",
-				accessorKey: "path",
-				header: "Page",
+				id:"path",
+				accessorKey:"path",
+				header:"Page",
 				cell: (info: { getValue: () => unknown }) => {
 					const url = info.getValue() as string;
 					let pathname: string;
@@ -169,9 +169,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				},
 			},
 			{
-				id: "environment",
-				accessorKey: "browser_name",
-				header: "Environment",
+				id:"environment",
+				accessorKey:"browser_name",
+				header:"Environment",
 				cell: (info: { row: { original: RecentError } }) => {
 					const row = info.row.original;
 					const browser = row.browser_name;
@@ -203,9 +203,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				},
 			},
 			{
-				id: "country",
-				accessorKey: "country",
-				header: "Location",
+				id:"country",
+				accessorKey:"country",
+				header:"Location",
 				cell: (info: { row: { original: RecentError } }) => {
 					const row = info.row.original;
 					const countryCode = row.country_code;
@@ -223,7 +223,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 					return (
 						<div className="flex items-center gap-1.5">
 							<CountryFlag
-								country={countryCode || countryName || ""}
+								country={countryCode || countryName ||""}
 								size={16}
 							/>
 							<span className="max-w-[80px] truncate text-sm">
@@ -234,9 +234,9 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				},
 			},
 			{
-				id: "timestamp",
-				accessorKey: "timestamp",
-				header: "Time",
+				id:"timestamp",
+				accessorKey:"timestamp",
+				header:"Time",
 				cell: (info: { getValue: () => unknown }) => {
 					const time = info.getValue() as string;
 					const relative = getRelativeTime(time);

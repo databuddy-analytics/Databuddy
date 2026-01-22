@@ -1,30 +1,30 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/FloppyDisk";
-import { PencilIcon } from "@phosphor-icons/react/dist/ssr/Pencil";
-import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { getOperatorLabel } from "@/hooks/use-filters";
-import { useSavedFilters } from "@/hooks/use-saved-filters";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
+import { FloppyDiskIcon } from"@phosphor-icons/react/dist/ssr/FloppyDisk";
+import { PencilIcon } from"@phosphor-icons/react/dist/ssr/Pencil";
+import { XIcon } from"@phosphor-icons/react/dist/ssr/X";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { useCallback, useState } from"react";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { getOperatorLabel } from"@/hooks/use-filters";
+import { useSavedFilters } from"@/hooks/use-saved-filters";
 import {
 	dynamicQueryFiltersAtom,
 	removeDynamicFilterAtom,
-} from "@/stores/jotai/filterAtoms";
-import { SaveFilterDialog } from "./save-filter-dialog";
-import { SavedFiltersMenu } from "./saved-filters-menu";
+} from"@/stores/jotai/filterAtoms";
+import { SaveFilterDialog } from"./save-filter-dialog";
+import { SavedFiltersMenu } from"./saved-filters-menu";
 
 function getFieldLabel(field: string): string {
 	return filterOptions.find((o) => o.value === field)?.label ?? field;
 }
 
 function formatValue(value: DynamicQueryFilter["value"]): string {
-	return Array.isArray(value) ? value.join(", ") : String(value);
+	return Array.isArray(value) ? value.join(",") : String(value);
 }
 
 type EditingState = {
@@ -57,8 +57,8 @@ export function FiltersSection() {
 	const [editing, setEditing] = useState<EditingState>(null);
 	const [deleteDialog, setDeleteDialog] = useState({
 		isOpen: false,
-		filterId: "",
-		filterName: "",
+		filterId:"",
+		filterName:"",
 	});
 	const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
 
@@ -179,11 +179,11 @@ export function FiltersSection() {
 			{editing && (
 				<div className="flex items-center justify-between gap-3 border-b bg-secondary/50 px-4 py-2">
 					<div className="flex items-center gap-2">
-						<div className="rounded bg-primary/10 p-1">
+						<div className=" bg-primary/10 p-1">
 							<PencilIcon className="size-3 text-primary" weight="duotone" />
 						</div>
 						<span className="text-muted-foreground text-xs">
-							Editing{" "}
+							Editing{""}
 							<span className="font-medium text-foreground">
 								"{editing.name}"
 							</span>
@@ -196,7 +196,7 @@ export function FiltersSection() {
 							onClick={handleSaveEdit}
 							size="sm"
 						>
-							{isSaving ? "Saving…" : "Save"}
+							{isSaving ?"Saving…" :"Save"}
 						</Button>
 						<Button
 							className="h-7 text-xs"
@@ -214,7 +214,7 @@ export function FiltersSection() {
 			<div className="flex flex-wrap items-center gap-2 px-4 py-3">
 				{filters.map((filter, index) => (
 					<div
-						className="group flex items-center gap-1.5 rounded border bg-secondary/50 py-1 pr-1 pl-2.5 text-xs"
+						className="group flex items-center gap-1.5 border bg-secondary/50 py-1 pr-1 pl-2.5 text-xs"
 						key={`${filter.field}-${filter.operator}-${formatValue(filter.value)}-${index.toString()}`}
 					>
 						<span className="font-medium">{getFieldLabel(filter.field)}</span>
@@ -226,7 +226,7 @@ export function FiltersSection() {
 						</span>
 						<button
 							aria-label={`Remove ${getFieldLabel(filter.field)} filter`}
-							className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+							className="ml-0.5 flex size-5 items-center justify-center text-muted-foreground hover:bg-background hover:text-foreground"
 							onClick={() => handleRemoveFilter(index)}
 							type="button"
 						>
@@ -289,7 +289,7 @@ export function FiltersSection() {
 
 			<DeleteDialog
 				confirmLabel="Delete"
-				description={`Are you sure you want to delete "${deleteDialog.filterName}"? This action cannot be undone and the filter configuration will be permanently removed.`}
+				description={`Are you sure you want to delete"${deleteDialog.filterName}"? This action cannot be undone and the filter configuration will be permanently removed.`}
 				isDeleting={isDeleting}
 				isOpen={deleteDialog.isOpen}
 				onClose={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
@@ -299,7 +299,7 @@ export function FiltersSection() {
 
 			<DeleteDialog
 				confirmLabel="Delete All"
-				description={`Are you sure you want to delete all ${savedFilters.length} saved filter${savedFilters.length === 1 ? "" : "s"}? This will permanently remove all your saved filter configurations and cannot be undone.`}
+				description={`Are you sure you want to delete all ${savedFilters.length} saved filter${savedFilters.length === 1 ?"" :"s"}? This will permanently remove all your saved filter configurations and cannot be undone.`}
 				isDeleting={isDeletingAll}
 				isOpen={isDeleteAllOpen}
 				onClose={() => setIsDeleteAllOpen(false)}

@@ -1,14 +1,14 @@
-import { useMemo } from "react";
+import { useMemo } from"react";
 import {
 	createMetricToggles,
 	formatDateByGranularity,
-} from "./analytics-helpers";
+} from"./analytics-helpers";
 
 export type ChartMetric =
-	| "pageviews"
-	| "visitors"
-	| "sessions"
-	| "bounce_rate"
+	|"pageviews"
+	|"visitors"
+	|"sessions"
+	|"bounce_rate"
 	| string;
 
 export type MetricColors = Record<ChartMetric, string>;
@@ -21,22 +21,22 @@ export type ChartDataPoint = {
 interface UseChartConfigOptions {
 	data?: ChartDataPoint[];
 	initialVisibleMetrics?: ChartMetric[];
-	granularity?: "daily" | "hourly";
+	granularity?:"daily" |"hourly";
 	colors?: Partial<MetricColors>;
 }
 
 export function useChartConfig({
 	data = [],
-	initialVisibleMetrics = ["pageviews", "visitors", "sessions"],
-	granularity = "daily",
+	initialVisibleMetrics = ["pageviews","visitors","sessions"],
+	granularity ="daily",
 	colors = {},
 }: UseChartConfigOptions = {}) {
 	// Default colors for metrics
 	const defaultColors: MetricColors = {
-		pageviews: "blue-500",
-		visitors: "emerald-500",
-		sessions: "amber-500",
-		bounce_rate: "red-500",
+		pageviews:"blue-500",
+		visitors:"emerald-500",
+		sessions:"amber-500",
+		bounce_rate:"red-500",
 	};
 
 	// Merge default colors with provided colors
@@ -67,10 +67,10 @@ export function useChartConfig({
 	// Create metric labels mapping
 	const metricLabels = useMemo(
 		() => ({
-			pageviews: "Pageviews",
-			visitors: "Visitors",
-			sessions: "Sessions",
-			bounce_rate: "Bounce Rate",
+			pageviews:"Pageviews",
+			visitors:"Visitors",
+			sessions:"Sessions",
+			bounce_rate:"Bounce Rate",
 		}),
 		[]
 	);

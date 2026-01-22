@@ -1,9 +1,9 @@
 "use client";
 
-import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr/CaretRight";
-import { useCallback, useMemo, useState } from "react";
-import { DataTable } from "@/components/table/data-table";
+import { CaretDownIcon } from"@phosphor-icons/react/dist/ssr/CaretDown";
+import { CaretRightIcon } from"@phosphor-icons/react/dist/ssr/CaretRight";
+import { useCallback, useMemo, useState } from"react";
+import { DataTable } from"@/components/table/data-table";
 import type {
 	CustomEventsSectionProps,
 	EventProperty,
@@ -11,14 +11,14 @@ import type {
 	OutboundLinkData,
 	ProcessedCustomEvent,
 	PropertySubRow,
-} from "@/types/custom-events";
+} from"@/types/custom-events";
 
 const formatNumber = (value: number): string => {
 	if (value == null || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -27,18 +27,18 @@ const PROTOCOL_REGEX = /^https?:\/\//;
 const JSON_QUOTE_REGEX = /^"(.*)"$/;
 
 const cleanPropertyValue = (value: string): string =>
-	value.replace(JSON_QUOTE_REGEX, "$1");
+	value.replace(JSON_QUOTE_REGEX,"$1");
 
 const createEventIndicator = () => (
-	<div className="size-2 shrink-0 rounded bg-primary" />
+	<div className="size-2 shrink-0 bg-primary" />
 );
 
 const createDomainIndicator = () => (
-	<div className="size-2 shrink-0 rounded bg-blue-500" />
+	<div className="size-2 shrink-0 bg-blue-500" />
 );
 
 const createPercentageBadge = (percentage: number) => (
-	<div className="inline-flex items-center rounded bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
+	<div className="inline-flex items-center bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
 		{percentage.toFixed(1)}%
 	</div>
 );
@@ -120,9 +120,9 @@ export function CustomEventsSection({
 	const customEventsColumns = useMemo(
 		() => [
 			{
-				id: "name",
-				accessorKey: "name",
-				header: "Event Name",
+				id:"name",
+				accessorKey:"name",
+				header:"Event Name",
 				cell: ({ getValue }: any) => (
 					<div className="flex items-center gap-3">
 						{createEventIndicator()}
@@ -131,21 +131,21 @@ export function CustomEventsSection({
 				),
 			},
 			{
-				id: "total_events",
-				accessorKey: "total_events",
-				header: "Events",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "total"),
+				id:"total_events",
+				accessorKey:"total_events",
+				header:"Events",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"total"),
 			},
 			{
-				id: "unique_users",
-				accessorKey: "unique_users",
-				header: "Users",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "unique"),
+				id:"unique_users",
+				accessorKey:"unique_users",
+				header:"Users",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"unique"),
 			},
 			{
-				id: "percentage",
-				accessorKey: "percentage",
-				header: "Share",
+				id:"percentage",
+				accessorKey:"percentage",
+				header:"Share",
 				cell: ({ getValue }: any) => createPercentageBadge(getValue()),
 			},
 		],
@@ -155,12 +155,12 @@ export function CustomEventsSection({
 	const outboundLinksColumns = useMemo(
 		() => [
 			{
-				id: "href",
-				accessorKey: "href",
-				header: "URL",
+				id:"href",
+				accessorKey:"href",
+				header:"URL",
 				cell: ({ getValue }: any) => {
 					const href = getValue();
-					const domain = href.replace(PROTOCOL_REGEX, "").split("/")[0];
+					const domain = href.replace(PROTOCOL_REGEX,"").split("/")[0];
 					return (
 						<div className="flex flex-col gap-1">
 							<a
@@ -183,34 +183,34 @@ export function CustomEventsSection({
 				},
 			},
 			{
-				id: "text",
-				accessorKey: "text",
-				header: "Text",
+				id:"text",
+				accessorKey:"text",
+				header:"Text",
 				cell: ({ getValue }: any) => {
 					const text = getValue();
 					return (
 						<span className="max-w-[200px] truncate font-medium" title={text}>
-							{text || "(no text)"}
+							{text ||"(no text)"}
 						</span>
 					);
 				},
 			},
 			{
-				id: "total_clicks",
-				accessorKey: "total_clicks",
-				header: "Clicks",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "total"),
+				id:"total_clicks",
+				accessorKey:"total_clicks",
+				header:"Clicks",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"total"),
 			},
 			{
-				id: "unique_users",
-				accessorKey: "unique_users",
-				header: "Users",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "unique"),
+				id:"unique_users",
+				accessorKey:"unique_users",
+				header:"Users",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"unique"),
 			},
 			{
-				id: "percentage",
-				accessorKey: "percentage",
-				header: "Share",
+				id:"percentage",
+				accessorKey:"percentage",
+				header:"Share",
 				cell: ({ getValue }: any) => createPercentageBadge(getValue()),
 			},
 		],
@@ -220,9 +220,9 @@ export function CustomEventsSection({
 	const outboundDomainsColumns = useMemo(
 		() => [
 			{
-				id: "domain",
-				accessorKey: "domain",
-				header: "Domain",
+				id:"domain",
+				accessorKey:"domain",
+				header:"Domain",
 				cell: ({ getValue }: any) => (
 					<div className="flex items-center gap-3">
 						{createDomainIndicator()}
@@ -231,27 +231,27 @@ export function CustomEventsSection({
 				),
 			},
 			{
-				id: "total_clicks",
-				accessorKey: "total_clicks",
-				header: "Clicks",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "total"),
+				id:"total_clicks",
+				accessorKey:"total_clicks",
+				header:"Clicks",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"total"),
 			},
 			{
-				id: "unique_users",
-				accessorKey: "unique_users",
-				header: "Users",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "unique"),
+				id:"unique_users",
+				accessorKey:"unique_users",
+				header:"Users",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"unique"),
 			},
 			{
-				id: "unique_links",
-				accessorKey: "unique_links",
-				header: "Links",
-				cell: ({ getValue }: any) => createMetricDisplay(getValue(), "unique"),
+				id:"unique_links",
+				accessorKey:"unique_links",
+				header:"Links",
+				cell: ({ getValue }: any) => createMetricDisplay(getValue(),"unique"),
 			},
 			{
-				id: "percentage",
-				accessorKey: "percentage",
-				header: "Share",
+				id:"percentage",
+				accessorKey:"percentage",
+				header:"Share",
 				cell: ({ getValue }: any) => createPercentageBadge(getValue()),
 			},
 		],
@@ -263,7 +263,7 @@ export function CustomEventsSection({
 			description="User-defined events, interactions, and outbound link tracking"
 			expandable
 			getSubRows={(row: ProcessedCustomEvent): any[] => {
-				if (!row.properties || typeof row.properties !== "object") {
+				if (!row.properties || typeof row.properties !=="object") {
 					return [];
 				}
 				const propertyKeys = Object.keys(row.properties);
@@ -292,7 +292,7 @@ export function CustomEventsSection({
 						<button
 							aria-controls={`property-${propertyId}`}
 							aria-expanded={isExpanded}
-							className="flex w-full items-center justify-between rounded border border-sidebar-border/30 bg-sidebar-accent/20 px-3 py-2.5 hover:bg-sidebar-accent/50"
+							className="flex w-full items-center justify-between border border-sidebar-border/30 bg-sidebar-accent/20 px-3 py-2.5 hover:bg-sidebar-accent/50"
 							onClick={() => toggleProperty(propertyId)}
 							type="button"
 						>
@@ -321,16 +321,16 @@ export function CustomEventsSection({
 								<div className="font-medium text-sidebar-foreground text-sm">
 									{formatNumber(totalCount)}
 								</div>
-								<div className="rounded bg-sidebar-ring/10 px-2 py-0.5 font-medium text-sidebar-ring text-xs">
-									{propertyValues.length}{" "}
-									{propertyValues.length === 1 ? "value" : "values"}
+								<div className=" bg-sidebar-ring/10 px-2 py-0.5 font-medium text-sidebar-ring text-xs">
+									{propertyValues.length}{""}
+									{propertyValues.length === 1 ?"value" :"values"}
 								</div>
 							</div>
 						</button>
 
 						{isExpanded && (
 							<div
-								className="mt-1 max-h-48 overflow-y-auto rounded border border-sidebar-border/20"
+								className="mt-1 max-h-48 overflow-y-auto border border-sidebar-border/20"
 								id={`property-${propertyId}`}
 							>
 								{propertyValues.map((valueItem, index) => (
@@ -358,32 +358,32 @@ export function CustomEventsSection({
 			}}
 			tabs={[
 				{
-					id: "custom_events",
-					label: "Custom Events",
+					id:"custom_events",
+					label:"Custom Events",
 					data: processedEvents,
 					columns: customEventsColumns,
 				},
 				{
-					id: "outbound_links",
-					label: "Outbound Links",
+					id:"outbound_links",
+					label:"Outbound Links",
 					data: (customEventsData.outbound_links || [])
-						.filter((link) => link && typeof link === "object" && link.href)
+						.filter((link) => link && typeof link ==="object" && link.href)
 						.map((link) => ({
 							...link,
 							name: link.href,
 						})),
 					columns: outboundLinksColumns,
 					getFilter: (row: OutboundLinkData) => ({
-						field: "href",
+						field:"href",
 						value: row.href,
 					}),
 				},
 				{
-					id: "outbound_domains",
-					label: "Outbound Domains",
+					id:"outbound_domains",
+					label:"Outbound Domains",
 					data: (customEventsData.outbound_domains || [])
 						.filter(
-							(domain) => domain && typeof domain === "object" && domain.domain
+							(domain) => domain && typeof domain ==="object" && domain.domain
 						)
 						.map((domain) => ({
 							...domain,
@@ -391,7 +391,7 @@ export function CustomEventsSection({
 						})),
 					columns: outboundDomainsColumns,
 					getFilter: (row: OutboundDomainData) => ({
-						field: "href",
+						field:"href",
 						value: `*${row.domain}*`,
 					}),
 				},

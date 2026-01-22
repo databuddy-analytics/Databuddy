@@ -1,18 +1,18 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { DynamicQueryRequest } from "@databuddy/shared/types/api";
-import { useAtom } from "jotai";
-import { useMemo } from "react";
-import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import { DataTable, type TabConfig } from "@/components/table/data-table";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { addDynamicFilterAtom } from "@/stores/jotai/filterAtoms";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { DynamicQueryRequest } from"@databuddy/shared/types/api";
+import { useAtom } from"jotai";
+import { useMemo } from"react";
+import { SimpleMetricsChart } from"@/components/charts/simple-metrics-chart";
+import { DataTable, type TabConfig } from"@/components/table/data-table";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { addDynamicFilterAtom } from"@/stores/jotai/filterAtoms";
 import {
 	formatDurationMs,
 	formatTokenCount,
 	formatUsd,
-} from "../_lib/llm-analytics-utils";
+} from"../_lib/llm-analytics-utils";
 import {
 	createErrorColumns,
 	createFinishReasonColumns,
@@ -22,7 +22,7 @@ import {
 	type LlmFinishReasonRow,
 	type LlmModelBreakdownRow,
 	type LlmProviderBreakdownRow,
-} from "./llm-columns";
+} from"./llm-columns";
 
 interface LlmOverviewTabProps {
 	websiteId: string;
@@ -42,11 +42,11 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 	const [, addFilter] = useAtom(addDynamicFilterAtom);
 
 	const queries: DynamicQueryRequest[] = [
-		{ id: "llm-series", parameters: ["llm_time_series"] },
-		{ id: "llm-provider", parameters: ["llm_provider_breakdown"] },
-		{ id: "llm-model", parameters: ["llm_model_breakdown"] },
-		{ id: "llm-finish", parameters: ["llm_finish_reason_breakdown"] },
-		{ id: "llm-errors", parameters: ["llm_error_breakdown"] },
+		{ id:"llm-series", parameters: ["llm_time_series"] },
+		{ id:"llm-provider", parameters: ["llm_provider_breakdown"] },
+		{ id:"llm-model", parameters: ["llm_model_breakdown"] },
+		{ id:"llm-finish", parameters: ["llm_finish_reason_breakdown"] },
+		{ id:"llm-errors", parameters: ["llm_error_breakdown"] },
 	];
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
@@ -56,7 +56,7 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 	);
 
 	const timeSeries =
-		(getDataForQuery("llm-series", "llm_time_series") as LlmTimeSeriesRow[]) ??
+		(getDataForQuery("llm-series","llm_time_series") as LlmTimeSeriesRow[]) ??
 		[];
 
 	const providerBreakdown =
@@ -118,41 +118,41 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 
 		if (providerBreakdown.length > 0) {
 			tabs.push({
-				id: "providers",
-				label: "Providers",
+				id:"providers",
+				label:"Providers",
 				data: providerBreakdown,
 				columns: createProviderColumns(),
-				getFilter: (row) => ({ field: "provider", value: row.name }),
+				getFilter: (row) => ({ field:"provider", value: row.name }),
 			});
 		}
 
 		if (modelBreakdown.length > 0) {
 			tabs.push({
-				id: "models",
-				label: "Models",
+				id:"models",
+				label:"Models",
 				data: modelBreakdown,
 				columns: createModelColumns(),
-				getFilter: (row) => ({ field: "model", value: row.name }),
+				getFilter: (row) => ({ field:"model", value: row.name }),
 			});
 		}
 
 		if (finishReasonBreakdown.length > 0) {
 			tabs.push({
-				id: "finish",
-				label: "Finish Reasons",
+				id:"finish",
+				label:"Finish Reasons",
 				data: finishReasonBreakdown,
 				columns: createFinishReasonColumns(),
-				getFilter: (row) => ({ field: "finish_reason", value: row.name }),
+				getFilter: (row) => ({ field:"finish_reason", value: row.name }),
 			});
 		}
 
 		if (errorBreakdown.length > 0) {
 			tabs.push({
-				id: "errors",
-				label: "Errors",
+				id:"errors",
+				label:"Errors",
 				data: errorBreakdown,
 				columns: createErrorColumns(),
-				getFilter: (row) => ({ field: "error_name", value: row.name }),
+				getFilter: (row) => ({ field:"error_name", value: row.name }),
 			});
 		}
 
@@ -174,9 +174,9 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 					isLoading={isLoading}
 					metrics={[
 						{
-							key: "calls",
-							label: "Calls",
-							color: "#3b82f6",
+							key:"calls",
+							label:"Calls",
+							color:"#3b82f6",
 							formatValue: (value) => formatTokenCount(value),
 						},
 					]}
@@ -189,9 +189,9 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 					isLoading={isLoading}
 					metrics={[
 						{
-							key: "cost",
-							label: "Cost",
-							color: "#f59e0b",
+							key:"cost",
+							label:"Cost",
+							color:"#f59e0b",
 							formatValue: (value) => formatUsd(value),
 						},
 					]}
@@ -206,15 +206,15 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 				isLoading={isLoading}
 				metrics={[
 					{
-						key: "avg",
-						label: "Average",
-						color: "#10b981",
+						key:"avg",
+						label:"Average",
+						color:"#10b981",
 						formatValue: (value) => formatDurationMs(value),
 					},
 					{
-						key: "p75",
-						label: "p75",
-						color: "#8b5cf6",
+						key:"p75",
+						label:"p75",
+						color:"#8b5cf6",
 						formatValue: (value) => formatDurationMs(value),
 					},
 				]}
@@ -226,7 +226,7 @@ export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {
 					description="Provider, model, finish reason, and error breakdowns"
 					isLoading={isLoading}
 					onAddFilter={(field, value) =>
-						addFilter({ field, operator: "eq", value })
+						addFilter({ field, operator:"eq", value })
 					}
 					tabs={breakdownTabs}
 					title="Breakdowns"

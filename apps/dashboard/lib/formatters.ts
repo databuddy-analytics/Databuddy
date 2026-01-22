@@ -1,11 +1,11 @@
 export const formatMetricNumber = (num: number | undefined | null): string => {
 	if (num === undefined || num === null) {
-		return "0";
+		return"0";
 	}
 
 	// Handle edge case for non-numeric strings that might have been converted to NaN
 	if (Number.isNaN(num)) {
-		return "0";
+		return"0";
 	}
 
 	if (Math.abs(num) >= 1_000_000_000) {
@@ -24,14 +24,14 @@ export const formatMetricNumber = (num: number | undefined | null): string => {
 // Format currency values
 export const formatCurrency = (
 	amount: number | undefined | null,
-	currency = "USD"
+	currency ="USD"
 ): string => {
 	if (amount === undefined || amount === null || Number.isNaN(amount)) {
-		return "$0.00";
+		return"$0.00";
 	}
 
 	return new Intl.NumberFormat("en-US", {
-		style: "currency",
+		style:"currency",
 		currency,
 	}).format(amount);
 };
@@ -39,25 +39,25 @@ export const formatCurrency = (
 // Format regular numbers with commas
 export const formatNumber = (num: number | undefined | null): string => {
 	if (num === undefined || num === null || Number.isNaN(num)) {
-		return "0";
+		return"0";
 	}
 
 	return new Intl.NumberFormat("en-US").format(num);
 };
 
 // Date formatting utilities
-import dayjs from "dayjs";
+import dayjs from"dayjs";
 
 // Predefined date formats for consistency across the app
 export const DATE_FORMATS = {
-	DATE_ONLY: "MMM D, YYYY", // Jul 6, 2025
-	DATE_TIME: "MMM D, YYYY HH:mm", // Jul 6, 2025 14:30
-	DATE_TIME_SECONDS: "MMM D, YYYY HH:mm:ss", // Jul 6, 2025 14:30:25
-	DATE_MONTH_DAY: "MMM D", // Jul 6
-	ISO_DATE: "YYYY-MM-DD", // 2025-07-06
-	TIME_ONLY: "HH:mm", // 14:30
-	DATE_TIME_NO_YEAR: "MMM D, HH:mm", // Jul 6, 14:30
-	DATE_TIME_12H: "MMM D, YYYY h:mm A", // Jul 6, 2025 2:30 PM
+	DATE_ONLY:"MMM D, YYYY", // Jul 6, 2025
+	DATE_TIME:"MMM D, YYYY HH:mm", // Jul 6, 2025 14:30
+	DATE_TIME_SECONDS:"MMM D, YYYY HH:mm:ss", // Jul 6, 2025 14:30:25
+	DATE_MONTH_DAY:"MMM D", // Jul 6
+	ISO_DATE:"YYYY-MM-DD", // 2025-07-06
+	TIME_ONLY:"HH:mm", // 14:30
+	DATE_TIME_NO_YEAR:"MMM D, HH:mm", // Jul 6, 14:30
+	DATE_TIME_12H:"MMM D, YYYY h:mm A", // Jul 6, 2025 2:30 PM
 } as const;
 
 // Global date formatting functions
@@ -66,19 +66,19 @@ export const formatDate = (
 	format: string = DATE_FORMATS.DATE_ONLY
 ): string => {
 	if (!dateString) {
-		return "";
+		return"";
 	}
 
 	try {
 		const date = dayjs(dateString);
 		if (!date.isValid()) {
 			console.warn("Invalid date:", dateString);
-			return "";
+			return"";
 		}
 		return date.format(format);
 	} catch (error) {
 		console.warn("Failed to format date:", dateString, error);
-		return "";
+		return"";
 	}
 };
 
@@ -125,7 +125,7 @@ export const formatDateRange = (
 	const end = formatDate(endDate, format);
 
 	if (!(start && end)) {
-		return "";
+		return"";
 	}
 	if (start === end) {
 		return start;

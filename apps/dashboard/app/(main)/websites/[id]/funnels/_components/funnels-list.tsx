@@ -1,9 +1,9 @@
 "use client";
 
-import { FunnelIcon } from "@phosphor-icons/react/dist/ssr/Funnel";
-import { EmptyState } from "@/components/empty-state";
-import type { FunnelAnalyticsData } from "@/types/funnels";
-import { FunnelItem, type FunnelItemData } from "./funnel-item";
+import { FunnelIcon } from"@phosphor-icons/react/dist/ssr/Funnel";
+import { EmptyState } from"@/components/empty-state";
+import type { FunnelAnalyticsData } from"@/types/funnels";
+import { FunnelItem, type FunnelItemData } from"./funnel-item";
 
 interface FunnelsListProps {
 	funnels: FunnelItemData[];
@@ -33,7 +33,7 @@ export function FunnelsList({
 			<div className="flex flex-1 items-center justify-center py-16">
 				<EmptyState
 					action={{
-						label: "Create Your First Funnel",
+						label:"Create Your First Funnel",
 						onClick: onCreateFunnel,
 					}}
 					description="Create your first funnel to start tracking user conversion journeys and identify optimization opportunities in your user flow."

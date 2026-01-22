@@ -1,7 +1,7 @@
-import { CircleNotchIcon } from "@phosphor-icons/react";
-import { useHotkeys } from "react-hotkeys-hook";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { CircleNotchIcon } from"@phosphor-icons/react";
+import { useHotkeys } from"react-hotkeys-hook";
+import { Button } from"@/components/ui/button";
+import { cn } from"@/lib/utils";
 
 type SettingsSectionProps = {
 	title: string;
@@ -69,7 +69,7 @@ type ComingSoonProps = {
 export function ComingSoon({ title, description, icon }: ComingSoonProps) {
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center p-12 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-accent">
+			<div className="mb-4 flex size-16 items-center justify-center bg-accent">
 				{icon}
 			</div>
 			<h2 className="font-semibold text-lg">{title}</h2>
@@ -94,8 +94,8 @@ export function UnsavedChangesFooter({
 	isSaving,
 	onSave,
 	onDiscard,
-	saveLabel = "Save Changes",
-	message = "You have unsaved changes",
+	saveLabel ="Save Changes",
+	message ="You have unsaved changes",
 }: UnsavedChangesFooterProps) {
 	useHotkeys(
 		"escape",

@@ -1,26 +1,26 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { UserPlusIcon } from "@phosphor-icons/react";
-import { useForm } from "react-hook-form";
-import { z } from "zod/v4";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { UserPlusIcon } from"@phosphor-icons/react";
+import { useForm } from"react-hook-form";
+import { z } from"zod/v4";
 import {
 	Form,
 	FormControl,
 	FormField,
 	FormItem,
 	FormMessage,
-} from "@/components/ui/form";
-import { FormDialog } from "@/components/ui/form-dialog";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/form";
+import { FormDialog } from"@/components/ui/form-dialog";
+import { Input } from"@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
+} from"@/components/ui/select";
+import { useOrganizationInvitations } from"@/hooks/use-organization-invitations";
 
 interface InviteMemberDialogProps {
 	open: boolean;
@@ -30,8 +30,8 @@ interface InviteMemberDialogProps {
 
 const formSchema = z.object({
 	email: z.email("Please enter a valid email address"),
-	role: z.enum(["admin", "member"]).refine((val) => val !== undefined, {
-		message: "Please select a role",
+	role: z.enum(["admin","member"]).refine((val) => val !== undefined, {
+		message:"Please select a role",
 	}),
 });
 
@@ -48,8 +48,8 @@ export function InviteMemberDialog({
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			email: "",
-			role: "member",
+			email:"",
+			role:"member",
 		},
 	});
 

@@ -6,26 +6,26 @@ import {
 	ChartBarIcon,
 	FunnelIcon,
 	ListBulletsIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
-import { useMemo } from "react";
-import { EmptyState } from "@/components/empty-state";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useParams } from"next/navigation";
+import { parseAsString, useQueryState } from"nuqs";
+import { useMemo } from"react";
+import { EmptyState } from"@/components/empty-state";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { getPropertyTypeLabel } from "./classify-properties";
+} from"@/components/ui/select";
+import { getPropertyTypeLabel } from"./classify-properties";
 import type {
 	ClassifiedEvent,
 	ClassifiedProperty,
 	PropertyDistribution,
 	PropertyTopValue,
-} from "./types";
+} from"./types";
 
 interface SummaryViewProps {
 	events: ClassifiedEvent[];
@@ -102,7 +102,7 @@ export function SummaryView({
 					<>
 						<span className="text-muted-foreground text-sm">
 							{activeEvent.summaryProperties.length} propert
-							{activeEvent.summaryProperties.length !== 1 ? "ies" : "y"}
+							{activeEvent.summaryProperties.length !== 1 ?"ies" :"y"}
 						</span>
 						{isFetching && !isLoading && (
 							<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
@@ -167,13 +167,13 @@ function PropertyCard({
 	const maxCount = Math.max(...values.map((v) => v.count));
 
 	return (
-		<div className="rounded border bg-card">
+		<div className=" border bg-card">
 			<div className="flex items-center justify-between border-b px-3 py-2">
 				<div className="flex items-center gap-2">
 					<span className="font-medium text-foreground text-sm">
 						{property.key}
 					</span>
-					<span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+					<span className=" bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
 						{getPropertyTypeLabel(classification)}
 					</span>
 				</div>
@@ -193,8 +193,8 @@ function PropertyCard({
 
 					return (
 						<button
-							aria-label={`Filter by ${property.key}: ${displayValue || "empty"}`}
-							className="group relative flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-accent/50 focus:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							aria-label={`Filter by ${property.key}: ${displayValue ||"empty"}`}
+							className="group relative flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-accent/50 focus:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							key={`${displayValue}-${idx}`}
 							onClick={() =>
 								onFilterAction(eventName, property.key, displayValue)
@@ -202,7 +202,7 @@ function PropertyCard({
 							type="button"
 						>
 							<div
-								className="absolute inset-y-0 left-0 rounded bg-primary/8 transition-all group-hover:bg-primary/12"
+								className="absolute inset-y-0 left-0 bg-primary/8 transition-all group-hover:bg-primary/12"
 								style={{ width: `${barWidth}%` }}
 							/>
 							<div className="relative z-10 flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -210,7 +210,7 @@ function PropertyCard({
 									className="truncate text-foreground text-sm"
 									title={displayValue}
 								>
-									{displayValue || "(empty)"}
+									{displayValue ||"(empty)"}
 								</span>
 								<div className="flex shrink-0 items-center gap-2">
 									<span className="text-muted-foreground text-xs tabular-nums">
@@ -230,7 +230,7 @@ function PropertyCard({
 					);
 				})}
 
-				{classification.render_strategy === "top_n_with_other" &&
+				{classification.render_strategy ==="top_n_with_other" &&
 					values.length > 0 && (
 						<div className="mt-1 border-t pt-2 text-center text-muted-foreground/60 text-xs">
 							+{classification.cardinality - values.length} more
@@ -244,12 +244,12 @@ function PropertyCard({
 function isPropertyDistribution(
 	value: PropertyTopValue | PropertyDistribution
 ): value is PropertyDistribution {
-	return "cardinality" in value;
+	return"cardinality" in value;
 }
 
 function formatNumber(value: number): string {
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 }
@@ -258,24 +258,24 @@ function SummaryViewSkeleton() {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center gap-3">
-				<div className="h-8 w-[200px] animate-pulse rounded bg-muted" />
-				<div className="h-4 w-20 animate-pulse rounded bg-muted" />
+				<div className="h-8 w-[200px] animate-pulse bg-muted" />
+				<div className="h-4 w-20 animate-pulse bg-muted" />
 			</div>
 			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 				{[1, 2, 3].map((i) => (
-					<div className="rounded border bg-card" key={i}>
+					<div className=" border bg-card" key={i}>
 						<div className="flex items-center justify-between border-b px-3 py-2">
-							<div className="h-4 w-16 animate-pulse rounded bg-muted" />
-							<div className="h-3 w-12 animate-pulse rounded bg-muted" />
+							<div className="h-4 w-16 animate-pulse bg-muted" />
+							<div className="h-3 w-12 animate-pulse bg-muted" />
 						</div>
 						<div className="space-y-1.5 p-1.5">
 							{[1, 2, 3, 4].map((j) => (
 								<div
-									className="flex items-center justify-between rounded px-2 py-1.5"
+									className="flex items-center justify-between px-2 py-1.5"
 									key={j}
 								>
-									<div className="h-4 w-20 animate-pulse rounded bg-muted" />
-									<div className="h-3 w-12 animate-pulse rounded bg-muted" />
+									<div className="h-4 w-20 animate-pulse bg-muted" />
+									<div className="h-3 w-12 animate-pulse bg-muted" />
 								</div>
 							))}
 						</div>

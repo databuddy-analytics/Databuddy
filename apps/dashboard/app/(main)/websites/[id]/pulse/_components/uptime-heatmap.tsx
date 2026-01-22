@@ -1,13 +1,13 @@
 "use client";
 
-import dayjs from "dayjs";
-import { useMemo } from "react";
+import dayjs from"dayjs";
+import { useMemo } from"react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 
 interface HeatmapDayData {
 	date: Date;
@@ -36,7 +36,7 @@ export function UptimeHeatmap({
 
 		// Generate last X days
 		for (let i = days - 1; i >= 0; i--) {
-			const date = today.subtract(i, "day");
+			const date = today.subtract(i,"day");
 			const dateStr = date.format("YYYY-MM-DD");
 
 			// Find data for this day
@@ -76,10 +76,10 @@ export function UptimeHeatmap({
 					Uptime History
 				</h3>
 				<span className="text-muted-foreground text-sm">
-					Last {days} days:{" "}
+					Last {days} days:{""}
 					{periodStats.uptime > 0
 						? `${periodStats.uptime.toFixed(2)}%`
-						: "No data"}
+						:"No data"}
 				</span>
 			</div>
 
@@ -88,35 +88,35 @@ export function UptimeHeatmap({
 					{isLoading
 						? [...new Array(days)].map((_, i) => (
 								<div
-									className="h-full flex-1 animate-pulse rounded-sm bg-secondary"
+									className="h-full flex-1 animate-pulse bg-secondary"
 									key={i}
 								/>
 							))
 						: heatmapData.map((day) => {
 								const getColorClass = () => {
 									if (!day.hasData) {
-										return "bg-secondary";
+										return"bg-secondary";
 									}
 									if (day.uptime >= 99.9) {
-										return "bg-emerald-500 hover:bg-emerald-600";
+										return"bg-emerald-500 hover:bg-emerald-600";
 									}
 									if (day.uptime >= 98) {
-										return "bg-emerald-400 hover:bg-emerald-500";
+										return"bg-emerald-400 hover:bg-emerald-500";
 									}
 									if (day.uptime >= 95) {
-										return "bg-emerald-300 hover:bg-emerald-400";
+										return"bg-emerald-300 hover:bg-emerald-400";
 									}
 									if (day.uptime >= 90) {
-										return "bg-amber-400 hover:bg-amber-500";
+										return"bg-amber-400 hover:bg-amber-500";
 									}
-									return "bg-red-500 hover:bg-red-600";
+									return"bg-red-500 hover:bg-red-600";
 								};
 								return (
 									<Tooltip key={day.dateStr}>
 										<TooltipTrigger asChild>
 											<div
 												className={cn(
-													"h-full flex-1 rounded-sm transition-colors",
+													"h-full flex-1 transition-colors",
 													getColorClass()
 												)}
 											/>

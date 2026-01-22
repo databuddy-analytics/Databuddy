@@ -1,7 +1,7 @@
 "use client";
 
-import { getCountryCode } from "@databuddy/shared/country-codes";
-import type { Session } from "@databuddy/shared/types/sessions";
+import { getCountryCode } from"@databuddy/shared/country-codes";
+import type { Session } from"@databuddy/shared/types/sessions";
 import {
 	ArrowLeftIcon,
 	ChartLineIcon,
@@ -12,18 +12,18 @@ import {
 	GlobeIcon,
 	SpinnerIcon,
 	UserIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { getDeviceIcon } from "@/lib/utils";
-import { generateProfileName } from "./_components/generate-profile-name";
-import { SessionRow } from "./_components/session-row";
-import { useUserProfile } from "./use-user-profile";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useParams, useRouter } from"next/navigation";
+import { useCallback, useState } from"react";
+import { BrowserIcon, CountryFlag, OSIcon } from"@/components/icon";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { getDeviceIcon } from"@/lib/utils";
+import { generateProfileName } from"./_components/generate-profile-name";
+import { SessionRow } from"./_components/session-row";
+import { useUserProfile } from"./use-user-profile";
 
 function StatItem({
 	icon: Icon,
@@ -38,7 +38,7 @@ function StatItem({
 }) {
 	return (
 		<div className="flex items-center gap-3">
-			<div className="flex size-9 shrink-0 items-center justify-center rounded bg-primary/10">
+			<div className="flex size-9 shrink-0 items-center justify-center bg-primary/10">
 				<Icon className="size-4 text-primary" weight="duotone" />
 			</div>
 			<div className="min-w-0 flex-1">
@@ -64,7 +64,7 @@ function TechItem({
 	value: string;
 }) {
 	return (
-		<div className="flex items-center gap-3 rounded bg-accent/50 px-3 py-2.5">
+		<div className="flex items-center gap-3 bg-accent/50 px-3 py-2.5">
 			<div className="shrink-0">{icon}</div>
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-foreground text-sm">{value}</p>
@@ -85,7 +85,7 @@ function TimelineItem({
 }) {
 	return (
 		<div className="flex items-start gap-3">
-			<div className="mt-0.5 size-2 shrink-0 rounded-full bg-primary/60" />
+			<div className="mt-0.5 size-2 shrink-0 bg-primary/60" />
 			<div className="min-w-0 flex-1">
 				<p className="text-muted-foreground text-xs">{label}</p>
 				<p className="font-medium text-foreground text-sm">{date}</p>
@@ -122,7 +122,7 @@ function ErrorState({
 		<div className="flex h-full flex-col">
 			<Header onBack={onBack} />
 			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
-				<div className="flex size-16 items-center justify-center rounded-full bg-destructive/10">
+				<div className="flex size-16 items-center justify-center bg-destructive/10">
 					<UserIcon className="size-8 text-destructive" weight="duotone" />
 				</div>
 				<div className="text-center">
@@ -130,7 +130,7 @@ function ErrorState({
 						Failed to load user
 					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						{message || "Please try again later"}
+						{message ||"Please try again later"}
 					</p>
 				</div>
 				<Button onClick={onBack} variant="outline">
@@ -153,7 +153,7 @@ function NotFoundState({
 		<div className="flex h-full flex-col">
 			<Header onBack={onBack} />
 			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
-				<div className="flex size-16 items-center justify-center rounded-full bg-secondary">
+				<div className="flex size-16 items-center justify-center bg-secondary">
 					<UserIcon
 						className="size-8 text-secondary-foreground"
 						weight="duotone"
@@ -164,7 +164,7 @@ function NotFoundState({
 						User not found
 					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						User "{userId}" was not found in the selected date range.
+						User"{userId}" was not found in the selected date range.
 					</p>
 				</div>
 				<Button onClick={onBack} variant="outline">
@@ -189,13 +189,13 @@ function Header({
 	};
 }) {
 	const countryCode = userProfile
-		? getCountryCode(userProfile.country || "")
-		: "";
+		? getCountryCode(userProfile.country ||"")
+		:"";
 
 	return (
 		<div className="flex h-12 shrink-0 items-center border-b bg-background">
 			<Button
-				className="h-full w-12 shrink-0 rounded-none border-r"
+				className="h-full w-12 shrink-0 border-r"
 				onClick={onBack}
 				size="icon"
 				variant="ghost"
@@ -212,27 +212,27 @@ function Header({
 								{generateProfileName(userProfile.visitor_id)}
 							</h1>
 							<p className="text-muted-foreground text-xs">
-								{userProfile.region && userProfile.region !== "Unknown"
+								{userProfile.region && userProfile.region !=="Unknown"
 									? `${userProfile.region}, `
-									: ""}
-								{userProfile.country || "Unknown location"}
+									:""}
+								{userProfile.country ||"Unknown location"}
 							</p>
 						</div>
 					</div>
 					<Badge
 						variant={
-							(userProfile.total_sessions ?? 0) > 1 ? "default" : "secondary"
+							(userProfile.total_sessions ?? 0) > 1 ?"default" :"secondary"
 						}
 					>
-						{(userProfile.total_sessions ?? 0) > 1 ? "Return" : "New"}
+						{(userProfile.total_sessions ?? 0) > 1 ?"Return" :"New"}
 					</Badge>
 				</div>
 			) : (
 				<div className="flex flex-1 items-center gap-2.5 px-3">
-					<div className="size-4 animate-pulse rounded bg-muted" />
+					<div className="size-4 animate-pulse bg-muted" />
 					<div className="space-y-1">
-						<div className="h-3.5 w-28 animate-pulse rounded bg-muted" />
-						<div className="h-3 w-20 animate-pulse rounded bg-muted" />
+						<div className="h-3.5 w-28 animate-pulse bg-muted" />
+						<div className="h-3 w-20 animate-pulse bg-muted" />
 					</div>
 				</div>
 			)}
@@ -280,20 +280,20 @@ export default function UserDetailPage() {
 			events?: unknown[] | null;
 			session_name?: string | null;
 		}): Session => {
-			const countryCode = getCountryCode(session.country || "");
+			const countryCode = getCountryCode(session.country ||"");
 			return {
 				session_id: session.session_id,
-				first_visit: session.first_visit || "",
-				last_visit: session.last_visit || "",
+				first_visit: session.first_visit ||"",
+				last_visit: session.last_visit ||"",
 				page_views: session.page_views ?? 0,
 				visitor_id: userId as string,
 				country: countryCode,
-				country_name: session.country || "",
+				country_name: session.country ||"",
 				country_code: countryCode,
-				referrer: session.referrer || "",
-				device_type: session.device || "",
-				browser_name: session.browser || "",
-				os_name: session.os || "",
+				referrer: session.referrer ||"",
+				device_type: session.device ||"",
+				browser_name: session.browser ||"",
+				os_name: session.os ||"",
 				events: session.events || [],
 				session_name: session.session_name || undefined,
 			} as Session;
@@ -383,16 +383,16 @@ export default function UserDetailPage() {
 								Location
 							</span>
 						</div>
-						<div className="flex items-center gap-3 rounded bg-accent/50 px-3 py-2.5">
+						<div className="flex items-center gap-3 bg-accent/50 px-3 py-2.5">
 							<CountryFlag
-								country={getCountryCode(userProfile.country || "")}
+								country={getCountryCode(userProfile.country ||"")}
 								size="lg"
 							/>
 							<div>
 								<p className="font-medium text-foreground">
-									{userProfile.country || "Unknown"}
+									{userProfile.country ||"Unknown"}
 								</p>
-								{userProfile.region && userProfile.region !== "Unknown" && (
+								{userProfile.region && userProfile.region !=="Unknown" && (
 									<p className="text-muted-foreground text-xs">
 										{userProfile.region}
 									</p>
@@ -416,22 +416,22 @@ export default function UserDetailPage() {
 							<TechItem
 								icon={getDeviceIcon(userProfile.device)}
 								label="Device"
-								value={userProfile.device || "Unknown"}
+								value={userProfile.device ||"Unknown"}
 							/>
 							<TechItem
 								icon={
 									<BrowserIcon
-										name={userProfile.browser || "Unknown"}
+										name={userProfile.browser ||"Unknown"}
 										size="md"
 									/>
 								}
 								label="Browser"
-								value={userProfile.browser || "Unknown"}
+								value={userProfile.browser ||"Unknown"}
 							/>
 							<TechItem
-								icon={<OSIcon name={userProfile.os || "Unknown"} size="md" />}
+								icon={<OSIcon name={userProfile.os ||"Unknown"} size="md" />}
 								label="Operating System"
-								value={userProfile.os || "Unknown"}
+								value={userProfile.os ||"Unknown"}
 							/>
 						</div>
 					</div>
@@ -452,7 +452,7 @@ export default function UserDetailPage() {
 								date={
 									userProfile.first_visit
 										? dayjs(userProfile.first_visit).format("MMM D, YYYY")
-										: "Unknown"
+										:"Unknown"
 								}
 								label="First Visit"
 								time={
@@ -465,7 +465,7 @@ export default function UserDetailPage() {
 								date={
 									userProfile.last_visit
 										? dayjs(userProfile.last_visit).format("MMM D, YYYY")
-										: "Unknown"
+										:"Unknown"
 								}
 								label="Last Visit"
 								time={
@@ -475,11 +475,11 @@ export default function UserDetailPage() {
 								}
 							/>
 							<div className="flex items-start gap-3">
-								<div className="mt-0.5 size-2 shrink-0 rounded-full bg-success" />
+								<div className="mt-0.5 size-2 shrink-0 bg-success" />
 								<div className="min-w-0 flex-1">
 									<p className="text-muted-foreground text-xs">Total Time</p>
 									<p className="font-semibold text-foreground">
-										{userProfile.total_duration_formatted || "0s"}
+										{userProfile.total_duration_formatted ||"0s"}
 									</p>
 								</div>
 							</div>
@@ -561,7 +561,7 @@ export default function UserDetailPage() {
 						</div>
 					) : (
 						<div className="flex flex-col items-center justify-center py-16">
-							<div className="flex size-12 items-center justify-center rounded-full bg-secondary">
+							<div className="flex size-12 items-center justify-center bg-secondary">
 								<ChartLineIcon
 									className="size-6 text-secondary-foreground"
 									weight="duotone"

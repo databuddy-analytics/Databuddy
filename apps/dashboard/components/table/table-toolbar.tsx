@@ -1,5 +1,5 @@
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { ArrowsOutSimpleIcon } from"@phosphor-icons/react";
+import { cn } from"@/lib/utils";
 
 type TableToolbarProps = {
 	title: string;
@@ -17,7 +17,7 @@ export function TableToolbar({
 	borderBottom = false,
 }: TableToolbarProps) {
 	return (
-		<div className={cn("px-3 pt-3 pb-2", borderBottom && "border-b")}>
+		<div className={cn("px-3 pt-3 pb-2", borderBottom &&"border-b")}>
 			<div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
 				<div className="min-w-0 flex-1">
 					<h3 className="truncate font-semibold text-sidebar-foreground text-sm">
@@ -33,7 +33,7 @@ export function TableToolbar({
 					{showFullScreen && onFullScreenToggle && (
 						<button
 							aria-label="Full screen"
-							className="flex size-8 items-center justify-center rounded border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground hover:bg-accent-brighter"
+							className="flex size-8 items-center justify-center border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground hover:bg-accent-brighter"
 							onClick={onFullScreenToggle}
 							title="Full screen"
 							type="button"

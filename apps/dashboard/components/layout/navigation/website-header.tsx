@@ -1,5 +1,5 @@
 import type { Website } from "@databuddy/shared/types/website";
-import { CaretLeftIcon, PlanetIcon } from "@phosphor-icons/react";
+import { ChevronLeftIcon, GlobeAltIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,51 +16,44 @@ export function WebsiteHeader({
 	const displayName = website?.name || website?.domain;
 
 	return (
-		<div className="bg-sidebar-accent">
-			<div className="flex h-12 min-w-0 items-center gap-3 border-b px-3">
-				<div className="shrink-0 rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
+		<div className="border-b border-border">
+			<div className="flex h-16 min-w-0 items-center gap-3 px-4">
+				<div className="shrink-0">
 					<FaviconImage
 						altText={`${displayName || "Website"} favicon`}
-						className="size-5"
+						className="size-8 rounded-full"
 						domain={website?.domain || ""}
 						fallbackIcon={
-							<PlanetIcon
-								className="text-sidebar-ring"
-								size={20}
-								weight="duotone"
-							/>
+							<GlobeAltIcon className="size-8 text-muted-foreground" />
 						}
-						size={20}
+						size={32}
 					/>
 				</div>
-				<div className="min-w-0 flex-1 space-y-0.5">
+				<div className="min-w-0 flex-1">
 					{displayName ? (
-						<h2 className="truncate font-semibold text-sidebar-accent-foreground text-sm">
+						<h2 className="truncate font-medium text-foreground text-sm leading-none">
 							{displayName}
 						</h2>
 					) : (
 						<Skeleton className="h-4 w-32" />
 					)}
 					{website?.domain ? (
-						<p className="truncate text-sidebar-accent-foreground/70 text-xs">
+						<p className="mt-1 truncate text-muted-foreground text-xs leading-none">
 							{website.domain}
 						</p>
 					) : (
-						<Skeleton className="h-3 w-24" />
+						<Skeleton className="mt-1 h-3 w-24" />
 					)}
 				</div>
 			</div>
 
 			{showBackButton && (
 				<Link
-					className="group flex h-10 min-w-0 items-center gap-2 border-b px-3 hover:bg-accent"
+					className="group flex h-12 min-w-0 items-center gap-2 border-t border-border px-4 hover:bg-muted/50"
 					href="/websites"
 				>
-					<CaretLeftIcon
-						className="size-3 shrink-0 text-sidebar-accent-foreground/80 transition-transform group-hover:-translate-x-0.5 group-hover:text-sidebar-accent-foreground"
-						weight="fill"
-					/>
-					<span className="truncate font-semibold text-sidebar-accent-foreground/80 text-xs group-hover:text-sidebar-accent-foreground">
+					<ChevronLeftIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-0.5 group-hover:text-foreground" />
+					<span className="truncate font-medium text-muted-foreground text-sm group-hover:text-foreground">
 						Back to Websites
 					</span>
 				</Link>

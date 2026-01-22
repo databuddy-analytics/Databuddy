@@ -1,15 +1,15 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { CodeIcon, GearIcon, InfoIcon } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import clsx from "clsx";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { Button } from "@/components/ui/button";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { CodeIcon, GearIcon, InfoIcon } from"@phosphor-icons/react";
+import { useMutation } from"@tanstack/react-query";
+import clsx from"clsx";
+import { useEffect, useState } from"react";
+import { useForm } from"react-hook-form";
+import { toast } from"sonner";
+import { z } from"zod";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { Button } from"@/components/ui/button";
 import {
 	Form,
 	FormControl,
@@ -17,8 +17,8 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
 import {
 	Sheet,
 	SheetBody,
@@ -27,25 +27,25 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
+} from"@/components/ui/sheet";
+import { Switch } from"@/components/ui/switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useWebsite } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
-import { CollapsibleSection } from "./collapsible-section";
-import { FieldPathInput } from "./field-path-input";
+} from"@/components/ui/tooltip";
+import { useWebsite } from"@/hooks/use-websites";
+import { orpc } from"@/lib/orpc";
+import { CollapsibleSection } from"./collapsible-section";
+import { FieldPathInput } from"./field-path-input";
 
 const granularityOptions = [
-	{ value: "minute", label: "1m" },
-	{ value: "five_minutes", label: "5m" },
-	{ value: "ten_minutes", label: "10m" },
-	{ value: "thirty_minutes", label: "30m" },
-	{ value: "hour", label: "1h" },
-	{ value: "six_hours", label: "6h" },
+	{ value:"minute", label:"1m" },
+	{ value:"five_minutes", label:"5m" },
+	{ value:"ten_minutes", label:"10m" },
+	{ value:"thirty_minutes", label:"30m" },
+	{ value:"hour", label:"1h" },
+	{ value:"six_hours", label:"6h" },
 ] as const;
 
 const monitorFormSchema = z.object({
@@ -62,7 +62,7 @@ const monitorFormSchema = z.object({
 	timeout: z.number().int().min(1000).max(120_000).nullable(),
 	cacheBust: z.boolean(),
 	jsonParsingEnabled: z.boolean(),
-	jsonParsingMode: z.enum(["auto", "manual"]),
+	jsonParsingMode: z.enum(["auto","manual"]),
 	jsonParsingFields: z.array(z.string()),
 });
 
@@ -82,7 +82,7 @@ interface MonitorSheetProps {
 		cacheBust?: boolean;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
+			mode:"auto" |"manual";
 			fields?: string[];
 		} | null;
 	} | null;
@@ -97,22 +97,22 @@ export function MonitorSheet({
 }: MonitorSheetProps) {
 	const isEditing = !!schedule;
 	// Only fetch website if websiteId is provided
-	const { data: website } = useWebsite(websiteId || "");
+	const { data: website } = useWebsite(websiteId ||"");
 	const { activeOrganization } = useOrganizationsContext();
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
 	const form = useForm<MonitorFormData>({
 		resolver: zodResolver(monitorFormSchema),
 		defaultValues: {
-			name: schedule?.name ?? "",
-			url: schedule?.url ?? "",
+			name: schedule?.name ??"",
+			url: schedule?.url ??"",
 			granularity:
 				(schedule?.granularity as MonitorFormData["granularity"]) ||
 				"ten_minutes",
 			timeout: schedule?.timeout ?? null,
 			cacheBust: schedule?.cacheBust ?? false,
 			jsonParsingEnabled: schedule?.jsonParsingConfig?.enabled ?? false,
-			jsonParsingMode: schedule?.jsonParsingConfig?.mode ?? "auto",
+			jsonParsingMode: schedule?.jsonParsingConfig?.mode ??"auto",
 			jsonParsingFields: schedule?.jsonParsingConfig?.fields ?? [],
 		},
 	});
@@ -129,7 +129,7 @@ export function MonitorSheet({
 			const jsonConfig = schedule?.jsonParsingConfig;
 
 			// If creating new and websiteId exists, pre-fill URL if empty
-			let initialUrl = schedule?.url ?? "";
+			let initialUrl = schedule?.url ??"";
 			if (!(isEditing || initialUrl) && website?.domain) {
 				initialUrl = website.domain.startsWith("http")
 					? website.domain
@@ -137,7 +137,7 @@ export function MonitorSheet({
 			}
 
 			// Pre-fill name if available or creating for website
-			let initialName = schedule?.name ?? "";
+			let initialName = schedule?.name ??"";
 			if (!(isEditing || initialName) && website?.name) {
 				initialName = website.name;
 			}
@@ -151,7 +151,7 @@ export function MonitorSheet({
 				timeout: schedule?.timeout ?? null,
 				cacheBust: schedule?.cacheBust ?? false,
 				jsonParsingEnabled: jsonConfig?.enabled ?? false,
-				jsonParsingMode: jsonConfig?.mode ?? "auto",
+				jsonParsingMode: jsonConfig?.mode ??"auto",
 				jsonParsingFields: jsonConfig?.fields ?? [],
 			});
 			const hasAdvancedSettings =
@@ -170,7 +170,7 @@ export function MonitorSheet({
 					enabled: true,
 					mode: data.jsonParsingMode,
 					fields:
-						data.jsonParsingMode === "manual" &&
+						data.jsonParsingMode ==="manual" &&
 						data.jsonParsingFields.length > 0
 							? data.jsonParsingFields
 							: undefined,
@@ -220,12 +220,12 @@ export function MonitorSheet({
 			<SheetContent className="w-full sm:max-w-xl">
 				<SheetHeader>
 					<SheetTitle>
-						{isEditing ? "Edit Monitor" : "Create Monitor"}
+						{isEditing ?"Edit Monitor" :"Create Monitor"}
 					</SheetTitle>
 					<SheetDescription>
 						{isEditing
-							? "Update your uptime monitor settings"
-							: "Set up a new uptime monitor"}
+							?"Update your uptime monitor settings"
+							:"Set up a new uptime monitor"}
 					</SheetDescription>
 				</SheetHeader>
 
@@ -302,7 +302,7 @@ export function MonitorSheet({
 												</TooltipContent>
 											</Tooltip>
 										</FormLabel>
-										<div className="flex items-center justify-center gap-0 rounded border">
+										<div className="flex items-center justify-center gap-0 border">
 											{granularityOptions.map((option, index) => {
 												const isActive = field.value === option.value;
 												const isFirst = index === 0;
@@ -310,18 +310,18 @@ export function MonitorSheet({
 												return (
 													<Button
 														className={clsx(
-															"h-10 flex-1 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-sm",
-															isFirst ? "rounded-l" : "",
-															isLast ? "rounded-r border-r-0" : "",
+															"h-10 flex-1 cursor-pointer touch-manipulation whitespace-nowrap border-r px-0 font-medium text-sm",
+															isFirst ?"" :"",
+															isLast ?" border-r-0" :"",
 															isActive
-																? "bg-accent text-accent-foreground hover:bg-accent"
-																: "hover:bg-accent/50"
+																?"bg-accent text-accent-foreground hover:bg-accent"
+																:"hover:bg-accent/50"
 														)}
 														disabled={isPending}
 														key={option.value}
 														onClick={() => field.onChange(option.value)}
 														type="button"
-														variant={isActive ? "secondary" : "ghost"}
+														variant={isActive ?"secondary" :"ghost"}
 													>
 														{option.label}
 													</Button>
@@ -351,7 +351,7 @@ export function MonitorSheet({
 											control={form.control}
 											name="timeout"
 											render={({ field }) => (
-												<FormItem className="flex items-center justify-between gap-4 space-y-0 rounded border p-3">
+												<FormItem className="flex items-center justify-between gap-4 space-y-0 border p-3">
 													<div className="space-y-1">
 														<FormLabel className="flex items-center gap-2 font-normal text-sm">
 															Timeout
@@ -386,7 +386,7 @@ export function MonitorSheet({
 															placeholder="30"
 															suffix="sec"
 															type="number"
-															value={field.value ? field.value / 1000 : ""}
+															value={field.value ? field.value / 1000 :""}
 															wrapperClassName="w-fit flex-none"
 														/>
 													</FormControl>
@@ -399,7 +399,7 @@ export function MonitorSheet({
 											control={form.control}
 											name="cacheBust"
 											render={({ field }) => (
-												<FormItem className="flex items-center justify-between gap-4 space-y-0 rounded border p-3">
+												<FormItem className="flex items-center justify-between gap-4 space-y-0 border p-3">
 													<div className="space-y-1">
 														<FormLabel className="font-normal text-sm">
 															Cache Busting
@@ -432,7 +432,7 @@ export function MonitorSheet({
 											control={form.control}
 											name="jsonParsingEnabled"
 											render={({ field }) => (
-												<FormItem className="flex items-center justify-between gap-4 space-y-0 rounded border p-3">
+												<FormItem className="flex items-center justify-between gap-4 space-y-0 border p-3">
 													<div className="space-y-1">
 														<FormLabel className="font-normal text-sm">
 															Enable Parsing
@@ -466,41 +466,41 @@ export function MonitorSheet({
 															<div className="mb-2 flex items-center justify-between">
 																<FormLabel>Parsing Mode</FormLabel>
 																<span className="text-muted-foreground text-xs">
-																	{field.value === "auto"
-																		? "Recursively search for status/latency fields"
-																		: "Manually specify paths using dot notation"}
+																	{field.value ==="auto"
+																		?"Recursively search for status/latency fields"
+																		:"Manually specify paths using dot notation"}
 																</span>
 															</div>
 															<FormControl>
-																<div className="flex items-center justify-center gap-0 rounded border">
+																<div className="flex items-center justify-center gap-0 border">
 																	<Button
 																		className={clsx(
-																			"h-9 flex-1 cursor-pointer rounded-none rounded-l border-r px-0 font-medium text-sm hover:bg-accent/50",
-																			field.value === "auto" &&
+																			"h-9 flex-1 cursor-pointer border-r px-0 font-medium text-sm hover:bg-accent/50",
+																			field.value ==="auto" &&
 																				"bg-accent text-accent-foreground hover:bg-accent"
 																		)}
 																		onClick={() => field.onChange("auto")}
 																		type="button"
 																		variant={
-																			field.value === "auto"
-																				? "secondary"
-																				: "ghost"
+																			field.value ==="auto"
+																				?"secondary"
+																				:"ghost"
 																		}
 																	>
 																		Auto
 																	</Button>
 																	<Button
 																		className={clsx(
-																			"h-9 flex-1 cursor-pointer rounded-none rounded-r px-0 font-medium text-sm hover:bg-accent/50",
-																			field.value === "manual" &&
+																			"h-9 flex-1 cursor-pointer px-0 font-medium text-sm hover:bg-accent/50",
+																			field.value ==="manual" &&
 																				"bg-accent text-accent-foreground hover:bg-accent"
 																		)}
 																		onClick={() => field.onChange("manual")}
 																		type="button"
 																		variant={
-																			field.value === "manual"
-																				? "secondary"
-																				: "ghost"
+																			field.value ==="manual"
+																				?"secondary"
+																				:"ghost"
 																		}
 																	>
 																		Manual
@@ -512,7 +512,7 @@ export function MonitorSheet({
 													)}
 												/>
 
-												{form.watch("jsonParsingMode") === "manual" && (
+												{form.watch("jsonParsingMode") ==="manual" && (
 													<FormField
 														control={form.control}
 														name="jsonParsingFields"
@@ -552,7 +552,7 @@ export function MonitorSheet({
 								disabled={isPending || !form.formState.isValid}
 								type="submit"
 							>
-								{isPending ? "Saving..." : isEditing ? "Update" : "Create"}
+								{isPending ?"Saving..." : isEditing ?"Update" :"Create"}
 							</Button>
 						</SheetFooter>
 					</form>

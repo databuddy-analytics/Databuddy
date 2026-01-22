@@ -1,8 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { motion, useMotionValueEvent, useSpring } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { cn } from"@/lib/utils";
+import { motion, useMotionValueEvent, useSpring } from"framer-motion";
+import { useEffect, useRef, useState } from"react";
 
 interface LineSliderProps {
 	value: number;
@@ -17,7 +17,7 @@ export function LineSlider({
 	onValueChange,
 	min = 0,
 	max = 100,
-	className = "",
+	className ="",
 }: LineSliderProps) {
 	const sliderRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -35,7 +35,7 @@ export function LineSlider({
 		springValue.set(value);
 	}, [value, springValue]);
 
-	useMotionValueEvent(springValue, "change", (latest) => {
+	useMotionValueEvent(springValue,"change", (latest) => {
 		if (!isDragging) {
 			setDisplayValue(latest);
 		}
@@ -99,7 +99,7 @@ export function LineSlider({
 		sliderRef.current?.releasePointerCapture(e.pointerId);
 	};
 
-	// Calculate which lines should be "active" based on value
+	// Calculate which lines should be"active" based on value
 	const renderValue = isDragging ? value : displayValue;
 	const percentage = Math.max(0, Math.min(1, (renderValue - min) / (max - min)));
 	const activeLines = Math.floor(percentage * lineCount);
@@ -112,7 +112,7 @@ export function LineSlider({
 			onPointerUp={handlePointerUp}
 			onLostPointerCapture={handlePointerUp}
 			className={cn(
-				"flex items-stretch justify-center gap-[2px]  border rounded h-8 py-1 px-1 cursor-ew-resize select-none touch-none w-full",
+				"flex items-stretch justify-center gap-[2px] border h-8 py-1 px-1 cursor-ew-resize select-none touch-none w-full",
 				className,
 			)}
 		>
@@ -124,17 +124,17 @@ export function LineSlider({
 						initial={false}
 						animate={{
 							backgroundColor: isActive
-								? "var(--foreground)"
-								: "var(--muted-foreground)",
+								?"var(--foreground)"
+								:"var(--muted-foreground)",
 							opacity: isActive ? 1 : 0.4,
 							scaleY: isActive ? 1 : 0.7,
 						}}
 						transition={{
-							type: "spring",
+							type:"spring",
 							stiffness: 300,
 							damping: 30,
 						}}
-						className="w-px h-full rounded-full"
+						className="w-px h-full"
 					/>
 				);
 			})}

@@ -1,7 +1,7 @@
 "use client";
 
-import type React from "react";
-import { cn } from "@/lib/utils";
+import type React from"react";
+import { cn } from"@/lib/utils";
 
 type TrendPercentageProps = {
 	id?: string;
@@ -12,7 +12,7 @@ type TrendPercentageProps = {
 };
 
 const formatPercentage = (value: number, digits = 1): string => {
-	const sign = value > 0 ? "+" : "";
+	const sign = value > 0 ?"+" :"";
 	return `${sign}${Math.abs(value).toFixed(digits)}%`;
 };
 
@@ -23,7 +23,7 @@ export const TrendPercentage: React.FC<TrendPercentageProps> = ({
 	className,
 	digits = 1,
 }) => {
-	let colorClass = "text-muted-foreground";
+	let colorClass ="text-muted-foreground";
 
 	if (Number.isNaN(value)) {
 		return (
@@ -34,10 +34,10 @@ export const TrendPercentage: React.FC<TrendPercentageProps> = ({
 	}
 
 	if (value > 0) {
-		colorClass = invertColor ? "text-destructive" : "text-success";
+		colorClass = invertColor ?"text-destructive" :"text-success";
 	}
 	if (value < 0) {
-		colorClass = invertColor ? "text-success" : "text-destructive";
+		colorClass = invertColor ?"text-success" :"text-destructive";
 	}
 
 	return (

@@ -1,13 +1,13 @@
 "use client";
 
-import { ChevronDownIcon, SearchIcon } from "lucide-react";
-import type { ComponentProps } from "react";
+import { ChevronDownIcon, SearchIcon } from"lucide-react";
+import type { ComponentProps } from"react";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/collapsible";
+import { cn } from"@/lib/utils";
 
 export type TaskItemFileProps = ComponentProps<"div">;
 
@@ -18,7 +18,7 @@ export const TaskItemFile = ({
 }: TaskItemFileProps) => (
 	<div
 		className={cn(
-			"inline-flex items-center gap-1 rounded-md border bg-secondary px-1.5 py-0.5 text-foreground text-xs",
+			"inline-flex items-center gap-1 border bg-secondary px-1.5 py-0.5 text-foreground text-xs",
 			className
 		)}
 		{...props}

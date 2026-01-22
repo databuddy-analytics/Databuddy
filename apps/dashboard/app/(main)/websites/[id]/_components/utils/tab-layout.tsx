@@ -1,6 +1,6 @@
-import type React from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { BORDER_RADIUS } from "./ui-components";
+import type React from"react";
+import { Skeleton } from"@/components/ui/skeleton";
+import { BORDER_RADIUS } from"./ui-components";
 
 interface TabLayoutProps {
 	title?: string;
@@ -16,7 +16,7 @@ export function TabLayout({
 	description,
 	isLoading = false,
 	children,
-	className = "",
+	className ="",
 	actions,
 }: TabLayoutProps) {
 	if (isLoading) {

@@ -1,20 +1,20 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
-import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
-import { useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WebsiteDialog } from "@/components/website-dialog";
-import { useWebsites } from "@/hooks/use-websites";
+import { ArrowClockwiseIcon } from"@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { GlobeIcon } from"@phosphor-icons/react/dist/ssr/Globe";
+import { PlusIcon } from"@phosphor-icons/react/dist/ssr/Plus";
+import { TrendUpIcon } from"@phosphor-icons/react/dist/ssr/TrendUp";
+import { useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent, CardHeader } from"@/components/ui/card";
+import { Skeleton } from"@/components/ui/skeleton";
+import { WebsiteDialog } from"@/components/website-dialog";
+import { useWebsites } from"@/hooks/use-websites";
 
-import { cn } from "@/lib/utils";
-import { PageHeader } from "./_components/page-header";
-import { WebsiteCard } from "./_components/website-card";
+import { cn } from"@/lib/utils";
+import { PageHeader } from"./_components/page-header";
+import { WebsiteCard } from"./_components/website-card";
 
 function LoadingSkeleton() {
 	return (
@@ -25,19 +25,19 @@ function LoadingSkeleton() {
 					key={`website-skeleton-${num}`}
 				>
 					<CardHeader className="dotted-bg gap-0! border-b bg-accent px-3 pt-4 pb-0!">
-						<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
+						<Skeleton className="mx-auto h-24 w-full sm:h-28" />
 					</CardHeader>
 					<CardContent className="px-4 py-3">
 						<div className="flex items-center gap-3">
-							<Skeleton className="size-7 shrink-0 rounded" />
+							<Skeleton className="size-7 shrink-0" />
 							<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
 								<div className="flex flex-col gap-1">
-									<Skeleton className="h-3.5 w-24 rounded" />
-									<Skeleton className="h-3 w-32 rounded" />
+									<Skeleton className="h-3.5 w-24" />
+									<Skeleton className="h-3 w-32" />
 								</div>
 								<div className="flex flex-col items-end gap-1">
-									<Skeleton className="h-3 w-12 rounded" />
-									<Skeleton className="h-2.5 w-8 rounded" />
+									<Skeleton className="h-3 w-12" />
+									<Skeleton className="h-2.5 w-8" />
 								</div>
 							</div>
 						</div>
@@ -80,7 +80,7 @@ export default function WebsitesPage() {
 								aria-hidden
 								className={cn(
 									"size-4",
-									isLoading || isFetching ? "animate-spin" : ""
+									isLoading || isFetching ?"animate-spin" :""
 								)}
 							/>
 						</Button>
@@ -115,7 +115,7 @@ export default function WebsitesPage() {
 				{isError && (
 					<EmptyState
 						action={{
-							label: "Try Again",
+							label:"Try Again",
 							onClick: () => refetch(),
 						}}
 						className="h-full"
@@ -130,7 +130,7 @@ export default function WebsitesPage() {
 				{!(isLoading || isError) && websites && websites.length === 0 && (
 					<EmptyState
 						action={{
-							label: "Create Your First Website",
+							label:"Create Your First Website",
 							onClick: () => setDialogOpen(true),
 						}}
 						className="h-full"

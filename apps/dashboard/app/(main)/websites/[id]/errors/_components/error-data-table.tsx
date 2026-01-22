@@ -1,14 +1,14 @@
 "use client";
 
-import type { ErrorTab } from "@databuddy/shared/types/errors";
-import dynamic from "next/dynamic";
-import { Skeleton } from "@/components/ui/skeleton";
+import type { ErrorTab } from"@databuddy/shared/types/errors";
+import dynamic from"next/dynamic";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	createErrorTypeColumns,
 	createPageColumn,
 	errorColumns,
-} from "./error-table-columns";
-import type { ErrorByPage, ErrorType } from "./types";
+} from"./error-table-columns";
+import type { ErrorByPage, ErrorType } from"./types";
 
 const DataTable = dynamic(
 	() =>
@@ -18,7 +18,7 @@ const DataTable = dynamic(
 	{
 		ssr: false,
 		loading: () => (
-			<div className="rounded border bg-sidebar">
+			<div className=" border bg-sidebar">
 				<div className="border-b px-3 py-2.5 sm:px-4 sm:py-3">
 					<Skeleton className="h-5 w-24" />
 				</div>
@@ -46,14 +46,14 @@ export const ErrorDataTable = ({
 }: ErrorDataTableProps) => {
 	const errorTabs: ErrorTab[] = [
 		{
-			id: "error_types",
-			label: "Error Types",
+			id:"error_types",
+			label:"Error Types",
 			data: processedData.error_types,
 			columns: createErrorTypeColumns(),
 		},
 		{
-			id: "errors_by_page",
-			label: "By Page",
+			id:"errors_by_page",
+			label:"By Page",
 			data: processedData.errors_by_page,
 			columns: [createPageColumn(), ...errorColumns],
 		},

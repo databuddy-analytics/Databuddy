@@ -6,9 +6,9 @@ import {
 	TestTubeIcon,
 	UsersIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -16,8 +16,8 @@ import {
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
-import type { FlagTemplate } from "../../_components/types";
+} from"@/components/ui/card";
+import type { FlagTemplate } from"../../_components/types";
 
 export interface TemplateItemProps {
 	template: FlagTemplate;
@@ -26,13 +26,13 @@ export interface TemplateItemProps {
 
 function getTemplateIcon(icon: string) {
 	switch (icon) {
-		case "rocket":
+		case"rocket":
 			return RocketLaunchIcon;
-		case "test":
+		case"test":
 			return TestTubeIcon;
-		case "users":
+		case"users":
 			return UsersIcon;
-		case "warning":
+		case"warning":
 			return WarningIcon;
 		default:
 			return RocketLaunchIcon;
@@ -41,18 +41,18 @@ function getTemplateIcon(icon: string) {
 
 function getCategoryColor(
 	category: string
-): "blue" | "amber" | "green" | "destructive" | "gray" {
+):"blue" |"amber" |"green" |"destructive" |"gray" {
 	switch (category) {
-		case "rollout":
-			return "blue";
-		case "experiment":
-			return "amber";
-		case "targeting":
-			return "green";
-		case "killswitch":
-			return "destructive";
+		case"rollout":
+			return"blue";
+		case"experiment":
+			return"amber";
+		case"targeting":
+			return"green";
+		case"killswitch":
+			return"destructive";
 		default:
-			return "gray";
+			return"gray";
 	}
 }
 
@@ -64,7 +64,7 @@ export function TemplateItem({ template, onUseAction }: TemplateItemProps) {
 		<Card className="group relative flex flex-col overflow-hidden transition-all hover:border-primary/50 hover:shadow-md">
 			<CardHeader className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
+					<div className="flex size-10 shrink-0 items-center justify-center bg-primary/10">
 						<TemplateIcon className="size-5 text-primary" weight="duotone" />
 					</div>
 					{template.isBuiltIn && (

@@ -1,17 +1,17 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureGate } from "@/components/feature-gate";
-import { orpc } from "@/lib/orpc";
-import { isGroupSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
-import type { TargetGroup } from "../_components/types";
-import { GroupSheet } from "./_components/group-sheet";
-import { GroupsList } from "./_components/groups-list";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useAtom } from"jotai";
+import { useParams } from"next/navigation";
+import { Suspense, useState } from"react";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { FeatureGate } from"@/components/feature-gate";
+import { orpc } from"@/lib/orpc";
+import { isGroupSheetOpenAtom } from"@/stores/jotai/flagsAtoms";
+import type { TargetGroup } from"../_components/types";
+import { GroupSheet } from"./_components/group-sheet";
+import { GroupsList } from"./_components/groups-list";
 
 const GroupsListSkeleton = () => (
 	<div className="border-border border-t">
@@ -23,13 +23,13 @@ const GroupsListSkeleton = () => (
 				<div className="flex flex-1 items-center gap-4">
 					<div className="min-w-0 flex-1 space-y-2">
 						<div className="flex items-center gap-2">
-							<div className="size-8 rounded bg-muted" />
-							<div className="h-5 w-40 rounded bg-muted" />
-							<div className="h-5 w-16 rounded bg-muted" />
+							<div className="size-8 bg-muted" />
+							<div className="h-5 w-40 bg-muted" />
+							<div className="h-5 w-16 bg-muted" />
 						</div>
-						<div className="h-4 w-48 rounded bg-muted" />
+						<div className="h-4 w-48 bg-muted" />
 					</div>
-					<div className="size-8 rounded bg-muted" />
+					<div className="size-8 bg-muted" />
 				</div>
 			</div>
 		))}

@@ -1,18 +1,18 @@
 "use client";
 
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr/ArrowLeft";
-import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
-import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
-import { CursorClickIcon } from "@phosphor-icons/react/dist/ssr/CursorClick";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
-import { MapPinIcon } from "@phosphor-icons/react/dist/ssr/MapPin";
-import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import dayjs from "dayjs";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { ArrowLeftIcon } from"@phosphor-icons/react/dist/ssr/ArrowLeft";
+import { ChartLineIcon } from"@phosphor-icons/react/dist/ssr/ChartLine";
+import { CopyIcon } from"@phosphor-icons/react/dist/ssr/Copy";
+import { CursorClickIcon } from"@phosphor-icons/react/dist/ssr/CursorClick";
+import { GlobeIcon } from"@phosphor-icons/react/dist/ssr/Globe";
+import { LinkIcon } from"@phosphor-icons/react/dist/ssr/Link";
+import { MapPinIcon } from"@phosphor-icons/react/dist/ssr/MapPin";
+import { UsersIcon } from"@phosphor-icons/react/dist/ssr/Users";
+import type { CellContext, ColumnDef } from"@tanstack/react-table";
+import dayjs from"dayjs";
+import Link from"next/link";
+import { useParams } from"next/navigation";
+import { useCallback, useMemo } from"react";
 import {
 	Area,
 	AreaChart,
@@ -21,23 +21,23 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { toast } from "sonner";
-import { DeviceTypeCell, StatCard } from "@/components/analytics";
-import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
-import { EmptyState } from "@/components/empty-state";
-import { CountryFlag } from "@/components/icon";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { DataTable } from "@/components/table/data-table";
-import { Button } from "@/components/ui/button";
-import { PercentageBadge } from "@/components/ui/percentage-badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useLink, useLinkStats } from "@/hooks/use-links";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { formatMetricNumber } from "@/lib/formatters";
+} from"recharts";
+import { toast } from"sonner";
+import { DeviceTypeCell, StatCard } from"@/components/analytics";
+import { ReferrerSourceCell } from"@/components/atomic/ReferrerSourceCell";
+import { EmptyState } from"@/components/empty-state";
+import { CountryFlag } from"@/components/icon";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { DataTable } from"@/components/table/data-table";
+import { Button } from"@/components/ui/button";
+import { PercentageBadge } from"@/components/ui/percentage-badge";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useLink, useLinkStats } from"@/hooks/use-links";
+import { useMediaQuery } from"@/hooks/use-media-query";
+import { formatMetricNumber } from"@/lib/formatters";
 
-const LINKS_BASE_URL = "https://dby.sh";
+const LINKS_BASE_URL ="https://dby.sh";
 
 interface SourceEntry {
 	name: string;
@@ -48,7 +48,7 @@ interface SourceEntry {
 }
 
 function extractDomain(referrer: string | undefined): string | undefined {
-	if (!referrer || referrer === "Direct" || referrer === "") {
+	if (!referrer || referrer ==="Direct" || referrer ==="") {
 		return undefined;
 	}
 	try {
@@ -56,8 +56,8 @@ function extractDomain(referrer: string | undefined): string | undefined {
 		if (referrer.startsWith("http://") || referrer.startsWith("https://")) {
 			return new URL(referrer).hostname;
 		}
-		// If it's just a domain or path like "t.co/" or "google.com"
-		const cleaned = referrer.replace(/^\/+|\/+$/g, "");
+		// If it's just a domain or path like"t.co/" or"google.com"
+		const cleaned = referrer.replace(/^\/+|\/+$/g,"");
 		if (cleaned.includes(".")) {
 			return cleaned.split("/")[0];
 		}
@@ -87,10 +87,10 @@ interface MiniChartDataPoint {
 
 function formatNumber(value: number): string {
 	if (value == null || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 }
@@ -103,7 +103,7 @@ function StatsLoadingSkeleton() {
 				<div className="min-w-0 flex-1">
 					<Skeleton className="mb-2 h-4 w-24" />
 					<div className="flex items-center gap-3">
-						<Skeleton className="size-9 shrink-0 rounded" />
+						<Skeleton className="size-9 shrink-0" />
 						<div className="min-w-0">
 							<Skeleton className="mb-1 h-6 w-48" />
 							<div className="flex items-center gap-2">
@@ -120,14 +120,14 @@ function StatsLoadingSkeleton() {
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
 				{[1, 2, 3].map((i) => (
 					<div
-						className="overflow-hidden rounded border bg-card"
+						className="overflow-hidden border bg-card"
 						key={`stat-skeleton-${i}`}
 					>
 						<div className="dotted-bg bg-accent pt-0">
 							<Skeleton className="h-26 w-full" />
 						</div>
 						<div className="flex items-center gap-2.5 border-t px-2.5 py-2.5">
-							<Skeleton className="size-7 shrink-0 rounded" />
+							<Skeleton className="size-7 shrink-0" />
 							<div className="min-w-0 flex-1 space-y-0.5">
 								<Skeleton className="h-5 w-14" />
 								<Skeleton className="h-3 w-12" />
@@ -139,7 +139,7 @@ function StatsLoadingSkeleton() {
 			</div>
 
 			{/* Chart skeleton */}
-			<div className="rounded border bg-sidebar">
+			<div className=" border bg-sidebar">
 				<div className="border-b px-3 py-3 sm:px-4">
 					<Skeleton className="h-5 w-32" />
 					<Skeleton className="mt-1 h-3 w-48" />
@@ -152,7 +152,7 @@ function StatsLoadingSkeleton() {
 			{/* Tables skeleton */}
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
 				{[1, 2].map((i) => (
-					<div className="rounded border bg-card" key={`table-skeleton-${i}`}>
+					<div className=" border bg-card" key={`table-skeleton-${i}`}>
 						<div className="p-3">
 							<Skeleton className="h-5 w-32" />
 							<Skeleton className="mt-1 h-3 w-48" />
@@ -160,7 +160,7 @@ function StatsLoadingSkeleton() {
 						<div className="space-y-2 px-3 pb-3">
 							{[1, 2, 3, 4, 5].map((j) => (
 								<Skeleton
-									className="h-12 w-full rounded"
+									className="h-12 w-full"
 									key={`row-skeleton-${i}-${j}`}
 								/>
 							))}
@@ -188,7 +188,7 @@ function ClicksChart({
 				style={{ height: `${height}px` }}
 			>
 				<div className="flex flex-col items-center py-12 text-center">
-					<div className="relative flex size-12 items-center justify-center rounded bg-accent">
+					<div className="relative flex size-12 items-center justify-center bg-accent">
 						<ChartLineIcon
 							className="size-6 text-foreground"
 							weight="duotone"
@@ -205,11 +205,11 @@ function ClicksChart({
 		);
 	}
 
-	const xAxisFormat = isHourly ? "MMM D, HH:mm" : "MMM D";
-	const tooltipFormat = isHourly ? "MMM D, YYYY HH:mm" : "MMM D, YYYY";
+	const xAxisFormat = isHourly ?"MMM D, HH:mm" :"MMM D";
+	const tooltipFormat = isHourly ?"MMM D, YYYY HH:mm" :"MMM D, YYYY";
 
 	return (
-		<div style={{ height: `${height}px`, width: "100%" }}>
+		<div style={{ height: `${height}px`, width:"100%" }}>
 			<ResponsiveContainer height="100%" width="100%">
 				<AreaChart
 					data={data}
@@ -238,23 +238,23 @@ function ClicksChart({
 					<XAxis
 						axisLine={false}
 						dataKey="date"
-						tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+						tick={{ fontSize: 11, fill:"var(--muted-foreground)" }}
 						tickFormatter={(value) => dayjs(value).format(xAxisFormat)}
 						tickLine={false}
 					/>
 					<YAxis
 						allowDecimals={false}
 						axisLine={false}
-						tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+						tick={{ fontSize: 11, fill:"var(--muted-foreground)" }}
 						tickLine={false}
 						width={45}
 					/>
 					<Tooltip
 						content={({ active, payload, label }) =>
-							active && payload?.[0] && typeof payload[0].value === "number" ? (
-								<div className="min-w-[160px] rounded border bg-popover p-3 shadow-lg">
+							active && payload?.[0] && typeof payload[0].value ==="number" ? (
+								<div className="min-w-[160px] border bg-popover p-3 shadow-lg">
 									<div className="mb-2 flex items-center gap-2 border-b pb-2">
-										<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+										<div className="h-1.5 w-1.5 animate-pulse bg-primary" />
 										<p className="font-medium text-foreground text-xs">
 											{dayjs(label).format(tooltipFormat)}
 										</p>
@@ -262,8 +262,8 @@ function ClicksChart({
 									<div className="flex items-center justify-between gap-3">
 										<div className="flex items-center gap-2">
 											<div
-												className="size-2.5 rounded-full"
-												style={{ backgroundColor: "var(--color-primary)" }}
+												className="size-2.5"
+												style={{ backgroundColor:"var(--color-primary)" }}
 											/>
 											<span className="text-muted-foreground text-xs">
 												Clicks
@@ -277,16 +277,16 @@ function ClicksChart({
 							) : null
 						}
 						cursor={{
-							stroke: "var(--color-primary)",
-							strokeDasharray: "4 4",
+							stroke:"var(--color-primary)",
+							strokeDasharray:"4 4",
 							strokeOpacity: 0.5,
 						}}
 					/>
 					<Area
 						activeDot={{
 							r: 4,
-							fill: "var(--color-primary)",
-							stroke: "var(--color-background)",
+							fill:"var(--color-primary)",
+							stroke:"var(--color-background)",
 							strokeWidth: 2,
 						}}
 						dataKey="clicks"
@@ -305,9 +305,9 @@ function ClicksChart({
 function createReferrerColumns(): ColumnDef<SourceEntry>[] {
 	return [
 		{
-			id: "name",
-			accessorKey: "name",
-			header: "Source",
+			id:"name",
+			accessorKey:"name",
+			header:"Source",
 			cell: ({ row }: CellContext<SourceEntry, unknown>) => {
 				const entry = row.original;
 				const domain =
@@ -322,9 +322,9 @@ function createReferrerColumns(): ColumnDef<SourceEntry>[] {
 			},
 		},
 		{
-			id: "clicks",
-			accessorKey: "clicks",
-			header: "Clicks",
+			id:"clicks",
+			accessorKey:"clicks",
+			header:"Clicks",
 			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => (
 				<span className="font-medium text-foreground tabular-nums">
 					{formatNumber(getValue() as number)}
@@ -332,9 +332,9 @@ function createReferrerColumns(): ColumnDef<SourceEntry>[] {
 			),
 		},
 		{
-			id: "percentage",
-			accessorKey: "percentage",
-			header: "Share",
+			id:"percentage",
+			accessorKey:"percentage",
+			header:"Share",
 			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => {
 				const percentage = getValue() as number;
 				return <PercentageBadge percentage={percentage} />;
@@ -344,24 +344,24 @@ function createReferrerColumns(): ColumnDef<SourceEntry>[] {
 }
 
 function createGeoColumns(
-	type: "country" | "region" | "city"
+	type:"country" |"region" |"city"
 ): ColumnDef<GeoEntry>[] {
 	return [
 		{
 			id: type,
-			accessorKey: type === "country" ? "country_name" : "name",
+			accessorKey: type ==="country" ?"country_name" :"name",
 			header: type.charAt(0).toUpperCase() + type.slice(1),
 			cell: (info: CellContext<GeoEntry, unknown>) => {
 				const entry = info.row.original;
-				const name = (info.getValue() as string) || "";
+				const name = (info.getValue() as string) ||"";
 				const countryCode = entry.country_code;
 				const countryName = entry.country_name;
 
 				const getIcon = () => {
-					if (countryCode && countryCode !== "Unknown" && countryCode !== "") {
+					if (countryCode && countryCode !=="Unknown" && countryCode !=="") {
 						return <CountryFlag country={countryCode} size={16} />;
 					}
-					if (type === "country" && name && name !== "Unknown") {
+					if (type ==="country" && name && name !=="Unknown") {
 						return <CountryFlag country={name} size={16} />;
 					}
 					return (
@@ -373,8 +373,8 @@ function createGeoColumns(
 				};
 
 				const formatName = () => {
-					if (type === "country") {
-						return name || "Unknown";
+					if (type ==="country") {
+						return name ||"Unknown";
 					}
 					if (countryName && name) {
 						return `${name}, ${countryName}`;
@@ -391,9 +391,9 @@ function createGeoColumns(
 			},
 		},
 		{
-			id: "clicks",
-			accessorKey: "clicks",
-			header: "Clicks",
+			id:"clicks",
+			accessorKey:"clicks",
+			header:"Clicks",
 			cell: (info: CellContext<GeoEntry, unknown>) => (
 				<span className="font-medium">
 					{formatNumber(info.getValue() as number)}
@@ -401,9 +401,9 @@ function createGeoColumns(
 			),
 		},
 		{
-			id: "percentage",
-			accessorKey: "percentage",
-			header: "Share",
+			id:"percentage",
+			accessorKey:"percentage",
+			header:"Share",
 			cell: (info: CellContext<GeoEntry, unknown>) => {
 				const percentage = info.getValue() as number;
 				return <PercentageBadge percentage={percentage} />;
@@ -415,22 +415,22 @@ function createGeoColumns(
 function createDeviceColumns(): ColumnDef<SourceEntry>[] {
 	return [
 		{
-			id: "name",
-			accessorKey: "name",
-			header: "Device",
+			id:"name",
+			accessorKey:"name",
+			header:"Device",
 			cell: ({ row }: CellContext<SourceEntry, unknown>) => {
 				const entry = row.original;
 				return (
 					<DeviceTypeCell
-						device_type={entry.name?.toLowerCase() || "unknown"}
+						device_type={entry.name?.toLowerCase() ||"unknown"}
 					/>
 				);
 			},
 		},
 		{
-			id: "clicks",
-			accessorKey: "clicks",
-			header: "Clicks",
+			id:"clicks",
+			accessorKey:"clicks",
+			header:"Clicks",
 			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => (
 				<span className="font-medium tabular-nums">
 					{formatNumber(getValue() as number)}
@@ -438,9 +438,9 @@ function createDeviceColumns(): ColumnDef<SourceEntry>[] {
 			),
 		},
 		{
-			id: "percentage",
-			accessorKey: "percentage",
-			header: "Share",
+			id:"percentage",
+			accessorKey:"percentage",
+			header:"Share",
 			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => {
 				const percentage = getValue() as number;
 				return <PercentageBadge percentage={percentage} />;
@@ -456,11 +456,11 @@ export function LinkStatsContent() {
 	const { dateRange, currentGranularity } = useDateFilters();
 
 	const isMobile = useMediaQuery("(max-width: 640px)");
-	const isHourly = currentGranularity === "hourly";
+	const isHourly = currentGranularity ==="hourly";
 
 	const { data: link, isLoading: isLoadingLink } = useLink(
 		linkId,
-		activeOrganization?.id ?? ""
+		activeOrganization?.id ??""
 	);
 
 	const { data: stats, isLoading: isLoadingStats } = useLinkStats(
@@ -536,14 +536,14 @@ export function LinkStatsContent() {
 	const sourceTabs = useMemo(
 		() => [
 			{
-				id: "referrers",
-				label: "Referrers",
+				id:"referrers",
+				label:"Referrers",
 				data: referrerData,
 				columns: referrerColumns,
 			},
 			{
-				id: "devices",
-				label: "Devices",
+				id:"devices",
+				label:"Devices",
 				data: deviceData,
 				columns: deviceColumns,
 			},
@@ -554,20 +554,20 @@ export function LinkStatsContent() {
 	const geoTabs = useMemo(
 		() => [
 			{
-				id: "countries",
-				label: "Countries",
+				id:"countries",
+				label:"Countries",
 				data: countryData,
 				columns: countryColumns,
 			},
 			{
-				id: "regions",
-				label: "Regions",
+				id:"regions",
+				label:"Regions",
 				data: regionData,
 				columns: regionColumns,
 			},
 			{
-				id: "cities",
-				label: "Cities",
+				id:"cities",
+				label:"Cities",
 				data: cityData,
 				columns: cityColumns,
 			},
@@ -603,9 +603,9 @@ export function LinkStatsContent() {
 			<div className="flex h-full items-center justify-center p-6">
 				<EmptyState
 					action={{
-						label: "Back to Links",
+						label:"Back to Links",
 						onClick: () => {
-							window.location.href = "/links";
+							window.location.href ="/links";
 						},
 					}}
 					description="The link you're looking for doesn't exist or has been deleted."
@@ -617,7 +617,7 @@ export function LinkStatsContent() {
 		);
 	}
 
-	const shortUrl = `${LINKS_BASE_URL.replace("https://", "")}/${link.slug}`;
+	const shortUrl = `${LINKS_BASE_URL.replace("https://","")}/${link.slug}`;
 
 	return (
 		<div className="space-y-3 sm:space-y-4">
@@ -632,7 +632,7 @@ export function LinkStatsContent() {
 						Back to Links
 					</Link>
 					<div className="flex items-center gap-3">
-						<div className="shrink-0 rounded bg-accent p-2">
+						<div className="shrink-0 bg-accent p-2">
 							<LinkIcon className="size-5 text-primary" weight="duotone" />
 						</div>
 						<div className="min-w-0">
@@ -641,7 +641,7 @@ export function LinkStatsContent() {
 							</h1>
 							<div className="flex items-center gap-2">
 								<button
-									className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs transition-colors hover:bg-muted/80"
+									className="flex items-center gap-1 bg-muted px-1.5 py-0.5 font-mono text-xs transition-colors hover:bg-muted/80"
 									onClick={handleCopy}
 									type="button"
 								>
@@ -707,7 +707,7 @@ export function LinkStatsContent() {
 			</div>
 
 			{/* Clicks Over Time Chart */}
-			<div className="overflow-hidden rounded border bg-card">
+			<div className="overflow-hidden border bg-card">
 				<ClicksChart
 					data={chartData}
 					height={isMobile ? 280 : 380}

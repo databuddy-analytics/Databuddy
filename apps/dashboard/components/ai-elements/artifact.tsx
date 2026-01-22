@@ -1,22 +1,22 @@
 "use client";
 
-import { type LucideIcon, XIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes } from "react";
-import { Button } from "@/components/ui/button";
+import { type LucideIcon, XIcon } from"lucide-react";
+import type { ComponentProps, HTMLAttributes } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 
 export type ArtifactProps = HTMLAttributes<HTMLDivElement>;
 
 export const Artifact = ({ className, ...props }: ArtifactProps) => (
 	<div
 		className={cn(
-			"flex flex-col overflow-hidden rounded-lg border bg-background shadow-sm",
+			"flex flex-col overflow-hidden border bg-background shadow-sm",
 			className
 		)}
 		{...props}
@@ -43,8 +43,8 @@ export type ArtifactCloseProps = ComponentProps<typeof Button>;
 export const ArtifactClose = ({
 	className,
 	children,
-	size = "sm",
-	variant = "ghost",
+	size ="sm",
+	variant ="ghost",
 	...props
 }: ArtifactCloseProps) => (
 	<Button
@@ -101,8 +101,8 @@ export const ArtifactAction = ({
 	icon: Icon,
 	children,
 	className,
-	size = "sm",
-	variant = "ghost",
+	size ="sm",
+	variant ="ghost",
 	...props
 }: ArtifactActionProps) => {
 	const button = (

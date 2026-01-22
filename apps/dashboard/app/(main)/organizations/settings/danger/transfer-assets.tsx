@@ -5,23 +5,23 @@ import {
 	ArrowsLeftRightIcon,
 	BuildingsIcon,
 	GlobeIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { toast } from"sonner";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { Button } from"@/components/ui/button";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { useWebsiteTransfer } from "@/hooks/use-website-transfer";
-import type { Website } from "@/hooks/use-websites";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/select";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useOrganizations } from"@/hooks/use-organizations";
+import { useWebsiteTransfer } from"@/hooks/use-website-transfer";
+import type { Website } from"@/hooks/use-websites";
+import { cn } from"@/lib/utils";
 
 interface WebsiteItemProps {
 	website: Website;
@@ -33,8 +33,8 @@ function WebsiteItem({ website, selected, onClickAction }: WebsiteItemProps) {
 	return (
 		<button
 			className={cn(
-				"flex w-full items-center gap-3 rounded border bg-card px-3 py-2 text-left",
-				selected ? "bg-accent" : "hover:bg-accent"
+				"flex w-full items-center gap-3 border bg-card px-3 py-2 text-left",
+				selected ?"bg-accent" :"hover:bg-accent"
 			)}
 			onClick={onClickAction}
 			type="button"
@@ -44,7 +44,7 @@ function WebsiteItem({ website, selected, onClickAction }: WebsiteItemProps) {
 				className="size-6 shrink-0"
 				domain={website.domain}
 				fallbackIcon={
-					<div className="flex size-6 items-center justify-center rounded bg-secondary">
+					<div className="flex size-6 items-center justify-center bg-secondary">
 						<GlobeIcon className="text-accent-foreground" size={12} />
 					</div>
 				}
@@ -114,7 +114,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 
 	if (organizationWebsites.length === 0) {
 		return (
-			<div className="flex flex-col items-center justify-center rounded border border-dashed py-12 text-center">
+			<div className="flex flex-col items-center justify-center border border-dashed py-12 text-center">
 				<ArrowsLeftRightIcon
 					className="mb-3 text-muted-foreground/50"
 					size={32}
@@ -198,7 +198,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 				variant="outline"
 			>
 				{isTransferring ? (
-					<div className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+					<div className="size-4 animate-spin border-2 border-primary/30 border-t-primary" />
 				) : (
 					<>
 						<ArrowRightIcon className="mr-2" size={16} />

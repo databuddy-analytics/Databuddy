@@ -9,14 +9,14 @@ import {
 	ImageIcon,
 	VideoIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+} from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Switch } from"@/components/ui/switch";
+import { Textarea } from"@/components/ui/textarea";
 
 export interface OgData {
 	ogTitle: string;
@@ -57,13 +57,13 @@ async function fetchOgData(url: string): Promise<FetchedOgData> {
 	const data = await response.json();
 
 	return {
-		title: data.data?.title ?? "",
-		description: data.data?.description ?? "",
-		image: data.data?.image?.url ?? data.data?.logo?.url ?? "",
+		title: data.data?.title ??"",
+		description: data.data?.description ??"",
+		image: data.data?.image?.url ?? data.data?.logo?.url ??"",
 	};
 }
 
-type ImageStatus = "idle" | "loading" | "success" | "error";
+type ImageStatus ="idle" |"loading" |"success" |"error";
 
 function useImageValidation(imageUrl: string) {
 	const [status, setStatus] = useState<ImageStatus>("idle");
@@ -118,12 +118,12 @@ export function OgPreview({
 	const displayData = useMemo<FetchedOgData>(() => {
 		if (useCustomOg) {
 			return {
-				title: value.ogTitle || fetchedOg?.title || "",
-				description: value.ogDescription || fetchedOg?.description || "",
-				image: value.ogImageUrl || fetchedOg?.image || "",
+				title: value.ogTitle || fetchedOg?.title ||"",
+				description: value.ogDescription || fetchedOg?.description ||"",
+				image: value.ogImageUrl || fetchedOg?.image ||"",
 			};
 		}
-		return fetchedOg ?? { title: "", description: "", image: "" };
+		return fetchedOg ?? { title:"", description:"", image:"" };
 	}, [useCustomOg, value, fetchedOg]);
 
 	const handleFieldChange = useCallback(
@@ -135,10 +135,10 @@ export function OgPreview({
 
 	const handleReset = useCallback(() => {
 		onChange({
-			ogTitle: "",
-			ogDescription: "",
-			ogImageUrl: "",
-			ogVideoUrl: "",
+			ogTitle:"",
+			ogDescription:"",
+			ogImageUrl:"",
+			ogVideoUrl:"",
 		});
 	}, [onChange]);
 
@@ -160,7 +160,7 @@ export function OgPreview({
 			</div>
 
 			{/* Preview Card */}
-			<div className="overflow-hidden rounded border bg-muted/30">
+			<div className="overflow-hidden border bg-muted/30">
 				{isLoading ? (
 					<div className="flex h-40 items-center justify-center">
 						<CircleNotchIcon className="size-6 animate-spin text-muted-foreground" />
@@ -170,7 +170,7 @@ export function OgPreview({
 						{/* Custom image preview with status */}
 						{showCustomImage && (
 							<div className="group relative aspect-video w-full overflow-hidden bg-muted">
-								{imageStatus === "loading" && (
+								{imageStatus ==="loading" && (
 									<div className="flex size-full flex-col items-center justify-center gap-2">
 										<CircleNotchIcon className="size-8 animate-spin text-muted-foreground" />
 										<p className="text-muted-foreground text-xs">
@@ -179,7 +179,7 @@ export function OgPreview({
 									</div>
 								)}
 
-								{imageStatus === "error" && (
+								{imageStatus ==="error" && (
 									<div className="flex size-full flex-col items-center justify-center gap-2 bg-destructive/10">
 										<WarningCircleIcon className="size-8 text-destructive" />
 										<p className="text-destructive text-xs">
@@ -198,7 +198,7 @@ export function OgPreview({
 									</div>
 								)}
 
-								{imageStatus === "success" && (
+								{imageStatus ==="success" && (
 									<>
 										<img
 											alt="OG Preview"
@@ -208,19 +208,19 @@ export function OgPreview({
 											width={1200}
 										/>
 										<button
-											className="absolute top-2 right-2 rounded bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100"
-											onClick={() => handleFieldChange("ogImageUrl", "")}
+											className="absolute top-2 right-2 bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+											onClick={() => handleFieldChange("ogImageUrl","")}
 											type="button"
 										>
 											<CloseIcon className="size-4 text-white" />
 										</button>
-										<div className="absolute right-2 bottom-2 rounded bg-black/60 px-1.5 py-0.5 text-white text-xs">
+										<div className="absolute right-2 bottom-2 bg-black/60 px-1.5 py-0.5 text-white text-xs">
 											1200 × 630
 										</div>
 									</>
 								)}
 
-								{imageStatus === "idle" && (
+								{imageStatus ==="idle" && (
 									<div className="flex size-full items-center justify-center">
 										<ImageIcon
 											className="size-10 text-muted-foreground/50"
@@ -259,10 +259,10 @@ export function OgPreview({
 
 						<div className="space-y-1 p-3">
 							<p className="line-clamp-1 font-medium text-sm">
-								{displayData.title || "No title"}
+								{displayData.title ||"No title"}
 							</p>
 							<p className="line-clamp-2 text-muted-foreground text-xs">
-								{displayData.description || "No description"}
+								{displayData.description ||"No description"}
 							</p>
 						</div>
 					</>
@@ -299,7 +299,7 @@ export function OgPreview({
 							id="og-title"
 							maxLength={TITLE_MAX}
 							onChange={(e) => handleFieldChange("ogTitle", e.target.value)}
-							placeholder={fetchedOg?.title || "Enter custom title…"}
+							placeholder={fetchedOg?.title ||"Enter custom title…"}
 							value={value.ogTitle}
 						/>
 					</div>
@@ -322,7 +322,7 @@ export function OgPreview({
 								handleFieldChange("ogDescription", e.target.value)
 							}
 							placeholder={
-								fetchedOg?.description || "Enter custom description…"
+								fetchedOg?.description ||"Enter custom description…"
 							}
 							rows={2}
 							value={value.ogDescription}
@@ -337,13 +337,13 @@ export function OgPreview({
 							</Label>
 							{customImageUrl && (
 								<span className="flex items-center gap-1 text-xs">
-									{imageStatus === "loading" && (
+									{imageStatus ==="loading" && (
 										<>
 											<CircleNotchIcon className="size-3 animate-spin text-muted-foreground" />
 											<span className="text-muted-foreground">Checking…</span>
 										</>
 									)}
-									{imageStatus === "success" && (
+									{imageStatus ==="success" && (
 										<>
 											<CheckCircleIcon
 												className="size-3 text-green-600"
@@ -352,7 +352,7 @@ export function OgPreview({
 											<span className="text-green-600">Valid</span>
 										</>
 									)}
-									{imageStatus === "error" && (
+									{imageStatus ==="error" && (
 										<>
 											<WarningCircleIcon
 												className="size-3 text-destructive"
@@ -375,7 +375,7 @@ export function OgPreview({
 							className="h-8 text-sm"
 							id="og-image"
 							onChange={(e) => handleFieldChange("ogImageUrl", e.target.value)}
-							placeholder={fetchedOg?.image || "https://example.com/og.png"}
+							placeholder={fetchedOg?.image ||"https://example.com/og.png"}
 							type="url"
 							value={value.ogImageUrl}
 						/>

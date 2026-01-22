@@ -1,11 +1,11 @@
 "use client";
 
-import { WarningIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { buttonVariants } from "@/components/ui/button";
-import { orpc } from "@/lib/orpc";
+import { WarningIcon } from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import Link from"next/link";
+import { usePathname } from"next/navigation";
+import { buttonVariants } from"@/components/ui/button";
+import { orpc } from"@/lib/orpc";
 
 export function EventLimitIndicator() {
 	const pathname = usePathname();
@@ -36,7 +36,7 @@ export function EventLimitIndicator() {
 		// Overage state
 		const overage = Math.abs(balance);
 		return (
-			<div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/20">
+			<div className="flex items-center justify-between border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/20">
 				<div className="flex items-center gap-2">
 					<WarningIcon
 						className="size-4 text-red-600 dark:text-red-400"
@@ -51,9 +51,9 @@ export function EventLimitIndicator() {
 				{data.canUserUpgrade ? (
 					<Link
 						className={buttonVariants({
-							variant: "ghost",
-							size: "sm",
-							className: "h-6 px-2 text-xs",
+							variant:"ghost",
+							size:"sm",
+							className:"h-6 px-2 text-xs",
 						})}
 						href="/billing/plans"
 					>
@@ -79,17 +79,17 @@ export function EventLimitIndicator() {
 	const isDestructive = percentage >= 95;
 
 	return (
-		<div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/20">
+		<div className="flex items-center justify-between border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/20">
 			<div className="flex items-center gap-2">
 				<WarningIcon
-					className={`size-4 ${isDestructive ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}
+					className={`size-4 ${isDestructive ?"text-red-600 dark:text-red-400" :"text-amber-600 dark:text-amber-400"}`}
 					weight="fill"
 				/>
 				<div className="text-muted-foreground">
 					<span>
 						{remaining.toLocaleString()} events remaining
 						<span
-							className={`ml-2 font-medium ${isDestructive ? "text-red-600" : "text-amber-600"}`}
+							className={`ml-2 font-medium ${isDestructive ?"text-red-600" :"text-amber-600"}`}
 						>
 							({percentage.toFixed(0)}% used)
 						</span>
@@ -99,9 +99,9 @@ export function EventLimitIndicator() {
 			{data.canUserUpgrade ? (
 				<Link
 					className={buttonVariants({
-						variant: "ghost",
-						size: "sm",
-						className: "h-6 px-2 text-xs",
+						variant:"ghost",
+						size:"sm",
+						className:"h-6 px-2 text-xs",
 					})}
 					href="/billing/plans"
 				>

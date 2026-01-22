@@ -1,24 +1,24 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useMemo } from "react";
+import { authClient } from"@databuddy/auth/client";
+import { useQuery } from"@tanstack/react-query";
+import { useAtom, useAtomValue, useSetAtom } from"jotai";
+import { type ReactNode, useEffect, useMemo } from"react";
 import {
 	activeOrganizationAtom,
 	getOrganizationBySlugAtom,
 	isLoadingOrganizationsAtom,
 	organizationsAtom,
-} from "@/stores/jotai/organizationsAtoms";
+} from"@/stores/jotai/organizationsAtoms";
 
 export type Organization = NonNullable<
 	ReturnType<typeof authClient.useListOrganizations>["data"]
 >[number];
 
 export const AUTH_QUERY_KEYS = {
-	session: ["auth", "session"] as const,
-	organizations: ["auth", "organizations"] as const,
-	activeOrganization: ["auth", "activeOrganization"] as const,
+	session: ["auth","session"] as const,
+	organizations: ["auth","organizations"] as const,
+	activeOrganization: ["auth","activeOrganization"] as const,
 } as const;
 
 export function OrganizationsProvider({ children }: { children: ReactNode }) {

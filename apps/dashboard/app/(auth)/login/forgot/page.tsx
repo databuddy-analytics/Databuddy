@@ -1,23 +1,23 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	ArrowLeftIcon,
 	EyeIcon,
 	EyeSlashIcon,
 	SpinnerIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { Suspense, useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 
 function ForgotPasswordPage() {
 	const router = useRouter();
-	const [step, setStep] = useState<"email" | "reset">("email");
+	const [step, setStep] = useState<"email" |"reset">("email");
 	const [email, setEmail] = useState("");
 	const [otp, setOtp] = useState("");
 	const [password, setPassword] = useState("");
@@ -37,12 +37,12 @@ function ForgotPasswordPage() {
 
 		const { error } = await authClient.emailOtp.sendVerificationOtp({
 			email,
-			type: "forget-password",
+			type:"forget-password",
 		});
 
 		if (error) {
 			setIsLoading(false);
-			toast.error(error.message || "Failed to send OTP. Please try again.");
+			toast.error(error.message ||"Failed to send OTP. Please try again.");
 			return;
 		}
 
@@ -77,7 +77,7 @@ function ForgotPasswordPage() {
 		if (error) {
 			setIsLoading(false);
 			toast.error(
-				error.message || "Failed to reset password. Please try again."
+				error.message ||"Failed to reset password. Please try again."
 			);
 			return;
 		}
@@ -98,12 +98,12 @@ function ForgotPasswordPage() {
 
 		const { error } = await authClient.emailOtp.sendVerificationOtp({
 			email,
-			type: "forget-password",
+			type:"forget-password",
 		});
 
 		if (error) {
 			setIsResending(false);
-			toast.error(error.message || "Failed to resend OTP. Please try again.");
+			toast.error(error.message ||"Failed to resend OTP. Please try again.");
 			return;
 		}
 
@@ -111,7 +111,7 @@ function ForgotPasswordPage() {
 		toast.success("OTP resent to your email address.");
 	};
 
-	if (step === "email") {
+	if (step ==="email") {
 		return (
 			<>
 				<div className="mb-8 space-y-1 px-6 text-left">
@@ -176,7 +176,7 @@ function ForgotPasswordPage() {
 					Reset your password
 				</h1>
 				<p className="text-muted-foreground text-sm">
-					Enter the verification code sent to{" "}
+					Enter the verification code sent to{""}
 					<strong className="text-foreground">{email}</strong>
 				</p>
 			</div>
@@ -211,7 +211,7 @@ function ForgotPasswordPage() {
 								inputMode="numeric"
 								maxLength={6}
 								name="otp"
-								onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+								onChange={(e) => setOtp(e.target.value.replace(/\D/g,""))}
 								placeholder="000000"
 								required
 								type="text"
@@ -230,11 +230,11 @@ function ForgotPasswordPage() {
 									onChange={(e) => setPassword(e.target.value)}
 									placeholder="••••••••"
 									required
-									type={showPassword ? "text" : "password"}
+									type={showPassword ?"text" :"password"}
 									value={password}
 								/>
 								<Button
-									aria-label={showPassword ? "Hide password" : "Show password"}
+									aria-label={showPassword ?"Hide password" :"Show password"}
 									className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 									onClick={() => setShowPassword(!showPassword)}
 									size="sm"
@@ -264,14 +264,14 @@ function ForgotPasswordPage() {
 									onChange={(e) => setConfirmPassword(e.target.value)}
 									placeholder="••••••••"
 									required
-									type={showConfirmPassword ? "text" : "password"}
+									type={showConfirmPassword ?"text" :"password"}
 									value={confirmPassword}
 								/>
 								<Button
 									aria-label={
 										showConfirmPassword
-											? "Hide confirm password"
-											: "Show confirm password"
+											?"Hide confirm password"
+											:"Show confirm password"
 									}
 									className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 									onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -328,7 +328,7 @@ export default function Page() {
 			fallback={
 				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
-						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<div className="absolute inset-0 animate-ping bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>

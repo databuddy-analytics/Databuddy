@@ -1,8 +1,8 @@
-import type { UIMessage } from "ai";
-import { Suspense } from "react";
-import { ChatProvider } from "@/contexts/chat-context";
-import { getServerRPCClient } from "@/lib/orpc-server";
-import { AgentPageClient } from "../_components/agent-page-client";
+import type { UIMessage } from"ai";
+import { Suspense } from"react";
+import { ChatProvider } from"@/contexts/chat-context";
+import { getServerRPCClient } from"@/lib/orpc-server";
+import { AgentPageClient } from"../_components/agent-page-client";
 
 interface Props {
 	params: Promise<{ id: string; chatId: string }>;

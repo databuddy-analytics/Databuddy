@@ -4,23 +4,23 @@ import {
 	ArrowClockwiseIcon,
 	UserPlusIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { InviteMemberDialog } from"@/components/organizations/invite-member-dialog";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	type ActiveOrganization,
 	type Organization,
 	useOrganizationMembers,
-} from "@/hooks/use-organizations";
-import { MemberList } from "./member-list";
+} from"@/hooks/use-organizations";
+import { MemberList } from"./member-list";
 
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded-full" />
+			<Skeleton className="size-10" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
@@ -41,9 +41,9 @@ function MembersSkeleton() {
 				<SkeletonRow />
 			</div>
 			<div className="space-y-4 bg-card p-5">
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-20 w-full rounded" />
+				<Skeleton className="h-20 w-full" />
 			</div>
 		</div>
 	);
@@ -52,7 +52,7 @@ function MembersSkeleton() {
 function EmptyState() {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
+			<div className="mb-4 flex size-16 items-center justify-center bg-primary/10">
 				<UsersIcon className="text-primary" size={28} weight="duotone" />
 			</div>
 			<h3 className="mb-1 font-semibold text-lg">No team members yet</h3>
@@ -66,7 +66,7 @@ function EmptyState() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10">
+			<div className="mb-4 flex size-16 items-center justify-center bg-destructive/10">
 				<UsersIcon className="text-destructive" size={28} weight="duotone" />
 			</div>
 			<h3 className="mb-1 font-semibold text-lg">Failed to load</h3>
@@ -131,7 +131,7 @@ export function MembersView({
 						Invite Member
 					</Button>
 					<RightSidebar.InfoCard
-						description={`Team member${members.length !== 1 ? "s" : ""}`}
+						description={`Team member${members.length !== 1 ?"s" :""}`}
 						icon={UsersIcon}
 						title={String(members.length)}
 					/>

@@ -1,12 +1,12 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { SignOutIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
-import { RightSidebar } from "@/components/right-sidebar";
+import { authClient } from"@databuddy/auth/client";
+import { SignOutIcon, TrashIcon, WarningIcon } from"@phosphor-icons/react";
+import { useRouter } from"next/navigation";
+import { useEffect, useState } from"react";
+import { toast } from"sonner";
+import { NoticeBanner } from"@/app/(main)/websites/_components/notice-banner";
+import { RightSidebar } from"@/components/right-sidebar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,12 +16,12 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { Input } from "@/components/ui/input";
-import { type Organization, useOrganizations } from "@/hooks/use-organizations";
-import { TransferAssets } from "./transfer-assets";
+} from"@/components/ui/alert-dialog";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { Input } from"@/components/ui/input";
+import { type Organization, useOrganizations } from"@/hooks/use-organizations";
+import { TransferAssets } from"./transfer-assets";
 
 export function DangerZoneSettings({
 	organization,
@@ -53,7 +53,7 @@ export function DangerZoneSettings({
 				const member = fullOrgData?.members?.find(
 					(m) => m.userId === session.user.id
 				);
-				setIsOwner(member?.role === "owner");
+				setIsOwner(member?.role ==="owner");
 			} catch {
 				setIsOwner(false);
 			}
@@ -118,27 +118,27 @@ export function DangerZoneSettings({
 				</section>
 
 				{/* Destructive Action */}
-				<section className="mt-auto rounded border border-destructive/20 bg-destructive/5 p-4">
+				<section className="mt-auto border border-destructive/20 bg-destructive/5 p-4">
 					<div className="flex items-center justify-between gap-4">
 						<div>
 							<h3 className="font-semibold text-destructive">
 								{isOwner === null
-									? "Loading..."
+									?"Loading..."
 									: isOwner
-										? "Delete Organization"
-										: "Leave Organization"}
+										?"Delete Organization"
+										:"Leave Organization"}
 							</h3>
 							<p className="mt-1 text-destructive/70 text-sm">
 								{isOwner === null
-									? "Checking permissions..."
+									?"Checking permissions..."
 									: isOwner
-										? "Permanently delete this organization and all its data"
-										: "You will lose access to all resources"}
+										?"Permanently delete this organization and all its data"
+										:"You will lose access to all resources"}
 							</p>
 						</div>
 						{isOwner === null ? (
 							<Button disabled size="sm" variant="destructive">
-								<div className="mr-2 size-3 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
+								<div className="mr-2 size-3 animate-spin border border-destructive-foreground/30 border-t-destructive-foreground" />
 								Loading
 							</Button>
 						) : isOwner ? (
@@ -177,7 +177,7 @@ export function DangerZoneSettings({
 			<DeleteDialog
 				confirmDisabled={confirmText !== organization.name}
 				confirmLabel="Delete Organization"
-				description={`This action cannot be undone. This will permanently delete the organization "${organization.name}" and remove all associated data.`}
+				description={`This action cannot be undone. This will permanently delete the organization"${organization.name}" and remove all associated data.`}
 				isDeleting={isDeleting}
 				isOpen={showDeleteDialog}
 				onClose={() => {
@@ -215,7 +215,7 @@ export function DangerZoneSettings({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Leave organization?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Are you sure you want to leave "{organization.name}"? You will
+							Are you sure you want to leave"{organization.name}"? You will
 							lose access to this organization and all its resources.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
@@ -228,7 +228,7 @@ export function DangerZoneSettings({
 						>
 							{isLeaving ? (
 								<>
-									<div className="mr-2 size-4 animate-spin rounded-full border border-destructive-foreground/30 border-t-destructive-foreground" />
+									<div className="mr-2 size-4 animate-spin border border-destructive-foreground/30 border-t-destructive-foreground" />
 									Leaving...
 								</>
 							) : (

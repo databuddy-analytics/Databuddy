@@ -3,9 +3,9 @@
 import {
 	ArrowCounterClockwiseIcon,
 	LightningIcon,
-} from "@phosphor-icons/react";
-import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+} from"@phosphor-icons/react";
+import dynamic from"next/dynamic";
+import { useCallback, useState } from"react";
 import {
 	Area,
 	CartesianGrid,
@@ -14,12 +14,12 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { METRIC_COLORS } from "@/components/charts/metrics-constants";
-import { TableEmptyState } from "@/components/table/table-empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { EventsChartTooltip } from "./events-chart-tooltip";
+} from"recharts";
+import { METRIC_COLORS } from"@/components/charts/metrics-constants";
+import { TableEmptyState } from"@/components/table/table-empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { EventsChartTooltip } from"./events-chart-tooltip";
 
 const ResponsiveContainer = dynamic(
 	() => import("recharts").then((mod) => mod.ResponsiveContainer),
@@ -115,21 +115,21 @@ export function EventsTrendChart({
 
 	if (isLoading) {
 		return (
-			<div className="flex h-full flex-col rounded border bg-card">
+			<div className="flex h-full flex-col border bg-card">
 				<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="flex size-8 items-center justify-center rounded bg-accent">
+					<div className="flex size-8 items-center justify-center bg-accent">
 						<LightningIcon
 							className="size-4 text-muted-foreground"
 							weight="duotone"
 						/>
 					</div>
 					<div className="min-w-0 flex-1">
-						<div className="h-4 w-24 animate-pulse rounded bg-muted" />
-						<div className="mt-1 h-3 w-32 animate-pulse rounded bg-muted" />
+						<div className="h-4 w-24 animate-pulse bg-muted" />
+						<div className="mt-1 h-3 w-32 animate-pulse bg-muted" />
 					</div>
 				</div>
 				<div className="flex-1 p-3 sm:p-4">
-					<div className="h-[260px] w-full animate-pulse rounded bg-muted" />
+					<div className="h-[260px] w-full animate-pulse bg-muted" />
 				</div>
 			</div>
 		);
@@ -137,9 +137,9 @@ export function EventsTrendChart({
 
 	if (!chartData.length) {
 		return (
-			<div className="flex h-full flex-col rounded border bg-card">
+			<div className="flex h-full flex-col border bg-card">
 				<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="flex size-8 items-center justify-center rounded bg-accent">
+					<div className="flex size-8 items-center justify-center bg-accent">
 						<LightningIcon
 							className="size-4 text-muted-foreground"
 							weight="duotone"
@@ -164,10 +164,10 @@ export function EventsTrendChart({
 	}
 
 	return (
-		<div className="flex h-full flex-col rounded border bg-card">
+		<div className="flex h-full flex-col border bg-card">
 			<div className="flex flex-col items-start justify-between gap-2 border-b px-3 py-2.5 sm:flex-row sm:items-center sm:px-4 sm:py-3">
 				<div className="flex items-center gap-3">
-					<div className="flex size-8 items-center justify-center rounded bg-primary/10">
+					<div className="flex size-8 items-center justify-center bg-primary/10">
 						<LightningIcon className="size-4 text-primary" weight="duotone" />
 					</div>
 					<div className="min-w-0">
@@ -226,11 +226,11 @@ export function EventsTrendChart({
 				<div
 					className="relative select-none"
 					style={{
-						width: "100%",
+						width:"100%",
 						height: 260,
 						minWidth: 300,
-						userSelect: refAreaLeft ? "none" : "auto",
-						WebkitUserSelect: refAreaLeft ? "none" : "auto",
+						userSelect: refAreaLeft ?"none" :"auto",
+						WebkitUserSelect: refAreaLeft ?"none" :"auto",
 					}}
 				>
 					<ResponsiveContainer height="100%" width="100%">
@@ -274,12 +274,12 @@ export function EventsTrendChart({
 								axisLine={false}
 								dataKey="date"
 								dy={5}
-								tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 10, fill:"var(--muted-foreground)" }}
 								tickLine={false}
 							/>
 							<YAxis
 								axisLine={false}
-								tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 10, fill:"var(--muted-foreground)" }}
 								tickFormatter={(value) => {
 									if (value >= 1_000_000) {
 										return `${(value / 1_000_000).toFixed(1)}M`;
@@ -294,14 +294,14 @@ export function EventsTrendChart({
 							/>
 							<Tooltip
 								content={<EventsChartTooltip />}
-								wrapperStyle={{ outline: "none" }}
+								wrapperStyle={{ outline:"none" }}
 							/>
 							<Legend
 								iconSize={8}
 								iconType="circle"
 								wrapperStyle={{
-									fontSize: "10px",
-									paddingTop: "5px",
+									fontSize:"10px",
+									paddingTop:"5px",
 									bottom: displayData.length > 5 ? 20 : 0,
 								}}
 							/>

@@ -1,18 +1,18 @@
 "use client";
 
-import { KeyIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { ApiKeyCreateDialog } from "@/components/organizations/api-key-create-dialog";
-import { ApiKeyDetailDialog } from "@/components/organizations/api-key-detail-dialog";
-import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Organization } from "@/hooks/use-organizations";
-import { orpc } from "@/lib/orpc";
-import { ApiKeyRow } from "./api-key-row";
+import { KeyIcon, PlusIcon, ShieldCheckIcon } from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import { useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { ApiKeyCreateDialog } from"@/components/organizations/api-key-create-dialog";
+import { ApiKeyDetailDialog } from"@/components/organizations/api-key-detail-dialog";
+import type { ApiKeyListItem } from"@/components/organizations/api-key-types";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { Organization } from"@/hooks/use-organizations";
+import { orpc } from"@/lib/orpc";
+import { ApiKeyRow } from"./api-key-row";
 
 interface ApiKeySettingsProps {
 	organization: Organization;
@@ -21,12 +21,12 @@ interface ApiKeySettingsProps {
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded" />
+			<Skeleton className="size-10" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-3 w-48" />
 			</div>
-			<Skeleton className="h-6 w-16 rounded-full" />
+			<Skeleton className="h-6 w-16" />
 			<Skeleton className="size-4" />
 		</div>
 	);
@@ -42,7 +42,7 @@ function ApiKeysSkeleton() {
 			</div>
 			<div className="space-y-4 bg-card p-5">
 				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-18 w-full rounded" />
+				<Skeleton className="h-18 w-full" />
 				<Skeleton className="h-10 w-full" />
 			</div>
 		</div>

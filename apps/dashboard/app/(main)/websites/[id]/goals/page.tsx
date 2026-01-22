@@ -1,27 +1,27 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { TargetIcon } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
-import { useAtomValue } from "jotai";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { FeatureGate } from "@/components/feature-gate";
-import { Card, CardContent } from "@/components/ui/card";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useAutocompleteData } from "@/hooks/use-funnels";
+import { GATED_FEATURES } from"@databuddy/shared/types/features";
+import { TargetIcon } from"@phosphor-icons/react/dist/ssr/Target";
+import { TrendDownIcon } from"@phosphor-icons/react/dist/ssr/TrendDown";
+import { useAtomValue } from"jotai";
+import { useParams } from"next/navigation";
+import { useMemo, useState } from"react";
+import { FeatureGate } from"@/components/feature-gate";
+import { Card, CardContent } from"@/components/ui/card";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useAutocompleteData } from"@/hooks/use-funnels";
 import {
 	type CreateGoalData,
 	type Goal,
 	useBulkGoalAnalytics,
 	useGoals,
-} from "@/hooks/use-goals";
-import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
-import { WebsitePageHeader } from "../_components/website-page-header";
-import { EditGoalDialog } from "./_components/edit-goal-dialog";
-import { GoalItemSkeleton } from "./_components/goal-item";
-import { GoalsList } from "./_components/goals-list";
+} from"@/hooks/use-goals";
+import { isAnalyticsRefreshingAtom } from"@/stores/jotai/filterAtoms";
+import { WebsitePageHeader } from"../_components/website-page-header";
+import { EditGoalDialog } from"./_components/edit-goal-dialog";
+import { GoalItemSkeleton } from"./_components/goal-item";
+import { GoalsList } from"./_components/goals-list";
 
 function GoalsListSkeleton() {
 	return (
@@ -62,7 +62,7 @@ export default function GoalsPage() {
 	const autocompleteQuery = useAutocompleteData(websiteId);
 
 	const handleSaveGoal = async (
-		data: Goal | Omit<CreateGoalData, "websiteId">
+		data: Goal | Omit<CreateGoalData,"websiteId">
 	) => {
 		try {
 			if ("id" in data && data.id) {
@@ -155,7 +155,7 @@ export default function GoalsPage() {
 					subtitle={
 						goalsLoading
 							? undefined
-							: `${goals.length} goal${goals.length !== 1 ? "s" : ""}`
+							: `${goals.length} goal${goals.length !== 1 ?"s" :""}`
 					}
 					title="Goals"
 					websiteId={websiteId}

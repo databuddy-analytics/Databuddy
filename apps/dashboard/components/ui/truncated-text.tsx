@@ -1,23 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from"react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from"@/components/ui/tooltip";
 
 type TruncatedTextProps = {
 	text: string;
 	className?: string;
-	side?: "top" | "right" | "bottom" | "left";
+	side?:"top" |"right" |"bottom" |"left";
 	id?: string;
 };
 
 export const TruncatedText = ({
 	text,
 	className,
-	side = "right",
+	side ="right",
 	id,
 }: TruncatedTextProps) => {
 	const [isTextTruncated, setIsTextTruncated] = useState(false);

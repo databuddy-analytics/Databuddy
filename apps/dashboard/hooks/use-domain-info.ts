@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from"@tanstack/react-query";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001";
 
 export interface DomainRankData {
 	status_code: number;
@@ -42,21 +42,21 @@ const queryOptions = {
 
 async function fetchDomainRanks(): Promise<BatchDomainRankResponse> {
 	const response = await fetch(`${API_BASE_URL}/v1/domain-info/batch/all`, {
-		credentials: "include",
+		credentials:"include",
 		headers: {
-			"Content-Type": "application/json",
+			"Content-Type":"application/json",
 		},
 	});
 
 	if (!response.ok) {
-		const errorText = await response.text().catch(() => "Unknown error");
+		const errorText = await response.text().catch(() =>"Unknown error");
 		throw new Error(`HTTP ${response.status}: ${errorText}`);
 	}
 
 	const data = await response.json();
 
 	if (!data.success) {
-		throw new Error(data.error || "Failed to fetch domain ranks");
+		throw new Error(data.error ||"Failed to fetch domain ranks");
 	}
 
 	return data;

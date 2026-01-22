@@ -3,34 +3,34 @@
 import {
 	getCountryCode,
 	getCountryName,
-} from "@databuddy/shared/country-codes";
-import type { ProfileData } from "@databuddy/shared/types/analytics";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
-import { UsersThreeIcon } from "@phosphor-icons/react/dist/ssr/UsersThree";
+} from"@databuddy/shared/country-codes";
+import type { ProfileData } from"@databuddy/shared/types/analytics";
+import { GlobeIcon } from"@phosphor-icons/react/dist/ssr/Globe";
+import { UsersIcon } from"@phosphor-icons/react/dist/ssr/Users";
+import { UsersThreeIcon } from"@phosphor-icons/react/dist/ssr/UsersThree";
 import {
 	type ColumnDef,
 	flexRender,
 	getCoreRowModel,
 	useReactTable,
-} from "@tanstack/react-table";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import utc from "dayjs/plugin/utc";
-import { useAtomValue } from "jotai";
-import Image from "next/image";
+} from"@tanstack/react-table";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import utc from"dayjs/plugin/utc";
+import { useAtomValue } from"jotai";
+import Image from"next/image";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
-import { notFound, useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { PageHeader } from "@/app/(main)/websites/_components/page-header";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { EmptyState } from "@/components/empty-state";
-import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { notFound, useParams, useRouter } from"next/navigation";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import { PageHeader } from"@/app/(main)/websites/_components/page-header";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { EmptyState } from"@/components/empty-state";
+import { BrowserIcon, CountryFlag, OSIcon } from"@/components/icon";
+import { Badge } from"@/components/ui/badge";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -38,17 +38,17 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
+} from"@/components/ui/table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { getDeviceIcon } from "@/lib/utils";
-import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
-import { generateProfileName } from "./[userId]/_components/generate-profile-name";
-import { useProfilesData } from "./use-users";
+} from"@/components/ui/tooltip";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { getDeviceIcon } from"@/lib/utils";
+import { dynamicQueryFiltersAtom } from"@/stores/jotai/filterAtoms";
+import { generateProfileName } from"./[userId]/_components/generate-profile-name";
+import { useProfilesData } from"./use-users";
 
 const wwwRegex = /^www\./;
 
@@ -57,26 +57,26 @@ function SkeletonRow() {
 		<TableRow className="h-[49px]">
 			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-2.5">
-					<Skeleton className="size-6 shrink-0 rounded-full" />
+					<Skeleton className="size-6 shrink-0" />
 					<Skeleton className="h-4 w-24" />
 				</div>
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-4 shrink-0 rounded" />
+					<Skeleton className="size-4 shrink-0" />
 					<Skeleton className="h-4 w-16" />
 				</div>
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-1">
-					<Skeleton className="size-4 shrink-0 rounded" />
-					<Skeleton className="size-4 shrink-0 rounded" />
-					<Skeleton className="size-4 shrink-0 rounded" />
+					<Skeleton className="size-4 shrink-0" />
+					<Skeleton className="size-4 shrink-0" />
+					<Skeleton className="size-4 shrink-0" />
 				</div>
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<div className="flex items-center gap-1.5">
-					<Skeleton className="size-3.5 shrink-0 rounded" />
+					<Skeleton className="size-3.5 shrink-0" />
 					<Skeleton className="h-4 w-16" />
 				</div>
 			</TableCell>
@@ -87,7 +87,7 @@ function SkeletonRow() {
 				<Skeleton className="h-4 w-6" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
-				<Skeleton className="h-5 w-12 rounded-full" />
+				<Skeleton className="h-5 w-12" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-4 w-14" />
@@ -100,7 +100,7 @@ export default function UsersPage() {
 	const params = useParams();
 	const { id: websiteId } = params;
 
-	if (!websiteId || typeof websiteId !== "string") {
+	if (!websiteId || typeof websiteId !=="string") {
 		notFound();
 	}
 
@@ -149,7 +149,7 @@ export default function UsersPage() {
 		const observer = new IntersectionObserver(handleIntersection, {
 			root: scrollContainerRef,
 			threshold: 0.1,
-			rootMargin: "300px",
+			rootMargin:"300px",
 		});
 
 		observer.observe(loadMoreRef);
@@ -187,16 +187,16 @@ export default function UsersPage() {
 	const columns = useMemo<ColumnDef<ProfileData>[]>(
 		() => [
 			{
-				id: "user_id",
-				header: "User",
-				accessorKey: "visitor_id",
+				id:"user_id",
+				header:"User",
+				accessorKey:"visitor_id",
 				cell: ({ row }) => {
 					const profileName = generateProfileName(row.original.visitor_id);
 					return (
 						<div className="flex items-center gap-2.5">
 							<Image
 								alt=""
-								className="size-6 shrink-0 rounded"
+								className="size-6 shrink-0"
 								height={32}
 								src={`https://api.dicebear.com/9.x/glass/svg?seed=${row.original.visitor_id}`}
 								unoptimized
@@ -209,13 +209,13 @@ export default function UsersPage() {
 				size: 180,
 			},
 			{
-				id: "location",
-				header: "Location",
+				id:"location",
+				header:"Location",
 				cell: ({ row }) => {
-					const country = row.original.country || "";
+					const country = row.original.country ||"";
 					const countryCode = getCountryCode(country);
 					const countryName = getCountryName(countryCode);
-					const isUnknown = !countryCode || countryCode === "Unknown";
+					const isUnknown = !countryCode || countryCode ==="Unknown";
 
 					return (
 						<div className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export default function UsersPage() {
 								<CountryFlag country={countryCode} size="sm" />
 							)}
 							<span className="truncate text-sm">
-								{isUnknown ? "Unknown" : countryName || countryCode}
+								{isUnknown ?"Unknown" : countryName || countryCode}
 							</span>
 						</div>
 					);
@@ -233,11 +233,11 @@ export default function UsersPage() {
 				size: 130,
 			},
 			{
-				id: "device",
-				header: "Device",
+				id:"device",
+				header:"Device",
 				cell: ({ row }) => {
-					const browserName = row.original.browser_name || "Unknown";
-					const osName = row.original.os_name || "Unknown";
+					const browserName = row.original.browser_name ||"Unknown";
+					const osName = row.original.os_name ||"Unknown";
 					return (
 						<div
 							className="flex items-center gap-1"
@@ -252,12 +252,12 @@ export default function UsersPage() {
 				size: 80,
 			},
 			{
-				id: "referrer",
-				header: "Source",
+				id:"referrer",
+				header:"Source",
 				cell: ({ row }) => {
 					const referrer = row.original.referrer;
 
-					if (!referrer || referrer === "direct" || referrer === "") {
+					if (!referrer || referrer ==="direct" || referrer ==="") {
 						return (
 							<span className="text-muted-foreground text-sm">Direct</span>
 						);
@@ -265,7 +265,7 @@ export default function UsersPage() {
 
 					try {
 						const url = new URL(referrer);
-						const hostname = url.hostname.replace(wwwRegex, "");
+						const hostname = url.hostname.replace(wwwRegex,"");
 
 						return <Source referrer={hostname} />;
 					} catch {
@@ -279,8 +279,8 @@ export default function UsersPage() {
 				size: 120,
 			},
 			{
-				id: "sessions",
-				header: "Sessions",
+				id:"sessions",
+				header:"Sessions",
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
 						{row.original.session_count ?? 0}
@@ -289,8 +289,8 @@ export default function UsersPage() {
 				size: 70,
 			},
 			{
-				id: "pages",
-				header: "Pages",
+				id:"pages",
+				header:"Pages",
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
 						{row.original.total_events ?? 0}
@@ -299,28 +299,28 @@ export default function UsersPage() {
 				size: 60,
 			},
 			{
-				id: "type",
-				header: "Type",
+				id:"type",
+				header:"Type",
 				cell: ({ row }) => {
 					const sessionCount = row.original.session_count ?? 0;
 					const isReturning = sessionCount > 1;
 					return (
-						<Badge variant={isReturning ? "default" : "secondary"}>
-							{isReturning ? "Return" : "New"}
+						<Badge variant={isReturning ?"default" :"secondary"}>
+							{isReturning ?"Return" :"New"}
 						</Badge>
 					);
 				},
 				size: 70,
 			},
 			{
-				id: "last_visit",
-				header: "Last seen",
-				accessorKey: "last_visit",
+				id:"last_visit",
+				header:"Last seen",
+				accessorKey:"last_visit",
 				cell: ({ row }) => (
 					<span className="text-muted-foreground text-sm">
 						{row.original.last_visit
 							? dayjs.utc(row.original.last_visit).fromNow()
-							: "—"}
+							:"—"}
 					</span>
 				),
 				size: 90,
@@ -356,7 +356,7 @@ export default function UsersPage() {
 											key={column.id}
 											style={{ width: column.size }}
 										>
-											{typeof column.header === "string" ? column.header : null}
+											{typeof column.header ==="string" ? column.header : null}
 										</TableHead>
 									))}
 								</TableRow>
@@ -387,7 +387,7 @@ export default function UsersPage() {
 					<UsersIcon className="mb-4 size-12 opacity-50" />
 					<p className="mb-2 font-medium text-lg">Failed to load users</p>
 					<p className="text-sm">
-						{error?.message || "There was an error loading the users"}
+						{error?.message ||"There was an error loading the users"}
 					</p>
 				</div>
 			</div>

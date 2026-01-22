@@ -1,8 +1,8 @@
 "use client";
 
-import { PlugIcon } from "@phosphor-icons/react";
-import { RightSidebar } from "@/components/right-sidebar";
-import { ComingSoon } from "../_components/settings-section";
+import { PlugIcon } from"@phosphor-icons/react";
+import { RightSidebar } from"@/components/right-sidebar";
+import { ComingSoon } from"../_components/settings-section";
 
 export default function IntegrationsSettingsPage() {
 	return (

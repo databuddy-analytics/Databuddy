@@ -1,28 +1,28 @@
 "use client";
 
-import type { DynamicQueryRequest } from "@databuddy/shared/types/api";
+import type { DynamicQueryRequest } from"@databuddy/shared/types/api";
 import {
 	ChartLineIcon,
 	CurrencyDollarIcon,
 	LightningIcon,
 	RobotIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
-import { StatCard } from "@/components/analytics/stat-card";
-import { EmptyState } from "@/components/empty-state";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+} from"@phosphor-icons/react";
+import { useParams } from"next/navigation";
+import { useMemo } from"react";
+import { StatCard } from"@/components/analytics/stat-card";
+import { EmptyState } from"@/components/empty-state";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
 import {
 	formatDurationMs,
 	formatPercent,
 	formatTokenCount,
 	formatUsd,
-} from "../_lib/llm-analytics-utils";
-import { LlmLoadingSkeleton } from "./llm-loading-skeleton";
-import { LlmOverviewTab } from "./llm-overview-tab";
+} from"../_lib/llm-analytics-utils";
+import { LlmLoadingSkeleton } from"./llm-loading-skeleton";
+import { LlmOverviewTab } from"./llm-overview-tab";
 
 interface LlmOverviewKpiRow {
 	total_calls: number;
@@ -58,8 +58,8 @@ export function LlmAnalyticsContent() {
 	const { dateRange } = useDateFilters();
 
 	const queries: DynamicQueryRequest[] = [
-		{ id: "llm-kpis", parameters: ["llm_overview_kpis"] },
-		{ id: "llm-series", parameters: ["llm_time_series"] },
+		{ id:"llm-kpis", parameters: ["llm_overview_kpis"] },
+		{ id:"llm-series", parameters: ["llm_time_series"] },
 	];
 
 	const { isLoading, getDataForQuery, error } = useBatchDynamicQuery(
@@ -69,7 +69,7 @@ export function LlmAnalyticsContent() {
 	);
 
 	const kpiRow = (
-		getDataForQuery("llm-kpis", "llm_overview_kpis") as LlmOverviewKpiRow[]
+		getDataForQuery("llm-kpis","llm_overview_kpis") as LlmOverviewKpiRow[]
 	)[0] ?? {
 		total_calls: 0,
 		total_cost: 0,
@@ -86,7 +86,7 @@ export function LlmAnalyticsContent() {
 	};
 
 	const timeSeries =
-		(getDataForQuery("llm-series", "llm_time_series") as LlmTimeSeriesRow[]) ??
+		(getDataForQuery("llm-series","llm_time_series") as LlmTimeSeriesRow[]) ??
 		[];
 
 	const miniChartData = useMemo(
@@ -118,9 +118,9 @@ export function LlmAnalyticsContent() {
 	if (error) {
 		return (
 			<div className="p-3 sm:p-4">
-				<div className="rounded border border-destructive/20 bg-destructive/5 p-6">
+				<div className=" border border-destructive/20 bg-destructive/5 p-6">
 					<div className="flex flex-col items-center text-center">
-						<div className="mb-4 flex size-12 items-center justify-center rounded bg-destructive/10">
+						<div className="mb-4 flex size-12 items-center justify-center bg-destructive/10">
 							<RobotIcon className="size-6 text-destructive" weight="duotone" />
 						</div>
 						<h4 className="mb-2 font-semibold text-destructive">
@@ -214,10 +214,10 @@ export function LlmAnalyticsContent() {
 						description={
 							<>
 								LLM analytics will appear here once you start tracking AI calls.
-								Use the{" "}
-								<code className="rounded bg-muted px-1 py-0.5 text-xs">
+								Use the{""}
+								<code className=" bg-muted px-1 py-0.5 text-xs">
 									databuddy.llm()
-								</code>{" "}
+								</code>{""}
 								SDK method to track LLM requests.
 							</>
 						}

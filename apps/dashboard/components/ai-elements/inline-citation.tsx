@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon } from"lucide-react";
 import {
 	type ComponentProps,
 	createContext,
@@ -8,20 +8,20 @@ import {
 	useContext,
 	useEffect,
 	useState,
-} from "react";
-import { Badge } from "@/components/ui/badge";
+} from"react";
+import { Badge } from"@/components/ui/badge";
 import {
 	Carousel,
 	type CarouselApi,
 	CarouselContent,
 	CarouselItem,
-} from "@/components/ui/carousel";
+} from"@/components/ui/carousel";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/hover-card";
+import { cn } from"@/lib/utils";
 
 export type InlineCitationProps = ComponentProps<"span">;
 
@@ -61,13 +61,13 @@ export const InlineCitationCardTrigger = ({
 }: InlineCitationCardTriggerProps) => (
 	<HoverCardTrigger asChild>
 		<Badge
-			className={cn("ml-1 rounded-full", className)}
+			className={cn("ml-1", className)}
 			variant="secondary"
 			{...props}
 		>
 			{sources[0] ? (
 				<>
-					{new URL(sources[0]).hostname}{" "}
+					{new URL(sources[0]).hostname}{""}
 					{sources.length > 1 && `+${sources.length - 1}`}
 				</>
 			) : (
@@ -137,7 +137,7 @@ export const InlineCitationCarouselHeader = ({
 }: InlineCitationCarouselHeaderProps) => (
 	<div
 		className={cn(
-			"flex items-center justify-between gap-2 rounded-t-md bg-secondary p-2",
+			"flex items-center justify-between gap-2 bg-secondary p-2",
 			className
 		)}
 		{...props}

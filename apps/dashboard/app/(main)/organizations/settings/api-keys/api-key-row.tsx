@@ -6,11 +6,11 @@ import {
 	KeyIcon,
 	LockKeyIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import type { ApiKeyListItem } from"@/components/organizations/api-key-types";
+import { Badge } from"@/components/ui/badge";
+import { cn } from"@/lib/utils";
 
 interface ApiKeyRowProps {
 	apiKey: ApiKeyListItem;
@@ -27,7 +27,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 		<button
 			className={cn(
 				"group grid w-full cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4 text-left hover:bg-accent",
-				!isActive && "opacity-60"
+				!isActive &&"opacity-60"
 			)}
 			onClick={onSelect}
 			type="button"
@@ -35,10 +35,10 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 			{/* Icon */}
 			<div
 				className={cn(
-					"flex size-10 items-center justify-center rounded border bg-background",
+					"flex size-10 items-center justify-center border bg-background",
 					isActive
-						? "group-hover:border-primary/30 group-hover:bg-primary/5"
-						: "border-dashed"
+						?"group-hover:border-primary/30 group-hover:bg-primary/5"
+						:"border-dashed"
 				)}
 			>
 				{isActive ? (
@@ -62,7 +62,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 					<span
 						className={cn(
 							"truncate font-medium",
-							!isActive && "line-through decoration-muted-foreground/50"
+							!isActive &&"line-through decoration-muted-foreground/50"
 						)}
 					>
 						{apiKey.name}
@@ -75,7 +75,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 					)}
 				</div>
 				<div className="flex items-center gap-3 text-muted-foreground text-sm">
-					<code className="rounded border bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
+					<code className=" border bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
 						{apiKey.prefix}_{apiKey.start}…
 					</code>
 					<span className="flex items-center gap-1 text-xs">
@@ -88,18 +88,18 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 			{/* Status */}
 			{isActive ? (
 				<Badge variant="green">
-					<div className="mr-1.5 size-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+					<div className="mr-1.5 size-1.5 bg-green-600 dark:bg-green-400" />
 					Active
 				</Badge>
 			) : (
-				<Badge variant="gray">{isRevoked ? "Revoked" : "Disabled"}</Badge>
+				<Badge variant="gray">{isRevoked ?"Revoked" :"Disabled"}</Badge>
 			)}
 
 			{/* Arrow */}
 			<CaretRightIcon
 				className={cn(
 					"text-muted-foreground/40 transition-all",
-					isActive && "group-hover:translate-x-0.5 group-hover:text-primary"
+					isActive &&"group-hover:translate-x-0.5 group-hover:text-primary"
 				)}
 				size={16}
 				weight="bold"

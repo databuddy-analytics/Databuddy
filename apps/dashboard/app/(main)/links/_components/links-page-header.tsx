@@ -1,11 +1,11 @@
 "use client";
 
-import type { IconProps } from "@phosphor-icons/react";
-import { ArrowClockwiseIcon, PlusIcon } from "@phosphor-icons/react";
-import { cloneElement, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import type { IconProps } from"@phosphor-icons/react";
+import { ArrowClockwiseIcon, PlusIcon } from"@phosphor-icons/react";
+import { cloneElement, type ReactNode } from"react";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { cn } from"@/lib/utils";
 
 interface LinksPageHeaderProps {
 	title: string;
@@ -31,7 +31,7 @@ export function LinksPageHeader({
 	isRefreshing = false,
 	onRefreshAction,
 	onCreateAction,
-	createActionLabel = "Create",
+	createActionLabel ="Create",
 	subtitle,
 	currentCount,
 }: LinksPageHeaderProps) {
@@ -47,7 +47,7 @@ export function LinksPageHeader({
 		}
 
 		if (subtitle) {
-			return typeof subtitle === "string" ? (
+			return typeof subtitle ==="string" ? (
 				<p className="h-5 truncate text-muted-foreground text-sm sm:h-6 sm:text-base">
 					{subtitle}
 				</p>
@@ -72,16 +72,16 @@ export function LinksPageHeader({
 			<div className="flex w-full flex-col justify-between gap-4 sm:flex-row sm:items-center">
 				<div className="space-y-2">
 					<div className="flex items-center gap-3">
-						<div className="rounded-lg border border-accent-foreground/10 bg-secondary p-2.5">
+						<div className=" border border-accent-foreground/10 bg-secondary p-2.5">
 							{cloneElement(icon, {
 								...icon.props,
 								className: cn(
 									"size-5 text-accent-foreground",
 									icon.props.className
 								),
-								"aria-hidden": "true",
+								"aria-hidden":"true",
 								size: 24,
-								weight: "duotone",
+								weight:"duotone",
 							})}
 						</div>
 						<div>
@@ -89,8 +89,8 @@ export function LinksPageHeader({
 								<h1 className="truncate font-medium text-foreground text-xl sm:text-2xl">
 									{title}
 								</h1>
-								{typeof currentCount === "number" && !isLoading && (
-									<span className="rounded bg-muted px-2 py-0.5 font-mono text-muted-foreground text-sm">
+								{typeof currentCount ==="number" && !isLoading && (
+									<span className=" bg-muted px-2 py-0.5 font-mono text-muted-foreground text-sm">
 										{currentCount}
 									</span>
 								)}
@@ -107,7 +107,7 @@ export function LinksPageHeader({
 							variant="secondary"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={isRefreshing ?"animate-spin" :""}
 								size={16}
 							/>
 							Refresh
@@ -131,7 +131,7 @@ export function LinksPageHeaderSkeleton() {
 			<div className="flex w-full flex-col justify-between gap-4 sm:flex-row sm:items-center">
 				<div className="space-y-2">
 					<div className="flex items-center gap-3">
-						<Skeleton className="size-12 rounded-lg" />
+						<Skeleton className="size-12" />
 						<div>
 							<Skeleton className="mb-2 h-7 w-32" />
 							<Skeleton className="h-5 w-48" />

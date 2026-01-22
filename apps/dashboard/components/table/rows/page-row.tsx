@@ -1,6 +1,6 @@
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { PercentageBadge } from "@/components/ui/percentage-badge";
-import { TruncatedText } from "@/components/ui/truncated-text";
+import type { CellContext, ColumnDef } from"@tanstack/react-table";
+import { PercentageBadge } from"@/components/ui/percentage-badge";
+import { TruncatedText } from"@/components/ui/truncated-text";
 
 export type PageEntry = {
 	name: string;
@@ -11,10 +11,10 @@ export type PageEntry = {
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
@@ -22,11 +22,11 @@ const formatNumber = (value: number | null | undefined): string => {
 export function createPageColumns(): ColumnDef<PageEntry>[] {
 	return [
 		{
-			id: "name",
-			accessorKey: "name",
-			header: "Page",
+			id:"name",
+			accessorKey:"name",
+			header:"Page",
 			cell: ({ getValue }: CellContext<PageEntry, any>) => {
-				const name = (getValue() as string) || "";
+				const name = (getValue() as string) ||"";
 				return (
 					<TruncatedText
 						className="truncate font-medium text-foreground"
@@ -36,9 +36,9 @@ export function createPageColumns(): ColumnDef<PageEntry>[] {
 			},
 		},
 		{
-			id: "visitors",
-			accessorKey: "visitors",
-			header: "Visitors",
+			id:"visitors",
+			accessorKey:"visitors",
+			header:"Visitors",
 			cell: ({ getValue }: CellContext<PageEntry, any>) => (
 				<span className="font-medium text-foreground">
 					{formatNumber(getValue() as number)}
@@ -46,9 +46,9 @@ export function createPageColumns(): ColumnDef<PageEntry>[] {
 			),
 		},
 		{
-			id: "pageviews",
-			accessorKey: "pageviews",
-			header: "Views",
+			id:"pageviews",
+			accessorKey:"pageviews",
+			header:"Views",
 			cell: ({ getValue }: CellContext<PageEntry, any>) => (
 				<span className="font-medium text-foreground">
 					{formatNumber(getValue() as number)}
@@ -56,9 +56,9 @@ export function createPageColumns(): ColumnDef<PageEntry>[] {
 			),
 		},
 		{
-			id: "percentage",
-			accessorKey: "percentage",
-			header: "Share",
+			id:"percentage",
+			accessorKey:"percentage",
+			header:"Share",
 			cell: ({ getValue }: CellContext<PageEntry, any>) => {
 				const percentage = getValue() as number;
 				return <PercentageBadge percentage={percentage} />;

@@ -3,11 +3,11 @@ import {
 	MonitorIcon,
 	PhoneIcon,
 	TableIcon,
-} from "@phosphor-icons/react";
-import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
-import { getErrorTypeIcon } from "./error-icons";
-import { formatDateTime, getErrorCategory, getSeverityColor } from "./utils";
+} from"@phosphor-icons/react";
+import { BrowserIcon, CountryFlag, OSIcon } from"@/components/icon";
+import { Badge } from"@/components/ui/badge";
+import { getErrorTypeIcon } from"./error-icons";
+import { formatDateTime, getErrorCategory, getSeverityColor } from"./utils";
 
 type CellInfo<T = unknown> = {
 	getValue: () => T;
@@ -19,12 +19,12 @@ export const createNameColumn = (
 	renderIcon?: (name: string) => React.ReactNode,
 	formatText?: (name: string) => string
 ) => ({
-	id: "name",
-	accessorKey: "name",
+	id:"name",
+	accessorKey:"name",
 	header,
 	cell: (info: CellInfo<string>) => {
 		const name = info.getValue() as string;
-		const safeName = name || "Unknown";
+		const safeName = name ||"Unknown";
 		const displayText = formatText ? formatText(safeName) : safeName;
 		return (
 			<div className="flex items-center gap-2">
@@ -39,9 +39,9 @@ export const createNameColumn = (
 
 export const errorColumns = [
 	{
-		id: "errors",
-		accessorKey: "errors",
-		header: "Total Errors",
+		id:"errors",
+		accessorKey:"errors",
+		header:"Total Errors",
 		cell: (info: CellInfo<number>) => {
 			const errors = info.getValue();
 			return (
@@ -49,25 +49,25 @@ export const errorColumns = [
 					<span className="font-medium">{errors?.toLocaleString()}</span>
 					<span className="text-muted-foreground text-xs">
 						{errors > 500
-							? "Critical"
+							?"Critical"
 							: errors > 100
-								? "High"
+								?"High"
 								: errors > 20
-									? "Medium"
-									: "Low"}
+									?"Medium"
+									:"Low"}
 					</span>
 				</div>
 			);
 		},
 	},
 	{
-		id: "users",
-		accessorKey: "users",
-		header: "Affected Users",
+		id:"users",
+		accessorKey:"users",
+		header:"Affected Users",
 		cell: (info: CellInfo<number>) => {
 			const users = info.getValue();
 			const errors = info.row?.original?.errors as number;
-			const errorRate = errors > 0 ? ((users / errors) * 100).toFixed(1) : "0";
+			const errorRate = errors > 0 ? ((users / errors) * 100).toFixed(1) :"0";
 
 			return (
 				<div className="flex flex-col">
@@ -82,9 +82,9 @@ export const errorColumns = [
 ];
 
 export const createErrorTypeColumn = () => ({
-	id: "name",
-	accessorKey: "name",
-	header: "Error Message",
+	id:"name",
+	accessorKey:"name",
+	header:"Error Message",
 	cell: (info: CellInfo<string>) => {
 		const message = info.getValue() as string;
 		if (!message) {
@@ -124,41 +124,41 @@ export const createErrorTypeColumn = () => ({
 export const createErrorTypeColumns = () => [
 	createErrorTypeColumn(),
 	{
-		id: "count",
-		accessorKey: "count",
-		header: "Occurrences",
+		id:"count",
+		accessorKey:"count",
+		header:"Occurrences",
 		cell: (info: CellInfo<number>) => {
 			const count = info.getValue();
 			return (
 				<div className="flex flex-col">
 					<span className="font-medium">{count?.toLocaleString()}</span>
 					<span className="text-muted-foreground text-xs">
-						{count > 1000 ? "High frequency" : count > 100 ? "Medium" : "Low"}
+						{count > 1000 ?"High frequency" : count > 100 ?"Medium" :"Low"}
 					</span>
 				</div>
 			);
 		},
 	},
 	{
-		id: "users",
-		accessorKey: "users",
-		header: "Affected Users",
+		id:"users",
+		accessorKey:"users",
+		header:"Affected Users",
 		cell: (info: CellInfo<number>) => {
 			const users = info.getValue();
 			return (
 				<div className="flex flex-col">
 					<span className="font-medium">{users?.toLocaleString()}</span>
 					<span className="text-muted-foreground text-xs">
-						{users > 50 ? "Widespread" : users > 10 ? "Multiple" : "Limited"}
+						{users > 50 ?"Widespread" : users > 10 ?"Multiple" :"Limited"}
 					</span>
 				</div>
 			);
 		},
 	},
 	{
-		id: "last_seen",
-		accessorKey: "last_seen",
-		header: "Last Occurrence",
+		id:"last_seen",
+		accessorKey:"last_seen",
+		header:"Last Occurrence",
 		cell: (info: CellInfo<string>) => {
 			const lastSeen = info.getValue();
 			const formatted = formatDateTime(lastSeen);
@@ -168,9 +168,9 @@ export const createErrorTypeColumns = () => [
 				(now.getTime() - lastSeenDate.getTime()) / (1000 * 60 * 60)
 			);
 
-			let timeAgo = "";
+			let timeAgo ="";
 			if (diffHours < 1) {
-				timeAgo = "Just now";
+				timeAgo ="Just now";
 			} else if (diffHours < 24) {
 				timeAgo = `${diffHours}h ago`;
 			} else {

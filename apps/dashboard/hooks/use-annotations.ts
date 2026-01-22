@@ -1,21 +1,21 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { orpc } from "@/lib/orpc";
+import { useMutation, useQuery } from"@tanstack/react-query";
+import { toast } from"sonner";
+import { orpc } from"@/lib/orpc";
 
 interface ListAnnotationsInput {
 	websiteId: string;
-	chartType: "metrics";
+	chartType:"metrics";
 	chartContext: {
 		dateRange: {
 			start_date: string;
 			end_date: string;
-			granularity: "hourly" | "daily" | "weekly" | "monthly";
+			granularity:"hourly" |"daily" |"weekly" |"monthly";
 		};
 		filters?: Array<{
 			field: string;
-			operator: "eq" | "ne" | "gt" | "lt" | "contains";
+			operator:"eq" |"ne" |"gt" |"lt" |"contains";
 			value: string;
 		}>;
 		metrics?: string[];

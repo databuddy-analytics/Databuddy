@@ -1,32 +1,32 @@
 "use client";
 
-import { Tabs as TabsPrimitive } from "radix-ui";
+import { Tabs as TabsPrimitive } from"radix-ui";
 import {
 	createContext,
 	useContext,
 	useLayoutEffect,
 	useRef,
 	useState,
-} from "react";
-import type * as React from "react";
+} from"react";
+import type * as React from"react";
 
-import { cn } from "@/lib/utils";
+import { cn } from"@/lib/utils";
 
-type TabsVariant = "default" | "underline" | "pills" | "navigation";
+type TabsVariant ="default" |"underline" |"pills" |"navigation";
 
 const TabsContext = createContext<{
 	variant: TabsVariant;
 	registerTrigger: (value: string, element: HTMLButtonElement | null) => void;
 	activeValue: string | undefined;
 }>({
-	variant: "default",
+	variant:"default",
 	registerTrigger: () => {},
 	activeValue: undefined,
 });
 
 function Tabs({
 	className,
-	variant = "default",
+	variant ="default",
 	defaultValue,
 	value,
 	onValueChange,
@@ -75,7 +75,7 @@ function TabsList({
 
 	useLayoutEffect(() => {
 		if (
-			(variant !== "underline" && variant !== "navigation") ||
+			(variant !=="underline" && variant !=="navigation") ||
 			!listRef.current ||
 			!activeValue
 		)
@@ -96,7 +96,7 @@ function TabsList({
 		}
 	}, [activeValue, variant]);
 
-	if (variant === "navigation") {
+	if (variant ==="navigation") {
 		return (
 			<div className="relative shrink-0 border-b bg-accent/30">
 				<TabsPrimitive.List
@@ -113,7 +113,7 @@ function TabsList({
 		);
 	}
 
-	if (variant === "underline") {
+	if (variant ==="underline") {
 		return (
 			<div className="relative border-b">
 				<TabsPrimitive.List
@@ -133,11 +133,11 @@ function TabsList({
 		);
 	}
 
-	if (variant === "pills") {
+	if (variant ==="pills") {
 		return (
 			<TabsPrimitive.List
 				className={cn(
-					"inline-flex h-9 w-fit items-center gap-1 rounded bg-accent p-1 text-muted-foreground",
+					"inline-flex h-9 w-fit items-center gap-1 bg-accent p-1 text-muted-foreground",
 					className
 				)}
 				data-slot="tabs-list"
@@ -151,7 +151,7 @@ function TabsList({
 	return (
 		<TabsPrimitive.List
 			className={cn(
-				"inline-flex h-9 w-fit items-center justify-center rounded bg-accent-brighter p-[3px] text-muted-foreground",
+				"inline-flex h-9 w-fit items-center justify-center bg-accent-brighter p-[3px] text-muted-foreground",
 				className
 			)}
 			data-slot="tabs-list"
@@ -180,7 +180,7 @@ function TabsTrigger({
 		};
 	}, [value, registerTrigger]);
 
-	if (variant === "navigation") {
+	if (variant ==="navigation") {
 		return (
 			<TabsPrimitive.Trigger
 				className={cn(
@@ -202,7 +202,7 @@ function TabsTrigger({
 		);
 	}
 
-	if (variant === "underline") {
+	if (variant ==="underline") {
 		return (
 			<TabsPrimitive.Trigger
 				className={cn(
@@ -223,11 +223,11 @@ function TabsTrigger({
 		);
 	}
 
-	if (variant === "pills") {
+	if (variant ==="pills") {
 		return (
 			<TabsPrimitive.Trigger
 				className={cn(
-					"inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded px-3 py-1.5",
+					"inline-flex items-center justify-center gap-1.5 whitespace-nowrap px-3 py-1.5",
 					"font-medium text-muted-foreground text-sm transition-all duration-200",
 					"hover:text-foreground",
 					"data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
@@ -248,7 +248,7 @@ function TabsTrigger({
 	return (
 		<TabsPrimitive.Trigger
 			className={cn(
-				"inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1",
+				"inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap border border-transparent px-2 py-1",
 				"font-medium text-muted-foreground data-[state=active]:text-foreground text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px]",
 				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-accent-foreground/10",
 				"data-[state=active]:bg-secondary-brightest [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -290,10 +290,10 @@ function TabsBadge({
 	return (
 		<span
 			className={cn(
-				"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
+				"flex min-w-5 items-center justify-center px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
 				isActive
-					? "bg-primary text-primary-foreground"
-					: "bg-muted text-foreground",
+					?"bg-primary text-primary-foreground"
+					:"bg-muted text-foreground",
 				className
 			)}
 			data-slot="tabs-badge"

@@ -1,14 +1,14 @@
 "use client";
 
-import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
-import { useMemo } from "react";
-import { useWebsites } from "./use-websites";
+import type { ProcessedMiniChartData } from"@databuddy/shared/types/website";
+import { useMemo } from"react";
+import { useWebsites } from"./use-websites";
 
 export interface GlobalAnalytics {
 	totalActiveUsers: number;
 	totalViews: number;
 	averageTrend: number;
-	trendDirection: "up" | "down" | "neutral";
+	trendDirection:"up" |"down" |"neutral";
 	websiteCount: number;
 	topPerformers: Array<{
 		id: string;
@@ -42,7 +42,7 @@ export function useGlobalAnalytics() {
 				totalActiveUsers: 0,
 				totalViews: 0,
 				averageTrend: 0,
-				trendDirection: "neutral",
+				trendDirection:"neutral",
 				websiteCount: 0,
 				topPerformers: [],
 				needsSetup: [],
@@ -68,7 +68,7 @@ export function useGlobalAnalytics() {
 
 				if (chart.trend) {
 					const trendValue =
-						chart.trend.type === "down"
+						chart.trend.type ==="down"
 							? -chart.trend.value
 							: chart.trend.value;
 					trendSum += trendValue;
@@ -102,7 +102,7 @@ export function useGlobalAnalytics() {
 
 		const averageTrend = trendCount > 0 ? trendSum / trendCount : 0;
 		const trendDirection: GlobalAnalytics["trendDirection"] =
-			averageTrend > 1 ? "up" : averageTrend < -1 ? "down" : "neutral";
+			averageTrend > 1 ?"up" : averageTrend < -1 ?"down" :"neutral";
 
 		const topPerformers = websiteStats
 			.sort((a, b) => b.views - a.views)

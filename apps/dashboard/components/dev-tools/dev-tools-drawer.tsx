@@ -23,23 +23,23 @@ import {
 	TrashIcon,
 	UsersIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+} from"@phosphor-icons/react";
+import { useQueryClient } from"@tanstack/react-query";
+import { useTheme } from"next-themes";
+import { useCallback, useEffect, useState } from"react";
+import { toast } from"sonner";
 import type {
 	ChartStepType,
 	ChartType,
-} from "@/components/analytics/stat-card";
+} from"@/components/analytics/stat-card";
 import {
 	CHART_LOCATION_LABELS,
 	CHART_LOCATIONS,
 	type ChartLocation,
 	useAllChartPreferences,
-} from "@/hooks/use-chart-preferences";
-import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
+} from"@/hooks/use-chart-preferences";
+import { cn } from"@/lib/utils";
+import { Button } from"../ui/button";
 import {
 	Drawer,
 	DrawerClose,
@@ -47,15 +47,15 @@ import {
 	DrawerDescription,
 	DrawerHeader,
 	DrawerTitle,
-} from "../ui/drawer";
+} from"../ui/drawer";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "../ui/select";
-import { Separator } from "../ui/separator";
+} from"../ui/select";
+import { Separator } from"../ui/separator";
 
 function InfoSection({
 	title,
@@ -70,7 +70,7 @@ function InfoSection({
 				<InfoIcon className="size-4" weight="duotone" />
 				{title}
 			</h3>
-			<div className="rounded border bg-muted/30 p-3 text-xs">{children}</div>
+			<div className=" border bg-muted/30 p-3 text-xs">{children}</div>
 		</div>
 	);
 }
@@ -79,12 +79,12 @@ function ActionButton({
 	icon: Icon,
 	label,
 	onClick,
-	variant = "outline",
+	variant ="outline",
 }: {
 	icon: typeof BugIcon;
 	label: string;
 	onClick: () => void;
-	variant?: "outline" | "destructive";
+	variant?:"outline" |"destructive";
 }) {
 	return (
 		<Button
@@ -100,8 +100,8 @@ function ActionButton({
 }
 
 function EnvironmentInfo() {
-	const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-	const env = process.env.NODE_ENV || "development";
+	const apiUrl = process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001";
+	const env = process.env.NODE_ENV ||"development";
 
 	return (
 		<InfoSection title="Environment">
@@ -220,10 +220,10 @@ function StorageManagement() {
 
 	const formatBytes = (bytes: number) => {
 		if (bytes === 0) {
-			return "0 B";
+			return"0 B";
 		}
 		const k = 1024;
-		const sizes = ["B", "KB", "MB"];
+		const sizes = ["B","KB","MB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
 	};
@@ -413,9 +413,9 @@ function PerformanceInfo() {
 
 	const measureAdvancedMemory = useCallback(async () => {
 		if (
-			typeof performance !== "undefined" &&
+			typeof performance !=="undefined" &&
 			"measureUserAgentSpecificMemory" in performance &&
-			typeof performance.measureUserAgentSpecificMemory === "function"
+			typeof performance.measureUserAgentSpecificMemory ==="function"
 		) {
 			setIsMeasuring(true);
 			try {
@@ -424,7 +424,7 @@ function PerformanceInfo() {
 				toast.success("Advanced memory measurement completed");
 			} catch (error) {
 				if (error instanceof DOMException) {
-					if (error.name === "SecurityError") {
+					if (error.name ==="SecurityError") {
 						toast.error(
 							"Memory measurement requires cross-origin isolation. Enable COOP/COEP headers."
 						);
@@ -500,10 +500,10 @@ function PerformanceInfo() {
 
 	const formatBytes = (bytes?: number) => {
 		if (!bytes) {
-			return "N/A";
+			return"N/A";
 		}
 		const k = 1024;
-		const sizes = ["B", "KB", "MB"];
+		const sizes = ["B","KB","MB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
 	};
@@ -519,10 +519,10 @@ function PerformanceInfo() {
 	};
 
 	const canMeasureAdvanced =
-		typeof performance !== "undefined" &&
+		typeof performance !=="undefined" &&
 		"measureUserAgentSpecificMemory" in performance &&
-		typeof performance.measureUserAgentSpecificMemory === "function" &&
-		typeof crossOriginIsolated !== "undefined" &&
+		typeof performance.measureUserAgentSpecificMemory ==="function" &&
+		typeof crossOriginIsolated !=="undefined" &&
 		crossOriginIsolated;
 
 	if (Object.keys(memoryInfo).length === 0) {
@@ -569,11 +569,11 @@ function PerformanceInfo() {
 									size="sm"
 									variant="outline"
 								>
-									{isMeasuring ? "Measuring..." : "Measure Memory"}
+									{isMeasuring ?"Measuring..." :"Measure Memory"}
 								</Button>
 							</div>
 							{advancedMemory && (
-								<div className="space-y-1.5 rounded border bg-muted/30 p-2 text-xs">
+								<div className="space-y-1.5 border bg-muted/30 p-2 text-xs">
 									<div className="flex items-center justify-between">
 										<span className="text-muted-foreground">Total Memory:</span>
 										<span className="font-medium font-mono">
@@ -591,7 +591,7 @@ function PerformanceInfo() {
 													key={idx}
 												>
 													<span className="text-muted-foreground">
-														{item.attribution[0]?.url || "Unknown"}:
+														{item.attribution[0]?.url ||"Unknown"}:
 													</span>
 													<span className="font-medium font-mono">
 														{formatBytes(item.bytes)}
@@ -618,7 +618,7 @@ function PerformanceInfo() {
 							<ChartBarIcon className="size-3" weight="duotone" />
 						</Button>
 					</div>
-					<div className="rounded border bg-muted/30 p-2 text-muted-foreground text-xs">
+					<div className=" border bg-muted/30 p-2 text-muted-foreground text-xs">
 						These are measurable contributions. For detailed JavaScript object
 						analysis, use Chrome DevTools Memory profiler (click icon above).
 					</div>
@@ -662,18 +662,18 @@ function PerformanceInfo() {
 
 const THEME_OPTIONS = [
 	{
-		id: "light",
-		name: "Light",
+		id:"light",
+		name:"Light",
 		icon: SunIcon,
 	},
 	{
-		id: "dark",
-		name: "Dark",
+		id:"dark",
+		name:"Dark",
 		icon: MoonIcon,
 	},
 	{
-		id: "system",
-		name: "System",
+		id:"system",
+		name:"System",
 		icon: DesktopIcon,
 	},
 ] as const;
@@ -683,17 +683,17 @@ const CHART_TYPE_OPTIONS: {
 	name: string;
 	icon: typeof ChartBarIcon;
 }[] = [
-	{ id: "bar", name: "Bar", icon: ChartBarIcon },
-	{ id: "line", name: "Line", icon: ChartLineIcon },
-	{ id: "area", name: "Area", icon: StackIcon },
+	{ id:"bar", name:"Bar", icon: ChartBarIcon },
+	{ id:"line", name:"Line", icon: ChartLineIcon },
+	{ id:"area", name:"Area", icon: StackIcon },
 ];
 
 const STEP_TYPE_OPTIONS: { id: ChartStepType; name: string }[] = [
-	{ id: "monotone", name: "Smooth" },
-	{ id: "linear", name: "Linear" },
-	{ id: "step", name: "Step" },
-	{ id: "stepBefore", name: "Step Before" },
-	{ id: "stepAfter", name: "Step After" },
+	{ id:"monotone", name:"Smooth" },
+	{ id:"linear", name:"Linear" },
+	{ id:"step", name:"Step" },
+	{ id:"stepBefore", name:"Step Before" },
+	{ id:"stepAfter", name:"Step After" },
 ];
 
 const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
@@ -719,12 +719,12 @@ function AppearanceSettings() {
 		return null;
 	}
 
-	const currentTheme = theme ?? "system";
+	const currentTheme = theme ??"system";
 	const globalPrefs = preferences["overview-stats"] ?? {
-		chartType: "area" as ChartType,
-		chartStepType: "monotone" as ChartStepType,
+		chartType:"area" as ChartType,
+		chartStepType:"monotone" as ChartStepType,
 	};
-	const isGlobalBar = globalPrefs.chartType === "bar";
+	const isGlobalBar = globalPrefs.chartType ==="bar";
 
 	return (
 		<div className="space-y-4">
@@ -741,7 +741,7 @@ function AppearanceSettings() {
 							key={id}
 							onClick={() => setTheme(id)}
 							size="sm"
-							variant={currentTheme === id ? "default" : "outline"}
+							variant={currentTheme === id ?"default" :"outline"}
 						>
 							<Icon className="size-4" weight="duotone" />
 							{name}
@@ -760,7 +760,7 @@ function AppearanceSettings() {
 				</h3>
 
 				{/* Global Settings */}
-				<div className="rounded border bg-muted/30 p-3">
+				<div className=" border bg-muted/30 p-3">
 					<div className="mb-2 flex items-center justify-between">
 						<span className="text-muted-foreground text-xs">All Charts</span>
 						<div className="flex items-center gap-2">
@@ -792,7 +792,7 @@ function AppearanceSettings() {
 								value={globalPrefs.chartStepType}
 							>
 								<SelectTrigger
-									className={cn("h-7 w-24", isGlobalBar ? "opacity-50" : "")}
+									className={cn("h-7 w-24", isGlobalBar ?"opacity-50" :"")}
 									size="sm"
 								>
 									<SelectValue />
@@ -815,12 +815,12 @@ function AppearanceSettings() {
 						variant="ghost"
 					>
 						<span className="text-muted-foreground text-xs">
-							{showGranular ? "Hide per-location" : "Per-location settings"}
+							{showGranular ?"Hide per-location" :"Per-location settings"}
 						</span>
 						<CaretDownIcon
 							className={cn(
 								"size-3 text-muted-foreground transition-transform",
-								showGranular ? "rotate-180" : ""
+								showGranular ?"rotate-180" :""
 							)}
 						/>
 					</Button>
@@ -830,15 +830,15 @@ function AppearanceSettings() {
 						<div className="mt-2 space-y-1 border-t pt-2">
 							{CHART_LOCATIONS.map((location) => {
 								const prefs = preferences[location] ?? {
-									chartType: "area" as ChartType,
-									chartStepType: "monotone" as ChartStepType,
+									chartType:"area" as ChartType,
+									chartStepType:"monotone" as ChartStepType,
 								};
-								const isBar = prefs.chartType === "bar";
+								const isBar = prefs.chartType ==="bar";
 								const Icon = LOCATION_ICONS[location];
 
 								return (
 									<div
-										className="flex items-center justify-between rounded px-2 py-1.5 text-xs hover:bg-accent/50"
+										className="flex items-center justify-between px-2 py-1.5 text-xs hover:bg-accent/50"
 										key={location}
 									>
 										<div className="flex items-center gap-2">
@@ -892,7 +892,7 @@ function AppearanceSettings() {
 												value={prefs.chartStepType}
 											>
 												<SelectTrigger
-													className={cn("h-6 w-20", isBar ? "opacity-50" : "")}
+													className={cn("h-6 w-20", isBar ?"opacity-50" :"")}
 													onClick={(e) => e.stopPropagation()}
 													size="sm"
 												>
@@ -988,7 +988,7 @@ export function DevToolsDrawer() {
 	useEffect(() => {
 		setMounted(true);
 		const hostname = window.location.hostname;
-		setIsLocalhost(hostname === "localhost" || hostname === "127.0.0.1");
+		setIsLocalhost(hostname ==="localhost" || hostname ==="127.0.0.1");
 	}, []);
 
 	useEffect(() => {
@@ -997,7 +997,7 @@ export function DevToolsDrawer() {
 		}
 
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+			if ((e.metaKey || e.ctrlKey) && e.key ===".") {
 				e.preventDefault();
 				setOpen((prev) => !prev);
 			}
@@ -1015,7 +1015,7 @@ export function DevToolsDrawer() {
 		<>
 			<Button
 				aria-label="Open dev tools"
-				className="fixed right-4 bottom-4 z-50 size-10 rounded-full shadow-lg"
+				className="fixed right-4 bottom-4 z-50 size-10 shadow-lg"
 				onClick={() => setOpen(true)}
 				size="icon"
 				variant="outline"
@@ -1059,15 +1059,15 @@ export function DevToolsDrawer() {
 							<Separator />
 							<QuickActions />
 
-							<div className="rounded bg-muted/50 p-3">
+							<div className=" bg-muted/50 p-3">
 								<p className="text-muted-foreground text-xs">
-									<span className="font-medium">Tip:</span> Press{" "}
-									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+									<span className="font-medium">Tip:</span> Press{""}
+									<kbd className=" bg-muted px-1.5 py-0.5 font-mono text-xs">
 										⌘
-									</kbd>{" "}
-									<kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+									</kbd>{""}
+									<kbd className=" bg-muted px-1.5 py-0.5 font-mono text-xs">
 										.
-									</kbd>{" "}
+									</kbd>{""}
 									to toggle this drawer
 								</p>
 							</div>

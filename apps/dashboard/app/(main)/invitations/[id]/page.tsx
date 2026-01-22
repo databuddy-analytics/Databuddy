@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	ArrowRightIcon,
 	BuildingsIcon,
@@ -9,19 +9,19 @@ import {
 	SpinnerGapIcon,
 	UserPlusIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
-import { PageHeader } from "../../websites/_components/page-header";
+} from"@phosphor-icons/react";
+import { useQuery, useQueryClient } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useParams, useRouter } from"next/navigation";
+import { useCallback, useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
+import { PageHeader } from"../../websites/_components/page-header";
 
 dayjs.extend(relativeTime);
 
@@ -31,7 +31,7 @@ interface InvitationData {
 	inviterEmail: string;
 	id: string;
 	email: string;
-	status: "pending" | "accepted" | "rejected" | "canceled";
+	status:"pending" |"accepted" |"rejected" |"canceled";
 	expiresAt: Date;
 	organizationId: string;
 	role: string;
@@ -39,29 +39,29 @@ interface InvitationData {
 	teamId?: string;
 }
 
-type ActionStatus = "idle" | "accepting" | "success";
+type ActionStatus ="idle" |"accepting" |"success";
 
 function ContentSkeleton() {
 	return (
 		<div className="flex flex-1 items-center justify-center p-8">
 			<div className="w-full max-w-md space-y-6">
 				<div className="flex justify-center">
-					<Skeleton className="size-16 rounded" />
+					<Skeleton className="size-16" />
 				</div>
 				<div className="space-y-3 text-center">
 					<Skeleton className="mx-auto h-7 w-48" />
 					<Skeleton className="mx-auto h-5 w-64" />
 				</div>
-				<div className="space-y-4 rounded border p-4">
+				<div className="space-y-4 border p-4">
 					<div className="flex items-center gap-3">
-						<Skeleton className="size-10 rounded" />
+						<Skeleton className="size-10" />
 						<div className="flex-1 space-y-2">
 							<Skeleton className="h-4 w-32" />
 							<Skeleton className="h-3 w-24" />
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						<Skeleton className="size-10 rounded" />
+						<Skeleton className="size-10" />
 						<div className="flex-1 space-y-2">
 							<Skeleton className="h-4 w-28" />
 							<Skeleton className="h-3 w-40" />
@@ -92,13 +92,13 @@ function InvitationDetails({
 	onAcceptAction: () => void;
 	onDeclineAction: () => void;
 }) {
-	const isExpiringSoon = dayjs(invitation.expiresAt).diff(dayjs(), "day") <= 1;
+	const isExpiringSoon = dayjs(invitation.expiresAt).diff(dayjs(),"day") <= 1;
 
 	return (
 		<div className="flex flex-1 items-center justify-center p-4 sm:p-8">
 			<div className="w-full max-w-md space-y-6">
 				<div className="flex justify-center">
-					<div className="rounded border bg-secondary p-4">
+					<div className=" border bg-secondary p-4">
 						<UserPlusIcon
 							className="size-8 text-accent-foreground"
 							weight="fill"
@@ -116,17 +116,17 @@ function InvitationDetails({
 					<p className="text-muted-foreground text-sm">
 						<span className="font-medium text-foreground">
 							{invitation.inviterEmail}
-						</span>{" "}
-						invited you as a{" "}
+						</span>{""}
+						invited you as a{""}
 						<Badge className="ml-1" variant="secondary">
 							{formatRole(invitation.role)}
 						</Badge>
 					</p>
 				</div>
 
-				<div className="space-y-3 rounded border bg-card p-4">
+				<div className="space-y-3 border bg-card p-4">
 					<div className="flex items-center gap-3">
-						<div className="flex size-10 shrink-0 items-center justify-center rounded bg-secondary">
+						<div className="flex size-10 shrink-0 items-center justify-center bg-secondary">
 							<BuildingsIcon
 								className="size-5 text-accent-foreground"
 								weight="duotone"
@@ -139,7 +139,7 @@ function InvitationDetails({
 							<p className="text-muted-foreground text-xs">
 								{invitation.organizationSlug
 									? `@${invitation.organizationSlug}`
-									: "Organization"}
+									:"Organization"}
 							</p>
 						</div>
 					</div>
@@ -147,23 +147,23 @@ function InvitationDetails({
 					<div className="flex items-center gap-3">
 						<div
 							className={cn(
-								"flex size-10 shrink-0 items-center justify-center rounded",
-								isExpiringSoon ? "bg-amber-500/10" : "bg-secondary"
+								"flex size-10 shrink-0 items-center justify-center",
+								isExpiringSoon ?"bg-amber-500/10" :"bg-secondary"
 							)}
 						>
 							<ClockIcon
 								className={cn(
 									"size-5",
 									isExpiringSoon
-										? "text-amber-600 dark:text-amber-400"
-										: "text-accent-foreground"
+										?"text-amber-600 dark:text-amber-400"
+										:"text-accent-foreground"
 								)}
 								weight="duotone"
 							/>
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="font-medium text-foreground text-sm">
-								{isExpiringSoon ? "Expires soon" : "Expires"}
+								{isExpiringSoon ?"Expires soon" :"Expires"}
 							</p>
 							<p className="text-muted-foreground text-xs">
 								{dayjs(invitation.expiresAt).fromNow()}
@@ -176,18 +176,18 @@ function InvitationDetails({
 				<div className="flex flex-col gap-3 sm:flex-row">
 					<Button
 						className="flex-1 gap-2"
-						disabled={actionStatus !== "idle"}
+						disabled={actionStatus !=="idle"}
 						onClick={onAcceptAction}
 					>
-						{actionStatus === "accepting" ? (
+						{actionStatus ==="accepting" ? (
 							<SpinnerGapIcon className="size-4 animate-spin" />
 						) : (
 							<UserPlusIcon className="size-4" weight="duotone" />
 						)}
-						{actionStatus === "accepting" ? "Joining…" : "Join Organization"}
+						{actionStatus ==="accepting" ?"Joining…" :"Join Organization"}
 					</Button>
 					<Button
-						disabled={actionStatus !== "idle"}
+						disabled={actionStatus !=="idle"}
 						onClick={onDeclineAction}
 						variant="outline"
 					>
@@ -206,7 +206,7 @@ function SuccessState({ organizationName }: { organizationName: string }) {
 		<div className="flex flex-1 items-center justify-center p-4 sm:p-8">
 			<div className="w-full max-w-md space-y-6 text-center">
 				<div className="flex justify-center">
-					<div className="rounded border border-green-500/20 bg-green-500/10 p-4">
+					<div className=" border border-green-500/20 bg-green-500/10 p-4">
 						<CheckCircleIcon
 							className="size-8 text-green-600 dark:text-green-400"
 							weight="fill"
@@ -238,7 +238,7 @@ function ExpiredState() {
 	return (
 		<EmptyState
 			action={{
-				label: "Back to Home",
+				label:"Back to Home",
 				onClick: () => router.push("/websites"),
 			}}
 			description="This invitation has expired or is no longer valid. Please contact the organization admin for a new invitation."
@@ -259,7 +259,7 @@ function AlreadyMemberState({
 	return (
 		<EmptyState
 			action={{
-				label: "Go to Dashboard",
+				label:"Go to Dashboard",
 				onClick: () => router.push("/websites"),
 			}}
 			description={`You're already a member of ${organizationName}.`}
@@ -276,7 +276,7 @@ function ErrorState({ message }: { message: string }) {
 	return (
 		<EmptyState
 			action={{
-				label: "Back to Home",
+				label:"Back to Home",
 				onClick: () => router.push("/websites"),
 			}}
 			description={message}
@@ -308,7 +308,7 @@ export default function AcceptInvitationPage() {
 				});
 
 			if (fetchError || !data) {
-				throw new Error(fetchError?.message || "Failed to load invitation");
+				throw new Error(fetchError?.message ||"Failed to load invitation");
 			}
 
 			return data as InvitationData;
@@ -385,21 +385,21 @@ export default function AcceptInvitationPage() {
 	}
 
 	const isExpired =
-		invitation.status === "canceled" ||
-		invitation.status === "rejected" ||
+		invitation.status ==="canceled" ||
+		invitation.status ==="rejected" ||
 		new Date(invitation.expiresAt) < new Date();
 
-	const isAlreadyAccepted = invitation.status === "accepted";
+	const isAlreadyAccepted = invitation.status ==="accepted";
 
 	const getDescription = () => {
-		if (actionStatus === "success") {
-			return "Successfully joined";
+		if (actionStatus ==="success") {
+			return"Successfully joined";
 		}
 		if (isAlreadyAccepted) {
-			return "Already a member";
+			return"Already a member";
 		}
 		if (isExpired) {
-			return "Invitation expired";
+			return"Invitation expired";
 		}
 		return `Join ${invitation.organizationName}`;
 	};
@@ -412,7 +412,7 @@ export default function AcceptInvitationPage() {
 				title="Invitation"
 			/>
 
-			{actionStatus === "success" ? (
+			{actionStatus ==="success" ? (
 				<SuccessState organizationName={invitation.organizationName} />
 			) : isAlreadyAccepted ? (
 				<AlreadyMemberState organizationName={invitation.organizationName} />

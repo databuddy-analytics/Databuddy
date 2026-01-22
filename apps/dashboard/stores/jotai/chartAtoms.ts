@@ -1,5 +1,5 @@
-import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atom } from"jotai";
+import { atomWithStorage } from"jotai/utils";
 
 export interface MetricVisibilityState {
 	pageviews: boolean;

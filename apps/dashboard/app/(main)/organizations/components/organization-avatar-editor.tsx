@@ -1,22 +1,22 @@
 "use client";
 
-import { ArrowsClockwiseIcon, PencilSimpleIcon } from "@phosphor-icons/react";
-import { nanoid } from "nanoid";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { ArrowsClockwiseIcon, PencilSimpleIcon } from"@phosphor-icons/react";
+import { nanoid } from"nanoid";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { type Organization, useOrganizations } from "@/hooks/use-organizations";
-import { getOrganizationInitials } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { type Organization, useOrganizations } from"@/hooks/use-organizations";
+import { getOrganizationInitials } from"@/lib/utils";
 
 interface OrganizationAvatarEditorProps {
 	organization: Organization;
@@ -74,7 +74,7 @@ export function OrganizationAvatarEditor({
 					</Avatar>
 					<button
 						aria-label="Edit organization avatar"
-						className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-foreground opacity-0 transition-opacity group-hover:opacity-100"
+						className="absolute inset-0 flex cursor-pointer items-center justify-center bg-foreground opacity-0 transition-opacity group-hover:opacity-100"
 						onClick={() => setIsModalOpen(true)}
 						type="button"
 					>
@@ -133,7 +133,7 @@ export function OrganizationAvatarEditor({
 						<Button disabled={isUpdatingAvatarSeed} onClick={handleSave}>
 							{isUpdatingAvatarSeed ? (
 								<>
-									<div className="mr-2 size-3 animate-spin rounded-full border border-primary-foreground/30 border-t-primary-foreground" />
+									<div className="mr-2 size-3 animate-spin border border-primary-foreground/30 border-t-primary-foreground" />
 									Saving...
 								</>
 							) : (

@@ -2,8 +2,8 @@ import type {
 	FlagType,
 	FlagWithScheduleForm,
 	Variant,
-} from "@databuddy/shared/flags";
-import type { UseFormReturn } from "react-hook-form";
+} from"@databuddy/shared/flags";
+import type { UseFormReturn } from"react-hook-form";
 
 export interface Flag {
 	id: string;
@@ -11,7 +11,7 @@ export interface Flag {
 	name?: string | null;
 	description?: string | null;
 	type: FlagType;
-	status: "active" | "inactive" | "archived";
+	status:"active" |"inactive" |"archived";
 	defaultValue?: boolean;
 	payload?: unknown;
 	rolloutPercentage?: number | null;
@@ -33,16 +33,16 @@ export interface Flag {
 }
 
 export interface UserRule {
-	type: "user_id" | "email" | "property";
+	type:"user_id" |"email" |"property";
 	operator:
-		| "equals"
-		| "contains"
-		| "starts_with"
-		| "ends_with"
-		| "in"
-		| "not_in"
-		| "exists"
-		| "not_exists";
+		|"equals"
+		|"contains"
+		|"starts_with"
+		|"ends_with"
+		|"in"
+		|"not_in"
+		|"exists"
+		|"not_exists";
 	field?: string;
 	value?: string;
 	values?: string[];
@@ -64,7 +64,7 @@ export interface TargetGroup {
 	updatedAt: Date;
 }
 
-export type FlagStatus = "active" | "inactive" | "archived";
+export type FlagStatus ="active" |"inactive" |"archived";
 
 export interface FlagSheetProps {
 	isOpen: boolean;
@@ -118,16 +118,16 @@ export interface GroupSelectorProps {
 }
 
 export const GROUP_COLORS = [
-	{ value: "#6366f1", label: "Indigo" },
-	{ value: "#8b5cf6", label: "Violet" },
-	{ value: "#ec4899", label: "Pink" },
-	{ value: "#f43f5e", label: "Rose" },
-	{ value: "#f97316", label: "Orange" },
-	{ value: "#eab308", label: "Yellow" },
-	{ value: "#22c55e", label: "Green" },
-	{ value: "#14b8a6", label: "Teal" },
-	{ value: "#06b6d4", label: "Cyan" },
-	{ value: "#3b82f6", label: "Blue" },
+	{ value:"#6366f1", label:"Indigo" },
+	{ value:"#8b5cf6", label:"Violet" },
+	{ value:"#ec4899", label:"Pink" },
+	{ value:"#f43f5e", label:"Rose" },
+	{ value:"#f97316", label:"Orange" },
+	{ value:"#eab308", label:"Yellow" },
+	{ value:"#22c55e", label:"Green" },
+	{ value:"#14b8a6", label:"Teal" },
+	{ value:"#06b6d4", label:"Cyan" },
+	{ value:"#3b82f6", label:"Blue" },
 ] as const;
 
 interface BaseFlagTemplate {
@@ -141,19 +141,19 @@ interface BaseFlagTemplate {
 }
 
 type BooleanFlagTemplate = BaseFlagTemplate & {
-	type: "boolean";
+	type:"boolean";
 	defaultValue: boolean;
 	rolloutPercentage?: number;
 };
 
 type RolloutFlagTemplate = BaseFlagTemplate & {
-	type: "rollout";
+	type:"rollout";
 	defaultValue: boolean;
 	rolloutPercentage: number;
 };
 
 type MultivariantFlagTemplate = BaseFlagTemplate & {
-	type: "multivariant";
+	type:"multivariant";
 	defaultValue: boolean;
 	variants: Variant[];
 };

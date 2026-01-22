@@ -1,14 +1,14 @@
 "use client";
 
-import { EnvelopeIcon, TrashIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import type { CancelInvitation, Invitation } from "@/hooks/use-organizations";
-import { cn } from "@/lib/utils";
+import { EnvelopeIcon, TrashIcon } from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useState } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import type { CancelInvitation, Invitation } from"@/hooks/use-organizations";
+import { cn } from"@/lib/utils";
 
 dayjs.extend(relativeTime);
 
@@ -29,50 +29,50 @@ function InvitationRow({
 	onConfirmCancel,
 }: InvitationRowProps) {
 	const isExpired =
-		invitation.status === "pending" &&
+		invitation.status ==="pending" &&
 		dayjs(invitation.expiresAt).isBefore(dayjs());
 
 	const isPending =
-		invitation.status === "pending" &&
+		invitation.status ==="pending" &&
 		dayjs(invitation.expiresAt).isAfter(dayjs());
 
 	const statusConfig = {
 		pending: {
-			label: "Pending",
-			className: "border-amber-500/20 bg-amber-500/10 text-amber-600",
+			label:"Pending",
+			className:"border-amber-500/20 bg-amber-500/10 text-amber-600",
 		},
 		accepted: {
-			label: "Accepted",
-			className: "border-green-500/20 bg-green-500/10 text-green-600",
+			label:"Accepted",
+			className:"border-green-500/20 bg-green-500/10 text-green-600",
 		},
 		expired: {
-			label: "Expired",
-			className: "border-secondary bg-secondary text-secondary-foreground",
+			label:"Expired",
+			className:"border-secondary bg-secondary text-secondary-foreground",
 		},
 	};
 
 	const actualStatus = isExpired
-		? "expired"
-		: ((invitation.status as keyof typeof statusConfig) ?? "expired");
+		?"expired"
+		: ((invitation.status as keyof typeof statusConfig) ??"expired");
 
 	const status = statusConfig[actualStatus] ?? statusConfig.expired;
 
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<div className="flex size-8 items-center justify-center rounded-full bg-secondary">
+			<div className="flex size-8 items-center justify-center bg-secondary">
 				<EnvelopeIcon className="text-secondary-foreground" size={14} />
 			</div>
 
 			<div className="min-w-0">
 				<p className="truncate font-medium">{invitation.email}</p>
 				<p className="truncate text-muted-foreground text-sm">
-					{invitation.role ?? "member"} ·{" "}
-					{isExpired ? "Expired" : isPending ? "Expires" : "Expired"}{" "}
+					{invitation.role ??"member"} ·{""}
+					{isExpired ?"Expired" : isPending ?"Expires" :"Expired"}{""}
 					{dayjs(invitation.expiresAt).fromNow()}
 				</p>
 			</div>
 
-			<Badge className={cn(status.className, "h-7")} variant="secondary">
+			<Badge className={cn(status.className,"h-7")} variant="secondary">
 				{status.label}
 			</Badge>
 

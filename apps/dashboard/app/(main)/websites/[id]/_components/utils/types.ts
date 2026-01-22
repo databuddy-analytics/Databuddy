@@ -1,10 +1,10 @@
-import type { useWebsite } from "@/hooks/use-websites";
-import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
+import type { useWebsite } from"@/hooks/use-websites";
+import type { DynamicQueryFilter } from"@/stores/jotai/filterAtoms";
 
 export interface DateRange {
 	start_date: string;
 	end_date: string;
-	granularity?: "hourly" | "daily";
+	granularity?:"hourly" |"daily";
 	timezone?: string;
 }
 

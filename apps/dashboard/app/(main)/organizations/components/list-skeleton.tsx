@@ -1,6 +1,6 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from"@/components/ui/skeleton";
 
 interface ListSkeletonProps {
 	count?: number;
@@ -18,11 +18,11 @@ export function ListSkeleton({
 			<div className="space-y-3 sm:space-y-4">
 				{Array.from({ length: count }).map((_, i) => (
 					<div
-						className="flex items-center gap-3 rounded-lg border bg-card p-3 sm:gap-4 sm:p-4"
+						className="flex items-center gap-3 border bg-card p-3 sm:gap-4 sm:p-4"
 						key={i.toString()}
 					>
 						{showAvatar && (
-							<Skeleton className="size-10 shrink-0 rounded-full sm:size-12" />
+							<Skeleton className="size-10 shrink-0 sm:size-12" />
 						)}
 						<div className="min-w-0 flex-1 space-y-2">
 							<Skeleton className="h-3 w-40 sm:h-4 sm:w-48" />

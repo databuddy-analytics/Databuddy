@@ -1,7 +1,7 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { track } from "@databuddy/sdk";
+import { authClient } from"@databuddy/auth/client";
+import { track } from"@databuddy/sdk";
 import {
 	CaretLeftIcon,
 	EyeIcon,
@@ -10,24 +10,24 @@ import {
 	GoogleLogoIcon,
 	InfoIcon,
 	SpinnerIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { parseAsString, useQueryState } from"nuqs";
+import { Suspense, useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { Checkbox } from"@/components/ui/checkbox";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Separator } from"@/components/ui/separator";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import VisuallyHidden from "@/components/ui/visuallyhidden";
+} from"@/components/ui/tooltip";
+import VisuallyHidden from"@/components/ui/visuallyhidden";
 
 function RegisterPageContent() {
 	const router = useRouter();
@@ -38,17 +38,17 @@ function RegisterPageContent() {
 	);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
-		name: "",
-		email: "",
-		password: "",
-		confirmPassword: "",
+		name:"",
+		email:"",
+		password:"",
+		confirmPassword:"",
 	});
 	const [acceptTerms, setAcceptTerms] = useState(false);
 	const [isHoneypot, setIsHoneypot] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [registrationStep, setRegistrationStep] = useState<
-		"form" | "success" | "verification-needed"
+		"form" |"success" |"verification-needed"
 	>("form");
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,12 +57,12 @@ function RegisterPageContent() {
 	};
 
 	const trackSignUp = (
-		method: "email" | "social",
-		provider?: "github" | "google"
+		method:"email" |"social",
+		provider?:"github" |"google"
 	) => {
 		try {
 			track("signup_completed", {
-				method: method === "social" ? `${method}_${provider}` : method,
+				method: method ==="social" ? `${method}_${provider}` : method,
 				plan: selectedPlan || undefined,
 			});
 		} catch (error) {
@@ -118,7 +118,7 @@ function RegisterPageContent() {
 		});
 
 		if (error) {
-			toast.error(error.message || "Failed to create account");
+			toast.error(error.message ||"Failed to create account");
 		}
 
 		setIsLoading(false);
@@ -129,7 +129,7 @@ function RegisterPageContent() {
 
 		await authClient.sendVerificationEmail({
 			email: formData.email,
-			callbackURL: "/onboarding",
+			callbackURL:"/onboarding",
 			fetchOptions: {
 				onSuccess: () => {
 					toast.success("Verification email sent!");
@@ -145,21 +145,21 @@ function RegisterPageContent() {
 		setIsLoading(false);
 	};
 
-	const handleSocialLogin = async (provider: "github" | "google") => {
+	const handleSocialLogin = async (provider:"github" |"google") => {
 		setIsLoading(true);
 
 		try {
 			await authClient.signIn.social({
 				provider,
 				callbackURL: getCallbackUrl(),
-				newUserCallbackURL: "/onboarding",
+				newUserCallbackURL:"/onboarding",
 				fetchOptions: {
 					onSuccess: () => {
 						trackSignUp("social", provider);
 					},
 					onError: () => {
 						toast.error(
-							`${provider === "github" ? "GitHub" : "Google"} login failed. Please try again.`
+							`${provider ==="github" ?"GitHub" :"Google"} login failed. Please try again.`
 						);
 						setIsLoading(false);
 					},
@@ -174,23 +174,23 @@ function RegisterPageContent() {
 	// Render header content based on current registration step
 	const renderHeaderContent = () => {
 		switch (registrationStep) {
-			case "verification-needed":
+			case"verification-needed":
 				return (
 					<>
 						<h1 className="font-medium text-2xl text-foreground">
 							Verify your email
 						</h1>
 						<p className="mt-2 text-muted-foreground text-sm">
-							Please check your email:{" "}
+							Please check your email:{""}
 							<span className="font-medium text-accent-foreground">
 								{formData.email}
-							</span>{" "}
+							</span>{""}
 							and click the verification link to activate your account. If you
 							don't see the email, check your spam folder.
 						</p>
 					</>
 				);
-			case "success":
+			case"success":
 				return (
 					<>
 						<h1 className="font-medium text-2xl text-foreground">Success!</h1>
@@ -364,11 +364,11 @@ function RegisterPageContent() {
 								onChange={handleChange}
 								placeholder="••••••••"
 								required
-								type={showPassword ? "text" : "password"}
+								type={showPassword ?"text" :"password"}
 								value={formData.password}
 							/>
 							<Button
-								aria-label={showPassword ? "Hide password" : "Show password"}
+								aria-label={showPassword ?"Hide password" :"Show password"}
 								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 								onClick={() => setShowPassword(!showPassword)}
 								size="sm"
@@ -401,12 +401,12 @@ function RegisterPageContent() {
 								onChange={handleChange}
 								placeholder="••••••••"
 								required
-								type={showConfirmPassword ? "text" : "password"}
+								type={showConfirmPassword ?"text" :"password"}
 								value={formData.confirmPassword}
 							/>
 							<Button
 								aria-label={
-									showConfirmPassword ? "Hide password" : "Show password"
+									showConfirmPassword ?"Hide password" :"Show password"
 								}
 								className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 								onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -449,15 +449,15 @@ function RegisterPageContent() {
 							htmlFor="terms"
 						>
 							<span className="hidden sm:inline">
-								I agree to the{" "}
+								I agree to the{""}
 								<Link
 									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
 									Terms of Service
-								</Link>{" "}
-								and{" "}
+								</Link>{""}
+								and{""}
 								<Link
 									className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 									href="https://www.databuddy.cc/privacy"
@@ -467,15 +467,15 @@ function RegisterPageContent() {
 								</Link>
 							</span>
 							<span className="sm:hidden">
-								I agree to{" "}
+								I agree to{""}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/terms"
 									target="_blank"
 								>
 									Terms
-								</Link>{" "}
-								&{" "}
+								</Link>{""}
+								&{""}
 								<Link
 									className="font-medium text-primary hover:text-primary/80"
 									href="https://www.databuddy.cc/privacy"
@@ -514,9 +514,9 @@ function RegisterPageContent() {
 	// Render content based on current registration step
 	const renderContent = () => {
 		switch (registrationStep) {
-			case "verification-needed":
+			case"verification-needed":
 				return renderVerificationContent();
-			case "success":
+			case"success":
 				return renderSuccessContent();
 			default:
 				return renderFormContent();
@@ -529,16 +529,16 @@ function RegisterPageContent() {
 			<div className="relative overflow-hidden px-6">
 				<div className="relative z-10">{renderContent()}</div>
 			</div>
-			{registrationStep === "form" && (
+			{registrationStep ==="form" && (
 				<div className="mt-4 text-center">
 					<p className="text-muted-foreground text-sm">
-						Already have an account?{" "}
+						Already have an account?{""}
 						<Link
 							className="h-auto flex-1 cursor-pointer p-0 text-right font-medium text-[13px] text-accent-foreground duration-200 hover:text-accent-foreground/60"
 							href={
 								callback
 									? `/login?callback=${encodeURIComponent(callback)}`
-									: "/login"
+									:"/login"
 							}
 						>
 							Sign in
@@ -556,7 +556,7 @@ export default function RegisterPage() {
 			fallback={
 				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
-						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<div className="absolute inset-0 animate-ping bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>

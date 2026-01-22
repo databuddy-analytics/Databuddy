@@ -13,40 +13,40 @@ import {
 	PackageIcon,
 	PulseIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useMemo, useState } from "react";
-import { createHighlighterCoreSync } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import bash from "shiki/langs/bash.mjs";
-import html from "shiki/langs/html.mjs";
-import tsx from "shiki/langs/tsx.mjs";
-import vesper from "shiki/themes/vesper.mjs";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+} from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import { useAtom } from"jotai";
+import { useMemo, useState } from"react";
+import { createHighlighterCoreSync } from"shiki/core";
+import { createJavaScriptRegexEngine } from"shiki/engine/javascript";
+import bash from"shiki/langs/bash.mjs";
+import html from"shiki/langs/html.mjs";
+import tsx from"shiki/langs/tsx.mjs";
+import vesper from"shiki/themes/vesper.mjs";
+import { toast } from"sonner";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/collapsible";
+import { Switch } from"@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from"@/components/ui/tabs";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
 import {
 	toggleTrackingOptionAtom,
 	trackingOptionsAtom,
-} from "@/stores/jotai/filterAtoms";
+} from"@/stores/jotai/filterAtoms";
 import {
 	ADVANCED_TRACKING_OPTIONS,
 	BASIC_TRACKING_OPTIONS,
 	COPY_SUCCESS_TIMEOUT,
-} from "../shared/tracking-constants";
-import { generateNpmCode, generateScriptTag } from "../utils/code-generators";
-import type { TrackingOptionConfig, TrackingOptions } from "../utils/types";
+} from"../shared/tracking-constants";
+import { generateNpmCode, generateScriptTag } from"../utils/code-generators";
+import type { TrackingOptionConfig, TrackingOptions } from"../utils/types";
 
 interface TrackingSetupTabProps {
 	websiteId: string;
@@ -58,19 +58,19 @@ const highlighter = createHighlighterCoreSync({
 	engine: createJavaScriptRegexEngine(),
 });
 
-function getLanguage(code: string): "bash" | "html" | "tsx" {
+function getLanguage(code: string):"bash" |"html" |"tsx" {
 	if (
 		code.includes("npm install") ||
 		code.includes("yarn add") ||
 		code.includes("pnpm add") ||
 		code.includes("bun add")
 	) {
-		return "bash";
+		return"bash";
 	}
 	if (code.includes("<script")) {
-		return "html";
+		return"html";
 	}
-	return "tsx";
+	return"tsx";
 }
 
 function CodeSnippet({
@@ -88,7 +88,7 @@ function CodeSnippet({
 		() =>
 			highlighter.codeToHtml(code, {
 				lang: getLanguage(code),
-				theme: "vesper",
+				theme:"vesper",
 			}),
 		[code]
 	);
@@ -98,7 +98,7 @@ function CodeSnippet({
 			{label && (
 				<div className="mb-2 text-muted-foreground text-xs">{label}</div>
 			)}
-			<div className="relative overflow-hidden rounded border border-white/10 bg-[#101010]">
+			<div className="relative overflow-hidden border border-white/10 bg-[#101010]">
 				<div
 					className={cn(
 						"overflow-x-auto text-[13px] leading-relaxed",
@@ -145,12 +145,12 @@ function StepIndicator({
 		<div className="flex items-start gap-3">
 			<div
 				className={cn(
-					"flex size-8 shrink-0 items-center justify-center rounded border font-semibold text-sm",
+					"flex size-8 shrink-0 items-center justify-center border font-semibold text-sm",
 					isComplete
-						? "border-success/30 bg-success/10 text-success"
+						?"border-success/30 bg-success/10 text-success"
 						: isActive
-							? "border-primary bg-primary/10 text-primary"
-							: "border-accent-foreground/20 bg-accent text-muted-foreground"
+							?"border-primary bg-primary/10 text-primary"
+							:"border-accent-foreground/20 bg-accent text-muted-foreground"
 				)}
 			>
 				{isComplete ? (
@@ -181,16 +181,16 @@ function TrackingStatusBanner({
 			className={cn(
 				"gap-0 overflow-hidden py-0",
 				isSetup
-					? "border-success/30 bg-success/5"
-					: "border-amber-500/30 bg-amber-500/5"
+					?"border-success/30 bg-success/5"
+					:"border-amber-500/30 bg-amber-500/5"
 			)}
 		>
 			<CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex items-center gap-3">
 					<div
 						className={cn(
-							"flex size-10 items-center justify-center rounded",
-							isSetup ? "bg-success/10" : "bg-amber-500/10"
+							"flex size-10 items-center justify-center",
+							isSetup ?"bg-success/10" :"bg-amber-500/10"
 						)}
 					>
 						{isSetup ? (
@@ -205,16 +205,16 @@ function TrackingStatusBanner({
 					<div>
 						<div className="flex items-center gap-2">
 							<h3 className="font-semibold text-sm">
-								{isSetup ? "Tracking Active" : "Awaiting Installation"}
+								{isSetup ?"Tracking Active" :"Awaiting Installation"}
 							</h3>
-							<Badge variant={isSetup ? "green" : "amber"}>
-								{isSetup ? "Live" : "Pending"}
+							<Badge variant={isSetup ?"green" :"amber"}>
+								{isSetup ?"Live" :"Pending"}
 							</Badge>
 						</div>
 						<p className="text-muted-foreground text-xs">
 							{isSetup
-								? "Data is being collected successfully"
-								: "Complete the setup steps below to start tracking"}
+								?"Data is being collected successfully"
+								:"Complete the setup steps below to start tracking"}
 						</p>
 					</div>
 				</div>
@@ -226,10 +226,10 @@ function TrackingStatusBanner({
 					variant="outline"
 				>
 					<ArrowClockwiseIcon
-						className={cn("size-3.5", isRefreshing && "animate-spin")}
+						className={cn("size-3.5", isRefreshing &&"animate-spin")}
 						weight="bold"
 					/>
-					{isRefreshing ? "Checking…" : "Check Status"}
+					{isRefreshing ?"Checking…" :"Check Status"}
 				</Button>
 			</CardContent>
 		</Card>
@@ -250,10 +250,10 @@ function InstallationStep({
 	onCopyCode: (code: string, blockId: string, message: string) => void;
 }) {
 	const installCommands = {
-		bun: "bun add @databuddy/sdk",
-		npm: "npm install @databuddy/sdk",
-		yarn: "yarn add @databuddy/sdk",
-		pnpm: "pnpm add @databuddy/sdk",
+		bun:"bun add @databuddy/sdk",
+		npm:"npm install @databuddy/sdk",
+		yarn:"yarn add @databuddy/sdk",
+		pnpm:"pnpm add @databuddy/sdk",
 	};
 
 	return (
@@ -272,15 +272,15 @@ function InstallationStep({
 
 				<TabsContent className="mt-4 space-y-3" value="script">
 					<p className="text-muted-foreground text-sm">
-						Add this script to the{" "}
-						<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
+						Add this script to the{""}
+						<code className=" bg-accent px-1.5 py-0.5 font-mono text-xs">
 							{"<head>"}
-						</code>{" "}
+						</code>{""}
 						section of your website:
 					</p>
 					<CodeSnippet
 						code={trackingCode}
-						copied={copiedBlockId === "script-tag"}
+						copied={copiedBlockId ==="script-tag"}
 						onCopy={() =>
 							onCopyCode(
 								trackingCode,
@@ -289,7 +289,7 @@ function InstallationStep({
 							)
 						}
 					/>
-					<div className="flex items-start gap-2 rounded border border-dashed bg-background/50 p-3">
+					<div className="flex items-start gap-2 border border-dashed bg-background/50 p-3">
 						<LightningIcon
 							className="mt-0.5 size-4 shrink-0 text-amber-500"
 							weight="duotone"
@@ -343,9 +343,9 @@ function InstallationStep({
 						</p>
 						<CodeSnippet
 							code={npmCode}
-							copied={copiedBlockId === "npm-code"}
+							copied={copiedBlockId ==="npm-code"}
 							onCopy={() =>
-								onCopyCode(npmCode, "npm-code", "Code copied to clipboard!")
+								onCopyCode(npmCode,"npm-code","Code copied to clipboard!")
 							}
 						/>
 					</div>
@@ -355,14 +355,14 @@ function InstallationStep({
 			<div className="flex items-center gap-2 pt-2">
 				<span className="text-muted-foreground text-xs">Website ID:</span>
 				<button
-					className="group flex items-center gap-1.5 rounded bg-accent px-2 py-1 font-mono text-xs hover:bg-accent-brighter"
+					className="group flex items-center gap-1.5 bg-accent px-2 py-1 font-mono text-xs hover:bg-accent-brighter"
 					onClick={() =>
-						onCopyCode(websiteId, "website-id", "Website ID copied!")
+						onCopyCode(websiteId,"website-id","Website ID copied!")
 					}
 					type="button"
 				>
 					<span className="truncate">{websiteId}</span>
-					{copiedBlockId === "website-id" ? (
+					{copiedBlockId ==="website-id" ? (
 						<CheckIcon className="size-3 text-success" weight="bold" />
 					) : (
 						<ClipboardIcon
@@ -391,9 +391,9 @@ function OptionToggle({
 	return (
 		<label
 			className={cn(
-				"group flex w-full cursor-pointer items-center gap-3 rounded border p-3 text-left transition-all",
+				"group flex w-full cursor-pointer items-center gap-3 border p-3 text-left transition-all",
 				"hover:border-primary/50 hover:bg-accent/50",
-				isEnabled && "border-primary/30 bg-primary/5"
+				isEnabled &&"border-primary/30 bg-primary/5"
 			)}
 			htmlFor={switchId}
 		>
@@ -440,11 +440,11 @@ function ConfigurationStep({
 			<Collapsible onOpenChange={setBasicOpen} open={basicOpen}>
 				<CollapsibleTrigger asChild>
 					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
+						className="flex w-full items-center justify-between border bg-card p-3 hover:bg-accent"
 						type="button"
 					>
 						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
+							<div className="flex size-8 items-center justify-center bg-accent">
 								<GearIcon
 									className="size-4 text-muted-foreground"
 									weight="duotone"
@@ -460,7 +460,7 @@ function ConfigurationStep({
 						<CaretDownIcon
 							className={cn(
 								"size-4 text-muted-foreground transition-transform",
-								basicOpen && "rotate-180"
+								basicOpen &&"rotate-180"
 							)}
 							weight="bold"
 						/>
@@ -483,11 +483,11 @@ function ConfigurationStep({
 			<Collapsible onOpenChange={setAdvancedOpen} open={advancedOpen}>
 				<CollapsibleTrigger asChild>
 					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
+						className="flex w-full items-center justify-between border bg-card p-3 hover:bg-accent"
 						type="button"
 					>
 						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
+							<div className="flex size-8 items-center justify-center bg-accent">
 								<LightningIcon
 									className="size-4 text-muted-foreground"
 									weight="duotone"
@@ -496,7 +496,7 @@ function ConfigurationStep({
 							<div className="text-left">
 								<h4 className="font-medium text-sm">Advanced Features</h4>
 								<p className="text-muted-foreground text-xs">
-									{enabledAdvancedCount}/{ADVANCED_TRACKING_OPTIONS.length}{" "}
+									{enabledAdvancedCount}/{ADVANCED_TRACKING_OPTIONS.length}{""}
 									enabled
 								</p>
 							</div>
@@ -504,7 +504,7 @@ function ConfigurationStep({
 						<CaretDownIcon
 							className={cn(
 								"size-4 text-muted-foreground transition-transform",
-								advancedOpen && "rotate-180"
+								advancedOpen &&"rotate-180"
 							)}
 							weight="bold"
 						/>
@@ -535,11 +535,11 @@ function DiagnosticsStep() {
 			<Collapsible onOpenChange={setDiagnosticsOpen} open={diagnosticsOpen}>
 				<CollapsibleTrigger asChild>
 					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
+						className="flex w-full items-center justify-between border bg-card p-3 hover:bg-accent"
 						type="button"
 					>
 						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
+							<div className="flex size-8 items-center justify-center bg-accent">
 								<BugIcon
 									className="size-4 text-muted-foreground"
 									weight="duotone"
@@ -555,7 +555,7 @@ function DiagnosticsStep() {
 						<CaretDownIcon
 							className={cn(
 								"size-4 text-muted-foreground transition-transform",
-								diagnosticsOpen && "rotate-180"
+								diagnosticsOpen &&"rotate-180"
 							)}
 							weight="bold"
 						/>
@@ -563,7 +563,7 @@ function DiagnosticsStep() {
 				</CollapsibleTrigger>
 				<CollapsibleContent className="pt-3">
 					<div className="space-y-3">
-						<div className="space-y-3 rounded border bg-background/50 p-4">
+						<div className="space-y-3 border bg-background/50 p-4">
 							<div className="space-y-2">
 								<div className="flex items-start gap-2">
 									<WarningCircleIcon
@@ -611,14 +611,14 @@ function DiagnosticsStep() {
 										</h5>
 										<p className="text-muted-foreground text-xs">
 											Open your browser's Developer Tools (F12) → Network tab
-											and reload your page. Look for a request to{" "}
-											<code className="rounded bg-accent px-1 py-0.5 font-mono">
+											and reload your page. Look for a request to{""}
+											<code className=" bg-accent px-1 py-0.5 font-mono">
 												databuddy.js
-											</code>{" "}
-											or similar. If it fails, verify the script tag is in the{" "}
-											<code className="rounded bg-accent px-1 py-0.5 font-mono">
+											</code>{""}
+											or similar. If it fails, verify the script tag is in the{""}
+											<code className=" bg-accent px-1 py-0.5 font-mono">
 												{"<head>"}
-											</code>{" "}
+											</code>{""}
 											section and your website ID is correct.
 										</p>
 									</div>
@@ -684,7 +684,7 @@ function DiagnosticsStep() {
 							</div>
 						</div>
 
-						<div className="rounded border border-blue-500/30 bg-blue-500/5 p-4">
+						<div className=" border border-blue-500/30 bg-blue-500/5 p-4">
 							<div className="flex items-start gap-2">
 								<BookOpenIcon
 									className="mt-0.5 size-4 shrink-0 text-blue-500"
@@ -695,7 +695,7 @@ function DiagnosticsStep() {
 										Still having issues?
 									</h5>
 									<p className="mt-1 text-muted-foreground text-xs">
-										Check our{" "}
+										Check our{""}
 										<a
 											className="text-primary underline-offset-4 hover:underline"
 											href="https://www.databuddy.cc/docs/troubleshooting"
@@ -703,7 +703,7 @@ function DiagnosticsStep() {
 											target="_blank"
 										>
 											troubleshooting documentation
-										</a>{" "}
+										</a>{""}
 										for detailed debugging steps, or contact support with your
 										website ID for personalized help.
 									</p>
@@ -831,7 +831,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 			</div>
 
 			{/* Help Footer */}
-			<div className="flex flex-wrap items-center justify-between gap-4 rounded border border-dashed bg-background/50 p-3">
+			<div className="flex flex-wrap items-center justify-between gap-4 border border-dashed bg-background/50 p-3">
 				<span className="text-muted-foreground text-sm">
 					Need help setting up?
 				</span>

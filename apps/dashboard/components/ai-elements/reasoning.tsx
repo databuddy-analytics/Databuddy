@@ -1,17 +1,17 @@
 "use client";
 
-import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import { createContext, memo, useContext, useEffect, useState } from "react";
-import { Streamdown } from "streamdown";
+import { useControllableState } from"@radix-ui/react-use-controllable-state";
+import { BrainIcon, ChevronDownIcon } from"lucide-react";
+import type { ComponentProps, ReactNode } from"react";
+import { createContext, memo, useContext, useEffect, useState } from"react";
+import { Streamdown } from"streamdown";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
-import { Shimmer } from "./shimmer";
+} from"@/components/ui/collapsible";
+import { cn } from"@/lib/utils";
+import { Shimmer } from"./shimmer";
 
 type ReasoningContextValue = {
 	isStreaming: boolean;
@@ -151,7 +151,7 @@ export const ReasoningTrigger = memo(
 						<ChevronDownIcon
 							className={cn(
 								"size-4 transition-transform",
-								isOpen ? "rotate-180" : "rotate-0"
+								isOpen ?"rotate-180" :"rotate-0"
 							)}
 						/>
 					</>
@@ -182,6 +182,6 @@ export const ReasoningContent = memo(
 	)
 );
 
-Reasoning.displayName = "Reasoning";
-ReasoningTrigger.displayName = "ReasoningTrigger";
-ReasoningContent.displayName = "ReasoningContent";
+Reasoning.displayName ="Reasoning";
+ReasoningTrigger.displayName ="ReasoningTrigger";
+ReasoningContent.displayName ="ReasoningContent";

@@ -1,11 +1,11 @@
 "use server";
 
-import { Databuddy } from "@databuddy/sdk/node";
-import type { CancelFeedback } from "../components/cancel-subscription-dialog";
+import { Databuddy } from"@databuddy/sdk/node";
+import type { CancelFeedback } from"../components/cancel-subscription-dialog";
 
 const client = new Databuddy({
-	clientId: process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ?? "",
-	debug: process.env.NODE_ENV === "development",
+	clientId: process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ??"",
+	debug: process.env.NODE_ENV ==="development",
 });
 
 const VALID_REASONS = [
@@ -36,7 +36,7 @@ export async function trackCancelFeedbackAction({
 
 	try {
 		await client.track({
-			name: "subscription_cancelled",
+			name:"subscription_cancelled",
 			properties: {
 				reason: feedback.reason,
 				details: feedback.details?.trim() ?? null,

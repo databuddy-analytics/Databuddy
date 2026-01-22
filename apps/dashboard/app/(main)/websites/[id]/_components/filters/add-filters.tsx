@@ -1,18 +1,18 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	ArrowLeftIcon,
 	FunnelIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useParams } from"next/navigation";
+import { useCallback, useState } from"react";
+import { useForm } from"react-hook-form";
+import { z } from"zod";
+import { Button } from"@/components/ui/button";
 import {
 	Command,
 	CommandEmpty,
@@ -20,14 +20,14 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "@/components/ui/command";
+} from"@/components/ui/command";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from"@/components/ui/dialog";
 import {
 	Form,
 	FormControl,
@@ -35,29 +35,29 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { operatorOptions } from "@/hooks/use-filters";
+} from"@/components/ui/select";
+import { Skeleton } from"@/components/ui/skeleton";
+import { operatorOptions } from"@/hooks/use-filters";
 import {
 	type AutocompleteData,
 	useAutocompleteData,
-} from "@/hooks/use-funnels";
-import { cn } from "@/lib/utils";
+} from"@/hooks/use-funnels";
+import { cn } from"@/lib/utils";
 
 type FilterOption = (typeof filterOptions)[number];
 
 const filterFormSchema = z.object({
-	field: z.string().min(1, "Please select a field"),
-	operator: z.enum(["eq", "ne", "contains", "not_contains", "starts_with"]),
-	value: z.string().min(1, "Value is required"),
+	field: z.string().min(1,"Please select a field"),
+	operator: z.enum(["eq","ne","contains","not_contains","starts_with"]),
+	value: z.string().min(1,"Value is required"),
 });
 
 type FilterFormData = z.infer<typeof filterFormSchema>;
@@ -117,10 +117,10 @@ function ValueSuggestions({
 					filteredSuggestions.map((suggestion) => (
 						<button
 							className={cn(
-								"cursor-pointer rounded border px-2 py-1 text-xs hover:bg-accent",
+								"cursor-pointer border px-2 py-1 text-xs hover:bg-accent",
 								selectedValue === suggestion
-									? "border-primary bg-primary/10 text-primary"
-									: "border-border"
+									?"border-primary bg-primary/10 text-primary"
+									:"border-border"
 							)}
 							key={suggestion}
 							onClick={() => onSelect(suggestion)}
@@ -135,7 +135,7 @@ function ValueSuggestions({
 	);
 }
 
-type FilterDialogStep = "select-field" | "configure-value";
+type FilterDialogStep ="select-field" |"configure-value";
 
 function FilterDialogContent({
 	addFilter,
@@ -157,9 +157,9 @@ function FilterDialogContent({
 	const form = useForm<FilterFormData>({
 		resolver: zodResolver(filterFormSchema),
 		defaultValues: {
-			field: "",
-			operator: "eq",
-			value: "",
+			field:"",
+			operator:"eq",
+			value:"",
 		},
 	});
 
@@ -193,7 +193,7 @@ function FilterDialogContent({
 		return (
 			<>
 				<div className="mb-3 flex items-center gap-3">
-					<div className="rounded-full border bg-destructive/10 p-2.5">
+					<div className=" border bg-destructive/10 p-2.5">
 						<WarningCircleIcon
 							className="size-4 text-destructive"
 							weight="duotone"
@@ -222,11 +222,11 @@ function FilterDialogContent({
 		);
 	}
 
-	if (step === "select-field") {
+	if (step ==="select-field") {
 		return (
 			<>
 				<div className="mb-3 flex items-center gap-3">
-					<div className="rounded-full border bg-secondary p-2.5">
+					<div className=" border bg-secondary p-2.5">
 						<FunnelIcon
 							className="size-4 text-accent-foreground"
 							weight="duotone"
@@ -252,7 +252,7 @@ function FilterDialogContent({
 						))}
 					</div>
 				) : (
-					<Command className="rounded border">
+					<Command className=" border">
 						<CommandInput placeholder="Search fields…" />
 						<CommandList className="max-h-[240px]">
 							<CommandEmpty>No field found.</CommandEmpty>
@@ -283,7 +283,7 @@ function FilterDialogContent({
 	return (
 		<>
 			<div className="mb-3 flex items-center gap-3">
-				<div className="rounded-full border bg-secondary p-2.5">
+				<div className=" border bg-secondary p-2.5">
 					<FunnelIcon
 						className="size-4 text-accent-foreground"
 						weight="duotone"
@@ -326,7 +326,7 @@ function FilterDialogContent({
 													defaultValue={operatorField.value}
 													onValueChange={operatorField.onChange}
 												>
-													<SelectTrigger className="h-9 w-auto gap-1 rounded-r-none border-r-0 bg-secondary px-2.5 font-medium text-xs">
+													<SelectTrigger className="h-9 w-auto gap-1 border-r-0 bg-secondary px-2.5 font-medium text-xs">
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent align="start">
@@ -344,7 +344,7 @@ function FilterDialogContent({
 										/>
 										<Input
 											autoFocus
-											className="rounded-l-none text-sm"
+											className=" text-sm"
 											placeholder={`Enter ${selectedFilterOption?.label.toLowerCase()}…`}
 											{...field}
 										/>
@@ -389,7 +389,7 @@ function FilterDialogContent({
 
 export function AddFilterForm({
 	addFilter,
-	buttonText = "Filter",
+	buttonText ="Filter",
 	className,
 	disabled = false,
 }: {

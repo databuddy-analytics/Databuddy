@@ -1,4 +1,4 @@
-import type { PixelCrop } from "react-image-crop";
+import type { PixelCrop } from"react-image-crop";
 
 // This function was adapted from the official react-image-crop examples
 // to ensure the output is a high-quality, circular image.
@@ -22,7 +22,7 @@ export function getCroppedImage(
 	canvas.height = Math.floor(crop.height * scaleY * pixelRatio);
 
 	ctx.scale(pixelRatio, pixelRatio);
-	ctx.imageSmoothingQuality = "high";
+	ctx.imageSmoothingQuality ="high";
 
 	const cropX = crop.x * scaleX;
 	const cropY = crop.y * scaleY;
@@ -55,7 +55,7 @@ export function getCroppedImage(
 				reject(new Error("Canvas is empty"));
 				return;
 			}
-			resolve(new File([blob], fileName, { type: "image/png" }));
-		}, "image/png");
+			resolve(new File([blob], fileName, { type:"image/png" }));
+		},"image/png");
 	});
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { MagnifyingGlassPlusIcon, NoteIcon } from "@phosphor-icons/react";
-import { useHotkeys } from "react-hotkeys-hook";
+import { MagnifyingGlassPlusIcon, NoteIcon } from"@phosphor-icons/react";
+import { useHotkeys } from"react-hotkeys-hook";
 
 type RangeSelectionPopupProps = {
 	isOpen: boolean;
@@ -65,12 +65,12 @@ export function RangeSelectionPopup({
 
 	const formatDateRange = () => {
 		const start = dateRange.startDate.toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
+			month:"short",
+			day:"numeric",
 		});
 		const end = dateRange.endDate.toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
+			month:"short",
+			day:"numeric",
 		});
 		return dateRange.startDate.getTime() !== dateRange.endDate.getTime()
 			? `${start} – ${end}`
@@ -86,7 +86,7 @@ export function RangeSelectionPopup({
 				onClick={onCloseAction}
 				type="button"
 			/>
-			<div className="relative min-w-[180px] overflow-hidden rounded border bg-popover shadow-xl">
+			<div className="relative min-w-[180px] overflow-hidden border bg-popover shadow-xl">
 				<div className="border-b bg-accent px-3 py-2">
 					<p className="font-medium text-foreground text-xs">
 						{formatDateRange()}
@@ -94,7 +94,7 @@ export function RangeSelectionPopup({
 				</div>
 				<div className="p-1">
 					<button
-						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm hover:bg-accent"
+						className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-accent"
 						onClick={handleZoom}
 						type="button"
 					>
@@ -103,12 +103,12 @@ export function RangeSelectionPopup({
 							weight="duotone"
 						/>
 						<span className="flex-1 text-foreground">Zoom to range</span>
-						<kbd className="rounded border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
+						<kbd className=" border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
 							Z
 						</kbd>
 					</button>
 					<button
-						className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm hover:bg-accent"
+						className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-accent"
 						onClick={onAddAnnotationAction}
 						type="button"
 					>
@@ -117,7 +117,7 @@ export function RangeSelectionPopup({
 							weight="duotone"
 						/>
 						<span className="flex-1 text-foreground">Add annotation…</span>
-						<kbd className="rounded border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
+						<kbd className=" border bg-accent px-1.5 py-0.5 text-[10px] text-foreground">
 							A
 						</kbd>
 					</button>

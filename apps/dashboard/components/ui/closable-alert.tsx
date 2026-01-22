@@ -44,7 +44,7 @@ export function ClosableAlert({
 	return (
 		<div
 			className={cn(
-				'rounded border bg-muted/50 transition-all duration-200',
+				' border bg-muted/50 transition-all duration-200',
 				isError && 'border-destructive/20 bg-destructive/5',
 				className
 			)}
@@ -71,7 +71,7 @@ export function ClosableAlert({
 				<div className="ml-2 flex items-center gap-1">
 					{children && (
 						<Button
-							className="size-6 rounded p-0"
+							className="size-6 p-0"
 							onClick={() => setIsExpanded(!isExpanded)}
 							size="sm"
 							variant="ghost"
@@ -84,7 +84,7 @@ export function ClosableAlert({
 						</Button>
 					)}
 					<Button
-						className="size-6 rounded p-0"
+						className="size-6 p-0"
 						onClick={handleClose}
 						size="sm"
 						variant="ghost"

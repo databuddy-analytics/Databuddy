@@ -13,61 +13,61 @@ import {
 	StackIcon,
 	SunIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
-import { useTheme } from "next-themes";
-import { useState } from "react";
+} from"@phosphor-icons/react";
+import { useTheme } from"next-themes";
+import { useState } from"react";
 import type {
 	ChartStepType,
 	ChartType,
-} from "@/components/analytics/stat-card";
-import { StatCard } from "@/components/analytics/stat-card";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { KeyboardShortcuts } from "@/components/ui/keyboard-shortcuts";
+} from"@/components/analytics/stat-card";
+import { StatCard } from"@/components/analytics/stat-card";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { KeyboardShortcuts } from"@/components/ui/keyboard-shortcuts";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from"@/components/ui/tooltip";
 import {
 	CHART_LOCATION_DESCRIPTIONS,
 	CHART_LOCATION_LABELS,
 	CHART_LOCATIONS,
 	type ChartLocation,
 	useAllChartPreferences,
-} from "@/hooks/use-chart-preferences";
-import { cn } from "@/lib/utils";
-import { SettingsSection } from "../_components/settings-section";
+} from"@/hooks/use-chart-preferences";
+import { cn } from"@/lib/utils";
+import { SettingsSection } from"../_components/settings-section";
 
 const MOCK_CHART_DATA = [
-	{ date: "2024-01-01", value: 186 },
-	{ date: "2024-01-02", value: 305 },
-	{ date: "2024-01-03", value: 237 },
-	{ date: "2024-01-04", value: 73 },
-	{ date: "2024-01-05", value: 209 },
-	{ date: "2024-01-06", value: 214 },
+	{ date:"2024-01-01", value: 186 },
+	{ date:"2024-01-02", value: 305 },
+	{ date:"2024-01-03", value: 237 },
+	{ date:"2024-01-04", value: 73 },
+	{ date:"2024-01-05", value: 209 },
+	{ date:"2024-01-06", value: 214 },
 ];
 
 const THEME_OPTIONS = [
 	{
-		id: "light",
-		name: "Light",
+		id:"light",
+		name:"Light",
 		icon: SunIcon,
-		description: "Light background",
+		description:"Light background",
 	},
-	{ id: "dark", name: "Dark", icon: MoonIcon, description: "Dark background" },
+	{ id:"dark", name:"Dark", icon: MoonIcon, description:"Dark background" },
 	{
-		id: "system",
-		name: "System",
+		id:"system",
+		name:"System",
 		icon: DesktopIcon,
-		description: "Auto-detect",
+		description:"Auto-detect",
 	},
 ] as const;
 
@@ -76,17 +76,17 @@ const CHART_TYPE_OPTIONS: {
 	name: string;
 	icon: typeof ChartBarIcon;
 }[] = [
-	{ id: "bar", name: "Bar", icon: ChartBarIcon },
-	{ id: "line", name: "Line", icon: ChartLineIcon },
-	{ id: "area", name: "Area", icon: StackIcon },
+	{ id:"bar", name:"Bar", icon: ChartBarIcon },
+	{ id:"line", name:"Line", icon: ChartLineIcon },
+	{ id:"area", name:"Area", icon: StackIcon },
 ];
 
 const STEP_TYPE_OPTIONS: { id: ChartStepType; name: string }[] = [
-	{ id: "monotone", name: "Smooth" },
-	{ id: "linear", name: "Linear" },
-	{ id: "step", name: "Step" },
-	{ id: "stepBefore", name: "Step Before" },
-	{ id: "stepAfter", name: "Step After" },
+	{ id:"monotone", name:"Smooth" },
+	{ id:"linear", name:"Linear" },
+	{ id:"step", name:"Step" },
+	{ id:"stepBefore", name:"Step Before" },
+	{ id:"stepAfter", name:"Step After" },
 ];
 
 const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
@@ -106,17 +106,17 @@ export default function AppearanceSettingsPage() {
 		useState<ChartLocation>("overview-stats");
 	const [showGranular, setShowGranular] = useState(false);
 
-	// Get the "global" preference (first location as reference for "all")
+	// Get the"global" preference (first location as reference for"all")
 	const globalPrefs = preferences["overview-stats"] ?? {
-		chartType: "area" as ChartType,
-		chartStepType: "monotone" as ChartStepType,
+		chartType:"area" as ChartType,
+		chartStepType:"monotone" as ChartStepType,
 	};
 
 	const previewPrefs = showGranular
 		? (preferences[previewLocation] ?? globalPrefs)
 		: globalPrefs;
 
-	const isGlobalBar = globalPrefs.chartType === "bar";
+	const isGlobalBar = globalPrefs.chartType ==="bar";
 
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
@@ -132,10 +132,10 @@ export default function AppearanceSettingsPage() {
 							return (
 								<button
 									className={cn(
-										"flex flex-col items-center gap-2 rounded border p-4",
+										"flex flex-col items-center gap-2 border p-4",
 										isActive
-											? "border-primary bg-primary/5"
-											: "border-border hover:bg-accent"
+											?"border-primary bg-primary/5"
+											:"border-border hover:bg-accent"
 									)}
 									key={id}
 									onClick={() => setTheme(id)}
@@ -143,14 +143,14 @@ export default function AppearanceSettingsPage() {
 								>
 									<div
 										className={cn(
-											"flex size-10 items-center justify-center rounded-full",
-											isActive ? "bg-primary/10" : "bg-accent"
+											"flex size-10 items-center justify-center",
+											isActive ?"bg-primary/10" :"bg-accent"
 										)}
 									>
 										<Icon
 											className={cn(
 												"size-5",
-												isActive ? "text-foreground" : "text-muted-foreground"
+												isActive ?"text-foreground" :"text-muted-foreground"
 											)}
 											weight="duotone"
 										/>
@@ -174,7 +174,7 @@ export default function AppearanceSettingsPage() {
 				>
 					<div className="space-y-4">
 						{/* Preview */}
-						<div className="rounded border bg-accent/30 p-4">
+						<div className=" border bg-accent/30 p-4">
 							<div className="mb-3 flex items-center justify-between">
 								<span className="font-medium text-sm">Preview</span>
 								{showGranular && (
@@ -223,7 +223,7 @@ export default function AppearanceSettingsPage() {
 						</div>
 
 						{/* Global Settings */}
-						<div className="rounded border">
+						<div className=" border">
 							<div className="flex items-center justify-between border-b bg-accent/50 px-4 py-2.5">
 								<span className="font-medium text-sm">All Charts</span>
 								<div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ export default function AppearanceSettingsPage() {
 												<SelectTrigger
 													className={cn(
 														"h-8 w-28",
-														isGlobalBar && "opacity-50"
+														isGlobalBar &&"opacity-50"
 													)}
 													size="sm"
 												>
@@ -282,20 +282,20 @@ export default function AppearanceSettingsPage() {
 
 							{/* Expand/Collapse Button */}
 							<Button
-								className="w-full justify-between rounded-none border-0"
+								className="w-full justify-between border-0"
 								onClick={() => setShowGranular(!showGranular)}
 								size="sm"
 								variant="ghost"
 							>
 								<span className="text-muted-foreground text-xs">
 									{showGranular
-										? "Hide per-location settings"
-										: "Customize per location"}
+										?"Hide per-location settings"
+										:"Customize per location"}
 								</span>
 								<CaretDownIcon
 									className={cn(
 										"size-4 text-muted-foreground transition-transform",
-										showGranular && "rotate-180"
+										showGranular &&"rotate-180"
 									)}
 								/>
 							</Button>
@@ -316,10 +316,10 @@ export default function AppearanceSettingsPage() {
 									</div>
 									{CHART_LOCATIONS.map((location, i) => {
 										const prefs = preferences[location] ?? {
-											chartType: "area" as ChartType,
-											chartStepType: "monotone" as ChartStepType,
+											chartType:"area" as ChartType,
+											chartStepType:"monotone" as ChartStepType,
 										};
-										const isBar = prefs.chartType === "bar";
+										const isBar = prefs.chartType ==="bar";
 										const isActive = location === previewLocation;
 										const LocationIcon = LOCATION_ICONS[location];
 
@@ -327,13 +327,13 @@ export default function AppearanceSettingsPage() {
 											<div
 												className={cn(
 													"grid w-full cursor-pointer grid-cols-[1fr_6.5rem_7.5rem] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/30 focus-visible:bg-accent/30 focus-visible:outline-none",
-													i < CHART_LOCATIONS.length - 1 && "border-b",
-													isActive && "bg-accent/50"
+													i < CHART_LOCATIONS.length - 1 &&"border-b",
+													isActive &&"bg-accent/50"
 												)}
 												key={location}
 												onClick={() => setPreviewLocation(location)}
 												onKeyDown={(e) => {
-													if (e.key === "Enter" || e.key === " ") {
+													if (e.key ==="Enter" || e.key ==="") {
 														e.preventDefault();
 														setPreviewLocation(location);
 													}
@@ -349,7 +349,7 @@ export default function AppearanceSettingsPage() {
 													<span
 														className={cn(
 															"truncate text-sm",
-															isActive && "font-medium"
+															isActive &&"font-medium"
 														)}
 													>
 														{CHART_LOCATION_LABELS[location]}
@@ -399,7 +399,7 @@ export default function AppearanceSettingsPage() {
 															<SelectTrigger
 																className={cn(
 																	"h-7 w-full",
-																	isBar && "opacity-50"
+																	isBar &&"opacity-50"
 																)}
 																onClick={(e) => e.stopPropagation()}
 																size="sm"
@@ -457,16 +457,16 @@ export default function AppearanceSettingsPage() {
 								<span className="font-medium text-foreground">
 									{CHART_TYPE_OPTIONS.find(
 										(c) => c.id === previewPrefs.chartType
-									)?.name ?? "Area"}
+									)?.name ??"Area"}
 								</span>
 							</div>
-							{previewPrefs.chartType !== "bar" && (
+							{previewPrefs.chartType !=="bar" && (
 								<div className="flex items-center justify-between text-muted-foreground">
 									<span>Style</span>
 									<span className="font-medium text-foreground">
 										{STEP_TYPE_OPTIONS.find(
 											(s) => s.id === previewPrefs.chartStepType
-										)?.name ?? "Smooth"}
+										)?.name ??"Smooth"}
 									</span>
 								</div>
 							)}

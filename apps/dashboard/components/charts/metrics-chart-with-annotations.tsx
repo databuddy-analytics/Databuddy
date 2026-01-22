@@ -1,22 +1,22 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { usePersistentState } from "@/hooks/use-persistent-state";
-import { ANNOTATION_STORAGE_KEYS } from "@/lib/annotation-constants";
-import { orpc } from "@/lib/orpc";
+import { useMutation, useQuery } from"@tanstack/react-query";
+import { useMemo, useState } from"react";
+import { toast } from"sonner";
+import { usePersistentState } from"@/hooks/use-persistent-state";
+import { ANNOTATION_STORAGE_KEYS } from"@/lib/annotation-constants";
+import { orpc } from"@/lib/orpc";
 import type {
 	Annotation,
 	AnnotationFormData,
 	ChartContext,
 	CreateAnnotationData,
-} from "@/types/annotations";
-import { AnnotationModal } from "./annotation-modal";
-import { MetricsChart } from "./metrics-chart";
+} from"@/types/annotations";
+import { AnnotationModal } from"./annotation-modal";
+import { MetricsChart } from"./metrics-chart";
 
 type CreateAnnotationInput = {
-	annotationType: "range";
+	annotationType:"range";
 	xValue: string;
 	xEndValue: string;
 	text: string;
@@ -39,7 +39,7 @@ type MetricsChartWithAnnotationsProps = {
 	dateRange?: {
 		startDate: Date;
 		endDate: Date;
-		granularity: "hourly" | "daily" | "weekly" | "monthly";
+		granularity:"hourly" |"daily" |"weekly" |"monthly";
 	};
 };
 
@@ -84,9 +84,9 @@ export function MetricsChartWithAnnotations({
 			dateRange: {
 				start_date: dateRange.startDate.toISOString(),
 				end_date: dateRange.endDate.toISOString(),
-				granularity: "daily",
+				granularity:"daily",
 			},
-			metrics: ["pageviews", "sessions", "visitors"],
+			metrics: ["pageviews","sessions","visitors"],
 		};
 	}, [dateRange, data]);
 
@@ -94,7 +94,7 @@ export function MetricsChartWithAnnotations({
 		...orpc.annotations.list.queryOptions({
 			input: {
 				websiteId,
-				chartType: "metrics" as const,
+				chartType:"metrics" as const,
 				chartContext: chartContext as any,
 			},
 		}),
@@ -132,7 +132,7 @@ export function MetricsChartWithAnnotations({
 
 		const createData: CreateAnnotationData = {
 			websiteId,
-			chartType: "metrics",
+			chartType:"metrics",
 			chartContext,
 			annotationType: annotation.annotationType,
 			xValue: annotation.xValue,
@@ -146,14 +146,14 @@ export function MetricsChartWithAnnotations({
 		const promise = createAnnotation.mutateAsync(createData);
 
 		toast.promise(promise, {
-			loading: "Creating annotation...",
+			loading:"Creating annotation...",
 			success: () => {
 				refetchAnnotations();
-				return "Annotation created successfully!";
+				return"Annotation created successfully!";
 			},
 			error: (err) => {
 				console.error("Failed to create annotation:", err);
-				return err?.message || "Failed to create annotation";
+				return err?.message ||"Failed to create annotation";
 			},
 		});
 
@@ -168,14 +168,14 @@ export function MetricsChartWithAnnotations({
 		const promise = deleteAnnotation.mutateAsync({ id });
 
 		toast.promise(promise, {
-			loading: "Deleting annotation...",
+			loading:"Deleting annotation...",
 			success: () => {
 				refetchAnnotations();
-				return "Annotation deleted successfully";
+				return"Annotation deleted successfully";
 			},
 			error: (err) => {
 				console.error("Failed to delete annotation:", err);
-				return err?.message || "Failed to delete annotation";
+				return err?.message ||"Failed to delete annotation";
 			},
 		});
 
@@ -189,14 +189,14 @@ export function MetricsChartWithAnnotations({
 		const promise = updateAnnotation.mutateAsync({ id, ...updates });
 
 		toast.promise(promise, {
-			loading: "Updating annotation...",
+			loading:"Updating annotation...",
 			success: () => {
 				refetchAnnotations();
-				return "Annotation updated successfully";
+				return"Annotation updated successfully";
 			},
 			error: (err) => {
 				console.error("Failed to update annotation:", err);
-				return err?.message || "Failed to update annotation";
+				return err?.message ||"Failed to update annotation";
 			},
 		});
 

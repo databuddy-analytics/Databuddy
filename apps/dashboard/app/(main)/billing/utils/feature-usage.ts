@@ -1,11 +1,11 @@
-import type { CustomerFeature } from "autumn-js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import type { CustomerFeature } from"autumn-js";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
 
 dayjs.extend(relativeTime);
 
 export type PricingTier = {
-	to: number | "inf";
+	to: number |"inf";
 	amount: number;
 };
 
@@ -37,7 +37,7 @@ function calculateOverageCost(
 	let processed = 0;
 
 	for (const tier of tiers) {
-		const tierLimit = tier.to === "inf" ? Number.POSITIVE_INFINITY : tier.to;
+		const tierLimit = tier.to ==="inf" ? Number.POSITIVE_INFINITY : tier.to;
 		const tierSize = tierLimit - processed;
 		const unitsInTier = Math.min(remaining, tierSize);
 
@@ -109,28 +109,28 @@ export function formatCompactNumber(num: number): string {
 }
 
 const INTERVAL_LABELS: Record<string, string> = {
-	day: "Daily",
-	month: "Monthly",
-	year: "Yearly",
-	lifetime: "Lifetime",
+	day:"Daily",
+	month:"Monthly",
+	year:"Yearly",
+	lifetime:"Lifetime",
 };
 
 export function getResetText(feature: FeatureUsage): string {
-	if (feature.interval === "lifetime") {
-		return "Never expires";
+	if (feature.interval ==="lifetime") {
+		return"Never expires";
 	}
 	if (!feature.resetAt) {
-		return "No reset scheduled";
+		return"No reset scheduled";
 	}
 
 	const resetDate = dayjs(feature.resetAt);
-	const daysUntil = resetDate.diff(dayjs(), "day");
+	const daysUntil = resetDate.diff(dayjs(),"day");
 
 	let resetString: string;
 	if (daysUntil <= 0) {
-		resetString = "Resets soon";
+		resetString ="Resets soon";
 	} else if (daysUntil === 1) {
-		resetString = "Resets tomorrow";
+		resetString ="Resets tomorrow";
 	} else if (daysUntil < 14) {
 		resetString = `Resets in ${daysUntil}d`;
 	} else {

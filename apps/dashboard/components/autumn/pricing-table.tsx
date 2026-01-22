@@ -8,7 +8,7 @@ import {
 	PLAN_FEATURE_LIMITS,
 	PLAN_IDS,
 	type PlanId,
-} from "@databuddy/shared/types/features";
+} from"@databuddy/shared/types/features";
 import {
 	ArrowDownIcon,
 	CheckIcon,
@@ -18,19 +18,19 @@ import {
 	SparkleIcon,
 	StarIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import type { Product, ProductItem } from "autumn-js";
+} from"@phosphor-icons/react";
+import type { Product, ProductItem } from"autumn-js";
 import {
 	type ProductDetails,
 	useCustomer,
 	usePricingTable,
-} from "autumn-js/react";
-import { createContext, useContext, useState } from "react";
-import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
-import AttachDialog from "@/components/autumn/attach-dialog";
-import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"autumn-js/react";
+import { createContext, useContext, useState } from"react";
+import { PricingTiersTooltip } from"@/app/(main)/billing/components/pricing-tiers-tooltip";
+import AttachDialog from"@/components/autumn/attach-dialog";
+import { EmptyState } from"@/components/empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -38,9 +38,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { getPricingTableContent } from"@/lib/autumn/pricing-table-content";
+import { cn } from"@/lib/utils";
 
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	free: SparkleIcon,
@@ -105,12 +105,12 @@ function getNewFeaturesForPlan(planId: string): Array<{
 			if (previousLimit === false) {
 				return true;
 			}
-			if (limit === "unlimited" && previousLimit !== "unlimited") {
+			if (limit ==="unlimited" && previousLimit !=="unlimited") {
 				return true;
 			}
 			if (
-				typeof limit === "number" &&
-				typeof previousLimit === "number" &&
+				typeof limit ==="number" &&
+				typeof previousLimit ==="number" &&
 				limit > previousLimit
 			) {
 				return true;
@@ -131,28 +131,28 @@ function PricingTableSkeleton() {
 		<div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{[1, 2, 3].map((i) => (
 				<div
-					className="flex h-96 w-full animate-pulse flex-col rounded border p-5"
+					className="flex h-96 w-full animate-pulse flex-col border p-5"
 					key={i}
 				>
 					<div className="mb-4 flex items-center gap-3">
-						<div className="h-11 w-11 rounded border bg-muted" />
+						<div className="h-11 w-11 border bg-muted" />
 						<div className="flex-1 space-y-2">
-							<div className="h-5 w-24 rounded bg-muted" />
-							<div className="h-3 w-32 rounded bg-muted" />
+							<div className="h-5 w-24 bg-muted" />
+							<div className="h-3 w-32 bg-muted" />
 						</div>
 					</div>
 					<div className="mb-4 border-y py-4">
-						<div className="h-7 w-20 rounded bg-muted" />
+						<div className="h-7 w-20 bg-muted" />
 					</div>
 					<div className="flex-1 space-y-3">
 						{[1, 2, 3, 4].map((j) => (
 							<div className="flex items-center gap-2" key={j}>
-								<div className="size-4 rounded bg-muted" />
-								<div className="h-4 flex-1 rounded bg-muted" />
+								<div className="size-4 bg-muted" />
+								<div className="h-4 flex-1 bg-muted" />
 							</div>
 						))}
 					</div>
-					<div className="mt-4 h-10 w-full rounded bg-muted" />
+					<div className="mt-4 h-10 w-full bg-muted" />
 				</div>
 			))}
 		</div>
@@ -204,7 +204,7 @@ export default function PricingTable({
 	}
 
 	const filteredProducts =
-		products?.filter((p) => ["hobby", "pro", "scale"].includes(p.id)) ?? [];
+		products?.filter((p) => ["hobby","pro","scale"].includes(p.id)) ?? [];
 
 	return (
 		<PricingTableContext.Provider
@@ -217,7 +217,7 @@ export default function PricingTable({
 							await attach({
 								productId: plan.id,
 								dialog: AttachDialog,
-								...(plan.id === "hobby" && { reward: "SAVE80" }),
+								...(plan.id ==="hobby" && { reward:"SAVE80" }),
 							});
 						}}
 						isSelected={selectedPlan === plan.id}
@@ -286,7 +286,7 @@ function DowngradeConfirmDialog({
 						onClick={handleConfirm}
 						variant="default"
 					>
-						{isConfirming ? "Confirming..." : "Confirm Downgrade"}
+						{isConfirming ?"Confirming..." :"Confirm Downgrade"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -319,12 +319,12 @@ function PricingCard({
 	const { buttonText: defaultButtonText } = getPricingTableContent(product);
 	const isRecommended = !!productDisplay?.recommend_text;
 	const Icon = getPlanIcon(product.id);
-	const isDowngrade = product.scenario === "downgrade";
+	const isDowngrade = product.scenario ==="downgrade";
 	const isDisabled =
-		product.scenario === "active" || product.scenario === "scheduled";
+		product.scenario ==="active" || product.scenario ==="scheduled";
 
 	const currentProduct = products.find(
-		(p) => p.scenario === "active" || p.scenario === "scheduled"
+		(p) => p.scenario ==="active" || p.scenario ==="scheduled"
 	);
 	const currentProductName =
 		currentProduct?.display?.name || currentProduct?.name;
@@ -351,21 +351,21 @@ function PricingCard({
 	};
 
 	const mainPrice = product.properties?.is_free
-		? { primary_text: "Free", secondary_text: "forever" }
+		? { primary_text:"Free", secondary_text:"forever" }
 		: product.items[0]?.display;
 
 	const supportLevels: Record<string, string> = {
-		free: "Community Support",
-		hobby: "Email Support",
-		pro: "Priority Email Support",
-		scale: "Priority Email + Slack Support",
-		buddy: "Priority Email + Slack Support",
+		free:"Community Support",
+		hobby:"Email Support",
+		pro:"Priority Email Support",
+		scale:"Priority Email + Slack Support",
+		buddy:"Priority Email + Slack Support",
 	};
 
-	const extraFeatures = ["scale", "buddy"].includes(product.id)
+	const extraFeatures = ["scale","buddy"].includes(product.id)
 		? [
-				{ display: { primary_text: "White Glove Onboarding" } },
-				{ display: { primary_text: "Beta/Early Access" } },
+				{ display: { primary_text:"White Glove Onboarding" } },
+				{ display: { primary_text:"Beta/Early Access" } },
 			]
 		: [];
 
@@ -386,9 +386,9 @@ function PricingCard({
 	return (
 		<div
 			className={cn(
-				"relative flex flex-col rounded border bg-card",
-				isRecommended && "border-primary",
-				isSelected && "border-primary ring-2 ring-primary/20",
+				"relative flex flex-col border bg-card",
+				isRecommended &&"border-primary",
+				isSelected &&"border-primary ring-2 ring-primary/20",
 				className
 			)}
 		>
@@ -400,7 +400,7 @@ function PricingCard({
 			)}
 
 			<div className="flex items-center gap-3 p-5 pb-4">
-				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-accent">
+				<div className="flex size-9 shrink-0 items-center justify-center border bg-accent">
 					<Icon className="text-accent-foreground" size={16} weight="duotone" />
 				</div>
 				<div className="min-w-0 flex-1">
@@ -423,7 +423,7 @@ function PricingCard({
 			</div>
 
 			<div className="dotted-bg border-y bg-accent px-5 py-4">
-				{product.id === "hobby" ? (
+				{product.id ==="hobby" ? (
 					<div className="flex flex-col gap-1">
 						<div className="flex items-baseline gap-1">
 							<span className="font-semibold text-2xl">$2</span>
@@ -488,7 +488,7 @@ function PricingCard({
 					className="w-full"
 					disabled={isDisabled || isAttaching}
 					onClick={handleUpgradeClick}
-					variant={isRecommended ? "default" : "secondary"}
+					variant={isRecommended ?"default" :"secondary"}
 				>
 					{isAttaching ? (
 						<CircleNotchIcon className="size-4 animate-spin" />
@@ -509,7 +509,7 @@ function PricingCard({
 						await attach({
 							productId: product.id,
 							dialog: AttachDialog,
-							...(product.id === "hobby" && { reward: "SAVE80" }),
+							...(product.id ==="hobby" && { reward:"SAVE80" }),
 						});
 					} finally {
 						setIsAttaching(false);
@@ -523,7 +523,7 @@ function PricingCard({
 
 function FeatureItem({ item }: { item: ProductItem }) {
 	const featureItem = item as ProductItem & {
-		tiers?: { to: number | "inf"; amount: number }[];
+		tiers?: { to: number |"inf"; amount: number }[];
 	};
 	const hasTiers = featureItem.tiers && featureItem.tiers.length > 0;
 
@@ -532,7 +532,7 @@ function FeatureItem({ item }: { item: ProductItem }) {
 		const firstPaidTier = featureItem.tiers.find((t) => t.amount > 0);
 		secondaryText = firstPaidTier
 			? `then $${firstPaidTier.amount.toFixed(6)}/event`
-			: "Included";
+			:"Included";
 	}
 
 	return (
@@ -570,10 +570,10 @@ function GatedFeatureItem({
 	isNew?: boolean;
 }) {
 	const getLimitText = () => {
-		if (limit === "unlimited") {
-			return "Unlimited";
+		if (limit ==="unlimited") {
+			return"Unlimited";
 		}
-		if (typeof limit === "number") {
+		if (typeof limit ==="number") {
 			if (unit) {
 				return `Up to ${limit.toLocaleString()} ${unit}`;
 			}

@@ -1,22 +1,22 @@
 "use client";
 
-import { ChevronDownIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import { createContext, useContext, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { ChevronDownIcon } from"lucide-react";
+import type { ComponentProps, ReactNode } from"react";
+import { createContext, useContext, useEffect, useState } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/collapsible";
+import { Input } from"@/components/ui/input";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 
 export type WebPreviewContextValue = {
 	url: string;
@@ -43,7 +43,7 @@ export type WebPreviewProps = ComponentProps<"div"> & {
 export const WebPreview = ({
 	className,
 	children,
-	defaultUrl = "",
+	defaultUrl ="",
 	onUrlChange,
 	...props
 }: WebPreviewProps) => {
@@ -66,7 +66,7 @@ export const WebPreview = ({
 		<WebPreviewContext.Provider value={contextValue}>
 			<div
 				className={cn(
-					"flex size-full flex-col rounded-lg border bg-card",
+					"flex size-full flex-col border bg-card",
 					className
 				)}
 				{...props}
@@ -146,7 +146,7 @@ export const WebPreviewUrl = ({
 	};
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-		if (event.key === "Enter") {
+		if (event.key ==="Enter") {
 			const target = event.target as HTMLInputElement;
 			setUrl(target.value);
 		}
@@ -193,7 +193,7 @@ export const WebPreviewBody = ({
 
 export type WebPreviewConsoleProps = ComponentProps<"div"> & {
 	logs?: Array<{
-		level: "log" | "warn" | "error";
+		level:"log" |"warn" |"error";
 		message: string;
 		timestamp: Date;
 	}>;
@@ -223,7 +223,7 @@ export const WebPreviewConsole = ({
 					<ChevronDownIcon
 						className={cn(
 							"h-4 w-4 transition-transform duration-200",
-							consoleOpen && "rotate-180"
+							consoleOpen &&"rotate-180"
 						)}
 					/>
 				</Button>
@@ -242,15 +242,15 @@ export const WebPreviewConsole = ({
 							<div
 								className={cn(
 									"text-xs",
-									log.level === "error" && "text-destructive",
-									log.level === "warn" && "text-yellow-600",
-									log.level === "log" && "text-foreground"
+									log.level ==="error" &&"text-destructive",
+									log.level ==="warn" &&"text-yellow-600",
+									log.level ==="log" &&"text-foreground"
 								)}
 								key={`${log.timestamp.getTime()}-${index}`}
 							>
 								<span className="text-muted-foreground">
 									{log.timestamp.toLocaleTimeString()}
-								</span>{" "}
+								</span>{""}
 								{log.message}
 							</div>
 						))

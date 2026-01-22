@@ -1,6 +1,6 @@
-import { auth } from "@databuddy/auth";
-import { headers } from "next/headers";
-import { ProfileButtonClient } from "./profile-button-client";
+import { auth } from"@databuddy/auth";
+import { headers } from"next/headers";
+import { ProfileButtonClient } from"./profile-button-client";
 
 export async function ProfileButton() {
 	const headersList = await headers();

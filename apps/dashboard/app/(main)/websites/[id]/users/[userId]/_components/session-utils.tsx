@@ -3,7 +3,7 @@ import {
 	FileTextIcon,
 	LightningIcon,
 	SparkleIcon,
-} from "@phosphor-icons/react";
+} from"@phosphor-icons/react";
 
 export const getEventIconAndColor = (
 	eventName: string,
@@ -12,46 +12,46 @@ export const getEventIconAndColor = (
 	if (hasProperties) {
 		return {
 			icon: <SparkleIcon className="size-4" />,
-			color: "text-accent-foreground",
-			bgColor: "bg-accent/20",
-			borderColor: "border-accent",
-			badgeColor: "bg-accent text-accent-foreground border-accent",
+			color:"text-accent-foreground",
+			bgColor:"bg-accent/20",
+			borderColor:"border-accent",
+			badgeColor:"bg-accent text-accent-foreground border-accent",
 		};
 	}
 
 	switch (eventName) {
-		case "screen_view":
-		case "page_view":
+		case"screen_view":
+		case"page_view":
 			return {
 				icon: <FileTextIcon className="size-4" />,
-				color: "text-primary",
-				bgColor: "bg-primary/10",
-				borderColor: "border-primary/20",
-				badgeColor: "bg-primary/10 text-primary border-primary/20",
+				color:"text-primary",
+				bgColor:"bg-primary/10",
+				borderColor:"border-primary/20",
+				badgeColor:"bg-primary/10 text-primary border-primary/20",
 			};
-		case "click":
-		case "player-page-tab":
+		case"click":
+		case"player-page-tab":
 			return {
 				icon: <CursorClickIcon className="size-4" />,
-				color: "text-secondary-foreground",
-				bgColor: "bg-secondary/50",
-				borderColor: "border-secondary",
-				badgeColor: "bg-secondary text-secondary-foreground border-secondary",
+				color:"text-secondary-foreground",
+				bgColor:"bg-secondary/50",
+				borderColor:"border-secondary",
+				badgeColor:"bg-secondary text-secondary-foreground border-secondary",
 			};
 		default:
 			return {
 				icon: <LightningIcon className="size-4" />,
-				color: "text-muted-foreground",
-				bgColor: "bg-muted/30",
-				borderColor: "border-muted",
-				badgeColor: "bg-secondary text-secondary-foreground border-secondary",
+				color:"text-muted-foreground",
+				bgColor:"bg-muted/30",
+				borderColor:"border-muted",
+				badgeColor:"bg-secondary text-secondary-foreground border-secondary",
 			};
 	}
 };
 
 export const cleanUrl = (url: string) => {
 	if (!url) {
-		return "";
+		return"";
 	}
 	try {
 		const urlObj = new URL(url);
@@ -70,8 +70,8 @@ export const cleanUrl = (url: string) => {
 };
 
 export const getDisplayPath = (path: string) => {
-	if (!path || path === "/") {
-		return "/";
+	if (!path || path ==="/") {
+		return"/";
 	}
 	const cleanPath = cleanUrl(path);
 	if (cleanPath.length > 40) {
@@ -85,15 +85,15 @@ export const getDisplayPath = (path: string) => {
 
 export const formatPropertyValue = (value: unknown): string => {
 	if (value === null || value === undefined) {
-		return "null";
+		return"null";
 	}
-	if (typeof value === "boolean") {
+	if (typeof value ==="boolean") {
 		return value.toString();
 	}
-	if (typeof value === "number") {
+	if (typeof value ==="number") {
 		return value.toString();
 	}
-	if (typeof value === "string") {
+	if (typeof value ==="string") {
 		return value;
 	}
 	return JSON.stringify(value);

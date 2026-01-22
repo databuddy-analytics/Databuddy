@@ -1,1 +1,1 @@
-export { default } from "../../../(main)/websites/[id]/audience/page";
+export { default } from"../../../(main)/websites/[id]/audience/page";

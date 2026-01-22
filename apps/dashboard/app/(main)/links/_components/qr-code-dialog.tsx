@@ -6,9 +6,9 @@ import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import type { Link } from "@/hooks/use-links";
-import { LinkQrCode } from "./link-qr-code";
+} from"@/components/ui/dialog";
+import type { Link } from"@/hooks/use-links";
+import { LinkQrCode } from"./link-qr-code";
 
 interface QrCodeDialogProps {
 	link: Link | null;

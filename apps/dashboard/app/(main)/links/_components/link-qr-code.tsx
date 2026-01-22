@@ -5,33 +5,33 @@ import {
 	DownloadSimpleIcon,
 	ImageIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useCallback, useRef, useState } from "react";
-import { QRCode } from "react-qrcode-logo";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+} from"@phosphor-icons/react";
+import { useCallback, useRef, useState } from"react";
+import { QRCode } from"react-qrcode-logo";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { cn } from"@/lib/utils";
 
-const LINKS_BASE_URL = "https://dby.sh";
+const LINKS_BASE_URL ="https://dby.sh";
 
-type QrStyle = "squares" | "dots";
+type QrStyle ="squares" |"dots";
 
 const QR_SIZES = [
-	{ value: 128, label: "Small", description: "128px" },
-	{ value: 256, label: "Medium", description: "256px" },
-	{ value: 512, label: "Large", description: "512px" },
-	{ value: 1024, label: "XL", description: "1024px" },
+	{ value: 128, label:"Small", description:"128px" },
+	{ value: 256, label:"Medium", description:"256px" },
+	{ value: 512, label:"Large", description:"512px" },
+	{ value: 1024, label:"XL", description:"1024px" },
 ];
 
 const QR_COLORS = [
-	{ value: "#000000", label: "Black" },
-	{ value: "#1a1a2e", label: "Navy" },
-	{ value: "#0f3460", label: "Royal" },
-	{ value: "#533483", label: "Purple" },
-	{ value: "#e94560", label: "Red" },
-	{ value: "#00b894", label: "Green" },
-	{ value: "#0984e3", label: "Blue" },
-	{ value: "#6c5ce7", label: "Indigo" },
+	{ value:"#000000", label:"Black" },
+	{ value:"#1a1a2e", label:"Navy" },
+	{ value:"#0f3460", label:"Royal" },
+	{ value:"#533483", label:"Purple" },
+	{ value:"#e94560", label:"Red" },
+	{ value:"#00b894", label:"Green" },
+	{ value:"#0984e3", label:"Blue" },
+	{ value:"#6c5ce7", label:"Indigo" },
 ];
 
 interface LinkQrCodeProps {
@@ -66,7 +66,7 @@ export function LinkQrCode({
 		if (!qrRef.current) {
 			return;
 		}
-		const fileName = `${name.toLowerCase().replace(/\s+/g, "-")}-qr-code`;
+		const fileName = `${name.toLowerCase().replace(/\s+/g,"-")}-qr-code`;
 		qrRef.current.download("png", fileName);
 		toast.success("QR code downloaded");
 	}, [name]);
@@ -89,14 +89,14 @@ export function LinkQrCode({
 				return;
 			}
 			navigator.clipboard
-				.write([new ClipboardItem({ "image/png": blob })])
+				.write([new ClipboardItem({"image/png": blob })])
 				.then(() => {
 					toast.success("QR code copied to clipboard");
 				})
 				.catch(() => {
 					toast.error("Failed to copy QR code");
 				});
-		}, "image/png");
+		},"image/png");
 	}, []);
 
 	const handleLogoUpload = useCallback(
@@ -123,7 +123,7 @@ export function LinkQrCode({
 	const removeLogo = useCallback(() => {
 		setLogoImage(undefined);
 		if (fileInputRef.current) {
-			fileInputRef.current.value = "";
+			fileInputRef.current.value ="";
 		}
 	}, []);
 
@@ -131,11 +131,11 @@ export function LinkQrCode({
 		<div className={cn("flex flex-col gap-6", className)}>
 			{/* Preview */}
 			<div className="flex flex-col items-center gap-3">
-				<div className="rounded border bg-white p-4" ref={qrContainerRef}>
+				<div className=" border bg-white p-4" ref={qrContainerRef}>
 					<QRCode
 						bgColor="#ffffff"
 						ecLevel="H"
-						eyeRadius={qrStyle === "dots" ? 8 : 0}
+						eyeRadius={qrStyle ==="dots" ? 8 : 0}
 						fgColor={fgColor}
 						logoHeight={logoImage ? logoSize : undefined}
 						logoImage={logoImage}
@@ -179,10 +179,10 @@ export function LinkQrCode({
 							{QR_SIZES.map((size) => (
 								<button
 									className={cn(
-										"cursor-pointer rounded border py-2 text-center transition-all",
+										"cursor-pointer border py-2 text-center transition-all",
 										downloadSize === size.value
-											? "border-primary bg-primary/5 text-foreground"
-											: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
+											?"border-primary bg-primary/5 text-foreground"
+											:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
 									)}
 									key={size.value}
 									onClick={() => setDownloadSize(size.value)}
@@ -203,13 +203,13 @@ export function LinkQrCode({
 					<div className="space-y-2">
 						<span className="font-medium text-foreground text-sm">Style</span>
 						<div className="grid grid-cols-2 gap-2">
-							{(["squares", "dots"] as const).map((style) => (
+							{(["squares","dots"] as const).map((style) => (
 								<button
 									className={cn(
-										"cursor-pointer rounded border py-2.5 text-center transition-all",
+										"cursor-pointer border py-2.5 text-center transition-all",
 										qrStyle === style
-											? "border-primary bg-primary/5 text-foreground"
-											: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
+											?"border-primary bg-primary/5 text-foreground"
+											:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
 									)}
 									key={style}
 									onClick={() => setQrStyle(style)}
@@ -231,10 +231,10 @@ export function LinkQrCode({
 								<button
 									aria-label={color.label}
 									className={cn(
-										"size-8 cursor-pointer rounded border-2 transition-all",
+										"size-8 cursor-pointer border-2 transition-all",
 										fgColor === color.value
-											? "border-primary ring-2 ring-primary/20"
-											: "border-transparent hover:border-border"
+											?"border-primary ring-2 ring-primary/20"
+											:"border-transparent hover:border-border"
 									)}
 									key={color.value}
 									onClick={() => setFgColor(color.value)}
@@ -250,7 +250,7 @@ export function LinkQrCode({
 						<span className="font-medium text-foreground text-sm">Logo</span>
 						{logoImage ? (
 							<div className="flex items-center gap-3">
-								<div className="relative size-12 overflow-hidden rounded border bg-white">
+								<div className="relative size-12 overflow-hidden border bg-white">
 									<img
 										alt="Logo preview"
 										className="size-full object-contain"
@@ -263,7 +263,7 @@ export function LinkQrCode({
 									<div className="flex items-center gap-2">
 										<span className="text-muted-foreground text-xs">Size:</span>
 										<input
-											className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
+											className="h-1.5 flex-1 cursor-pointer appearance-none bg-secondary accent-primary"
 											max={80}
 											min={20}
 											onChange={(e) => setLogoSize(Number(e.target.value))}
@@ -281,7 +281,7 @@ export function LinkQrCode({
 							</div>
 						) : (
 							<button
-								className="flex w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed bg-secondary/50 px-4 py-6 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
+								className="flex w-full cursor-pointer items-center justify-center gap-2 border border-dashed bg-secondary/50 px-4 py-6 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
 								onClick={() => fileInputRef.current?.click()}
 								type="button"
 							>

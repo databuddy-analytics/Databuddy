@@ -1,17 +1,17 @@
 "use client";
 
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { useAtom, useAtomValue } from "jotai";
-import { useParams } from "next/navigation";
-import { useCallback } from "react";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { useDateFilters } from "@/hooks/use-date-filters";
+import type { DynamicQueryFilter } from"@databuddy/shared/types/api";
+import { useAtom, useAtomValue } from"jotai";
+import { useParams } from"next/navigation";
+import { useCallback } from"react";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { useDateFilters } from"@/hooks/use-date-filters";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 	isAnalyticsRefreshingAtom,
-} from "@/stores/jotai/filterAtoms";
-import { WebsiteAudienceTab } from "../_components/tabs/audience-tab";
+} from"@/stores/jotai/filterAtoms";
+import { WebsiteAudienceTab } from"../_components/tabs/audience-tab";
 
 export default function AudiencePage() {
 	const { id } = useParams();

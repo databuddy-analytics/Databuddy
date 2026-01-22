@@ -3,16 +3,16 @@
 import type {
 	CountryData,
 	LocationData,
-} from "@databuddy/shared/types/website";
-import { scalePow } from "d3-scale";
-import type { Feature, GeoJsonObject } from "geojson";
-import type { Layer, Map as LeafletMap } from "leaflet";
-import dynamic from "next/dynamic";
-import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CountryFlag } from "@/components/icon";
-import { type Country, useCountries } from "@/lib/geo";
-import "leaflet/dist/leaflet.css";
+} from"@databuddy/shared/types/website";
+import { scalePow } from"d3-scale";
+import type { Feature, GeoJsonObject } from"geojson";
+import type { Layer, Map as LeafletMap } from"leaflet";
+import dynamic from"next/dynamic";
+import { useTheme } from"next-themes";
+import { useCallback, useEffect, useMemo, useRef, useState } from"react";
+import { CountryFlag } from"@/components/icon";
+import { type Country, useCountries } from"@/lib/geo";
+import"leaflet/dist/leaflet.css";
 
 const MapContainer = dynamic(
 	() => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -31,13 +31,13 @@ type TooltipContent = {
 };
 
 const mapApiToGeoJson = (code: string): string =>
-	code === "TW" ? "CN-TW" : code;
+	code ==="TW" ?"CN-TW" : code;
 const mapGeoJsonToApi = (code: string): string => {
 	if (!code) {
 		return code;
 	}
 	const upperCode = code.toUpperCase();
-	return upperCode === "CN-TW" ? "TW" : code;
+	return upperCode ==="CN-TW" ?"TW" : code;
 };
 
 export function MapComponent({
@@ -61,7 +61,7 @@ export function MapComponent({
 		}
 
 		const validCountries = locationsData.countries.filter(
-			(country: CountryData) => country.country && country.country.trim() !== ""
+			(country: CountryData) => country.country && country.country.trim() !==""
 		);
 
 		const totalVisitors =
@@ -83,23 +83,23 @@ export function MapComponent({
 	const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(
 		null
 	);
-	const [mapView] = useState<"countries" | "subdivisions">("countries");
+	const [mapView] = useState<"countries" |"subdivisions">("countries");
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 
 	// Theme colors from globals.css (Leaflet needs actual values, not CSS vars)
 	const themeColors = useMemo(() => {
-		const isDark = resolvedTheme === "dark";
+		const isDark = resolvedTheme ==="dark";
 		return {
 			// --chart-1: oklch(0.81 0.1 252)
-			chart1: "oklch(0.81 0.1 252",
+			chart1:"oklch(0.81 0.1 252",
 			// --chart-2: oklch(0.62 0.19 260)
-			chart2: "oklch(0.62 0.19 260",
+			chart2:"oklch(0.62 0.19 260",
 			// --chart-3: oklch(0.55 0.22 263)
-			chart3: "oklch(0.55 0.22 263",
+			chart3:"oklch(0.55 0.22 263",
 			// --muted: light oklch(0.60 0.0079 240) / dark oklch(0.50 0.006 286.033)
-			muted: isDark ? "oklch(0.50 0.006 286.033" : "oklch(0.60 0.0079 240",
+			muted: isDark ?"oklch(0.50 0.006 286.033" :"oklch(0.60 0.0079 240",
 			// --secondary: light oklch(0.93 0.005 240) / dark oklch(0.28 0.006 286.033)
-			secondary: isDark ? "oklch(0.28 0.006 286.033" : "oklch(0.93 0.005 240",
+			secondary: isDark ?"oklch(0.28 0.006 286.033" :"oklch(0.93 0.005 240",
 		};
 	}, [resolvedTheme]);
 
@@ -159,7 +159,7 @@ export function MapComponent({
 
 			const dataKey = feature?.properties?.ISO_A2;
 			// Convert GeoJSON code to API code for data lookup
-			const apiCode = mapGeoJsonToApi(dataKey ?? "");
+			const apiCode = mapGeoJsonToApi(dataKey ??"");
 			const foundData = countryData?.data?.find(
 				({ value }: { value: string }) => value === apiCode
 			);
@@ -204,18 +204,18 @@ export function MapComponent({
 				fillColor,
 				fillOpacity: weights.fillOpacity,
 				opacity: 1,
-				transition: "all 0.2s ease-in-out",
+				transition:"all 0.2s ease-in-out",
 			};
 
 			if (isHovered && hasData) {
 				return {
 					...baseStyle,
 					filter:
-						resolvedTheme === "dark"
-							? "drop-shadow(0 2px 4px oklch(0 0 0 / 0.3))"
-							: "drop-shadow(0 2px 4px oklch(0 0 0 / 0.1))",
-					transform: "scale(1.02)",
-					transformOrigin: "center",
+						resolvedTheme ==="dark"
+							?"drop-shadow(0 2px 4px oklch(0 0 0 / 0.3))"
+							:"drop-shadow(0 2px 4px oklch(0 0 0 / 0.1))",
+					transform:"scale(1.02)",
+					transformOrigin:"center",
 				};
 			}
 
@@ -233,7 +233,7 @@ export function MapComponent({
 
 					const name = feature.properties?.ADMIN;
 					// Convert GeoJSON code to API code for data lookup
-					const apiCode = mapGeoJsonToApi(code ?? "");
+					const apiCode = mapGeoJsonToApi(code ??"");
 					const foundData = countryData?.data?.find(
 						({ value }) => value === apiCode
 					);
@@ -270,7 +270,7 @@ export function MapComponent({
 		if (mapRef.current) {
 			const mapContainer = mapRef.current.getContainer();
 			if (mapContainer) {
-				const bgColor = "hsl(var(--background))";
+				const bgColor ="hsl(var(--background))";
 				mapContainer.style.backgroundColor = bgColor;
 				const leafletContainer =
 					mapContainer.querySelector(".leaflet-container");
@@ -290,7 +290,7 @@ export function MapComponent({
 			const processCoordinates = (
 				coords: number[] | number[][] | number[][][]
 			) => {
-				if (typeof coords[0] === "number") {
+				if (typeof coords[0] ==="number") {
 					centroidLng += coords[0] as number;
 					centroidLat += coords[1] as number;
 					pointCount += 1;
@@ -301,9 +301,9 @@ export function MapComponent({
 				}
 			};
 
-			if (geometry.type === "Polygon") {
+			if (geometry.type ==="Polygon") {
 				processCoordinates(geometry.coordinates[0]);
-			} else if (geometry.type === "MultiPolygon") {
+			} else if (geometry.type ==="MultiPolygon") {
 				for (const polygon of geometry.coordinates) {
 					processCoordinates(polygon[0]);
 				}
@@ -341,13 +341,13 @@ export function MapComponent({
 
 	return (
 		<div
-			className="relative flex h-full w-full flex-col overflow-hidden rounded border bg-card"
+			className="relative flex h-full w-full flex-col overflow-hidden border bg-card"
 			style={{ height }}
 		>
 			{Boolean(passedIsLoading) && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
 					<div className="flex flex-col items-center gap-3">
-						<div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+						<div className="size-8 animate-spin border-2 border-primary border-t-transparent" />
 						<span className="font-medium text-muted-foreground text-sm">
 							Loading map data...
 						</span>
@@ -359,7 +359,7 @@ export function MapComponent({
 				<MapContainer
 					attributionControl={false}
 					center={[20, 10]}
-					className={resolvedTheme === "dark" ? "map-dark" : "map-light"}
+					className={resolvedTheme ==="dark" ?"map-dark" :"map-light"}
 					maxBounds={[
 						[-90, -200],
 						[90, 200],
@@ -370,11 +370,11 @@ export function MapComponent({
 					preferCanvas
 					ref={mapRef}
 					style={{
-						height: "100%",
-						backgroundColor: "hsl(var(--background))",
-						cursor: "default",
-						outline: "none",
-						zIndex: "1",
+						height:"100%",
+						backgroundColor:"hsl(var(--background))",
+						cursor:"default",
+						outline:"none",
+						zIndex:"1",
 					}}
 					wheelPxPerZoomLevel={120}
 					zoom={zoom}
@@ -382,7 +382,7 @@ export function MapComponent({
 					zoomDelta={0.5}
 					zoomSnap={0.25}
 				>
-					{mapView === "countries" && countriesGeoData && (
+					{mapView ==="countries" && countriesGeoData && (
 						<GeoJSON
 							data={countriesGeoData as GeoJsonObject}
 							key={`countries-${locationData?.countries?.length || 0}`}
@@ -404,7 +404,7 @@ export function MapComponent({
 				)}
 
 			{tooltipContent && (
-				<div className="pointer-events-none absolute top-3 left-3 z-20 rounded border bg-card/95 p-2.5 shadow-lg backdrop-blur-sm">
+				<div className="pointer-events-none absolute top-3 left-3 z-20 border bg-card/95 p-2.5 shadow-lg backdrop-blur-sm">
 					<div className="flex items-center gap-2 text-sm">
 						<CountryFlag country={tooltipContent.code} size={16} />
 						<span className="font-semibold text-foreground">
@@ -414,7 +414,7 @@ export function MapComponent({
 					<div className="mt-1 text-muted-foreground text-xs">
 						<span className="font-semibold text-foreground">
 							{tooltipContent.count.toLocaleString()}
-						</span>{" "}
+						</span>{""}
 						visitors ({tooltipContent.percentage.toFixed(1)}%)
 					</div>
 				</div>

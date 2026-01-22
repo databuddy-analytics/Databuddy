@@ -1,18 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+import { useQuery } from"@tanstack/react-query";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { orpc } from"@/lib/orpc";
 
 export type InsightType =
-	| "error_spike"
-	| "vitals_degraded"
-	| "custom_event_spike"
-	| "traffic_drop"
-	| "traffic_spike"
-	| "uptime_issue";
+	|"error_spike"
+	|"vitals_degraded"
+	|"custom_event_spike"
+	|"traffic_drop"
+	|"traffic_spike"
+	|"uptime_issue";
 
-export type InsightSeverity = "critical" | "warning" | "info";
+export type InsightSeverity ="critical" |"warning" |"info";
 
 export interface Insight {
 	id: string;

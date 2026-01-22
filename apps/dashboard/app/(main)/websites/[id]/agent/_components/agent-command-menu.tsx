@@ -1,11 +1,11 @@
 "use client";
 
-import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr/ChartBar";
-import { FileTextIcon } from "@phosphor-icons/react/dist/ssr/FileText";
-import { LightbulbIcon } from "@phosphor-icons/react/dist/ssr/Lightbulb";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr/MagnifyingGlass";
-import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
-import { Button } from "@/components/ui/button";
+import { ChartBarIcon } from"@phosphor-icons/react/dist/ssr/ChartBar";
+import { FileTextIcon } from"@phosphor-icons/react/dist/ssr/FileText";
+import { LightbulbIcon } from"@phosphor-icons/react/dist/ssr/Lightbulb";
+import { MagnifyingGlassIcon } from"@phosphor-icons/react/dist/ssr/MagnifyingGlass";
+import { TableIcon } from"@phosphor-icons/react/dist/ssr/Table";
+import { Button } from"@/components/ui/button";
 import {
 	Command,
 	CommandEmpty,
@@ -13,13 +13,13 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "@/components/ui/command";
+} from"@/components/ui/command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import type { useAgentCommands } from "./hooks/use-agent-commands";
+} from"@/components/ui/popover";
+import type { useAgentCommands } from"./hooks/use-agent-commands";
 
 const COMMAND_ICONS: Record<string, typeof MagnifyingGlassIcon> = {
 	analyze: MagnifyingGlassIcon,
@@ -31,7 +31,7 @@ const COMMAND_ICONS: Record<string, typeof MagnifyingGlassIcon> = {
 };
 
 function getCommandIcon(command: string) {
-	const prefix = command.replace("/", "");
+	const prefix = command.replace("/","");
 	return COMMAND_ICONS[prefix] ?? MagnifyingGlassIcon;
 }
 
@@ -75,14 +75,14 @@ export function AgentCommandMenu({
 
 								return (
 									<CommandItem
-										className="rounded-none data-[selected=true]:rounded data-[selected=true]:bg-accent/50"
+										className="data-[selected=true]:data-[selected=true]:bg-accent/50"
 										key={command.id}
 										onSelect={() => {
 											executeCommand(command);
 										}}
 										value={command.title}
 									>
-										<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
+										<div className="flex size-8 shrink-0 items-center justify-center border bg-background">
 											<Icon
 												className="size-4 text-foreground/60"
 												weight="duotone"

@@ -1,12 +1,12 @@
 "use client";
 
-import type { Variant } from "@databuddy/shared/flags";
-import { Cell, Pie, PieChart } from "recharts";
+import type { Variant } from"@databuddy/shared/flags";
+import { Cell, Pie, PieChart } from"recharts";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from"@/components/ui/tooltip";
 
 const VARIANT_COLORS = [
 	"#3b82f6",
@@ -34,7 +34,7 @@ export function FlagVariants({ variants }: { variants: Variant[] }) {
 		<Tooltip delayDuration={200}>
 			<TooltipTrigger asChild>
 				<span className="cursor-help underline decoration-dotted underline-offset-2">
-					{variants.length} {variants.length !== 1 ? "variants" : "variant"}
+					{variants.length} {variants.length !== 1 ?"variants" :"variant"}
 				</span>
 			</TooltipTrigger>
 			<TooltipContent className="p-0" side="top">
@@ -70,7 +70,7 @@ export function FlagVariants({ variants }: { variants: Variant[] }) {
 						{variants.map((variant, index) => (
 							<div className="flex items-center gap-1.5" key={variant.key}>
 								<span
-									className="size-2.5 shrink-0 rounded-sm"
+									className="size-2.5 shrink-0"
 									style={{
 										backgroundColor:
 											VARIANT_COLORS[index % VARIANT_COLORS.length],

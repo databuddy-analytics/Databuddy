@@ -1,15 +1,15 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { ArrowLeftIcon, SparkleIcon, SpinnerIcon } from "@phosphor-icons/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { authClient } from"@databuddy/auth/client";
+import { ArrowLeftIcon, SparkleIcon, SpinnerIcon } from"@phosphor-icons/react";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { parseAsString, useQueryState } from"nuqs";
+import { Suspense, useState } from"react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 
 function MagicLinkPage() {
 	const router = useRouter();
@@ -78,7 +78,7 @@ function MagicLinkPage() {
 								value={email}
 							/>
 						</div>
-						<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+						<div className="flex items-center gap-3 border border-border bg-muted/30 p-3 text-sm">
 							<SparkleIcon className="size-4 shrink-0 text-foreground" />
 							<p className="text-muted-foreground">
 								We&apos;ll send a secure link to your email that will sign you
@@ -120,7 +120,7 @@ export default function Page() {
 			fallback={
 				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
-						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<div className="absolute inset-0 animate-ping bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>

@@ -1,4 +1,4 @@
-import { formatCurrency, formatMetricNumber } from "@/lib/formatters";
+import { formatCurrency, formatMetricNumber } from"@/lib/formatters";
 
 interface PivotRow {
 	date: string;
@@ -13,7 +13,7 @@ interface TimeSeriesPivotInput {
 
 export const formatDurationMs = (value?: number) => {
 	if (value === undefined || value === null || Number.isNaN(value)) {
-		return "0ms";
+		return"0ms";
 	}
 	if (value >= 1000) {
 		return `${(value / 1000).toFixed(2)}s`;
@@ -23,16 +23,16 @@ export const formatDurationMs = (value?: number) => {
 
 export const formatPercent = (value?: number) => {
 	if (value === undefined || value === null || Number.isNaN(value)) {
-		return "0%";
+		return"0%";
 	}
 	return `${(value * 100).toFixed(1)}%`;
 };
 
 export const formatTokenCount = (value?: number) =>
-	value === undefined || value === null ? "0" : formatMetricNumber(value);
+	value === undefined || value === null ?"0" : formatMetricNumber(value);
 
 export const formatUsd = (value?: number) =>
-	value === undefined || value === null ? "$0.00" : formatCurrency(value);
+	value === undefined || value === null ?"$0.00" : formatCurrency(value);
 
 export const pivotTimeSeries = (
 	rows: TimeSeriesPivotInput[],

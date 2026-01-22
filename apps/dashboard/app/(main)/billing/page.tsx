@@ -8,35 +8,35 @@ import {
 	PuzzlePieceIcon,
 	TrendUpIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import type { CustomerProduct, Product } from "autumn-js";
-import { useCustomer } from "autumn-js/react";
-import dayjs from "dayjs";
-import Link from "next/link";
-import { useMemo } from "react";
-import AttachDialog from "@/components/autumn/attach-dialog";
-import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
-import { CreditCardDisplay } from "./components/credit-card-display";
-import { ErrorState } from "./components/empty-states";
-import { OverviewSkeleton } from "./components/overview-skeleton";
-import { UsageRow } from "./components/usage-row";
-import { useBilling, useBillingData } from "./hooks/use-billing";
+} from"@phosphor-icons/react";
+import type { CustomerProduct, Product } from"autumn-js";
+import { useCustomer } from"autumn-js/react";
+import dayjs from"dayjs";
+import Link from"next/link";
+import { useMemo } from"react";
+import AttachDialog from"@/components/autumn/attach-dialog";
+import { EmptyState } from"@/components/empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { CancelSubscriptionDialog } from"./components/cancel-subscription-dialog";
+import { CreditCardDisplay } from"./components/credit-card-display";
+import { ErrorState } from"./components/empty-states";
+import { OverviewSkeleton } from"./components/overview-skeleton";
+import { UsageRow } from"./components/usage-row";
+import { useBilling, useBillingData } from"./hooks/use-billing";
 
 type AddOnProduct = Product & { is_add_on?: boolean };
 
 function isSSOProduct(product: Product): boolean {
 	const id = product.id.toLowerCase();
-	if (id === "sso" || id.includes("sso")) {
+	if (id ==="sso" || id.includes("sso")) {
 		return true;
 	}
 	const name = product.name.toLowerCase();
 	if (name.includes("single sign-on")) {
 		return true;
 	}
-	const displayName = product.display?.name?.toLowerCase() ?? "";
+	const displayName = product.display?.name?.toLowerCase() ??"";
 	return displayName.includes("single sign-on");
 }
 
@@ -48,10 +48,10 @@ function getAddOnStatus(addOn: Product, customerProduct?: CustomerProduct) {
 
 	const isActive =
 		!isCancelled &&
-		(addOn.scenario === "active" ||
-			addOn.scenario === "scheduled" ||
-			customerProduct?.status === "active" ||
-			customerProduct?.status === "scheduled");
+		(addOn.scenario ==="active" ||
+			addOn.scenario ==="scheduled" ||
+			customerProduct?.status ==="active" ||
+			customerProduct?.status ==="scheduled");
 
 	return { isCancelled, isActive };
 }
@@ -82,14 +82,14 @@ export default function BillingPage() {
 				if (p.canceled_at && p.current_period_end) {
 					return dayjs(p.current_period_end).isAfter(dayjs());
 				}
-				return !p.canceled_at || p.status === "scheduled";
+				return !p.canceled_at || p.status ==="scheduled";
 			});
 
 			const activePlan = activeCustomerProduct
 				? products?.find((p) => p.id === activeCustomerProduct.id)
 				: products?.find(
 						(p) =>
-							!(p.scenario && ["upgrade", "downgrade"].includes(p.scenario))
+							!(p.scenario && ["upgrade","downgrade"].includes(p.scenario))
 					);
 
 			const planStatusDetails = activeCustomerProduct
@@ -98,7 +98,7 @@ export default function BillingPage() {
 							typeof getSubscriptionStatusDetails
 						>[0]
 					)
-				: "";
+				:"";
 
 			return {
 				currentPlan: activePlan,
@@ -129,8 +129,8 @@ export default function BillingPage() {
 		);
 	}
 
-	const isFree = currentPlan?.id === "free" || currentPlan?.properties?.is_free;
-	const isCanceled = currentPlan?.scenario === "cancel";
+	const isFree = currentPlan?.id ==="free" || currentPlan?.properties?.is_free;
+	const isCanceled = currentPlan?.scenario ==="cancel";
 	const showAddOns = addOns.length > 0 && !isFree;
 
 	return (
@@ -142,7 +142,7 @@ export default function BillingPage() {
 					onCancel={onCancelConfirm}
 					onOpenChange={(open) => !open && onCancelDialogClose()}
 					open={showCancelDialog}
-					planName={cancelTarget?.name ?? ""}
+					planName={cancelTarget?.name ??""}
 				/>
 
 				{/* Main Content - Usage Stats */}
@@ -172,16 +172,16 @@ export default function BillingPage() {
 							<h3 className="font-semibold">Current Plan</h3>
 							<Badge
 								variant={
-									currentProduct?.status === "scheduled" ? "outline" : "green"
+									currentProduct?.status ==="scheduled" ?"outline" :"green"
 								}
 							>
-								{currentProduct?.status === "scheduled"
-									? "Scheduled"
-									: "Active"}
+								{currentProduct?.status ==="scheduled"
+									?"Scheduled"
+									:"Active"}
 							</Badge>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
+							<div className="flex size-9 shrink-0 items-center justify-center border bg-secondary">
 								<CrownIcon
 									className="text-accent-foreground"
 									size={16}
@@ -190,7 +190,7 @@ export default function BillingPage() {
 							</div>
 							<div>
 								<div className="font-medium">
-									{currentPlan?.display?.name || currentPlan?.name || "Free"}
+									{currentPlan?.display?.name || currentPlan?.name ||"Free"}
 								</div>
 								{!isFree && currentPlan?.items[0]?.display?.primary_text && (
 									<div className="text-muted-foreground text-sm">
@@ -275,7 +275,7 @@ export default function BillingPage() {
 
 									return (
 										<div
-											className="flex items-center justify-between gap-3 rounded border bg-secondary/50 p-3"
+											className="flex items-center justify-between gap-3 border bg-secondary/50 p-3"
 											key={addOn.id}
 										>
 											<div className="min-w-0 flex-1">
@@ -286,7 +286,7 @@ export default function BillingPage() {
 													{isCancelled && customerProduct?.current_period_end
 														? `Access until ${dayjs(customerProduct.current_period_end).format("MMM D, YYYY")}`
 														: priceDisplay?.primary_text &&
-															`${priceDisplay.primary_text}${priceDisplay.secondary_text ? ` ${priceDisplay.secondary_text}` : ""}`}
+															`${priceDisplay.primary_text}${priceDisplay.secondary_text ? ` ${priceDisplay.secondary_text}` :""}`}
 												</div>
 											</div>
 											{isCancelled ? (

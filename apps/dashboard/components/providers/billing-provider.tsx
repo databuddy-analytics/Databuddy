@@ -13,13 +13,13 @@ import {
 	PLAN_IDS,
 	type PlanCapabilities,
 	type PlanId,
-} from "@databuddy/shared/types/features";
-import { useQuery } from "@tanstack/react-query";
-import type { Customer, CustomerFeature, Product } from "autumn-js";
-import { useCustomer, usePricingTable } from "autumn-js/react";
-import { useParams, usePathname } from "next/navigation";
-import { createContext, type ReactNode, useContext, useMemo } from "react";
-import { orpc } from "@/lib/orpc";
+} from"@databuddy/shared/types/features";
+import { useQuery } from"@tanstack/react-query";
+import type { Customer, CustomerFeature, Product } from"autumn-js";
+import { useCustomer, usePricingTable } from"autumn-js/react";
+import { useParams, usePathname } from"next/navigation";
+import { createContext, type ReactNode, useContext, useMemo } from"react";
+import { orpc } from"@/lib/orpc";
 
 export interface FeatureAccess {
 	allowed: boolean;
@@ -90,7 +90,7 @@ export function BillingProvider({
 
 		if (isDemoRoute || isWebsiteRoute) {
 			const routeId = params?.id;
-			if (typeof routeId === "string" && routeId) {
+			if (typeof routeId ==="string" && routeId) {
 				return routeId;
 			}
 		}
@@ -211,7 +211,7 @@ export function BillingProvider({
 		const refetch = () => {
 			refetchCustomer();
 			refetchBillingContext();
-			if (typeof refetchProducts === "function") {
+			if (typeof refetchProducts ==="function") {
 				refetchProducts();
 			}
 		};

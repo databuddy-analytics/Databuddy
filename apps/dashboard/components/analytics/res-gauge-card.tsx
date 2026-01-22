@@ -6,22 +6,22 @@ import {
 	TrendUpIcon,
 	WarningCircleIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import { memo, useMemo } from "react";
-import { GaugeChart, type GaugeRating } from "@/components/charts/gauge-chart";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import { memo, useMemo } from"react";
+import { GaugeChart, type GaugeRating } from"@/components/charts/gauge-chart";
+import { Card, CardContent } from"@/components/ui/card";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 import {
 	calculateRES,
 	calculateRESTrend,
 	type MetricScoreData,
-} from "@/lib/vitals-scoring";
+} from"@/lib/vitals-scoring";
 
 interface MetricInput {
 	metric_name: string;
@@ -54,33 +54,33 @@ interface RESGaugeCardProps {
 
 const STATUS_CONFIG = {
 	good: {
-		label: "Good",
-		description: "Your site passes Core Web Vitals",
-		colorClass: "text-success",
-		bgClass: "bg-success/10",
-		borderClass: "border-l-success",
+		label:"Good",
+		description:"Your site passes Core Web Vitals",
+		colorClass:"text-success",
+		bgClass:"bg-success/10",
+		borderClass:"border-l-success",
 	},
 	"needs-improvement": {
-		label: "Needs Work",
-		description: "Some metrics need improvement",
-		colorClass: "text-warning",
-		bgClass: "bg-warning/10",
-		borderClass: "border-l-warning",
+		label:"Needs Work",
+		description:"Some metrics need improvement",
+		colorClass:"text-warning",
+		bgClass:"bg-warning/10",
+		borderClass:"border-l-warning",
 	},
 	poor: {
-		label: "Poor",
-		description: "Critical performance issues detected",
-		colorClass: "text-destructive",
-		bgClass: "bg-destructive/10",
-		borderClass: "border-l-destructive",
+		label:"Poor",
+		description:"Critical performance issues detected",
+		colorClass:"text-destructive",
+		bgClass:"bg-destructive/10",
+		borderClass:"border-l-destructive",
 	},
 } as const;
 
 const METRIC_LABELS: Record<string, { name: string; unit: string }> = {
-	FCP: { name: "First Contentful Paint", unit: "ms" },
-	LCP: { name: "Largest Contentful Paint", unit: "ms" },
-	INP: { name: "Interaction to Next Paint", unit: "ms" },
-	CLS: { name: "Cumulative Layout Shift", unit: "" },
+	FCP: { name:"First Contentful Paint", unit:"ms" },
+	LCP: { name:"Largest Contentful Paint", unit:"ms" },
+	INP: { name:"Interaction to Next Paint", unit:"ms" },
+	CLS: { name:"Cumulative Layout Shift", unit:"" },
 };
 
 function MetricBreakdownItem({ data }: { data: MetricScoreData }) {
@@ -89,27 +89,27 @@ function MetricBreakdownItem({ data }: { data: MetricScoreData }) {
 
 	const formatValue = (value: number | null) => {
 		if (value === null) {
-			return "—";
+			return"—";
 		}
-		if (data.metric === "CLS") {
+		if (data.metric ==="CLS") {
 			return value.toFixed(2);
 		}
-		return `${Math.round(value)}${label?.unit || ""}`;
+		return `${Math.round(value)}${label?.unit ||""}`;
 	};
 
 	const statusColor =
-		data.status === "good"
-			? "text-success"
-			: data.status === "needs-improvement"
-				? "text-warning"
-				: data.status === "poor"
-					? "text-destructive"
-					: "text-muted-foreground";
+		data.status ==="good"
+			?"text-success"
+			: data.status ==="needs-improvement"
+				?"text-warning"
+				: data.status ==="poor"
+					?"text-destructive"
+					:"text-muted-foreground";
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="flex items-center justify-between gap-2 rounded px-1.5 py-1 transition-colors hover:bg-accent">
+				<div className="flex items-center justify-between gap-2 px-1.5 py-1 transition-colors hover:bg-accent">
 					<div className="flex items-center gap-1.5">
 						<span className="font-medium text-foreground text-xs">
 							{data.metric}
@@ -135,7 +135,7 @@ function MetricBreakdownItem({ data }: { data: MetricScoreData }) {
 			<TooltipContent side="left">
 				<p className="font-medium text-sm">{label?.name || data.metric}</p>
 				<p className="text-muted-foreground text-xs">
-					Score: {data.score ?? "N/A"} · Weight: {weightPercent}%
+					Score: {data.score ??"N/A"} · Weight: {weightPercent}%
 				</p>
 			</TooltipContent>
 		</Tooltip>
@@ -146,7 +146,7 @@ function RESGaugeCardSkeleton({ className }: { className?: string }) {
 	return (
 		<Card className={cn("gap-0 border-l-4 py-0", className)}>
 			<CardContent className="flex items-center gap-4 p-4">
-				<Skeleton className="size-24 shrink-0 rounded-full" />
+				<Skeleton className="size-24 shrink-0" />
 				<div className="flex-1 space-y-2">
 					<Skeleton className="h-5 w-40" />
 					<Skeleton className="h-4 w-32" />
@@ -189,7 +189,7 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 	}
 
 	const statusConfig = res.status ? STATUS_CONFIG[res.status] : null;
-	const rating: GaugeRating = res.status || "poor";
+	const rating: GaugeRating = res.status ||"poor";
 
 	const hasTrend = trend?.change !== null && trend?.change !== undefined;
 	const trendIsPositive = hasTrend && (trend?.change ?? 0) > 0;
@@ -216,9 +216,9 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 					{hasTrend && Math.abs(trend?.change ?? 0) >= 1 && (
 						<div
 							className={cn(
-								"mt-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium text-xs",
-								trendIsPositive && "bg-success/10 text-success",
-								trendIsNegative && "bg-destructive/10 text-destructive",
+								"mt-1 flex items-center gap-0.5 px-1.5 py-0.5 font-medium text-xs",
+								trendIsPositive &&"bg-success/10 text-success",
+								trendIsNegative &&"bg-destructive/10 text-destructive",
 								!(trendIsPositive || trendIsNegative) &&
 									"bg-muted text-muted-foreground"
 							)}
@@ -240,23 +240,23 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 						{statusConfig && (
 							<div
 								className={cn(
-									"flex size-6 items-center justify-center rounded-full",
+									"flex size-6 items-center justify-center",
 									statusConfig.bgClass
 								)}
 							>
-								{res.status === "good" && (
+								{res.status ==="good" && (
 									<CheckCircleIcon
 										className="size-4 text-success"
 										weight="duotone"
 									/>
 								)}
-								{res.status === "needs-improvement" && (
+								{res.status ==="needs-improvement" && (
 									<WarningCircleIcon
 										className="size-4 text-warning"
 										weight="duotone"
 									/>
 								)}
-								{res.status === "poor" && (
+								{res.status ==="poor" && (
 									<WarningIcon
 										className="size-4 text-destructive"
 										weight="duotone"
@@ -277,10 +277,10 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 								</span>
 							</div>
 							<p className="text-muted-foreground text-xs">
-								Based on P75 values ·{" "}
+								Based on P75 values ·{""}
 								{res.totalSamples > 0
 									? `${res.totalSamples.toLocaleString()} samples`
-									: "No samples"}
+									:"No samples"}
 							</p>
 						</div>
 					</div>
@@ -301,10 +301,10 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 							{percentileOptions.map((opt) => (
 								<button
 									className={cn(
-										"rounded px-2.5 py-1 text-left font-medium text-xs transition-colors",
+										" px-2.5 py-1 text-left font-medium text-xs transition-colors",
 										selectedPercentile === opt.value
-											? "bg-primary text-primary-foreground"
-											: "text-muted-foreground hover:bg-accent hover:text-foreground"
+											?"bg-primary text-primary-foreground"
+											:"text-muted-foreground hover:bg-accent hover:text-foreground"
 									)}
 									key={opt.value}
 									onClick={() => onPercentileChangeAction(opt.value)}

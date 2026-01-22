@@ -1,11 +1,11 @@
 "use client";
 
-import type { InferSelectModel, websites } from "@databuddy/db";
-import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
-import type { QueryKey } from "@tanstack/react-query";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+import type { InferSelectModel, websites } from"@databuddy/db";
+import type { ProcessedMiniChartData } from"@databuddy/shared/types/website";
+import type { QueryKey } from"@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { orpc } from"@/lib/orpc";
 
 export type Website = InferSelectModel<typeof websites>;
 export interface WebsitesListData {

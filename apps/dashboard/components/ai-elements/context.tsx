@@ -1,16 +1,16 @@
 "use client";
 
-import type { LanguageModelUsage } from "ai";
-import { type ComponentProps, createContext, useContext } from "react";
-import { getUsage } from "tokenlens";
-import { Button } from "@/components/ui/button";
+import type { LanguageModelUsage } from"ai";
+import { type ComponentProps, createContext, useContext } from"react";
+import { getUsage } from"tokenlens";
+import { Button } from"@/components/ui/button";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/hover-card";
+import { Progress } from"@/components/ui/progress";
+import { cn } from"@/lib/utils";
 
 const PERCENT_MAX = 100;
 const ICON_RADIUS = 10;
@@ -71,7 +71,7 @@ const ContextIcon = () => {
 			aria-label="Model context usage"
 			height="20"
 			role="img"
-			style={{ color: "currentcolor" }}
+			style={{ color:"currentcolor" }}
 			viewBox={`0 0 ${ICON_VIEWBOX} ${ICON_VIEWBOX}`}
 			width="20"
 		>
@@ -95,7 +95,7 @@ const ContextIcon = () => {
 				strokeDashoffset={dashOffset}
 				strokeLinecap="round"
 				strokeWidth={ICON_STROKE_WIDTH}
-				style={{ transformOrigin: "center", transform: "rotate(-90deg)" }}
+				style={{ transformOrigin:"center", transform:"rotate(-90deg)" }}
 			/>
 		</svg>
 	);
@@ -107,7 +107,7 @@ export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
 	const { usedTokens, maxTokens } = useContextValue();
 	const usedPercent = usedTokens / maxTokens;
 	const renderedPercent = new Intl.NumberFormat("en-US", {
-		style: "percent",
+		style:"percent",
 		maximumFractionDigits: 1,
 	}).format(usedPercent);
 
@@ -147,14 +147,14 @@ export const ContextContentHeader = ({
 	const { usedTokens, maxTokens } = useContextValue();
 	const usedPercent = usedTokens / maxTokens;
 	const displayPct = new Intl.NumberFormat("en-US", {
-		style: "percent",
+		style:"percent",
 		maximumFractionDigits: 1,
 	}).format(usedPercent);
 	const used = new Intl.NumberFormat("en-US", {
-		notation: "compact",
+		notation:"compact",
 	}).format(usedTokens);
 	const total = new Intl.NumberFormat("en-US", {
-		notation: "compact",
+		notation:"compact",
 	}).format(maxTokens);
 
 	return (
@@ -206,8 +206,8 @@ export const ContextContentFooter = ({
 			}).costUSD?.totalUSD
 		: undefined;
 	const totalCost = new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
+		style:"currency",
+		currency:"USD",
 	}).format(costUSD ?? 0);
 
 	return (
@@ -253,8 +253,8 @@ export const ContextInputUsage = ({
 			}).costUSD?.totalUSD
 		: undefined;
 	const inputCostText = new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
+		style:"currency",
+		currency:"USD",
 	}).format(inputCost ?? 0);
 
 	return (
@@ -293,8 +293,8 @@ export const ContextOutputUsage = ({
 			}).costUSD?.totalUSD
 		: undefined;
 	const outputCostText = new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
+		style:"currency",
+		currency:"USD",
 	}).format(outputCost ?? 0);
 
 	return (
@@ -333,8 +333,8 @@ export const ContextReasoningUsage = ({
 			}).costUSD?.totalUSD
 		: undefined;
 	const reasoningCostText = new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
+		style:"currency",
+		currency:"USD",
 	}).format(reasoningCost ?? 0);
 
 	return (
@@ -373,8 +373,8 @@ export const ContextCacheUsage = ({
 			}).costUSD?.totalUSD
 		: undefined;
 	const cacheCostText = new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
+		style:"currency",
+		currency:"USD",
 	}).format(cacheCost ?? 0);
 
 	return (
@@ -397,9 +397,9 @@ const TokensWithCost = ({
 }) => (
 	<span>
 		{tokens === undefined
-			? "—"
+			?"—"
 			: new Intl.NumberFormat("en-US", {
-					notation: "compact",
+					notation:"compact",
 				}).format(tokens)}
 		{costText ? (
 			<span className="ml-2 text-muted-foreground">• {costText}</span>

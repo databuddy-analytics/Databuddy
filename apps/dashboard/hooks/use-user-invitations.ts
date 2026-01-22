@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { orpc } from "@/lib/orpc";
+import { useQuery } from"@tanstack/react-query";
+import { orpc } from"@/lib/orpc";
 
 export function useUserInvitations(enabled = true) {
 	const query = useQuery({

@@ -1,22 +1,22 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { GoalFilter } from "@databuddy/shared/types/api";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
-import { TargetIcon as Target } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { filterOptions } from"@databuddy/shared/lists/filters";
+import type { GoalFilter } from"@databuddy/shared/types/api";
+import { PlusIcon } from"@phosphor-icons/react/dist/ssr/Plus";
+import { TargetIcon as Target } from"@phosphor-icons/react/dist/ssr/Target";
+import { TrashIcon } from"@phosphor-icons/react/dist/ssr/Trash";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import { AutocompleteInput } from"@/components/ui/autocomplete-input";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import {
 	Sheet,
 	SheetBody,
@@ -25,16 +25,16 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
-import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
-import type { AutocompleteData } from "@/hooks/use-funnels";
-import type { CreateGoalData, Goal } from "@/hooks/use-goals";
+} from"@/components/ui/sheet";
+import { Switch } from"@/components/ui/switch";
+import { goalFunnelOperatorOptions, useFilters } from"@/hooks/use-filters";
+import type { AutocompleteData } from"@/hooks/use-funnels";
+import type { CreateGoalData, Goal } from"@/hooks/use-goals";
 
 const defaultFilter: GoalFilter = {
-	field: "browser_name",
-	operator: "equals",
-	value: "",
+	field:"browser_name",
+	operator:"equals",
+	value:"",
 } as const;
 
 interface GoalFormData {
@@ -50,7 +50,7 @@ interface GoalFormData {
 interface EditGoalDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
-	onSave: (data: Goal | Omit<CreateGoalData, "websiteId">) => Promise<void>;
+	onSave: (data: Goal | Omit<CreateGoalData,"websiteId">) => Promise<void>;
 	goal: Goal | null;
 	isSaving: boolean;
 	autocompleteData?: AutocompleteData;
@@ -69,11 +69,11 @@ export function EditGoalDialog({
 
 	useEffect(() => {
 		if (goal) {
-			// Ensure all filters have valid operators (default to "equals" if missing)
+			// Ensure all filters have valid operators (default to"equals" if missing)
 			const sanitizedFilters = ((goal.filters as GoalFilter[]) || []).map(
 				(f) => ({
 					...f,
-					operator: f.operator || "equals",
+					operator: f.operator ||"equals",
 				})
 			);
 			setFormData({
@@ -87,10 +87,10 @@ export function EditGoalDialog({
 			});
 		} else {
 			setFormData({
-				name: "",
-				description: "",
-				type: "PAGE_VIEW",
-				target: "",
+				name:"",
+				description:"",
+				type:"PAGE_VIEW",
+				target:"",
 				filters: [],
 				ignoreHistoricData: false,
 			});
@@ -103,20 +103,20 @@ export function EditGoalDialog({
 		}
 		const sanitizedFilters = formData.filters.map((f) => ({
 			...f,
-			operator: f.operator || "equals",
+			operator: f.operator ||"equals",
 		}));
 		await onSave({
 			...formData,
 			filters: sanitizedFilters,
-		} as Goal | Omit<CreateGoalData, "websiteId">);
+		} as Goal | Omit<CreateGoalData,"websiteId">);
 	};
 
 	const resetForm = useCallback(() => {
 		setFormData({
-			name: "",
-			description: "",
-			type: "PAGE_VIEW",
-			target: "",
+			name:"",
+			description:"",
+			type:"PAGE_VIEW",
+			target:"",
 			filters: [],
 			ignoreHistoricData: false,
 		});
@@ -146,19 +146,19 @@ export function EditGoalDialog({
 			}
 
 			switch (field) {
-				case "browser_name":
+				case"browser_name":
 					return autocompleteData.browsers || [];
-				case "os_name":
+				case"os_name":
 					return autocompleteData.operatingSystems || [];
-				case "country":
+				case"country":
 					return autocompleteData.countries || [];
-				case "device_type":
+				case"device_type":
 					return autocompleteData.deviceTypes || [];
-				case "utm_source":
+				case"utm_source":
 					return autocompleteData.utmSources || [];
-				case "utm_medium":
+				case"utm_medium":
 					return autocompleteData.utmMediums || [];
-				case "utm_campaign":
+				case"utm_campaign":
 					return autocompleteData.utmCampaigns || [];
 				default:
 					return [];
@@ -172,10 +172,10 @@ export function EditGoalDialog({
 			if (!autocompleteData) {
 				return [];
 			}
-			if (goalType === "PAGE_VIEW") {
+			if (goalType ==="PAGE_VIEW") {
 				return autocompleteData.pagePaths || [];
 			}
-			if (goalType === "EVENT") {
+			if (goalType ==="EVENT") {
 				return autocompleteData.customEvents || [];
 			}
 			return [];
@@ -207,7 +207,7 @@ export function EditGoalDialog({
 			<SheetContent side="right">
 				<SheetHeader>
 					<div className="flex items-start gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-background">
+						<div className="flex size-11 items-center justify-center border bg-background">
 							<Target
 								className="text-accent-foreground"
 								size={22}
@@ -216,12 +216,12 @@ export function EditGoalDialog({
 						</div>
 						<div className="min-w-0 flex-1">
 							<SheetTitle className="truncate text-lg">
-								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
+								{isCreateMode ?"New Goal" : formData.name ||"Edit Goal"}
 							</SheetTitle>
 							<SheetDescription className="text-xs">
 								{isCreateMode
-									? "Track single-step conversions"
-									: "Update goal settings"}
+									?"Track single-step conversions"
+									:"Update goal settings"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -245,7 +245,7 @@ export function EditGoalDialog({
 								id="goal-description"
 								onChange={(e) => updateField("description", e.target.value)}
 								placeholder="Optional"
-								value={formData.description || ""}
+								value={formData.description ||""}
 							/>
 						</div>
 					</div>
@@ -254,9 +254,9 @@ export function EditGoalDialog({
 					<section className="space-y-3">
 						<Label className="text-muted-foreground text-xs">Goal Target</Label>
 
-						<div className="flex items-center gap-2 rounded border bg-card p-2.5">
+						<div className="flex items-center gap-2 border bg-card p-2.5">
 							{/* Step number */}
-							<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground font-semibold text-accent text-xs">
+							<div className="flex size-6 shrink-0 items-center justify-center bg-foreground font-semibold text-accent text-xs">
 								1
 							</div>
 
@@ -279,7 +279,7 @@ export function EditGoalDialog({
 									inputClassName="h-8 text-xs"
 									onValueChange={(value) => updateField("target", value)}
 									placeholder={
-										formData.type === "PAGE_VIEW" ? "/path" : "event_name"
+										formData.type ==="PAGE_VIEW" ?"/path" :"event_name"
 									}
 									suggestions={getTargetSuggestions(formData.type)}
 									value={formData.target}
@@ -291,7 +291,7 @@ export function EditGoalDialog({
 					{/* Settings Section */}
 					<section className="space-y-3">
 						<Label className="text-muted-foreground text-xs">Settings</Label>
-						<div className="flex items-center justify-between rounded border bg-card p-3">
+						<div className="flex items-center justify-between border bg-card p-3">
 							<div className="space-y-0.5">
 								<Label
 									className="font-medium text-sm"
@@ -325,12 +325,12 @@ export function EditGoalDialog({
 							<div className="space-y-2">
 								{formData.filters.map((filter, index) => (
 									<div
-										className="flex items-center gap-2 rounded border bg-card p-2.5"
+										className="flex items-center gap-2 border bg-card p-2.5"
 										key={`filter-${index}`}
 									>
 										<Select
 											onValueChange={(value) =>
-												updateFilter(index, "field", value)
+												updateFilter(index,"field", value)
 											}
 											value={filter.field}
 										>
@@ -348,9 +348,9 @@ export function EditGoalDialog({
 
 										<Select
 											onValueChange={(value) =>
-												updateFilter(index, "operator", value)
+												updateFilter(index,"operator", value)
 											}
-											value={filter.operator || "equals"}
+											value={filter.operator ||"equals"}
 										>
 											<SelectTrigger className="h-8 w-24 text-xs">
 												<SelectValue placeholder="equals" />
@@ -368,11 +368,11 @@ export function EditGoalDialog({
 											className="h-9 flex-1"
 											inputClassName="text-xs"
 											onValueChange={(value) =>
-												updateFilter(index, "value", value)
+												updateFilter(index,"value", value)
 											}
 											placeholder="Value"
 											suggestions={getSuggestions(filter.field)}
-											value={(filter.value as string) || ""}
+											value={(filter.value as string) ||""}
 										/>
 
 										<Button
@@ -408,8 +408,8 @@ export function EditGoalDialog({
 					<Button disabled={!isFormValid || isSaving} onClick={handleSubmit}>
 						{isSaving ? (
 							<>
-								<div className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-								{isCreateMode ? "Creating…" : "Saving…"}
+								<div className="size-4 animate-spin border-2 border-primary-foreground/30 border-t-primary-foreground" />
+								{isCreateMode ?"Creating…" :"Saving…"}
 							</>
 						) : isCreateMode ? (
 							"Create Goal"

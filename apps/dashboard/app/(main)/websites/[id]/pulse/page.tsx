@@ -6,15 +6,15 @@ import {
 	PencilIcon,
 	PlayIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { EmptyState } from "@/components/empty-state";
-import { MonitorSheet } from "@/components/monitors/monitor-sheet";
+} from"@phosphor-icons/react";
+import { useMutation, useQuery } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useParams } from"next/navigation";
+import { useMemo, useState } from"react";
+import { toast } from"sonner";
+import { EmptyState } from"@/components/empty-state";
+import { MonitorSheet } from"@/components/monitors/monitor-sheet";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -24,27 +24,27 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { useWebsite } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
-import { WebsitePageHeader } from "../_components/website-page-header";
-import { RecentActivity } from "./_components/recent-activity";
-import { UptimeHeatmap } from "./_components/uptime-heatmap";
+} from"@/components/ui/alert-dialog";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { useWebsite } from"@/hooks/use-websites";
+import { orpc } from"@/lib/orpc";
+import { WebsitePageHeader } from"../_components/website-page-header";
+import { RecentActivity } from"./_components/recent-activity";
+import { UptimeHeatmap } from"./_components/uptime-heatmap";
 
 dayjs.extend(relativeTime);
 
 const granularityLabels: Record<string, string> = {
-	minute: "Every minute",
-	ten_minutes: "Every 10 minutes",
-	thirty_minutes: "Every 30 minutes",
-	hour: "Hourly",
-	six_hours: "Every 6 hours",
-	twelve_hours: "Every 12 hours",
-	day: "Daily",
+	minute:"Every minute",
+	ten_minutes:"Every 10 minutes",
+	thirty_minutes:"Every 30 minutes",
+	hour:"Hourly",
+	six_hours:"Every 6 hours",
+	twelve_hours:"Every 12 hours",
+	day:"Daily",
 };
 
 export default function PulsePage() {
@@ -57,7 +57,7 @@ export default function PulsePage() {
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
+			mode:"auto" |"manual";
 			fields?: string[];
 		} | null;
 	} | null>(null);
@@ -92,7 +92,7 @@ export default function PulsePage() {
 	const uptimeQueries = useMemo(
 		() => [
 			{
-				id: "uptime-recent-checks",
+				id:"uptime-recent-checks",
 				parameters: ["uptime_recent_checks"],
 				limit: 20,
 			},
@@ -111,11 +111,11 @@ export default function PulsePage() {
 	const heatmapDateRange = useMemo(
 		() => ({
 			start_date: dayjs()
-				.subtract(89, "day")
+				.subtract(89,"day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
 			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
+			granularity:"daily" as const,
 		}),
 		[]
 	);
@@ -123,9 +123,9 @@ export default function PulsePage() {
 	const heatmapQueries = useMemo(
 		() => [
 			{
-				id: "uptime-heatmap",
+				id:"uptime-heatmap",
 				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
+				granularity:"daily" as const,
 			},
 		],
 		[]
@@ -145,9 +145,9 @@ export default function PulsePage() {
 	);
 
 	const recentChecks =
-		getDataForQuery("uptime-recent-checks", "uptime_recent_checks") || [];
+		getDataForQuery("uptime-recent-checks","uptime_recent_checks") || [];
 	const heatmapData =
-		getHeatmapData("uptime-heatmap", "uptime_time_series") || [];
+		getHeatmapData("uptime-heatmap","uptime_time_series") || [];
 
 	const handleCreateMonitor = () => {
 		setEditingSchedule(null);
@@ -184,7 +184,7 @@ export default function PulsePage() {
 			await refetchSchedule();
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update monitor";
+				error instanceof Error ? error.message :"Failed to update monitor";
 			toast.error(errorMessage);
 		} finally {
 			setIsPausing(false);
@@ -209,7 +209,7 @@ export default function PulsePage() {
 			setIsDeleteDialogOpen(false);
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to delete monitor";
+				error instanceof Error ? error.message :"Failed to delete monitor";
 			toast.error(errorMessage);
 		}
 	};
@@ -233,36 +233,36 @@ export default function PulsePage() {
 	const latestCheck = recentChecks[0];
 	const currentStatus = latestCheck
 		? latestCheck.status === 1
-			? "up"
+			?"up"
 			: latestCheck.status === 2
-				? "unknown"
-				: "down"
-		: "unknown";
+				?"unknown"
+				:"down"
+		:"unknown";
 
 	// Build header subtitle with status
 	const headerSubtitle = schedule ? (
 		<div className="flex items-center gap-2">
 			<Badge
 				className={
-					!schedule.isPaused && currentStatus === "up"
-						? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
-						: ""
+					!schedule.isPaused && currentStatus ==="up"
+						?"border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+						:""
 				}
 				variant={
 					schedule.isPaused
-						? "secondary"
-						: currentStatus === "down"
-							? "destructive"
-							: "default"
+						?"secondary"
+						: currentStatus ==="down"
+							?"destructive"
+							:"default"
 				}
 			>
 				{schedule.isPaused
-					? "Paused"
-					: currentStatus === "down"
-						? "Outage"
-						: currentStatus === "up"
-							? "Operational"
-							: "Unknown"}
+					?"Paused"
+					: currentStatus ==="down"
+						?"Outage"
+						: currentStatus ==="up"
+							?"Operational"
+							:"Unknown"}
 			</Badge>
 			<span className="text-muted-foreground">•</span>
 			<span className="text-muted-foreground text-sm">
@@ -367,7 +367,7 @@ export default function PulsePage() {
 					<div className="flex h-full items-center justify-center p-4">
 						<EmptyState
 							action={{
-								label: "Create Monitor",
+								label:"Create Monitor",
 								onClick: handleCreateMonitor,
 							}}
 							className="h-full py-0"
@@ -408,7 +408,7 @@ export default function PulsePage() {
 							disabled={deleteMutation.isPending}
 							onClick={handleDeleteMonitor}
 						>
-							{deleteMutation.isPending ? "Deleting..." : "Delete Monitor"}
+							{deleteMutation.isPending ?"Deleting..." :"Delete Monitor"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

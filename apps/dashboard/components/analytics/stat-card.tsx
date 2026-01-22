@@ -1,6 +1,6 @@
-import { MinusIcon, TrendDownIcon, TrendUpIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { type ElementType, memo } from "react";
+import { MinusIcon, TrendDownIcon, TrendUpIcon } from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { type ElementType, memo } from"react";
 import {
 	Area,
 	AreaChart,
@@ -12,16 +12,16 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { Card } from "@/components/ui/card";
+} from"recharts";
+import { Card } from"@/components/ui/card";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatMetricNumber } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/hover-card";
+import { Skeleton } from"@/components/ui/skeleton";
+import { formatMetricNumber } from"@/lib/formatters";
+import { cn } from"@/lib/utils";
 
 interface MiniChartDataPoint {
 	date: string;
@@ -36,14 +36,14 @@ interface Trend {
 	previousPeriod: { start: string; end: string };
 }
 
-export type ChartType = "area" | "bar" | "line";
+export type ChartType ="area" |"bar" |"line";
 export type ChartStepType =
-	| "monotone"
-	| "linear"
-	| "step"
-	| "stepBefore"
-	| "stepAfter";
-export type StatCardDisplayMode = "compact" | "chart" | "text";
+	|"monotone"
+	|"linear"
+	|"step"
+	|"stepBefore"
+	|"stepAfter";
+export type StatCardDisplayMode ="compact" |"chart" |"text";
 
 interface StatCardProps {
 	title: string;
@@ -55,7 +55,7 @@ interface StatCardProps {
 	trendLabel?: string;
 	isLoading?: boolean;
 	className?: string;
-	variant?: "default" | "success" | "info" | "warning" | "danger";
+	variant?:"default" |"success" |"info" |"warning" |"danger";
 	invertTrend?: boolean;
 	id?: string;
 	chartData?: MiniChartDataPoint[];
@@ -71,7 +71,7 @@ const formatTrendValue = (
 	value: string | number,
 	formatter?: (v: number) => string
 ) => {
-	if (typeof value === "number") {
+	if (typeof value ==="number") {
 		if (formatter) {
 			return formatter(value);
 		}
@@ -100,14 +100,14 @@ function TrendIndicator({
 	const isNeutral = value === 0;
 
 	const colorClass = isNeutral
-		? "text-muted-foreground"
+		?"text-muted-foreground"
 		: isPositive
 			? invertColor
-				? "text-destructive"
-				: "text-success"
+				?"text-destructive"
+				:"text-success"
 			: invertColor
-				? "text-success"
-				: "text-destructive";
+				?"text-success"
+				:"text-destructive";
 
 	const Icon = isPositive
 		? TrendUpIcon
@@ -117,9 +117,9 @@ function TrendIndicator({
 
 	return (
 		<span className={cn("flex items-center gap-1", colorClass, className)}>
-			<Icon className="size-4" weight={isNeutral ? "regular" : "fill"} />
+			<Icon className="size-4" weight={isNeutral ?"regular" :"fill"} />
 			<span className="font-semibold text-xs">
-				{isPositive ? "+" : ""}
+				{isPositive ?"+" :""}
 				{Math.abs(value).toFixed(0)}%
 			</span>
 		</span>
@@ -132,8 +132,8 @@ const MiniChart = memo(
 		id,
 		formatChartValue,
 		title,
-		chartType = "area",
-		chartStepType = "monotone",
+		chartType ="area",
+		chartStepType ="monotone",
 	}: {
 		data: MiniChartDataPoint[];
 		id: string;
@@ -165,7 +165,7 @@ const MiniChart = memo(
 
 		const chartContent = () => {
 			switch (chartType) {
-				case "bar":
+				case"bar":
 					return (
 						<BarChart
 							data={data}
@@ -192,23 +192,23 @@ const MiniChart = memo(
 								</linearGradient>
 							</defs>
 							<XAxis dataKey="date" hide />
-							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<YAxis domain={["dataMin","dataMax"]} hide />
 							<Tooltip
 								content={({ active, payload, label }) =>
 									active &&
 									payload?.[0] &&
-									typeof payload[0].value === "number" ? (
-										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+									typeof payload[0].value ==="number" ? (
+										<div className=" border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
 											<p className="text-muted-foreground">
 												{new Date(label).toLocaleDateString("en-US", {
-													month: "short",
-													day: "numeric",
+													month:"short",
+													day:"numeric",
 												})}
 											</p>
 											<p className="font-semibold text-foreground">
 												{formatChartValue
 													? formatChartValue(payload[0].value)
-													: formatMetricNumber(payload[0].value)}{" "}
+													: formatMetricNumber(payload[0].value)}{""}
 												{title && (
 													<span className="font-normal text-muted-foreground">
 														{title}
@@ -218,7 +218,7 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke:"var(--color-primary)", strokeOpacity: 0.3 }}
 							/>
 							<Bar
 								dataKey="value"
@@ -227,30 +227,30 @@ const MiniChart = memo(
 							/>
 						</BarChart>
 					);
-				case "line":
+				case"line":
 					return (
 						<LineChart
 							data={data}
 							margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
 						>
 							<XAxis dataKey="date" hide />
-							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<YAxis domain={["dataMin","dataMax"]} hide />
 							<Tooltip
 								content={({ active, payload, label }) =>
 									active &&
 									payload?.[0] &&
-									typeof payload[0].value === "number" ? (
-										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+									typeof payload[0].value ==="number" ? (
+										<div className=" border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
 											<p className="text-muted-foreground">
 												{new Date(label).toLocaleDateString("en-US", {
-													month: "short",
-													day: "numeric",
+													month:"short",
+													day:"numeric",
 												})}
 											</p>
 											<p className="font-semibold text-foreground">
 												{formatChartValue
 													? formatChartValue(payload[0].value)
-													: formatMetricNumber(payload[0].value)}{" "}
+													: formatMetricNumber(payload[0].value)}{""}
 												{title && (
 													<span className="font-normal text-muted-foreground">
 														{title}
@@ -260,7 +260,7 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke:"var(--color-primary)", strokeOpacity: 0.3 }}
 							/>
 							<Line
 								dataKey="value"
@@ -271,7 +271,7 @@ const MiniChart = memo(
 							/>
 						</LineChart>
 					);
-				case "area":
+				case"area":
 					return (
 						<AreaChart
 							data={data}
@@ -298,23 +298,23 @@ const MiniChart = memo(
 								</linearGradient>
 							</defs>
 							<XAxis dataKey="date" hide />
-							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<YAxis domain={["dataMin","dataMax"]} hide />
 							<Tooltip
 								content={({ active, payload, label }) =>
 									active &&
 									payload?.[0] &&
-									typeof payload[0].value === "number" ? (
-										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+									typeof payload[0].value ==="number" ? (
+										<div className=" border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
 											<p className="text-muted-foreground">
 												{new Date(label).toLocaleDateString("en-US", {
-													month: "short",
-													day: "numeric",
+													month:"short",
+													day:"numeric",
 												})}
 											</p>
 											<p className="font-semibold text-foreground">
 												{formatChartValue
 													? formatChartValue(payload[0].value)
-													: formatMetricNumber(payload[0].value)}{" "}
+													: formatMetricNumber(payload[0].value)}{""}
 												{title && (
 													<span className="font-normal text-muted-foreground">
 														{title}
@@ -324,13 +324,13 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke:"var(--color-primary)", strokeOpacity: 0.3 }}
 							/>
 							<Area
 								activeDot={{
 									r: 2.5,
-									fill: "var(--color-primary)",
-									stroke: "var(--color-background)",
+									fill:"var(--color-primary)",
+									stroke:"var(--color-background)",
 									strokeWidth: 1.5,
 								}}
 								dataKey="value"
@@ -369,23 +369,23 @@ const MiniChart = memo(
 								</linearGradient>
 							</defs>
 							<XAxis dataKey="date" hide />
-							<YAxis domain={["dataMin", "dataMax"]} hide />
+							<YAxis domain={["dataMin","dataMax"]} hide />
 							<Tooltip
 								content={({ active, payload, label }) =>
 									active &&
 									payload?.[0] &&
-									typeof payload[0].value === "number" ? (
-										<div className="rounded border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
+									typeof payload[0].value ==="number" ? (
+										<div className=" border bg-popover px-2 py-1.5 text-[10px] shadow-lg">
 											<p className="text-muted-foreground">
 												{new Date(label).toLocaleDateString("en-US", {
-													month: "short",
-													day: "numeric",
+													month:"short",
+													day:"numeric",
 												})}
 											</p>
 											<p className="font-semibold text-foreground">
 												{formatChartValue
 													? formatChartValue(payload[0].value)
-													: formatMetricNumber(payload[0].value)}{" "}
+													: formatMetricNumber(payload[0].value)}{""}
 												{title && (
 													<span className="font-normal text-muted-foreground">
 														{title}
@@ -395,13 +395,13 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke:"var(--color-primary)", strokeOpacity: 0.3 }}
 							/>
 							<Area
 								activeDot={{
 									r: 2.5,
-									fill: "var(--color-primary)",
-									stroke: "var(--color-background)",
+									fill:"var(--color-primary)",
+									stroke:"var(--color-background)",
 									strokeWidth: 1.5,
 								}}
 								dataKey="value"
@@ -424,7 +424,7 @@ const MiniChart = memo(
 	}
 );
 
-MiniChart.displayName = "MiniChart";
+MiniChart.displayName ="MiniChart";
 
 const DURATION_REGEX = /\d+(\.\d+)?(s|ms)$/;
 
@@ -438,24 +438,24 @@ export function StatCard({
 	trendLabel: _trendLabel,
 	isLoading = false,
 	className,
-	variant: _variant = "default",
+	variant: _variant ="default",
 	invertTrend = false,
 	id,
 	chartData,
 	showChart = false,
-	chartType = "area",
-	chartStepType = "monotone",
+	chartType ="area",
+	chartStepType ="monotone",
 	formatValue,
 	formatChartValue,
 	displayMode,
 }: StatCardProps) {
 	const trendValue =
-		typeof trend === "object" && trend !== null ? trend.change : trend;
+		typeof trend ==="object" && trend !== null ? trend.change : trend;
 
 	const resolvedDisplayMode: StatCardDisplayMode =
-		displayMode ?? (showChart ? "chart" : "compact");
+		displayMode ?? (showChart ?"chart" :"compact");
 	const hasValidChartData =
-		resolvedDisplayMode === "chart" && chartData && chartData.length > 0;
+		resolvedDisplayMode ==="chart" && chartData && chartData.length > 0;
 
 	if (isLoading) {
 		return (
@@ -463,13 +463,13 @@ export function StatCard({
 				className={cn("gap-0 overflow-hidden border bg-card py-0", className)}
 				id={id}
 			>
-				{resolvedDisplayMode !== "compact" && (
+				{resolvedDisplayMode !=="compact" && (
 					<div className="dotted-bg bg-accent pt-0">
 						<Skeleton className="h-26 w-full" />
 					</div>
 				)}
 				<div className="flex items-center gap-2.5 border-t px-2.5 py-2.5">
-					{Icon && <Skeleton className="size-7 shrink-0 rounded" />}
+					{Icon && <Skeleton className="size-7 shrink-0" />}
 					<div className="min-w-0 flex-1 space-y-0.5">
 						<Skeleton className="h-5 w-14" />
 						<Skeleton className="h-3 w-12" />
@@ -480,10 +480,10 @@ export function StatCard({
 		);
 	}
 
-	const isTimeValue = typeof value === "string" && DURATION_REGEX.test(value);
+	const isTimeValue = typeof value ==="string" && DURATION_REGEX.test(value);
 	const displayValue =
-		(typeof value === "string" && (value.endsWith("%") || isTimeValue)) ||
-		typeof value !== "number"
+		(typeof value ==="string" && (value.endsWith("%") || isTimeValue)) ||
+		typeof value !=="number"
 			? value.toString()
 			: formatMetricNumber(value);
 
@@ -502,12 +502,12 @@ export function StatCard({
 						chartType={chartType}
 						data={chartData}
 						formatChartValue={formatChartValue}
-						id={id || `chart-${title.toLowerCase().replace(/\s/g, "-")}`}
+						id={id || `chart-${title.toLowerCase().replace(/\s/g,"-")}`}
 						title={title}
 					/>
 				</div>
 			)}
-			{resolvedDisplayMode === "text" && (
+			{resolvedDisplayMode ==="text" && (
 				<div className="dotted-bg flex h-26 items-center justify-center bg-accent">
 					<span className="font-bold text-4xl text-foreground tabular-nums">
 						{displayValue}
@@ -516,12 +516,12 @@ export function StatCard({
 			)}
 			<div className="flex items-center gap-2.5 px-2.5 py-2.5">
 				{Icon && (
-					<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
+					<div className="flex size-7 shrink-0 items-center justify-center bg-accent">
 						<Icon className="size-4 text-muted-foreground" weight="duotone" />
 					</div>
 				)}
 				<div className="min-w-0 flex-1">
-					{resolvedDisplayMode === "text" ? (
+					{resolvedDisplayMode ==="text" ? (
 						<>
 							<p className="truncate font-medium text-foreground text-sm">
 								{title}
@@ -543,11 +543,11 @@ export function StatCard({
 				</div>
 				{titleExtra}
 				<div className="shrink-0 text-right">
-					{resolvedDisplayMode !== "text" &&
+					{resolvedDisplayMode !=="text" &&
 					trendValue !== undefined &&
 					!Number.isNaN(trendValue) ? (
 						<TrendIndicator invertColor={invertTrend} value={trendValue} />
-					) : resolvedDisplayMode !== "text" && description ? (
+					) : resolvedDisplayMode !=="text" && description ? (
 						<span className="text-muted-foreground text-xs">{description}</span>
 					) : null}
 				</div>
@@ -556,7 +556,7 @@ export function StatCard({
 	);
 
 	if (
-		typeof trend === "object" &&
+		typeof trend ==="object" &&
 		trend !== null &&
 		trend.currentPeriod &&
 		trend.previousPeriod
@@ -568,7 +568,7 @@ export function StatCard({
 					{/* Header */}
 					<div className="flex items-center gap-2.5 border-b bg-accent px-3 py-2.5">
 						{Icon && (
-							<div className="flex size-7 items-center justify-center rounded bg-background">
+							<div className="flex size-7 items-center justify-center bg-background">
 								<Icon className="size-4 text-muted-foreground" />
 							</div>
 						)}
@@ -587,7 +587,7 @@ export function StatCard({
 								{formatTrendValue(trend.previous, formatValue)}
 							</p>
 							<p className="mt-0.5 text-muted-foreground text-xs">
-								{dayjs(trend.previousPeriod.start).format("MMM D")} –{" "}
+								{dayjs(trend.previousPeriod.start).format("MMM D")} –{""}
 								{dayjs(trend.previousPeriod.end).format("MMM D")}
 							</p>
 						</div>
@@ -599,7 +599,7 @@ export function StatCard({
 								{formatTrendValue(trend.current, formatValue)}
 							</p>
 							<p className="mt-0.5 text-muted-foreground text-xs">
-								{dayjs(trend.currentPeriod.start).format("MMM D")} –{" "}
+								{dayjs(trend.currentPeriod.start).format("MMM D")} –{""}
 								{dayjs(trend.currentPeriod.end).format("MMM D")}
 							</p>
 						</div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from"react";
 
 export function useCopyToClipboard({
 	timeout = 2000,
@@ -12,7 +12,7 @@ export function useCopyToClipboard({
 	const [isCopied, setIsCopied] = useState(false);
 
 	const copyToClipboard = (value: string) => {
-		if (typeof window === "undefined" || !navigator.clipboard.writeText) {
+		if (typeof window ==="undefined" || !navigator.clipboard.writeText) {
 			return;
 		}
 

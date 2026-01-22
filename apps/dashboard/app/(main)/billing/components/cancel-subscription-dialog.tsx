@@ -10,11 +10,11 @@ import {
 	QuestionIcon,
 	SmileyIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useState } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -22,8 +22,8 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+} from"@/components/ui/dialog";
+import { Textarea } from"@/components/ui/textarea";
 
 interface CancelSubscriptionDialogProps {
 	open: boolean;
@@ -34,16 +34,16 @@ interface CancelSubscriptionDialogProps {
 	isLoading: boolean;
 }
 
-type CancelOption = "end_of_period" | "immediate" | null;
-type CancelStep = "feedback" | "timing";
+type CancelOption ="end_of_period" |"immediate" | null;
+type CancelStep ="feedback" |"timing";
 
 type CancelReasonId =
-	| "too_expensive"
-	| "missing_features"
-	| "not_using"
-	| "switching"
-	| "technical_issues"
-	| "other";
+	|"too_expensive"
+	|"missing_features"
+	|"not_using"
+	|"switching"
+	|"technical_issues"
+	|"other";
 
 interface CancelReason {
 	id: CancelReasonId;
@@ -57,16 +57,16 @@ export interface CancelFeedback {
 }
 
 const CANCEL_REASONS: CancelReason[] = [
-	{ id: "too_expensive", label: "Too expensive", icon: CurrencyDollarIcon },
-	{ id: "missing_features", label: "Missing features I need", icon: GearIcon },
-	{ id: "not_using", label: "Not using it enough", icon: SmileyIcon },
-	{ id: "switching", label: "Switching to another tool", icon: LightningIcon },
+	{ id:"too_expensive", label:"Too expensive", icon: CurrencyDollarIcon },
+	{ id:"missing_features", label:"Missing features I need", icon: GearIcon },
+	{ id:"not_using", label:"Not using it enough", icon: SmileyIcon },
+	{ id:"switching", label:"Switching to another tool", icon: LightningIcon },
 	{
-		id: "technical_issues",
-		label: "Technical issues",
+		id:"technical_issues",
+		label:"Technical issues",
 		icon: WarningCircleIcon,
 	},
-	{ id: "other", label: "Other reason", icon: QuestionIcon },
+	{ id:"other", label:"Other reason", icon: QuestionIcon },
 ];
 
 export function CancelSubscriptionDialog({
@@ -98,7 +98,7 @@ export function CancelSubscriptionDialog({
 			reason: selectedReason,
 			details: feedbackDetails.trim() || undefined,
 		};
-		await onCancel(selected === "immediate", feedback);
+		await onCancel(selected ==="immediate", feedback);
 		setConfirming(false);
 		resetAndClose();
 	};
@@ -125,7 +125,7 @@ export function CancelSubscriptionDialog({
 	return (
 		<Dialog onOpenChange={resetAndClose} open={open}>
 			<DialogContent className="w-[95vw] max-w-md sm:w-full">
-				{step === "feedback" ? (
+				{step ==="feedback" ? (
 					<>
 						<DialogHeader>
 							<DialogTitle>Before you go...</DialogTitle>
@@ -139,17 +139,17 @@ export function CancelSubscriptionDialog({
 								const IconComponent = reason.icon;
 								return (
 									<button
-										className={`w-full rounded border p-3 text-left transition-all ${
+										className={`w-full border p-3 text-left transition-all ${
 											selectedReason === reason.id
-												? "border-primary bg-primary/5 ring-1 ring-primary"
-												: "hover:bg-accent/50"
+												?"border-primary bg-primary/5 ring-1 ring-primary"
+												:"hover:bg-accent/50"
 										}`}
 										key={reason.id}
 										onClick={() => setSelectedReason(reason.id)}
 										type="button"
 									>
 										<div className="flex items-center gap-3">
-											<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-accent">
+											<div className="flex size-8 shrink-0 items-center justify-center border bg-accent">
 												<IconComponent
 													className="text-accent-foreground"
 													size={16}
@@ -204,17 +204,17 @@ export function CancelSubscriptionDialog({
 						<div className="space-y-2">
 							{/* End of period option */}
 							<button
-								className={`w-full rounded border p-4 text-left transition-all ${
-									selected === "end_of_period"
-										? "border-primary bg-primary/5 ring-1 ring-primary"
-										: "hover:bg-accent/50"
+								className={`w-full border p-4 text-left transition-all ${
+									selected ==="end_of_period"
+										?"border-primary bg-primary/5 ring-1 ring-primary"
+										:"hover:bg-accent/50"
 								} disabled:cursor-not-allowed disabled:opacity-50`}
 								disabled={isLoading || confirming}
 								onClick={() => setSelected("end_of_period")}
 								type="button"
 							>
 								<div className="flex items-start gap-3">
-									<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-accent">
+									<div className="flex size-10 shrink-0 items-center justify-center border bg-accent">
 										<CalendarIcon
 											className="text-accent-foreground"
 											size={20}
@@ -229,7 +229,7 @@ export function CancelSubscriptionDialog({
 										<p className="mt-1 text-muted-foreground text-sm">
 											{periodEndDate
 												? `Keep access until ${periodEndDate}`
-												: "Keep access until your billing period ends"}
+												:"Keep access until your billing period ends"}
 										</p>
 									</div>
 								</div>
@@ -237,17 +237,17 @@ export function CancelSubscriptionDialog({
 
 							{/* Immediate option */}
 							<button
-								className={`w-full rounded border p-4 text-left transition-all ${
-									selected === "immediate"
-										? "border-destructive bg-destructive/5 ring-1 ring-destructive"
-										: "hover:bg-accent/50"
+								className={`w-full border p-4 text-left transition-all ${
+									selected ==="immediate"
+										?"border-destructive bg-destructive/5 ring-1 ring-destructive"
+										:"hover:bg-accent/50"
 								} disabled:cursor-not-allowed disabled:opacity-50`}
 								disabled={isLoading || confirming}
 								onClick={() => setSelected("immediate")}
 								type="button"
 							>
 								<div className="flex items-start gap-3">
-									<div className="flex size-10 shrink-0 items-center justify-center rounded border border-destructive/20 bg-destructive/10">
+									<div className="flex size-10 shrink-0 items-center justify-center border border-destructive/20 bg-destructive/10">
 										<LightningIcon
 											className="text-destructive"
 											size={20}
@@ -265,15 +265,15 @@ export function CancelSubscriptionDialog({
 						</div>
 
 						{/* Warning for immediate cancellation */}
-						{selected === "immediate" && (
-							<div className="flex items-start gap-2 rounded border border-destructive/20 bg-destructive/5 p-3 text-sm">
+						{selected ==="immediate" && (
+							<div className="flex items-start gap-2 border border-destructive/20 bg-destructive/5 p-3 text-sm">
 								<WarningCircleIcon
 									className="mt-0.5 shrink-0 text-destructive"
 									size={16}
 									weight="fill"
 								/>
 								<span className="text-destructive">
-									This action cannot be undone. You will lose access to all{" "}
+									This action cannot be undone. You will lose access to all{""}
 									{planName} features immediately.
 								</span>
 							</div>
@@ -293,14 +293,14 @@ export function CancelSubscriptionDialog({
 								className="w-full sm:w-auto"
 								disabled={!selected || isLoading || confirming}
 								onClick={handleConfirm}
-								variant={selected === "immediate" ? "destructive" : "default"}
+								variant={selected ==="immediate" ?"destructive" :"default"}
 							>
 								{confirming && (
 									<CircleNotchIcon className="mr-2 size-4 animate-spin" />
 								)}
-								{selected === "immediate"
-									? "Cancel now"
-									: "Confirm cancellation"}
+								{selected ==="immediate"
+									?"Cancel now"
+									:"Confirm cancellation"}
 							</Button>
 						</DialogFooter>
 					</>

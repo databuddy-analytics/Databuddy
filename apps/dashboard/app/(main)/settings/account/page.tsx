@@ -1,7 +1,7 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import type { Icon } from "@phosphor-icons/react";
+import { authClient } from"@databuddy/auth/client";
+import type { Icon } from"@phosphor-icons/react";
 import {
 	CircleNotchIcon,
 	GithubLogoIcon,
@@ -10,16 +10,16 @@ import {
 	LinkBreakIcon,
 	LinkIcon,
 	ShieldCheckIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
+} from"@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import { useEffect, useState } from"react";
+import { toast } from"sonner";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
 import {
 	Dialog,
 	DialogContent,
@@ -27,12 +27,12 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { UnsavedChangesFooter } from "../_components/settings-section";
-import { TwoFactorDialog } from "./sections/two-factor-dialog";
+} from"@/components/ui/dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Skeleton } from"@/components/ui/skeleton";
+import { UnsavedChangesFooter } from"../_components/settings-section";
+import { TwoFactorDialog } from"./sections/two-factor-dialog";
 
 // Types
 type Account = {
@@ -42,21 +42,21 @@ type Account = {
 	createdAt: Date;
 };
 
-type SocialProvider = "google" | "github";
+type SocialProvider ="google" |"github";
 
 // Constants
-const SOCIAL_PROVIDERS: SocialProvider[] = ["google", "github"];
+const SOCIAL_PROVIDERS: SocialProvider[] = ["google","github"];
 
 const PROVIDER_CONFIG: Record<string, { icon: Icon; name: string }> = {
-	google: { icon: GoogleLogoIcon, name: "Google" },
-	github: { icon: GithubLogoIcon, name: "GitHub" },
-	credential: { icon: KeyIcon, name: "Password" },
+	google: { icon: GoogleLogoIcon, name:"Google" },
+	github: { icon: GithubLogoIcon, name:"GitHub" },
+	credential: { icon: KeyIcon, name:"Password" },
 };
 
 // Helpers
 function getInitials(name: string): string {
 	return name
-		.split(" ")
+		.split("")
 		.map((n) => n[0])
 		.join("")
 		.toUpperCase()
@@ -184,8 +184,8 @@ export default function AccountSettingsPage() {
 	// Initialize form when session loads
 	useEffect(() => {
 		if (user) {
-			setName(user.name ?? "");
-			setImageUrl(user.image ?? "");
+			setName(user.name ??"");
+			setImageUrl(user.image ??"");
 		}
 	}, [user]);
 
@@ -215,7 +215,7 @@ export default function AccountSettingsPage() {
 		},
 		onSuccess: () => {
 			toast.success("Profile updated successfully");
-			queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			queryClient.invalidateQueries({ queryKey: ["auth","session"] });
 		},
 	});
 
@@ -247,18 +247,18 @@ export default function AccountSettingsPage() {
 	});
 
 	const hasCredentialAccount = accounts.some(
-		(acc) => acc.providerId === "credential"
+		(acc) => acc.providerId ==="credential"
 	);
 	const hasChanges =
-		name !== (user?.name ?? "") || imageUrl !== (user?.image ?? "");
+		name !== (user?.name ??"") || imageUrl !== (user?.image ??"");
 
 	const handleSaveChanges = () => {
 		updateProfileMutation.mutate();
 	};
 
 	const handleDiscardChanges = () => {
-		setName(user?.name ?? "");
-		setImageUrl(user?.image ?? "");
+		setName(user?.name ??"");
+		setImageUrl(user?.image ??"");
 	};
 
 	const isLoading = isSessionLoading || isAccountsLoading;
@@ -278,7 +278,7 @@ export default function AccountSettingsPage() {
 							</div>
 							{isLoading ? (
 								<div className="flex items-center gap-4">
-									<Skeleton className="size-20 rounded-full" />
+									<Skeleton className="size-20" />
 									<div className="space-y-2">
 										<Skeleton className="h-9 w-32" />
 										<Skeleton className="h-4 w-40" />
@@ -289,7 +289,7 @@ export default function AccountSettingsPage() {
 									<Avatar className="size-20">
 										<AvatarImage alt={name} src={imageUrl} />
 										<AvatarFallback className="bg-primary/10 font-semibold text-primary text-xl">
-											{getInitials(name || "User")}
+											{getInitials(name ||"User")}
 										</AvatarFallback>
 									</Avatar>
 									<div className="flex-1 space-y-2">
@@ -340,7 +340,7 @@ export default function AccountSettingsPage() {
 											disabled
 											id="email"
 											type="email"
-											value={user?.email ?? ""}
+											value={user?.email ??""}
 										/>
 										<p className="text-muted-foreground text-xs">
 											Email cannot be changed
@@ -376,7 +376,7 @@ export default function AccountSettingsPage() {
 										variant="outline"
 									>
 										<ShieldCheckIcon className="mr-2 size-4" />
-										{user?.twoFactorEnabled ? "Manage" : "Enable"}
+										{user?.twoFactorEnabled ?"Manage" :"Enable"}
 									</Button>
 								</div>
 
@@ -448,7 +448,7 @@ export default function AccountSettingsPage() {
 																size="icon"
 																title={
 																	isOnlyAccount
-																		? "Cannot unlink your only login method"
+																		?"Cannot unlink your only login method"
 																		: `Unlink ${config.name}`
 																}
 																variant="ghost"
@@ -514,16 +514,16 @@ export default function AccountSettingsPage() {
 								<span className="text-muted-foreground text-sm">
 									Email verified
 								</span>
-								<Badge variant={user?.emailVerified ? "green" : "amber"}>
-									{user?.emailVerified ? "Yes" : "No"}
+								<Badge variant={user?.emailVerified ?"green" :"amber"}>
+									{user?.emailVerified ?"Yes" :"No"}
 								</Badge>
 							</div>
 							<div className="flex items-center justify-between">
 								<span className="text-muted-foreground text-sm">
 									2FA enabled
 								</span>
-								<Badge variant={user?.twoFactorEnabled ? "green" : "gray"}>
-									{user?.twoFactorEnabled ? "Yes" : "No"}
+								<Badge variant={user?.twoFactorEnabled ?"green" :"gray"}>
+									{user?.twoFactorEnabled ?"Yes" :"No"}
 								</Badge>
 							</div>
 							<div className="flex items-center justify-between">
@@ -533,7 +533,7 @@ export default function AccountSettingsPage() {
 								<span className="font-medium text-sm">
 									{user?.createdAt
 										? dayjs(user.createdAt).format("MMM YYYY")
-										: "—"}
+										:"—"}
 								</span>
 							</div>
 						</div>
@@ -557,7 +557,7 @@ export default function AccountSettingsPage() {
 										<span className="flex-1 text-sm">
 											{config?.name ?? account.providerId}
 										</span>
-										<span className="size-2 rounded-full bg-green-500" />
+										<span className="size-2 bg-green-500" />
 									</div>
 								);
 							})}
@@ -580,14 +580,14 @@ export default function AccountSettingsPage() {
 				isEnabled={user?.twoFactorEnabled ?? false}
 				onOpenChange={setShowTwoFactorDialog}
 				onSuccess={() => {
-					queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+					queryClient.invalidateQueries({ queryKey: ["auth","session"] });
 					queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
 				}}
 				open={showTwoFactorDialog}
 			/>
 			<DeleteDialog
 				confirmLabel="Unlink"
-				description={`Are you sure you want to unlink your ${unlinkProvider ? PROVIDER_CONFIG[unlinkProvider]?.name : ""} account? You can reconnect it later.`}
+				description={`Are you sure you want to unlink your ${unlinkProvider ? PROVIDER_CONFIG[unlinkProvider]?.name :""} account? You can reconnect it later.`}
 				isDeleting={unlinkAccount.isPending}
 				isOpen={!!unlinkProvider}
 				onClose={() => setUnlinkProvider(null)}

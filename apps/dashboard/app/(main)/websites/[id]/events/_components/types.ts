@@ -51,20 +51,20 @@ export interface MiniChartDataPoint {
 }
 
 export type PropertyInferredType =
-	| "boolean"
-	| "numeric"
-	| "datetime"
-	| "url"
-	| "categorical"
-	| "aggregatable"
-	| "text"
-	| "high_cardinality";
+	|"boolean"
+	|"numeric"
+	|"datetime"
+	|"url"
+	|"categorical"
+	|"aggregatable"
+	|"text"
+	|"high_cardinality";
 
 export type PropertyRenderStrategy =
-	| "distribution_bar" // Low cardinality (≤5) - show all values as bars
-	| "top_n_chart" // Medium cardinality (≤20) - show all in chart
-	| "top_n_with_other" // Aggregatable high cardinality - top N + "other"
-	| "detail_only"; // Non-aggregatable - only in row view
+	|"distribution_bar" // Low cardinality (≤5) - show all values as bars
+	|"top_n_chart" // Medium cardinality (≤20) - show all in chart
+	|"top_n_with_other" // Aggregatable high cardinality - top N +"other"
+	|"detail_only"; // Non-aggregatable - only in row view
 
 export interface PropertyClassification {
 	event_name: string;

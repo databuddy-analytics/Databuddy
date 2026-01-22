@@ -16,7 +16,7 @@ Think about mobile responsiveness when doing any UI tasks or changes
 
 NEVER add placeholders, mock data, or anything similar
 
-Always use rounded, not rounded-xl or rounded-md, always rounded
+Don't use rounded, or rounded-xl or rounded-md, not "rounded"
 
 ALWAYS use bun, never npm, never pnpm, just bun
 

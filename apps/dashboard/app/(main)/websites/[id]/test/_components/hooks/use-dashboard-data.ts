@@ -1,18 +1,18 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import type {
 	DynamicQueryFilter,
 	DynamicQueryRequest,
 	ParameterWithDates,
-} from "@databuddy/shared/types/api";
+} from"@databuddy/shared/types/api";
 import type {
 	CustomQueryConfig,
 	CustomQueryRequest,
-} from "@databuddy/shared/types/custom-query";
-import { useQueries } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { resolveDateRange } from "../utils/date-presets";
-import { formatWidgetValue, parseNumericValue } from "../utils/formatters";
+} from"@databuddy/shared/types/custom-query";
+import { useQueries } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { resolveDateRange } from"../utils/date-presets";
+import { formatWidgetValue, parseNumericValue } from"../utils/formatters";
 import type {
 	CardFilter,
 	DashboardWidgetBase,
@@ -20,7 +20,7 @@ import type {
 	DateRangePreset,
 	QueryCell,
 	QueryRow,
-} from "../utils/types";
+} from"../utils/types";
 
 interface UseDashboardDataOptions {
 	enabled?: boolean;
@@ -57,14 +57,14 @@ interface WidgetWithSettings extends DashboardWidgetBase {
 	customQuery?: CustomQueryConfig;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||"http://localhost:3001";
 
 function toQueryFilters(filters?: CardFilter[]): DynamicQueryFilter[] {
 	if (!filters || filters.length === 0) {
 		return [];
 	}
 	return filters
-		.filter((f) => f.value.trim() !== "")
+		.filter((f) => f.value.trim() !=="")
 		.map((f) => ({
 			field: f.field,
 			operator: f.operator,
@@ -74,7 +74,7 @@ function toQueryFilters(filters?: CardFilter[]): DynamicQueryFilter[] {
 
 function createFilterKey(filters?: CardFilter[]): string {
 	if (!filters?.length) {
-		return "";
+		return"";
 	}
 	return JSON.stringify(
 		filters.map((f) => `${f.field}:${f.operator}:${f.value}`).sort()
@@ -88,15 +88,15 @@ async function fetchCustomQuery(
 	const response = await fetch(
 		`${API_BASE_URL}/v1/query/custom?website_id=${websiteId}`,
 		{
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			credentials: "include",
+			method:"POST",
+			headers: {"Content-Type":"application/json" },
+			credentials:"include",
 			body: JSON.stringify(request),
 		}
 	);
 	const data = await response.json();
 	if (!data.success) {
-		throw new Error(data.error || "Custom query failed");
+		throw new Error(data.error ||"Custom query failed");
 	}
 	return data.data || [];
 }
@@ -117,7 +117,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		const custom: T[] = [];
 
 		for (const widget of widgets) {
-			if (widget.dataSourceMode === "custom" && widget.customQuery) {
+			if (widget.dataSourceMode ==="custom" && widget.customQuery) {
 				custom.push(widget);
 			} else {
 				predefined.push(widget);
@@ -141,7 +141,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		for (const widget of predefinedWidgets) {
 			const filterKey = createFilterKey(widget.filters);
 			const resolvedDateRange = resolveDateRange(
-				widget.dateRangePreset || "global",
+				widget.dateRangePreset ||"global",
 				globalDateRange
 			);
 
@@ -193,7 +193,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 				const widget = predefinedWidgets.find((w) => w.id === cardId);
 				if (widget) {
 					const resolvedDateRange = resolveDateRange(
-						widget.dateRangePreset || "global",
+						widget.dateRangePreset ||"global",
 						globalDateRange
 					);
 					const paramId = `${widget.queryType}|${resolvedDateRange.start_date}|${resolvedDateRange.end_date}`;
@@ -220,7 +220,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 			.filter((widget) => widget.customQuery)
 			.map((widget) => {
 				const resolvedDateRange = resolveDateRange(
-					widget.dateRangePreset || "global",
+					widget.dateRangePreset ||"global",
 					globalDateRange
 				);
 				return {
@@ -273,7 +273,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 				if (customData) {
 					const firstRow = customData.at(0);
 					if (!firstRow) {
-						return "—";
+						return"—";
 					}
 					// For custom queries, try to find the first aggregate result
 					const values = Object.values(firstRow);
@@ -281,13 +281,13 @@ export function useDashboardData<T extends WidgetWithSettings>(
 					if (firstValue !== undefined && firstValue !== null) {
 						return formatWidgetValue(firstValue, field);
 					}
-					return "—";
+					return"—";
 				}
 
 				// Predefined query
 				const mapping = cardToQueryMap.get(cardId);
 				if (!mapping) {
-					return "—";
+					return"—";
 				}
 
 				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
@@ -296,12 +296,12 @@ export function useDashboardData<T extends WidgetWithSettings>(
 				}
 
 				if (!Array.isArray(rows) || rows.length === 0) {
-					return "—";
+					return"—";
 				}
 
 				const firstRow = rows.at(0);
 				if (!firstRow) {
-					return "—";
+					return"—";
 				}
 
 				return formatWidgetValue(firstRow[field], field);
@@ -407,7 +407,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 								| QueryCell
 								| undefined;
 							return {
-								date: rawDate ? String(rawDate) : "",
+								date: rawDate ? String(rawDate) :"",
 								value: parseNumericValue(rawValue),
 							};
 						})
@@ -433,7 +433,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 						const rawDate = row.date;
 						const rawValue = row[field];
 						return {
-							date: rawDate ? String(rawDate) : "",
+							date: rawDate ? String(rawDate) :"",
 							value: parseNumericValue(rawValue),
 						};
 					})

@@ -1,16 +1,16 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
+import type { Icon } from"@phosphor-icons/react";
 import {
 	ArrowSquareOutIcon,
 	CommandIcon,
 	MagnifyingGlassIcon,
-} from "@phosphor-icons/react";
-import { Command as CommandPrimitive } from "cmdk";
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { useDebouncedCallback } from "@tanstack/react-pacer";
-import { useHotkeys } from "react-hotkeys-hook";
+} from"@phosphor-icons/react";
+import { Command as CommandPrimitive } from"cmdk";
+import { usePathname, useRouter } from"next/navigation";
+import { useCallback, useMemo, useState } from"react";
+import { useDebouncedCallback } from"@tanstack/react-pacer";
+import { useHotkeys } from"react-hotkeys-hook";
 import {
 	billingNavigation,
 	createWebsitesNavigation,
@@ -19,22 +19,22 @@ import {
 	resourcesNavigation,
 	websiteNavigation,
 	websiteSettingsNavigation,
-} from "@/components/layout/navigation/navigation-config";
+} from"@/components/layout/navigation/navigation-config";
 import type {
 	NavigationEntry,
 	NavigationItem,
 	NavigationSection,
-} from "@/components/layout/navigation/types";
-import { Badge } from "@/components/ui/badge";
+} from"@/components/layout/navigation/types";
+import { Badge } from"@/components/ui/badge";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { useWebsites } from "@/hooks/use-websites";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { useWebsites } from"@/hooks/use-websites";
+import { cn } from"@/lib/utils";
 
 interface SearchItem {
 	name: string;
@@ -59,7 +59,7 @@ const ALL_NAVIGATION: NavigationSection[] = [
 	...resourcesNavigation,
 ];
 
-function toSearchItem(item: NavigationItem, pathPrefix = ""): SearchItem {
+function toSearchItem(item: NavigationItem, pathPrefix =""): SearchItem {
 	const path = item.rootLevel === false ? `${pathPrefix}${item.href}` : item.href;
 	return {
 		name: item.name,
@@ -76,7 +76,7 @@ function toSearchItem(item: NavigationItem, pathPrefix = ""): SearchItem {
 const isSection = (entry: NavigationEntry): entry is NavigationSection =>
 	"items" in entry;
 
-function toSearchGroups(entries: NavigationEntry[], pathPrefix = ""): SearchGroup[] {
+function toSearchGroups(entries: NavigationEntry[], pathPrefix =""): SearchGroup[] {
 	const groups: SearchGroup[] = [];
 	const standaloneItems: SearchItem[] = [];
 
@@ -95,7 +95,7 @@ function toSearchGroups(entries: NavigationEntry[], pathPrefix = ""): SearchGrou
 
 	if (standaloneItems.length > 0) {
 		groups.unshift({
-			category: "Quick Access",
+			category:"Quick Access",
 			items: standaloneItems,
 		});
 	}
@@ -128,7 +128,7 @@ export function CommandSearch() {
 		? pathname.split("/")[2]
 		: undefined;
 
-	useHotkeys(["mod+k", "/"], () => setOpen((o) => !o), { preventDefault: true }, []);
+	useHotkeys(["mod+k","/"], () => setOpen((o) => !o), { preventDefault: true }, []);
 
 	const handleSearchChange = useDebouncedCallback(
 		(value: string) => {
@@ -147,11 +147,11 @@ export function CommandSearch() {
 
 	const groups = useMemo(() => {
 		const result: SearchGroup[] = [];
-		const websitePrefix = currentWebsiteId ? `/websites/${currentWebsiteId}` : "";
+		const websitePrefix = currentWebsiteId ? `/websites/${currentWebsiteId}` :"";
 
 		if (websites.length > 0) {
 			const websitesNav = createWebsitesNavigation(
-				websites.map((w) => ({ id: w.id, name: w.name, domain: "" }))
+				websites.map((w) => ({ id: w.id, name: w.name, domain:"" }))
 			);
 			result.push(...toSearchGroups(websitesNav));
 		}
@@ -191,7 +191,7 @@ export function CommandSearch() {
 			setSearch("");
 			setDebouncedSearch("");
 			if (item.external || item.path.startsWith("http")) {
-				window.open(item.path, "_blank", "noopener,noreferrer");
+				window.open(item.path,"_blank","noopener,noreferrer");
 			} else {
 				router.push(item.path);
 			}
@@ -226,14 +226,14 @@ export function CommandSearch() {
 					className="flex h-full w-full flex-col"
 					loop
 					onKeyDown={(e) => {
-						if (e.key === "Escape") {
+						if (e.key ==="Escape") {
 							setOpen(false);
 						}
 					}}
 				>
 					{/* Search Header */}
 					<div className="dotted-bg flex items-center gap-3 border-b bg-accent px-4 py-3">
-						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
+						<div className="flex size-8 shrink-0 items-center justify-center bg-background">
 							<MagnifyingGlassIcon
 								className="size-4 text-muted-foreground"
 								weight="duotone"
@@ -245,7 +245,7 @@ export function CommandSearch() {
 							placeholder="Search pages, settings, websites..."
 							value={search}
 						/>
-						<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
+						<kbd className="hidden items-center gap-1 border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 							<CommandIcon className="size-3" weight="bold" />
 							<span>K</span>
 						</kbd>
@@ -287,15 +287,15 @@ export function CommandSearch() {
 					<div className="flex items-center justify-between border-t bg-accent/50 px-4 py-2">
 						<div className="flex items-center gap-3">
 							<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-								<kbd className="rounded border bg-background px-1 py-0.5 font-mono text-[10px]">↑↓</kbd>
+								<kbd className=" border bg-background px-1 py-0.5 font-mono text-[10px]">↑↓</kbd>
 								navigate
 							</span>
 							<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-								<kbd className="rounded border bg-background px-1 py-0.5 font-mono text-[10px]">↵</kbd>
+								<kbd className=" border bg-background px-1 py-0.5 font-mono text-[10px]">↵</kbd>
 								select
 							</span>
 							<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-								<kbd className="rounded border bg-background px-1 py-0.5 font-mono text-[10px]">esc</kbd>
+								<kbd className=" border bg-background px-1 py-0.5 font-mono text-[10px]">esc</kbd>
 								close
 							</span>
 						</div>
@@ -321,22 +321,22 @@ function SearchResultItem({
 	return (
 		<CommandPrimitive.Item
 			className={cn(
-				"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none  ",
+				"group relative flex cursor-pointer select-none items-center gap-3 px-2 py-2 outline-none",
 				"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
-				item.disabled && "pointer-events-none opacity-50"
+				item.disabled &&"pointer-events-none opacity-50"
 			)}
 			disabled={item.disabled}
 			onSelect={() => onSelect(item)}
 			value={`${item.name} ${item.path}`}
 		>
-			<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent   group-data-[selected=true]:bg-background">
+			<div className="flex size-7 shrink-0 items-center justify-center bg-accent group-data-[selected=true]:bg-background">
 				<ItemIcon className="size-4 text-muted-foreground" weight="duotone" />
 			</div>
 
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-sm leading-tight">{item.name}</p>
 				<p className="truncate text-muted-foreground text-xs">
-					{item.path.startsWith("http") ? "External link" : item.path}
+					{item.path.startsWith("http") ?"External link" : item.path}
 				</p>
 			</div>
 
@@ -344,7 +344,7 @@ function SearchResultItem({
 				{item.tag && (
 					<Badge
 						className="text-[10px]"
-						variant={item.tag === "soon" ? "secondary" : "outline"}
+						variant={item.tag ==="soon" ?"secondary" :"outline"}
 					>
 						{item.tag}
 					</Badge>

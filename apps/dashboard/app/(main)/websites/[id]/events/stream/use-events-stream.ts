@@ -1,15 +1,15 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import type {
 	DynamicQueryFilter,
 	DynamicQueryResponse,
-} from "@databuddy/shared/types/api";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+} from"@databuddy/shared/types/api";
+import type { UseQueryOptions } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useDynamicQuery } from"@/hooks/use-dynamic-query";
 import type {
 	RawRecentCustomEvent,
 	RecentCustomEvent,
-} from "../_components/types";
+} from"../_components/types";
 
 function parseEventProperties(
 	rawEvent: RawRecentCustomEvent
@@ -17,7 +17,7 @@ function parseEventProperties(
 	let parsedProperties: Record<string, unknown> = {};
 	try {
 		parsedProperties =
-			typeof rawEvent.properties === "string"
+			typeof rawEvent.properties ==="string"
 				? JSON.parse(rawEvent.properties)
 				: rawEvent.properties;
 	} catch {
@@ -42,7 +42,7 @@ export function useEventsStream(
 		websiteId,
 		dateRange,
 		{
-			id: "events-stream",
+			id:"events-stream",
 			parameters: ["custom_events_recent"],
 			limit,
 			page,

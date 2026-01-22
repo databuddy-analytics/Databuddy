@@ -1,11 +1,11 @@
 "use client";
 
-import { CircleNotchIcon } from "@phosphor-icons/react";
-import type { CheckProductPreview } from "autumn-js";
-import { useCustomer } from "autumn-js/react";
-import type React from "react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { CircleNotchIcon } from"@phosphor-icons/react";
+import type { CheckProductPreview } from"autumn-js";
+import { useCustomer } from"autumn-js/react";
+import type React from"react";
+import { useEffect, useState } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -13,9 +13,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { getAttachContent } from "@/lib/autumn/attach-content";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { getAttachContent } from"@/lib/autumn/attach-content";
+import { cn } from"@/lib/utils";
 
 export interface AttachDialogProps {
 	open: boolean;
@@ -78,11 +78,11 @@ export default function AttachDialog(params?: AttachDialogProps) {
 
 				{/* Due Today */}
 				{due_today && (
-					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2">
+					<div className="flex items-center justify-between border bg-accent/50 px-3 py-2">
 						<span className="text-muted-foreground text-sm">Due today</span>
 						<span className="font-semibold">
 							{new Intl.NumberFormat("en-US", {
-								style: "currency",
+								style:"currency",
 								currency: due_today.currency,
 							}).format(getTotalPrice())}
 						</span>
@@ -145,7 +145,7 @@ interface FeatureOption {
 }
 
 interface FeatureOptionWithRequiredPrice
-	extends Omit<FeatureOption, "price" | "quantity"> {
+	extends Omit<FeatureOption,"price" |"quantity"> {
 	price: number;
 	quantity: number;
 }
@@ -173,10 +173,10 @@ export const OptionsInput = ({
 						Number.parseInt(e.target.value, 10) * billing_units;
 					setOptionsInput(newOptions);
 				}}
-				value={quantity ? quantity / billing_units : ""}
+				value={quantity ? quantity / billing_units :""}
 			>
 				<span className="">
-					× ${price} per {billing_units === 1 ? " " : billing_units}{" "}
+					× ${price} per {billing_units === 1 ?"" : billing_units}{""}
 					{feature_name}
 				</span>
 			</QuantityInput>
@@ -207,7 +207,7 @@ export const QuantityInput = ({
 
 	return (
 		<div
-			className={cn(className, "flex flex-row items-center gap-4")}
+			className={cn(className,"flex flex-row items-center gap-4")}
 			{...props}
 		>
 			<div className="flex items-center gap-1">
@@ -251,7 +251,7 @@ export const PricingDialogButton = ({
 	className,
 }: {
 	children: React.ReactNode;
-	size?: "sm" | "lg" | "default" | "icon";
+	size?:"sm" |"lg" |"default" |"icon";
 	onClick: () => void;
 	disabled?: boolean;
 	className?: string;

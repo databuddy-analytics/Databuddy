@@ -1,20 +1,20 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { DynamicQueryRequest } from "@databuddy/shared/types/api";
-import { useAtom } from "jotai";
-import { useMemo } from "react";
-import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import { DataTable, type TabConfig } from "@/components/table/data-table";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { addDynamicFilterAtom } from "@/stores/jotai/filterAtoms";
-import { formatUsd, pivotTimeSeries } from "../_lib/llm-analytics-utils";
+import type { DateRange } from"@databuddy/shared/types/analytics";
+import type { DynamicQueryRequest } from"@databuddy/shared/types/api";
+import { useAtom } from"jotai";
+import { useMemo } from"react";
+import { SimpleMetricsChart } from"@/components/charts/simple-metrics-chart";
+import { DataTable, type TabConfig } from"@/components/table/data-table";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
+import { addDynamicFilterAtom } from"@/stores/jotai/filterAtoms";
+import { formatUsd, pivotTimeSeries } from"../_lib/llm-analytics-utils";
 import {
 	createModelColumns,
 	createProviderColumns,
 	type LlmModelBreakdownRow,
 	type LlmProviderBreakdownRow,
-} from "./llm-columns";
+} from"./llm-columns";
 
 interface LlmCostTabProps {
 	websiteId: string;
@@ -33,12 +33,12 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 
 	const queries: DynamicQueryRequest[] = [
 		{
-			id: "llm-cost-provider",
+			id:"llm-cost-provider",
 			parameters: ["llm_cost_by_provider_time_series"],
 		},
-		{ id: "llm-cost-model", parameters: ["llm_cost_by_model_time_series"] },
-		{ id: "llm-provider", parameters: ["llm_provider_breakdown"] },
-		{ id: "llm-model", parameters: ["llm_model_breakdown"] },
+		{ id:"llm-cost-model", parameters: ["llm_cost_by_model_time_series"] },
+		{ id:"llm-provider", parameters: ["llm_provider_breakdown"] },
+		{ id:"llm-model", parameters: ["llm_model_breakdown"] },
 	];
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
@@ -74,7 +74,7 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 			pivotTimeSeries(
 				providerSeries.map((row) => ({
 					date: row.date,
-					seriesKey: row.provider ?? "unknown",
+					seriesKey: row.provider ??"unknown",
 					value: row.total_cost ?? 0,
 				}))
 			),
@@ -86,7 +86,7 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 			pivotTimeSeries(
 				modelSeries.map((row) => ({
 					date: row.date,
-					seriesKey: row.model ?? "unknown",
+					seriesKey: row.model ??"unknown",
 					value: row.total_cost ?? 0,
 				}))
 			),
@@ -99,21 +99,21 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 
 		if (providerBreakdown.length > 0) {
 			tabs.push({
-				id: "providers",
-				label: "Providers",
+				id:"providers",
+				label:"Providers",
 				data: providerBreakdown,
 				columns: createProviderColumns(),
-				getFilter: (row) => ({ field: "provider", value: row.name }),
+				getFilter: (row) => ({ field:"provider", value: row.name }),
 			});
 		}
 
 		if (modelBreakdown.length > 0) {
 			tabs.push({
-				id: "models",
-				label: "Models",
+				id:"models",
+				label:"Models",
 				data: modelBreakdown,
 				columns: createModelColumns(),
-				getFilter: (row) => ({ field: "model", value: row.name }),
+				getFilter: (row) => ({ field:"model", value: row.name }),
 			});
 		}
 
@@ -123,14 +123,14 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 	const providerMetrics = providerPivot.seriesKeys.map((key, index) => ({
 		key,
 		label: key,
-		color: ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"][index % 5],
+		color: ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"][index % 5],
 		formatValue: (value: number) => formatUsd(value),
 	}));
 
 	const modelMetrics = modelPivot.seriesKeys.map((key, index) => ({
 		key,
 		label: key,
-		color: ["#22c55e", "#f97316", "#6366f1", "#ec4899", "#14b8a6"][index % 5],
+		color: ["#22c55e","#f97316","#6366f1","#ec4899","#14b8a6"][index % 5],
 		formatValue: (value: number) => formatUsd(value),
 	}));
 
@@ -160,7 +160,7 @@ export function LlmCostTab({ websiteId, dateRange }: LlmCostTabProps) {
 					description="Cost and token breakdowns"
 					isLoading={isLoading}
 					onAddFilter={(field, value) =>
-						addFilter({ field, operator: "eq", value })
+						addFilter({ field, operator:"eq", value })
 					}
 					tabs={breakdownTabs}
 					title="Breakdowns"

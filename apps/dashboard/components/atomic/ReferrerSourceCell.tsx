@@ -1,9 +1,9 @@
 "use client";
 
-import type React from "react";
-import { cn } from "@/lib/utils";
-import { FaviconImage } from "../analytics/favicon-image";
-import { TruncatedText } from "../ui/truncated-text";
+import type React from"react";
+import { cn } from"@/lib/utils";
+import { FaviconImage } from"../analytics/favicon-image";
+import { TruncatedText } from"../ui/truncated-text";
 
 export type ReferrerSourceCellData = {
 	name?: string;
@@ -23,12 +23,12 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 	domain,
 	className,
 }) => {
-	const displayName = name || referrer || "Direct";
+	const displayName = name || referrer ||"Direct";
 	const textClassName = className
 		? `${className} font-medium text-sm`
-		: "font-medium text-sm";
+		:"font-medium text-sm";
 
-	if (displayName === "Direct" || !domain) {
+	if (displayName ==="Direct" || !domain) {
 		return (
 			<TruncatedText
 				className={cn("truncate", textClassName)}
@@ -54,7 +54,7 @@ export const ReferrerSourceCell: React.FC<ReferrerSourceCellProps> = ({
 		>
 			<FaviconImage
 				altText={`${displayName} favicon`}
-				className="shrink-0 rounded-sm"
+				className="shrink-0"
 				domain={domain}
 				size={16}
 			/>

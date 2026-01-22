@@ -1,34 +1,34 @@
 "use client";
 
-import type { ExportFormat } from "@databuddy/rpc";
+import type { ExportFormat } from"@databuddy/rpc";
 import {
 	CheckIcon,
 	DownloadIcon,
 	FileCodeIcon,
 	FileTextIcon,
 	TableIcon,
-} from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import type { DateRange as DayPickerRange } from "react-day-picker";
-import { toast } from "sonner";
-import { DateRangePicker } from "@/components/date-range-picker";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { useWebsite } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
-import { PageHeader } from "../../../_components/page-header";
+} from"@phosphor-icons/react";
+import { useMutation } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import { useParams } from"next/navigation";
+import { useCallback, useMemo, useState } from"react";
+import type { DateRange as DayPickerRange } from"react-day-picker";
+import { toast } from"sonner";
+import { DateRangePicker } from"@/components/date-range-picker";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Label } from"@/components/ui/label";
+import { Switch } from"@/components/ui/switch";
+import { useWebsite } from"@/hooks/use-websites";
+import { orpc } from"@/lib/orpc";
+import { PageHeader } from"../../../_components/page-header";
 
 function downloadFile(blob: Blob, filename: string) {
 	const url = window.URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
 	a.download = filename;
-	a.style.display = "none";
+	a.style.display ="none";
 	document.body.appendChild(a);
 	a.click();
 
@@ -77,7 +77,7 @@ export default function ExportPage() {
 				const buffer = Uint8Array.from(atob(result.data), (c) =>
 					c.charCodeAt(0)
 				);
-				const blob = new Blob([buffer], { type: "application/zip" });
+				const blob = new Blob([buffer], { type:"application/zip" });
 				downloadFile(blob, result.filename);
 				toast.success("Data exported successfully!");
 			},
@@ -96,21 +96,21 @@ export default function ExportPage() {
 	const formatOptions = useMemo(
 		() => [
 			{
-				value: "json" as const,
-				label: "JSON",
-				description: "Structured data for developers",
+				value:"json" as const,
+				label:"JSON",
+				description:"Structured data for developers",
 				icon: FileCodeIcon,
 			},
 			{
-				value: "csv" as const,
-				label: "CSV",
-				description: "Works with spreadsheets",
+				value:"csv" as const,
+				label:"CSV",
+				description:"Works with spreadsheets",
 				icon: TableIcon,
 			},
 			{
-				value: "txt" as const,
-				label: "TXT",
-				description: "Plain text export",
+				value:"txt" as const,
+				label:"TXT",
+				description:"Plain text export",
 				icon: FileTextIcon,
 			},
 		],
@@ -123,7 +123,7 @@ export default function ExportPage() {
 	if (!websiteData) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+				<div className="size-8 animate-spin border-2 border-primary/20 border-t-primary" />
 			</div>
 		);
 	}
@@ -149,16 +149,16 @@ export default function ExportPage() {
 							const IconComponent = format.icon;
 							return (
 								<button
-									className={`flex items-start gap-3 rounded-md border p-4 text-left hover:border-primary/50 ${
+									className={`flex items-start gap-3 border p-4 text-left hover:border-primary/50 ${
 										selectedFormat === format.value
-											? "bg-secondary"
-											: "border-border"
+											?"bg-secondary"
+											:"border-border"
 									}`}
 									key={format.value}
 									onClick={() => setSelectedFormat(format.value)}
 									type="button"
 								>
-									<div className="flex size-8 items-center justify-center rounded-md border bg-secondary-brighter">
+									<div className="flex size-8 items-center justify-center border bg-secondary-brighter">
 										<IconComponent className="size-5" />
 									</div>
 									<div className="min-w-0 flex-1">
@@ -187,8 +187,8 @@ export default function ExportPage() {
 							<h2 className="font-medium text-sm">Date range</h2>
 							<p className="text-muted-foreground text-xs">
 								{useCustomRange
-									? "Export a specific range"
-									: "Export all available data"}
+									?"Export a specific range"
+									:"Export all available data"}
 							</p>
 						</div>
 						<Switch
@@ -221,16 +221,16 @@ export default function ExportPage() {
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<h3 className="font-medium text-sm">
-								Ready to export {websiteData.name || "your website"} data
+								Ready to export {websiteData.name ||"your website"} data
 							</h3>
 							<p className="mt-2 text-muted-foreground text-xs">
-								Format:{" "}
+								Format:{""}
 								<Badge className="font-mono" variant="secondary">
 									{selectedFormat.toUpperCase()}
 								</Badge>
 								{useCustomRange && dateRange?.from && dateRange?.to && (
 									<span className="ml-2">
-										• {dayjs(dateRange.from).format("MMM D, YYYY")} -{" "}
+										• {dayjs(dateRange.from).format("MMM D, YYYY")} -{""}
 										{dayjs(dateRange.to).format("MMM D, YYYY")}
 									</span>
 								)}
@@ -244,7 +244,7 @@ export default function ExportPage() {
 						>
 							{isExporting ? (
 								<>
-									<div className="size-4 animate-spin rounded-full border border-current border-t-transparent" />
+									<div className="size-4 animate-spin border border-current border-t-transparent" />
 									Exporting...
 								</>
 							) : (

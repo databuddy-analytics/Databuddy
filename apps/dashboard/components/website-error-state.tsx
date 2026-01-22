@@ -7,31 +7,31 @@ import {
 	LockIcon,
 	MagnifyingGlassIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { Command as CommandPrimitive } from "cmdk";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+} from"@phosphor-icons/react";
+import { Command as CommandPrimitive } from"cmdk";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { useMemo, useState } from"react";
 import {
 	billingNavigation,
 	organizationNavigation,
 	personalNavigation,
 	resourcesNavigation,
-} from "@/components/layout/navigation/navigation-config";
+} from"@/components/layout/navigation/navigation-config";
 import type {
 	NavigationItem,
 	NavigationSection,
-} from "@/components/layout/navigation/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+} from"@/components/layout/navigation/types";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { cn } from"@/lib/utils";
 
 const ALL_NAVIGATION: NavigationSection[] = [
 	...organizationNavigation,
@@ -77,12 +77,12 @@ type WebsiteErrorStateProps = {
 };
 
 function getErrorType(error: unknown): {
-	type: "not_found" | "unauthorized" | "forbidden" | "unknown";
+	type:"not_found" |"unauthorized" |"forbidden" |"unknown";
 	message?: string;
 	code?: string;
 } {
-	if (!error || typeof error !== "object") {
-		return { type: "unknown" };
+	if (!error || typeof error !=="object") {
+		return { type:"unknown" };
 	}
 
 	const rpcError = error as {
@@ -92,22 +92,22 @@ function getErrorType(error: unknown): {
 	};
 
 	const errorCode = rpcError?.data?.code ?? rpcError?.code;
-	const errorMessage = rpcError?.data?.message ?? rpcError?.message ?? "";
+	const errorMessage = rpcError?.data?.message ?? rpcError?.message ??"";
 
 	if (errorCode) {
 		switch (errorCode) {
-			case "NOT_FOUND":
-				return { type: "not_found", message: errorMessage, code: "NOT_FOUND" };
-			case "UNAUTHORIZED":
+			case"NOT_FOUND":
+				return { type:"not_found", message: errorMessage, code:"NOT_FOUND" };
+			case"UNAUTHORIZED":
 				return {
-					type: "unauthorized",
+					type:"unauthorized",
 					message: errorMessage,
-					code: "UNAUTHORIZED",
+					code:"UNAUTHORIZED",
 				};
-			case "FORBIDDEN":
-				return { type: "forbidden", message: errorMessage, code: "FORBIDDEN" };
+			case"FORBIDDEN":
+				return { type:"forbidden", message: errorMessage, code:"FORBIDDEN" };
 			default:
-				return { type: "unknown", message: errorMessage, code: errorCode };
+				return { type:"unknown", message: errorMessage, code: errorCode };
 		}
 	}
 
@@ -119,9 +119,9 @@ function getErrorType(error: unknown): {
 		messageLower.includes("login")
 	) {
 		return {
-			type: "unauthorized",
+			type:"unauthorized",
 			message: errorMessage,
-			code: "UNAUTHORIZED",
+			code:"UNAUTHORIZED",
 		};
 	}
 
@@ -129,7 +129,7 @@ function getErrorType(error: unknown): {
 		messageLower.includes("not found") ||
 		messageLower.includes("doesn't exist")
 	) {
-		return { type: "not_found", message: errorMessage, code: "NOT_FOUND" };
+		return { type:"not_found", message: errorMessage, code:"NOT_FOUND" };
 	}
 
 	if (
@@ -137,10 +137,10 @@ function getErrorType(error: unknown): {
 		messageLower.includes("forbidden") ||
 		messageLower.includes("access denied")
 	) {
-		return { type: "forbidden", message: errorMessage, code: "FORBIDDEN" };
+		return { type:"forbidden", message: errorMessage, code:"FORBIDDEN" };
 	}
 
-	return { type: "unknown", message: errorMessage };
+	return { type:"unknown", message: errorMessage };
 }
 
 export function WebsiteErrorState({
@@ -153,36 +153,36 @@ export function WebsiteErrorState({
 
 	const getErrorCode = () => {
 		switch (type) {
-			case "not_found":
-				return "ERR_WEBSITE_NOT_FOUND";
-			case "unauthorized":
-				return "ERR_UNAUTHORIZED";
-			case "forbidden":
-				return "ERR_FORBIDDEN";
+			case"not_found":
+				return"ERR_WEBSITE_NOT_FOUND";
+			case"unauthorized":
+				return"ERR_UNAUTHORIZED";
+			case"forbidden":
+				return"ERR_FORBIDDEN";
 			default:
-				return "ERR_UNKNOWN";
+				return"ERR_UNKNOWN";
 		}
 	};
 
 	const getErrorNumber = () => {
 		switch (type) {
-			case "not_found":
-				return "404";
-			case "unauthorized":
-				return "401";
-			case "forbidden":
-				return "403";
+			case"not_found":
+				return"404";
+			case"unauthorized":
+				return"401";
+			case"forbidden":
+				return"403";
 			default:
-				return "500";
+				return"500";
 		}
 	};
 
 	const getIcon = () => {
 		switch (type) {
-			case "not_found":
+			case"not_found":
 				return MagnifyingGlassIcon;
-			case "unauthorized":
-			case "forbidden":
+			case"unauthorized":
+			case"forbidden":
 				return LockIcon;
 			default:
 				return WarningCircleIcon;
@@ -191,33 +191,33 @@ export function WebsiteErrorState({
 
 	const getTitle = () => {
 		switch (type) {
-			case "not_found":
-				return "Website Not Found";
-			case "unauthorized":
-				return isDemoRoute ? "Demo Not Available" : "Authentication Required";
-			case "forbidden":
-				return isDemoRoute ? "Demo Not Available" : "Access Denied";
+			case"not_found":
+				return"Website Not Found";
+			case"unauthorized":
+				return isDemoRoute ?"Demo Not Available" :"Authentication Required";
+			case"forbidden":
+				return isDemoRoute ?"Demo Not Available" :"Access Denied";
 			default:
-				return "Something Went Wrong";
+				return"Something Went Wrong";
 		}
 	};
 
 	const getDescription = () => {
 		switch (type) {
-			case "not_found":
+			case"not_found":
 				return isDemoRoute
-					? "This demo page doesn't exist or is no longer available."
-					: "The website you're looking for doesn't exist or has been removed.";
-			case "unauthorized":
+					?"This demo page doesn't exist or is no longer available."
+					:"The website you're looking for doesn't exist or has been removed.";
+			case"unauthorized":
 				return isDemoRoute
-					? "This demo page is private and requires authentication."
-					: "You need to sign in to view this website's analytics.";
-			case "forbidden":
+					?"This demo page is private and requires authentication."
+					:"You need to sign in to view this website's analytics.";
+			case"forbidden":
 				return isDemoRoute
-					? "This demo page is private and requires authentication."
-					: "You don't have permission to view this website's analytics.";
+					?"This demo page is private and requires authentication."
+					:"You don't have permission to view this website's analytics.";
 			default:
-				return message || "We encountered an error while loading this website.";
+				return message ||"We encountered an error while loading this website.";
 		}
 	};
 
@@ -243,10 +243,10 @@ export function WebsiteErrorState({
 		router.push(item.path);
 	};
 
-	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
+	const canGoBack = typeof window !=="undefined" && window.history.length > 1;
 
 	const renderActions = () => {
-		if (type === "not_found") {
+		if (type ==="not_found") {
 			return (
 				<>
 					{canGoBack && (
@@ -263,12 +263,12 @@ export function WebsiteErrorState({
 						asChild
 						className={
 							canGoBack
-								? "flex-1 bg-primary hover:bg-primary/90"
-								: "w-full bg-primary hover:bg-primary/90"
+								?"flex-1 bg-primary hover:bg-primary/90"
+								:"w-full bg-primary hover:bg-primary/90"
 						}
 						variant="default"
 					>
-						<Link href={isDemoRoute ? "/" : "/websites"}>
+						<Link href={isDemoRoute ?"/" :"/websites"}>
 							<HouseIcon className="mr-2 size-4" weight="duotone" />
 							Back to Websites
 						</Link>
@@ -277,7 +277,7 @@ export function WebsiteErrorState({
 			);
 		}
 
-		if (type === "unauthorized" || type === "forbidden") {
+		if (type ==="unauthorized" || type ==="forbidden") {
 			return (
 				<div className="flex w-full max-w-xs flex-col gap-4 sm:flex-row">
 					{isDemoRoute ? (
@@ -310,7 +310,7 @@ export function WebsiteErrorState({
 								<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
 								Back to Websites
 							</Button>
-							{type === "unauthorized" && (
+							{type ==="unauthorized" && (
 								<Button
 									className="flex-1"
 									onClick={() => router.push("/auth/sign-in")}
@@ -338,11 +338,11 @@ export function WebsiteErrorState({
 				</Button>
 				<Button
 					className="flex-1"
-					onClick={() => router.push(isDemoRoute ? "/" : "/websites")}
+					onClick={() => router.push(isDemoRoute ?"/" :"/websites")}
 					size="lg"
 					variant="outline"
 				>
-					{isDemoRoute ? "Go to Homepage" : "Back to Websites"}
+					{isDemoRoute ?"Go to Homepage" :"Back to Websites"}
 				</Button>
 			</div>
 		);
@@ -353,16 +353,16 @@ export function WebsiteErrorState({
 
 	return (
 		<div className="flex min-h-full flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
-			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center rounded border-none bg-transparent shadow-none">
+			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center border-none bg-transparent shadow-none">
 				<CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center sm:px-8 sm:py-14 lg:px-12">
 					<div
 						aria-hidden="true"
 						className={cn(
-							"flex size-12 items-center justify-center rounded-2xl",
-							type === "not_found" && "bg-accent",
-							(type === "unauthorized" || type === "forbidden") &&
+							"flex size-12 items-center justify-center",
+							type ==="not_found" &&"bg-accent",
+							(type ==="unauthorized" || type ==="forbidden") &&
 								"bg-orange-500/10",
-							type === "unknown" && "bg-destructive/10"
+							type ==="unknown" &&"bg-destructive/10"
 						)}
 						role="img"
 					>
@@ -370,10 +370,10 @@ export function WebsiteErrorState({
 							aria-hidden="true"
 							className={cn(
 								"size-6",
-								type === "not_found" && "text-muted-foreground",
-								(type === "unauthorized" || type === "forbidden") &&
+								type ==="not_found" &&"text-muted-foreground",
+								(type ==="unauthorized" || type ==="forbidden") &&
 									"text-orange-500 dark:text-orange-400",
-								type === "unknown" && "text-destructive"
+								type ==="unknown" &&"text-destructive"
 							)}
 							size={24}
 							weight="fill"
@@ -389,7 +389,7 @@ export function WebsiteErrorState({
 						</p>
 					</div>
 
-					{type === "not_found" && (
+					{type ==="not_found" && (
 						<Button
 							className="mt-6 w-full max-w-xs"
 							onClick={() => setOpen(true)}
@@ -397,14 +397,14 @@ export function WebsiteErrorState({
 						>
 							<MagnifyingGlassIcon className="mr-2 size-4" weight="duotone" />
 							Search pages, settings...
-							<kbd className="ml-auto hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
+							<kbd className="ml-auto hidden items-center gap-1 border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 								<CommandIcon className="size-3" weight="bold" />
 								<span>K</span>
 							</kbd>
 						</Button>
 					)}
 
-					{type === "not_found" && (
+					{type ==="not_found" && (
 						<Dialog onOpenChange={setOpen} open={open}>
 							<DialogHeader className="sr-only">
 								<DialogTitle>Search</DialogTitle>
@@ -420,13 +420,13 @@ export function WebsiteErrorState({
 									className="flex h-full w-full flex-col"
 									loop
 									onKeyDown={(e) => {
-										if (e.key === "Escape") {
+										if (e.key ==="Escape") {
 											setOpen(false);
 										}
 									}}
 								>
 									<div className="dotted-bg flex items-center gap-3 border-b bg-accent px-4 py-3">
-										<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
+										<div className="flex size-8 shrink-0 items-center justify-center bg-background">
 											<MagnifyingGlassIcon
 												className="size-4 text-muted-foreground"
 												weight="duotone"
@@ -438,7 +438,7 @@ export function WebsiteErrorState({
 											placeholder="Search pages, settings..."
 											value={search}
 										/>
-										<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
+										<kbd className="hidden items-center gap-1 border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 											<CommandIcon className="size-3" weight="bold" />
 											<span>K</span>
 										</kbd>
@@ -464,14 +464,14 @@ export function WebsiteErrorState({
 											return (
 												<CommandPrimitive.Item
 													className={cn(
-														"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none",
+														"group relative flex cursor-pointer select-none items-center gap-3 px-2 py-2 outline-none",
 														"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
 													)}
 													key={item.path}
 													onSelect={() => handleSelect(item)}
 													value={`${item.name} ${item.path}`}
 												>
-													<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent group-data-[selected=true]:bg-background">
+													<div className="flex size-7 shrink-0 items-center justify-center bg-accent group-data-[selected=true]:bg-background">
 														<ItemIcon
 															className="size-4 text-muted-foreground"
 															weight="duotone"

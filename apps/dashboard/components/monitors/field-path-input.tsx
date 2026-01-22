@@ -1,9 +1,9 @@
 "use client";
 
-import { PlusIcon, XIcon } from "@phosphor-icons/react";
-import { type KeyboardEvent, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { PlusIcon, XIcon } from"@phosphor-icons/react";
+import { type KeyboardEvent, useState } from"react";
+import { Badge } from"@/components/ui/badge";
+import { Input } from"@/components/ui/input";
 
 const DOT_NOTATION_REGEX = /^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$/;
 
@@ -50,11 +50,11 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 	};
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-		if (e.key === "Enter" || e.key === ",") {
+		if (e.key ==="Enter" || e.key ===",") {
 			e.preventDefault();
 			addPath(inputValue);
-		} else if (e.key === "Backspace" && !inputValue && value.length > 0) {
-			removePath(value.at(-1) ?? "");
+		} else if (e.key ==="Backspace" && !inputValue && value.length > 0) {
+			removePath(value.at(-1) ??"");
 		}
 	};
 
@@ -68,10 +68,10 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 	const generatePreview = () => {
 		if (value.length === 0) {
 			return {
-				status: "ok",
+				status:"ok",
 				services: {
 					database: {
-						status: "up",
+						status:"up",
 						latency: 45,
 					},
 				},
@@ -95,11 +95,11 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 			}
 
 			if (last.includes("status")) {
-				current[last] = "up";
+				current[last] ="up";
 			} else if (last.includes("latency")) {
 				current[last] = 45;
 			} else {
-				current[last] = "ok";
+				current[last] ="ok";
 			}
 		}
 		return preview;
@@ -108,7 +108,7 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 	return (
 		<div className="space-y-4">
 			<div className="space-y-3">
-				<div className="flex flex-wrap gap-2 rounded-sm border border-accent-brighter bg-input p-1.5 transition-all focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/80">
+				<div className="flex flex-wrap gap-2 border border-accent-brighter bg-input p-1.5 transition-all focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/80">
 					{value.map((path) => (
 						<Badge
 							className="flex items-center gap-1 pr-1"
@@ -117,7 +117,7 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 						>
 							{path}
 							<button
-								className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+								className=" p-0.5 hover:bg-muted-foreground/20"
 								onClick={() => removePath(path)}
 								type="button"
 							>
@@ -134,19 +134,19 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 							setError(null);
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder={value.length === 0 ? "e.g. services.database" : ""}
+						placeholder={value.length === 0 ?"e.g. services.database" :""}
 						value={inputValue}
 					/>
 				</div>
 				{error && <p className="text-destructive text-xs">{error}</p>}
 			</div>
 
-			<div className="rounded-md border bg-muted/50 p-4">
+			<div className=" border bg-muted/50 p-4">
 				<div className="mb-3 flex items-center justify-between">
 					<p className="font-medium text-xs">
 						{value.length === 0
-							? "Example API Response"
-							: "Extracted Data Preview"}
+							?"Example API Response"
+							:"Extracted Data Preview"}
 					</p>
 					{value.length === 0 && (
 						<span className="text-muted-foreground text-xs">
@@ -156,7 +156,7 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 				</div>
 				<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
 					<div className="space-y-2">
-						<pre className="overflow-x-auto rounded-md bg-background p-3 font-mono text-[10px] text-muted-foreground leading-relaxed">
+						<pre className="overflow-x-auto bg-background p-3 font-mono text-[10px] text-muted-foreground leading-relaxed">
 							{JSON.stringify(generatePreview(), null, 2)}
 						</pre>
 					</div>
@@ -165,7 +165,7 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 							<p className="font-medium text-xs">How it works</p>
 							<p className="text-muted-foreground text-xs leading-relaxed">
 								We extract the exact values at the paths you provide. To track
-								service health, you should target specific <b>status</b>{" "}
+								service health, you should target specific <b>status</b>{""}
 								(string) and <b>latency</b> (number) fields.
 							</p>
 						</div>
@@ -174,15 +174,15 @@ export function FieldPathInput({ value = [], onChange }: FieldPathInputProps) {
 								<p className="font-medium text-xs">Try these examples:</p>
 								<div className="flex flex-col gap-1.5">
 									{[
-										{ label: "Root status", path: "status" },
-										{ label: "DB status", path: "services.database.status" },
+										{ label:"Root status", path:"status" },
+										{ label:"DB status", path:"services.database.status" },
 										{
-											label: "DB latency",
-											path: "services.database.latency",
+											label:"DB latency",
+											path:"services.database.latency",
 										},
 									].map((example) => (
 										<button
-											className="flex w-fit items-center gap-2 rounded bg-background px-2 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+											className="flex w-fit items-center gap-2 bg-background px-2 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 											key={example.path}
 											onClick={() => addPath(example.path)}
 											type="button"

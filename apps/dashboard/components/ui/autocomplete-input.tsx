@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
+import { memo, useEffect, useRef, useState } from"react";
+import { Input } from"@/components/ui/input";
 
 interface AutocompleteInputProps {
 	value: string;
@@ -88,7 +88,7 @@ export const AutocompleteInput = memo(
 		};
 
 		return (
-			<div className={`relative ${className || ""}`} ref={containerRef}>
+			<div className={`relative ${className ||""}`} ref={containerRef}>
 				<Input
 					className={inputClassName}
 					onChange={(e) => handleInputChange(e.target.value)}
@@ -97,7 +97,7 @@ export const AutocompleteInput = memo(
 					value={localValue}
 				/>
 				{isOpen && filteredSuggestions.length > 0 && (
-					<div className="absolute z-50 mt-1 min-w-[200px] max-h-48 w-full overflow-y-auto rounded border bg-popover shadow-lg">
+					<div className="absolute z-50 mt-1 min-w-[200px] max-h-48 w-full overflow-y-auto border bg-popover shadow-lg">
 						{filteredSuggestions.map((suggestion) => (
 							<button
 								className="w-full cursor-pointer wrap-break-words border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent hover:text-accent-foreground"
@@ -115,4 +115,4 @@ export const AutocompleteInput = memo(
 	}
 );
 
-AutocompleteInput.displayName = "AutocompleteInput";
+AutocompleteInput.displayName ="AutocompleteInput";

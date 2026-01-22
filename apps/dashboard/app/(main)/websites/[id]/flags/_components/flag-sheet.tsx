@@ -1,8 +1,8 @@
 "use client";
 
-import type { FlagWithScheduleForm } from "@databuddy/shared/flags";
-import { flagWithScheduleSchema } from "@databuddy/shared/flags";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { FlagWithScheduleForm } from"@databuddy/shared/flags";
+import { flagWithScheduleSchema } from"@databuddy/shared/flags";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	BuildingsIcon,
 	CaretDownIcon,
@@ -13,13 +13,13 @@ import {
 	UserIcon,
 	UsersIcon,
 	UsersThreeIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { AnimatePresence, motion } from"framer-motion";
+import { useCallback, useEffect, useState } from"react";
+import { useForm } from"react-hook-form";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
 import {
 	Form,
 	FormControl,
@@ -27,9 +27,9 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { LineSlider } from "@/components/ui/line-slider";
+} from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
+import { LineSlider } from"@/components/ui/line-slider";
 import {
 	Sheet,
 	SheetBody,
@@ -38,22 +38,22 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
-import { GroupSelector } from "../groups/_components/group-selector";
-import { DependencySelector } from "./dependency-selector";
-import type { Flag, FlagSheetProps, TargetGroup } from "./types";
-import { UserRulesBuilder } from "./user-rules-builder";
-import { VariantEditor } from "./variant-editor";
+} from"@/components/ui/sheet";
+import { Switch } from"@/components/ui/switch";
+import { Textarea } from"@/components/ui/textarea";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
+import { GroupSelector } from"../groups/_components/group-selector";
+import { DependencySelector } from"./dependency-selector";
+import type { Flag, FlagSheetProps, TargetGroup } from"./types";
+import { UserRulesBuilder } from"./user-rules-builder";
+import { VariantEditor } from"./variant-editor";
 
 type ExpandedSection =
-	| "targeting"
-	| "groups"
-	| "dependencies"
-	| "scheduling"
+	|"targeting"
+	|"groups"
+	|"dependencies"
+	|"scheduling"
 	| null;
 
 function CollapsibleSection({
@@ -64,7 +64,7 @@ function CollapsibleSection({
 	onToggleAction,
 	children,
 }: {
-	icon: React.ComponentType<{ size?: number; weight?: "duotone" | "fill" }>;
+	icon: React.ComponentType<{ size?: number; weight?:"duotone" |"fill" }>;
 	title: string;
 	badge?: number;
 	isExpanded: boolean;
@@ -75,7 +75,7 @@ function CollapsibleSection({
 		<div className="space-y-2">
 			<div className="-mx-3">
 				<button
-					className="group flex w-full cursor-pointer items-center justify-between rounded px-3 py-3 text-left transition-colors hover:bg-accent/50"
+					className="group flex w-full cursor-pointer items-center justify-between px-3 py-3 text-left transition-colors hover:bg-accent/50"
 					onClick={onToggleAction}
 					type="button"
 				>
@@ -83,7 +83,7 @@ function CollapsibleSection({
 						<Icon size={16} weight="duotone" />
 						<span className="font-medium text-sm">{title}</span>
 						{badge !== undefined && badge > 0 && (
-							<span className="flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+							<span className="flex size-5 items-center justify-center bg-primary font-medium text-primary-foreground text-xs">
 								{badge}
 							</span>
 						)}
@@ -91,7 +91,7 @@ function CollapsibleSection({
 					<CaretDownIcon
 						className={cn(
 							"size-4 text-muted-foreground transition-transform duration-200",
-							isExpanded && "rotate-180"
+							isExpanded &&"rotate-180"
 						)}
 						weight="fill"
 					/>
@@ -101,11 +101,11 @@ function CollapsibleSection({
 			<AnimatePresence initial={false}>
 				{isExpanded && (
 					<motion.div
-						animate={{ height: "auto", opacity: 1 }}
+						animate={{ height:"auto", opacity: 1 }}
 						className="overflow-hidden"
 						exit={{ height: 0, opacity: 0 }}
 						initial={{ height: 0, opacity: 0 }}
-						transition={{ duration: 0.2, ease: "easeInOut" }}
+						transition={{ duration: 0.2, ease:"easeInOut" }}
 					>
 						<div className="pb-4">{children}</div>
 					</motion.div>
@@ -144,11 +144,11 @@ export function FlagSheet({
 		resolver: zodResolver(flagWithScheduleSchema),
 		defaultValues: {
 			flag: {
-				key: "",
-				name: "",
-				description: "",
-				type: "boolean",
-				status: "active",
+				key:"",
+				name:"",
+				description:"",
+				type:"boolean",
+				status:"active",
 				defaultValue: false,
 				rolloutPercentage: 0,
 				rolloutBy: undefined,
@@ -178,7 +178,7 @@ export function FlagSheet({
 				}
 				if (flag.targetGroups && Array.isArray(flag.targetGroups)) {
 					return flag.targetGroups.map((g) =>
-						typeof g === "string" ? g : g.id
+						typeof g ==="string" ? g : g.id
 					);
 				}
 				return [];
@@ -187,8 +187,8 @@ export function FlagSheet({
 			form.reset({
 				flag: {
 					key: flag.key,
-					name: flag.name || "",
-					description: flag.description || "",
+					name: flag.name ||"",
+					description: flag.description ||"",
 					type: flag.type,
 					status: flag.status,
 					defaultValue: Boolean(flag.defaultValue),
@@ -209,15 +209,15 @@ export function FlagSheet({
 					name: template.name,
 					description: template.description,
 					type: template.type,
-					status: "active",
+					status:"active",
 					defaultValue: template.defaultValue,
 					rolloutPercentage:
-						template.type === "rollout" || template.type === "boolean"
+						template.type ==="rollout" || template.type ==="boolean"
 							? (template.rolloutPercentage ?? 0)
 							: 0,
 					rolloutBy: undefined,
 					rules: template.rules ?? [],
-					variants: template.type === "multivariant" ? template.variants : [],
+					variants: template.type ==="multivariant" ? template.variants : [],
 					dependencies: [],
 					targetGroupIds: [],
 				},
@@ -229,11 +229,11 @@ export function FlagSheet({
 		} else {
 			form.reset({
 				flag: {
-					key: "",
-					name: "",
-					description: "",
-					type: "boolean",
-					status: "active",
+					key:"",
+					name:"",
+					description:"",
+					type:"boolean",
+					status:"active",
 					defaultValue: false,
 					rolloutPercentage: 0,
 					rolloutBy: undefined,
@@ -277,10 +277,10 @@ export function FlagSheet({
 		if (canAutoGenerate) {
 			const key = value
 				.toLowerCase()
-				.replace(/[^a-z0-9\s]/g, "")
-				.replace(/\s+/g, "-")
-				.replace(/-+/g, "-")
-				.replace(/^-+|-+$/g, "")
+				.replace(/[^a-z0-9\s]/g,"")
+				.replace(/\s+/g,"-")
+				.replace(/-+/g,"-")
+				.replace(/^-+|-+$/g,"")
 				.slice(0, 50);
 			form.setValue("flag.key", key);
 		}
@@ -331,7 +331,7 @@ export function FlagSheet({
 				await createMutation.mutateAsync(createData);
 			}
 
-			toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
+			toast.success(`Flag ${isEditing ?"updated" :"created"} successfully`);
 
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({ input: { websiteId } }),
@@ -344,31 +344,31 @@ export function FlagSheet({
 	};
 
 	const isLoading = createMutation.isPending || updateMutation.isPending;
-	const isRollout = watchedType === "rollout";
-	const isMultivariant = watchedType === "multivariant";
+	const isRollout = watchedType ==="rollout";
+	const isMultivariant = watchedType ==="multivariant";
 
 	return (
 		<Sheet onOpenChange={handleOpenChange} open={isOpen}>
 			<SheetContent className="sm:max-w-xl" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
+						<div className="flex size-11 items-center justify-center border bg-secondary">
 							<FlagIcon className="text-primary" size={20} weight="fill" />
 						</div>
 						<div>
 							<SheetTitle className="text-lg">
 								{isEditing
-									? "Edit Flag"
+									?"Edit Flag"
 									: template
 										? `Create from ${template.name}`
-										: "Create Flag"}
+										:"Create Flag"}
 							</SheetTitle>
 							<SheetDescription>
 								{isEditing
 									? `Editing ${flag?.name || flag?.key}`
 									: template
-										? "Pre-configured with template settings"
-										: "Set up a new feature flag"}
+										?"Pre-configured with template settings"
+										:"Set up a new feature flag"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -423,7 +423,7 @@ export function FlagSheet({
 												</FormLabel>
 												<FormControl>
 													<Input
-														className={cn(isEditing && "bg-muted")}
+														className={cn(isEditing &&"bg-muted")}
 														disabled={isEditing}
 														placeholder="new-feature"
 														{...field}
@@ -475,21 +475,21 @@ export function FlagSheet({
 										</p>
 									</div>
 									<div className="flex gap-2">
-										{(["boolean", "rollout", "multivariant"] as const).map(
+										{(["boolean","rollout","multivariant"] as const).map(
 											(type) => {
 												const isSelected = watchedType === type;
 												const typeDescriptions = {
-													boolean: "On or Off",
-													rollout: "% of users",
-													multivariant: "A/B variants",
+													boolean:"On or Off",
+													rollout:"% of users",
+													multivariant:"A/B variants",
 												};
 												return (
 													<button
 														className={cn(
-															"flex-1 cursor-pointer rounded border py-2 text-center transition-all",
+															"flex-1 cursor-pointer border py-2 text-center transition-all",
 															isSelected
-																? "border-primary bg-primary/5 text-foreground"
-																: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
+																?"border-primary bg-primary/5 text-foreground"
+																:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
 														)}
 														key={type}
 														onClick={() => form.setValue("flag.type", type)}
@@ -546,10 +546,10 @@ export function FlagSheet({
 															{[0, 25, 50, 75, 100].map((preset) => (
 																<button
 																	className={cn(
-																		"flex-1 cursor-pointer rounded border py-1.5 font-medium text-xs transition-all",
+																		"flex-1 cursor-pointer border py-1.5 font-medium text-xs transition-all",
 																		Number(field.value) === preset
-																			? "border-primary bg-primary text-primary-foreground"
-																			: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
+																			?"border-primary bg-primary text-primary-foreground"
+																			:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
 																	)}
 																	key={preset}
 																	onClick={() => field.onChange(preset)}
@@ -567,24 +567,24 @@ export function FlagSheet({
 												control={form.control}
 												name="flag.rolloutBy"
 												render={({ field }) => {
-													const rolloutByValue = field.value || "user";
+													const rolloutByValue = field.value ||"user";
 													const options = [
 														{
-															value: "user",
-															label: "User",
-															description: "Each user individually",
+															value:"user",
+															label:"User",
+															description:"Each user individually",
 															icon: UserIcon,
 														},
 														{
-															value: "organization",
-															label: "Organization",
-															description: "All org members together",
+															value:"organization",
+															label:"Organization",
+															description:"All org members together",
 															icon: BuildingsIcon,
 														},
 														{
-															value: "team",
-															label: "Team",
-															description: "All team members together",
+															value:"team",
+															label:"Team",
+															description:"All team members together",
 															icon: UsersThreeIcon,
 														},
 													] as const;
@@ -607,10 +607,10 @@ export function FlagSheet({
 																	return (
 																		<button
 																			className={cn(
-																				"flex flex-1 cursor-pointer flex-col items-center gap-1 rounded border px-2 py-2.5 text-center transition-all",
+																				"flex flex-1 cursor-pointer flex-col items-center gap-1 border px-2 py-2.5 text-center transition-all",
 																				isSelected
-																					? "border-primary bg-primary/5 text-foreground"
-																					: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
+																					?"border-primary bg-primary/5 text-foreground"
+																					:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground"
 																			)}
 																			key={option.value}
 																			onClick={() =>
@@ -622,8 +622,8 @@ export function FlagSheet({
 																				className={cn(
 																					"size-4",
 																					isSelected
-																						? "text-primary"
-																						: "text-muted-foreground"
+																						?"text-primary"
+																						:"text-muted-foreground"
 																				)}
 																				weight="duotone"
 																			/>
@@ -689,8 +689,8 @@ export function FlagSheet({
 																className={cn(
 																	"text-sm transition-colors",
 																	field.value
-																		? "text-muted-foreground/60"
-																		: "text-foreground"
+																		?"text-muted-foreground/60"
+																		:"text-foreground"
 																)}
 															>
 																Off
@@ -703,8 +703,8 @@ export function FlagSheet({
 																className={cn(
 																	"text-sm transition-colors",
 																	field.value
-																		? "text-foreground"
-																		: "text-muted-foreground/60"
+																		?"text-foreground"
+																		:"text-muted-foreground/60"
 																)}
 															>
 																On
@@ -726,14 +726,14 @@ export function FlagSheet({
 									const inactiveDeps = (flagsList || []).filter(
 										(f) =>
 											watchedDependencies.includes(f.key) &&
-											f.status !== "active"
+											f.status !=="active"
 									);
 									const canBeActive = inactiveDeps.length === 0;
 
 									const statusDescriptions = {
-										active: "Live, evaluates rules",
-										inactive: "Off, always returns false",
-										archived: "Retired, hidden from list",
+										active:"Live, evaluates rules",
+										inactive:"Off, always returns false",
+										archived:"Retired, hidden from list",
 									};
 
 									return (
@@ -755,23 +755,23 @@ export function FlagSheet({
 												)}
 											</div>
 											<div className="flex gap-2">
-												{(["active", "inactive", "archived"] as const).map(
+												{(["active","inactive","archived"] as const).map(
 													(status) => {
 														const isDisabled =
-															status === "active" && !canBeActive;
+															status ==="active" && !canBeActive;
 														const isSelected = field.value === status;
 														return (
 															<button
 																className={cn(
-																	"flex-1 cursor-pointer rounded border py-2 transition-all",
+																	"flex-1 cursor-pointer border py-2 transition-all",
 																	isSelected
-																		? status === "active"
-																			? "green-angled-rectangle-gradient border-success/50 bg-success/10 text-success"
-																			: status === "inactive"
-																				? "red-angled-rectangle-gradient border-destructive/50 bg-destructive/10 text-destructive"
-																				: "amber-angled-rectangle-gradient border-warning/50 bg-warning/10 text-warning"
-																		: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground",
-																	isDisabled && "cursor-not-allowed opacity-50"
+																		? status ==="active"
+																			?"green-angled-rectangle-gradient border-success/50 bg-success/10 text-success"
+																			: status ==="inactive"
+																				?"red-angled-rectangle-gradient border-destructive/50 bg-destructive/10 text-destructive"
+																				:"amber-angled-rectangle-gradient border-warning/50 bg-warning/10 text-warning"
+																		:"border-transparent bg-secondary text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground",
+																	isDisabled &&"cursor-not-allowed opacity-50"
 																)}
 																disabled={isDisabled}
 																key={status}
@@ -785,8 +785,8 @@ export function FlagSheet({
 																	className={cn(
 																		"block text-xs",
 																		isSelected
-																			? "opacity-80"
-																			: "text-muted-foreground"
+																			?"opacity-80"
+																			:"text-muted-foreground"
 																	)}
 																>
 																	{statusDescriptions[status]}
@@ -809,7 +809,7 @@ export function FlagSheet({
 								<CollapsibleSection
 									badge={form.watch("flag.targetGroupIds")?.length ?? 0}
 									icon={UsersThreeIcon}
-									isExpanded={expandedSection === "groups"}
+									isExpanded={expandedSection ==="groups"}
 									onToggleAction={() => toggleSection("groups")}
 									title="Target Groups"
 								>
@@ -829,7 +829,7 @@ export function FlagSheet({
 								<CollapsibleSection
 									badge={watchedRules.length}
 									icon={UsersIcon}
-									isExpanded={expandedSection === "targeting"}
+									isExpanded={expandedSection ==="targeting"}
 									onToggleAction={() => toggleSection("targeting")}
 									title="User Targeting"
 								>
@@ -848,7 +848,7 @@ export function FlagSheet({
 								<CollapsibleSection
 									badge={watchedDependencies.length}
 									icon={GitBranchIcon}
-									isExpanded={expandedSection === "dependencies"}
+									isExpanded={expandedSection ==="dependencies"}
 									onToggleAction={() => toggleSection("dependencies")}
 									title="Dependencies"
 								>
@@ -868,11 +868,11 @@ export function FlagSheet({
 
 								<CollapsibleSection
 									icon={ClockIcon}
-									isExpanded={expandedSection === "scheduling"}
+									isExpanded={expandedSection ==="scheduling"}
 									onToggleAction={() => toggleSection("scheduling")}
 									title="Scheduling"
 								>
-									<div className="rounded border border-border border-dashed bg-muted/30 px-4 py-8 text-center">
+									<div className=" border border-border border-dashed bg-muted/30 px-4 py-8 text-center">
 										<ClockIcon
 											className="mx-auto mb-2 text-muted-foreground"
 											size={24}
@@ -897,7 +897,7 @@ export function FlagSheet({
 								{isLoading ? (
 									<>
 										<SpinnerGapIcon className="animate-spin" size={16} />
-										{isEditing ? "Saving…" : "Creating…"}
+										{isEditing ?"Saving…" :"Creating…"}
 									</>
 								) : isEditing ? (
 									"Save Changes"

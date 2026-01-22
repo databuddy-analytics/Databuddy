@@ -4,10 +4,10 @@ import {
 	convertToTimezone,
 	formatDate,
 	getBrowserTimezone,
-} from "@databuddy/shared/utils/date-utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
-import { orpc } from "@/lib/orpc";
+} from"@databuddy/shared/utils/date-utils";
+import { useMutation, useQuery } from"@tanstack/react-query";
+import { useCallback } from"react";
+import { orpc } from"@/lib/orpc";
 
 interface UserPreferences {
 	timezone: string;
@@ -16,9 +16,9 @@ interface UserPreferences {
 }
 
 const defaultPreferences: UserPreferences = {
-	timezone: "auto",
-	dateFormat: "MMM D, YYYY",
-	timeFormat: "h:mm a",
+	timezone:"auto",
+	dateFormat:"MMM D, YYYY",
+	timeFormat:"h:mm a",
 };
 
 export function usePreferences() {
@@ -39,7 +39,7 @@ export function usePreferences() {
 		if (!preferences) {
 			return getBrowserTimezone();
 		}
-		return preferences.timezone === "auto"
+		return preferences.timezone ==="auto"
 			? getBrowserTimezone()
 			: preferences.timezone;
 	}, [preferences]);
@@ -53,7 +53,7 @@ export function usePreferences() {
 			}
 		) => {
 			if (!date) {
-				return "";
+				return"";
 			}
 			const timezone = getEffectiveTimezone();
 			return formatDate(date, {

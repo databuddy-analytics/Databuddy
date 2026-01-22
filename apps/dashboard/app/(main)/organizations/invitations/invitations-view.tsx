@@ -7,31 +7,31 @@ import {
 	EnvelopeIcon,
 	UserPlusIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
-import { RightSidebar } from "@/components/right-sidebar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { InviteMemberDialog } from"@/components/organizations/invite-member-dialog";
+import { RightSidebar } from"@/components/right-sidebar";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Tabs,
 	TabsBadge,
 	TabsContent,
 	TabsList,
 	TabsTrigger,
-} from "@/components/ui/tabs";
-import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
+} from"@/components/ui/tabs";
+import { useOrganizationInvitations } from"@/hooks/use-organization-invitations";
 import type {
 	ActiveOrganization,
 	Organization,
-} from "@/hooks/use-organizations";
-import { InvitationList } from "./invitation-list";
+} from"@/hooks/use-organizations";
+import { InvitationList } from"./invitation-list";
 
 function SkeletonRow() {
 	return (
 		<div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-8 rounded-full" />
+			<Skeleton className="size-8" />
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-48" />
 				<Skeleton className="h-3 w-32" />
@@ -57,7 +57,7 @@ function InvitationsSkeleton() {
 				</div>
 				<div className="space-y-4 bg-card p-5">
 					<Skeleton className="h-10 w-full" />
-					<Skeleton className="h-18 w-full rounded" />
+					<Skeleton className="h-18 w-full" />
 					<Skeleton className="h-10 w-full" />
 				</div>
 			</div>
@@ -68,7 +68,7 @@ function InvitationsSkeleton() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-			<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10">
+			<div className="mb-4 flex size-16 items-center justify-center bg-destructive/10">
 				<EnvelopeIcon className="text-destructive" size={28} weight="duotone" />
 			</div>
 			<h3 className="mb-1 font-semibold text-lg">Failed to load</h3>
@@ -83,22 +83,22 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 	);
 }
 
-function TabEmptyState({ type }: { type: "pending" | "expired" | "accepted" }) {
+function TabEmptyState({ type }: { type:"pending" |"expired" |"accepted" }) {
 	const config = {
 		pending: {
 			icon: ClockIcon,
-			title: "No pending invitations",
-			description: "All sent invitations have been responded to",
+			title:"No pending invitations",
+			description:"All sent invitations have been responded to",
 		},
 		expired: {
 			icon: XIcon,
-			title: "No expired invitations",
-			description: "Great! No invitations have expired",
+			title:"No expired invitations",
+			description:"Great! No invitations have expired",
 		},
 		accepted: {
 			icon: CheckIcon,
-			title: "No accepted invitations",
-			description: "Accepted invitations will appear here",
+			title:"No accepted invitations",
+			description:"Accepted invitations will appear here",
 		},
 	};
 
@@ -121,9 +121,9 @@ function EmptyInvitationsState({
 	return (
 		<EmptyState
 			action={{
-				label: "Invite Member",
+				label:"Invite Member",
 				onClick: setShowInviteMemberDialog,
-				size: "sm",
+				size:"sm",
 			}}
 			description="There are no pending invitations for this organization. All invited members have either joined or declined their invitations."
 			icon={<EnvelopeIcon weight="duotone" />}

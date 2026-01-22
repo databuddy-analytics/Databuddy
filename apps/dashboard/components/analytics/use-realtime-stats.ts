@@ -1,7 +1,7 @@
-import type { DynamicQueryResponse } from "@databuddy/shared/types/api";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+import type { DynamicQueryResponse } from"@databuddy/shared/types/api";
+import type { UseQueryOptions } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useDynamicQuery } from"@/hooks/use-dynamic-query";
 
 export function useRealTimeStats(
 	websiteId: string,
@@ -20,7 +20,7 @@ export function useRealTimeStats(
 		websiteId,
 		dateRange,
 		{
-			id: "realtime-active-stats",
+			id:"realtime-active-stats",
 			parameters: ["active_stats"],
 		},
 		{

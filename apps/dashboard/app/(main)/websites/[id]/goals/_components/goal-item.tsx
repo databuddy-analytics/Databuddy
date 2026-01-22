@@ -6,19 +6,19 @@ import {
 	MouseMiddleClickIcon,
 	PencilSimpleIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Goal } from "@/hooks/use-goals";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dropdown-menu";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { Goal } from"@/hooks/use-goals";
+import { cn } from"@/lib/utils";
 
 interface GoalItemProps {
 	goal: Goal;
@@ -44,7 +44,7 @@ function formatNumber(num: number): string {
 }
 
 function GoalTypeIcon({ type }: { type: string }) {
-	if (type === "EVENT") {
+	if (type ==="EVENT") {
 		return (
 			<MouseMiddleClickIcon
 				className="size-4 text-muted-foreground"
@@ -66,11 +66,11 @@ function MiniProgressLines({ conversionRate }: { conversionRate: number }) {
 				const isActive = index < activeLines;
 				return (
 					<div
-						className="h-full w-[2px] rounded-sm transition-all"
+						className="h-full w-[2px] transition-all"
 						key={`line-${index}`}
 						style={{
-							backgroundColor: isActive ? "var(--primary)" : "var(--muted)",
-							transform: isActive ? "scaleY(1)" : "scaleY(0.6)",
+							backgroundColor: isActive ?"var(--primary)" :"var(--muted)",
+							transform: isActive ?"scaleY(1)" :"scaleY(0.6)",
 						}}
 					/>
 				);
@@ -105,7 +105,7 @@ export function GoalItem({
 								{goal.name}
 							</h3>
 							<Badge className="shrink-0" variant="gray">
-								{goal.type === "PAGE_VIEW" ? "Page" : "Event"}
+								{goal.type ==="PAGE_VIEW" ?"Page" :"Event"}
 							</Badge>
 							{!goal.isActive && (
 								<Badge className="shrink-0" variant="secondary">

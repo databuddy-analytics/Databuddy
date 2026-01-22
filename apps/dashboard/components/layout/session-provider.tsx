@@ -1,7 +1,7 @@
 "use client";
 
-import type { Session } from "@databuddy/auth";
-import { createContext, useContext } from "react";
+import type { Session } from"@databuddy/auth";
+import { createContext, useContext } from"react";
 
 interface SessionContextValue {
 	session: Session | null;

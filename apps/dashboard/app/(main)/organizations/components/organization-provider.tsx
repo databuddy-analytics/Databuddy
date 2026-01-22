@@ -1,6 +1,6 @@
 "use client";
 
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import type { Icon as PhosphorIcon } from"@phosphor-icons/react";
 import {
 	BuildingsIcon,
 	EnvelopeIcon,
@@ -9,20 +9,20 @@ import {
 	KeyIcon,
 	UsersIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import { useAtomValue } from "jotai";
-import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
-import { PageHeader } from "@/app/(main)/websites/_components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
-import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import { useAtomValue } from"jotai";
+import { usePathname } from"next/navigation";
+import { useMemo, useState } from"react";
+import { PageHeader } from"@/app/(main)/websites/_components/page-header";
+import { EmptyState } from"@/components/empty-state";
+import { CreateOrganizationDialog } from"@/components/organizations/create-organization-dialog";
+import { InviteMemberDialog } from"@/components/organizations/invite-member-dialog";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	activeOrganizationAtom,
 	isLoadingOrganizationsAtom,
-} from "@/stores/jotai/organizationsAtoms";
+} from"@/stores/jotai/organizationsAtoms";
 
 type HeaderActionButton = {
 	text: string;
@@ -41,51 +41,51 @@ type PageInfo = {
 
 const PAGE_INFO_MAP: Record<string, PageInfo> = {
 	"/organizations": {
-		title: "Organizations",
-		description: "Manage your organizations and team collaboration",
+		title:"Organizations",
+		description:"Manage your organizations and team collaboration",
 		icon: BuildingsIcon,
 	},
 	"/organizations/members": {
-		title: "Team Members",
-		description: "Manage team members and their roles",
+		title:"Team Members",
+		description:"Manage team members and their roles",
 		icon: UsersIcon,
 		requiresOrg: true,
 	},
 	"/organizations/invitations": {
-		title: "Pending Invitations",
-		description: "View and manage pending team invitations",
+		title:"Pending Invitations",
+		description:"View and manage pending team invitations",
 		icon: EnvelopeIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings": {
-		title: "General Settings",
-		description: "Manage organization name, slug, and basic settings",
+		title:"General Settings",
+		description:"Manage organization name, slug, and basic settings",
 		icon: GearIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/websites": {
-		title: "Website Management",
-		description: "Manage websites associated with this organization",
+		title:"Website Management",
+		description:"Manage websites associated with this organization",
 		icon: GlobeIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/api-keys": {
-		title: "API Keys",
-		description: "Create and manage API keys for this organization",
+		title:"API Keys",
+		description:"Create and manage API keys for this organization",
 		icon: KeyIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/danger": {
-		title: "Danger Zone",
-		description: "Irreversible and destructive actions",
+		title:"Danger Zone",
+		description:"Irreversible and destructive actions",
 		icon: WarningIcon,
 		requiresOrg: true,
 	},
 };
 
 const DEFAULT_PAGE_INFO: PageInfo = {
-	title: "Organizations",
-	description: "Manage your organizations and team collaboration",
+	title:"Organizations",
+	description:"Manage your organizations and team collaboration",
 	icon: BuildingsIcon,
 };
 
@@ -117,7 +117,7 @@ export function OrganizationProvider({
 					<div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:gap-0 sm:px-6 sm:py-6">
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-3 sm:gap-4">
-								<div className="rounded border border-accent bg-accent/50 p-2 sm:p-3">
+								<div className=" border border-accent bg-accent/50 p-2 sm:p-3">
 									<Skeleton className="size-5 sm:size-6" />
 								</div>
 								<div>
@@ -146,7 +146,7 @@ export function OrganizationProvider({
 					right={
 						actionButton && (
 							<Button
-								className="w-full rounded text-xs sm:w-auto sm:text-sm"
+								className="w-full text-xs sm:w-auto sm:text-sm"
 								disabled={actionButton.disabled}
 								onClick={actionButton.action}
 								size="sm"
@@ -166,7 +166,7 @@ export function OrganizationProvider({
 
 				<EmptyState
 					action={{
-						label: "Create Organization",
+						label:"Create Organization",
 						onClick: () => setShowCreateDialog(true),
 					}}
 					description="This feature requires an active organization."
@@ -186,7 +186,7 @@ export function OrganizationProvider({
 				right={
 					actionButton && (
 						<Button
-							className="w-full rounded text-xs sm:w-auto sm:text-sm"
+							className="w-full text-xs sm:w-auto sm:text-sm"
 							disabled={actionButton.disabled}
 							onClick={actionButton.action}
 							size="sm"

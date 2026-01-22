@@ -1,8 +1,8 @@
-import { BugIcon } from "@phosphor-icons/react/dist/ssr/Bug";
-import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
-import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
-import { Badge } from "@/components/ui/badge";
-import type { ErrorType } from "./types";
+import { BugIcon } from"@phosphor-icons/react/dist/ssr/Bug";
+import { UsersIcon } from"@phosphor-icons/react/dist/ssr/Users";
+import { WarningCircleIcon } from"@phosphor-icons/react/dist/ssr/WarningCircle";
+import { Badge } from"@/components/ui/badge";
+import type { ErrorType } from"./types";
 
 interface TopErrorCardProps {
 	topError: ErrorType | null;
@@ -11,9 +11,9 @@ interface TopErrorCardProps {
 export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 	if (!topError) {
 		return (
-			<div className="flex flex-1 flex-col rounded border bg-card">
+			<div className="flex flex-1 flex-col border bg-card">
 				<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="flex size-8 items-center justify-center rounded bg-accent">
+					<div className="flex size-8 items-center justify-center bg-accent">
 						<BugIcon
 							className="size-4 text-muted-foreground"
 							weight="duotone"
@@ -36,9 +36,9 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 	}
 
 	return (
-		<div className="flex flex-1 flex-col rounded border bg-card">
+		<div className="flex flex-1 flex-col border bg-card">
 			<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-				<div className="flex size-8 items-center justify-center rounded bg-destructive/10">
+				<div className="flex size-8 items-center justify-center bg-destructive/10">
 					<BugIcon className="size-4 text-destructive" weight="duotone" />
 				</div>
 				<div className="min-w-0 flex-1">
@@ -67,7 +67,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 			</div>
 
 			<div className="grid grid-cols-2 gap-2 border-t bg-accent/30 p-3">
-				<div className="flex items-center gap-2 rounded border bg-card p-2">
+				<div className="flex items-center gap-2 border bg-card p-2">
 					<WarningCircleIcon
 						className="size-4 shrink-0 text-destructive"
 						weight="duotone"
@@ -79,7 +79,7 @@ export const TopErrorCard = ({ topError }: TopErrorCardProps) => {
 						<div className="text-[10px] text-muted-foreground">occurrences</div>
 					</div>
 				</div>
-				<div className="flex items-center gap-2 rounded border bg-card p-2">
+				<div className="flex items-center gap-2 border bg-card p-2">
 					<UsersIcon
 						className="size-4 shrink-0 text-chart-2"
 						weight="duotone"

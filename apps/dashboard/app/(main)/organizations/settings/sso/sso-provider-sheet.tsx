@@ -6,13 +6,13 @@ import {
 	FingerprintIcon,
 	GlobeIcon,
 	LockKeyIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
 	Sheet,
 	SheetBody,
@@ -21,11 +21,11 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
-import { generateProviderId, useSSO } from "./use-sso";
+} from"@/components/ui/sheet";
+import { Textarea } from"@/components/ui/textarea";
+import { generateProviderId, useSSO } from"./use-sso";
 
-type ProviderType = "oidc" | "saml";
+type ProviderType ="oidc" |"saml";
 
 type SSOProviderSheetProps = {
 	open: boolean;
@@ -46,15 +46,15 @@ type FormState = {
 };
 
 const INITIAL_FORM: FormState = {
-	providerName: "",
-	domain: "",
-	issuer: "",
-	clientId: "",
-	clientSecret: "",
-	discoveryEndpoint: "",
-	entryPoint: "",
-	certificate: "",
-	idpMetadata: "",
+	providerName:"",
+	domain:"",
+	issuer:"",
+	clientId:"",
+	clientSecret:"",
+	discoveryEndpoint:"",
+	entryPoint:"",
+	certificate:"",
+	idpMetadata:"",
 };
 
 function ProtocolSelector({
@@ -65,12 +65,12 @@ function ProtocolSelector({
 	onChange: (type: ProviderType) => void;
 }) {
 	const protocols = [
-		{ type: "oidc" as const, label: "OIDC / OAuth2", icon: LockKeyIcon },
+		{ type:"oidc" as const, label:"OIDC / OAuth2", icon: LockKeyIcon },
 		{
-			type: "saml" as const,
-			label: "SAML 2.0",
+			type:"saml" as const,
+			label:"SAML 2.0",
 			icon: FingerprintIcon,
-			badge: "Beta",
+			badge:"Beta",
 		},
 	];
 
@@ -80,10 +80,10 @@ function ProtocolSelector({
 			<div className="grid grid-cols-2 gap-2">
 				{protocols.map(({ type, label, icon: Icon, badge }) => (
 					<button
-						className={`flex flex-col items-center gap-1.5 rounded border p-3 ${
+						className={`flex flex-col items-center gap-1.5 border p-3 ${
 							value === type
-								? "border-primary bg-primary/5"
-								: "hover:border-muted-foreground/50"
+								?"border-primary bg-primary/5"
+								:"hover:border-muted-foreground/50"
 						}`}
 						key={type}
 						onClick={() => onChange(type)}
@@ -91,7 +91,7 @@ function ProtocolSelector({
 					>
 						<Icon
 							className={
-								value === type ? "text-primary" : "text-muted-foreground"
+								value === type ?"text-primary" :"text-muted-foreground"
 							}
 							size={20}
 							weight="duotone"
@@ -268,7 +268,7 @@ function SAMLConfigFields({
 					className="font-mono text-xs"
 					id="idp-metadata"
 					onChange={(e) => onChange({ idpMetadata: e.target.value })}
-					placeholder="&lt;md:EntityDescriptor xmlns:md=&quot;urn:oasis:names:tc:SAML:2.0:metadata&quot;&gt;&#10;  ...&#10;&lt;/md:EntityDescriptor&gt;"
+					placeholder="&lt;md:EntityDescriptor xmlns:md=&quot;urn:oasis:names:tc:SAML:2.0:metadata&quot;&gt;&#10; ...&#10;&lt;/md:EntityDescriptor&gt;"
 					rows={5}
 					value={form.idpMetadata}
 				/>
@@ -286,16 +286,16 @@ function ProtocolConfigSection({
 	form: FormState;
 	onChange: (updates: Partial<FormState>) => void;
 }) {
-	const Icon = type === "oidc" ? LockKeyIcon : FingerprintIcon;
-	const title = type === "oidc" ? "OIDC Configuration" : "SAML Configuration";
+	const Icon = type ==="oidc" ? LockKeyIcon : FingerprintIcon;
+	const title = type ==="oidc" ?"OIDC Configuration" :"SAML Configuration";
 
 	return (
-		<section className="rounded border bg-card p-4">
+		<section className=" border bg-card p-4">
 			<div className="mb-3 flex items-center gap-2">
 				<Icon className="text-muted-foreground" size={16} weight="duotone" />
 				<span className="font-medium text-sm">{title}</span>
 			</div>
-			{type === "oidc" ? (
+			{type ==="oidc" ? (
 				<OIDCConfigFields form={form} onChange={onChange} />
 			) : (
 				<SAMLConfigFields form={form} onChange={onChange} />
@@ -306,9 +306,9 @@ function ProtocolConfigSection({
 
 function ServiceProviderInfo({ providerId }: { providerId?: string }) {
 	const baseUrl =
-		typeof window !== "undefined"
+		typeof window !=="undefined"
 			? window.location.origin
-			: "https://app.databuddy.cc";
+			:"https://app.databuddy.cc";
 	const acsUrl = providerId
 		? `${baseUrl}/api/auth/sso/saml2/sp/acs/${providerId}`
 		: `${baseUrl}/api/auth/sso/saml2/sp/acs/[providerId]`;
@@ -317,7 +317,7 @@ function ServiceProviderInfo({ providerId }: { providerId?: string }) {
 		: `${baseUrl}/api/auth/sso/saml2/sp/metadata/[providerId]`;
 
 	return (
-		<section className="rounded border bg-card p-4">
+		<section className=" border bg-card p-4">
 			<div className="mb-3 flex items-center gap-2">
 				<GlobeIcon
 					className="text-muted-foreground"
@@ -329,13 +329,13 @@ function ServiceProviderInfo({ providerId }: { providerId?: string }) {
 			<div className="space-y-2.5 text-sm">
 				<div className="flex flex-col gap-1">
 					<span className="text-foreground">Single Sign-on URL (ACS)</span>
-					<code className="break-all rounded bg-muted px-2 py-1 text-xs">
+					<code className="break-all bg-muted px-2 py-1 text-xs">
 						{acsUrl}
 					</code>
 				</div>
 				<div className="flex flex-col gap-1">
 					<span className="text-foreground">Audience URI (SP Entity ID)</span>
-					<code className="break-all rounded bg-muted px-2 py-1 text-xs">
+					<code className="break-all bg-muted px-2 py-1 text-xs">
 						{metadataUrl}
 					</code>
 				</div>
@@ -381,7 +381,7 @@ export function SSOProviderSheet({
 				return;
 			}
 
-			if (providerType === "oidc") {
+			if (providerType ==="oidc") {
 				const hasClientId = form.clientId.trim();
 				const hasClientSecret = form.clientSecret.trim();
 				if (!(hasClientId && hasClientSecret)) {
@@ -390,7 +390,7 @@ export function SSOProviderSheet({
 				}
 			}
 
-			if (providerType === "saml") {
+			if (providerType ==="saml") {
 				if (!form.entryPoint.trim()) {
 					toast.error("SSO URL (Entry Point) is required for SAML");
 					return;
@@ -403,12 +403,12 @@ export function SSOProviderSheet({
 
 			const providerId = generateProviderId(form.providerName);
 			const baseUrl =
-				typeof window !== "undefined"
+				typeof window !=="undefined"
 					? window.location.origin
-					: "https://app.databuddy.cc";
+					:"https://app.databuddy.cc";
 
 			const payload =
-				providerType === "oidc"
+				providerType ==="oidc"
 					? {
 							providerId,
 							issuer: form.issuer,
@@ -418,14 +418,14 @@ export function SSOProviderSheet({
 								clientId: form.clientId,
 								clientSecret: form.clientSecret,
 								discoveryEndpoint: form.discoveryEndpoint || undefined,
-								scopes: ["openid", "email", "profile"],
+								scopes: ["openid","email","profile"],
 								pkce: true,
 								mapping: {
-									id: "sub",
-									email: "email",
-									emailVerified: "email_verified",
-									name: "name",
-									image: "picture",
+									id:"sub",
+									email:"email",
+									emailVerified:"email_verified",
+									name:"name",
+									image:"picture",
 								},
 							},
 						}
@@ -442,8 +442,8 @@ export function SSOProviderSheet({
 								callbackUrl: `${baseUrl}/api/auth/sso/saml2/sp/acs/${providerId}`,
 								audience: `${baseUrl}/api/auth/sso/saml2/sp/metadata/${providerId}`,
 								wantAssertionsSigned: true,
-								signatureAlgorithm: "sha256",
-								digestAlgorithm: "sha256",
+								signatureAlgorithm:"sha256",
+								digestAlgorithm:"sha256",
 								identifierFormat:
 									"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 								spMetadata: {
@@ -453,10 +453,10 @@ export function SSOProviderSheet({
 									? { metadata: form.idpMetadata }
 									: undefined,
 								mapping: {
-									id: "nameID",
-									email: "email",
-									name: "displayName",
-									emailVerified: "email_verified",
+									id:"nameID",
+									email:"email",
+									name:"displayName",
+									emailVerified:"email_verified",
 								},
 							},
 						};
@@ -469,7 +469,7 @@ export function SSOProviderSheet({
 			toast.error(
 				err instanceof Error
 					? err.message
-					: "Failed to create SSO provider. Please check your configuration."
+					:"Failed to create SSO provider. Please check your configuration."
 			);
 		}
 	};
@@ -479,7 +479,7 @@ export function SSOProviderSheet({
 			<SheetContent className="sm:max-w-md" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-secondary-brighter">
+						<div className="flex size-11 items-center justify-center border bg-secondary-brighter">
 							<FingerprintIcon
 								className="text-accent-foreground"
 								size={22}
@@ -503,7 +503,7 @@ export function SSOProviderSheet({
 						onChange={updateForm}
 						type={providerType}
 					/>
-					{providerType === "saml" && (
+					{providerType ==="saml" && (
 						<ServiceProviderInfo
 							providerId={generateProviderId(form.providerName) || undefined}
 						/>

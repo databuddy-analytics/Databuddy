@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	CaretDownIcon,
 	CheckCircleIcon,
@@ -10,13 +10,13 @@ import {
 	KeyIcon,
 	ShieldCheckIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { setPasswordForOAuthUser } from "@/app/actions/users";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useMutation } from"@tanstack/react-query";
+import { QRCodeSVG } from"qrcode.react";
+import { useCallback, useEffect, useMemo, useState } from"react";
+import { toast } from"sonner";
+import { setPasswordForOAuthUser } from"@/app/actions/users";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -24,23 +24,23 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from"@/components/ui/dialog";
+import { Input } from"@/components/ui/input";
 import {
 	InputOTP,
 	InputOTPGroup,
 	InputOTPSlot,
-} from "@/components/ui/input-otp";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/input-otp";
+import { Label } from"@/components/ui/label";
+import { cn } from"@/lib/utils";
 
 type TwoFactorStep =
-	| "set-password"
-	| "password"
-	| "setup"
-	| "verify"
-	| "backup"
-	| "manage";
+	|"set-password"
+	|"password"
+	|"setup"
+	|"verify"
+	|"backup"
+	|"manage";
 
 type TwoFactorDialogProps = {
 	open: boolean;
@@ -55,7 +55,7 @@ const TOTP_SECRET_REGEX = /secret=([A-Z2-7]+)/i;
 
 function extractSecretFromTotpUri(uri: string): string {
 	const match = uri.match(TOTP_SECRET_REGEX);
-	return match?.[1] ?? "";
+	return match?.[1] ??"";
 }
 
 export function TwoFactorDialog({
@@ -68,12 +68,12 @@ export function TwoFactorDialog({
 	// Determine initial step based on current state
 	const initialStep = useMemo((): TwoFactorStep => {
 		if (isEnabled) {
-			return "manage";
+			return"manage";
 		}
 		if (!hasCredentialAccount) {
-			return "set-password";
+			return"set-password";
 		}
-		return "password";
+		return"password";
 	}, [isEnabled, hasCredentialAccount]);
 
 	const [step, setStep] = useState<TwoFactorStep>(initialStep);
@@ -238,34 +238,34 @@ export function TwoFactorDialog({
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>
-						{step === "set-password" && "Set Up a Password"}
-						{step === "password" && "Enable Two-Factor Authentication"}
-						{step === "setup" && "Set Up Authenticator"}
-						{step === "verify" && "Verify Your Setup"}
-						{step === "backup" && "Save Your Backup Codes"}
-						{step === "manage" && "Manage Two-Factor Authentication"}
+						{step ==="set-password" &&"Set Up a Password"}
+						{step ==="password" &&"Enable Two-Factor Authentication"}
+						{step ==="setup" &&"Set Up Authenticator"}
+						{step ==="verify" &&"Verify Your Setup"}
+						{step ==="backup" &&"Save Your Backup Codes"}
+						{step ==="manage" &&"Manage Two-Factor Authentication"}
 					</DialogTitle>
 					<DialogDescription>
-						{step === "set-password" &&
+						{step ==="set-password" &&
 							"You signed up with a social account. Create a password to enable 2FA."}
-						{step === "password" &&
+						{step ==="password" &&
 							"Enter your password to begin setting up 2FA."}
-						{step === "setup" &&
+						{step ==="setup" &&
 							"Link your account to an authenticator app for extra security."}
-						{step === "verify" &&
+						{step ==="verify" &&
 							"Confirm your authenticator is set up correctly."}
-						{step === "backup" &&
+						{step ==="backup" &&
 							"Store these codes safely. Each can only be used once."}
-						{step === "manage" &&
+						{step ==="manage" &&
 							"Manage your two-factor authentication settings."}
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="py-4">
-					{step === "set-password" && (
+					{step ==="set-password" && (
 						<div className="space-y-4">
-							<div className="flex items-center gap-3 rounded border bg-blue-500/10 p-4">
-								<div className="flex size-10 items-center justify-center rounded-full bg-blue-500/20">
+							<div className="flex items-center gap-3 border bg-blue-500/10 p-4">
+								<div className="flex size-10 items-center justify-center bg-blue-500/20">
 									<KeyIcon
 										className="size-5 text-blue-600 dark:text-blue-400"
 										weight="duotone"
@@ -306,7 +306,7 @@ export function TwoFactorDialog({
 					)}
 
 					{/* Step: Password */}
-					{step === "password" && (
+					{step ==="password" && (
 						<div className="space-y-4">
 							<div className="space-y-2">
 								<Label htmlFor="2fa-password">Password</Label>
@@ -323,11 +323,11 @@ export function TwoFactorDialog({
 					)}
 
 					{/* Step: Setup with QR Code */}
-					{step === "setup" && (
+					{step ==="setup" && (
 						<div className="space-y-5">
 							{/* Step 1: Install app */}
 							<div className="flex items-start gap-3">
-								<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+								<div className="flex size-6 shrink-0 items-center justify-center bg-primary font-medium text-primary-foreground text-xs">
 									1
 								</div>
 								<div className="flex-1 space-y-1">
@@ -342,7 +342,7 @@ export function TwoFactorDialog({
 
 							{/* Step 2: Scan QR */}
 							<div className="flex items-start gap-3">
-								<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+								<div className="flex size-6 shrink-0 items-center justify-center bg-primary font-medium text-primary-foreground text-xs">
 									2
 								</div>
 								<div className="flex-1 space-y-3">
@@ -354,7 +354,7 @@ export function TwoFactorDialog({
 									</div>
 
 									<div className="flex justify-center">
-										<div className="rounded-lg border-2 border-dashed bg-white p-3">
+										<div className=" border-2 border-dashed bg-white p-3">
 											<QRCodeSVG
 												bgColor="transparent"
 												fgColor="#000"
@@ -382,13 +382,13 @@ export function TwoFactorDialog({
 											<CaretDownIcon
 												className={cn(
 													"size-3 text-muted-foreground transition-transform",
-													showSecret && "rotate-180"
+													showSecret &&"rotate-180"
 												)}
 											/>
 										</button>
 
 										{showSecret && (
-											<div className="rounded border bg-accent/50 p-3">
+											<div className=" border bg-accent/50 p-3">
 												<p className="mb-1.5 text-muted-foreground text-xs">
 													Secret key
 												</p>
@@ -413,9 +413,9 @@ export function TwoFactorDialog({
 					)}
 
 					{/* Step: Verify */}
-					{step === "verify" && (
+					{step ==="verify" && (
 						<div className="flex flex-col items-center space-y-6">
-							<div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
+							<div className="flex size-14 items-center justify-center bg-primary/10">
 								<ShieldCheckIcon
 									className="size-7 text-primary"
 									weight="duotone"
@@ -452,13 +452,13 @@ export function TwoFactorDialog({
 					)}
 
 					{/* Step: Backup Codes */}
-					{step === "backup" && (
+					{step ==="backup" && (
 						<div className="space-y-4">
-							<div className="rounded border bg-accent/30 p-4">
+							<div className=" border bg-accent/30 p-4">
 								<div className="grid grid-cols-2 gap-2">
 									{backupCodes.map((code, i) => (
 										<code
-											className="rounded bg-background px-2 py-1 text-center font-mono text-sm"
+											className=" bg-background px-2 py-1 text-center font-mono text-sm"
 											key={i}
 										>
 											{code}
@@ -467,7 +467,7 @@ export function TwoFactorDialog({
 								</div>
 							</div>
 
-							<div className="flex items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400">
+							<div className="flex items-center gap-2 border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400">
 								<WarningCircleIcon className="size-5 shrink-0" />
 								<p className="text-xs">
 									Store these codes in a safe place. Each code can only be used
@@ -479,10 +479,10 @@ export function TwoFactorDialog({
 					)}
 
 					{/* Step: Manage */}
-					{step === "manage" && (
+					{step ==="manage" && (
 						<div className="space-y-4">
-							<div className="flex items-center gap-3 rounded border bg-green-500/10 p-4">
-								<div className="flex size-10 items-center justify-center rounded-full bg-green-500/20">
+							<div className="flex items-center gap-3 border bg-green-500/10 p-4">
+								<div className="flex size-10 items-center justify-center bg-green-500/20">
 									<ShieldCheckIcon
 										className="size-5 text-green-600 dark:text-green-400"
 										weight="duotone"
@@ -511,7 +511,7 @@ export function TwoFactorDialog({
 							</div>
 
 							{backupCodes.length > 0 && (
-								<div className="rounded border bg-accent/30 p-4">
+								<div className=" border bg-accent/30 p-4">
 									<div className="mb-2 flex items-center justify-between">
 										<p className="font-medium text-sm">Backup Codes</p>
 										<Button
@@ -529,7 +529,7 @@ export function TwoFactorDialog({
 									<div className="grid grid-cols-2 gap-2">
 										{backupCodes.map((code, i) => (
 											<code
-												className="rounded bg-background px-2 py-1 text-center font-mono text-sm"
+												className=" bg-background px-2 py-1 text-center font-mono text-sm"
 												key={i}
 											>
 												{code}
@@ -543,7 +543,7 @@ export function TwoFactorDialog({
 				</div>
 
 				<DialogFooter className="gap-2 sm:gap-2">
-					{step === "set-password" && (
+					{step ==="set-password" && (
 						<>
 							<Button onClick={() => onOpenChange(false)} variant="outline">
 								Cancel
@@ -560,7 +560,7 @@ export function TwoFactorDialog({
 						</>
 					)}
 
-					{step === "password" && (
+					{step ==="password" && (
 						<>
 							<Button onClick={() => onOpenChange(false)} variant="outline">
 								Cancel
@@ -577,7 +577,7 @@ export function TwoFactorDialog({
 						</>
 					)}
 
-					{step === "setup" && (
+					{step ==="setup" && (
 						<>
 							<Button onClick={() => setStep("password")} variant="outline">
 								Back
@@ -588,7 +588,7 @@ export function TwoFactorDialog({
 						</>
 					)}
 
-					{step === "verify" && (
+					{step ==="verify" && (
 						<>
 							<Button onClick={() => setStep("setup")} variant="outline">
 								Back
@@ -605,7 +605,7 @@ export function TwoFactorDialog({
 						</>
 					)}
 
-					{step === "backup" && (
+					{step ==="backup" && (
 						<>
 							<Button
 								className="flex-1"
@@ -630,7 +630,7 @@ export function TwoFactorDialog({
 						</>
 					)}
 
-					{step === "manage" && (
+					{step ==="manage" && (
 						<>
 							<Button
 								disabled={!password || isPending}

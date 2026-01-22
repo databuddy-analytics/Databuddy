@@ -1,11 +1,11 @@
-import type { DateRange, ProfileData } from "@databuddy/shared/types/analytics";
+import type { DateRange, ProfileData } from"@databuddy/shared/types/analytics";
 import type {
 	DynamicQueryFilter,
 	DynamicQueryResponse,
-} from "@databuddy/shared/types/api";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+} from"@databuddy/shared/types/api";
+import type { UseQueryOptions } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useDynamicQuery } from"@/hooks/use-dynamic-query";
 
 function dedupeProfiles(profiles: ProfileData[]): ProfileData[] {
 	const seen = new Set<string>();
@@ -30,7 +30,7 @@ export function useProfilesData(
 		websiteId,
 		dateRange,
 		{
-			id: "profiles-list",
+			id:"profiles-list",
 			parameters: ["profile_list"],
 			limit,
 			page,

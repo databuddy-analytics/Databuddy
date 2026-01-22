@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from"@/lib/utils";
 
 type TabConfig<TData> = {
 	id: string;
@@ -37,8 +37,8 @@ export function TableTabs<TData>({
 							className={cn(
 								"cursor-pointer border-b-2 px-3 py-2 text-sm transition-all duration-100 hover:text-foreground",
 								isActive
-									? "border-foreground text-foreground"
-									: "border-transparent text-muted-foreground"
+									?"border-foreground text-foreground"
+									:"border-transparent text-muted-foreground"
 							)}
 							key={tab.id}
 							onClick={() => onTabChange(tab.id)}
@@ -48,7 +48,7 @@ export function TableTabs<TData>({
 							{tab.label}
 							{itemCount > 0 && (
 								<span className="ml-1 text-xs opacity-60">
-									({itemCount > 999 ? "999+" : itemCount})
+									({itemCount > 999 ?"999+" : itemCount})
 								</span>
 							)}
 						</button>

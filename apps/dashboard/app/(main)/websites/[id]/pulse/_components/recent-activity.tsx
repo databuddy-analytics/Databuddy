@@ -4,9 +4,9 @@ import {
 	CheckCircleIcon,
 	WarningCircleIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { Badge } from "@/components/ui/badge";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { Badge } from"@/components/ui/badge";
 import {
 	Table,
 	TableBody,
@@ -14,8 +14,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/table";
+import { cn } from"@/lib/utils";
 
 interface Check {
 	timestamp: string;
@@ -45,7 +45,7 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 					<div className="space-y-4">
 						{[...new Array(5)].map((_, i) => (
 							<div
-								className="h-10 w-full animate-pulse rounded bg-muted"
+								className="h-10 w-full animate-pulse bg-muted"
 								key={i}
 							/>
 						))}
@@ -109,10 +109,10 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 											<div className="flex flex-col">
 												<span className="font-medium text-sm">
 													{check.status === 1
-														? "Operational"
+														?"Operational"
 														: check.status === 2
-															? "Pending"
-															: "Downtime"}
+															?"Pending"
+															:"Downtime"}
 												</span>
 												{check.status !== 1 && check.error && (
 													<span className="max-w-[150px] truncate text-destructive text-xs">
@@ -127,20 +127,20 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 									</TableCell>
 									<TableCell className="text-center text-muted-foreground text-xs">
 										<Badge className="font-mono text-[10px]" variant="outline">
-											{check.probe_region || "Global"}
+											{check.probe_region ||"Global"}
 										</Badge>
 									</TableCell>
 									<TableCell className="text-center font-mono text-muted-foreground text-xs">
-										{check.probe_ip || "—"}
+										{check.probe_ip ||"—"}
 									</TableCell>
 									<TableCell className="text-center font-mono text-xs">
 										<span
 											className={cn(
-												check.total_ms < 200 && "text-emerald-600",
+												check.total_ms < 200 &&"text-emerald-600",
 												check.total_ms >= 200 &&
 													check.total_ms < 500 &&
 													"text-amber-600",
-												check.total_ms >= 500 && "text-red-600"
+												check.total_ms >= 500 &&"text-red-600"
 											)}
 										>
 											{Math.round(check.total_ms)}ms

@@ -5,10 +5,10 @@ import {
 	MagnifyingGlassIcon,
 	SortAscendingIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useCallback, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import { useDebouncedValue } from"@tanstack/react-pacer";
+import { useCallback, useMemo, useState } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,11 +17,11 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import type { Link } from "@/hooks/use-links";
+} from"@/components/ui/dropdown-menu";
+import { Input } from"@/components/ui/input";
+import type { Link } from"@/hooks/use-links";
 
-type SortOption = "newest" | "oldest" | "name-asc" | "name-desc";
+type SortOption ="newest" |"oldest" |"name-asc" |"name-desc";
 
 interface LinksSearchBarProps {
 	links: Link[];
@@ -55,22 +55,22 @@ export function LinksSearchBar({
 
 		// Sort
 		switch (sortBy) {
-			case "newest":
+			case"newest":
 				result.sort(
 					(a, b) =>
 						new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
 				);
 				break;
-			case "oldest":
+			case"oldest":
 				result.sort(
 					(a, b) =>
 						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 				);
 				break;
-			case "name-asc":
+			case"name-asc":
 				result.sort((a, b) => a.name.localeCompare(b.name));
 				break;
-			case "name-desc":
+			case"name-desc":
 				result.sort((a, b) => b.name.localeCompare(a.name));
 				break;
 		}
@@ -89,18 +89,18 @@ export function LinksSearchBar({
 
 	const getSortLabel = (option: SortOption): string => {
 		switch (option) {
-			case "newest":
-				return "Newest first";
-			case "oldest":
-				return "Oldest first";
-			case "name-asc":
-				return "Name (A-Z)";
-			case "name-desc":
-				return "Name (Z-A)";
+			case"newest":
+				return"Newest first";
+			case"oldest":
+				return"Oldest first";
+			case"name-asc":
+				return"Name (A-Z)";
+			case"name-desc":
+				return"Name (Z-A)";
 		}
 	};
 
-	const hasActiveFilters = searchQuery.trim() !== "" || sortBy !== "newest";
+	const hasActiveFilters = searchQuery.trim() !=="" || sortBy !=="newest";
 
 	return (
 		<div className="flex items-center gap-2 border-b px-4 py-3">
@@ -131,7 +131,7 @@ export function LinksSearchBar({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
-						className={sortBy !== "newest" ? "border-primary/50" : ""}
+						className={sortBy !=="newest" ?"border-primary/50" :""}
 						size="sm"
 						variant="outline"
 					>

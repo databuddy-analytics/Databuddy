@@ -1,9 +1,9 @@
 "use client";
 
-import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr/ChartBar";
-import { ListBulletsIcon } from "@phosphor-icons/react/dist/ssr/ListBullets";
-import { useParams } from "next/navigation";
-import { PageNavigation } from "@/components/layout/page-navigation";
+import { ChartBarIcon } from"@phosphor-icons/react/dist/ssr/ChartBar";
+import { ListBulletsIcon } from"@phosphor-icons/react/dist/ssr/ListBullets";
+import { useParams } from"next/navigation";
+import { PageNavigation } from"@/components/layout/page-navigation";
 
 export default function EventsLayout({
 	children,
@@ -22,7 +22,7 @@ export default function EventsLayout({
 			<div className="flex h-full min-h-0 flex-col">
 				<PageNavigation
 					breadcrumb={{
-						label: "Events",
+						label:"Events",
 						href: `/websites/${websiteId}/events`,
 					}}
 					currentPage={decodedEventName}
@@ -40,14 +40,14 @@ export default function EventsLayout({
 			<PageNavigation
 				tabs={[
 					{
-						id: "summary",
-						label: "Summary",
+						id:"summary",
+						label:"Summary",
 						href: `/websites/${websiteId}/events`,
 						icon: ChartBarIcon,
 					},
 					{
-						id: "stream",
-						label: "Stream",
+						id:"stream",
+						label:"Stream",
 						href: `/websites/${websiteId}/events/stream`,
 						icon: ListBulletsIcon,
 					},

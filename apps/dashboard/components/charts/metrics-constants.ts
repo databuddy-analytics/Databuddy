@@ -8,8 +8,8 @@ import {
 	TrendingUp,
 	Users,
 	Zap,
-} from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+} from"lucide-react";
+import { formatDuration } from"@/lib/utils";
 
 const createColorSet = (
 	primary: string,
@@ -167,13 +167,13 @@ export type MetricConfig = {
 	yAxisId: string;
 	icon: React.ComponentType<{ className?: string }>;
 	formatValue?: (value: number, row: ChartDataRow) => string;
-	category?: "analytics" | "performance" | "core_web_vitals";
+	category?:"analytics" |"performance" |"core_web_vitals";
 };
 
 // Utility functions
 export const formatPerformanceTime = (value: number): string => {
 	if (!value || value === 0) {
-		return "N/A";
+		return"N/A";
 	}
 	if (value < 1000) {
 		return `${Math.round(value)}ms`;
@@ -186,7 +186,7 @@ export const formatPerformanceTime = (value: number): string => {
 
 export const formatCLS = (value: number): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "N/A";
+		return"N/A";
 	}
 	return value.toFixed(3);
 };
@@ -197,26 +197,26 @@ const createMetric = (
 	colorKey: keyof typeof METRIC_COLORS,
 	icon: React.ComponentType<{ className?: string }>,
 	formatValue?: (value: number, row: ChartDataRow) => string,
-	category: "analytics" | "performance" | "core_web_vitals" = "analytics"
+	category:"analytics" |"performance" |"core_web_vitals" ="analytics"
 ): MetricConfig => ({
 	key,
 	label,
 	color: METRIC_COLORS[colorKey].primary,
 	gradient: colorKey,
-	yAxisId: "left",
+	yAxisId:"left",
 	icon,
 	formatValue,
 	category,
 });
 
 export const ANALYTICS_METRICS: MetricConfig[] = [
-	createMetric("pageviews", "Pageviews", "pageviews", Eye, (value) =>
+	createMetric("pageviews","Pageviews","pageviews", Eye, (value) =>
 		value.toLocaleString()
 	),
-	createMetric("sessions", "Sessions", "sessions", TrendingUp, (value) =>
+	createMetric("sessions","Sessions","sessions", TrendingUp, (value) =>
 		value.toLocaleString()
 	),
-	createMetric("visitors", "Visitors", "visitors", Users, (value) =>
+	createMetric("visitors","Visitors","visitors", Users, (value) =>
 		value.toLocaleString()
 	),
 	createMetric(
@@ -232,7 +232,7 @@ export const ANALYTICS_METRICS: MetricConfig[] = [
 		"session_duration",
 		TrendingUp,
 		(value, row) =>
-			typeof row.median_session_duration_formatted === "string"
+			typeof row.median_session_duration_formatted ==="string"
 				? row.median_session_duration_formatted
 				: formatDuration(value)
 	),
@@ -348,7 +348,7 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 
 // Error metrics
 export const ERROR_METRICS: MetricConfig[] = [
-	createMetric("total_errors", "Total Errors", "bounce_rate", Bug, (value) =>
+	createMetric("total_errors","Total Errors","bounce_rate", Bug, (value) =>
 		value.toLocaleString()
 	),
 	createMetric(

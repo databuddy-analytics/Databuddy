@@ -1,8 +1,8 @@
 "use client";
 
-import { HeartbeatIcon } from "@phosphor-icons/react";
-import { EmptyState } from "@/components/empty-state";
-import { MonitorRow } from "@/components/monitors/monitor-row";
+import { HeartbeatIcon } from"@phosphor-icons/react";
+import { EmptyState } from"@/components/empty-state";
+import { MonitorRow } from"@/components/monitors/monitor-row";
 
 export interface Monitor {
 	id: string;
@@ -21,7 +21,7 @@ export interface Monitor {
 	} | null;
 	jsonParsingConfig?: {
 		enabled: boolean;
-		mode: "auto" | "manual";
+		mode:"auto" |"manual";
 		fields?: string[];
 	} | null;
 }
@@ -52,7 +52,7 @@ export function MonitorsList({
 			<div className="flex flex-1 items-center justify-center py-16">
 				<EmptyState
 					action={{
-						label: "Create Your First Monitor",
+						label:"Create Your First Monitor",
 						onClick: onCreateMonitorAction,
 					}}
 					description="Create your first uptime monitor to start tracking availability and receive alerts when services go down."

@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowCounterClockwise";
-import { BugIcon } from "@phosphor-icons/react/dist/ssr/Bug";
-import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+import { ArrowCounterClockwiseIcon } from"@phosphor-icons/react/dist/ssr/ArrowCounterClockwise";
+import { BugIcon } from"@phosphor-icons/react/dist/ssr/Bug";
+import dynamic from"next/dynamic";
+import { useCallback, useState } from"react";
 import {
 	Area,
 	CartesianGrid,
@@ -12,12 +12,12 @@ import {
 	Tooltip,
 	XAxis,
 	YAxis,
-} from "recharts";
-import { METRIC_COLORS, METRICS } from "@/components/charts/metrics-constants";
-import { TableEmptyState } from "@/components/table/table-empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ErrorChartTooltip } from "./error-chart-tooltip";
+} from"recharts";
+import { METRIC_COLORS, METRICS } from"@/components/charts/metrics-constants";
+import { TableEmptyState } from"@/components/table/table-empty-state";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { ErrorChartTooltip } from"./error-chart-tooltip";
 
 const ResponsiveContainer = dynamic(
 	() => import("recharts").then((mod) => mod.ResponsiveContainer),
@@ -112,9 +112,9 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 
 	if (!errorChartData.length) {
 		return (
-			<div className="flex h-full flex-col rounded border bg-card">
+			<div className="flex h-full flex-col border bg-card">
 				<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="flex size-8 items-center justify-center rounded bg-accent">
+					<div className="flex size-8 items-center justify-center bg-accent">
 						<BugIcon
 							className="size-4 text-muted-foreground"
 							weight="duotone"
@@ -138,8 +138,8 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		);
 	}
 
-	const totalErrorsMetric = METRICS.find((m) => m.key === "total_errors");
-	const affectedUsersMetric = METRICS.find((m) => m.key === "affected_users");
+	const totalErrorsMetric = METRICS.find((m) => m.key ==="total_errors");
+	const affectedUsersMetric = METRICS.find((m) => m.key ==="affected_users");
 
 	const totalErrorsColor =
 		totalErrorsMetric?.color || METRIC_COLORS.bounce_rate.primary;
@@ -147,10 +147,10 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		affectedUsersMetric?.color || METRIC_COLORS.session_duration.primary;
 
 	return (
-		<div className="flex h-full flex-col rounded border bg-card">
+		<div className="flex h-full flex-col border bg-card">
 			<div className="flex flex-col items-start justify-between gap-2 border-b px-3 py-2.5 sm:flex-row sm:items-center sm:px-4 sm:py-3">
 				<div className="flex items-center gap-3">
-					<div className="flex size-8 items-center justify-center rounded bg-destructive/10">
+					<div className="flex size-8 items-center justify-center bg-destructive/10">
 						<BugIcon className="size-4 text-destructive" weight="duotone" />
 					</div>
 					<div className="min-w-0">
@@ -203,11 +203,11 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 				<div
 					className="relative select-none"
 					style={{
-						width: "100%",
+						width:"100%",
 						height: 260,
 						minWidth: 300,
-						userSelect: refAreaLeft ? "none" : "auto",
-						WebkitUserSelect: refAreaLeft ? "none" : "auto",
+						userSelect: refAreaLeft ?"none" :"auto",
+						WebkitUserSelect: refAreaLeft ?"none" :"auto",
 					}}
 				>
 					<ResponsiveContainer height="100%" width="100%">
@@ -271,12 +271,12 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 								axisLine={false}
 								dataKey="date"
 								dy={5}
-								tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 10, fill:"var(--muted-foreground)" }}
 								tickLine={false}
 							/>
 							<YAxis
 								axisLine={false}
-								tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+								tick={{ fontSize: 10, fill:"var(--muted-foreground)" }}
 								tickFormatter={(value) => {
 									if (value >= 1_000_000) {
 										return `${(value / 1_000_000).toFixed(1)}M`;
@@ -291,14 +291,14 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 							/>
 							<Tooltip
 								content={<ErrorChartTooltip />}
-								wrapperStyle={{ outline: "none" }}
+								wrapperStyle={{ outline:"none" }}
 							/>
 							<Legend
 								iconSize={8}
 								iconType="circle"
 								wrapperStyle={{
-									fontSize: "10px",
-									paddingTop: "5px",
+									fontSize:"10px",
+									paddingTop:"5px",
 									bottom: displayData.length > 5 ? 20 : 0,
 								}}
 							/>

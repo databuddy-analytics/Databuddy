@@ -4,29 +4,29 @@ import {
 	type GatedFeatureId,
 	getPlanFeatureLimit,
 	isWithinLimit,
-} from "@databuddy/shared/types/features";
-import type { IconProps } from "@phosphor-icons/react";
+} from"@databuddy/shared/types/features";
+import type { IconProps } from"@phosphor-icons/react";
 import {
 	ArrowClockwiseIcon,
 	ArrowLeftIcon,
 	BookIcon,
 	PlusIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { cloneElement, type ReactNode } from "react";
-import { useBillingContext } from "@/components/providers/billing-provider";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { cloneElement, type ReactNode } from"react";
+import { useBillingContext } from"@/components/providers/billing-provider";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/tooltip";
+import { cn } from"@/lib/utils";
 
 interface WebsitePageHeaderProps {
 	title: string;
@@ -49,7 +49,7 @@ interface WebsitePageHeaderProps {
 	subtitle?: string | ReactNode;
 
 	showBackButton?: boolean;
-	variant?: "default" | "minimal";
+	variant?:"default" |"minimal";
 
 	additionalActions?: ReactNode;
 
@@ -71,10 +71,10 @@ export function WebsitePageHeader({
 	errorMessage,
 	onRefreshAction,
 	onCreateAction,
-	createActionLabel = "Create",
+	createActionLabel ="Create",
 	subtitle,
 	showBackButton = false,
-	variant = "default",
+	variant ="default",
 	additionalActions,
 	docsUrl,
 	feature,
@@ -84,7 +84,7 @@ export function WebsitePageHeader({
 
 	// Calculate usage badge
 	const showUsageBadge =
-		feature && typeof currentUsage === "number" && !isLoading;
+		feature && typeof currentUsage ==="number" && !isLoading;
 	const limit = showUsageBadge
 		? getPlanFeatureLimit(currentPlanId, feature)
 		: null;
@@ -94,20 +94,20 @@ export function WebsitePageHeader({
 			: true;
 
 	const getUsageBadgeColor = () => {
-		if (!showUsageBadge || limit === "unlimited" || limit === false) {
+		if (!showUsageBadge || limit ==="unlimited" || limit === false) {
 			return null;
 		}
-		if (typeof currentUsage !== "number" || typeof limit !== "number") {
+		if (typeof currentUsage !=="number" || typeof limit !=="number") {
 			return null;
 		}
 		const percentUsed = (currentUsage / limit) * 100;
 		if (percentUsed >= 100) {
-			return "destructive" as const;
+			return"destructive" as const;
 		}
 		if (percentUsed >= 80) {
-			return "amber" as const;
+			return"amber" as const;
 		}
-		return "secondary" as const;
+		return"secondary" as const;
 	};
 
 	const usageBadge = showUsageBadge ? (
@@ -118,13 +118,13 @@ export function WebsitePageHeader({
 						className="cursor-help font-mono"
 						variant={
 							getUsageBadgeColor() as
-								| "default"
-								| "secondary"
-								| "destructive"
-								| "outline"
-								| "green"
-								| "amber"
-								| "gray"
+								|"default"
+								|"secondary"
+								|"destructive"
+								|"outline"
+								|"green"
+								|"amber"
+								|"gray"
 								| null
 								| undefined
 						}
@@ -132,22 +132,22 @@ export function WebsitePageHeader({
 						{!withinLimit && (
 							<WarningIcon className="mr-1 size-3" weight="fill" />
 						)}
-						{currentUsage} /{" "}
-						{limit === "unlimited"
-							? "∞"
+						{currentUsage} /{""}
+						{limit ==="unlimited"
+							?"∞"
 							: limit === false
-								? "—"
-								: typeof limit === "number"
+								?"—"
+								: typeof limit ==="number"
 									? limit.toLocaleString()
-									: "0"}
+									:"0"}
 					</Badge>
 				</TooltipTrigger>
 				<TooltipContent>
-					{limit === "unlimited" ? (
+					{limit ==="unlimited" ? (
 						<p>Unlimited on your current plan</p>
-					) : withinLimit && typeof limit === "number" ? (
+					) : withinLimit && typeof limit ==="number" ? (
 						<p className="max-w-xs">
-							You've created {currentUsage} out of {limit.toLocaleString()}{" "}
+							You've created {currentUsage} out of {limit.toLocaleString()}{""}
 							available on your current plan.
 							{currentUsage / limit >= 0.8 && (
 								<>
@@ -162,13 +162,13 @@ export function WebsitePageHeader({
 						<p className="max-w-xs">
 							<span className="font-semibold text-red-600">Limit reached!</span>
 							<br />
-							You've used all{" "}
-							{typeof limit === "number" ? limit.toLocaleString() : "available"}{" "}
+							You've used all{""}
+							{typeof limit ==="number" ? limit.toLocaleString() :"available"}{""}
 							slots.
 							<br />
 							<a className="underline" href="/billing">
 								Upgrade your plan
-							</a>{" "}
+							</a>{""}
 							to create more.
 						</p>
 					)}
@@ -188,7 +188,7 @@ export function WebsitePageHeader({
 		}
 
 		if (subtitle) {
-			return typeof subtitle === "string" ? (
+			return typeof subtitle ==="string" ? (
 				<p className="h-5 truncate text-muted-foreground text-sm sm:h-6 sm:text-base">
 					{subtitle}
 				</p>
@@ -208,7 +208,7 @@ export function WebsitePageHeader({
 		return null;
 	};
 
-	if (variant === "minimal") {
+	if (variant ==="minimal") {
 		return (
 			<div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
 				<div className="flex items-center gap-3">
@@ -221,7 +221,7 @@ export function WebsitePageHeader({
 								</Link>
 							</Button>
 						) : null}
-						<div className="rounded border border-primary/10 bg-primary/5 p-3">
+						<div className=" border border-primary/10 bg-primary/5 p-3">
 							{icon}
 						</div>
 					</div>
@@ -255,7 +255,7 @@ export function WebsitePageHeader({
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={isRefreshing ?"animate-spin" :""}
 								size={16}
 							/>
 							<span className="xs:inline hidden">Refresh</span>
@@ -280,16 +280,16 @@ export function WebsitePageHeader({
 								</Link>
 							</Button>
 						) : null}
-						<div className="rounded-lg border border-accent-foreground/10 bg-secondary p-2.5">
+						<div className=" border border-accent-foreground/10 bg-secondary p-2.5">
 							{cloneElement(icon, {
 								...icon.props,
 								className: cn(
 									"size-5 text-accent-foreground",
 									icon.props.className
 								),
-								"aria-hidden": "true",
+								"aria-hidden":"true",
 								size: 24,
-								weight: "fill",
+								weight:"fill",
 							})}
 						</div>
 						<div>
@@ -324,7 +324,7 @@ export function WebsitePageHeader({
 							variant="secondary"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={isRefreshing ?"animate-spin" :""}
 								size={16}
 							/>
 							Refresh Data
@@ -344,10 +344,10 @@ export function WebsitePageHeader({
 								{!withinLimit && (
 									<TooltipContent>
 										<p>
-											You've reached your limit of{" "}
-											{typeof limit === "number"
+											You've reached your limit of{""}
+											{typeof limit ==="number"
 												? limit.toLocaleString()
-												: "available"}
+												:"available"}
 											.
 											<br />
 											<a className="underline" href="/billing">
@@ -366,10 +366,10 @@ export function WebsitePageHeader({
 
 			{hasError ? (
 				<div className="px-3 pt-4 sm:px-4">
-					<Card className="rounded border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+					<Card className=" border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
 						<CardContent className="pt-6">
 							<div className="flex flex-col items-center space-y-3 text-center">
-								<div className="rounded-full border border-destructive/10 bg-destructive/5 p-3">
+								<div className=" border border-destructive/10 bg-destructive/5 p-3">
 									{icon}
 								</div>
 								<div>
@@ -383,7 +383,7 @@ export function WebsitePageHeader({
 								</div>
 								{onRefreshAction ? (
 									<Button
-										className="cursor-pointer select-none gap-2 rounded transition-all duration-300 hover:border-primary/20 hover:bg-primary/10"
+										className="cursor-pointer select-none gap-2 transition-all duration-300 hover:border-primary/20 hover:bg-primary/10"
 										onClick={onRefreshAction}
 										size="sm"
 										variant="outline"
@@ -408,16 +408,16 @@ export function WebsitePageHeaderSkeleton() {
 				<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 					<div className="space-y-2">
 						<div className="flex items-center gap-3">
-							<div className="size-12 animate-pulse rounded bg-muted" />
+							<div className="size-12 animate-pulse bg-muted" />
 							<div>
-								<div className="mb-2 h-8 w-48 animate-pulse rounded bg-muted" />
-								<div className="h-4 w-64 animate-pulse rounded bg-muted" />
+								<div className="mb-2 h-8 w-48 animate-pulse bg-muted" />
+								<div className="h-4 w-64 animate-pulse bg-muted" />
 							</div>
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						<div className="h-10 w-32 animate-pulse rounded bg-muted" />
-						<div className="h-10 w-36 animate-pulse rounded bg-muted" />
+						<div className="h-10 w-32 animate-pulse bg-muted" />
+						<div className="h-10 w-36 animate-pulse bg-muted" />
 					</div>
 				</div>
 			</div>

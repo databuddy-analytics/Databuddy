@@ -1,6 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	AndroidLogoIcon,
 	AppleLogoIcon,
@@ -10,14 +10,14 @@ import {
 	DeviceMobileIcon,
 	LinkIcon,
 	QrCodeIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { type SubmitHandler, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { Button } from "@/components/ui/button";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useCallback, useMemo, useRef, useState } from"react";
+import { type SubmitHandler, useForm } from"react-hook-form";
+import { toast } from"sonner";
+import { z } from"zod";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { Button } from"@/components/ui/button";
 import {
 	Form,
 	FormControl,
@@ -26,9 +26,9 @@ import {
 	FormItem,
 	FormLabel,
 	FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@/components/ui/form";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
 	Sheet,
 	SheetBody,
@@ -37,21 +37,21 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type Link, useCreateLink, useUpdateLink } from "@/hooks/use-links";
-import { AdvancedOptions } from "./advanced-options";
-import { LinkQrCode } from "./link-qr-code";
-import { type OgData, OgPreview } from "./og-preview";
+} from"@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from"@/components/ui/tabs";
+import { type Link, useCreateLink, useUpdateLink } from"@/hooks/use-links";
+import { AdvancedOptions } from"./advanced-options";
+import { LinkQrCode } from"./link-qr-code";
+import { type OgData, OgPreview } from"./og-preview";
 import {
 	appendUtmToUrl,
 	parseUtmFromUrl,
 	stripUtmFromUrl,
 	UtmBuilder,
 	type UtmParams,
-} from "./utm-builder";
+} from"./utm-builder";
 
-const LINKS_BASE_URL = "dby.sh";
+const LINKS_BASE_URL ="dby.sh";
 
 const slugRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -59,11 +59,11 @@ const formSchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, "Name is required")
-		.max(255, "Name must be less than 255 characters"),
+		.min(1,"Name is required")
+		.max(255,"Name must be less than 255 characters"),
 	targetUrl: z
 		.string()
-		.min(1, "Target URL is required")
+		.min(1,"Target URL is required")
 		.refine(
 			(val) => {
 				const urlToTest =
@@ -72,22 +72,22 @@ const formSchema = z.object({
 						: `https://${val}`;
 				try {
 					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
+					return url.protocol ==="http:" || url.protocol ==="https:";
 				} catch {
 					return false;
 				}
 			},
-			{ message: "Please enter a valid URL" }
+			{ message:"Please enter a valid URL" }
 		),
 	slug: z
 		.string()
 		.trim()
-		.max(50, "Slug must be less than 50 characters")
-		.refine((val) => val === "" || val.length >= 3, {
-			message: "Slug must be at least 3 characters",
+		.max(50,"Slug must be less than 50 characters")
+		.refine((val) => val ==="" || val.length >= 3, {
+			message:"Slug must be at least 3 characters",
 		})
-		.refine((val) => val === "" || slugRegex.test(val), {
-			message: "Only letters, numbers, hyphens, and underscores",
+		.refine((val) => val ==="" || slugRegex.test(val), {
+			message:"Only letters, numbers, hyphens, and underscores",
 		})
 		.optional()
 		.or(z.literal("")),
@@ -98,18 +98,18 @@ const formSchema = z.object({
 		.or(z.literal(""))
 		.refine(
 			(val) => {
-				if (!val || val === "") {
+				if (!val || val ==="") {
 					return true;
 				}
 				try {
 					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
 					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
+					return url.protocol ==="http:" || url.protocol ==="https:";
 				} catch {
 					return false;
 				}
 			},
-			{ message: "Please enter a valid URL" }
+			{ message:"Please enter a valid URL" }
 		),
 	iosUrl: z
 		.string()
@@ -117,18 +117,18 @@ const formSchema = z.object({
 		.or(z.literal(""))
 		.refine(
 			(val) => {
-				if (!val || val === "") {
+				if (!val || val ==="") {
 					return true;
 				}
 				try {
 					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
 					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
+					return url.protocol ==="http:" || url.protocol ==="https:";
 				} catch {
 					return false;
 				}
 			},
-			{ message: "Please enter a valid URL" }
+			{ message:"Please enter a valid URL" }
 		),
 	androidUrl: z
 		.string()
@@ -136,36 +136,36 @@ const formSchema = z.object({
 		.or(z.literal(""))
 		.refine(
 			(val) => {
-				if (!val || val === "") {
+				if (!val || val ==="") {
 					return true;
 				}
 				try {
 					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
 					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
+					return url.protocol ==="http:" || url.protocol ==="https:";
 				} catch {
 					return false;
 				}
 			},
-			{ message: "Please enter a valid URL" }
+			{ message:"Please enter a valid URL" }
 		),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 const DEFAULT_UTM_PARAMS: UtmParams = {
-	utm_source: "",
-	utm_medium: "",
-	utm_campaign: "",
-	utm_content: "",
-	utm_term: "",
+	utm_source:"",
+	utm_medium:"",
+	utm_campaign:"",
+	utm_content:"",
+	utm_term:"",
 };
 
 const DEFAULT_OG_DATA: OgData = {
-	ogTitle: "",
-	ogDescription: "",
-	ogImageUrl: "",
-	ogVideoUrl: "",
+	ogTitle:"",
+	ogDescription:"",
+	ogImageUrl:"",
+	ogVideoUrl:"",
 };
 
 interface LinkSheetProps {
@@ -196,15 +196,15 @@ export function LinkSheet({
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		mode: "onChange",
+		mode:"onChange",
 		defaultValues: {
-			name: "",
-			targetUrl: "",
-			slug: "",
-			expiresAt: "",
-			expiredRedirectUrl: "",
-			iosUrl: "",
-			androidUrl: "",
+			name:"",
+			targetUrl:"",
+			slug:"",
+			expiresAt:"",
+			expiredRedirectUrl:"",
+			iosUrl:"",
+			androidUrl:"",
 		},
 	});
 
@@ -230,10 +230,10 @@ export function LinkSheet({
 					linkData.ogTitle ?? linkData.ogDescription ?? linkData.ogImageUrl;
 				setUseCustomOg(!!hasCustomOg);
 				setOgData({
-					ogTitle: linkData.ogTitle ?? "",
-					ogDescription: linkData.ogDescription ?? "",
-					ogImageUrl: linkData.ogImageUrl ?? "",
-					ogVideoUrl: linkData.ogVideoUrl ?? "",
+					ogTitle: linkData.ogTitle ??"",
+					ogDescription: linkData.ogDescription ??"",
+					ogImageUrl: linkData.ogImageUrl ??"",
+					ogVideoUrl: linkData.ogVideoUrl ??"",
 				});
 
 				form.reset({
@@ -242,20 +242,20 @@ export function LinkSheet({
 					slug: linkData.slug,
 					expiresAt: linkData.expiresAt
 						? dayjs(linkData.expiresAt).format("YYYY-MM-DDTHH:mm")
-						: "",
-					expiredRedirectUrl: linkData.expiredRedirectUrl ?? "",
-					iosUrl: linkData.iosUrl ?? "",
-					androidUrl: linkData.androidUrl ?? "",
+						:"",
+					expiredRedirectUrl: linkData.expiredRedirectUrl ??"",
+					iosUrl: linkData.iosUrl ??"",
+					androidUrl: linkData.androidUrl ??"",
 				});
 			} else {
 				form.reset({
-					name: "",
-					targetUrl: "",
-					slug: "",
-					expiresAt: "",
-					expiredRedirectUrl: "",
-					iosUrl: "",
-					androidUrl: "",
+					name:"",
+					targetUrl:"",
+					slug:"",
+					expiresAt:"",
+					expiredRedirectUrl:"",
+					iosUrl:"",
+					androidUrl:"",
 				});
 				setUtmParams(DEFAULT_UTM_PARAMS);
 				setOgData(DEFAULT_OG_DATA);
@@ -288,7 +288,7 @@ export function LinkSheet({
 	// Compute full target URL with protocol for OG preview
 	const fullTargetUrl = useMemo(() => {
 		if (!targetUrlValue) {
-			return "";
+			return"";
 		}
 		return targetUrlValue.startsWith("http")
 			? targetUrlValue
@@ -296,7 +296,7 @@ export function LinkSheet({
 	}, [targetUrlValue]);
 
 	const getErrorMessage = (error: unknown, isEditingMode: boolean): string => {
-		const defaultMessage = `Failed to ${isEditingMode ? "update" : "create"} link.`;
+		const defaultMessage = `Failed to ${isEditingMode ?"update" :"create"} link.`;
 
 		const rpcError = error as {
 			data?: { code?: string };
@@ -305,18 +305,18 @@ export function LinkSheet({
 
 		if (rpcError?.data?.code) {
 			switch (rpcError.data.code) {
-				case "CONFLICT":
-					return "A link with this slug already exists.";
-				case "FORBIDDEN":
+				case"CONFLICT":
+					return"A link with this slug already exists.";
+				case"FORBIDDEN":
 					return (
 						rpcError.message ||
 						"You do not have permission to perform this action."
 					);
-				case "UNAUTHORIZED":
-					return "You must be logged in to perform this action.";
-				case "BAD_REQUEST":
+				case"UNAUTHORIZED":
+					return"You must be logged in to perform this action.";
+				case"BAD_REQUEST":
 					return (
-						rpcError.message || "Invalid request. Please check your input."
+						rpcError.message ||"Invalid request. Please check your input."
 					);
 				default:
 					return rpcError.message || defaultMessage;
@@ -520,7 +520,7 @@ export function LinkSheet({
 								prefix={`${LINKS_BASE_URL}/`}
 								{...field}
 								onChange={(e) => {
-									const value = e.target.value.replace(/\s/g, "-");
+									const value = e.target.value.replace(/\s/g,"-");
 									field.onChange(value);
 								}}
 							/>
@@ -694,17 +694,17 @@ export function LinkSheet({
 			<SheetContent className="sm:max-w-xl" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
+						<div className="flex size-11 items-center justify-center border bg-secondary">
 							<LinkIcon className="text-primary" size={20} weight="duotone" />
 						</div>
 						<div>
 							<SheetTitle className="text-lg">
-								{isEditing ? "Edit Link" : "Create Link"}
+								{isEditing ?"Edit Link" :"Create Link"}
 							</SheetTitle>
 							<SheetDescription>
 								{isEditing
 									? `Editing ${link?.name || link?.slug}`
-									: "Create a short link to track clicks and analytics"}
+									:"Create a short link to track clicks and analytics"}
 							</SheetDescription>
 						</div>
 					</div>
@@ -748,7 +748,7 @@ export function LinkSheet({
 											<span className="font-medium text-foreground text-sm">
 												Short URL
 											</span>
-											<div className="flex items-center gap-2 rounded border bg-muted/50 px-3 py-2.5">
+											<div className="flex items-center gap-2 border bg-muted/50 px-3 py-2.5">
 												<span className="flex-1 truncate font-mono text-sm">
 													{LINKS_BASE_URL}/{link.slug}
 												</span>

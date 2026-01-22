@@ -5,12 +5,12 @@ import {
 	TargetIcon,
 	UsersIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useMemo, useRef, useState } from "react";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { FunnelAnalyticsByReferrerResult } from "@/hooks/use-funnels";
-import { cn } from "@/lib/utils";
+} from"@phosphor-icons/react";
+import { useMemo, useRef, useState } from"react";
+import { FaviconImage } from"@/components/analytics/favicon-image";
+import { Skeleton } from"@/components/ui/skeleton";
+import type { FunnelAnalyticsByReferrerResult } from"@/hooks/use-funnels";
+import { cn } from"@/lib/utils";
 
 interface FunnelAnalyticsByReferrerProps {
 	onReferrerChange?: (referrer: string) => void;
@@ -41,11 +41,11 @@ function SourceCard({
 	return (
 		<button
 			className={cn(
-				"group flex shrink-0 flex-col gap-2 rounded border p-3 text-left transition-all",
+				"group flex shrink-0 flex-col gap-2 border p-3 text-left transition-all",
 				"min-w-[140px] max-w-[180px]",
 				isSelected
-					? "border-chart-2 bg-chart-2/10"
-					: "border-border bg-card hover:border-border hover:bg-secondary/50"
+					?"border-chart-2 bg-chart-2/10"
+					:"border-border bg-card hover:border-border hover:bg-secondary/50"
 			)}
 			onClick={onClick}
 			type="button"
@@ -55,7 +55,7 @@ function SourceCard({
 					<div
 						className={cn(
 							"flex size-5 items-center justify-center",
-							isSelected ? "text-chart-2" : "text-muted-foreground"
+							isSelected ?"text-chart-2" :"text-muted-foreground"
 						)}
 					>
 						<GlobeIcon className="size-5" weight="duotone" />
@@ -63,12 +63,12 @@ function SourceCard({
 				) : (
 					<FaviconImage
 						className="shrink-0"
-						domain={domain || ""}
+						domain={domain ||""}
 						fallbackIcon={
 							<GlobeIcon
 								className={cn(
 									"size-5",
-									isSelected ? "text-chart-2" : "text-muted-foreground"
+									isSelected ?"text-chart-2" :"text-muted-foreground"
 								)}
 								weight="duotone"
 							/>
@@ -79,7 +79,7 @@ function SourceCard({
 				<span
 					className={cn(
 						"truncate font-medium text-sm",
-						isSelected ? "text-chart-2" : "text-foreground"
+						isSelected ?"text-chart-2" :"text-foreground"
 					)}
 				>
 					{label}
@@ -95,7 +95,7 @@ function SourceCard({
 					<div
 						className={cn(
 							"flex items-center gap-1 text-xs",
-							isSelected ? "text-chart-2" : "text-success"
+							isSelected ?"text-chart-2" :"text-success"
 						)}
 					>
 						<TargetIcon className="size-3" weight="fill" />
@@ -113,11 +113,11 @@ function SourcesSkeleton() {
 			<div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
 				{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
 					<div
-						className="flex min-w-[140px] max-w-[180px] shrink-0 flex-col gap-2 rounded border border-border bg-card p-3"
+						className="flex min-w-[140px] max-w-[180px] shrink-0 flex-col gap-2 border border-border bg-card p-3"
 						key={i}
 					>
 						<div className="flex items-center gap-2">
-							<Skeleton className="size-5 rounded" />
+							<Skeleton className="size-5" />
 							<Skeleton className="h-4 w-16" />
 						</div>
 						<div className="flex items-center justify-between">
@@ -212,8 +212,8 @@ export function FunnelAnalyticsByReferrer({
 		let totalCompleted = 0;
 
 		for (const r of data.referrer_analytics) {
-			const domain = r.referrer_parsed?.domain?.toLowerCase() || "direct";
-			const label = r.referrer_parsed?.name || domain || "Direct";
+			const domain = r.referrer_parsed?.domain?.toLowerCase() ||"direct";
+			const label = r.referrer_parsed?.name || domain ||"Direct";
 
 			if (!grouped.has(domain)) {
 				grouped.set(domain, {
@@ -258,7 +258,7 @@ export function FunnelAnalyticsByReferrer({
 
 	if (error) {
 		return (
-			<div className="flex items-center gap-2 rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+			<div className="flex items-center gap-2 border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
 				<WarningCircleIcon className="size-4 text-destructive" weight="fill" />
 				<span className="text-destructive">Failed to load traffic sources</span>
 			</div>
@@ -286,7 +286,7 @@ export function FunnelAnalyticsByReferrer({
 				<SourceCard
 					conversionRate={avgConversionRate}
 					isAll
-					isSelected={selectedReferrer === "all"}
+					isSelected={selectedReferrer ==="all"}
 					label="All Sources"
 					onClick={() => handleChange("all")}
 					users={totalUsers}

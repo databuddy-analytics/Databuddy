@@ -1,46 +1,46 @@
 "use client";
 
-import type { Variant } from "@databuddy/shared/flags";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { LineSlider } from "@/components/ui/line-slider";
+import type { Variant } from"@databuddy/shared/flags";
+import { PlusIcon } from"@phosphor-icons/react/dist/ssr/Plus";
+import { TrashIcon } from"@phosphor-icons/react/dist/ssr/Trash";
+import { useEffect, useState } from"react";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { LineSlider } from"@/components/ui/line-slider";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import type { VariantEditorProps } from "./types";
+} from"@/components/ui/select";
+import type { VariantEditorProps } from"./types";
 
 export function VariantEditor({
 	variants,
 	onChangeAction,
 }: VariantEditorProps) {
 	const [defaultValueType, setDefaultValueType] = useState<
-		"string" | "number" | "json"
+		"string" |"number" |"json"
 	>("string");
 
 	useEffect(() => {
 		if (variants.length === 0) {
 			onChangeAction([
 				{
-					key: "control",
-					value: "control",
+					key:"control",
+					value:"control",
 					weight: 50,
-					description: "Control group",
-					type: "string",
+					description:"Control group",
+					type:"string",
 				},
 				{
-					key: "variant-a",
-					value: "variant-a",
+					key:"variant-a",
+					value:"variant-a",
 					weight: 50,
-					description: "Variant A",
-					type: "string",
+					description:"Variant A",
+					type:"string",
 				},
 			]);
 		}
@@ -49,9 +49,9 @@ export function VariantEditor({
 	const handleAddVariant = () => {
 		const newVariant: Variant = {
 			key: `variant-${variants.length + 1}`,
-			value: defaultValueType === "number" ? 0 : "",
+			value: defaultValueType ==="number" ? 0 :"",
 			weight: undefined,
-			description: "",
+			description:"",
 			type: defaultValueType,
 		};
 
@@ -71,14 +71,14 @@ export function VariantEditor({
 	) => {
 		const newVariants = [...variants];
 
-		if (field === "value") {
-			const variantType = newVariants[index].type || "string";
-			if (variantType === "number") {
+		if (field ==="value") {
+			const variantType = newVariants[index].type ||"string";
+			if (variantType ==="number") {
 				newVariants[index] = {
 					...newVariants[index],
 					[field]: Number(value) || 0,
 				};
-			} else if (variantType === "json") {
+			} else if (variantType ==="json") {
 				try {
 					const parsed = JSON.parse(value);
 					newVariants[index] = { ...newVariants[index], [field]: parsed };
@@ -88,19 +88,19 @@ export function VariantEditor({
 			} else {
 				newVariants[index] = { ...newVariants[index], [field]: value };
 			}
-		} else if (field === "type") {
-			const newType = value as "string" | "number" | "json";
+		} else if (field ==="type") {
+			const newType = value as"string" |"number" |"json";
 			let coercedValue: any = newVariants[index].value;
 			switch (newType) {
-				case "number":
+				case"number":
 					coercedValue = Number(coercedValue) || 0;
 					break;
-				case "json":
-				case "string":
-					coercedValue = "";
+				case"json":
+				case"string":
+					coercedValue ="";
 					break;
 				default:
-					coercedValue = "";
+					coercedValue ="";
 					break;
 			}
 
@@ -116,7 +116,7 @@ export function VariantEditor({
 		onChangeAction(newVariants);
 	};
 
-	const weightedVariants = variants.filter((v) => typeof v.weight === "number");
+	const weightedVariants = variants.filter((v) => typeof v.weight ==="number");
 	const totalWeight = weightedVariants.reduce(
 		(sum, v) => sum + (v.weight || 0),
 		0
@@ -135,7 +135,7 @@ export function VariantEditor({
 					>
 						<input
 							checked={Boolean(
-								variants.length > 0 && typeof variants[0]?.weight === "number"
+								variants.length > 0 && typeof variants[0]?.weight ==="number"
 							)}
 							id="use-weights-toggle"
 							onChange={(e) => {
@@ -153,24 +153,24 @@ export function VariantEditor({
 						<span className="text-xs">Use Weights</span>
 					</label>
 					<Select
-						onValueChange={(v: "string" | "number" | "json") => {
+						onValueChange={(v:"string" |"number" |"json") => {
 							setDefaultValueType(v);
 
 							const updatedVariants = variants.map((variant) => {
 								let coercedValue: any = variant.value;
 								switch (v) {
-									case "number":
+									case"number":
 										coercedValue = Number(coercedValue) || 0;
 										break;
-									case "json":
-									case "string":
+									case"json":
+									case"string":
 										coercedValue =
-											typeof variant.value === "object"
+											typeof variant.value ==="object"
 												? JSON.stringify(variant.value)
-												: String(variant.value || "");
+												: String(variant.value ||"");
 										break;
 									default:
-										coercedValue = "";
+										coercedValue ="";
 										break;
 								}
 								return {
@@ -208,7 +208,7 @@ export function VariantEditor({
 			<div className="space-y-3">
 				{variants.map((variant, index) => (
 					<div
-						className="space-y-3 rounded-lg border bg-card p-3 shadow-sm"
+						className="space-y-3 border bg-card p-3 shadow-sm"
 						key={index}
 					>
 						<div className="flex items-start gap-3">
@@ -218,7 +218,7 @@ export function VariantEditor({
 									<Input
 										className="h-8"
 										onChange={(e) =>
-											handleUpdateVariant(index, "key", e.target.value)
+											handleUpdateVariant(index,"key", e.target.value)
 										}
 										placeholder="e.g., control"
 										value={variant.key}
@@ -229,11 +229,11 @@ export function VariantEditor({
 									<Input
 										className="h-8"
 										onChange={(e) =>
-											handleUpdateVariant(index, "value", e.target.value)
+											handleUpdateVariant(index,"value", e.target.value)
 										}
 										placeholder="Value"
 										value={
-											typeof variant.value === "object"
+											typeof variant.value ==="object"
 												? JSON.stringify(variant.value)
 												: variant.value
 										}
@@ -253,7 +253,7 @@ export function VariantEditor({
 							</Button>
 						</div>
 
-						{typeof variant.weight === "number" && (
+						{typeof variant.weight ==="number" && (
 							<div className="space-y-1">
 								<Label className="text-xs">
 									Traffic Weight: {variant.weight}%
@@ -262,7 +262,7 @@ export function VariantEditor({
 									max={100}
 									min={0}
 									onValueChange={(val: number) =>
-										handleUpdateVariant(index, "weight", val)
+										handleUpdateVariant(index,"weight", val)
 									}
 									value={variant.weight}
 								/>
@@ -275,19 +275,19 @@ export function VariantEditor({
 			<div
 				className={`flex items-center gap-2 text-sm ${
 					totalWeight === 0
-						? "text-blue-600"
+						?"text-blue-600"
 						: isValidTotal
-							? "text-green-600"
-							: "text-amber-600"
+							?"text-green-600"
+							:"text-amber-600"
 				}`}
 			>
 				<div
-					className={`size-2 rounded-full ${
+					className={`size-2 ${
 						totalWeight === 0
-							? "bg-blue-600"
+							?"bg-blue-600"
 							: isValidTotal
-								? "bg-green-600"
-								: "bg-amber-600"
+								?"bg-green-600"
+								:"bg-amber-600"
 					}`}
 				/>
 				{totalWeight === 0 ? (
@@ -300,8 +300,8 @@ export function VariantEditor({
 					</>
 				) : (
 					<>
-						Total Weight: {totalWeight}%{" "}
-						{isValidTotal ? "(Valid)" : "(Must sum to 100%)"}
+						Total Weight: {totalWeight}%{""}
+						{isValidTotal ?"(Valid)" :"(Must sum to 100%)"}
 					</>
 				)}
 			</div>

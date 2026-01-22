@@ -7,23 +7,23 @@ import {
 	TagIcon,
 	UserIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import { useAtom } from "jotai";
-import { use, useCallback, useMemo } from "react";
-import { StatCard } from "@/components/analytics";
-import { EmptyState } from "@/components/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useChartPreferences } from "@/hooks/use-chart-preferences";
-import { useDateFilters } from "@/hooks/use-date-filters";
+} from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import { useAtom } from"jotai";
+import { use, useCallback, useMemo } from"react";
+import { StatCard } from"@/components/analytics";
+import { EmptyState } from"@/components/empty-state";
+import { Skeleton } from"@/components/ui/skeleton";
+import { useChartPreferences } from"@/hooks/use-chart-preferences";
+import { useDateFilters } from"@/hooks/use-date-filters";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
-} from "@/stores/jotai/filterAtoms";
-import { useCustomEventsData } from "../use-custom-events";
-import { classifyEventProperties } from "./classify-properties";
-import { EventsTrendChart } from "./events-trend-chart";
-import { SummaryView } from "./summary-view";
+} from"@/stores/jotai/filterAtoms";
+import { useCustomEventsData } from"../use-custom-events";
+import { classifyEventProperties } from"./classify-properties";
+import { EventsTrendChart } from"./events-trend-chart";
+import { SummaryView } from"./summary-view";
 import type {
 	CustomEventItem,
 	CustomEventsSummary,
@@ -32,7 +32,7 @@ import type {
 	PropertyClassification,
 	PropertyDistribution,
 	PropertyTopValue,
-} from "./types";
+} from"./types";
 
 interface EventsPageContentProps {
 	params: Promise<{ id: string }>;
@@ -40,20 +40,20 @@ interface EventsPageContentProps {
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "0";
+		return"0";
 	}
 	return Intl.NumberFormat(undefined, {
-		notation: "compact",
+		notation:"compact",
 		maximumFractionDigits: 1,
 	}).format(value);
 };
 
 const formatDateByGranularity = (
 	dateStr: string,
-	granularity: "hourly" | "daily"
+	granularity:"hourly" |"daily"
 ): string => {
 	const date = dayjs(dateStr);
-	if (granularity === "hourly") {
+	if (granularity ==="hourly") {
 		return date.format("MMM D HH:mm");
 	}
 	return date.format("MMM D");
@@ -79,7 +79,7 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 
 	const handleAddFilter = useCallback(
 		(eventName: string, _propertyKey: string, _value: string) => {
-			addFilter({ field: "event_name", operator: "eq", value: eventName });
+			addFilter({ field:"event_name", operator:"eq", value: eventName });
 		},
 		[addFilter]
 	);
@@ -125,7 +125,7 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 		): MiniChartDataPoint[] =>
 			trendsData.map((event) => ({
 				date:
-					dateRange.granularity === "hourly"
+					dateRange.granularity ==="hourly"
 						? event.date
 						: event.date.slice(0, 10),
 				value: (event[field] as number) ?? 0,
@@ -160,9 +160,9 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 	if (error) {
 		return (
 			<div className="p-3 sm:p-4">
-				<div className="rounded border border-destructive/20 bg-destructive/5 p-6">
+				<div className=" border border-destructive/20 bg-destructive/5 p-6">
 					<div className="flex flex-col items-center text-center">
-						<div className="mb-4 flex size-12 items-center justify-center rounded bg-destructive/10">
+						<div className="mb-4 flex size-12 items-center justify-center bg-destructive/10">
 							<LightningIcon
 								className="size-6 text-destructive"
 								weight="duotone"
@@ -186,7 +186,7 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 	return (
 		<div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
 			{showRefreshingIndicator && (
-				<div className="flex items-center justify-center gap-2 rounded border border-primary/20 bg-primary/5 py-2 text-primary text-sm">
+				<div className="flex items-center justify-center gap-2 border border-primary/20 bg-primary/5 py-2 text-primary text-sm">
 					<ArrowClockwiseIcon className="size-4 animate-spin" />
 					<span>Refreshing data…</span>
 				</div>
@@ -199,10 +199,10 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 						description={
 							<>
 								Events will appear here once your tracker starts collecting
-								them. Use{" "}
-								<code className="rounded bg-muted px-1 py-0.5 text-xs">
+								them. Use{""}
+								<code className=" bg-muted px-1 py-0.5 text-xs">
 									databuddy.track()
-								</code>{" "}
+								</code>{""}
 								to send custom events.
 							</>
 						}
@@ -281,7 +281,7 @@ export function EventsPageContent({ params }: EventsPageContentProps) {
 						isLoading={isLoading}
 					/>
 
-					<div className="rounded border bg-card">
+					<div className=" border bg-card">
 						<div className="border-b px-4 py-3">
 							<h3 className="font-medium text-foreground">Property Summary</h3>
 							<p className="text-muted-foreground text-sm">
@@ -308,10 +308,10 @@ function EventsLoadingSkeleton() {
 		<div className="space-y-3 sm:space-y-4">
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
 				{Array.from({ length: 5 }).map((_, i) => (
-					<div className="rounded border bg-card p-3 sm:p-4" key={`stat-${i}`}>
+					<div className=" border bg-card p-3 sm:p-4" key={`stat-${i}`}>
 						<div className="flex items-center justify-between">
 							<Skeleton className="h-4 w-20" />
-							<Skeleton className="size-8 rounded" />
+							<Skeleton className="size-8" />
 						</div>
 						<Skeleton className="mt-2 h-8 w-24" />
 						<Skeleton className="mt-1 h-3 w-16" />
@@ -320,7 +320,7 @@ function EventsLoadingSkeleton() {
 				))}
 			</div>
 
-			<div className="rounded border bg-card">
+			<div className=" border bg-card">
 				<div className="border-b px-4 py-3">
 					<Skeleton className="h-5 w-32" />
 					<Skeleton className="mt-1 h-3 w-24" />
@@ -328,7 +328,7 @@ function EventsLoadingSkeleton() {
 				<Skeleton className="h-[350px] w-full" />
 			</div>
 
-			<div className="rounded border bg-card">
+			<div className=" border bg-card">
 				<div className="border-b px-4 py-3">
 					<Skeleton className="h-5 w-32" />
 					<Skeleton className="mt-1 h-3 w-48" />

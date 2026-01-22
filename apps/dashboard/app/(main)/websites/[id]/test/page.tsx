@@ -1,69 +1,69 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import {
 	CalendarDotsIcon,
 	FunnelIcon,
 	PencilSimpleIcon,
 	PlusIcon,
-} from "@phosphor-icons/react";
-import { useAtomValue } from "jotai";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import type { Layout } from "react-grid-layout";
-import GridLayout, { useContainerWidth } from "react-grid-layout";
-import { StatCard } from "@/components/analytics/stat-card";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+} from"@phosphor-icons/react";
+import { useAtomValue } from"jotai";
+import { useParams } from"next/navigation";
+import { useMemo, useState } from"react";
+import type { Layout } from"react-grid-layout";
+import GridLayout, { useContainerWidth } from"react-grid-layout";
+import { StatCard } from"@/components/analytics/stat-card";
+import { Button } from"@/components/ui/button";
+import { Card } from"@/components/ui/card";
 import {
 	formattedDateRangeAtom,
 	timeGranularityAtom,
 	timezoneAtom,
-} from "@/stores/jotai/filterAtoms";
-import { CardSheet } from "./_components/add-card-sheet";
-import { useDashboardData } from "./_components/hooks/use-dashboard-data";
-import { getCategoryIcon } from "./_components/utils/category-utils";
-import type { DashboardCardConfig } from "./_components/utils/types";
+} from"@/stores/jotai/filterAtoms";
+import { CardSheet } from"./_components/add-card-sheet";
+import { useDashboardData } from"./_components/hooks/use-dashboard-data";
+import { getCategoryIcon } from"./_components/utils/category-utils";
+import type { DashboardCardConfig } from"./_components/utils/types";
 
 const GRID_COLS = 4;
 const GRID_ROW_HEIGHT = 140;
 
 const DEFAULT_CARDS: DashboardCardConfig[] = [
 	{
-		id: "pageviews",
-		type: "card",
-		queryType: "summary_metrics",
-		field: "pageviews",
-		label: "Pageviews",
-		displayMode: "text",
-		category: "Analytics",
+		id:"pageviews",
+		type:"card",
+		queryType:"summary_metrics",
+		field:"pageviews",
+		label:"Pageviews",
+		displayMode:"text",
+		category:"Analytics",
 	},
 	{
-		id: "visitors",
-		type: "card",
-		queryType: "summary_metrics",
-		field: "unique_visitors",
-		label: "Unique Visitors",
-		displayMode: "text",
-		category: "Analytics",
+		id:"visitors",
+		type:"card",
+		queryType:"summary_metrics",
+		field:"unique_visitors",
+		label:"Unique Visitors",
+		displayMode:"text",
+		category:"Analytics",
 	},
 	{
-		id: "sessions",
-		type: "card",
-		queryType: "summary_metrics",
-		field: "sessions",
-		label: "Sessions",
-		displayMode: "text",
-		category: "Analytics",
+		id:"sessions",
+		type:"card",
+		queryType:"summary_metrics",
+		field:"sessions",
+		label:"Sessions",
+		displayMode:"text",
+		category:"Analytics",
 	},
 	{
-		id: "bounce-rate",
-		type: "card",
-		queryType: "summary_metrics",
-		field: "bounce_rate",
-		label: "Bounce Rate",
-		displayMode: "text",
-		category: "Analytics",
+		id:"bounce-rate",
+		type:"card",
+		queryType:"summary_metrics",
+		field:"bounce_rate",
+		label:"Bounce Rate",
+		displayMode:"text",
+		category:"Analytics",
 	},
 ];
 
@@ -153,7 +153,7 @@ export default function TestPage() {
 				<div>
 					<h1 className="font-semibold text-lg">Custom Dashboard</h1>
 					<p className="text-muted-foreground text-sm">
-						{cards.length} card{cards.length !== 1 ? "s" : ""}
+						{cards.length} card{cards.length !== 1 ?"s" :""}
 					</p>
 				</div>
 				<Button onClick={handleOpenAddSheet} size="sm" variant="outline">
@@ -165,7 +165,7 @@ export default function TestPage() {
 			<div ref={containerRef}>
 				{width > 0 && (
 					<GridLayout
-						dragConfig={{ handle: ".drag-handle" }}
+						dragConfig={{ handle:".drag-handle" }}
 						gridConfig={{
 							cols: GRID_COLS,
 							rowHeight: GRID_ROW_HEIGHT,
@@ -178,21 +178,21 @@ export default function TestPage() {
 					>
 						{cards.map((card) => {
 							const hasCustomDateRange =
-								card.dateRangePreset && card.dateRangePreset !== "global";
+								card.dateRangePreset && card.dateRangePreset !=="global";
 							const hasFilters = card.filters && card.filters.length > 0;
 							return (
 								<div className="group/card relative" key={card.id}>
 									<div className="drag-handle h-full cursor-grab">
 										<StatCard
 											chartData={
-												card.displayMode === "chart"
+												card.displayMode ==="chart"
 													? getChartData(card.id, card.queryType, card.field)
 													: undefined
 											}
 											chartType="area"
 											className="h-full"
 											displayMode={card.displayMode}
-											icon={getCategoryIcon(card.category || "Other")}
+											icon={getCategoryIcon(card.category ||"Other")}
 											id={card.id}
 											isLoading={isLoading || isFetching}
 											title={card.title || card.label}
@@ -201,17 +201,17 @@ export default function TestPage() {
 									</div>
 									<div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/card:opacity-100">
 										{hasCustomDateRange && (
-											<div className="flex size-6 items-center justify-center rounded bg-primary/10">
+											<div className="flex size-6 items-center justify-center bg-primary/10">
 												<CalendarDotsIcon className="size-3 text-primary" />
 											</div>
 										)}
 										{hasFilters && (
-											<div className="flex size-6 items-center justify-center rounded bg-primary/10">
+											<div className="flex size-6 items-center justify-center bg-primary/10">
 												<FunnelIcon className="size-3 text-primary" />
 											</div>
 										)}
 										<button
-											className="flex size-7 items-center justify-center rounded bg-secondary/80 backdrop-blur-sm transition-colors hover:bg-secondary"
+											className="flex size-7 items-center justify-center bg-secondary/80 backdrop-blur-sm transition-colors hover:bg-secondary"
 											onClick={() => handleEditCard(card)}
 											type="button"
 										>
@@ -229,7 +229,7 @@ export default function TestPage() {
 					className="group mt-4 flex h-[140px] cursor-pointer flex-col items-center justify-center gap-2 border-dashed bg-transparent py-0 transition-all hover:border-primary hover:bg-accent/50"
 					onClick={handleOpenAddSheet}
 				>
-					<div className="flex size-10 items-center justify-center rounded-full bg-accent transition-colors group-hover:bg-primary/10">
+					<div className="flex size-10 items-center justify-center bg-accent transition-colors group-hover:bg-primary/10">
 						<PlusIcon className="size-5 text-muted-foreground transition-colors group-hover:text-primary" />
 					</div>
 					<span className="font-medium text-muted-foreground text-sm transition-colors group-hover:text-foreground">

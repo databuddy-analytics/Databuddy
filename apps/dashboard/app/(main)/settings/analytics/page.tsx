@@ -1,8 +1,8 @@
 "use client";
 
-import { ChartLineIcon } from "@phosphor-icons/react";
-import { RightSidebar } from "@/components/right-sidebar";
-import { SettingsSection } from "../_components/settings-section";
+import { ChartLineIcon } from"@phosphor-icons/react";
+import { RightSidebar } from"@/components/right-sidebar";
+import { SettingsSection } from"../_components/settings-section";
 
 export default function AnalyticsSettingsPage() {
 	return (

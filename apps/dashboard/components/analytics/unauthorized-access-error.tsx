@@ -1,15 +1,15 @@
 "use client";
 
-import { WarningIcon } from "@phosphor-icons/react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { WarningIcon } from"@phosphor-icons/react";
+import { useRouter } from"next/navigation";
+import { Button } from"@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
+} from"@/components/ui/card";
 
 export function UnauthorizedAccessError() {
 	const router = useRouter();
@@ -18,7 +18,7 @@ export function UnauthorizedAccessError() {
 		<Card className="mx-auto my-8 w-full max-w-lg border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/20">
 			<CardHeader className="pb-3">
 				<div className="flex items-center gap-3">
-					<div className="rounded-full bg-red-100 p-2.5 dark:bg-red-900/30">
+					<div className=" bg-red-100 p-2.5 dark:bg-red-900/30">
 						<WarningIcon
 							className="size-6 text-red-600 dark:text-red-400"
 							size={24}

@@ -1,10 +1,10 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from"@databuddy/shared/types/analytics";
 import type {
 	BatchQueryResponse,
 	DynamicQueryFilter,
-} from "@databuddy/shared/types/api";
-import type { UseQueryOptions } from "@tanstack/react-query";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+} from"@databuddy/shared/types/api";
+import type { UseQueryOptions } from"@tanstack/react-query";
+import { useBatchDynamicQuery } from"@/hooks/use-dynamic-query";
 
 export function useMapLocationData(
 	websiteId: string,
@@ -17,13 +17,13 @@ export function useMapLocationData(
 		dateRange,
 		[
 			{
-				id: "map-countries",
+				id:"map-countries",
 				parameters: ["country"],
 				limit: 100,
 				filters,
 			},
 			{
-				id: "map-regions",
+				id:"map-regions",
 				parameters: ["region"],
 				limit: 100,
 				filters,

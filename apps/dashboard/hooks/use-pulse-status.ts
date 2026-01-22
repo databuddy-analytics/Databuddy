@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+import { useQuery } from"@tanstack/react-query";
+import { useMemo } from"react";
+import { useOrganizationsContext } from"@/components/providers/organizations-provider";
+import { orpc } from"@/lib/orpc";
 
 export interface PulseStatus {
 	totalMonitors: number;

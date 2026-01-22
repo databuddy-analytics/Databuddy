@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	EyeIcon,
 	EyeSlashIcon,
@@ -8,17 +8,17 @@ import {
 	GoogleLogoIcon,
 	SparkleIcon,
 	SpinnerIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+} from"@phosphor-icons/react";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { parseAsString, useQueryState } from"nuqs";
+import { Suspense, useState } from"react";
+import { toast } from"sonner";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Separator } from"@/components/ui/separator";
 
 function LoginPage() {
 	const router = useRouter();
@@ -33,18 +33,18 @@ function LoginPage() {
 
 	const lastUsed = authClient.getLastUsedLoginMethod();
 
-	const handleSocialLogin = async (provider: "github" | "google") => {
+	const handleSocialLogin = async (provider:"github" |"google") => {
 		setIsLoading(true);
 
 		await authClient.signIn.social({
 			provider,
 			callbackURL: callback,
-			newUserCallbackURL: "/onboarding",
+			newUserCallbackURL:"/onboarding",
 			fetchOptions: {
 				onError: () => {
 					setIsLoading(false);
 					toast.error(
-						`${provider === "github" ? "GitHub" : "Google"} login failed. Please try again.`
+						`${provider ==="github" ?"GitHub" :"Google"} login failed. Please try again.`
 					);
 				},
 			},
@@ -68,7 +68,7 @@ function LoginPage() {
 				onError: (error) => {
 					setIsLoading(false);
 					if (
-						error?.error?.code === "EMAIL_NOT_VERIFIED" ||
+						error?.error?.code ==="EMAIL_NOT_VERIFIED" ||
 						error?.error?.message?.toLowerCase().includes("not verified")
 					) {
 						router.push(
@@ -109,9 +109,9 @@ function LoginPage() {
 							>
 								<GithubLogoIcon className="size-4" />
 								Sign in with GitHub
-								{lastUsed === "github" && (
+								{lastUsed ==="github" && (
 									<Badge
-										className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+										className="absolute -top-3 -right-0.5 z-10 px-1 py-0 text-[10px]"
 										variant="secondary"
 									>
 										Last used
@@ -128,9 +128,9 @@ function LoginPage() {
 							>
 								<GoogleLogoIcon className="size-4" />
 								Sign in with Google
-								{lastUsed === "google" && (
+								{lastUsed ==="google" && (
 									<Badge
-										className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+										className="absolute -top-3 -right-0.5 z-10 px-1 py-0 text-[10px]"
 										variant="secondary"
 									>
 										Last used
@@ -151,9 +151,9 @@ function LoginPage() {
 										Sign in with Magic Link
 									</Link>
 								</Button>
-								{lastUsed === "magic-link" && (
+								{lastUsed ==="magic-link" && (
 									<Badge
-										className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+										className="absolute -top-3 -right-0.5 z-10 px-1 py-0 text-[10px]"
 										variant="secondary"
 									>
 										Last used
@@ -183,9 +183,9 @@ function LoginPage() {
 									type="email"
 									value={email}
 								/>
-								{lastUsed === "email" && (
+								{lastUsed ==="email" && (
 									<Badge
-										className="absolute top-5 right-0 -translate-y-1/2 rounded-full px-1 py-0 text-[10px]"
+										className="absolute top-5 right-0 -translate-y-1/2 px-1 py-0 text-[10px]"
 										variant="secondary"
 									>
 										Last used
@@ -209,12 +209,12 @@ function LoginPage() {
 										onChange={(e) => setPassword(e.target.value)}
 										placeholder="••••••••"
 										required
-										type={showPassword ? "text" : "password"}
+										type={showPassword ?"text" :"password"}
 										value={password}
 									/>
 									<Button
 										aria-label={
-											showPassword ? "Hide password" : "Show password"
+											showPassword ?"Hide password" :"Show password"
 										}
 										className="absolute top-0 right-0 h-full px-3 text-muted-foreground hover:bg-transparent"
 										onClick={() => setShowPassword(!showPassword)}
@@ -246,7 +246,7 @@ function LoginPage() {
 			</div>
 			<div className="mt-5 flex flex-col flex-wrap items-center justify-center gap-4 px-5 text-center lg:flex-row">
 				<p className="flex-1 text-[13px] text-muted-foreground lg:text-nowrap">
-					Don&apos;t have an account?{" "}
+					Don&apos;t have an account?{""}
 					<Link
 						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
 						href="/register"
@@ -271,7 +271,7 @@ export default function Page() {
 			fallback={
 				<div className="flex h-dvh items-center justify-center bg-background">
 					<div className="relative">
-						<div className="absolute inset-0 animate-ping rounded-full bg-primary/20 blur-xl" />
+						<div className="absolute inset-0 animate-ping bg-primary/20 blur-xl" />
 						<SpinnerIcon className="relative size-8 animate-spin text-primary" />
 					</div>
 				</div>

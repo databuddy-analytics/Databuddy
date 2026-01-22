@@ -1,4 +1,4 @@
-import { EventsPageContent } from "./_components/events-page-content";
+import { EventsPageContent } from"./_components/events-page-content";
 
 export default function EventsPage({
 	params,

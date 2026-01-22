@@ -1,21 +1,21 @@
 "use client";
 
-import { PaperPlaneRightIcon } from "@phosphor-icons/react/dist/ssr/PaperPlaneRight";
-import { StopIcon } from "@phosphor-icons/react/dist/ssr/Stop";
-import { useAtom } from "jotai";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useChat } from "@/contexts/chat-context";
-import { useEnterSubmit } from "@/hooks/use-enter-submit";
-import { cn } from "@/lib/utils";
-import { agentInputAtom } from "./agent-atoms";
-import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
-import { AgentCommandMenu } from "./agent-command-menu";
-import { useAgentCommands } from "./hooks/use-agent-commands";
+import { PaperPlaneRightIcon } from"@phosphor-icons/react/dist/ssr/PaperPlaneRight";
+import { StopIcon } from"@phosphor-icons/react/dist/ssr/Stop";
+import { useAtom } from"jotai";
+import { Button } from"@/components/ui/button";
+import { Textarea } from"@/components/ui/textarea";
+import { useChat } from"@/contexts/chat-context";
+import { useEnterSubmit } from"@/hooks/use-enter-submit";
+import { cn } from"@/lib/utils";
+import { agentInputAtom } from"./agent-atoms";
+import { useAgentChatId, useSetAgentChatId } from"./agent-chat-context";
+import { AgentCommandMenu } from"./agent-command-menu";
+import { useAgentCommands } from"./hooks/use-agent-commands";
 
 export function AgentInput() {
 	const { sendMessage, stop, status } = useChat();
-	const isLoading = status === "streaming" || status === "submitted";
+	const isLoading = status ==="streaming" || status ==="submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
 	const agentCommands = useAgentCommands();
 	const currentChatId = useAgentChatId();
@@ -100,14 +100,14 @@ export function AgentInput() {
 				</div>
 
 				<p className="mt-2 text-foreground/40 text-xs">
-					Press{" "}
-					<kbd className="rounded border border-border/50 bg-accent px-1 font-mono text-[10px] text-foreground/70">
+					Press{""}
+					<kbd className=" border border-border/50 bg-accent px-1 font-mono text-[10px] text-foreground/70">
 						Enter
-					</kbd>{" "}
-					to send ·{" "}
-					<kbd className="rounded border border-border/50 bg-accent px-1 font-mono text-[10px] text-foreground/70">
+					</kbd>{""}
+					to send ·{""}
+					<kbd className=" border border-border/50 bg-accent px-1 font-mono text-[10px] text-foreground/70">
 						/
-					</kbd>{" "}
+					</kbd>{""}
 					for commands
 				</p>
 			</div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { METRIC_COLORS } from "@/components/charts/metrics-constants";
+import { METRIC_COLORS } from"@/components/charts/metrics-constants";
 
 interface TooltipPayload {
 	dataKey: string;
@@ -25,14 +25,14 @@ export function EventsChartTooltip({
 	}
 
 	return (
-		<div className="rounded border bg-popover px-3 py-2 shadow-md">
+		<div className=" border bg-popover px-3 py-2 shadow-md">
 			<p className="mb-1 font-medium text-popover-foreground text-xs">
 				{label}
 			</p>
 			<div className="space-y-1">
 				{payload.map((entry) => {
 					const color =
-						entry.dataKey === "events"
+						entry.dataKey ==="events"
 							? METRIC_COLORS.pageviews.primary
 							: METRIC_COLORS.visitors.primary;
 
@@ -43,7 +43,7 @@ export function EventsChartTooltip({
 						>
 							<div className="flex items-center gap-1.5">
 								<div
-									className="size-2 rounded-full"
+									className="size-2"
 									style={{ backgroundColor: color }}
 								/>
 								<span className="text-muted-foreground text-xs">

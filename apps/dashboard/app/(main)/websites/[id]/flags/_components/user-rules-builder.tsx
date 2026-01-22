@@ -7,43 +7,43 @@ import {
 	UserIcon,
 	WrenchIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useState } from "react";
-import { z } from "zod/mini";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from"@phosphor-icons/react";
+import { useState } from"react";
+import { z } from"zod/mini";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import type { UserRule, UserRulesBuilderProps } from "./types";
+} from"@/components/ui/select";
+import { cn } from"@/lib/utils";
+import type { UserRule, UserRulesBuilderProps } from"./types";
 
 const TARGET_TYPES = [
-	{ value: "user_id", label: "User ID", icon: UserIcon },
-	{ value: "email", label: "Email", icon: EnvelopeIcon },
-	{ value: "property", label: "Property", icon: WrenchIcon },
+	{ value:"user_id", label:"User ID", icon: UserIcon },
+	{ value:"email", label:"Email", icon: EnvelopeIcon },
+	{ value:"property", label:"Property", icon: WrenchIcon },
 ] as const;
 
 const CONDITIONS = [
-	{ value: "equals", label: "is", needsValue: true },
-	{ value: "contains", label: "contains", needsValue: true },
-	{ value: "starts_with", label: "starts with", needsValue: true },
-	{ value: "ends_with", label: "ends with", needsValue: true },
-	{ value: "in", label: "is one of", needsValue: true },
-	{ value: "not_in", label: "is not one of", needsValue: true },
-	{ value: "exists", label: "exists", needsValue: false },
-	{ value: "not_exists", label: "doesn't exist", needsValue: false },
+	{ value:"equals", label:"is", needsValue: true },
+	{ value:"contains", label:"contains", needsValue: true },
+	{ value:"starts_with", label:"starts with", needsValue: true },
+	{ value:"ends_with", label:"ends with", needsValue: true },
+	{ value:"in", label:"is one of", needsValue: true },
+	{ value:"not_in", label:"is not one of", needsValue: true },
+	{ value:"exists", label:"exists", needsValue: false },
+	{ value:"not_exists", label:"doesn't exist", needsValue: false },
 ] as const;
 
 function getConditionsForType(type: UserRule["type"]) {
-	return type === "property"
+	return type ==="property"
 		? CONDITIONS
 		: CONDITIONS.filter(
-				(c) => c.value !== "exists" && c.value !== "not_exists"
+				(c) => c.value !=="exists" && c.value !=="not_exists"
 			);
 }
 
@@ -85,7 +85,7 @@ function InlineTagsInput({
 		if (validate) {
 			const result = validate(trimmed);
 			if (!result.success) {
-				setError(result.error ?? "Invalid value");
+				setError(result.error ??"Invalid value");
 				return;
 			}
 		}
@@ -100,10 +100,10 @@ function InlineTagsInput({
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (e.key === "Enter" || e.key === ",") {
+		if (e.key ==="Enter" || e.key ===",") {
 			e.preventDefault();
 			addValue(draft);
-		} else if (e.key === "Backspace" && !draft && values.length > 0) {
+		} else if (e.key ==="Backspace" && !draft && values.length > 0) {
 			e.preventDefault();
 			removeValue(values.length - 1);
 			setError(null);
@@ -121,15 +121,15 @@ function InlineTagsInput({
 		<div className="space-y-1">
 			<div
 				className={cn(
-					"flex min-h-[38px] flex-wrap items-center gap-1.5 rounded border bg-background px-2 py-1.5 focus-within:ring-1",
+					"flex min-h-[38px] flex-wrap items-center gap-1.5 border bg-background px-2 py-1.5 focus-within:ring-1",
 					error
-						? "border-destructive focus-within:ring-destructive"
-						: "focus-within:ring-ring"
+						?"border-destructive focus-within:ring-destructive"
+						:"focus-within:ring-ring"
 				)}
 			>
 				{values.map((val, i) => (
 					<span
-						className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-sm"
+						className="inline-flex items-center gap-1 bg-secondary px-2 py-0.5 text-sm"
 						key={`${val}-${i}`}
 					>
 						{val}
@@ -146,7 +146,7 @@ function InlineTagsInput({
 					className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
 					onChange={handleChange}
 					onKeyDown={handleKeyDown}
-					placeholder={values.length === 0 ? placeholder : "Add more…"}
+					placeholder={values.length === 0 ? placeholder :"Add more…"}
 					type="text"
 					value={draft}
 				/>
@@ -172,34 +172,34 @@ function RuleRow({
 
 	const handleTypeChange = (newType: UserRule["type"]) => {
 		const needsReset =
-			newType !== "property" &&
-			(rule.operator === "exists" || rule.operator === "not_exists");
+			newType !=="property" &&
+			(rule.operator ==="exists" || rule.operator ==="not_exists");
 
 		onUpdate({
 			type: newType,
-			...(needsReset && { operator: "equals" }),
+			...(needsReset && { operator:"equals" }),
 		});
 	};
 
 	const getPlaceholder = () => {
-		if (rule.type === "email") {
-			return "Enter emails…";
+		if (rule.type ==="email") {
+			return"Enter emails…";
 		}
-		if (rule.type === "user_id") {
-			return "Enter user IDs…";
+		if (rule.type ==="user_id") {
+			return"Enter user IDs…";
 		}
-		return "Enter values…";
+		return"Enter values…";
 	};
 
 	const validateEmail = (value: string) => {
 		const result = z.email().safeParse(value);
 		return result.success
 			? { success: true }
-			: { success: false, error: "Please enter a valid email address" };
+			: { success: false, error:"Please enter a valid email address" };
 	};
 
 	return (
-		<div className="space-y-2 rounded border p-3">
+		<div className="space-y-2 border p-3">
 			<div className="flex items-center gap-2">
 				<Select
 					onValueChange={(v) => handleTypeChange(v as UserRule["type"])}
@@ -223,12 +223,12 @@ function RuleRow({
 					</SelectContent>
 				</Select>
 
-				{rule.type === "property" && (
+				{rule.type ==="property" && (
 					<Input
 						className="h-8 w-24 text-sm"
 						onChange={(e) => onUpdate({ field: e.target.value })}
 						placeholder="field…"
-						value={rule.field || ""}
+						value={rule.field ||""}
 					/>
 				)}
 
@@ -258,19 +258,19 @@ function RuleRow({
 
 				<button
 					className={cn(
-						"cursor-pointer rounded px-2 py-1 font-medium text-xs transition-colors",
+						"cursor-pointer px-2 py-1 font-medium text-xs transition-colors",
 						rule.enabled
-							? "bg-green-500/10 text-green-600 hover:bg-green-500/20"
-							: "bg-muted text-muted-foreground hover:bg-muted/80"
+							?"bg-green-500/10 text-green-600 hover:bg-green-500/20"
+							:"bg-muted text-muted-foreground hover:bg-muted/80"
 					)}
 					onClick={() => onUpdate({ enabled: !rule.enabled })}
 					type="button"
 				>
-					{rule.enabled ? "On" : "Off"}
+					{rule.enabled ?"On" :"Off"}
 				</button>
 
 				<button
-					className="cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+					className="cursor-pointer p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 					onClick={onRemove}
 					type="button"
 				>
@@ -282,7 +282,7 @@ function RuleRow({
 				<InlineTagsInput
 					onChange={(values) => onUpdate({ batchValues: values, batch: true })}
 					placeholder={getPlaceholder()}
-					validate={rule.type === "email" ? validateEmail : undefined}
+					validate={rule.type ==="email" ? validateEmail : undefined}
 					values={currentValues}
 				/>
 			)}
@@ -295,8 +295,8 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 		onChange([
 			...rules,
 			{
-				type: "user_id",
-				operator: "equals",
+				type:"user_id",
+				operator:"equals",
 				values: [],
 				batchValues: [],
 				enabled: true,

@@ -1,4 +1,4 @@
-import type { Customer as AutumnCustomer } from "autumn-js";
+import type { Customer as AutumnCustomer } from"autumn-js";
 
 export type PaymentMethodCard = {
 	brand?: string;

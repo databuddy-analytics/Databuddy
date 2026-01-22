@@ -1,6 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from"@hookform/resolvers/zod";
 import {
 	CheckCircleIcon,
 	CheckIcon,
@@ -9,23 +9,23 @@ import {
 	KeyIcon,
 	PlusIcon,
 	TrashIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { orpc } from "@/lib/orpc";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+} from"@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { useState } from"react";
+import { useForm } from"react-hook-form";
+import { z } from"zod";
+import { orpc } from"@/lib/orpc";
+import { Badge } from"../ui/badge";
+import { Button } from"../ui/button";
+import { Input } from"../ui/input";
+import { Label } from"../ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "../ui/select";
+} from"../ui/select";
 import {
 	Sheet,
 	SheetBody,
@@ -34,8 +34,8 @@ import {
 	SheetFooter,
 	SheetHeader,
 	SheetTitle,
-} from "../ui/sheet";
-import type { ApiKeyAccessEntry, ApiScope } from "./api-key-types";
+} from"../ui/sheet";
+import type { ApiKeyAccessEntry, ApiScope } from"./api-key-types";
 
 interface ApiKeyCreateDialogProps {
 	open: boolean;
@@ -50,12 +50,12 @@ interface ApiKeyCreateDialogProps {
 }
 
 const SCOPES: { value: ApiScope; label: string }[] = [
-	{ value: "read:data", label: "Read Data" },
-	{ value: "write:llm", label: "LLM Tracking" },
+	{ value:"read:data", label:"Read Data" },
+	{ value:"write:llm", label:"LLM Tracking" },
 ];
 
 const formSchema = z.object({
-	name: z.string().min(1, "Name is required").max(100),
+	name: z.string().min(1,"Name is required").max(100),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -84,7 +84,7 @@ export function ApiKeyCreateDialog({
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
-		defaultValues: { name: "" },
+		defaultValues: { name:"" },
 	});
 
 	const mutation = useMutation({
@@ -133,7 +133,7 @@ export function ApiKeyCreateDialog({
 		}
 		setWebsiteAccess((prev) => [
 			...prev,
-			{ resourceType: "website", resourceId: websiteToAdd, scopes: [] },
+			{ resourceType:"website", resourceId: websiteToAdd, scopes: [] },
 		]);
 		setWebsiteToAdd(undefined);
 	};
@@ -184,7 +184,7 @@ export function ApiKeyCreateDialog({
 			<Sheet onOpenChange={handleClose} open={open}>
 				<SheetContent className="sm:max-w-md" side="right">
 					<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-						<div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+						<div className="mb-5 flex h-16 w-16 items-center justify-center bg-green-100 dark:bg-green-900/30">
 							<CheckCircleIcon
 								className="text-green-600 dark:text-green-400"
 								size={32}
@@ -199,7 +199,7 @@ export function ApiKeyCreateDialog({
 						</SheetHeader>
 
 						<div className="w-full max-w-sm space-y-4">
-							<div className="relative rounded border bg-muted/50">
+							<div className="relative border bg-muted/50">
 								<code className="block break-all p-4 pr-12 font-mono text-sm">
 									{created.secret}
 								</code>
@@ -232,7 +232,7 @@ export function ApiKeyCreateDialog({
 			<SheetContent className="sm:max-w-md" side="right">
 				<SheetHeader>
 					<div className="flex items-center gap-4">
-						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
+						<div className="flex h-11 w-11 items-center justify-center border bg-secondary-brighter">
 							<KeyIcon
 								className="text-accent-foreground"
 								size={22}
@@ -284,22 +284,22 @@ export function ApiKeyCreateDialog({
 							<p className="text-muted-foreground text-xs">
 								These permissions apply to all websites
 							</p>
-							<div className="rounded border bg-card p-1">
+							<div className=" border bg-card p-1">
 								<div className="grid grid-cols-2 gap-1">
 									{SCOPES.map((scope) => {
 										const isSelected = globalScopes.includes(scope.value);
 										return (
 											<button
-												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
+												className="flex items-center gap-2 px-3 py-2.5 text-left text-sm"
 												key={scope.value}
 												onClick={() => toggleGlobalScope(scope.value)}
 												type="button"
 											>
 												<div
-													className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
+													className={`flex size-4 shrink-0 items-center justify-center border ${
 														isSelected
-															? "border-primary bg-primary text-primary"
-															: "border-muted-foreground/30"
+															?"border-primary bg-primary text-primary"
+															:"border-muted-foreground/30"
 													}`}
 												>
 													{isSelected && (
@@ -370,7 +370,7 @@ export function ApiKeyCreateDialog({
 											);
 											return (
 												<div
-													className="rounded border bg-muted/20 p-3"
+													className=" border bg-muted/20 p-3"
 													key={entry.resourceId}
 												>
 													<div className="mb-3 flex items-center justify-between">
@@ -382,7 +382,7 @@ export function ApiKeyCreateDialog({
 														<Button
 															className="size-7"
 															onClick={() =>
-																removeWebsite(entry.resourceId ?? "")
+																removeWebsite(entry.resourceId ??"")
 															}
 															size="icon"
 															type="button"
@@ -398,25 +398,25 @@ export function ApiKeyCreateDialog({
 															);
 															return (
 																<button
-																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${
+																	className={`flex items-center gap-2 px-2 py-1.5 text-left text-xs ${
 																		isSelected
-																			? "bg-primary/20 text-foreground"
-																			: "hover:bg-muted"
+																			?"bg-primary/20 text-foreground"
+																			:"hover:bg-muted"
 																	}`}
 																	key={scope.value}
 																	onClick={() =>
 																		toggleWebsiteScope(
-																			entry.resourceId ?? "",
+																			entry.resourceId ??"",
 																			scope.value
 																		)
 																	}
 																	type="button"
 																>
 																	<div
-																		className={`flex size-3 shrink-0 items-center justify-center rounded-sm border ${
+																		className={`flex size-3 shrink-0 items-center justify-center border ${
 																			isSelected
-																				? "border-primary bg-primary text-primary-foreground"
-																				: "border-muted-foreground/30"
+																				?"border-primary bg-primary text-primary-foreground"
+																				:"border-muted-foreground/30"
 																		}`}
 																	>
 																		{isSelected && (

@@ -1,9 +1,9 @@
-import { CaretLeftIcon, SpinnerIcon } from "@phosphor-icons/react/ssr";
-import Link from "next/link";
-import { Suspense } from "react";
-import Iridescence from "@/components/bits/Iridiscence";
-import { Logo } from "@/components/layout/logo";
-import { Button } from "@/components/ui/button";
+import { CaretLeftIcon, SpinnerIcon } from"@phosphor-icons/react/ssr";
+import Link from"next/link";
+import { Suspense } from"react";
+import Iridescence from"@/components/bits/Iridiscence";
+import { Logo } from"@/components/layout/logo";
+import { Button } from"@/components/ui/button";
 
 export default function AuthLayout({
 	children,
@@ -62,7 +62,7 @@ export default function AuthLayout({
 
 				<div className="flex justify-center p-6 pb-8 text-center text-muted-foreground text-sm">
 					<p>
-						Powered by{" "}
+						Powered by{""}
 						<a
 							className="font-medium text-foreground hover:underline"
 							href="https://www.databuddy.cc"

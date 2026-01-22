@@ -1,12 +1,12 @@
-import { KeyIcon, PlusIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import type { ApiKeyRowItem } from "@/app/(main)/organizations/settings/api-keys/api-key-row";
-import { orpc } from "@/lib/orpc";
-import { EmptyState } from "../empty-state";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { Skeleton } from "../ui/skeleton";
+import { KeyIcon, PlusIcon } from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import dayjs from"dayjs";
+import type { ApiKeyRowItem } from"@/app/(main)/organizations/settings/api-keys/api-key-row";
+import { orpc } from"@/lib/orpc";
+import { EmptyState } from"../empty-state";
+import { Badge } from"../ui/badge";
+import { Button } from"../ui/button";
+import { Skeleton } from"../ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -14,8 +14,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "../ui/table";
-import type { ApiKeyListItem } from "./api-key-types";
+} from"../ui/table";
+import type { ApiKeyListItem } from"./api-key-types";
 
 type ApiKeyListProps = {
 	organizationId?: string;
@@ -27,33 +27,33 @@ function ApiKeyListSkeleton() {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<Skeleton className="h-7 w-24 rounded" />
-				<Skeleton className="h-10 w-28 rounded" />
+				<Skeleton className="h-7 w-24" />
+				<Skeleton className="h-10 w-28" />
 			</div>
-			<div className="overflow-hidden rounded border border-border/50 bg-card">
+			<div className="overflow-hidden border border-border/50 bg-card">
 				<div className="border-border/50 border-b bg-muted/10 px-6 py-4">
 					<div className="flex gap-4">
-						<Skeleton className="h-4 w-16 rounded" />
-						<Skeleton className="h-4 w-12 rounded" />
-						<Skeleton className="h-4 w-14 rounded" />
-						<Skeleton className="h-4 w-16 rounded" />
-						<Skeleton className="h-4 w-20 rounded" />
-						<Skeleton className="h-4 w-20 rounded" />
+						<Skeleton className="h-4 w-16" />
+						<Skeleton className="h-4 w-12" />
+						<Skeleton className="h-4 w-14" />
+						<Skeleton className="h-4 w-16" />
+						<Skeleton className="h-4 w-20" />
+						<Skeleton className="h-4 w-20" />
 					</div>
 				</div>
-				{["row-a", "row-b", "row-c"].map((key) => (
+				{["row-a","row-b","row-c"].map((key) => (
 					<div
 						className="border-border/30 border-b px-6 py-4 last:border-b-0"
 						key={key}
 					>
 						<div className="flex items-center gap-4">
-							<Skeleton className="h-4 w-32 rounded" />
-							<Skeleton className="h-4 w-20 rounded" />
-							<Skeleton className="h-4 w-12 rounded" />
-							<Skeleton className="h-5 w-16 rounded" />
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="ml-auto h-8 w-16 rounded" />
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-4 w-20" />
+							<Skeleton className="h-4 w-12" />
+							<Skeleton className="h-5 w-16" />
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="ml-auto h-8 w-16" />
 						</div>
 					</div>
 				))}
@@ -95,13 +95,13 @@ export function ApiKeyList({
 		<div className="h-full space-y-6">
 			{/* Table Container */}
 			{items.length > 0 && (
-				<div className="overflow-hidden rounded border">
+				<div className="overflow-hidden border">
 					{/* Table Header with Create Button */}
 					<div className="flex items-center justify-between border-b bg-accent px-3 py-2">
 						<div>
 							<h1 className="font-medium text-base">API Keys</h1>
 							<p className="text-muted-foreground text-xs">
-								{items.length} active key{items.length !== 1 ? "s" : ""}
+								{items.length} active key{items.length !== 1 ?"s" :""}
 							</p>
 						</div>
 						<Button onClick={onCreateNew} size="sm" type="button">
@@ -134,14 +134,14 @@ export function ApiKeyList({
 											</div>
 										</TableCell>
 										<TableCell className="p-3">
-											<code className="rounded bg-accent-brighter px-2 py-1 font-mono text-accent-foreground text-xs hover:bg-accent-brighter/70">
+											<code className=" bg-accent-brighter px-2 py-1 font-mono text-accent-foreground text-xs hover:bg-accent-brighter/70">
 												{k.prefix}-{k.start}
 											</code>
 										</TableCell>
 										<TableCell className="p-3">
 											{k.enabled && !k.revokedAt ? (
 												<Badge variant="gray">
-													<div className="mr-1 h-1.5 w-1.5 rounded-full bg-green-500" />
+													<div className="mr-1 h-1.5 w-1.5 bg-green-500" />
 													Active
 												</Badge>
 											) : (
@@ -149,7 +149,7 @@ export function ApiKeyList({
 													className="bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-400"
 													variant="secondary"
 												>
-													<div className="mr-1 h-1.5 w-1.5 rounded-full bg-gray-400" />
+													<div className="mr-1 h-1.5 w-1.5 bg-gray-400" />
 													Inactive
 												</Badge>
 											)}
@@ -185,7 +185,7 @@ export function ApiKeyList({
 			{items.length === 0 && (
 				<EmptyState
 					action={{
-						label: "Create Your First API Key",
+						label:"Create Your First API Key",
 						onClick: () => onCreateNew?.(),
 					}}
 					description="Create your first API key to start integrating with our platform."

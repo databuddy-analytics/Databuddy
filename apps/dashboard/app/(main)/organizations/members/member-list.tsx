@@ -1,25 +1,25 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { CrownIcon, TrashIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { authClient } from"@databuddy/auth/client";
+import { CrownIcon, TrashIcon } from"@phosphor-icons/react";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useState } from"react";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import type {
 	OrganizationMember,
 	UpdateMemberData,
-} from "@/hooks/use-organizations";
+} from"@/hooks/use-organizations";
 
 dayjs.extend(relativeTime);
 
@@ -54,22 +54,22 @@ function RoleSelector({
 	canEditRoles,
 	isCurrentUser,
 }: RoleSelectorProps) {
-	if (member.role === "owner") {
+	if (member.role ==="owner") {
 		return <Badge variant="amber">Owner</Badge>;
 	}
 
 	// If user doesn't have permission to edit roles, show badge instead
 	if (!canEditRoles) {
 		return (
-			<Badge variant={member.role === "admin" ? "default" : "secondary"}>
-				{member.role === "admin" ? "Admin" : "Member"}
+			<Badge variant={member.role ==="admin" ?"default" :"secondary"}>
+				{member.role ==="admin" ?"Admin" :"Member"}
 			</Badge>
 		);
 	}
 
 	// Prevent admins from changing their own role
 	const isDisabled =
-		isUpdatingMember || (isCurrentUser && member.role === "admin");
+		isUpdatingMember || (isCurrentUser && member.role ==="admin");
 
 	return (
 		<Select
@@ -131,7 +131,7 @@ function MemberRow({
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
 					<p className="truncate font-medium">{member.user.name}</p>
-					{member.role === "owner" && (
+					{member.role ==="owner" && (
 						<CrownIcon
 							className="shrink-0 text-amber-500"
 							size={14}
@@ -153,7 +153,7 @@ function MemberRow({
 				organizationId={organizationId}
 			/>
 
-			{canEditRoles && member.role !== "owner" ? (
+			{canEditRoles && member.role !=="owner" ? (
 				<Button
 					className="size-7 p-0 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
 					disabled={isRemovingMember}
@@ -191,7 +191,7 @@ export function MemberList({
 
 	// Check if current user can edit roles (admin or owner)
 	const canEditRoles =
-		currentUserMember?.role === "admin" || currentUserMember?.role === "owner";
+		currentUserMember?.role ==="admin" || currentUserMember?.role ==="owner";
 
 	const handleRemove = async () => {
 		if (!memberToRemove) {

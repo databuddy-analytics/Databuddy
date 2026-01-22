@@ -1,8 +1,8 @@
 "use client";
 
-import "flag-icons/css/flag-icons.min.css";
-import Image from "next/image";
-import { cn } from "@/lib/utils";
+import"flag-icons/css/flag-icons.min.css";
+import Image from"next/image";
+import { cn } from"@/lib/utils";
 
 const BROWSER_ICONS = [
 	"Chrome",
@@ -67,12 +67,12 @@ const OS_ICONS = [
 
 export type BrowserIconName = (typeof BROWSER_ICONS)[number];
 export type OSIconName = (typeof OS_ICONS)[number];
-export type IconType = "browser" | "os";
+export type IconType ="browser" |"os";
 
 interface PublicIconProps {
 	type: IconType;
 	name: string;
-	size?: "sm" | "md" | "lg" | number;
+	size?:"sm" |"md" |"lg" | number;
 	className?: string;
 	fallback?: React.ReactNode;
 }
@@ -83,12 +83,12 @@ const sizeMap = {
 	lg: 24,
 };
 
-function getIconSize(size: "sm" | "md" | "lg" | number): number {
-	return typeof size === "number" ? size : sizeMap[size];
+function getIconSize(size:"sm" |"md" |"lg" | number): number {
+	return typeof size ==="number" ? size : sizeMap[size];
 }
 
 function normalizeIconName(name: string): string {
-	return name.replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "");
+	return name.replace(/\s+/g,"").replace(/[^a-zA-Z0-9]/g,"");
 }
 
 function findIconMatch(
@@ -112,17 +112,17 @@ function findIconMatch(
 
 function getOSMappedName(normalizedName: string): string {
 	const osMap: Record<string, string> = {
-		linux: "Ubuntu",
-		ios: "Apple",
-		darwin: "macOS",
-		mac: "macOS",
+		linux:"Ubuntu",
+		ios:"Apple",
+		darwin:"macOS",
+		mac:"macOS",
 	};
 	const lowerName = normalizedName.toLowerCase();
 	return osMap[lowerName] || normalizedName;
 }
 
 function getIconSrc(iconName: string, folder: string): string {
-	if ((iconName === "Brave" || iconName === "QQ") && folder === "browsers") {
+	if ((iconName ==="Brave" || iconName ==="QQ") && folder ==="browsers") {
 		return `/${folder}/${iconName}.webp`;
 	}
 	return `/${folder}/${iconName}.svg`;
@@ -136,7 +136,7 @@ function createFallbackIcon(
 	return (
 		<div
 			className={cn(
-				"flex items-center justify-center rounded bg-secondary font-medium text-secondary-foreground text-xs",
+				"flex items-center justify-center bg-secondary font-medium text-secondary-foreground text-xs",
 				className
 			)}
 			style={{ width: iconSize, height: iconSize }}
@@ -149,7 +149,7 @@ function createFallbackIcon(
 export function PublicIcon({
 	type,
 	name,
-	size = "md",
+	size ="md",
 	className,
 	fallback,
 }: PublicIconProps) {
@@ -160,11 +160,11 @@ export function PublicIcon({
 	}
 
 	const normalizedName = normalizeIconName(name);
-	const folder = type === "browser" ? "browsers" : "operating-systems";
-	const availableIcons = type === "browser" ? BROWSER_ICONS : OS_ICONS;
+	const folder = type ==="browser" ?"browsers" :"operating-systems";
+	const availableIcons = type ==="browser" ? BROWSER_ICONS : OS_ICONS;
 
 	let searchName = normalizedName;
-	if (type === "os") {
+	if (type ==="os") {
 		searchName = getOSMappedName(normalizedName);
 	}
 
@@ -178,7 +178,7 @@ export function PublicIcon({
 
 	return (
 		<div
-			className={cn("relative shrink-0 overflow-hidden rounded", className)}
+			className={cn("relative shrink-0 overflow-hidden", className)}
 			style={{
 				width: iconSize,
 				height: iconSize,
@@ -193,7 +193,7 @@ export function PublicIcon({
 				key={`${iconName}`}
 				onError={(e) => {
 					const img = e.target as HTMLImageElement;
-					img.style.display = "none";
+					img.style.display ="none";
 				}}
 				src={iconSrc}
 				width={iconSize}
@@ -204,10 +204,10 @@ export function PublicIcon({
 
 export function BrowserIcon({
 	name,
-	size = "md",
+	size ="md",
 	className,
 	fallback,
-}: Omit<PublicIconProps, "type">) {
+}: Omit<PublicIconProps,"type">) {
 	return (
 		<PublicIcon
 			className={className}
@@ -221,10 +221,10 @@ export function BrowserIcon({
 
 export function OSIcon({
 	name,
-	size = "md",
+	size ="md",
 	className,
 	fallback,
-}: Omit<PublicIconProps, "type">) {
+}: Omit<PublicIconProps,"type">) {
 	return (
 		<PublicIcon
 			className={className}
@@ -238,20 +238,20 @@ export function OSIcon({
 
 interface CountryFlagProps {
 	country: string;
-	size?: "sm" | "md" | "lg" | number;
+	size?:"sm" |"md" |"lg" | number;
 	className?: string;
 	fallback?: React.ReactNode;
 }
 
 export function CountryFlag({
 	country,
-	size = "md",
+	size ="md",
 	className,
 	fallback,
 }: CountryFlagProps) {
 	const iconSize = getIconSize(size);
 
-	if (!country || country === "Unknown" || country === "") {
+	if (!country || country ==="Unknown" || country ==="") {
 		return (
 			fallback || (
 				<div

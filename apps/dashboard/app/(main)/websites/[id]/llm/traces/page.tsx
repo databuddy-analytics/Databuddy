@@ -1,7 +1,7 @@
 "use client";
 
-import { LlmTabPageWrapper } from "../_components/llm-tab-page-wrapper";
-import { LlmTracesTab } from "../_components/llm-traces-tab";
+import { LlmTabPageWrapper } from"../_components/llm-tab-page-wrapper";
+import { LlmTracesTab } from"../_components/llm-traces-tab";
 
 export default function LlmTracesPage() {
 	return (

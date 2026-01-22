@@ -1,6 +1,10 @@
 "use client";
 
-import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import {
+	ComputerDesktopIcon,
+	MoonIcon,
+	SunIcon,
+} from "@heroicons/react/24/outline";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +16,10 @@ import { cn } from "@/lib/utils";
 
 interface ThemeTogglerProps {
 	className?: string;
+	iconClassName?: string;
 }
 
-export function ThemeToggle({ className }: ThemeTogglerProps) {
+export function ThemeToggle({ className, iconClassName }: ThemeTogglerProps) {
 	const { theme, setTheme } = useTheme();
 	const currentTheme = theme ?? "system";
 
@@ -68,6 +73,8 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 		}
 	};
 
+	const iconSize = iconClassName || "size-5";
+
 	return (
 		<Tooltip delayDuration={500}>
 			<TooltipTrigger asChild>
@@ -84,36 +91,30 @@ export function ThemeToggle({ className }: ThemeTogglerProps) {
 				>
 					<SunIcon
 						className={cn(
-							"size-5 transition-all duration-300",
+							iconSize,
+							"text-muted-foreground transition-all duration-300",
 							currentTheme === "light"
 								? "rotate-0 scale-100"
 								: "-rotate-90 scale-0"
 						)}
-						size={32}
-						suppressHydrationWarning
-						weight="duotone"
 					/>
 					<MoonIcon
 						className={cn(
-							"absolute size-5 transition-all duration-300",
+							iconSize,
+							"absolute text-muted-foreground transition-all duration-300",
 							currentTheme === "dark"
 								? "rotate-0 scale-100"
 								: "rotate-90 scale-0"
 						)}
-						size={32}
-						suppressHydrationWarning
-						weight="duotone"
 					/>
-					<MonitorIcon
+					<ComputerDesktopIcon
 						className={cn(
-							"absolute size-5 transition-all duration-300",
+							iconSize,
+							"absolute text-muted-foreground transition-all duration-300",
 							currentTheme === "system"
 								? "rotate-0 scale-100"
 								: "rotate-90 scale-0"
 						)}
-						size={32}
-						suppressHydrationWarning
-						weight="duotone"
 					/>
 					<span className="sr-only">Toggle theme</span>
 				</Button>

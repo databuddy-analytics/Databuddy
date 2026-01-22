@@ -1,7 +1,7 @@
 "use client";
 
-import { CircleNotchIcon } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
+import { CircleNotchIcon } from"@phosphor-icons/react";
+import { Button } from"@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +9,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from"@/components/ui/dialog";
 import {
 	Drawer,
 	DrawerContent,
@@ -17,8 +17,8 @@ import {
 	DrawerFooter,
 	DrawerHeader,
 	DrawerTitle,
-} from "@/components/ui/drawer";
-import { useIsMobile } from "@/hooks/use-mobile";
+} from"@/components/ui/drawer";
+import { useIsMobile } from"@/hooks/use-mobile";
 
 interface FormDialogProps {
 	open: boolean;
@@ -32,7 +32,7 @@ interface FormDialogProps {
 	isSubmitting?: boolean;
 	submitDisabled?: boolean;
 	icon?: React.ReactNode;
-	size?: "sm" | "md" | "lg";
+	size?:"sm" |"md" |"lg";
 }
 
 export function FormDialog({
@@ -42,26 +42,26 @@ export function FormDialog({
 	description,
 	children,
 	onSubmit,
-	submitLabel = "Save",
-	cancelLabel = "Cancel",
+	submitLabel ="Save",
+	cancelLabel ="Cancel",
 	isSubmitting = false,
 	submitDisabled = false,
 	icon,
-	size = "md",
+	size ="md",
 }: FormDialogProps) {
 	const isMobile = useIsMobile();
 
 	const sizeClasses = {
-		sm: "w-[95vw] max-w-sm sm:w-full",
-		md: "w-[95vw] max-w-md sm:w-full",
-		lg: "w-[95vw] max-w-lg sm:w-full",
+		sm:"w-[95vw] max-w-sm sm:w-full",
+		md:"w-[95vw] max-w-md sm:w-full",
+		lg:"w-[95vw] max-w-lg sm:w-full",
 	};
 
 	const headerContent = (
 		<>
 			{icon && (
 				<div className="flex items-center gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-secondary">
+					<div className="flex size-10 shrink-0 items-center justify-center border bg-secondary">
 						{icon}
 					</div>
 					<div className="flex-1">

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from"react";
 
 /**
  * Hook that monitors whether a given media query matches the current viewport
- * @param query The media query to check, e.g. "(max-width: 768px)"
+ * @param query The media query to check, e.g."(max-width: 768px)"
  * @returns Boolean indicating if the media query matches
  */
 export function useMediaQuery(query: string): boolean {
@@ -11,7 +11,7 @@ export function useMediaQuery(query: string): boolean {
 
 	useEffect(() => {
 		// Check if window exists (for SSR)
-		if (typeof window !== "undefined") {
+		if (typeof window !=="undefined") {
 			const mediaQuery = window.matchMedia(query);
 
 			// Set initial state

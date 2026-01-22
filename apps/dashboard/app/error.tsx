@@ -6,30 +6,30 @@ import {
 	HouseIcon,
 	MagnifyingGlassIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { Command as CommandPrimitive } from "cmdk";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+} from"@phosphor-icons/react";
+import { Command as CommandPrimitive } from"cmdk";
+import { useRouter } from"next/navigation";
+import { useEffect, useMemo, useState } from"react";
 import {
 	billingNavigation,
 	organizationNavigation,
 	personalNavigation,
 	resourcesNavigation,
-} from "@/components/layout/navigation/navigation-config";
+} from"@/components/layout/navigation/navigation-config";
 import type {
 	NavigationItem,
 	NavigationSection,
-} from "@/components/layout/navigation/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+} from"@/components/layout/navigation/types";
+import { Button } from"@/components/ui/button";
+import { Card, CardContent } from"@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dialog";
+import { cn } from"@/lib/utils";
 
 const ALL_NAVIGATION: NavigationSection[] = [
 	...organizationNavigation,
@@ -102,15 +102,15 @@ export default function GlobalError({
 		router.push(item.path);
 	};
 
-	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
+	const canGoBack = typeof window !=="undefined" && window.history.length > 1;
 
 	return (
 		<div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6 lg:p-8">
-			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center rounded border-none bg-transparent shadow-none">
+			<Card className="flex w-full max-w-md flex-1 flex-col items-center justify-center border-none bg-transparent shadow-none">
 				<CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center sm:px-8 sm:py-14 lg:px-12">
 					<div
 						aria-hidden="true"
-						className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10"
+						className="flex size-12 items-center justify-center bg-destructive/10"
 						role="img"
 					>
 						<WarningCircleIcon
@@ -129,7 +129,7 @@ export default function GlobalError({
 							We encountered an unexpected issue. Please try again.
 						</p>
 						{error?.message && (
-							<div className="mx-auto mt-2 w-full rounded-md border border-destructive/20 bg-destructive/10 p-2">
+							<div className="mx-auto mt-2 w-full border border-destructive/20 bg-destructive/10 p-2">
 								<p className="wrap-break-word font-mono text-destructive text-xs">
 									{error.message}
 								</p>
@@ -144,7 +144,7 @@ export default function GlobalError({
 					>
 						<MagnifyingGlassIcon className="mr-2 size-4" weight="duotone" />
 						Search pages, settings...
-						<kbd className="ml-auto hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
+						<kbd className="ml-auto hidden items-center gap-1 border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 							<CommandIcon className="size-3" weight="bold" />
 							<span>K</span>
 						</kbd>
@@ -164,8 +164,8 @@ export default function GlobalError({
 						<Button
 							className={
 								canGoBack
-									? "flex-1 bg-primary hover:bg-primary/90"
-									: "w-full bg-primary hover:bg-primary/90"
+									?"flex-1 bg-primary hover:bg-primary/90"
+									:"w-full bg-primary hover:bg-primary/90"
 							}
 							onClick={() => reset()}
 							variant="default"
@@ -174,7 +174,7 @@ export default function GlobalError({
 						</Button>
 						<Button
 							asChild
-							className={canGoBack ? "flex-1" : "w-full"}
+							className={canGoBack ?"flex-1" :"w-full"}
 							variant="outline"
 						>
 							<a href="/">
@@ -199,13 +199,13 @@ export default function GlobalError({
 								className="flex h-full w-full flex-col"
 								loop
 								onKeyDown={(e) => {
-									if (e.key === "Escape") {
+									if (e.key ==="Escape") {
 										setOpen(false);
 									}
 								}}
 							>
 								<div className="dotted-bg flex items-center gap-3 border-b bg-accent px-4 py-3">
-									<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
+									<div className="flex size-8 shrink-0 items-center justify-center bg-background">
 										<MagnifyingGlassIcon
 											className="size-4 text-muted-foreground"
 											weight="duotone"
@@ -217,7 +217,7 @@ export default function GlobalError({
 										placeholder="Search pages, settings..."
 										value={search}
 									/>
-									<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
+									<kbd className="hidden items-center gap-1 border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 										<CommandIcon className="size-3" weight="bold" />
 										<span>K</span>
 									</kbd>
@@ -243,14 +243,14 @@ export default function GlobalError({
 										return (
 											<CommandPrimitive.Item
 												className={cn(
-													"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none",
+													"group relative flex cursor-pointer select-none items-center gap-3 px-2 py-2 outline-none",
 													"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
 												)}
 												key={item.path}
 												onSelect={() => handleSelect(item)}
 												value={`${item.name} ${item.path}`}
 											>
-												<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent group-data-[selected=true]:bg-background">
+												<div className="flex size-7 shrink-0 items-center justify-center bg-accent group-data-[selected=true]:bg-background">
 													<ItemIcon
 														className="size-4 text-muted-foreground"
 														weight="duotone"

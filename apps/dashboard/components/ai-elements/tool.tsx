@@ -1,6 +1,6 @@
 "use client";
 
-import type { ToolUIPart } from "ai";
+import type { ToolUIPart } from"ai";
 import {
 	CheckCircleIcon,
 	ChevronDownIcon,
@@ -8,23 +8,23 @@ import {
 	ClockIcon,
 	WrenchIcon,
 	XCircleIcon,
-} from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import { isValidElement } from "react";
-import { Badge } from "@/components/ui/badge";
+} from"lucide-react";
+import type { ComponentProps, ReactNode } from"react";
+import { isValidElement } from"react";
+import { Badge } from"@/components/ui/badge";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
-import { CodeBlock } from "./code-block";
+} from"@/components/ui/collapsible";
+import { cn } from"@/lib/utils";
+import { CodeBlock } from"./code-block";
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
 	<Collapsible
-		className={cn("not-prose mb-4 w-full rounded-md border", className)}
+		className={cn("not-prose mb-4 w-full border", className)}
 		{...props}
 	/>
 );
@@ -38,14 +38,14 @@ export type ToolHeaderProps = {
 
 const getStatusBadge = (status: ToolUIPart["state"]) => {
 	const labels: Record<ToolUIPart["state"], string> = {
-		"input-streaming": "Pending",
-		"input-available": "Running",
+		"input-streaming":"Pending",
+		"input-available":"Running",
 		// @ts-expect-error state only available in AI SDK v6
-		"approval-requested": "Awaiting Approval",
-		"approval-responded": "Responded",
-		"output-available": "Completed",
-		"output-error": "Error",
-		"output-denied": "Denied",
+		"approval-requested":"Awaiting Approval",
+		"approval-responded":"Responded",
+		"output-available":"Completed",
+		"output-error":"Error",
+		"output-denied":"Denied",
 	};
 
 	const icons: Record<ToolUIPart["state"], ReactNode> = {
@@ -60,7 +60,7 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
 	};
 
 	return (
-		<Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
+		<Badge className="gap-1.5 text-xs" variant="secondary">
 			{icons[status]}
 			{labels[status]}
 		</Badge>
@@ -113,7 +113,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
 		<h4 className="font-medium text-muted-foreground text-xs uppercase">
 			Parameters
 		</h4>
-		<div className="rounded-md bg-muted/50">
+		<div className=" bg-muted/50">
 			<CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
 		</div>
 	</div>
@@ -136,25 +136,25 @@ export const ToolOutput = ({
 
 	let Output = <div>{output as ReactNode}</div>;
 
-	if (typeof output === "object" && !isValidElement(output)) {
+	if (typeof output ==="object" && !isValidElement(output)) {
 		Output = (
 			<CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
 		);
-	} else if (typeof output === "string") {
+	} else if (typeof output ==="string") {
 		Output = <CodeBlock code={output} language="json" />;
 	}
 
 	return (
 		<div className={cn("space-y-2 p-4", className)} {...props}>
 			<h4 className="font-medium text-muted-foreground text-xs uppercase">
-				{errorText ? "Error" : "Result"}
+				{errorText ?"Error" :"Result"}
 			</h4>
 			<div
 				className={cn(
-					"overflow-x-auto rounded-md text-xs [&_table]:w-full",
+					"overflow-x-auto text-xs [&_table]:w-full",
 					errorText
-						? "bg-destructive/10 text-destructive"
-						: "bg-muted/50 text-foreground"
+						?"bg-destructive/10 text-destructive"
+						:"bg-muted/50 text-foreground"
 				)}
 			>
 				{errorText && <div>{errorText}</div>}

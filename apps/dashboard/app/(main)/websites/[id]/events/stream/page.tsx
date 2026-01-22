@@ -10,32 +10,32 @@ import {
 	MagnifyingGlassIcon,
 	TagIcon,
 	XIcon,
-} from "@phosphor-icons/react";
-import { useDebouncedCallback } from "@tanstack/react-pacer";
-import type { ColumnDef } from "@tanstack/react-table";
+} from"@phosphor-icons/react";
+import { useDebouncedCallback } from"@tanstack/react-pacer";
+import type { ColumnDef } from"@tanstack/react-table";
 import {
 	flexRender,
 	getCoreRowModel,
 	useReactTable,
-} from "@tanstack/react-table";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { useAtom } from "jotai";
-import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
-import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from"@tanstack/react-table";
+import dayjs from"dayjs";
+import relativeTime from"dayjs/plugin/relativeTime";
+import { useAtom } from"jotai";
+import Link from"next/link";
+import { notFound, useParams } from"next/navigation";
+import { parseAsString, parseAsStringLiteral, useQueryState } from"nuqs";
+import { useCallback, useEffect, useMemo, useRef, useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+} from"@/components/ui/select";
+import { Skeleton } from"@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -43,24 +43,24 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
-import { useDateFilters } from "@/hooks/use-date-filters";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/table";
+import { useDateFilters } from"@/hooks/use-date-filters";
+import { cn } from"@/lib/utils";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
-} from "@/stores/jotai/filterAtoms";
-import type { RecentCustomEvent } from "../_components/types";
-import { useEventsStream } from "./use-events-stream";
+} from"@/stores/jotai/filterAtoms";
+import type { RecentCustomEvent } from"../_components/types";
+import { useEventsStream } from"./use-events-stream";
 
 dayjs.extend(relativeTime);
 
-type HasPropertiesFilter = "all" | "with" | "without";
+type HasPropertiesFilter ="all" |"with" |"without";
 
 const hasPropertiesOptions = [
-	{ value: "all", label: "All events" },
-	{ value: "with", label: "With properties" },
-	{ value: "without", label: "Without properties" },
+	{ value:"all", label:"All events" },
+	{ value:"with", label:"With properties" },
+	{ value:"without", label:"Without properties" },
 ] as const;
 
 function SkeletonRow() {
@@ -89,7 +89,7 @@ function SkeletonRow() {
 }
 
 interface ActiveFilter {
-	type: "event" | "path" | "property" | "hasProps";
+	type:"event" |"path" |"property" |"hasProps";
 	label: string;
 	value: string;
 	onRemoveAction: () => void;
@@ -97,13 +97,13 @@ interface ActiveFilter {
 
 function getFilterIcon(type: ActiveFilter["type"]) {
 	switch (type) {
-		case "event":
+		case"event":
 			return <LightningIcon className="size-3" weight="fill" />;
-		case "path":
+		case"path":
 			return <LinkIcon className="size-3" />;
-		case "property":
+		case"property":
 			return <TagIcon className="size-3" weight="fill" />;
-		case "hasProps":
+		case"hasProps":
 			return <BracketsSquareIcon className="size-3" />;
 		default:
 			return <FunnelIcon className="size-3" />;
@@ -122,7 +122,7 @@ function ActiveFilters({ filters }: { filters: ActiveFilter[] }) {
 			</span>
 			{filters.map((filter) => (
 				<div
-					className="group flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 py-1 pr-1 pl-2.5 text-xs transition-colors hover:border-primary/30 hover:bg-primary/10"
+					className="group flex items-center gap-1.5 border border-primary/20 bg-primary/5 py-1 pr-1 pl-2.5 text-xs transition-colors hover:border-primary/30 hover:bg-primary/10"
 					key={`${filter.type}-${filter.value}`}
 				>
 					<span className="text-primary/70">{getFilterIcon(filter.type)}</span>
@@ -133,7 +133,7 @@ function ActiveFilters({ filters }: { filters: ActiveFilter[] }) {
 					</span>
 					<button
 						aria-label={`Remove ${filter.label} filter`}
-						className="flex size-4 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive"
+						className="flex size-4 items-center justify-center text-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive"
 						onClick={filter.onRemoveAction}
 						type="button"
 					>
@@ -149,7 +149,7 @@ export default function EventsStreamPage() {
 	const params = useParams();
 	const { id: websiteId } = params;
 
-	if (!websiteId || typeof websiteId !== "string") {
+	if (!websiteId || typeof websiteId !=="string") {
 		notFound();
 	}
 
@@ -209,7 +209,7 @@ export default function EventsStreamPage() {
 	);
 	const [hasProperties, setHasProperties] = useQueryState(
 		"hasProps",
-		parseAsStringLiteral(["all", "with", "without"] as const).withDefault("all")
+		parseAsStringLiteral(["all","with","without"] as const).withDefault("all")
 	);
 
 	const { events, pagination, isLoading, isError, error } = useEventsStream(
@@ -253,7 +253,7 @@ export default function EventsStreamPage() {
 		observerRef.current = new IntersectionObserver(handleIntersection, {
 			root: scrollContainerRef,
 			threshold: 0.1,
-			rootMargin: "300px",
+			rootMargin:"300px",
 		});
 		observerRef.current.observe(loadMoreRef);
 	}
@@ -304,7 +304,7 @@ export default function EventsStreamPage() {
 	}, [allEvents]);
 
 	const propertyValues = useMemo(() => {
-		if (selectedPropertyKey === "all") {
+		if (selectedPropertyKey ==="all") {
 			return [];
 		}
 
@@ -323,28 +323,28 @@ export default function EventsStreamPage() {
 		let result = allEvents;
 
 		// Filter by event type
-		if (selectedEventType !== "all") {
+		if (selectedEventType !=="all") {
 			result = result.filter((e) => e.event_name === selectedEventType);
 		}
 
 		// Filter by path
-		if (selectedPath !== "all") {
+		if (selectedPath !=="all") {
 			result = result.filter((e) => e.path === selectedPath);
 		}
 
 		// Filter by has properties
-		if (hasProperties === "with") {
+		if (hasProperties ==="with") {
 			result = result.filter((e) => Object.keys(e.properties).length > 0);
-		} else if (hasProperties === "without") {
+		} else if (hasProperties ==="without") {
 			result = result.filter((e) => Object.keys(e.properties).length === 0);
 		}
 
 		// Filter by property key
-		if (selectedPropertyKey !== "all") {
+		if (selectedPropertyKey !=="all") {
 			result = result.filter((e) => selectedPropertyKey in e.properties);
 
 			// Filter by property value (only if key is selected)
-			if (selectedPropertyValue !== "all") {
+			if (selectedPropertyValue !=="all") {
 				result = result.filter(
 					(e) =>
 						String(e.properties[selectedPropertyKey]) === selectedPropertyValue
@@ -380,41 +380,41 @@ export default function EventsStreamPage() {
 	const activeFilters = useMemo<ActiveFilter[]>(() => {
 		const result: ActiveFilter[] = [];
 
-		if (selectedEventType !== "all") {
+		if (selectedEventType !=="all") {
 			result.push({
-				type: "event",
-				label: "Event",
+				type:"event",
+				label:"Event",
 				value: selectedEventType,
 				onRemoveAction: () => setSelectedEventType("all"),
 			});
 		}
 
-		if (selectedPath !== "all") {
+		if (selectedPath !=="all") {
 			result.push({
-				type: "path",
-				label: "Path",
+				type:"path",
+				label:"Path",
 				value: selectedPath,
 				onRemoveAction: () => setSelectedPath("all"),
 			});
 		}
 
-		if (hasProperties !== "all") {
+		if (hasProperties !=="all") {
 			result.push({
-				type: "hasProps",
-				label: "Properties",
-				value: hasProperties === "with" ? "With" : "Without",
+				type:"hasProps",
+				label:"Properties",
+				value: hasProperties ==="with" ?"With" :"Without",
 				onRemoveAction: () => setHasProperties("all"),
 			});
 		}
 
-		if (selectedPropertyKey !== "all") {
+		if (selectedPropertyKey !=="all") {
 			const propLabel =
-				selectedPropertyValue !== "all"
+				selectedPropertyValue !=="all"
 					? `${selectedPropertyKey} = ${selectedPropertyValue}`
 					: selectedPropertyKey;
 			result.push({
-				type: "property",
-				label: "Property",
+				type:"property",
+				label:"Property",
 				value: propLabel,
 				onRemoveAction: () => {
 					setSelectedPropertyKey("all");
@@ -456,7 +456,7 @@ export default function EventsStreamPage() {
 
 	const handleAddFilter = useCallback(
 		(eventName: string) => {
-			addFilter({ field: "event_name", operator: "eq", value: eventName });
+			addFilter({ field:"event_name", operator:"eq", value: eventName });
 		},
 		[addFilter]
 	);
@@ -483,8 +483,8 @@ export default function EventsStreamPage() {
 	const columns = useMemo<ColumnDef<RecentCustomEvent>[]>(
 		() => [
 			{
-				id: "timestamp",
-				header: "Time",
+				id:"timestamp",
+				header:"Time",
 				accessorFn: (row) => row.timestamp,
 				cell: ({ row }) => (
 					<div className="flex flex-col">
@@ -499,8 +499,8 @@ export default function EventsStreamPage() {
 				size: 100,
 			},
 			{
-				id: "event_name",
-				header: "Event",
+				id:"event_name",
+				header:"Event",
 				accessorFn: (row) => row.event_name,
 				cell: ({ row }) => (
 					<div className="flex items-center gap-1.5">
@@ -508,14 +508,14 @@ export default function EventsStreamPage() {
 							className="group flex items-center gap-1"
 							href={`/websites/${websiteId}/events/${encodeURIComponent(row.original.event_name)}`}
 						>
-							<span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary text-xs transition-colors group-hover:bg-primary/20">
+							<span className=" bg-primary/10 px-2 py-1 font-medium text-primary text-xs transition-colors group-hover:bg-primary/20">
 								{row.original.event_name}
 							</span>
 							<ArrowSquareOutIcon className="size-3 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
 						</Link>
 						<button
 							aria-label={`Filter by ${row.original.event_name}`}
-							className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/row:opacity-100"
+							className=" p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/row:opacity-100"
 							onClick={() => handleAddFilter(row.original.event_name)}
 							title="Filter by this event"
 							type="button"
@@ -527,8 +527,8 @@ export default function EventsStreamPage() {
 				size: 160,
 			},
 			{
-				id: "path",
-				header: "Page",
+				id:"path",
+				header:"Page",
 				accessorFn: (row) => row.path,
 				cell: ({ row }) =>
 					row.original.path ? (
@@ -549,8 +549,8 @@ export default function EventsStreamPage() {
 				size: 200,
 			},
 			{
-				id: "properties",
-				header: "Properties",
+				id:"properties",
+				header:"Properties",
 				cell: ({ row }) => {
 					const props = row.original.properties;
 					const entries = Object.entries(props);
@@ -570,7 +570,7 @@ export default function EventsStreamPage() {
 								const isLong = strValue.length > 30;
 								return (
 									<button
-										className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs transition-colors hover:bg-muted/80"
+										className="inline-flex items-center gap-1 bg-muted px-1.5 py-0.5 text-xs transition-colors hover:bg-muted/80"
 										key={key}
 										onClick={() => {
 											setSelectedPropertyKey(key);
@@ -597,8 +597,8 @@ export default function EventsStreamPage() {
 				size: 300,
 			},
 			{
-				id: "actions",
-				header: "",
+				id:"actions",
+				header:"",
 				cell: ({ row }) => (
 					<Button
 						aria-label="Copy event JSON"
@@ -636,19 +636,19 @@ export default function EventsStreamPage() {
 			<div className="flex h-full flex-col">
 				<div className="space-y-2.5 border-b bg-muted/30 px-4 py-3">
 					<div className="flex flex-wrap items-center gap-2">
-						<Skeleton className="size-4 rounded" />
+						<Skeleton className="size-4" />
 						<Skeleton className="h-8 w-[140px]" />
 						<div className="h-5 w-px bg-border/60" />
-						<Skeleton className="size-4 rounded" />
+						<Skeleton className="size-4" />
 						<Skeleton className="h-8 w-[140px]" />
 						<div className="h-5 w-px bg-border/60" />
-						<Skeleton className="size-4 rounded" />
+						<Skeleton className="size-4" />
 						<Skeleton className="h-8 w-[135px]" />
 						<Skeleton className="h-8 w-[130px]" />
 						<div className="h-5 w-px bg-border/60" />
 						<Skeleton className="h-8 w-[160px]" />
 						<div className="flex-1" />
-						<Skeleton className="h-6 w-20 rounded-full" />
+						<Skeleton className="h-6 w-20" />
 					</div>
 				</div>
 				<div className="flex-1 overflow-auto">
@@ -661,7 +661,7 @@ export default function EventsStreamPage() {
 										key={column.id}
 										style={{ width: column.size }}
 									>
-										{typeof column.header === "string" ? column.header : null}
+										{typeof column.header ==="string" ? column.header : null}
 									</TableHead>
 								))}
 							</TableRow>
@@ -682,7 +682,7 @@ export default function EventsStreamPage() {
 			<div className="flex flex-1 items-center justify-center py-16">
 				<EmptyState
 					description={
-						error?.message || "There was an error loading the events"
+						error?.message ||"There was an error loading the events"
 					}
 					icon={<LightningIcon />}
 					title="Failed to load events"
@@ -699,10 +699,10 @@ export default function EventsStreamPage() {
 					description={
 						<>
 							Events will appear here once your tracker starts collecting them.
-							Use{" "}
-							<code className="rounded bg-muted px-1 py-0.5 text-xs">
+							Use{""}
+							<code className=" bg-muted px-1 py-0.5 text-xs">
 								databuddy.track()
-							</code>{" "}
+							</code>{""}
 							to send custom events.
 						</>
 					}
@@ -734,7 +734,7 @@ export default function EventsStreamPage() {
 							<SelectTrigger
 								className={cn(
 									"h-8 w-[140px] border-border/60 bg-background shadow-sm",
-									selectedEventType !== "all" &&
+									selectedEventType !=="all" &&
 										"border-primary/40 bg-primary/5 text-primary"
 								)}
 							>
@@ -761,7 +761,7 @@ export default function EventsStreamPage() {
 							<SelectTrigger
 								className={cn(
 									"h-8 w-[140px] border-border/60 bg-background shadow-sm",
-									selectedPath !== "all" &&
+									selectedPath !=="all" &&
 										"border-primary/40 bg-primary/5 text-primary"
 								)}
 							>
@@ -791,7 +791,7 @@ export default function EventsStreamPage() {
 							<SelectTrigger
 								className={cn(
 									"h-8 w-[135px] border-border/60 bg-background shadow-sm",
-									hasProperties !== "all" &&
+									hasProperties !=="all" &&
 										"border-primary/40 bg-primary/5 text-primary"
 								)}
 							>
@@ -815,7 +815,7 @@ export default function EventsStreamPage() {
 								<SelectTrigger
 									className={cn(
 										"h-8 w-[130px] border-border/60 bg-background shadow-sm",
-										selectedPropertyKey !== "all" &&
+										selectedPropertyKey !=="all" &&
 											"border-primary/40 bg-primary/5 text-primary"
 									)}
 								>
@@ -833,7 +833,7 @@ export default function EventsStreamPage() {
 						)}
 
 						{/* Property Value */}
-						{selectedPropertyKey !== "all" && propertyValues.length > 0 && (
+						{selectedPropertyKey !=="all" && propertyValues.length > 0 && (
 							<>
 								<span className="text-foreground/40">=</span>
 								<Select
@@ -843,7 +843,7 @@ export default function EventsStreamPage() {
 									<SelectTrigger
 										className={cn(
 											"h-8 w-[120px] border-border/60 bg-background shadow-sm",
-											selectedPropertyValue !== "all" &&
+											selectedPropertyValue !=="all" &&
 												"border-primary/40 bg-primary/5 text-primary"
 										)}
 									>
@@ -885,9 +885,9 @@ export default function EventsStreamPage() {
 
 					{/* Results count */}
 					<div className="flex items-center gap-3">
-						<span className="rounded-full bg-foreground/5 px-2.5 py-1 font-medium text-foreground text-xs tabular-nums">
+						<span className=" bg-foreground/5 px-2.5 py-1 font-medium text-foreground text-xs tabular-nums">
 							{filteredEvents.length.toLocaleString()} event
-							{filteredEvents.length !== 1 ? "s" : ""}
+							{filteredEvents.length !== 1 ?"s" :""}
 						</span>
 
 						{/* Clear all */}

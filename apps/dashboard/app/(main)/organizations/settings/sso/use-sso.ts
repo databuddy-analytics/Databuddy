@@ -1,11 +1,11 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { orpc } from "@/lib/orpc";
+import { authClient } from"@databuddy/auth/client";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { toast } from"sonner";
+import { orpc } from"@/lib/orpc";
 
-export type SSOProviderType = "oidc" | "saml";
+export type SSOProviderType ="oidc" |"saml";
 
 export type SSOProvider = {
 	id: string;
@@ -95,10 +95,10 @@ type RegisterProviderData = RegisterOIDCProviderData | RegisterSAMLProviderData;
 
 const SSO_QUERY_KEYS = {
 	providers: (organizationId: string) =>
-		["sso", "providers", organizationId] as const,
-	provider: (providerId: string) => ["sso", "provider", providerId] as const,
+		["sso","providers", organizationId] as const,
+	provider: (providerId: string) => ["sso","provider", providerId] as const,
 	spMetadata: (providerId: string) =>
-		["sso", "spMetadata", providerId] as const,
+		["sso","spMetadata", providerId] as const,
 } as const;
 
 export function useSSO(organizationId: string) {
@@ -129,7 +129,7 @@ export function useSSO(organizationId: string) {
 				providerData as Parameters<typeof authClient.sso.register>[0]
 			);
 			if (apiError) {
-				throw new Error(apiError.message || "Failed to register SSO provider");
+				throw new Error(apiError.message ||"Failed to register SSO provider");
 			}
 			return data;
 		},
@@ -198,7 +198,7 @@ export function useSSOProvider(providerId: string) {
 
 export function useSPMetadata(
 	providerId: string,
-	format: "xml" | "json" = "xml"
+	format:"xml" |"json" ="xml"
 ) {
 	const {
 		data: metadata,
@@ -214,7 +214,7 @@ export function useSPMetadata(
 			if (!response.ok) {
 				throw new Error("Failed to fetch SP metadata");
 			}
-			return format === "xml" ? response.text() : response.json();
+			return format ==="xml" ? response.text() : response.json();
 		},
 		enabled: !!providerId,
 	});
@@ -231,6 +231,6 @@ export function useSPMetadata(
 export function generateProviderId(name: string): string {
 	return name
 		.toLowerCase()
-		.replace(/\s+/g, "-")
-		.replace(/[^a-z0-9-]/g, "");
+		.replace(/\s+/g,"-")
+		.replace(/[^a-z0-9-]/g,"");
 }

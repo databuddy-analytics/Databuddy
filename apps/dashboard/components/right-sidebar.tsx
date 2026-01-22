@@ -1,12 +1,12 @@
-import type { IconProps } from "@phosphor-icons/react";
-import { BookOpenIcon } from "@phosphor-icons/react";
-import type { VariantProps } from "class-variance-authority";
-import type { ComponentType } from "react";
-import { Badge, type badgeVariants } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tip } from "@/components/ui/tip";
-import { cn } from "@/lib/utils";
+import type { IconProps } from"@phosphor-icons/react";
+import { BookOpenIcon } from"@phosphor-icons/react";
+import type { VariantProps } from"class-variance-authority";
+import type { ComponentType } from"react";
+import { Badge, type badgeVariants } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { Tip } from"@/components/ui/tip";
+import { cn } from"@/lib/utils";
 
 type RightSidebarProps = {
 	children: React.ReactNode;
@@ -45,12 +45,12 @@ function Section({
 	badge,
 }: SectionProps) {
 	return (
-		<div className={cn(border && "border-b", "p-5", className)}>
+		<div className={cn(border &&"border-b","p-5", className)}>
 			{title && (
 				<div className="mb-3 flex items-center gap-2">
 					<h3 className="font-semibold">{title}</h3>
 					{badge && (
-						<Badge variant={badge.variant || "gray"}>{badge.label}</Badge>
+						<Badge variant={badge.variant ||"gray"}>{badge.label}</Badge>
 					)}
 				</div>
 			)}
@@ -80,11 +80,11 @@ function InfoCard({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-3 rounded border bg-background p-4",
+				"flex items-center gap-3 border bg-background p-4",
 				className
 			)}
 		>
-			<div className="flex size-10 shrink-0 items-center justify-center rounded bg-secondary">
+			<div className="flex size-10 shrink-0 items-center justify-center bg-secondary">
 				<IconComponent
 					className="text-accent-foreground"
 					size={20}
@@ -95,7 +95,7 @@ function InfoCard({
 				<div className="flex items-center gap-2">
 					<p className="truncate font-semibold">{title}</p>
 					{badge && (
-						<Badge variant={badge.variant || "gray"}>{badge.label}</Badge>
+						<Badge variant={badge.variant ||"gray"}>{badge.label}</Badge>
 					)}
 				</div>
 				{description && (
@@ -115,8 +115,8 @@ type DocsLinkProps = {
 };
 
 function DocsLink({
-	href = "https://www.databuddy.cc/docs/getting-started",
-	label = "Documentation",
+	href ="https://www.databuddy.cc/docs/getting-started",
+	label ="Documentation",
 	className,
 }: DocsLinkProps) {
 	return (
@@ -151,9 +151,9 @@ function SidebarSkeleton({ className }: { className?: string }) {
 			)}
 		>
 			<Skeleton className="h-10 w-full" />
-			<Skeleton className="h-18 w-full rounded" />
+			<Skeleton className="h-18 w-full" />
 			<Skeleton className="h-10 w-full" />
-			<Skeleton className="h-20 w-full rounded" />
+			<Skeleton className="h-20 w-full" />
 		</aside>
 	);
 }

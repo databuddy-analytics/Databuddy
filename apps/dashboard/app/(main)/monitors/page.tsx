@@ -4,18 +4,18 @@ import {
 	ArrowClockwiseIcon,
 	HeartbeatIcon,
 	PlusIcon,
-} from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { MonitorSheet } from "@/components/monitors/monitor-sheet";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
-import { type Monitor, MonitorsList } from "./_components/monitors-list";
-import { PageHeader } from "./_components/page-header";
+} from"@phosphor-icons/react";
+import { useQuery } from"@tanstack/react-query";
+import { Suspense, useState } from"react";
+import { EmptyState } from"@/components/empty-state";
+import { ErrorBoundary } from"@/components/error-boundary";
+import { MonitorSheet } from"@/components/monitors/monitor-sheet";
+import { Button } from"@/components/ui/button";
+import { Skeleton } from"@/components/ui/skeleton";
+import { orpc } from"@/lib/orpc";
+import { cn } from"@/lib/utils";
+import { type Monitor, MonitorsList } from"./_components/monitors-list";
+import { PageHeader } from"./_components/page-header";
 
 const MonitorsListSkeleton = () => (
 	<div>
@@ -25,7 +25,7 @@ const MonitorsListSkeleton = () => (
 				key={`skeleton-${i + 1}`}
 			>
 				<div className="flex flex-1 items-center gap-4">
-					<Skeleton className="size-10 shrink-0 rounded" />
+					<Skeleton className="size-10 shrink-0" />
 					<div className="min-w-0 flex-1 space-y-2">
 						<div className="flex items-center gap-2">
 							<Skeleton className="h-5 w-40" />
@@ -49,7 +49,7 @@ export default function MonitorsPage() {
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
+			mode:"auto" |"manual";
 			fields?: string[];
 		} | null;
 	} | null>(null);
@@ -107,7 +107,7 @@ export default function MonitorsPage() {
 								<ArrowClockwiseIcon
 									className={cn(
 										"size-4",
-										(isLoading || isFetching) && "animate-spin"
+										(isLoading || isFetching) &&"animate-spin"
 									)}
 								/>
 							</Button>
@@ -124,7 +124,7 @@ export default function MonitorsPage() {
 					{isError ? (
 						<div className="flex h-full items-center justify-center py-16">
 							<EmptyState
-								action={{ label: "Retry", onClick: () => refetch() }}
+								action={{ label:"Retry", onClick: () => refetch() }}
 								description="Something went wrong while fetching monitors."
 								icon={<HeartbeatIcon />}
 								title="Failed to load monitors"

@@ -1,30 +1,30 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
+import { authClient } from"@databuddy/auth/client";
 import {
 	CaretRightIcon,
 	GearIcon,
 	PlusIcon,
 	SignOutIcon,
 	SpinnerGapIcon,
-} from "@phosphor-icons/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+} from"@phosphor-icons/react";
+import { useQuery, useQueryClient } from"@tanstack/react-query";
+import { useRouter } from"next/navigation";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from"@/components/ui/dropdown-menu";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from"@/components/ui/tooltip";
 
 interface User {
 	name?: string | null;
@@ -58,7 +58,7 @@ interface DeviceSession {
 	};
 }
 
-const PRESERVED_QUERY_KEYS = [["auth", "session"], ["device-sessions"]];
+const PRESERVED_QUERY_KEYS = [["auth","session"], ["device-sessions"]];
 
 export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 	const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -88,7 +88,7 @@ export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 				},
 				onError: (error) => {
 					router.push("/login");
-					toast.error(error.error.message || "Failed to log out");
+					toast.error(error.error.message ||"Failed to log out");
 				},
 			},
 		});
@@ -104,7 +104,7 @@ export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 		});
 
 		if (result.error) {
-			toast.error(result.error.message || "Failed to switch account");
+			toast.error(result.error.message ||"Failed to switch account");
 			setSwitchingTo(null);
 			return;
 		}
@@ -141,13 +141,13 @@ export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 	) => {
 		if (name) {
 			return name
-				.split(" ")
+				.split("")
 				.map((n) => n[0])
 				.join("")
 				.toUpperCase()
 				.slice(0, 2);
 		}
-		return email?.[0]?.toUpperCase() || "U";
+		return email?.[0]?.toUpperCase() ||"U";
 	};
 
 	const userInitials = getInitials(user?.name, user?.email);
@@ -163,12 +163,12 @@ export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 				<TooltipTrigger asChild>
 					<DropdownMenuTrigger
 						aria-label="Profile menu"
-						className="flex size-8 items-center justify-center rounded-full outline-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						className="flex size-8 items-center justify-center outline-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 						disabled={isLoggingOut || Boolean(switchingTo)}
 					>
 						<Avatar className="size-8">
 							<AvatarImage
-								alt={user?.name || "User"}
+								alt={user?.name ||"User"}
 								src={user?.image || undefined}
 							/>
 							<AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -228,7 +228,7 @@ export function ProfileButtonClient({ user }: ProfileButtonClientProps) {
 					variant="destructive"
 				>
 					<SignOutIcon weight="duotone" />
-					{isLoggingOut ? "Signing out…" : "Sign out"}
+					{isLoggingOut ?"Signing out…" :"Sign out"}
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from"@/components/ui/skeleton";
 
 export function OverviewSkeleton() {
 	return (
@@ -12,13 +12,13 @@ export function OverviewSkeleton() {
 					{[1, 2, 3].map((i) => (
 						<div className="px-5 py-4" key={i}>
 							<div className="mb-3 flex items-center gap-3">
-								<Skeleton className="size-10 rounded" />
+								<Skeleton className="size-10" />
 								<div>
 									<Skeleton className="mb-1 h-4 w-24" />
 									<Skeleton className="h-3 w-32" />
 								</div>
 							</div>
-							<Skeleton className="h-2 w-full rounded-full" />
+							<Skeleton className="h-2 w-full" />
 						</div>
 					))}
 				</div>
@@ -27,7 +27,7 @@ export function OverviewSkeleton() {
 				<div className="border-b p-5">
 					<Skeleton className="mb-3 h-5 w-28" />
 					<div className="flex items-center gap-3">
-						<Skeleton className="size-11 rounded" />
+						<Skeleton className="size-11" />
 						<div>
 							<Skeleton className="mb-1 h-4 w-20" />
 							<Skeleton className="h-3 w-28" />
@@ -37,7 +37,7 @@ export function OverviewSkeleton() {
 				<div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-1 lg:gap-0 lg:p-0">
 					<div className="w-full lg:w-auto lg:border-b lg:p-5">
 						<Skeleton className="mb-3 h-5 w-32" />
-						<Skeleton className="aspect-[1.586/1] w-full rounded-xl" />
+						<Skeleton className="aspect-[1.586/1] w-full" />
 					</div>
 					<div className="flex w-full flex-col gap-2 lg:w-auto lg:p-5">
 						<Skeleton className="h-10 w-full" />

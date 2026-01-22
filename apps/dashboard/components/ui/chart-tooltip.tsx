@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from"@/lib/utils";
 
 type TooltipEntry = {
 	key: string;
@@ -48,7 +48,7 @@ export function ChartTooltip({
 	// Single value mode (simpler, like stat-card)
 	if (singleValue) {
 		return (
-			<div className={cn("rounded border bg-popover px-2 py-1.5 shadow-lg", className)}>
+			<div className={cn(" border bg-popover px-2 py-1.5 shadow-lg", className)}>
 				{displayLabel && (
 					<p className="text-[10px] text-muted-foreground">{displayLabel}</p>
 				)}
@@ -68,10 +68,10 @@ export function ChartTooltip({
 	if (!entries?.length) return null;
 
 	return (
-		<div className={cn("min-w-[160px] rounded border bg-popover p-2.5 shadow-lg", className)}>
+		<div className={cn("min-w-[160px] border bg-popover p-2.5 shadow-lg", className)}>
 			{displayLabel && (
 				<div className="mb-2 flex items-center gap-2 border-b pb-2">
-					<div className="size-1.5 animate-pulse rounded-full bg-primary" />
+					<div className="size-1.5 animate-pulse bg-primary" />
 					<p className="font-medium text-foreground text-xs">{displayLabel}</p>
 				</div>
 			)}
@@ -80,7 +80,7 @@ export function ChartTooltip({
 					<div className="flex items-center justify-between gap-3" key={entry.key}>
 						<div className="flex items-center gap-1.5">
 							<div
-								className="size-2 rounded-full"
+								className="size-2"
 								style={{ backgroundColor: entry.color }}
 							/>
 							<span className="text-muted-foreground text-xs">{entry.label}</span>
@@ -128,8 +128,8 @@ export function createTooltipEntries(
 export function formatTooltipDate(dateStr: string): string {
 	try {
 		return new Date(dateStr).toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
+			month:"short",
+			day:"numeric",
 		});
 	} catch {
 		return dateStr;

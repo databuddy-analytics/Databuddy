@@ -1,13 +1,13 @@
-import { authClient } from "@databuddy/auth/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { authClient } from"@databuddy/auth/client";
+import { useMutation, useQuery, useQueryClient } from"@tanstack/react-query";
+import { toast } from"sonner";
 import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
-} from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+} from"@/components/providers/organizations-provider";
+import { orpc } from"@/lib/orpc";
 
-export type OrganizationRole = "owner" | "admin" | "member";
+export type OrganizationRole ="owner" |"admin" |"member";
 
 interface CreateOrganizationData {
 	name: string;
@@ -38,10 +38,10 @@ export interface UpdateMemberData {
 
 const QUERY_KEYS = {
 	organizationMembers: (orgId: string) =>
-		["organizations", orgId, "members"] as const,
+		["organizations", orgId,"members"] as const,
 	organizationInvitations: (orgId: string) =>
-		["organizations", orgId, "invitations"] as const,
-	userInvitations: ["organizations", "invitations", "user"] as const,
+		["organizations", orgId,"invitations"] as const,
+	userInvitations: ["organizations","invitations","user"] as const,
 } as const;
 
 const createMutation = <TData, TVariables>(
@@ -84,12 +84,12 @@ export function useOrganizations() {
 					await authClient.organization.create({
 						name: orgInput.name,
 						slug:
-							orgInput.slug || orgInput.name.toLowerCase().replace(/\s+/g, "-"),
+							orgInput.slug || orgInput.name.toLowerCase().replace(/\s+/g,"-"),
 						logo: orgInput.logo,
 						metadata: orgInput.metadata,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to create organization");
+					throw new Error(apiError.message ||"Failed to create organization");
 				}
 				return result;
 			},
@@ -122,7 +122,7 @@ export function useOrganizations() {
 						},
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to update organization");
+					throw new Error(apiError.message ||"Failed to update organization");
 				}
 				return result;
 			},
@@ -148,7 +148,7 @@ export function useOrganizations() {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to delete organization");
+					throw new Error(apiError.message ||"Failed to delete organization");
 				}
 				return result;
 			},
@@ -167,7 +167,7 @@ export function useOrganizations() {
 					});
 				if (apiError) {
 					throw new Error(
-						apiError.message || "Failed to unset active organization"
+						apiError.message ||"Failed to unset active organization"
 					);
 				}
 				return setActiveData;
@@ -178,7 +178,7 @@ export function useOrganizations() {
 				});
 			if (apiError2) {
 				throw new Error(
-					apiError2.message || "Failed to set active organization"
+					apiError2.message ||"Failed to set active organization"
 				);
 			}
 			return setActiveData2;
@@ -197,7 +197,7 @@ export function useOrganizations() {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to leave organization");
+					throw new Error(apiError.message ||"Failed to leave organization");
 				}
 				return result;
 			},
@@ -244,7 +244,7 @@ export function useOrganizationMembers(organizationId: string) {
 					query: { organizationId },
 				});
 			if (apiError) {
-				throw new Error(apiError.message || "Failed to fetch members");
+				throw new Error(apiError.message ||"Failed to fetch members");
 			}
 			return fullOrgData?.members || [];
 		},
@@ -268,7 +268,7 @@ export function useOrganizationMembers(organizationId: string) {
 						resend: data.resend,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to invite member");
+					throw new Error(apiError.message ||"Failed to invite member");
 				}
 				return result;
 			},
@@ -288,7 +288,7 @@ export function useOrganizationMembers(organizationId: string) {
 						organizationId: data.organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to update member role");
+					throw new Error(apiError.message ||"Failed to update member role");
 				}
 				return result;
 			},
@@ -307,7 +307,7 @@ export function useOrganizationMembers(organizationId: string) {
 						organizationId,
 					});
 				if (apiError) {
-					throw new Error(apiError.message || "Failed to remove member");
+					throw new Error(apiError.message ||"Failed to remove member");
 				}
 				return result;
 			},

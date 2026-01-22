@@ -4,9 +4,9 @@ import {
 	ChevronDownIcon,
 	ExternalLinkIcon,
 	MessageCircleIcon,
-} from "lucide-react";
-import { type ComponentProps, createContext, useContext } from "react";
-import { Button } from "@/components/ui/button";
+} from"lucide-react";
+import { type ComponentProps, createContext, useContext } from"react";
+import { Button } from"@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -14,12 +14,12 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+} from"@/components/ui/dropdown-menu";
+import { cn } from"@/lib/utils";
 
 const providers = {
 	github: {
-		title: "Open in GitHub",
+		title:"Open in GitHub",
 		createUrl: (url: string) => url,
 		icon: (
 			<svg fill="currentColor" role="img" viewBox="0 0 24 24">
@@ -29,7 +29,7 @@ const providers = {
 		),
 	},
 	scira: {
-		title: "Open in Scira",
+		title:"Open in Scira",
 		createUrl: (q: string) =>
 			`https://scira.ai/?${new URLSearchParams({
 				q,
@@ -94,10 +94,10 @@ const providers = {
 		),
 	},
 	chatgpt: {
-		title: "Open in ChatGPT",
+		title:"Open in ChatGPT",
 		createUrl: (prompt: string) =>
 			`https://chatgpt.com/?${new URLSearchParams({
-				hints: "search",
+				hints:"search",
 				prompt,
 			})}`,
 		icon: (
@@ -113,7 +113,7 @@ const providers = {
 		),
 	},
 	claude: {
-		title: "Open in Claude",
+		title:"Open in Claude",
 		createUrl: (q: string) =>
 			`https://claude.ai/new?${new URLSearchParams({
 				q,
@@ -135,7 +135,7 @@ const providers = {
 		),
 	},
 	t3: {
-		title: "Open in T3 Chat",
+		title:"Open in T3 Chat",
 		createUrl: (q: string) =>
 			`https://t3.chat/new?${new URLSearchParams({
 				q,
@@ -143,7 +143,7 @@ const providers = {
 		icon: <MessageCircleIcon />,
 	},
 	v0: {
-		title: "Open in v0",
+		title:"Open in v0",
 		createUrl: (q: string) =>
 			`https://v0.app?${new URLSearchParams({
 				q,
@@ -161,7 +161,7 @@ const providers = {
 		),
 	},
 	cursor: {
-		title: "Open in Cursor",
+		title:"Open in Cursor",
 		createUrl: (text: string) => {
 			const url = new URL("https://cursor.com/link/prompt");
 			url.searchParams.set("text", text);

@@ -1,12 +1,12 @@
 "use client";
 
 import {
-	ArrowRightIcon,
-	CheckIcon,
-	CodeIcon,
-	GlobeIcon,
-	type Icon,
-	SparkleIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  CodeIcon,
+  GlobeIcon,
+  type Icon,
+  SparkleIcon,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -19,89 +19,89 @@ import { useWebsitesLight } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 
 interface OnboardingStep {
-	id: string;
-	title: string;
-	description: string;
-	icon: Icon;
-	completed: boolean;
-	action?: () => void;
-	actionLabel?: string;
+  id: string;
+  title: string;
+  description: string;
+  icon: Icon;
+  completed: boolean;
+  action?: () => void;
+  actionLabel?: string;
 }
 
 function StepIndicator({
-	steps,
-	currentStep,
+  steps,
+  currentStep,
 }: {
-	steps: OnboardingStep[];
-	currentStep: number;
+  steps: OnboardingStep[];
+  currentStep: number;
 }) {
-	return (
-		<div className="flex items-center justify-center gap-2 py-8">
-			{steps.map((step, index) => (
-				<div className="flex items-center" key={step.id}>
-					<div
-						className={cn(
-							"flex size-8 items-center justify-center rounded-full border-2 transition-all duration-300",
-							step.completed
-								? "border-primary bg-primary text-primary-foreground"
-								: index === currentStep
-									? "border-primary bg-primary/10 text-primary"
-									: "border-muted bg-card text-muted-foreground"
-						)}
-					>
-						{step.completed ? (
-							<CheckIcon className="size-4" weight="bold" />
-						) : (
-							<span className="font-semibold text-xs tabular-nums">
-								{index + 1}
-							</span>
-						)}
-					</div>
-					{index < steps.length - 1 && (
-						<div
-							className={cn("h-0.5 w-8 transition-all duration-300", {
-								"bg-primary": step.completed,
-								"bg-muted": !step.completed,
-							})}
-						/>
-					)}
-				</div>
-			))}
-		</div>
-	);
+  return (
+    <div className="flex items-center justify-center gap-2 py-8">
+      {steps.map((step, index) => (
+        <div className="flex items-center" key={step.id}>
+          <div
+            className={cn(
+              "flex size-8 items-center justify-center border-2 transition-all duration-300",
+              step.completed
+                ? "border-primary bg-primary text-primary-foreground"
+                : index === currentStep
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-muted bg-card text-muted-foreground",
+            )}
+          >
+            {step.completed ? (
+              <CheckIcon className="size-4" weight="bold" />
+            ) : (
+              <span className="font-semibold text-xs tabular-nums">
+                {index + 1}
+              </span>
+            )}
+          </div>
+          {index < steps.length - 1 && (
+            <div
+              className={cn("h-0.5 w-8 transition-all duration-300", {
+                "bg-primary": step.completed,
+                "bg-muted": !step.completed,
+              })}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function OnboardingStepCard({
-	step,
-	isActive,
+  step,
+  isActive,
 }: {
-	step: OnboardingStep;
-	isActive: boolean;
+  step: OnboardingStep;
+  isActive: boolean;
 }) {
 	return (
 		<Card
 			className={cn(
 				"group gap-0 overflow-hidden border bg-card py-0 transition-all duration-300 hover:border-primary",
 				isActive
-					? "border-primary/50"
+					?"border-primary/50"
 					: step.completed
-						? "border-primary/20"
-						: "border-muted"
+						?"border-primary/20"
+						:"border-muted"
 			)}
 		>
 			<div className="flex items-center gap-2.5 px-2.5 py-2.5">
 				<div
 					className={cn(
-						"flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors",
-						isActive || step.completed ? "bg-primary/10" : "bg-accent"
+						"flex size-7 shrink-0 items-center justify-center bg-accent transition-colors",
+						isActive || step.completed ?"bg-primary/10" :"bg-accent"
 					)}
 				>
 					<step.icon
 						className={cn(
 							"size-4 transition-colors",
 							isActive || step.completed
-								? "text-primary"
-								: "text-muted-foreground"
+								?"text-primary"
+								:"text-muted-foreground"
 						)}
 						weight="bold"
 					/>
@@ -122,7 +122,7 @@ function OnboardingStepCard({
 							weight="bold"
 						/>
 					) : isActive && step.action ? (
-						<Button className="rounded" onClick={step.action} size="sm">
+						<Button onClick={step.action} size="sm">
 							{step.actionLabel || "Continue"}
 							<ArrowRightIcon className="ml-2 size-4" weight="bold" />
 						</Button>
@@ -134,114 +134,114 @@ function OnboardingStepCard({
 }
 
 export default function OnboardingPage() {
-	const router = useRouter();
-	const [showCreateWebsiteDialog, setShowCreateWebsiteDialog] = useState(false);
+  const router = useRouter();
+  const [showCreateWebsiteDialog, setShowCreateWebsiteDialog] = useState(false);
 
-	const { websites } = useWebsitesLight();
+  const { websites } = useWebsitesLight();
 
-	const hasWebsite = Boolean(websites && websites.length > 0);
+  const hasWebsite = Boolean(websites && websites.length > 0);
 
-	const steps: OnboardingStep[] = [
-		{
-			id: "website",
-			title: "Add Your Website",
-			description: hasWebsite
-				? "Website added successfully"
-				: "Add your first website to start tracking analytics",
-			icon: GlobeIcon,
-			completed: hasWebsite,
-			action: hasWebsite ? undefined : () => setShowCreateWebsiteDialog(true),
-			actionLabel: "Add Website",
-		},
-		{
-			id: "setup",
-			title: "Install Tracking",
-			description: "Add the tracking script to your website to collect data",
-			icon: CodeIcon,
-			completed: false,
-			action: () => {
-				if (websites && websites.length > 0) {
-					window.location.href = `/websites/${websites[0].id}?tab=tracking-setup`;
-				}
-			},
-			actionLabel: "Setup Tracking",
-		},
-	];
+  const steps: OnboardingStep[] = [
+    {
+      id: "website",
+      title: "Add Your Website",
+      description: hasWebsite
+        ? "Website added successfully"
+        : "Add your first website to start tracking analytics",
+      icon: GlobeIcon,
+      completed: hasWebsite,
+      action: hasWebsite ? undefined : () => setShowCreateWebsiteDialog(true),
+      actionLabel: "Add Website",
+    },
+    {
+      id: "setup",
+      title: "Install Tracking",
+      description: "Add the tracking script to your website to collect data",
+      icon: CodeIcon,
+      completed: false,
+      action: () => {
+        if (websites && websites.length > 0) {
+          window.location.href = `/websites/${websites[0].id}?tab=tracking-setup`;
+        }
+      },
+      actionLabel: "Setup Tracking",
+    },
+  ];
 
-	const currentStepIndex = steps.findIndex((step) => !step.completed);
-	const allCompleted = currentStepIndex === -1;
+  const currentStepIndex = steps.findIndex((step) => !step.completed);
+  const allCompleted = currentStepIndex === -1;
 
-	// Check for pending plan selection and redirect to billing
-	useEffect(() => {
-		const pendingPlan = localStorage.getItem("pendingPlanSelection");
-		if (pendingPlan && allCompleted) {
-			localStorage.removeItem("pendingPlanSelection");
-			router.push(`/billing?tab=plans&plan=${pendingPlan}`);
-		}
-	}, [allCompleted, router]);
+  // Check for pending plan selection and redirect to billing
+  useEffect(() => {
+    const pendingPlan = localStorage.getItem("pendingPlanSelection");
+    if (pendingPlan && allCompleted) {
+      localStorage.removeItem("pendingPlanSelection");
+      router.push(`/billing?tab=plans&plan=${pendingPlan}`);
+    }
+  }, [allCompleted, router]);
 
-	return (
-		<div className="flex h-full flex-col">
-			<PageHeader
-				description="Follow these steps to set up your analytics dashboard"
-				icon={<SparkleIcon />}
-				title="Get Started"
-			/>
+  return (
+    <div className="flex h-full flex-col">
+      <PageHeader
+        description="Follow these steps to set up your analytics dashboard"
+        icon={<SparkleIcon />}
+        title="Get Started"
+      />
 
-			<div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
-				<div className="mx-auto max-w-2xl space-y-6">
-					{!allCompleted && (
-						<>
-							<StepIndicator currentStep={currentStepIndex} steps={steps} />
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
+        <div className="mx-auto max-w-2xl space-y-6">
+          {!allCompleted && (
+            <>
+              <StepIndicator currentStep={currentStepIndex} steps={steps} />
 
-							<div className="space-y-3">
-								{steps.map((step, index) => (
-									<OnboardingStepCard
-										isActive={index === currentStepIndex}
-										key={step.id}
-										step={step}
-									/>
-								))}
-							</div>
+              <div className="space-y-3">
+                {steps.map((step, index) => (
+                  <OnboardingStepCard
+                    isActive={index === currentStepIndex}
+                    key={step.id}
+                    step={step}
+                  />
+                ))}
+              </div>
 
-							<div className="flex justify-center pt-4">
-								<Button
-									className="rounded"
-									onClick={() => {
-										window.location.href = "/websites";
-									}}
-									variant="ghost"
-								>
-									Skip for now
-									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-								</Button>
-							</div>
-						</>
-					)}
+              <div className="flex justify-center pt-4">
+                <Button
+                  className=""
+                  onClick={() => {
+                    window.location.href = "/websites";
+                  }}
+                  variant="ghost"
+                >
+                  Skip for now
+                  <ArrowRightIcon className="ml-2 size-4" weight="bold" />
+                </Button>
+              </div>
+            </>
+          )}
 
-					{allCompleted && (
-						<EmptyState
-							action={{
-								label: "View My Websites",
-								onClick: () => {
-									window.location.href = "/websites";
-								},
-							}}
-							className="h-full"
-							description="You've successfully completed the onboarding. You're ready to start tracking analytics!"
-							icon={<CheckIcon weight="bold" />}
-							showPlusBadge={false}
-							title="All Set!"
-							variant="minimal"
-						/>
-					)}
-				</div>
-			</div>
+          {allCompleted && (
+            <EmptyState
+              action={{
+                label: "View My Websites",
+                onClick: () => {
+                  window.location.href = "/websites";
+                },
+              }}
+              className="h-full"
+              description="You've successfully completed the onboarding. You're ready to start tracking analytics!"
+              icon={<CheckIcon weight="bold" />}
+              showPlusBadge={false}
+              title="All Set!"
+              variant="minimal"
+            />
+          )}
+        </div>
+      </div>
 
-			<WebsiteDialog
-				onOpenChange={setShowCreateWebsiteDialog}
-				open={showCreateWebsiteDialog}
-			/>
-		</div>
-	);
+      <WebsiteDialog
+        onOpenChange={setShowCreateWebsiteDialog}
+        open={showCreateWebsiteDialog}
+      />
+    </div>
+  );
 }

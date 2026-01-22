@@ -1,44 +1,44 @@
 import type {
 	ProcessedMiniChartData,
 	Website,
-} from "@databuddy/shared/types/website";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr/ArrowSquareOut";
-import { ArrowsLeftRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowsLeftRight";
-import { CodeIcon } from "@phosphor-icons/react/dist/ssr/Code";
-import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
-import { EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
-import { GearIcon } from "@phosphor-icons/react/dist/ssr/Gear";
-import { MinusIcon } from "@phosphor-icons/react/dist/ssr/Minus";
-import { PencilSimpleIcon } from "@phosphor-icons/react/dist/ssr/PencilSimple";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
-import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { memo, useCallback, useState } from "react";
-import { toast } from "sonner";
-import { FaviconImage } from "@/components/analytics/favicon-image";
+} from"@databuddy/shared/types/website";
+import { ArrowSquareOutIcon } from"@phosphor-icons/react/dist/ssr/ArrowSquareOut";
+import { ArrowsLeftRightIcon } from"@phosphor-icons/react/dist/ssr/ArrowsLeftRight";
+import { CodeIcon } from"@phosphor-icons/react/dist/ssr/Code";
+import { CopyIcon } from"@phosphor-icons/react/dist/ssr/Copy";
+import { EyeIcon } from"@phosphor-icons/react/dist/ssr/Eye";
+import { GearIcon } from"@phosphor-icons/react/dist/ssr/Gear";
+import { MinusIcon } from"@phosphor-icons/react/dist/ssr/Minus";
+import { PencilSimpleIcon } from"@phosphor-icons/react/dist/ssr/PencilSimple";
+import { TrashIcon } from"@phosphor-icons/react/dist/ssr/Trash";
+import { TrendDownIcon } from"@phosphor-icons/react/dist/ssr/TrendDown";
+import { TrendUpIcon } from"@phosphor-icons/react/dist/ssr/TrendUp";
+import Link from"next/link";
+import { useRouter } from"next/navigation";
+import { memo, useCallback, useState } from"react";
+import { toast } from"sonner";
+import { FaviconImage } from"@/components/analytics/favicon-image";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
+} from"@/components/ui/card";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WebsiteDialog } from "@/components/website-dialog";
-import { useDeleteWebsite } from "@/hooks/use-websites";
-import { TOAST_MESSAGES } from "../[id]/_components/shared/tracking-constants";
-import MiniChart from "./mini-chart";
-import { TransferWebsiteDialog } from "./transfer-website-dialog";
+} from"@/components/ui/context-menu";
+import { DeleteDialog } from"@/components/ui/delete-dialog";
+import { Skeleton } from"@/components/ui/skeleton";
+import { WebsiteDialog } from"@/components/website-dialog";
+import { useDeleteWebsite } from"@/hooks/use-websites";
+import { TOAST_MESSAGES } from"../[id]/_components/shared/tracking-constants";
+import MiniChart from"./mini-chart";
+import { TransferWebsiteDialog } from"./transfer-website-dialog";
 
 interface WebsiteCardProps {
 	website: Website;
@@ -49,12 +49,12 @@ interface WebsiteCardProps {
 
 function TrendStat({
 	trend,
-	className = "flex items-center gap-1 font-semibold text-xs",
+	className ="flex items-center gap-1 font-semibold text-xs",
 }: {
 	trend: ProcessedMiniChartData["trend"] | undefined;
 	className?: string;
 }) {
-	if (trend?.type === "up") {
+	if (trend?.type ==="up") {
 		return (
 			<div className={className}>
 				<TrendUpIcon
@@ -66,7 +66,7 @@ function TrendStat({
 			</div>
 		);
 	}
-	if (trend?.type === "down") {
+	if (trend?.type ==="down") {
 		return (
 			<div className={className}>
 				<TrendDownIcon
@@ -109,7 +109,7 @@ export const WebsiteCard = memo(
 		}, [router, website.id]);
 
 		const handleOpenNewTab = useCallback(() => {
-			window.open(`/websites/${website.id}`, "_blank", "noopener,noreferrer");
+			window.open(`/websites/${website.id}`,"_blank","noopener,noreferrer");
 		}, [website.id]);
 
 		const handleCopyLink = useCallback(async () => {
@@ -164,7 +164,7 @@ export const WebsiteCard = memo(
 					<ContextMenuTrigger asChild>
 						<Link
 							aria-label={`Open ${website.name} analytics`}
-							className="group block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+							className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 							data-section="website-grid"
 							data-track="website-card-click"
 							data-website-id={website.id}
@@ -174,17 +174,17 @@ export const WebsiteCard = memo(
 							<Card className="flex h-full select-none flex-col gap-0 overflow-hidden bg-background p-0 transition-all duration-300 ease-in-out group-hover:border-primary/60 motion-reduce:transform-none motion-reduce:transition-none">
 								<CardHeader className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 									{activeUsers !== undefined && activeUsers > 0 && (
-										<div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 font-medium text-success text-xs tabular-nums backdrop-blur-sm">
+										<div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 bg-success/10 px-2 py-0.5 font-medium text-success text-xs tabular-nums backdrop-blur-sm">
 											<span className="relative flex size-1.5">
-												<span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
-												<span className="relative inline-flex size-1.5 rounded-full bg-success" />
+												<span className="absolute inline-flex size-full animate-ping bg-success opacity-75" />
+												<span className="relative inline-flex size-1.5 bg-success" />
 											</span>
 											{activeUsers}
 										</div>
 									)}
 									{isLoadingChart ? (
 										<div className="px-3">
-											<Skeleton className="mx-auto h-24 w-full rounded sm:h-28" />
+											<Skeleton className="mx-auto h-24 w-full sm:h-28" />
 										</div>
 									) : chartData ? (
 										chartData.hasAnyData ? (
@@ -199,7 +199,7 @@ export const WebsiteCard = memo(
 											</div>
 										) : (
 											<div className="flex h-28 flex-col items-center justify-center gap-2 px-4 text-center">
-												<div className="flex size-8 items-center justify-center rounded bg-amber-500/10">
+												<div className="flex size-8 items-center justify-center bg-amber-500/10">
 													<CodeIcon
 														className="size-4 text-amber-500"
 														weight="duotone"
@@ -244,7 +244,7 @@ export const WebsiteCard = memo(
 														className="size-4 shrink-0 text-muted-foreground"
 														weight="duotone"
 													/>
-													{chartData ? formatNumber(chartData.totalViews) : "0"}
+													{chartData ? formatNumber(chartData.totalViews) :"0"}
 												</span>
 												<TrendStat
 													className="flex items-center gap-1 font-semibold text-xs"
@@ -257,23 +257,23 @@ export const WebsiteCard = memo(
 							</Card>
 						</Link>
 					</ContextMenuTrigger>
-					<ContextMenuContent className="min-w-48 rounded border-border/50 bg-popover/95 p-0 shadow-lg backdrop-blur-sm">
+					<ContextMenuContent className="min-w-48 border-border/50 bg-popover/95 p-0 shadow-lg backdrop-blur-sm">
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleOpen}
 						>
 							<EyeIcon className="size-4" weight="duotone" />
 							Open
 						</ContextMenuItem>
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleOpenNewTab}
 						>
 							<ArrowSquareOutIcon className="size-4" weight="duotone" />
 							Open in new tab
 						</ContextMenuItem>
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleCopyLink}
 						>
 							<CopyIcon className="size-4" weight="duotone" />
@@ -281,21 +281,21 @@ export const WebsiteCard = memo(
 						</ContextMenuItem>
 						<ContextMenuSeparator className="my-0" />
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleEdit}
 						>
 							<PencilSimpleIcon className="size-4" weight="duotone" />
 							Edit
 						</ContextMenuItem>
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleSettings}
 						>
 							<GearIcon className="size-4" weight="duotone" />
 							Settings
 						</ContextMenuItem>
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleTransfer}
 						>
 							<ArrowsLeftRightIcon className="size-4" weight="duotone" />
@@ -303,7 +303,7 @@ export const WebsiteCard = memo(
 						</ContextMenuItem>
 						<ContextMenuSeparator className="my-0" />
 						<ContextMenuItem
-							className="w-full rounded-none px-3 py-2"
+							className="w-full px-3 py-2"
 							onSelect={handleDelete}
 							variant="destructive"
 						>
@@ -321,7 +321,7 @@ export const WebsiteCard = memo(
 				/>
 				<DeleteDialog
 					confirmLabel="Delete Website"
-					description={`Are you sure you want to delete "${website.name ?? website.domain}"? This action cannot be undone and will permanently remove all analytics data.`}
+					description={`Are you sure you want to delete"${website.name ?? website.domain}"? This action cannot be undone and will permanently remove all analytics data.`}
 					isDeleting={deleteWebsiteMutation.isPending}
 					isOpen={showDeleteDialog}
 					itemName={website.name ?? undefined}
@@ -339,7 +339,7 @@ export const WebsiteCard = memo(
 	}
 );
 
-WebsiteCard.displayName = "WebsiteCard";
+WebsiteCard.displayName ="WebsiteCard";
 
 export function WebsiteCardSkeleton() {
 	return (
@@ -349,15 +349,15 @@ export function WebsiteCardSkeleton() {
 			</CardHeader>
 			<CardContent className="space-y-1 px-4 py-3">
 				<div className="flex items-center gap-3">
-					<Skeleton className="size-7 shrink-0 rounded" />
+					<Skeleton className="size-7 shrink-0" />
 					<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
 						<div className="min-w-0 space-y-0.5">
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="h-3.5 w-32 rounded" />
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-3.5 w-32" />
 						</div>
 						<div className="flex shrink-0 flex-col items-end space-y-0.5">
-							<Skeleton className="h-4 w-10 rounded" />
-							<Skeleton className="h-4 w-12 rounded" />
+							<Skeleton className="h-4 w-10" />
+							<Skeleton className="h-4 w-12" />
 						</div>
 					</div>
 				</div>
