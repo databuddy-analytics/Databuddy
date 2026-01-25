@@ -400,6 +400,8 @@ export function FlagSheet({
 									<FormField
 										control={form.control}
 										name="flag.name"
+										control={form.control}
+										name="flag.name"
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>Name</FormLabel>
