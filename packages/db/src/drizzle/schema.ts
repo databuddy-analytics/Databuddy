@@ -658,6 +658,7 @@ export const flags = pgTable(
 		persistAcrossAuth: boolean("persist_across_auth").default(false).notNull(),
 		rolloutPercentage: integer("rollout_percentage").default(0),
 		rolloutBy: text("rollout_by"),
+		folder: text(),
 		websiteId: text("website_id"),
 		organizationId: text("organization_id"),
 		userId: text("user_id"),

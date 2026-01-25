@@ -66,6 +66,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -100,6 +101,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
+		folder: z.string().optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
@@ -124,6 +126,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -262,6 +265,10 @@ export const flagsRouter = {
 
 				if (input.status) {
 					conditions.push(eq(flags.status, input.status));
+				}
+
+				if (input.folder) {
+					conditions.push(eq(flags.folder, input.folder));
 				}
 
 				const flagsList = await context.db.query.flags.findMany({
@@ -584,6 +591,7 @@ export const flagsRouter = {
 					persistAcrossAuth: input.persistAcrossAuth ?? false,
 					rolloutPercentage: input.rolloutPercentage || 0,
 					rolloutBy: input.rolloutBy || null,
+					folder: input.folder || null,
 					variants: input.variants || [],
 					dependencies: input.dependencies || [],
 					websiteId: input.websiteId || null,
@@ -826,5 +834,116 @@ export const flagsRouter = {
 			await invalidateFlagCache(input.id, flag.websiteId, flag.organizationId);
 
 			return { success: true };
+		}),
+
+	renameFolder: protectedProcedure
+		.input(
+			z
+				.object({
+					websiteId: z.string().optional(),
+					organizationId: z.string().optional(),
+					oldName: z.string(),
+					newName: z.string(),
+				})
+				.refine((data) => data.websiteId || data.organizationId, {
+					message: "Either websiteId or organizationId must be provided",
+					path: ["websiteId"],
+				})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeScope(
+				context,
+				input.websiteId,
+				input.organizationId,
+				"update"
+			);
+
+			const { oldName, newName } = input;
+
+			const updatedFlags = await context.db
+				.update(flags)
+				.set({
+					folder: newName,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						getScopeCondition(
+							input.websiteId,
+							input.organizationId,
+							context.user.id
+						),
+						eq(flags.folder, oldName),
+						isNull(flags.deletedAt)
+					)
+				)
+				.returning({ id: flags.id, key: flags.key });
+
+			// Invalidate cache for all affected flags
+			for (const flag of updatedFlags) {
+				await invalidateFlagCache(
+					flag.id,
+					input.websiteId,
+					input.organizationId,
+					flag.key
+				);
+			}
+
+			return { success: true, count: updatedFlags.length };
+		}),
+
+	deleteFolder: protectedProcedure
+		.input(
+			z
+				.object({
+					websiteId: z.string().optional(),
+					organizationId: z.string().optional(),
+					folder: z.string(),
+				})
+				.refine((data) => data.websiteId || data.organizationId, {
+					message: "Either websiteId or organizationId must be provided",
+					path: ["websiteId"],
+				})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeScope(
+				context,
+				input.websiteId,
+				input.organizationId,
+				"update"
+			);
+
+			const { folder } = input;
+
+			const updatedFlags = await context.db
+				.update(flags)
+				.set({
+					folder: null,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						getScopeCondition(
+							input.websiteId,
+							input.organizationId,
+							context.user.id
+						),
+						eq(flags.folder, folder),
+						isNull(flags.deletedAt)
+					)
+				)
+				.returning({ id: flags.id, key: flags.key });
+
+			// Invalidate cache for all affected flags
+			for (const flag of updatedFlags) {
+				await invalidateFlagCache(
+					flag.id,
+					input.websiteId,
+					input.organizationId,
+					flag.key
+				);
+			}
+
+			return { success: true, count: updatedFlags.length };
 		}),
 };

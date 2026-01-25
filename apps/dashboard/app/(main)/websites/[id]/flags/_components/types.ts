@@ -23,6 +23,7 @@ export interface Flag {
 	dependencies?: string[];
 	environment?: string;
 	persistAcrossAuth?: boolean;
+	folder?: string | null;
 	websiteId?: string | null;
 	organizationId?: string | null;
 	userId?: string | null;
@@ -35,14 +36,14 @@ export interface Flag {
 export interface UserRule {
 	type: "user_id" | "email" | "property";
 	operator:
-		| "equals"
-		| "contains"
-		| "starts_with"
-		| "ends_with"
-		| "in"
-		| "not_in"
-		| "exists"
-		| "not_exists";
+	| "equals"
+	| "contains"
+	| "starts_with"
+	| "ends_with"
+	| "in"
+	| "not_in"
+	| "exists"
+	| "not_exists";
 	field?: string;
 	value?: string;
 	values?: string[];

@@ -27,7 +27,7 @@
     },
     "apps/api": {
       "name": "@databuddy/api",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "dependencies": {
         "@ai-sdk-tools/agents": "^1.2.0",
         "@ai-sdk-tools/artifacts": "^1.2.0",

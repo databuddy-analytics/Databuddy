@@ -29,6 +29,7 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { LineSlider } from "@/components/ui/line-slider";
 import {
 	Sheet,
@@ -157,6 +158,7 @@ export function FlagSheet({
 				dependencies: [],
 				environment: undefined,
 				targetGroupIds: [],
+				folder: undefined,
 			},
 			schedule: undefined,
 		},
@@ -199,6 +201,7 @@ export function FlagSheet({
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
 					targetGroupIds: extractTargetGroupIds(),
+					folder: flag.folder || undefined,
 				},
 				schedule: undefined,
 			});
@@ -220,6 +223,7 @@ export function FlagSheet({
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -241,6 +245,7 @@ export function FlagSheet({
 					variants: [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -393,8 +398,6 @@ export function FlagSheet({
 							<div className="space-y-4">
 								<div className="grid place-items-start gap-4 sm:grid-cols-2">
 									<FormField
-										control={form.control}
-										name="flag.name"
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>Name</FormLabel>
@@ -403,6 +406,33 @@ export function FlagSheet({
 														placeholder="New Feature…"
 														{...field}
 														onChange={(e) => handleNameChange(e.target.value)}
+													/>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
+
+									<FormField
+										control={form.control}
+										name="flag.folder"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>Folder (optional)</FormLabel>
+												<FormControl>
+													<AutocompleteInput
+														suggestions={
+															Array.from(
+																new Set(
+																	flagsList
+																		?.map((f) => f.folder)
+																		.filter(Boolean) as string[]
+																)
+															).sort()
+														}
+														placeholder="Select or type folder..."
+														value={field.value || ""}
+														onValueChange={field.onChange}
 													/>
 												</FormControl>
 												<FormMessage />

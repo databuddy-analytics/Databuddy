@@ -14,6 +14,8 @@ import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagSheet } from "./_components/flag-sheet";
 import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
+import { FolderSidebar } from "./_components/folder-sidebar";
+import { FolderListItem } from "./_components/folder-list-item";
 import type { Flag, TargetGroup } from "./_components/types";
 
 export default function FlagsPage() {
@@ -87,55 +89,150 @@ export default function FlagsPage() {
 		setEditingFlag(null);
 	};
 
+	// Folder Logic
+	const [activeFolder, setActiveFolder] = useState<string | null>(null);
+
+	const folderData = useMemo(() => {
+		const folders = new Set<string>();
+		const counts: Record<string, number> = { all: activeFlags.length };
+		const grouped: Record<string, Flag[]> = {};
+		const rootFlags: Flag[] = [];
+
+		for (const flag of activeFlags) {
+			if (flag.folder) {
+				folders.add(flag.folder);
+				counts[flag.folder] = (counts[flag.folder] || 0) + 1;
+				if (!grouped[flag.folder]) grouped[flag.folder] = [];
+				grouped[flag.folder].push(flag);
+			} else {
+				rootFlags.push(flag);
+			}
+		}
+
+		return {
+			folders: Array.from(folders).sort(),
+			counts,
+			grouped,
+			rootFlags,
+		};
+	}, [activeFlags]);
+
+	const displayedFlags = useMemo(() => {
+		if (activeFolder) {
+			return folderData.grouped[activeFolder] || [];
+		}
+		return activeFlags; // Used only if not using grouped view for "All"
+	}, [activeFolder, activeFlags, folderData]);
+
+	// Prepare content based on view
+	const renderContent = () => {
+		if (flagsLoading) return <FlagsListSkeleton />;
+
+		if (activeFlags.length === 0) {
+			return (
+				<div className="flex flex-1 items-center justify-center py-16">
+					<EmptyState
+						action={{
+							label: "Create Your First Flag",
+							onClick: handleCreateFlag,
+						}}
+						description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+						icon={<FlagIcon weight="duotone" />}
+						title="No feature flags yet"
+						variant="minimal"
+					/>
+				</div>
+			);
+		}
+
+		if (activeFolder) {
+			// Single Folder View
+			return (
+				<FlagsList
+					flags={displayedFlags}
+					groups={groupsMap}
+					onDelete={handleDeleteFlagRequest}
+					onEdit={handleEditFlag}
+				/>
+			);
+		}
+
+		// All Flags View (Grouped)
+		return (
+			<div className="space-y-6">
+				{/* Root Flags */}
+				{folderData.rootFlags.length > 0 && (
+					<div>
+						{folderData.folders.length > 0 && (
+							<div className="mb-2 px-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+								Uncategorized
+							</div>
+						)}
+						<FlagsList
+							flags={folderData.rootFlags}
+							groups={groupsMap}
+							onDelete={handleDeleteFlagRequest}
+							onEdit={handleEditFlag}
+						/>
+					</div>
+				)}
+
+				{/* Folders */}
+				{folderData.folders.map((folder) => (
+					<FolderListItem
+						key={folder}
+						name={folder}
+						count={folderData.counts[folder]}
+					>
+						<FlagsList
+							flags={folderData.grouped[folder]}
+							groups={groupsMap}
+							onDelete={handleDeleteFlagRequest}
+							onEdit={handleEditFlag}
+						/>
+					</FolderListItem>
+				))}
+			</div>
+		);
+	};
+
 	return (
 		<FeatureGate feature={GATED_FEATURES.FEATURE_FLAGS}>
 			<ErrorBoundary>
-				<div className="h-full overflow-y-auto">
-					<Suspense fallback={<FlagsListSkeleton />}>
-						{flagsLoading ? (
-							<FlagsListSkeleton />
-						) : activeFlags.length === 0 ? (
-							<div className="flex flex-1 items-center justify-center py-16">
-								<EmptyState
-									action={{
-										label: "Create Your First Flag",
-										onClick: handleCreateFlag,
-									}}
-									description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
-									icon={<FlagIcon weight="duotone" />}
-									title="No feature flags yet"
-									variant="minimal"
-								/>
-							</div>
-						) : (
-							<FlagsList
-								flags={activeFlags as Flag[]}
-								groups={groupsMap}
-								onDelete={handleDeleteFlagRequest}
-								onEdit={handleEditFlag}
-							/>
-						)}
-					</Suspense>
-
-					{isFlagSheetOpen && (
-						<Suspense fallback={null}>
-							<FlagSheet
-								flag={editingFlag}
-								isOpen={isFlagSheetOpen}
-								onCloseAction={handleFlagSheetClose}
-								websiteId={websiteId}
-							/>
-						</Suspense>
+				<div className="flex h-full">
+					{activeFlags.length > 0 && (
+						<FolderSidebar
+							folders={folderData.folders}
+							activeFolder={activeFolder}
+							onSelectFolder={setActiveFolder}
+							counts={folderData.counts}
+						/>
 					)}
+					<div className="flex-1 overflow-y-auto">
+						<Suspense fallback={<FlagsListSkeleton />}>
+							{renderContent()}
+						</Suspense>
 
-					<DeleteDialog
-						isDeleting={deleteFlagMutation.isPending}
-						isOpen={flagToDelete !== null}
-						itemName={flagToDelete?.name || flagToDelete?.key}
-						onClose={() => setFlagToDelete(null)}
-						onConfirm={handleConfirmDelete}
-						title="Delete Feature Flag"
-					/>
+						{isFlagSheetOpen && (
+							<Suspense fallback={null}>
+								<FlagSheet
+									flag={editingFlag}
+									isOpen={isFlagSheetOpen}
+									onCloseAction={handleFlagSheetClose}
+									websiteId={websiteId}
+								/>
+							</Suspense>
+						)}
+
+						<DeleteDialog
+							isDeleting={deleteFlagMutation.isPending}
+							isOpen={flagToDelete !== null}
+							itemName={flagToDelete?.name || flagToDelete?.key}
+							onClose={() => setFlagToDelete(null)}
+							onConfirm={handleConfirmDelete}
+							title="Delete Feature Flag"
+						/>
+					</div>
 				</div>
 			</ErrorBoundary>
 		</FeatureGate>
