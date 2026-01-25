@@ -398,6 +398,8 @@ export function FlagSheet({
 							<div className="space-y-4">
 								<div className="grid place-items-start gap-4 sm:grid-cols-2">
 									<FormField
+										control={form.control}
+										name="flag.name"
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>Name</FormLabel>

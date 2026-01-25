@@ -30,7 +30,7 @@ export function DeleteFolderDialog({
         >
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
                 <p>
-                    Flags in this folder will <strong>not</strong> be deleted. They will be mvoed to
+                    Flags in this folder will <strong>not</strong> be deleted. They will be moved to
                     "Uncategorized".
                 </p>
             </div>
