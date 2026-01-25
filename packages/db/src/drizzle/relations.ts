@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm/relations";
 import {
 	account,
 	apikey,
+	flagFolders,
 	flags,
 	flagsToTargetGroups,
 	funnelDefinitions,
@@ -148,7 +149,23 @@ export const flagsRelations = relations(flags, ({ one, many }) => ({
 		fields: [flags.websiteId],
 		references: [websites.id],
 	}),
+	folder: one(flagFolders, {
+		fields: [flags.folderId],
+		references: [flagFolders.id],
+	}),
 	flagsToTargetGroups: many(flagsToTargetGroups),
+}));
+
+export const flagFoldersRelations = relations(flagFolders, ({ one, many }) => ({
+	website: one(websites, {
+		fields: [flagFolders.websiteId],
+		references: [websites.id],
+	}),
+	creator: one(user, {
+		fields: [flagFolders.createdBy],
+		references: [user.id],
+	}),
+	flags: many(flags),
 }));
 
 export const targetGroupsRelations = relations(

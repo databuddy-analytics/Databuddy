@@ -636,6 +636,47 @@ export const flagStatus = pgEnum("flag_status", [
 	"inactive",
 	"archived",
 ]);
+
+export const flagFolders = pgTable(
+	"flag_folders",
+	{
+		id: text().primaryKey().notNull(),
+		name: text().notNull(),
+		description: text(),
+		color: text().default("#6366f1").notNull(),
+		icon: text().default("folder"),
+		position: integer().default(0).notNull(),
+		websiteId: text("website_id").notNull(),
+		createdBy: text("created_by").notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+		deletedAt: timestamp("deleted_at", { precision: 3 }),
+	},
+	(table) => [
+		index("flag_folders_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("idx_flag_folders_created_by").using(
+			"btree",
+			table.createdBy.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "flag_folders_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "flag_folders_created_by_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("restrict"),
+	]
+);
 export const annotationType = pgEnum("annotation_type", [
 	"point",
 	"line",
@@ -667,6 +708,7 @@ export const flags = pgTable(
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),
 		environment: text("environment"),
+		folderId: text("folder_id"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
@@ -713,6 +755,17 @@ export const flags = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("restrict"),
+		foreignKey({
+			columns: [table.folderId],
+			foreignColumns: [flagFolders.id],
+			name: "flags_folder_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("set null"),
+		index("idx_flags_folder_id").using(
+			"btree",
+			table.folderId.asc().nullsLast().op("text_ops")
+		),
 	]
 );
 

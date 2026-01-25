@@ -130,6 +130,57 @@ export const GROUP_COLORS = [
 	{ value: "#3b82f6", label: "Blue" },
 ] as const;
 
+export const FOLDER_COLORS = GROUP_COLORS;
+
+export interface FlagFolder {
+	id: string;
+	name: string;
+	description?: string | null;
+	color: string;
+	icon?: string | null;
+	position: number;
+	websiteId: string;
+	createdBy: string;
+	createdAt: Date;
+	updatedAt: Date;
+	deletedAt?: Date | null;
+}
+
+export interface FolderWithFlags extends FlagFolder {
+	flags: Flag[];
+}
+
+export interface FolderSheetProps {
+	isOpen: boolean;
+	onCloseAction: () => void;
+	websiteId: string;
+	folder?: FlagFolder | null;
+}
+
+export interface FolderItemProps {
+	folder: FlagFolder;
+	flags: Flag[];
+	groups: Map<string, TargetGroup[]>;
+	isExpanded: boolean;
+	onToggle: () => void;
+	onEdit: (folder: FlagFolder) => void;
+	onDelete: (folderId: string) => void;
+	onEditFlag: (flag: Flag) => void;
+	onDeleteFlag: (flagId: string) => void;
+	onMoveFlag: (flagId: string, folderId: string | null) => void;
+}
+
+export interface OrganizedFlagsListProps {
+	folders: FlagFolder[];
+	flags: Flag[];
+	groups: Map<string, TargetGroup[]>;
+	onEditFolder: (folder: FlagFolder) => void;
+	onDeleteFolder: (folderId: string) => void;
+	onEditFlag: (flag: Flag) => void;
+	onDeleteFlag: (flagId: string) => void;
+	onMoveFlag: (flagId: string, folderId: string | null) => void;
+}
+
 interface BaseFlagTemplate {
 	id: string;
 	name: string;

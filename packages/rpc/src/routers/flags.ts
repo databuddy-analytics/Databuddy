@@ -1,8 +1,10 @@
 import { websitesApi } from "@databuddy/auth";
 import {
 	and,
+	asc,
 	desc,
 	eq,
+	flagFolders,
 	flags,
 	flagsToTargetGroups,
 	inArray,
@@ -124,6 +126,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folderId: z.string().nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -824,6 +827,256 @@ export const flagsRouter = {
 				.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)));
 
 			await invalidateFlagCache(input.id, flag.websiteId, flag.organizationId);
+
+			return { success: true };
+		}),
+
+	// ==================== FOLDER ENDPOINTS ====================
+
+	listFolders: publicProcedure
+		.input(
+			z.object({
+				websiteId: z.string(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeScope(context, input.websiteId, undefined, "read");
+
+			const folders = await context.db.query.flagFolders.findMany({
+				where: and(
+					eq(flagFolders.websiteId, input.websiteId),
+					isNull(flagFolders.deletedAt)
+				),
+				orderBy: [asc(flagFolders.position), asc(flagFolders.name)],
+			});
+
+			return folders;
+		}),
+
+	createFolder: protectedProcedure
+		.input(
+			z.object({
+				websiteId: z.string(),
+				name: z.string().min(1).max(100),
+				description: z.string().optional(),
+				color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#6366f1"),
+				icon: z.string().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
+
+			// Get the highest position for ordering
+			const existingFolders = await context.db.query.flagFolders.findMany({
+				where: and(
+					eq(flagFolders.websiteId, input.websiteId),
+					isNull(flagFolders.deletedAt)
+				),
+				orderBy: [desc(flagFolders.position)],
+				limit: 1,
+			});
+
+			const nextPosition =
+				existingFolders.length > 0 ? existingFolders[0].position + 1 : 0;
+
+			const folderId = randomUUIDv7();
+			const [newFolder] = await context.db
+				.insert(flagFolders)
+				.values({
+					id: folderId,
+					name: input.name,
+					description: input.description || null,
+					color: input.color,
+					icon: input.icon || "folder",
+					position: nextPosition,
+					websiteId: input.websiteId,
+					createdBy: context.user.id,
+				})
+				.returning();
+
+			return newFolder;
+		}),
+
+	updateFolder: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				name: z.string().min(1).max(100).optional(),
+				description: z.string().optional(),
+				color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+				icon: z.string().optional(),
+				position: z.number().min(0).optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const existingFolder = await context.db
+				.select()
+				.from(flagFolders)
+				.where(and(eq(flagFolders.id, input.id), isNull(flagFolders.deletedAt)))
+				.limit(1);
+
+			if (existingFolder.length === 0) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Folder not found",
+				});
+			}
+
+			const folder = existingFolder[0];
+			await authorizeWebsiteAccess(context, folder.websiteId, "update");
+
+			const { id, ...updates } = input;
+			const [updatedFolder] = await context.db
+				.update(flagFolders)
+				.set({
+					...updates,
+					updatedAt: new Date(),
+				})
+				.where(and(eq(flagFolders.id, id), isNull(flagFolders.deletedAt)))
+				.returning();
+
+			return updatedFolder;
+		}),
+
+	deleteFolder: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				moveToFolderId: z.string().nullable().optional(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const existingFolder = await context.db
+				.select()
+				.from(flagFolders)
+				.where(and(eq(flagFolders.id, input.id), isNull(flagFolders.deletedAt)))
+				.limit(1);
+
+			if (existingFolder.length === 0) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Folder not found",
+				});
+			}
+
+			const folder = existingFolder[0];
+			await authorizeWebsiteAccess(context, folder.websiteId, "delete");
+
+			// Move flags to a different folder or make them unorganized
+			await context.db
+				.update(flags)
+				.set({
+					folderId: input.moveToFolderId || null,
+					updatedAt: new Date(),
+				})
+				.where(and(eq(flags.folderId, input.id), isNull(flags.deletedAt)));
+
+			// Soft delete the folder
+			await context.db
+				.update(flagFolders)
+				.set({
+					deletedAt: new Date(),
+				})
+				.where(eq(flagFolders.id, input.id));
+
+			return { success: true };
+		}),
+
+	moveToFolder: protectedProcedure
+		.input(
+			z.object({
+				flagId: z.string(),
+				folderId: z.string().nullable(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const existingFlag = await context.db
+				.select()
+				.from(flags)
+				.where(and(eq(flags.id, input.flagId), isNull(flags.deletedAt)))
+				.limit(1);
+
+			if (existingFlag.length === 0) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Flag not found",
+				});
+			}
+
+			const flag = existingFlag[0];
+
+			if (flag.websiteId) {
+				await authorizeWebsiteAccess(context, flag.websiteId, "update");
+			} else {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Only website-scoped flags can be moved to folders",
+				});
+			}
+
+			// Validate the target folder exists if folderId is provided
+			if (input.folderId) {
+				const targetFolder = await context.db
+					.select()
+					.from(flagFolders)
+					.where(
+						and(
+							eq(flagFolders.id, input.folderId),
+							eq(flagFolders.websiteId, flag.websiteId),
+							isNull(flagFolders.deletedAt)
+						)
+					)
+					.limit(1);
+
+				if (targetFolder.length === 0) {
+					throw new ORPCError("NOT_FOUND", {
+						message: "Target folder not found",
+					});
+				}
+			}
+
+			const [updatedFlag] = await context.db
+				.update(flags)
+				.set({
+					folderId: input.folderId,
+					updatedAt: new Date(),
+				})
+				.where(eq(flags.id, input.flagId))
+				.returning();
+
+			await invalidateFlagCache(
+				input.flagId,
+				flag.websiteId,
+				flag.organizationId
+			);
+
+			return updatedFlag;
+		}),
+
+	reorderFolders: protectedProcedure
+		.input(
+			z.object({
+				websiteId: z.string(),
+				folderIds: z.array(z.string()),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "update");
+
+			// Update positions for each folder
+			await Promise.all(
+				input.folderIds.map((folderId, index) =>
+					context.db
+						.update(flagFolders)
+						.set({
+							position: index,
+							updatedAt: new Date(),
+						})
+						.where(
+							and(
+								eq(flagFolders.id, folderId),
+								eq(flagFolders.websiteId, input.websiteId),
+								isNull(flagFolders.deletedAt)
+							)
+						)
+				)
+			);
 
 			return { success: true };
 		}),
