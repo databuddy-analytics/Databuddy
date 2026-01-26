@@ -242,12 +242,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 				</div>
 			</div>
 
-<<<<<<< Updated upstream
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-=======
-			{/* Content */}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
->>>>>>> Stashed changes
 				{children}
 			</div>
 		</div>
