@@ -7,12 +7,12 @@ import { CodeBlock } from "@/components/docs";
 
 ## TL;DR
 
-- Generate keys in the dashboard Settings → API Keys
+- Generate keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
 - Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
-- Scopes: `read:data`, `write:data`, `read:experiments`, `track:events`, `admin:apikeys`, `read:analytics`, `write:custom-sql`, `read:export`, `write:otel`, `admin:users`, `admin:organizations`, `admin:websites`, `rate:standard`, `rate:premium`, `rate:enterprise`
+- Scopes: `read:data`, `write:llm`, `track:events`
 - Access can be global or scoped to a resource like a specific `website`
 - For private websites, include `website_id` and ensure the key has `read:data`
-- Rotate and revoke keys in the dashboard; only the prefix/start should be shared/logged
+- Rotate and revoke keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys); only the prefix/start should be shared/logged
 
 ### What is an API key?
 
@@ -20,7 +20,7 @@ An API key authenticates server-to-server calls to Databuddy. It supports fine-g
 
 ### Create a key
 
-1. Open the dashboard → Settings → API Keys
+1. Open [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
 2. Click “Create API Key”
 3. Choose a name, optional organization, scopes, and resource access
 4. Copy the secret immediately (it’s only shown once)
@@ -51,48 +51,20 @@ Notes:
 
 ### Scopes
 
-#### Data Access Scopes
-- **read:data**: Basic read access to analytics data
-- **write:data**: Write or modify analytics data (server-side ingestion)
-- **read:analytics**: Advanced analytics access with custom queries and exports
-- **read:export**: Access to data export functionality
-- **write:custom-sql**: Execute custom SQL queries against analytics database
-
-#### Feature-Specific Scopes
-- **read:experiments**: Read A/B tests and feature flags
-- **track:events**: Send tracking events and custom events
-- **write:otel**: Authorize OpenTelemetry tracking and metrics
-
-#### Administrative Scopes
-- **admin:apikeys**: Create, update, rotate, revoke API keys
-- **admin:users**: User management operations
-- **admin:organizations**: Organization management operations
-- **admin:websites**: Website management operations
-
-#### Rate Limiting Scopes
-- **rate:standard**: Standard rate limits (default)
-- **rate:premium**: Higher rate limits for premium usage
-- **rate:enterprise**: Enterprise-level rate limits
+- **read:data**: Read access to analytics data and query endpoints
+- **write:llm**: LLM analytics and AI observability tracking
+- **track:events**: Send custom events via the SDK or API
 
 Grant only what you need. Prefer resource-scoped access where possible.
 
 ### Resource access
 
-Access can be scoped to different resource types:
+Access can be scoped to:
 
-- **global**: Applies to all resources
-- **website**: Applies to a specific website (use the `website_id` in requests)
-- **link**: Applies to a specific shortened link (use the `link_id` in requests)
-- **analytics_data**: Analytics events and metrics data
-- **error_data**: JavaScript errors and exceptions
-- **web_vitals**: Core Web Vitals performance metrics
-- **custom_events**: Custom event tracking data
-- **export_data**: Data export operations
-- **link_analytics**: Link shortener click analytics
+- **global**: Applies to all websites in the organization
+- **website**: Applies to a specific website only
 
-Example: a key with `read:data` on a single website can read analytics only for that website, not others. A key with `read:analytics` scoped to `analytics_data` can access detailed analytics but not error data.
-
-For link shortener analytics, access is determined by organization membership. If you have access to an organization's links, you can query analytics for those links using the `link_id` parameter.
+Example: a key with `read:data` scoped to a single website can read analytics only for that website, not others in the organization.
 
 ### Errors
 
@@ -121,7 +93,7 @@ Authentication/authorization failures return structured errors:
 - **Rotate** to generate a new secret for the same key (update your servers immediately)
 - **Revoke** to immediately disable a key (cannot be undone; create a new one if needed)
 
-Actions are available in the dashboard under each key’s detail view.
+Actions are available in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys) under each key’s detail view.
 
 ### Rate limits
 

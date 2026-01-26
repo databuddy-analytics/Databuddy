@@ -4,11 +4,27 @@
 export type MessageContent =
 	| { type: "text"; text: string }
 	| { type: "reasoning"; text: string }
-	| { type: "tool-call"; id: string; function: { name: string; arguments: string } }
-	| { type: "tool-result"; toolCallId: string; toolName: string; output: unknown; isError?: boolean }
+	| {
+			type: "tool-call";
+			id: string;
+			function: { name: string; arguments: string };
+	  }
+	| {
+			type: "tool-result";
+			toolCallId: string;
+			toolName: string;
+			output: unknown;
+			isError?: boolean;
+	  }
 	| { type: "file"; file: string; mediaType: string }
 	| { type: "image"; image: string; mediaType: string }
-	| { type: "source"; sourceType: string; id: string; url: string; title: string };
+	| {
+			type: "source";
+			sourceType: string;
+			id: string;
+			url: string;
+			title: string;
+	  };
 
 /**
  * Message format for input/output

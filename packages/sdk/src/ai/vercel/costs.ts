@@ -6,7 +6,7 @@ import type { TokenCost } from "./types";
 export const computeCosts = async (
 	modelId: string,
 	provider: string,
-	usage: { inputTokens: number; outputTokens: number },
+	usage: { inputTokens: number; outputTokens: number }
 ): Promise<TokenCost> => {
 	try {
 		const { computeCostUSD } = await import("tokenlens");

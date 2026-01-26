@@ -89,13 +89,14 @@ export type ErrorSpan = {
 	sessionId?: string;
 };
 
-export type CustomEventSpan = {
+export type TrackEventPayload = {
+	name: string;
 	timestamp: number;
-	path: string;
-	eventName: string;
+	properties?: Record<string, unknown>;
 	anonymousId?: string;
 	sessionId?: string;
-	properties?: Record<string, unknown>;
+	websiteId: string;
+	source: "browser";
 };
 
 export type DatabuddyGlobal = {

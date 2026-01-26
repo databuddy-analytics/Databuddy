@@ -1,6 +1,6 @@
 /**
  * Vercel AI SDK middleware for Databuddy
- * 
+ *
  * Inspired by and adapted from PostHog's AI SDK implementation:
  * https://github.com/PostHog/posthog-js/tree/main/packages/ai
  */
@@ -105,9 +105,11 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 	const transport: Transport = customTransport
 		? customTransport
 		: createDefaultTransport(
-			apiUrl ?? process.env.DATABUDDY_API_URL ?? "https://basket.databuddy.cc/llm",
-			apiKey ?? process.env.DATABUDDY_API_KEY
-		);
+				apiUrl ??
+					process.env.DATABUDDY_API_URL ??
+					"https://basket.databuddy.cc/llm",
+				apiKey ?? process.env.DATABUDDY_API_KEY
+			);
 
 	const track = <T extends LanguageModel>(
 		model: T,
@@ -141,38 +143,38 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 
 						const cost: TokenCost =
 							(trackOptions.computeCosts ?? defaultComputeCosts) &&
-								(usage.inputTokens > 0 || usage.outputTokens > 0)
+							(usage.inputTokens > 0 || usage.outputTokens > 0)
 								? await computeCosts(model.modelId, model.provider, {
-									inputTokens: usage.inputTokens,
-									outputTokens: usage.outputTokens,
-								})
+										inputTokens: usage.inputTokens,
+										outputTokens: usage.outputTokens,
+									})
 								: {};
 
 						const input =
 							(trackOptions.privacyMode ?? defaultPrivacyMode)
 								? []
 								: mapPromptToMessages(
-									(
-										params as {
-											prompt: Parameters<typeof mapPromptToMessages>[0];
-										}
-									).prompt,
-									maxContentSize
-								);
+										(
+											params as {
+												prompt: Parameters<typeof mapPromptToMessages>[0];
+											}
+										).prompt,
+										maxContentSize
+									);
 						const output =
 							(trackOptions.privacyMode ?? defaultPrivacyMode)
 								? []
 								: mapResultToMessages(
-									result.content as Array<{
-										type: string;
-										text?: string;
-										toolCallId?: string;
-										toolName?: string;
-										input?: unknown;
-										data?: unknown;
-										mediaType?: string;
-									}>
-								);
+										result.content as Array<{
+											type: string;
+											text?: string;
+											toolCallId?: string;
+											toolName?: string;
+											input?: unknown;
+											data?: unknown;
+											mediaType?: string;
+										}>
+									);
 
 						const rawFinishReason = result.finishReason;
 						let finishReason: string | undefined;
@@ -216,13 +218,13 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 							(trackOptions.privacyMode ?? defaultPrivacyMode)
 								? []
 								: mapPromptToMessages(
-									(
-										params as {
-											prompt: Parameters<typeof mapPromptToMessages>[0];
-										}
-									).prompt,
-									maxContentSize
-								);
+										(
+											params as {
+												prompt: Parameters<typeof mapPromptToMessages>[0];
+											}
+										).prompt,
+										maxContentSize
+									);
 
 						const call = createErrorCall(
 							traceId,
@@ -335,10 +337,10 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 
 								if (chunk.type === "finish") {
 									providerMetadata = chunk.providerMetadata;
-									const additionalTokenValues = extractAdditionalTokenValues(
-										providerMetadata
-									);
-									const chunkUsage = (chunk.usage as Record<string, unknown>) ?? {};
+									const additionalTokenValues =
+										extractAdditionalTokenValues(providerMetadata);
+									const chunkUsage =
+										(chunk.usage as Record<string, unknown>) ?? {};
 									usage = {
 										inputTokens: extractTokenCount(chunk.usage?.inputTokens),
 										outputTokens: extractTokenCount(chunk.usage?.outputTokens),
@@ -391,11 +393,11 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 									(trackOptions.privacyMode ?? defaultPrivacyMode)
 										? []
 										: buildStreamOutput(
-											generatedText,
-											reasoningText,
-											toolCallsInProgress,
-											sources
-										);
+												generatedText,
+												reasoningText,
+												toolCallsInProgress,
+												sources
+											);
 
 								const tools: ToolCallInfo = {
 									toolCallCount: toolCallsInProgress.size,
@@ -412,24 +414,24 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 
 								const cost: TokenCost =
 									(trackOptions.computeCosts ?? defaultComputeCosts) &&
-										(finalUsage.inputTokens > 0 || finalUsage.outputTokens > 0)
+									(finalUsage.inputTokens > 0 || finalUsage.outputTokens > 0)
 										? await computeCosts(model.modelId, model.provider, {
-											inputTokens: finalUsage.inputTokens,
-											outputTokens: finalUsage.outputTokens,
-										})
+												inputTokens: finalUsage.inputTokens,
+												outputTokens: finalUsage.outputTokens,
+											})
 										: {};
 
 								const input =
 									(trackOptions.privacyMode ?? defaultPrivacyMode)
 										? []
 										: mapPromptToMessages(
-											(
-												params as {
-													prompt: Parameters<typeof mapPromptToMessages>[0];
-												}
-											).prompt,
-											maxContentSize
-										);
+												(
+													params as {
+														prompt: Parameters<typeof mapPromptToMessages>[0];
+													}
+												).prompt,
+												maxContentSize
+											);
 
 								const call: AICall = {
 									timestamp: new Date(),
@@ -463,13 +465,13 @@ export const databuddyLLM = (options: DatabuddyLLMOptions = {}) => {
 							(trackOptions.privacyMode ?? defaultPrivacyMode)
 								? []
 								: mapPromptToMessages(
-									(
-										params as {
-											prompt: Parameters<typeof mapPromptToMessages>[0];
-										}
-									).prompt,
-									maxContentSize
-								);
+										(
+											params as {
+												prompt: Parameters<typeof mapPromptToMessages>[0];
+											}
+										).prompt,
+										maxContentSize
+									);
 
 						const call = createErrorCall(
 							traceId,

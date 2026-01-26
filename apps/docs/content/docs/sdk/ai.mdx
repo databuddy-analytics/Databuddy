@@ -1,0 +1,419 @@
+---
+title: AI / LLM Analytics
+description: Track LLM calls, costs, and token usage with the Vercel AI SDK integration
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy AI SDK tracks LLM calls, token usage, costs, and tool invocations. It integrates seamlessly with the Vercel AI SDK and supports all major providers (OpenAI, Anthropic, Google, etc.).
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/ai` or `@databuddy/sdk/ai/vercel`
+</Callout>
+
+## Installation
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk ai @ai-sdk/openai`}
+</CodeBlock>
+
+## Quick Start
+
+Wrap your model with `track()` to automatically capture all LLM calls:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const { track } = databuddyLLM({
+  // apiKey is required - get it from your Databuddy dashboard
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+const result = await generateText({
+  model: track(openai("gpt-4o")),
+  prompt: "Explain quantum computing in simple terms"
+});`}
+</CodeBlock>
+
+## Configuration
+
+### databuddyLLM(options)
+
+Create a tracking instance with your configuration:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+
+const { track, transport } = databuddyLLM({
+  // Required: API key for authentication
+  apiKey: process.env.DATABUDDY_API_KEY,
+  // Optional: Custom API endpoint (defaults to https://basket.databuddy.cc/llm)
+  apiUrl: "https://basket.databuddy.cc/llm",
+  computeCosts: true,
+  privacyMode: false,
+  maxContentSize: 1_048_576,
+  onSuccess: (call) => console.log("AI call completed:", call.traceId),
+  onError: (call) => console.error("AI call failed:", call.error)
+});
+});`}
+</CodeBlock>
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | `string` | `DATABUDDY_API_KEY` env var | **Required.** API key for authentication |
+| `apiUrl` | `string` | `https://basket.databuddy.cc/llm` | API endpoint (or `DATABUDDY_API_URL` env var) |
+| `transport` | `Transport` | HTTP transport | Custom transport function |
+| `computeCosts` | `boolean` | `true` | Compute token costs using TokenLens |
+| `privacyMode` | `boolean` | `false` | Don't capture input/output content |
+| `maxContentSize` | `number` | `1048576` (1MB) | Max content size in bytes |
+| `onSuccess` | `(call) => void` | - | Callback on successful calls |
+| `onError` | `(call) => void` | - | Callback on failed calls |
+
+## Tracking Models
+
+### Basic Usage
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateText, streamText } from "ai";
+
+const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+// Track OpenAI
+const result1 = await generateText({
+  model: track(openai("gpt-4o")),
+  prompt: "Hello!"
+});
+
+// Track Anthropic
+const result2 = await generateText({
+  model: track(anthropic("claude-sonnet-4-20250514")),
+  prompt: "Hello!"
+});
+
+// Streaming works too
+const stream = await streamText({
+  model: track(openai("gpt-4o-mini")),
+  prompt: "Write a poem"
+});`}
+</CodeBlock>
+
+### Per-Model Options
+
+Override options for specific models:
+
+<CodeBlock language="tsx">
+  {`const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+// Enable privacy mode for sensitive calls
+const result = await generateText({
+  model: track(openai("gpt-4o"), {
+    privacyMode: true,
+    traceId: "custom-trace-123"
+  }),
+  prompt: "Process this sensitive data..."
+});`}
+</CodeBlock>
+
+### Track Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `traceId` | `string` | Custom trace ID to link related calls |
+| `transport` | `Transport` | Override transport for this call |
+| `computeCosts` | `boolean` | Override cost computation |
+| `privacyMode` | `boolean` | Override privacy mode |
+| `onSuccess` | `(call) => void` | Override success callback |
+| `onError` | `(call) => void` | Override error callback |
+
+## What Gets Tracked
+
+Each AI call captures:
+
+### Token Usage
+
+<CodeBlock language="json">
+  {`{
+  "inputTokens": 150,
+  "outputTokens": 500,
+  "totalTokens": 650,
+  "cachedInputTokens": 50,
+  "reasoningTokens": 100,
+  "webSearchCount": 2
+}`}
+</CodeBlock>
+
+### Cost Breakdown
+
+Costs are computed automatically using TokenLens pricing data:
+
+<CodeBlock language="json">
+  {`{
+  "inputTokenCostUSD": 0.00075,
+  "outputTokenCostUSD": 0.0025,
+  "totalTokenCostUSD": 0.00325
+}`}
+</CodeBlock>
+
+### Tool Calls
+
+<CodeBlock language="json">
+  {`{
+  "toolCallCount": 2,
+  "toolResultCount": 2,
+  "toolCallNames": ["get_weather", "search_web"],
+  "availableTools": ["get_weather", "search_web", "calculate"]
+}`}
+</CodeBlock>
+
+### Metadata
+
+<CodeBlock language="json">
+  {`{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "traceId": "trace_abc123",
+  "type": "generate",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "finishReason": "stop",
+  "durationMs": 1250,
+  "httpStatus": 200
+}`}
+</CodeBlock>
+
+### Input/Output Content
+
+Unless `privacyMode` is enabled:
+
+<CodeBlock language="json">
+  {`{
+  "input": [
+    { "role": "user", "content": "Explain quantum computing" }
+  ],
+  "output": [
+    { "role": "assistant", "content": "Quantum computing uses..." }
+  ]
+}`}
+</CodeBlock>
+
+## Tool Tracking
+
+Tools are automatically tracked when used:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+import { openai } from "@ai-sdk/openai";
+import { generateText, tool } from "ai";
+import { z } from "zod";
+
+const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+const result = await generateText({
+  model: track(openai("gpt-4o")),
+  prompt: "What's the weather in London?",
+  tools: {
+    getWeather: tool({
+      description: "Get current weather",
+      parameters: z.object({
+        city: z.string()
+      }),
+      execute: async ({ city }) => {
+        return { temperature: 15, condition: "cloudy" };
+      }
+    })
+  }
+});
+
+// Tracked data includes:
+// tools: {
+//   toolCallCount: 1,
+//   toolResultCount: 1,
+//   toolCallNames: ["getWeather"],
+//   availableTools: ["getWeather"]
+// }`}
+</CodeBlock>
+
+## Streaming
+
+Streaming responses are tracked when the stream completes:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+import { openai } from "@ai-sdk/openai";
+import { streamText } from "ai";
+
+const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+const result = await streamText({
+  model: track(openai("gpt-4o")),
+  prompt: "Write a story"
+});
+
+// Stream the response
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+
+// Usage data is tracked when stream completes`}
+</CodeBlock>
+
+## Error Tracking
+
+Errors are automatically captured:
+
+<CodeBlock language="tsx">
+  {`const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY,
+  onError: (call) => {
+    console.error("AI call failed:", {
+      model: call.model,
+      error: call.error?.message,
+      durationMs: call.durationMs
+    });
+  }
+});
+
+try {
+  await generateText({
+    model: track(openai("gpt-4o")),
+    prompt: "..."
+  });
+} catch (error) {
+  // Error is logged automatically, plus your onError callback runs
+}`}
+</CodeBlock>
+
+## Privacy Mode
+
+Enable privacy mode to track usage without capturing content:
+
+<CodeBlock language="tsx">
+  {`const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY,
+  privacyMode: true  // Don't capture prompts/responses
+});
+
+// Only usage, costs, and metadata are tracked
+// input: [] and output: [] in the logged data`}
+</CodeBlock>
+
+## Custom Transport
+
+Use a custom transport for logging to other destinations:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM, httpTransport, type AICall } from "@databuddy/sdk/ai";
+
+// Custom transport that logs locally and sends to API
+const customTransport = async (call: AICall) => {
+  console.log("AI call:", {
+    model: call.model,
+    tokens: call.usage.totalTokens,
+    cost: call.cost.totalTokenCostUSD
+  });
+  
+  // Also send to Databuddy
+  await httpTransport("https://basket.databuddy.cc/llm", "your-api-key")(call);
+};
+
+const { track } = databuddyLLM({
+  transport: customTransport
+});`}
+</CodeBlock>
+
+## Trace IDs
+
+Link related calls with trace IDs:
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM, generateTraceId } from "@databuddy/sdk/ai";
+
+const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+// Generate a trace ID for a conversation
+const traceId = generateTraceId();
+
+// All calls in this conversation share the trace ID
+const result1 = await generateText({
+  model: track(openai("gpt-4o"), { traceId }),
+  prompt: "What is 2+2?"
+});
+
+const result2 = await generateText({
+  model: track(openai("gpt-4o"), { traceId }),
+  prompt: "And what is that times 3?"
+});`}
+</CodeBlock>
+
+## Supported Providers
+
+The SDK works with any Vercel AI SDK provider:
+
+| Provider | Package | Example |
+|----------|---------|---------|
+| OpenAI | `@ai-sdk/openai` | `openai("gpt-4o")` |
+| Anthropic | `@ai-sdk/anthropic` | `anthropic("claude-sonnet-4-20250514")` |
+| Google | `@ai-sdk/google` | `google("gemini-1.5-pro")` |
+| Mistral | `@ai-sdk/mistral` | `mistral("mistral-large")` |
+| Cohere | `@ai-sdk/cohere` | `cohere("command-r-plus")` |
+| AWS Bedrock | `@ai-sdk/amazon-bedrock` | `bedrock("anthropic.claude-3")` |
+| Azure | `@ai-sdk/azure` | `azure("gpt-4")` |
+| Groq | `@ai-sdk/groq` | `groq("mixtral-8x7b")` |
+
+## TypeScript Types
+
+<CodeBlock language="tsx">
+  {`import {
+  databuddyLLM,
+  httpTransport,
+  generateTraceId,
+  type AICall,
+  type AIError,
+  type DatabuddyLLMOptions,
+  type TokenCost,
+  type TokenUsage,
+  type ToolCallInfo,
+  type TrackOptions,
+  type Transport
+} from "@databuddy/sdk/ai";`}
+</CodeBlock>
+
+## Environment Variables
+
+<CodeBlock language="bash">
+  {`# Required: API key for authentication
+DATABUDDY_API_KEY=your-api-key
+
+# Optional: Custom API endpoint (defaults to https://basket.databuddy.cc/llm)
+DATABUDDY_API_URL=https://basket.databuddy.cc/llm`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="Node SDK" href="/docs/sdk/node">
+    Server-side event tracking
+  </Card>
+  <Card title="API Reference" href="/docs/api">
+    Direct HTTP API
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    All configuration options
+  </Card>
+</Cards>

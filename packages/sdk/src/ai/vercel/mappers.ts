@@ -1,6 +1,6 @@
 /**
  * Message mapping utilities for Vercel AI SDK
- * 
+ *
  * Adapted from PostHog's AI SDK implementation:
  * https://github.com/PostHog/posthog-js/tree/main/packages/ai
  */
@@ -109,7 +109,8 @@ export const mapPromptToMessages = (
 		return [
 			{
 				role: "system",
-				content: "An error occurred while processing your request. Please try again.",
+				content:
+					"An error occurred while processing your request. Please try again.",
 			},
 		];
 	}

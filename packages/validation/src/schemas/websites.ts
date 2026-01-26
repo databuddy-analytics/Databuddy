@@ -58,3 +58,48 @@ export const transferWebsiteToOrgSchema = z.object({
 	websiteId: z.string(),
 	targetOrganizationId: z.string(),
 });
+
+const ipv4Regex =
+	/^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
+const cidrRegex =
+	/^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$/;
+
+const originSchema = z
+	.string()
+	.min(1)
+	.refine(
+		(val) => {
+			if (val === "*") {
+				return true;
+			}
+			if (val === "localhost") {
+				return true;
+			}
+			if (val.startsWith("*.")) {
+				const domain = val.slice(2);
+				return DOMAIN_REGEX.test(domain);
+			}
+			// Regular domain: example.com or subdomain.example.com
+			return DOMAIN_REGEX.test(val);
+		},
+		{ message: "Must be a valid domain (e.g., cal.com, *.cal.com) or *" }
+	);
+
+const ipSchema = z.string().refine(
+	(val) => {
+		return ipv4Regex.test(val) || ipv6Regex.test(val) || cidrRegex.test(val);
+	},
+	{ message: "Must be a valid IPv4, IPv6, or CIDR notation" }
+);
+
+export const updateWebsiteSettingsSchema = z.object({
+	id: z.string(),
+	settings: z
+		.object({
+			allowedOrigins: z.array(originSchema).optional(),
+			allowedIps: z.array(ipSchema).optional(),
+		})
+		.partial()
+		.optional(),
+});

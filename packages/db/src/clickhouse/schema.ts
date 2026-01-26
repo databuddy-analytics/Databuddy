@@ -410,6 +410,62 @@ SETTINGS index_granularity = 8192
 `;
 
 /**
+ * Organization-scoped custom events table
+ * owner_id: org ID from API key (required)
+ * website_id: optional website scope
+ */
+const CREATE_CUSTOM_EVENTS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.custom_events (
+  owner_id String CODEC(ZSTD(1)),
+  website_id Nullable(String) CODEC(ZSTD(1)),
+  
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  
+  event_name LowCardinality(String) CODEC(ZSTD(1)),
+  namespace LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
+  path Nullable(String) CODEC(ZSTD(1)),
+  properties String CODEC(ZSTD(1)),
+  
+  anonymous_id Nullable(String) CODEC(ZSTD(1)),
+  session_id Nullable(String) CODEC(ZSTD(1)),
+  
+  source LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
+  
+  INDEX idx_event_name event_name TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_namespace namespace TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_website_id website_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (owner_id, event_name, timestamp)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+`;
+
+/**
+ * AI traffic spans table - tracks AI crawlers and AI assistants
+ */
+const CREATE_AI_TRAFFIC_SPANS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.ai_traffic_spans (
+  client_id String CODEC(ZSTD(1)),
+  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
+  
+  bot_type LowCardinality(String) CODEC(ZSTD(1)),
+  bot_name String CODEC(ZSTD(1)),
+  user_agent String CODEC(ZSTD(1)),
+  
+  path String CODEC(ZSTD(1)),
+  referrer Nullable(String) CODEC(ZSTD(1)),
+  
+  INDEX idx_client_id client_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_bot_type bot_type TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_bot_name bot_name TYPE bloom_filter(0.01) GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (client_id, bot_type, timestamp)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+`;
+
+/**
  * Lean AI call spans table - stores individual AI model calls
  * owner_id: The org or user ID that owns this data (from API key)
  */
@@ -599,7 +655,7 @@ export interface EmailEvent {
 }
 
 /**
- * Lean custom event span
+ * Lean custom event span (website-scoped)
  */
 export interface CustomEventSpan {
 	client_id: string;
@@ -609,6 +665,24 @@ export interface CustomEventSpan {
 	path: string;
 	event_name: string;
 	properties: Record<string, unknown>;
+}
+
+/**
+ * Organization-scoped custom event
+ * owner_id: org ID from API key (required)
+ * website_id: optional website scope
+ */
+export interface CustomEvent {
+	owner_id: string;
+	website_id?: string;
+	timestamp: number;
+	event_name: string;
+	namespace?: string;
+	path?: string;
+	properties: string;
+	anonymous_id?: string;
+	session_id?: string;
+	source?: string;
 }
 
 /**
@@ -642,6 +716,19 @@ export interface CustomOutgoingLink {
 	text?: string;
 	properties: string;
 	timestamp: number;
+}
+
+/**
+ * AI traffic span - tracks AI crawlers and AI assistants
+ */
+export interface AITrafficSpan {
+	client_id: string;
+	timestamp: number;
+	bot_type: "ai_crawler" | "ai_assistant";
+	bot_name: string;
+	user_agent: string;
+	path: string;
+	referrer?: string;
 }
 
 export interface UptimeMonitor {
@@ -810,7 +897,9 @@ export async function initClickHouseSchema() {
 			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
 			{ name: "ai_call_spans", query: CREATE_AI_CALL_SPANS_TABLE },
+			{ name: "custom_events", query: CREATE_CUSTOM_EVENTS_TABLE },
 			{ name: "link_visits", query: CREATE_LINK_VISITS_TABLE },
+			{ name: "ai_traffic_spans", query: CREATE_AI_TRAFFIC_SPANS_TABLE },
 		];
 
 		// Materialized views (must be created after target tables)

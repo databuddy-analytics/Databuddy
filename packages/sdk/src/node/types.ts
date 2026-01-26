@@ -1,6 +1,6 @@
 import type { Logger } from "./logger";
 
-export type { Logger };
+export type { Logger } from "./logger";
 
 /**
  * Middleware function that can transform or filter events
@@ -11,8 +11,14 @@ export type Middleware = (
 ) => BatchEventInput | null | Promise<BatchEventInput | null>;
 
 export interface DatabuddyConfig {
-	/** Client ID from Databuddy dashboard */
-	clientId: string;
+	/** API key for authentication (dbdy_xxx) */
+	apiKey: string;
+	/** Optional default website ID to scope events to */
+	websiteId?: string;
+	/** Optional default namespace for logical grouping (e.g., 'billing', 'auth', 'api') */
+	namespace?: string;
+	/** Optional default source identifier for events (e.g., 'backend', 'webhook', 'cli') */
+	source?: string;
 	/** Custom API endpoint (default: https://basket.databuddy.cc) */
 	apiUrl?: string;
 	/** Enable debug logging */
@@ -48,6 +54,12 @@ export interface CustomEventInput {
 	timestamp?: number | null;
 	/** Event properties/metadata */
 	properties?: Record<string, unknown> | null;
+	/** Website ID to scope the event to (overrides default) */
+	websiteId?: string | null;
+	/** Namespace for logical grouping (overrides default) */
+	namespace?: string | null;
+	/** Source identifier (overrides default) */
+	source?: string | null;
 }
 
 export interface EventResponse {
@@ -74,6 +86,12 @@ export interface BatchEventInput {
 	timestamp?: number | null;
 	/** Event properties/metadata */
 	properties?: Record<string, unknown> | null;
+	/** Website ID to scope the event to */
+	websiteId?: string | null;
+	/** Namespace for logical grouping */
+	namespace?: string | null;
+	/** Source identifier */
+	source?: string | null;
 }
 
 /**

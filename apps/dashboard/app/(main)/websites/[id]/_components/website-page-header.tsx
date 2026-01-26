@@ -289,7 +289,7 @@ export function WebsitePageHeader({
 								),
 								"aria-hidden": "true",
 								size: 24,
-								weight: "fill",
+								weight: icon.props.weight ?? "duotone",
 							})}
 						</div>
 						<div>

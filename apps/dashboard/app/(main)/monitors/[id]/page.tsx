@@ -11,8 +11,6 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -34,11 +32,10 @@ import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { orpc } from "@/lib/orpc";
+import { fromNow, localDayjs } from "@/lib/time";
 import { RecentActivity } from "../../websites/[id]/pulse/_components/recent-activity";
 import { UptimeHeatmap } from "../../websites/[id]/pulse/_components/uptime-heatmap";
 import { PageHeader } from "../_components/page-header";
-
-dayjs.extend(relativeTime);
 
 const granularityLabels: Record<string, string> = {
 	minute: "Every minute",
@@ -127,11 +124,11 @@ export default function MonitorDetailsPage() {
 
 	const heatmapDateRange = useMemo(
 		() => ({
-			start_date: dayjs()
+			start_date: localDayjs()
 				.subtract(89, "day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
+			end_date: localDayjs().startOf("day").format("YYYY-MM-DD"),
 			granularity: "daily" as const,
 		}),
 		[]
@@ -383,7 +380,7 @@ export default function MonitorDetailsPage() {
 						{latestCheck && (
 							<div className="flex items-center gap-2">
 								<span className="text-muted-foreground">Last checked:</span>
-								<span>{dayjs(latestCheck.timestamp).fromNow()}</span>
+								<span>{fromNow(latestCheck.timestamp)}</span>
 							</div>
 						)}
 						{schedule.websiteId && schedule.website && (

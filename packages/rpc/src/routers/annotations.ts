@@ -23,20 +23,20 @@ const annotationsCache = createDrizzleCache({
 const CACHE_TTL = 300; // 5 minutes
 
 /**
- * Check if a user has update permission for a website (ownership check)
+ * Check if a user has update permission for a website (workspace membership check)
  */
 async function hasWebsiteUpdatePermission(
 	context: Context & { user: NonNullable<Context["user"]> },
-	website: { organizationId: string | null; userId: string | null }
+	website: { organizationId: string | null }
 ): Promise<boolean> {
-	if (website.organizationId) {
-		const { success } = await websitesApi.hasPermission({
-			headers: context.headers,
-			body: { permissions: { website: ["update"] } },
-		});
-		return success;
+	if (!website.organizationId) {
+		return false;
 	}
-	return website.userId === context.user.id;
+	const { success } = await websitesApi.hasPermission({
+		headers: context.headers,
+		body: { permissions: { website: ["update"] } },
+	});
+	return success;
 }
 
 const chartContextSchema = z.object({

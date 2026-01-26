@@ -124,6 +124,48 @@ describe("extractSecret", () => {
 		const headers = new Headers({ authorization: "BEARER dbdy_test123" });
 		expect(extractSecret(headers)).toBe("dbdy_test123");
 	});
+
+	it("rejects Bearer token without dbdy_ prefix", () => {
+		const headers = new Headers({ authorization: "Bearer invalid_token" });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects Bearer token that is too short", () => {
+		const headers = new Headers({ authorization: "Bearer dbdy_" });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects Bearer token that is too long", () => {
+		const longToken = "dbdy_" + "a".repeat(200);
+		const headers = new Headers({ authorization: `Bearer ${longToken}` });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects empty Bearer token", () => {
+		const headers = new Headers({ authorization: "Bearer " });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects Bearer token with only whitespace", () => {
+		const headers = new Headers({ authorization: "Bearer    " });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects x-api-key without dbdy_ prefix", () => {
+		const headers = new Headers({ "x-api-key": "invalid_token" });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects x-api-key that is too short", () => {
+		const headers = new Headers({ "x-api-key": "dbdy_" });
+		expect(extractSecret(headers)).toBeNull();
+	});
+
+	it("rejects x-api-key that is too long", () => {
+		const longToken = "dbdy_" + "a".repeat(200);
+		const headers = new Headers({ "x-api-key": longToken });
+		expect(extractSecret(headers)).toBeNull();
+	});
 });
 
 describe("getEffectiveScopes", () => {

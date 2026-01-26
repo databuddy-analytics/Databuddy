@@ -1,0 +1,131 @@
+---
+title: API Overview
+description: Access your analytics data programmatically with Databuddy's REST API
+---
+
+import { Card, Cards, Callout, CodeBlock } from "@/components/docs";
+
+Access your analytics data programmatically with Databuddy's REST API. All endpoints require authentication and are rate-limited for security.
+
+<Callout type="info">
+  **Try it live!** Test all these endpoints interactively in our [API Playground](/api) with real data and see instant responses.
+</Callout>
+
+## Base URLs
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Analytics API | `https://api.databuddy.cc/v1` | Query analytics data |
+| Event Tracking | `https://basket.databuddy.cc` | Send custom events |
+
+## Quick Start
+
+**1. Get your API key** from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
+
+**2. List your websites:**
+
+<CodeBlock 
+  language="bash"
+  code={`curl -H "x-api-key: dbdy_your_api_key" \\
+  https://api.databuddy.cc/v1/query/websites`}
+/>
+
+**3. Query analytics data:**
+
+<CodeBlock 
+  language="bash"
+  code={`curl -X POST -H "x-api-key: dbdy_your_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "parameters": ["summary", "pages"],
+    "preset": "last_30d"
+  }' \\
+  "https://api.databuddy.cc/v1/query?website_id=web_123"`}
+/>
+
+Use date presets like `last_7d`, `last_30d`, `this_month` instead of explicit dates for convenience.
+
+## API Sections
+
+<Cards>
+  <Card title="Authentication" href="/docs/api/authentication">
+    API keys, scopes, and authentication methods
+  </Card>
+  <Card title="Analytics Queries" href="/docs/api/query">
+    Query website analytics with flexible parameters
+  </Card>
+  <Card title="Event Tracking" href="/docs/api/events">
+    Send custom events programmatically
+  </Card>
+  <Card title="Link Analytics" href="/docs/api/links">
+    Query link shortener click data
+  </Card>
+  <Card title="Custom Queries" href="/docs/api/custom-queries">
+    Build advanced queries with aggregations
+  </Card>
+  <Card title="Error Handling" href="/docs/api/errors">
+    Error codes and troubleshooting
+  </Card>
+  <Card title="Rate Limits" href="/docs/api/rate-limits">
+    Rate limiting by plan and endpoint
+  </Card>
+</Cards>
+
+## Available Query Types
+
+### Website Analytics
+
+Query types for `website_id`:
+
+| Type | Description |
+|------|-------------|
+| `summary` | Overall website metrics and KPIs |
+| `pages` | Page views and performance by URL |
+| `traffic` | Traffic sources and referrers |
+| `browser_name` | Browser usage breakdown |
+| `os_name` | Operating system breakdown |
+| `device_types` | Device category (mobile/desktop/tablet) |
+| `countries` | Visitors by country |
+| `cities` | Visitors by city |
+| `errors` | JavaScript errors |
+| `performance` | Web vitals and load times |
+| `sessions` | Session-based analytics |
+| `custom_events` | Custom event data |
+| `profiles` | User profile analytics |
+| `outbound_links` | External link clicks |
+| `outbound_domains` | External clicks by domain |
+| `engagement` | User engagement metrics |
+
+### Link Shortener Analytics
+
+Query types for `link_id`:
+
+| Type | Description |
+|------|-------------|
+| `link_total_clicks` | Total click count |
+| `link_clicks_by_day` | Daily click breakdown |
+| `link_top_referrers` | Top traffic sources |
+| `link_top_countries` | Top countries |
+| `link_top_devices` | Device breakdown |
+| `link_top_browsers` | Browser breakdown |
+
+## Health Check
+
+Check API and dependency status:
+
+<CodeBlock 
+  language="http"
+  code="GET /health"
+/>
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "clickhouse": true,
+  "database": true,
+  "redis": true,
+  "success": true,
+  "version": "1.0.0",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}`}
+/>

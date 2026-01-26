@@ -2,8 +2,6 @@
 
 import { authClient } from "@databuddy/auth/client";
 import { CrownIcon, TrashIcon } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,31 +18,30 @@ import type {
 	OrganizationMember,
 	UpdateMemberData,
 } from "@/hooks/use-organizations";
+import { fromNow } from "@/lib/time";
 
-dayjs.extend(relativeTime);
-
-type MemberToRemove = {
+interface MemberToRemove {
 	id: string;
 	name: string;
-};
+}
 
-type MemberListProps = {
+interface MemberListProps {
 	members: OrganizationMember[];
 	onRemoveMember: (memberId: string) => void;
 	isRemovingMember: boolean;
 	onUpdateRole: (member: UpdateMemberData) => void;
 	isUpdatingMember: boolean;
 	organizationId: string;
-};
+}
 
-type RoleSelectorProps = {
+interface RoleSelectorProps {
 	member: OrganizationMember;
 	onUpdateRole: MemberListProps["onUpdateRole"];
 	isUpdatingMember: boolean;
 	organizationId: string;
 	canEditRoles: boolean;
 	isCurrentUser: boolean;
-};
+}
 
 function RoleSelector({
 	member,
@@ -94,7 +91,7 @@ function RoleSelector({
 	);
 }
 
-type MemberRowProps = {
+interface MemberRowProps {
 	member: OrganizationMember;
 	onRemoveMember: MemberListProps["onRemoveMember"];
 	isRemovingMember: boolean;
@@ -104,7 +101,7 @@ type MemberRowProps = {
 	onConfirmRemove: (member: MemberToRemove) => void;
 	canEditRoles: boolean;
 	isCurrentUser: boolean;
-};
+}
 
 function MemberRow({
 	member,
@@ -140,7 +137,7 @@ function MemberRow({
 					)}
 				</div>
 				<p className="truncate text-muted-foreground text-sm">
-					{member.user.email} · Joined {dayjs(member.createdAt).fromNow()}
+					{member.user.email} · Joined {fromNow(member.createdAt)}
 				</p>
 			</div>
 

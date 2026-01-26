@@ -4,10 +4,10 @@ import Link from "next/link";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type WebsiteHeaderProps = {
+interface WebsiteHeaderProps {
 	website: Website | null | undefined;
 	showBackButton?: boolean;
-};
+}
 
 export function WebsiteHeader({
 	website,
@@ -17,8 +17,8 @@ export function WebsiteHeader({
 
 	return (
 		<div className="bg-sidebar-accent">
-			<div className="flex h-12 items-center gap-3 border-b px-3">
-				<div className="rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
+			<div className="flex h-12 min-w-0 items-center gap-3 border-b px-3">
+				<div className="shrink-0 rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
 					<FaviconImage
 						altText={`${displayName || "Website"} favicon`}
 						className="size-5"
@@ -53,14 +53,14 @@ export function WebsiteHeader({
 
 			{showBackButton && (
 				<Link
-					className="group flex h-10 items-center gap-2 border-b px-3 hover:bg-accent"
+					className="group flex h-10 min-w-0 items-center gap-2 border-b px-3 hover:bg-accent"
 					href="/websites"
 				>
 					<CaretLeftIcon
-						className="size-3 text-sidebar-accent-foreground/80 transition-transform group-hover:-translate-x-0.5 group-hover:text-sidebar-accent-foreground"
+						className="size-3 shrink-0 text-sidebar-accent-foreground/80 transition-transform group-hover:-translate-x-0.5 group-hover:text-sidebar-accent-foreground"
 						weight="fill"
 					/>
-					<span className="font-semibold text-sidebar-accent-foreground/80 text-xs group-hover:text-sidebar-accent-foreground">
+					<span className="truncate font-semibold text-sidebar-accent-foreground/80 text-xs group-hover:text-sidebar-accent-foreground">
 						Back to Websites
 					</span>
 				</Link>

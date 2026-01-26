@@ -163,7 +163,7 @@ export function LinkQrCode({
 							Copy
 						</Button>
 						<Button onClick={downloadQrCode} size="sm">
-							<DownloadSimpleIcon size={16} weight="duotone" />
+							<DownloadSimpleIcon size={16} weight="bold" />
 							Download PNG
 						</Button>
 					</div>

@@ -5,31 +5,38 @@ import {
 	ArrowsLeftRightIcon,
 	BuildingsIcon,
 	GlobeIcon,
-	UserIcon,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Button } from "@/components/ui/button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { useWebsiteTransfer } from "@/hooks/use-website-transfer";
 import type { Website } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 
-type WebsiteItemProps = {
+interface WebsiteItemProps {
 	website: Website;
 	selected: boolean;
-	onClick: () => void;
-};
+	onClickAction: () => void;
+}
 
-function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
+function WebsiteItem({ website, selected, onClickAction }: WebsiteItemProps) {
 	return (
 		<button
 			className={cn(
 				"flex w-full items-center gap-3 rounded border bg-card px-3 py-2 text-left",
 				selected ? "bg-accent" : "hover:bg-accent"
 			)}
-			onClick={onClick}
+			onClick={onClickAction}
 			type="button"
 		>
 			<FaviconImage
@@ -53,73 +60,48 @@ function WebsiteItem({ website, selected, onClick }: WebsiteItemProps) {
 	);
 }
 
-type EmptyListProps = {
-	label: string;
-};
-
-function EmptyList({ label }: EmptyListProps) {
-	return (
-		<div className="flex flex-col items-center justify-center rounded border border-dashed py-8 text-center">
-			<GlobeIcon className="mb-2 text-muted-foreground/50" size={24} />
-			<p className="text-muted-foreground text-xs">{label}</p>
-		</div>
-	);
-}
-
 function LoadingSkeleton() {
 	return (
-		<div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
+		<div className="space-y-4">
 			<div className="space-y-2">
 				<Skeleton className="h-4 w-32" />
 				<Skeleton className="h-12 w-full" />
 				<Skeleton className="h-12 w-full" />
 			</div>
-			<div className="flex items-center justify-center">
-				<Skeleton className="size-9 rounded" />
-			</div>
-			<div className="space-y-2">
-				<Skeleton className="h-4 w-40" />
-				<Skeleton className="h-12 w-full" />
-				<Skeleton className="h-12 w-full" />
-			</div>
+			<Skeleton className="h-10 w-full" />
 		</div>
 	);
 }
 
-type TransferAssetsProps = {
+interface TransferAssetsProps {
 	organizationId: string;
-};
+}
 
 export function TransferAssets({ organizationId }: TransferAssetsProps) {
-	const {
-		personalWebsites,
-		organizationWebsites,
-		transferWebsite,
-		isTransferring,
-		isLoading,
-	} = useWebsiteTransfer(organizationId);
+	const { organizations } = useOrganizations();
+	const { organizationWebsites, transferWebsite, isTransferring, isLoading } =
+		useWebsiteTransfer(organizationId);
 
 	const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
+	const [targetOrgId, setTargetOrgId] = useState<string>("");
 
-	const selectedSide = personalWebsites.some((w) => w.id === selectedWebsite)
-		? "personal"
-		: organizationWebsites.some((w) => w.id === selectedWebsite)
-			? "organization"
-			: null;
+	const otherOrganizations = organizations?.filter(
+		(org) => org.id !== organizationId
+	);
+
+	const canTransfer = selectedWebsite && targetOrgId;
 
 	const handleTransfer = () => {
-		if (!(selectedWebsite && selectedSide)) {
+		if (!canTransfer) {
 			return;
 		}
 
-		const organizationIdToUse =
-			selectedSide === "personal" ? organizationId : undefined;
-
 		transferWebsite(
-			{ websiteId: selectedWebsite, organizationId: organizationIdToUse },
+			{ websiteId: selectedWebsite, organizationId: targetOrgId },
 			{
 				onSuccess: () => {
 					setSelectedWebsite(null);
+					setTargetOrgId("");
 					toast.success("Website transferred successfully");
 				},
 			}
@@ -130,10 +112,7 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 		return <LoadingSkeleton />;
 	}
 
-	const hasNoWebsites =
-		personalWebsites.length === 0 && organizationWebsites.length === 0;
-
-	if (hasNoWebsites) {
+	if (organizationWebsites.length === 0) {
 		return (
 			<div className="flex flex-col items-center justify-center rounded border border-dashed py-12 text-center">
 				<ArrowsLeftRightIcon
@@ -144,102 +123,89 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 					No websites to transfer
 				</p>
 				<p className="mt-1 text-muted-foreground/70 text-sm">
-					Add websites to your account or organization first
+					This workspace has no websites
 				</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
-			{/* Personal Websites */}
-			<div className="flex flex-1 flex-col">
-				<div className="mb-3 flex items-center gap-2">
-					<UserIcon
-						className="text-accent-foreground"
-						size={14}
-						weight="duotone"
-					/>
-					<span className="font-medium text-sm">Personal</span>
-					<span className="text-muted-foreground text-xs">
-						({personalWebsites.length})
-					</span>
-				</div>
-				<div className="flex-1 space-y-2 overflow-y-auto">
-					{personalWebsites.length > 0 ? (
-						personalWebsites.map((website) => (
-							<WebsiteItem
-								key={website.id}
-								onClick={() =>
-									setSelectedWebsite(
-										website.id === selectedWebsite ? null : website.id
-									)
-								}
-								selected={selectedWebsite === website.id}
-								website={website}
-							/>
-						))
-					) : (
-						<EmptyList label="No personal websites" />
-					)}
-				</div>
-			</div>
-
-			{/* Transfer Button */}
-			<div className="flex items-center justify-center">
-				<Button
-					className="size-9"
-					disabled={!selectedSide || isTransferring}
-					onClick={handleTransfer}
-					size="icon"
-					variant={selectedWebsite && selectedSide ? "default" : "outline"}
-				>
-					{isTransferring ? (
-						<div className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-					) : (
-						<ArrowRightIcon
-							className={cn(
-								"transition-transform",
-								selectedSide === "organization" && "rotate-180"
-							)}
-							size={16}
-						/>
-					)}
-				</Button>
-			</div>
-
-			{/* Organization Websites */}
-			<div className="flex flex-1 flex-col">
+		<div className="space-y-4">
+			{/* Websites in current org */}
+			<div className="flex flex-col">
 				<div className="mb-3 flex items-center gap-2">
 					<BuildingsIcon
 						className="text-accent-foreground"
 						size={14}
 						weight="duotone"
 					/>
-					<span className="font-medium text-sm">Organization</span>
+					<span className="font-medium text-sm">Workspace Websites</span>
 					<span className="text-muted-foreground text-xs">
 						({organizationWebsites.length})
 					</span>
 				</div>
-				<div className="flex-1 space-y-2 overflow-y-auto">
-					{organizationWebsites.length > 0 ? (
-						organizationWebsites.map((website) => (
-							<WebsiteItem
-								key={website.id}
-								onClick={() =>
-									setSelectedWebsite(
-										website.id === selectedWebsite ? null : website.id
-									)
-								}
-								selected={selectedWebsite === website.id}
-								website={website}
-							/>
-						))
-					) : (
-						<EmptyList label="No organization websites" />
-					)}
+				<div className="max-h-48 space-y-2 overflow-y-auto">
+					{organizationWebsites.map((website) => (
+						<WebsiteItem
+							key={website.id}
+							onClickAction={() =>
+								setSelectedWebsite(
+									website.id === selectedWebsite ? null : website.id
+								)
+							}
+							selected={selectedWebsite === website.id}
+							website={website}
+						/>
+					))}
 				</div>
 			</div>
+
+			{/* Target org selector */}
+			{selectedWebsite && (
+				<div className="space-y-2">
+					<label className="font-medium text-sm" htmlFor="target-org">
+						Transfer to workspace
+					</label>
+					<Select onValueChange={setTargetOrgId} value={targetOrgId}>
+						<SelectTrigger id="target-org">
+							<SelectValue placeholder="Select target workspace" />
+						</SelectTrigger>
+						<SelectContent>
+							{otherOrganizations && otherOrganizations.length > 0 ? (
+								otherOrganizations.map((org) => (
+									<SelectItem key={org.id} value={org.id}>
+										<div className="flex items-center gap-2">
+											<BuildingsIcon className="size-4" />
+											<span>{org.name}</span>
+										</div>
+									</SelectItem>
+								))
+							) : (
+								<SelectItem disabled value="no-orgs">
+									No other workspaces available
+								</SelectItem>
+							)}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			{/* Transfer button */}
+			<Button
+				className="w-full"
+				disabled={!canTransfer || isTransferring}
+				onClick={handleTransfer}
+				variant="outline"
+			>
+				{isTransferring ? (
+					<div className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+				) : (
+					<>
+						<ArrowRightIcon className="mr-2" size={16} />
+						Transfer Website
+					</>
+				)}
+			</Button>
 		</div>
 	);
 }

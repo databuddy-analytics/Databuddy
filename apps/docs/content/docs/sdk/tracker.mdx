@@ -1,0 +1,329 @@
+---
+title: Tracker Helpers
+description: Helper functions for tracking events, managing sessions, and cross-domain attribution
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy SDK exports helper functions for tracking events, managing sessions, and cross-domain attribution. These work in any JavaScript environment where the Databuddy script is loaded.
+
+<Callout type="info">
+  **Import**: `import { track, flush, getAnonymousId, ... } from "@databuddy/sdk"`
+</Callout>
+
+## Event Tracking
+
+### track(name, properties)
+
+Track custom events with optional properties. Safe to call on server (no-op) or before tracker loads.
+
+<CodeBlock language="tsx">
+  {`import { track } from "@databuddy/sdk";
+
+// Simple event
+track("signup_started");
+
+// Event with properties
+track("item_purchased", {
+  itemId: "sku-123",
+  price: 29.99,
+  currency: "USD"
+});
+
+// In a React component
+function CheckoutButton() {
+  return (
+    <button onClick={() => track("checkout_clicked", { cartSize: 3 })}>
+      Checkout
+    </button>
+  );
+}`}
+</CodeBlock>
+
+### trackError(message, properties)
+
+Track error events. Convenience wrapper around `track("error", ...)`.
+
+<CodeBlock language="tsx">
+  {`import { trackError } from "@databuddy/sdk";
+
+try {
+  await riskyOperation();
+} catch (error) {
+  trackError(error.message, {
+    stack: error.stack,
+    error_type: error.name,
+    context: "checkout_flow"
+  });
+}`}
+</CodeBlock>
+
+<Callout type="info">
+  **Note:** `trackError()` is for *manual* error tracking. To automatically capture all JavaScript errors, use the `trackErrors` prop on the `<Databuddy />` component.
+</Callout>
+
+## Session Management
+
+### clear()
+
+Clears the current user session and generates new anonymous/session IDs. Use after logout to ensure the next user gets a fresh identity.
+
+<CodeBlock language="tsx">
+  {`import { clear } from "@databuddy/sdk";
+
+async function handleLogout() {
+  await signOut();
+  clear(); // Reset tracking identity
+  router.push("/login");
+}`}
+</CodeBlock>
+
+### flush()
+
+Forces all queued events to be sent immediately. Useful before navigation or when you need to ensure events are captured.
+
+<CodeBlock language="tsx">
+  {`import { track, flush } from "@databuddy/sdk";
+
+function handleExternalLink(url: string) {
+  track("external_link_clicked", { url });
+  flush(); // Ensure event is sent before leaving
+  window.location.href = url;
+}`}
+</CodeBlock>
+
+## Identity & Attribution
+
+### getAnonymousId(urlParams?)
+
+Gets the anonymous user ID. Persists across sessions via localStorage. Useful for server-side identification or cross-domain tracking.
+
+**Priority**: URL params → localStorage
+
+<CodeBlock language="tsx">
+  {`import { getAnonymousId } from "@databuddy/sdk";
+
+// Get from storage
+const anonId = getAnonymousId();
+
+// Check URL params first (for cross-domain tracking)
+const params = new URLSearchParams(window.location.search);
+const anonId = getAnonymousId(params);
+
+// Pass to server
+await fetch("/api/identify", {
+  body: JSON.stringify({ anonId })
+});`}
+</CodeBlock>
+
+### getSessionId(urlParams?)
+
+Gets the current session ID. Resets after 30 minutes of inactivity. Useful for correlating events within a single browsing session.
+
+**Priority**: URL params → sessionStorage
+
+<CodeBlock language="tsx">
+  {`import { getSessionId } from "@databuddy/sdk";
+
+const sessionId = getSessionId();
+console.log("Current session:", sessionId);`}
+</CodeBlock>
+
+### getTrackingIds(urlParams?)
+
+Gets both anonymous ID and session ID in a single call.
+
+<CodeBlock language="tsx">
+  {`import { getTrackingIds } from "@databuddy/sdk";
+
+const { anonId, sessionId } = getTrackingIds();
+
+// Send to your backend
+await api.identify({ anonId, sessionId, userId: user.id });`}
+</CodeBlock>
+
+### getTrackingParams(urlParams?)
+
+Returns tracking IDs as a URL query string for cross-domain tracking. Append to URLs when linking to other domains you own.
+
+<CodeBlock language="tsx">
+  {`import { getTrackingParams } from "@databuddy/sdk";
+
+// Link to subdomain with tracking continuity
+const params = getTrackingParams();
+const url = \`https://app.example.com/dashboard\${params ? \`?\${params}\` : ""}\`;
+
+// In a component
+<a href={\`https://shop.example.com?\${getTrackingParams()}\`}>
+  Visit Shop
+</a>`}
+</CodeBlock>
+
+**Returns**: `"anonId=xxx&sessionId=yyy"` or empty string if unavailable.
+
+## Tracker Instance
+
+### isTrackerAvailable()
+
+Checks if the Databuddy tracker script has loaded and is available. Use this before calling tracking functions in conditional scenarios.
+
+<CodeBlock language="tsx">
+  {`import { isTrackerAvailable, track } from "@databuddy/sdk";
+
+if (isTrackerAvailable()) {
+  track("feature_used", { feature: "export" });
+}`}
+</CodeBlock>
+
+### getTracker()
+
+Returns the raw Databuddy tracker instance for advanced use cases. Prefer using the exported functions instead.
+
+<CodeBlock language="tsx">
+  {`import { getTracker } from "@databuddy/sdk";
+
+const tracker = getTracker();
+if (tracker) {
+  // Access tracker methods directly
+  tracker.track("event", { prop: "value" });
+  tracker.setGlobalProperties({ plan: "premium" });
+  tracker.screenView("/dashboard");
+}`}
+</CodeBlock>
+
+## Cross-Domain Tracking
+
+When users navigate between domains you own, use tracking params to maintain identity:
+
+<CodeBlock language="tsx">
+  {`import { getTrackingParams, getAnonymousId, getSessionId } from "@databuddy/sdk";
+
+// Method 1: URL params (recommended)
+function redirectToApp() {
+  const params = getTrackingParams();
+  window.location.href = \`https://app.mysite.com/signup?\${params}\`;
+}
+
+// Method 2: Manual construction
+function redirectWithIds() {
+  const anonId = getAnonymousId();
+  const sessionId = getSessionId();
+  
+  const url = new URL("https://app.mysite.com/signup");
+  if (anonId) url.searchParams.set("anonId", anonId);
+  if (sessionId) url.searchParams.set("sessionId", sessionId);
+  
+  window.location.href = url.toString();
+}`}
+</CodeBlock>
+
+On the destination page, the tracker automatically reads `anonId` and `sessionId` from URL params.
+
+## Server-Side Integration
+
+Pass tracking IDs to your backend for server-side event attribution:
+
+<CodeBlock language="tsx" filename="Client-side">
+  {`import { getTrackingIds } from "@databuddy/sdk";
+
+const { anonId, sessionId } = getTrackingIds();
+
+await fetch("/api/purchase", {
+  method: "POST",
+  body: JSON.stringify({
+    anonId,
+    sessionId,
+    orderId: "ORD-123",
+    total: 99.99
+  })
+});`}
+</CodeBlock>
+
+<CodeBlock language="tsx" filename="Server-side (Node SDK)">
+  {`import { Databuddy } from "@databuddy/sdk/node";
+
+const client = new Databuddy({ clientId: process.env.DATABUDDY_CLIENT_ID! });
+
+export async function POST(request: Request) {
+  const { anonId, sessionId, orderId, total } = await request.json();
+  
+  await client.track({
+    name: "purchase_completed",
+    anonymousId: anonId,
+    sessionId: sessionId,
+    properties: { orderId, total }
+  });
+  
+  return Response.json({ success: true });
+}`}
+</CodeBlock>
+
+## Best Practices
+
+### Use snake_case for Event Names
+
+<CodeBlock language="tsx">
+  {`// ✅ Good
+track("signup_completed");
+track("product_viewed");
+track("purchase_completed");
+
+// ❌ Avoid
+track("signupCompleted");
+track("ProductViewed");
+track("PURCHASE_COMPLETED");`}
+</CodeBlock>
+
+### Avoid PII in Properties
+
+<CodeBlock language="tsx">
+  {`// ✅ Good
+track("purchase_completed", {
+  order_id: "ORD-123",
+  total: 99.99,
+  currency: "USD"
+});
+
+// ❌ Avoid PII
+track("purchase_completed", {
+  email: "user@example.com",  // PII
+  credit_card: "4242..."      // Sensitive
+});`}
+</CodeBlock>
+
+### Always Flush Before Navigation
+
+<CodeBlock language="tsx">
+  {`function handleExternalRedirect(url: string) {
+  track("redirect_clicked", { destination: url });
+  flush();  // Ensure event is sent
+  window.location.href = url;
+}`}
+</CodeBlock>
+
+## TypeScript Types
+
+<CodeBlock language="tsx">
+  {`import { 
+  track, 
+  getTracker,
+  type DatabuddyTracker 
+} from "@databuddy/sdk";
+
+// Tracker instance type
+const tracker: DatabuddyTracker | null = getTracker();`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="React SDK" href="/docs/sdk/react">
+    React component and integration
+  </Card>
+  <Card title="Node SDK" href="/docs/sdk/node">
+    Server-side tracking for APIs and webhooks
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    All configuration options
+  </Card>
+</Cards>

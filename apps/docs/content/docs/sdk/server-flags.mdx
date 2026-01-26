@@ -1,0 +1,439 @@
+---
+title: Server-Side Feature Flags
+description: Evaluate feature flags on the server in Node.js, API routes, and serverless functions
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy Node SDK includes a server-side feature flags manager optimized for server environments with request deduplication, batching, and stale-while-revalidate caching.
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/node`
+</Callout>
+
+## Installation
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk`}
+</CodeBlock>
+
+## Quick Start
+
+<CodeBlock language="tsx">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  user: {
+    userId: "user-123",
+    email: "user@example.com"
+  }
+});
+
+// Wait for initialization
+await flags.waitForInit();
+
+// Check a flag
+const result = await flags.getFlag("new-feature");
+if (result.enabled) {
+  // Show new feature
+}`}
+</CodeBlock>
+
+## Creating a Manager
+
+### createServerFlagsManager(config)
+
+Creates a new server-side flags manager instance:
+
+<CodeBlock language="tsx">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  apiUrl: "https://api.databuddy.cc",
+  user: {
+    userId: "user-123",
+    email: "user@example.com",
+    organizationId: "org-456",
+    properties: {
+      plan: "premium"
+    }
+  },
+  environment: "production",
+  cacheTtl: 60_000,      // 1 minute cache
+  staleTime: 30_000,     // Revalidate after 30s
+  debug: false
+});`}
+</CodeBlock>
+
+### Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `clientId` | `string` | Required | Your client ID |
+| `apiUrl` | `string` | `https://api.databuddy.cc` | API endpoint |
+| `user` | `UserContext` | - | User context for targeting |
+| `environment` | `string` | - | Environment name |
+| `cacheTtl` | `number` | `60000` | Cache TTL in ms |
+| `staleTime` | `number` | `30000` | Revalidate after (ms) |
+| `autoFetch` | `boolean` | `false` | Fetch all flags on init |
+| `debug` | `boolean` | `false` | Enable debug logging |
+| `disabled` | `boolean` | `false` | Disable flag evaluation |
+
+### User Context
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `userId` | `string` | User identifier for targeting |
+| `email` | `string` | Email for targeting |
+| `organizationId` | `string` | Organization for group rollouts |
+| `teamId` | `string` | Team for group rollouts |
+| `properties` | `object` | Custom properties for targeting |
+
+## Fetching Flags
+
+### getFlag(key, user?)
+
+Fetch a single flag with caching and deduplication:
+
+<CodeBlock language="tsx">
+  {`const result = await flags.getFlag("my-feature");
+
+console.log({
+  enabled: result.enabled,    // boolean
+  value: result.value,        // boolean | string | number
+  variant: result.variant,    // string (for A/B tests)
+  reason: result.reason       // evaluation reason
+});`}
+</CodeBlock>
+
+Override user context for a specific check:
+
+<CodeBlock language="tsx">
+  {`const result = await flags.getFlag("premium-feature", {
+  userId: "different-user",
+  properties: { plan: "enterprise" }
+});`}
+</CodeBlock>
+
+### fetchAllFlags(user?)
+
+Pre-fetch all flags for a user:
+
+<CodeBlock language="tsx">
+  {`// Fetch all flags upfront
+await flags.fetchAllFlags();
+
+// Now synchronous checks are fast
+const state = flags.isEnabled("feature-1");
+const value = flags.getValue("max-items", 10);`}
+</CodeBlock>
+
+### isEnabled(key)
+
+Synchronous check from cache (call after `fetchAllFlags` or `getFlag`):
+
+<CodeBlock language="tsx">
+  {`const state = flags.isEnabled("my-feature");
+
+if (state.isReady && state.on) {
+  // Feature is enabled
+}`}
+</CodeBlock>
+
+Returns a `FlagState` object:
+
+<CodeBlock language="tsx">
+  {`interface FlagState {
+  on: boolean;          // Is the flag on?
+  enabled: boolean;     // Alias for on
+  status: "ready" | "loading" | "error";
+  loading: boolean;
+  isLoading: boolean;
+  isReady: boolean;
+  value?: boolean | string | number;
+  variant?: string;
+}`}
+</CodeBlock>
+
+### getValue(key, defaultValue)
+
+Get a typed value from cache:
+
+<CodeBlock language="tsx">
+  {`const maxItems = flags.getValue("max-items", 10);
+const theme = flags.getValue<"light" | "dark">("theme", "light");`}
+</CodeBlock>
+
+## Usage Patterns
+
+### Next.js API Routes
+
+<CodeBlock language="tsx" filename="app/api/data/route.ts">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+import { NextResponse } from "next/server";
+
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+export async function GET(request: Request) {
+  const userId = request.headers.get("x-user-id");
+  
+  const result = await flags.getFlag("new-api-version", {
+    userId: userId ?? undefined
+  });
+  
+  if (result.enabled) {
+    return NextResponse.json({ version: "v2", data: await getNewData() });
+  }
+  
+  return NextResponse.json({ version: "v1", data: await getLegacyData() });
+}`}
+</CodeBlock>
+
+### Next.js Server Components
+
+<CodeBlock language="tsx" filename="app/dashboard/page.tsx">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+import { auth } from "@/lib/auth";
+
+export default async function DashboardPage() {
+  const session = await auth();
+  
+  const flags = createServerFlagsManager({
+    clientId: process.env.DATABUDDY_CLIENT_ID!,
+    user: session?.user ? {
+      userId: session.user.id,
+      email: session.user.email,
+      properties: { plan: session.user.plan }
+    } : undefined
+  });
+  
+  const newDashboard = await flags.getFlag("new-dashboard");
+  
+  if (newDashboard.enabled) {
+    return <NewDashboard />;
+  }
+  
+  return <LegacyDashboard />;
+}`}
+</CodeBlock>
+
+### Express Middleware
+
+<CodeBlock language="tsx">
+  {`import express from "express";
+import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+const app = express();
+
+// Create a shared manager
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  autoFetch: true
+});
+
+// Wait for init
+await flags.waitForInit();
+
+// Middleware to attach flags to request
+app.use(async (req, res, next) => {
+  const userId = req.headers["x-user-id"] as string;
+  
+  req.flags = {
+    isEnabled: async (key: string) => {
+      const result = await flags.getFlag(key, { userId });
+      return result.enabled;
+    }
+  };
+  
+  next();
+});
+
+app.get("/api/feature", async (req, res) => {
+  const enabled = await req.flags.isEnabled("my-feature");
+  res.json({ enabled });
+});`}
+</CodeBlock>
+
+### Serverless Functions
+
+<CodeBlock language="tsx">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+// Create manager outside handler for reuse
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+export async function handler(event: any) {
+  const userId = event.headers["x-user-id"];
+  
+  const result = await flags.getFlag("feature", { userId });
+  
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      enabled: result.enabled,
+      variant: result.variant
+    })
+  };
+}`}
+</CodeBlock>
+
+## Caching Behavior
+
+The server manager uses stale-while-revalidate caching:
+
+1. **Fresh cache**: Returns immediately
+2. **Stale cache**: Returns immediately, revalidates in background
+3. **No cache**: Fetches from API
+
+<CodeBlock language="tsx">
+  {`const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  cacheTtl: 60_000,      // Cache valid for 1 minute
+  staleTime: 30_000      // Revalidate after 30 seconds
+});
+
+// First call: fetches from API
+const result1 = await flags.getFlag("my-feature");
+
+// Within 30s: returns cached value (fresh)
+const result2 = await flags.getFlag("my-feature");
+
+// After 30s but within 60s: returns cached, revalidates in background
+const result3 = await flags.getFlag("my-feature");
+
+// After 60s: fetches from API
+const result4 = await flags.getFlag("my-feature");`}
+</CodeBlock>
+
+## Request Batching
+
+Multiple concurrent flag requests are batched automatically:
+
+<CodeBlock language="tsx">
+  {`// These 3 concurrent requests become 1 API call
+const [flag1, flag2, flag3] = await Promise.all([
+  flags.getFlag("feature-1"),
+  flags.getFlag("feature-2"),
+  flags.getFlag("feature-3")
+]);`}
+</CodeBlock>
+
+## Request Deduplication
+
+Identical concurrent requests are deduplicated:
+
+<CodeBlock language="tsx">
+  {`// Only 1 API call is made
+const [result1, result2] = await Promise.all([
+  flags.getFlag("same-feature"),
+  flags.getFlag("same-feature")
+]);`}
+</CodeBlock>
+
+## Updating User Context
+
+<CodeBlock language="tsx">
+  {`// Update user for subsequent calls
+flags.updateUser({
+  userId: "new-user",
+  properties: { plan: "enterprise" }
+});
+
+// Refresh flags for new user
+await flags.refresh();`}
+</CodeBlock>
+
+## Manager Lifecycle
+
+### waitForInit()
+
+Wait for the manager to initialize:
+
+<CodeBlock language="tsx">
+  {`const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  autoFetch: true
+});
+
+await flags.waitForInit();
+// Now all flags are cached`}
+</CodeBlock>
+
+### isReady()
+
+Check if the manager is ready:
+
+<CodeBlock language="tsx">
+  {`if (flags.isReady()) {
+  // Safe to use synchronous methods
+  const state = flags.isEnabled("my-feature");
+}`}
+</CodeBlock>
+
+### destroy()
+
+Clean up resources:
+
+<CodeBlock language="tsx">
+  {`flags.destroy();`}
+</CodeBlock>
+
+## Singleton Pattern
+
+For most applications, create a single manager instance:
+
+<CodeBlock language="tsx" filename="lib/flags.ts">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+let flagsManager: ReturnType<typeof createServerFlagsManager> | null = null;
+
+export function getFlags() {
+  if (!flagsManager) {
+    flagsManager = createServerFlagsManager({
+      clientId: process.env.DATABUDDY_CLIENT_ID!,
+      autoFetch: true
+    });
+  }
+  return flagsManager;
+}`}
+</CodeBlock>
+
+<CodeBlock language="tsx" filename="In your routes">
+  {`import { getFlags } from "@/lib/flags";
+
+const flags = getFlags();
+const result = await flags.getFlag("my-feature", { userId });`}
+</CodeBlock>
+
+## TypeScript Types
+
+<CodeBlock language="tsx">
+  {`import {
+  createServerFlagsManager,
+  ServerFlagsManager,
+  type FlagsConfig,
+  type FlagResult,
+  type FlagState,
+  type UserContext
+} from "@databuddy/sdk/node";`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="Feature Flags (Client)" href="/docs/sdk/feature-flags">
+    React and Vue feature flag hooks
+  </Card>
+  <Card title="Node SDK" href="/docs/sdk/node">
+    Server-side event tracking
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    All configuration options
+  </Card>
+</Cards>

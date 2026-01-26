@@ -65,7 +65,7 @@ export function MonitorsList({
 	}
 
 	return (
-		<div className="border-border border-t">
+		<div>
 			{monitors.map((monitor) => (
 				<MonitorRow
 					key={monitor.id}

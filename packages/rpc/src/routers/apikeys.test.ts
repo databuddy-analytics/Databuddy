@@ -14,6 +14,7 @@ const keys = createKeys({ prefix: "dbdy_", length: 48 });
 const API_SCOPES = [
 	"read:data",
 	"write:llm",
+	"track:events",
 ] as const;
 
 const RESOURCE_TYPES = [
@@ -115,6 +116,10 @@ describe("API_SCOPES constants", () => {
 
 	it("contains write scopes", () => {
 		expect(API_SCOPES).toContain("write:llm");
+	});
+
+	it("contains track scopes", () => {
+		expect(API_SCOPES).toContain("track:events");
 	});
 });
 

@@ -5,7 +5,6 @@ import {
 	WarningCircleIcon,
 	XCircleIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
 import { Badge } from "@/components/ui/badge";
 import {
 	Table,
@@ -15,6 +14,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { formatLocalTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 interface Check {
@@ -123,7 +123,7 @@ export function RecentActivity({ checks, isLoading }: RecentActivityProps) {
 										</div>
 									</TableCell>
 									<TableCell className="text-center text-muted-foreground text-xs">
-										{dayjs(check.timestamp).format("MMM D, HH:mm:ss")}
+										{formatLocalTime(check.timestamp, "MMM D, HH:mm:ss")}
 									</TableCell>
 									<TableCell className="text-center text-muted-foreground text-xs">
 										<Badge className="font-mono text-[10px]" variant="outline">

@@ -58,7 +58,7 @@ export function enrichSpanWithContext(context: Context): void {
  * Set attributes on the active span for a procedure type
  */
 export function setProcedureAttributes(
-	procedureType: "public" | "protected" | "admin"
+	procedureType: "public" | "protected" | "admin" | "website"
 ): void {
 	const span = trace.getActiveSpan();
 	if (span) {

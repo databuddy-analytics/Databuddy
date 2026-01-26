@@ -20,49 +20,37 @@ const REGEX_DOMAIN_LABEL = /^[a-zA-Z0-9-]+$/;
 
 /**
  * Resolves the owner's user ID for a given website.
- * The owner is the user if it's a personal project, or the organization's owner
- * if it's an organizational project.
+ * The owner is the workspace (organization) owner.
  * @param website The website object.
  * @returns A promise that resolves to the owner's user ID or null if not found.
  */
 async function _resolveOwnerId(website: Website): Promise<string | null> {
-	if (website.userId) {
-		return website.userId;
+	if (!website.organizationId) {
+		return null;
 	}
 
-	if (website.organizationId) {
-		try {
-			const orgMember = await db.query.member.findFirst({
-				where: and(
-					eq(member.organizationId, website.organizationId),
-					eq(member.role, "owner")
-				),
-				columns: {
-					userId: true,
-				},
-			});
+	try {
+		const orgMember = await db.query.member.findFirst({
+			where: and(
+				eq(member.organizationId, website.organizationId),
+				eq(member.role, "owner")
+			),
+			columns: {
+				userId: true,
+			},
+		});
 
-			if (orgMember) {
-				return orgMember.userId;
-			}
-
-			// logger.warn(
-			// 	{ websiteId: website.id, organizationId: website.organizationId },
-			// 	"Organization owner not found for website"
-			// );
-		} catch (error) {
-			captureError(error, {
-				message: "Failed to fetch organization owner",
-				websiteId: website.id,
-				organizationId: website.organizationId || "unknown",
-			});
+		if (orgMember) {
+			return orgMember.userId;
 		}
+	} catch (error) {
+		captureError(error, {
+			message: "Failed to fetch workspace owner",
+			websiteId: website.id,
+			organizationId: website.organizationId,
+		});
 	}
 
-	// logger.warn(
-	// 	{ websiteId: website.id },
-	// 	"No owner could be determined for website"
-	// );
 	return null;
 }
 
@@ -79,48 +67,42 @@ const getOwnerId = cacheable(
 
 /**
  * Resolves the billing owner's user ID for an API key.
- * For personal API keys, returns the userId.
- * For org API keys, returns the organization owner's userId.
+ * Returns the workspace (organization) owner's userId.
  */
 async function _resolveApiKeyOwnerId(
-	organizationId: string | null,
-	userId: string | null
+	organizationId: string | null
 ): Promise<string | null> {
-	if (userId && !organizationId) {
-		return userId;
+	if (!organizationId) {
+		return null;
 	}
 
-	if (organizationId) {
-		try {
-			const orgMember = await db.query.member.findFirst({
-				where: and(
-					eq(member.organizationId, organizationId),
-					eq(member.role, "owner")
-				),
-				columns: {
-					userId: true,
-				},
-			});
+	try {
+		const orgMember = await db.query.member.findFirst({
+			where: and(
+				eq(member.organizationId, organizationId),
+				eq(member.role, "owner")
+			),
+			columns: {
+				userId: true,
+			},
+		});
 
-			if (orgMember) {
-				return orgMember.userId;
-			}
-		} catch (error) {
-			captureError(error, {
-				message: "Failed to fetch organization owner for API key",
-				organizationId,
-			});
+		if (orgMember) {
+			return orgMember.userId;
 		}
+	} catch (error) {
+		captureError(error, {
+			message: "Failed to fetch workspace owner for API key",
+			organizationId,
+		});
 	}
 
 	return null;
 }
 
 export const resolveApiKeyOwnerId = cacheable(
-	async (
-		organizationId: string | null,
-		userId: string | null
-	): Promise<string | null> => _resolveApiKeyOwnerId(organizationId, userId),
+	async (organizationId: string | null): Promise<string | null> =>
+		_resolveApiKeyOwnerId(organizationId),
 	{
 		expireInSec: 300,
 		prefix: "api_key_owner_id",
@@ -403,6 +385,132 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 		staleTime: 120, // 2 minutes stale time
 	}
 );
+
+/**
+ * Validates if an origin matches any of the allowed origins from website settings
+ * Supports wildcard patterns like *.cal.com
+ */
+export function isValidOriginFromSettings(
+	originHeader: string,
+	allowedOrigins?: string[]
+): boolean {
+	if (!originHeader?.trim()) {
+		return true;
+	}
+
+	if (!allowedOrigins || allowedOrigins.length === 0) {
+		return true;
+	}
+
+	try {
+		const originUrl = new URL(originHeader.trim());
+		const originDomain = normalizeDomain(originUrl.hostname);
+
+		for (const allowed of allowedOrigins) {
+			if (allowed === "*") {
+				return true;
+			}
+
+			if (allowed === "localhost") {
+				if (originDomain === "localhost") {
+					return true;
+				}
+				continue;
+			}
+
+			if (allowed.startsWith("*.")) {
+				const baseDomain = normalizeDomain(allowed.slice(2));
+				if (
+					originDomain === baseDomain ||
+					isSubdomain(originDomain, baseDomain)
+				) {
+					return true;
+				}
+				continue;
+			}
+
+			const normalizedAllowed = normalizeDomain(allowed);
+			if (originDomain === normalizedAllowed) {
+				return true;
+			}
+		}
+
+		return false;
+	} catch (error) {
+		captureError(error, {
+			message: "[isValidOriginFromSettings] Validation failed",
+			originHeader,
+			allowedOriginsCount: allowedOrigins?.length ?? 0,
+		});
+		return false;
+	}
+}
+
+/**
+ * Validates if an IP address matches any of the allowed IPs from website settings
+ * Supports CIDR notation like 192.168.1.0/24
+ */
+export function isValidIpFromSettings(
+	ip: string,
+	allowedIps?: string[]
+): boolean {
+	if (!ip?.trim()) {
+		return true;
+	}
+
+	if (!allowedIps || allowedIps.length === 0) {
+		return true;
+	}
+
+	const trimmedIp = ip.trim();
+
+	for (const allowed of allowedIps) {
+		if (allowed === trimmedIp) {
+			return true;
+		}
+
+		if (allowed.includes("/") && isIpInCidrRange(trimmedIp, allowed)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Checks if an IP address is within a CIDR range
+ */
+function isIpInCidrRange(ip: string, cidr: string): boolean {
+	try {
+		const [network, prefixLengthStr] = cidr.split("/");
+		const prefixLength = Number.parseInt(prefixLengthStr, 10);
+
+		if (Number.isNaN(prefixLength) || prefixLength < 0 || prefixLength > 32) {
+			return false;
+		}
+
+		const ipToNumber = (ipAddr: string): number => {
+			const parts = ipAddr.split(".");
+			return (
+				Number.parseInt(parts[0] ?? "0", 10) * 16_777_216 +
+				Number.parseInt(parts[1] ?? "0", 10) * 65_536 +
+				Number.parseInt(parts[2] ?? "0", 10) * 256 +
+				Number.parseInt(parts[3] ?? "0", 10)
+			);
+		};
+
+		const networkNum = ipToNumber(network);
+		const ipNum = ipToNumber(ip);
+		const maskSize = 2 ** (32 - prefixLength);
+
+		const networkMasked = Math.floor(networkNum / maskSize) * maskSize;
+		const ipMasked = Math.floor(ipNum / maskSize) * maskSize;
+
+		return networkMasked === ipMasked;
+	} catch {
+		return false;
+	}
+}
 
 export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
 	return record("getWebsiteByIdV2", async () => {

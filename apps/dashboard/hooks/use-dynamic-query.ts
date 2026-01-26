@@ -29,7 +29,9 @@ function buildParams({
 	dateRange,
 	additionalParams,
 }: BuildParamsOptions): URLSearchParams {
-	const params = new URLSearchParams(additionalParams as Record<string, string>);
+	const params = new URLSearchParams(
+		additionalParams as Record<string, string>
+	);
 
 	// Use appropriate ID based on context
 	if (linkId) {
@@ -98,9 +100,7 @@ async function fetchDynamicQuery(
 
 	// Support both old string API (websiteId) and new options object
 	const options: FetchOptions =
-		typeof idOrOptions === "string"
-			? { websiteId: idOrOptions }
-			: idOrOptions;
+		typeof idOrOptions === "string" ? { websiteId: idOrOptions } : idOrOptions;
 
 	const params = buildParams({
 		websiteId: options.websiteId,
@@ -234,11 +234,10 @@ export function useBatchDynamicQuery(
 ) {
 	// Support both old string API (websiteId) and new options object
 	const queryOptions: BatchQueryOptions =
-		typeof idOrOptions === "string"
-			? { websiteId: idOrOptions }
-			: idOrOptions;
+		typeof idOrOptions === "string" ? { websiteId: idOrOptions } : idOrOptions;
 
-	const effectiveId = queryOptions.websiteId || queryOptions.scheduleId || queryOptions.linkId;
+	const effectiveId =
+		queryOptions.websiteId || queryOptions.scheduleId || queryOptions.linkId;
 
 	const fetchData = useCallback(
 		async ({ signal }: { signal?: AbortSignal }) => {

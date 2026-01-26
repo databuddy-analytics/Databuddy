@@ -1,6 +1,6 @@
 /**
  * Type guards and union types for Vercel AI SDK V2/V3 support
- * 
+ *
  * Adapted from PostHog's AI SDK implementation:
  * https://github.com/PostHog/posthog-js/tree/main/packages/ai
  */

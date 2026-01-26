@@ -227,7 +227,7 @@ function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
 		...flag,
 		rules: Array.isArray(flag.rules) && flag.rules.length > 0 ? [] : flag.rules,
 		targetGroups: flag.targetGroups?.map(
-			(group: { rules?: unknown;[key: string]: unknown }) => ({
+			(group: { rules?: unknown; [key: string]: unknown }) => ({
 				...group,
 				rules:
 					Array.isArray(group.rules) && group.rules.length > 0

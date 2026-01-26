@@ -1,38 +1,20 @@
 import type { AppContext } from "../config/context";
 import { formatContextForLLM } from "../config/context";
-import { COMMON_AGENT_RULES } from "./shared";
-
-/**
- * Single-model capabilities.
- */
-const AGENT_CAPABILITIES = `<agent-capabilities>
-databunny: End-to-end website analytics. Analyze traffic, visitors, page views, performance, sources, referrers, geo, devices, errors, and custom events. Use tools directly; do not hand off.
-</agent-capabilities>`;
-
-/**
- * Unified handling rules.
- */
-const ROUTING_RULES = `<routing-rules>
-- You are a single Databunny model. Never mention other experts or handoffs, or about the other agents.
-- Always respond directly using the available tools.
-- For competitor analysis, use competitor_analysis tool for real-time market insights with citations.
-- Keep replies concise and action-oriented; avoid "I'll link you" phrasing.
-- Do not use emojis.
-</routing-rules>`;
 
 /**
  * Builds the instruction prompt for the triage agent.
+ * The triage agent's ONLY job is to hand off to analytics - it cannot respond directly.
  */
 export function buildTriageInstructions(ctx: AppContext): string {
-	return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}. Handle analytics requests directly.
+	return `You are a router for ${ctx.websiteDomain}. Your ONLY job is to hand off requests to the analytics agent.
 
-${COMMON_AGENT_RULES}
+<rules>
+- You CANNOT respond to users directly
+- You MUST hand off every request to the analytics agent
+- Do not add any text or explanation - just hand off immediately
+</rules>
 
 <background-data>
 ${formatContextForLLM(ctx)}
-
-${AGENT_CAPABILITIES}
-</background-data>
-
-${ROUTING_RULES}`;
+</background-data>`;
 }

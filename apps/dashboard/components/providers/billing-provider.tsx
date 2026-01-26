@@ -77,14 +77,18 @@ export function BillingProvider({
 	const params = useParams();
 	const pathname = usePathname();
 
+	const isDemoRoute = useMemo(() => pathname?.startsWith("/demo/"), [pathname]);
+	const isWebsiteRoute = useMemo(
+		() => pathname?.startsWith("/websites/"),
+		[pathname]
+	);
+
 	const websiteId = useMemo(() => {
 		if (propWebsiteId) {
 			return propWebsiteId;
 		}
 
-		const isDemoRoute = pathname?.startsWith("/demo/");
-
-		if (isDemoRoute) {
+		if (isDemoRoute || isWebsiteRoute) {
 			const routeId = params?.id;
 			if (typeof routeId === "string" && routeId) {
 				return routeId;
@@ -92,7 +96,7 @@ export function BillingProvider({
 		}
 
 		return;
-	}, [propWebsiteId, params?.id, pathname]);
+	}, [propWebsiteId, params?.id, isDemoRoute, isWebsiteRoute]);
 
 	const {
 		customer,
@@ -107,6 +111,9 @@ export function BillingProvider({
 	} = usePricingTable();
 
 	// Get the correct billing context (handles org/website ownership)
+	// Always fetch billing context - the backend handles both:
+	// 1. When websiteId is provided: uses website owner's plan
+	// 2. When no websiteId: uses authenticated user's/org's plan
 	const {
 		data: billingContext,
 		isLoading: isBillingContextLoading,
@@ -115,6 +122,8 @@ export function BillingProvider({
 		...orpc.organizations.getBillingContext.queryOptions({
 			input: websiteId ? { websiteId } : undefined,
 		}),
+		retry: false,
+		throwOnError: false,
 	});
 
 	const value = useMemo<BillingContextValue>(() => {

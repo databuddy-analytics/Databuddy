@@ -1,0 +1,389 @@
+---
+title: Configuration Reference
+description: Complete configuration options for all Databuddy SDK platforms
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+This page documents all configuration options across the Databuddy SDK platforms: React, Vue, vanilla JavaScript, Node.js, and AI integrations.
+
+## React / Next.js
+
+<CodeBlock language="tsx">
+  {`import { Databuddy } from "@databuddy/sdk/react";
+
+<Databuddy
+  // Required
+  clientId="your-client-id"
+  
+  // API endpoints
+  apiUrl="https://basket.databuddy.cc"
+  scriptUrl="https://cdn.databuddy.cc/databuddy.js"
+  
+  // Core tracking
+  trackPerformance        // default: true
+  trackWebVitals          // default: false
+  trackErrors             // default: false
+  trackOutgoingLinks      // default: false
+  trackScrollDepth        // default: false
+  trackInteractions       // default: false
+  trackAttributes         // default: false
+  trackHashChanges        // default: false
+  
+  // Batching
+  enableBatching          // default: false
+  batchSize={10}          // 1-50
+  batchTimeout={2000}     // ms
+  
+  // Retries
+  enableRetries           // default: true
+  maxRetries={3}
+  initialRetryDelay={500} // ms
+  
+  // Sampling
+  samplingRate={1.0}      // 0.0-1.0
+  
+  // Privacy
+  skipPatterns={["/admin/**", "/private/*"]}
+  maskPatterns={["/users/*", "/orders/**"]}
+  
+  // Control
+  disabled={false}
+  debug={false}
+  waitForProfile={false}
+/>`}
+</CodeBlock>
+
+### React Props Reference
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `clientId` | `string` | Auto-detect | Client ID (auto-detects from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`) |
+| `apiUrl` | `string` | `https://basket.databuddy.cc` | API endpoint |
+| `scriptUrl` | `string` | `https://cdn.databuddy.cc/databuddy.js` | Script URL |
+| `disabled` | `boolean` | `false` | Disable all tracking |
+| `debug` | `boolean` | `false` | Enable debug logging |
+
+#### Tracking Features
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `trackPerformance` | `boolean` | `true` | Page load times and navigation |
+| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, FID, CLS, TTFB) |
+| `trackErrors` | `boolean` | `false` | JavaScript errors |
+| `trackOutgoingLinks` | `boolean` | `false` | External link clicks |
+| `trackScrollDepth` | `boolean` | `false` | Scroll milestones (25%, 50%, 75%, 100%) |
+| `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
+| `trackAttributes` | `boolean` | `false` | Elements with `data-track` attributes |
+| `trackHashChanges` | `boolean` | `false` | URL hash changes |
+
+#### Batching & Performance
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `enableBatching` | `boolean` | `false` | Group events into batches |
+| `batchSize` | `number` | `10` | Events per batch (1-50) |
+| `batchTimeout` | `number` | `2000` | Batch timeout in ms |
+| `enableRetries` | `boolean` | `true` | Retry failed requests |
+| `maxRetries` | `number` | `3` | Maximum retry attempts |
+| `initialRetryDelay` | `number` | `500` | Initial retry delay in ms |
+| `samplingRate` | `number` | `1.0` | Event sampling rate (0.0-1.0) |
+
+#### Privacy
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `skipPatterns` | `string[]` | Paths to skip tracking entirely |
+| `maskPatterns` | `string[]` | Paths to mask in analytics |
+
+## Vue
+
+<CodeBlock language="html">
+  {`<script setup>
+import { Databuddy } from "@databuddy/sdk/vue";
+</script>
+
+<template>
+  <Databuddy
+    :client-id="clientId"
+    :track-web-vitals="true"
+    :track-errors="true"
+    :enable-batching="true"
+    :batch-size="20"
+    :disabled="isDevelopment"
+  />
+</template>`}
+</CodeBlock>
+
+Vue uses the same props as React but with kebab-case naming:
+- `clientId` → `:client-id`
+- `trackWebVitals` → `:track-web-vitals`
+- `enableBatching` → `:enable-batching`
+
+## Vanilla JavaScript
+
+<CodeBlock language="html">
+  {`<script
+  src="https://cdn.databuddy.cc/databuddy.js"
+  data-client-id="your-client-id"
+  data-track-web-vitals
+  data-track-errors
+  data-track-outgoing-links
+  data-track-scroll-depth
+  data-enable-batching
+  data-batch-size="20"
+  data-batch-timeout="2000"
+  data-sampling-rate="1.0"
+  data-skip-patterns='["/admin/**"]'
+  data-mask-patterns='["/users/*"]'
+  async
+></script>`}
+</CodeBlock>
+
+### Data Attributes Reference
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `data-client-id` | `string` | Required | Your client ID |
+| `data-track-performance` | flag | `true` | Track page performance |
+| `data-track-web-vitals` | flag | `false` | Track Core Web Vitals |
+| `data-track-errors` | flag | `false` | Track JavaScript errors |
+| `data-track-outgoing-links` | flag | `false` | Track external links |
+| `data-track-scroll-depth` | flag | `false` | Track scroll depth |
+| `data-track-interactions` | flag | `false` | Track interactions |
+| `data-track-attributes` | flag | `false` | Track data-track elements |
+| `data-track-hash-changes` | flag | `false` | Track hash changes |
+| `data-enable-batching` | flag | `false` | Enable event batching |
+| `data-batch-size` | `number` | `10` | Batch size |
+| `data-batch-timeout` | `number` | `2000` | Batch timeout (ms) |
+| `data-sampling-rate` | `number` | `1.0` | Sampling rate |
+| `data-skip-patterns` | `JSON` | `[]` | Paths to skip |
+| `data-mask-patterns` | `JSON` | `[]` | Paths to mask |
+| `data-disabled` | flag | `false` | Disable tracking |
+
+<Callout type="info">
+  **Flag attributes**: Boolean attributes are enabled by their presence. Just add `data-track-web-vitals` (no value needed).
+</Callout>
+
+## Node.js
+
+<CodeBlock language="tsx">
+  {`import { Databuddy } from "@databuddy/sdk/node";
+
+const client = new Databuddy({
+  // Required
+  apiKey: process.env.DATABUDDY_API_KEY!,
+  
+  // Optional: Scope events to a specific website
+  websiteId: process.env.DATABUDDY_WEBSITE_ID,
+  
+  // Optional: Logical grouping (e.g., 'billing', 'auth', 'api')
+  namespace: "api",
+  
+  // Optional: Source identifier (e.g., 'backend', 'webhook', 'cli')
+  source: "backend",
+  
+  // API
+  apiUrl: "https://basket.databuddy.cc",
+  
+  // Batching
+  enableBatching: true,       // default: true
+  batchSize: 10,              // max: 100
+  batchTimeout: 2000,         // ms
+  maxQueueSize: 1000,
+  
+  // Deduplication
+  enableDeduplication: true,  // default: true
+  maxDeduplicationCacheSize: 10_000,
+  
+  // Middleware
+  middleware: [
+    (event) => {
+      event.properties = { ...event.properties, server: true };
+      return event;
+    }
+  ],
+  
+  // Logging
+  debug: false,
+  logger: customLogger
+});`}
+</CodeBlock>
+
+### Node.js Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | `string` | Required | Your API key for authentication |
+| `websiteId` | `string` | - | Optional default website ID to scope events |
+| `namespace` | `string` | - | Optional default namespace for logical grouping |
+| `source` | `string` | - | Optional default source identifier for events |
+| `apiUrl` | `string` | `https://basket.databuddy.cc` | API endpoint |
+| `enableBatching` | `boolean` | `true` | Enable event batching |
+| `batchSize` | `number` | `10` | Batch size (max 100) |
+| `batchTimeout` | `number` | `2000` | Batch timeout in ms |
+| `maxQueueSize` | `number` | `1000` | Maximum queue size |
+| `enableDeduplication` | `boolean` | `true` | Deduplicate events by ID |
+| `maxDeduplicationCacheSize` | `number` | `10000` | Dedup cache size |
+| `middleware` | `Middleware[]` | `[]` | Event transform functions |
+| `debug` | `boolean` | `false` | Enable debug logging |
+| `logger` | `Logger` | - | Custom logger instance |
+
+## AI / LLM Analytics
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+
+const { track } = databuddyLLM({
+  // Authentication
+  apiKey: process.env.DATABUDDY_API_KEY,
+  apiUrl: "https://basket.databuddy.cc/llm",
+  
+  // Features
+  computeCosts: true,      // default: true
+  privacyMode: false,      // default: false
+  maxContentSize: 1_048_576,  // 1MB
+  
+  // Custom transport
+  transport: async (call) => {
+    // Custom logging logic
+  },
+  
+  // Callbacks
+  onSuccess: (call) => console.log("Success:", call.traceId),
+  onError: (call) => console.error("Error:", call.error)
+});`}
+</CodeBlock>
+
+### AI Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | `string` | `DATABUDDY_API_KEY` env | API key |
+| `apiUrl` | `string` | `https://basket.databuddy.cc/llm` | API endpoint |
+| `transport` | `Transport` | HTTP transport | Custom transport function |
+| `computeCosts` | `boolean` | `true` | Compute token costs |
+| `privacyMode` | `boolean` | `false` | Don't capture content |
+| `maxContentSize` | `number` | `1048576` | Max content size (bytes) |
+| `onSuccess` | `function` | - | Success callback |
+| `onError` | `function` | - | Error callback |
+
+## Feature Flags (Client)
+
+<CodeBlock language="tsx">
+  {`import { FlagsProvider } from "@databuddy/sdk/react";
+
+<FlagsProvider
+  clientId="your-client-id"
+  apiUrl="https://api.databuddy.cc"
+  user={{
+    userId: "user-123",
+    email: "user@example.com",
+    organizationId: "org-456",
+    teamId: "team-789",
+    properties: {
+      plan: "premium",
+      role: "admin"
+    }
+  }}
+  isPending={isLoadingSession}
+  disabled={false}
+  debug={false}
+  skipStorage={false}
+  autoFetch={true}
+  environment="production"
+  cacheTtl={60_000}
+  staleTime={30_000}
+>
+  <App />
+</FlagsProvider>`}
+</CodeBlock>
+
+### Feature Flags Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `clientId` | `string` | Required | Your client ID |
+| `apiUrl` | `string` | `https://api.databuddy.cc` | API endpoint |
+| `user` | `UserContext` | - | User context for targeting |
+| `isPending` | `boolean` | `false` | Defer evaluation |
+| `disabled` | `boolean` | `false` | Disable flag evaluation |
+| `debug` | `boolean` | `false` | Enable debug logging |
+| `skipStorage` | `boolean` | `false` | Skip localStorage caching |
+| `autoFetch` | `boolean` | `true` | Auto-fetch on mount |
+| `environment` | `string` | - | Environment name |
+| `cacheTtl` | `number` | `60000` | Cache TTL (ms) |
+| `staleTime` | `number` | `30000` | Revalidate after (ms) |
+
+### User Context
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `userId` | `string` | Unique user identifier |
+| `email` | `string` | User email |
+| `organizationId` | `string` | Organization ID for group rollouts |
+| `teamId` | `string` | Team ID for group rollouts |
+| `properties` | `object` | Custom targeting properties |
+
+## Feature Flags (Server)
+
+<CodeBlock language="tsx">
+  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  apiUrl: "https://api.databuddy.cc",
+  user: {
+    userId: "user-123"
+  },
+  environment: "production",
+  cacheTtl: 60_000,
+  staleTime: 30_000,
+  autoFetch: false,
+  debug: false,
+  disabled: false
+});`}
+</CodeBlock>
+
+Server flags use the same options as client flags, but `skipStorage` is always `true`.
+
+## Environment Variables
+
+### Next.js
+
+<CodeBlock language="bash" filename=".env.local">
+  {`NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id
+DATABUDDY_CLIENT_ID=your-client-id
+DATABUDDY_API_KEY=your-api-key`}
+</CodeBlock>
+
+### Vue / Vite
+
+<CodeBlock language="bash" filename=".env">
+  {`VITE_DATABUDDY_CLIENT_ID=your-client-id`}
+</CodeBlock>
+
+### Node.js / Server
+
+<CodeBlock language="bash" filename=".env">
+  {`DATABUDDY_API_KEY=your-api-key
+DATABUDDY_WEBSITE_ID=your-website-id  # Optional
+DATABUDDY_API_URL=https://basket.databuddy.cc  # Optional`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="React SDK" href="/docs/sdk/react">
+    React/Next.js integration
+  </Card>
+  <Card title="Node SDK" href="/docs/sdk/node">
+    Server-side tracking
+  </Card>
+  <Card title="AI SDK" href="/docs/sdk/ai">
+    LLM analytics
+  </Card>
+  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+    Client-side feature flags
+  </Card>
+</Cards>

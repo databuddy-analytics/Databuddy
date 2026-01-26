@@ -23,12 +23,14 @@ interface BreadcrumbItem {
 interface PageNavigationTabsProps {
 	variant: "tabs";
 	tabs: TabItem[];
+	className?: string;
 }
 
 interface PageNavigationBreadcrumbProps {
 	variant: "breadcrumb";
 	breadcrumb: BreadcrumbItem;
 	currentPage: string;
+	className?: string;
 }
 
 type PageNavigationProps =
@@ -40,7 +42,12 @@ export function PageNavigation(props: PageNavigationProps) {
 
 	if (props.variant === "breadcrumb") {
 		return (
-			<div className="box-border flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3">
+			<div
+				className={cn(
+					"box-border flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3",
+					props.className
+				)}
+			>
 				<Link
 					className="group flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
 					href={props.breadcrumb.href}
@@ -80,7 +87,12 @@ export function PageNavigation(props: PageNavigationProps) {
 	}
 
 	return (
-		<div className="box-border flex h-10 shrink-0 border-border border-b bg-accent/30">
+		<div
+			className={cn(
+				"box-border flex h-10 shrink-0 border-border border-b bg-accent/30",
+				props.className
+			)}
+		>
 			{props.tabs.map((tab) => {
 				const isActive = pathname === tab.href;
 				const IconComponent = tab.icon;

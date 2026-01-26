@@ -5,7 +5,7 @@ export interface ReferrerInfo {
 	name: string;
 	url: string;
 	domain: string;
-};
+}
 
 export function parseReferrer(
 	referrerUrl: string | null | undefined,

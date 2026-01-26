@@ -1,5 +1,11 @@
-import { getWebsiteByIdV2, isValidOrigin } from "@hooks/auth";
+import {
+	getWebsiteByIdV2,
+	isValidIpFromSettings,
+	isValidOrigin,
+	isValidOriginFromSettings,
+} from "@hooks/auth";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
+import { sendEvent } from "@lib/producer";
 import { captureError, record, setAttributes } from "@lib/tracing";
 import { extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
@@ -20,6 +26,31 @@ interface ValidationResult {
 
 interface ValidationError {
 	error: Response;
+}
+
+interface WebsiteSecuritySettings {
+	allowedOrigins?: string[];
+	allowedIps?: string[];
+}
+
+export function getWebsiteSecuritySettings(
+	settings: unknown
+): WebsiteSecuritySettings | null {
+	if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+		return null;
+	}
+
+	const s = settings as Record<string, unknown>;
+	return {
+		allowedOrigins: Array.isArray(s.allowedOrigins)
+			? s.allowedOrigins.filter(
+					(item): item is string => typeof item === "string"
+				)
+			: undefined,
+		allowedIps: Array.isArray(s.allowedIps)
+			? s.allowedIps.filter((item): item is string => typeof item === "string")
+			: undefined,
+	};
 }
 
 /**
@@ -150,33 +181,45 @@ export function validateRequest(
 				);
 				const data = result.data;
 
-				if (data && !(data.allowed || data.overage_allowed)) {
-					logBlockedTraffic(
-						request,
-						body,
-						query,
-						"exceeded_event_limit",
-						"Validation Error",
-						undefined,
-						clientId
-					);
-					setAttributes({
-						validation_failed: true,
-						validation_reason: "exceeded_event_limit",
-						autumn_allowed: false,
-					});
-					return {
-						error: new Response(
-							JSON.stringify({
-								status: "error",
-								message: "Exceeded event limit",
-							}),
-							{
-								status: 429,
-								headers: { "Content-Type": "application/json" },
-							}
-						),
-					};
+				if (data) {
+					const usage = data.usage ?? 0;
+					const usageLimit = data.usage_limit ?? data.included_usage ?? 0;
+					const isUnlimited = data.unlimited ?? false;
+					const usageExceeds150Percent =
+						!isUnlimited && usageLimit > 0 && usage >= usageLimit * 1.5;
+
+					// Block only if usage exceeds 1.5x the limit
+					if (usageExceeds150Percent) {
+						logBlockedTraffic(
+							request,
+							body,
+							query,
+							"exceeded_event_limit",
+							"Validation Error",
+							undefined,
+							clientId
+						);
+						setAttributes({
+							validation_failed: true,
+							validation_reason: "exceeded_event_limit",
+							autumn_allowed: false,
+							usage_exceeded_150_percent: true,
+							usage,
+							usage_limit: usageLimit,
+						});
+						return {
+							error: new Response(
+								JSON.stringify({
+									status: "error",
+									message: "Exceeded event limit",
+								}),
+								{
+									status: 429,
+									headers: { "Content-Type": "application/json" },
+								}
+							),
+						};
+					}
 				}
 
 				setAttributes({
@@ -194,7 +237,47 @@ export function validateRequest(
 		}
 
 		const origin = request.headers.get("origin");
-		if (
+		const ip = extractIpFromRequest(request);
+
+		const securitySettings = getWebsiteSecuritySettings(website.settings);
+		const allowedOrigins = securitySettings?.allowedOrigins;
+		const allowedIps = securitySettings?.allowedIps;
+
+		// Check origin against settings if configured
+		if (origin && allowedOrigins && allowedOrigins.length > 0) {
+			if (
+				!(await record("isValidOriginFromSettings", () =>
+					isValidOriginFromSettings(origin, allowedOrigins)
+				))
+			) {
+				logBlockedTraffic(
+					request,
+					body,
+					query,
+					"origin_not_authorized",
+					"Security Check",
+					undefined,
+					clientId
+				);
+				setAttributes({
+					validation_failed: true,
+					validation_reason: "origin_not_authorized",
+					request_origin: origin,
+				});
+				return {
+					error: new Response(
+						JSON.stringify({
+							status: "error",
+							message: "Origin not authorized",
+						}),
+						{
+							status: 403,
+							headers: { "Content-Type": "application/json" },
+						}
+					),
+				};
+			}
+		} else if (
 			origin &&
 			!(await record("isValidOrigin", () =>
 				isValidOrigin(origin, website.domain)
@@ -228,13 +311,48 @@ export function validateRequest(
 			};
 		}
 
+		// Check IP against settings if configured
+		if (
+			ip &&
+			allowedIps &&
+			allowedIps.length > 0 &&
+			!(await record("isValidIpFromSettings", () =>
+				isValidIpFromSettings(ip, allowedIps)
+			))
+		) {
+			logBlockedTraffic(
+				request,
+				body,
+				query,
+				"ip_not_authorized",
+				"Security Check",
+				undefined,
+				clientId
+			);
+			setAttributes({
+				validation_failed: true,
+				validation_reason: "ip_not_authorized",
+				request_ip: ip,
+			});
+			return {
+				error: new Response(
+					JSON.stringify({
+						status: "error",
+						message: "IP address not authorized",
+					}),
+					{
+						status: 403,
+						headers: { "Content-Type": "application/json" },
+					}
+				),
+			};
+		}
+
 		const userAgent =
 			sanitizeString(
 				request.headers.get("user-agent"),
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			) || "";
-
-		const ip = extractIpFromRequest(request);
 
 		setAttributes({
 			validation_success: true,
@@ -253,7 +371,9 @@ export function validateRequest(
 }
 /**
  * Check if request is from a bot
- * Returns error object if bot detected, undefined otherwise
+ * - ALLOW: Process normally (search engines, social media)
+ * - TRACK_ONLY: Log to ai_traffic_spans but don't count as pageview (AI crawlers)
+ * - BLOCK: Reject and log to blocked_traffic (scrapers, malicious bots)
  */
 export function checkForBot(
 	request: Request,
@@ -264,23 +384,54 @@ export function checkForBot(
 ): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
 		const botCheck = detectBot(userAgent, request);
-		if (botCheck.isBot) {
-			logBlockedTraffic(
-				request,
-				body,
-				query,
-				botCheck.reason || "unknown_bot",
-				botCheck.category || "Bot Detection",
-				botCheck.botName,
-				clientId
-			);
+
+		if (!botCheck.isBot) {
+			return;
+		}
+
+		const { action, result } = botCheck;
+
+		// Handle ALLOW action - let the request through normally
+		if (action === "allow") {
+			setAttributes({
+				bot_detected: true,
+				bot_action: "allow",
+				bot_category: botCheck.category || "unknown",
+				bot_name: botCheck.botName || "unknown",
+			});
+			return; // Process as normal traffic
+		}
+
+		// Handle TRACK_ONLY action - log to AI traffic table
+		if (action === "track_only") {
+			const path =
+				body?.path ||
+				body?.url ||
+				query?.path ||
+				request.headers.get("referer") ||
+				"";
+			const referrer =
+				body?.referrer || request.headers.get("referer") || undefined;
+
+			sendEvent("analytics-ai-traffic-spans", {
+				client_id: clientId,
+				timestamp: Date.now(),
+				bot_type: result?.category || "unknown",
+				bot_name: botCheck.botName || "unknown",
+				user_agent: userAgent,
+				path,
+				referrer,
+				action: "tracked",
+			});
+
 			setAttributes({
 				validation_failed: true,
-				validation_reason: "bot_detected",
+				validation_reason: "ai_traffic",
+				bot_action: "track_only",
+				bot_type: result?.category || "unknown",
 				bot_name: botCheck.botName || "unknown",
-				bot_category: botCheck.category || "Bot Detection",
-				bot_detection_reason: botCheck.reason || "unknown_bot",
 			});
+
 			return {
 				error: new Response(JSON.stringify({ status: "ignored" }), {
 					status: 200,
@@ -288,6 +439,32 @@ export function checkForBot(
 				}),
 			};
 		}
-		return;
+
+		// Handle BLOCK action - log to blocked traffic and reject
+		logBlockedTraffic(
+			request,
+			body,
+			query,
+			botCheck.reason || "unknown_bot",
+			botCheck.category || "Bot Detection",
+			botCheck.botName,
+			clientId
+		);
+
+		setAttributes({
+			validation_failed: true,
+			validation_reason: "bot_blocked",
+			bot_action: "block",
+			bot_name: botCheck.botName || "unknown",
+			bot_category: botCheck.category || "Bot Detection",
+			bot_detection_reason: botCheck.reason || "unknown_bot",
+		});
+
+		return {
+			error: new Response(JSON.stringify({ status: "ignored" }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}),
+		};
 	});
 }

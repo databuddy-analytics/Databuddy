@@ -121,9 +121,13 @@ function prepareFilterValue(
  * Validate a SELECT expression
  */
 function validateSelect(select: CustomQuerySelect, tableName: string): void {
-	if (select.field !== "*" && !isValidColumn(tableName, select.field)) {
+	if (
+		select.field !== "*" &&
+		(typeof select.field !== "string" ||
+			!isValidColumn(tableName, select.field))
+	) {
 		throw new CustomQueryValidationError(
-			`Invalid column "${select.field}" for table "${tableName}"`,
+			`Invalid column for table "${tableName}"`,
 			"selects"
 		);
 	}
@@ -135,7 +139,7 @@ function validateSelect(select: CustomQuerySelect, tableName: string): void {
 		);
 	}
 
-	if (select.field !== "*") {
+	if (select.field !== "*" && typeof select.field === "string") {
 		const column = getColumnDefinition(tableName, select.field);
 		if (
 			column &&
@@ -144,7 +148,7 @@ function validateSelect(select: CustomQuerySelect, tableName: string): void {
 			select.aggregate !== "uniq"
 		) {
 			throw new CustomQueryValidationError(
-				`Column "${select.field}" cannot be used with aggregate "${select.aggregate}"`,
+				`Column cannot be used with aggregate "${select.aggregate}"`,
 				"selects"
 			);
 		}
@@ -155,9 +159,12 @@ function validateSelect(select: CustomQuerySelect, tableName: string): void {
  * Validate a filter condition
  */
 function validateFilter(filter: CustomQueryFilter, tableName: string): void {
-	if (!isValidColumn(tableName, filter.field)) {
+	if (
+		typeof filter.field !== "string" ||
+		!isValidColumn(tableName, filter.field)
+	) {
 		throw new CustomQueryValidationError(
-			`Invalid filter column "${filter.field}" for table "${tableName}"`,
+			`Invalid filter column for table "${tableName}"`,
 			"filters"
 		);
 	}
@@ -165,7 +172,7 @@ function validateFilter(filter: CustomQueryFilter, tableName: string): void {
 	const column = getColumnDefinition(tableName, filter.field);
 	if (column && !column.filterable) {
 		throw new CustomQueryValidationError(
-			`Column "${filter.field}" cannot be used in filters`,
+			"Column cannot be used in filters",
 			"filters"
 		);
 	}
@@ -175,10 +182,10 @@ function validateFilter(filter: CustomQueryFilter, tableName: string): void {
  * Validate the entire query configuration
  */
 function validateQueryConfig(config: CustomQueryConfig): void {
-	if (!isValidTable(config.table)) {
+	if (typeof config.table !== "string" || !isValidTable(config.table)) {
 		const validTables = ANALYTICS_TABLES.map((table) => table.name).join(", ");
 		throw new CustomQueryValidationError(
-			`Invalid table "${config.table}". Valid tables: ${validTables}`,
+			`Invalid table. Valid tables: ${validTables}`,
 			"table"
 		);
 	}
@@ -221,9 +228,9 @@ function validateQueryConfig(config: CustomQueryConfig): void {
 			);
 		}
 		for (const field of config.groupBy) {
-			if (!isValidColumn(config.table, field)) {
+			if (typeof field !== "string" || !isValidColumn(config.table, field)) {
 				throw new CustomQueryValidationError(
-					`Invalid GROUP BY column "${field}" for table "${config.table}"`,
+					`Invalid GROUP BY column for table "${config.table}"`,
 					"groupBy"
 				);
 			}
@@ -242,9 +249,12 @@ function buildSQL(
 	timezone: string,
 	limit: number
 ): { sql: string; params: Record<string, unknown> } {
+	if (typeof config.table !== "string") {
+		throw new CustomQueryValidationError("Invalid table configuration");
+	}
 	const table = getTableDefinition(config.table);
 	if (!table) {
-		throw new CustomQueryValidationError(`Table "${config.table}" not found`);
+		throw new CustomQueryValidationError("Table not found");
 	}
 
 	const params: Record<string, unknown> = {
@@ -357,16 +367,24 @@ export async function executeCustomQuery(
 		};
 	} catch (error) {
 		if (error instanceof CustomQueryValidationError) {
+			const isDevelopment = process.env.NODE_ENV === "development";
 			return {
 				success: false,
-				error: error.message,
+				error: isDevelopment
+					? error.message
+					: "Invalid query configuration. Please check your query parameters.",
 			};
 		}
 
 		console.error("Custom query execution error:", error);
+		const isDevelopment = process.env.NODE_ENV === "development";
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : "Query execution failed",
+			error: isDevelopment
+				? error instanceof Error
+					? error.message
+					: "Query execution failed"
+				: "Query execution failed. Please try again or contact support.",
 		};
 	}
 }

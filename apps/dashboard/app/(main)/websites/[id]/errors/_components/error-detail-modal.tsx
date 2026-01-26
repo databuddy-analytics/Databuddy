@@ -12,8 +12,6 @@ import {
 	StackIcon,
 	UserIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +38,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { fromNow } from "@/lib/time";
 import { getDeviceIcon, getErrorTypeIcon } from "./error-icons";
 import type { RecentError } from "./types";
 import {
@@ -47,8 +46,6 @@ import {
 	getErrorCategory,
 	getSeverityColor,
 } from "./utils";
-
-dayjs.extend(relativeTime);
 
 interface ErrorDetailModalProps {
 	error: RecentError;
@@ -143,7 +140,7 @@ export const ErrorDetailModal = ({
 	};
 
 	const { type, severity } = getErrorCategory(error.message);
-	const relativeTimeStr = dayjs(error.timestamp).fromNow();
+	const relativeTimeStr = fromNow(error.timestamp);
 	const locationLabel = error.country_name || error.country || "Unknown";
 	const locationCode = error.country_code || error.country || "";
 

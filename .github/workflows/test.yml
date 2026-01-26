@@ -9,42 +9,15 @@ on:
 jobs:
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
-    
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
     services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: databuddy_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d databuddy_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      
-      clickhouse:
-        image: clickhouse/clickhouse-server:latest
-        ports:
-          - 8123:8123
-          - 9000:9000
-        env:
-          CLICKHOUSE_DB: databuddy_test
-        options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -58,6 +31,14 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
         run: bun install
 
@@ -65,7 +46,6 @@ jobs:
         env:
           # Database URLs
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/databuddy_test
-          POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/databuddy_test
           
           # Redis URL
           REDIS_URL: redis://localhost:6379
@@ -106,13 +86,5 @@ jobs:
 
           UPSTASH_QSTASH_TOKEN: test-upstash-qstash-token
           
-        run: bun run test:coverage
-
-      - name: Upload coverage reports 
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./apps/coverage/coverage-final.json
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+        run: bun run test
 

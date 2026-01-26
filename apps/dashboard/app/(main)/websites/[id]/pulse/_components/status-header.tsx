@@ -8,8 +8,6 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,9 +19,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { orpc } from "@/lib/orpc";
+import { fromNow } from "@/lib/time";
 import { cn } from "@/lib/utils";
-
-dayjs.extend(relativeTime);
 
 const granularityLabels: Record<string, string> = {
 	minute: "Every minute",
@@ -133,7 +130,7 @@ export function StatusHeader({
 						{lastCheck ? (
 							<>
 								<span className="text-border">•</span>
-								<span>Last checked {dayjs(lastCheck.timestamp).fromNow()}</span>
+								<span>Last checked {fromNow(lastCheck.timestamp)}</span>
 								{lastCheck.probe_region ? (
 									<>
 										<span className="text-border">•</span>

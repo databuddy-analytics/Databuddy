@@ -101,6 +101,27 @@ export function useWebsites(options?: { enabled?: boolean }) {
 	};
 }
 
+export function useWebsitesLight(options?: { enabled?: boolean }) {
+	const { activeOrganization, isLoading: isLoadingOrganization } =
+		useOrganizationsContext();
+
+	const query = useQuery({
+		...orpc.websites.list.queryOptions({
+			input: { organizationId: activeOrganization?.id },
+		}),
+		enabled: options?.enabled !== false && !isLoadingOrganization,
+		staleTime: 5 * 60 * 1000,
+	});
+
+	return {
+		websites: query.data ?? [],
+		isLoading: query.isLoading || isLoadingOrganization,
+		isFetching: query.isFetching,
+		isError: query.isError,
+		refetch: query.refetch,
+	};
+}
+
 export function useWebsite(id: string) {
 	return useQuery({
 		...orpc.websites.getById.queryOptions({

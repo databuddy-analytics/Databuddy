@@ -8,8 +8,6 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -31,11 +29,10 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { fromNow, localDayjs } from "@/lib/time";
 import { WebsitePageHeader } from "../_components/website-page-header";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
-
-dayjs.extend(relativeTime);
 
 const granularityLabels: Record<string, string> = {
 	minute: "Every minute",
@@ -110,11 +107,11 @@ export default function PulsePage() {
 
 	const heatmapDateRange = useMemo(
 		() => ({
-			start_date: dayjs()
+			start_date: localDayjs()
 				.subtract(89, "day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
+			end_date: localDayjs().startOf("day").format("YYYY-MM-DD"),
 			granularity: "daily" as const,
 		}),
 		[]
@@ -272,7 +269,7 @@ export default function PulsePage() {
 				<>
 					<span className="text-muted-foreground">•</span>
 					<span className="text-muted-foreground text-sm">
-						Last checked {dayjs(latestCheck.timestamp).fromNow()}
+						Last checked {fromNow(latestCheck.timestamp)}
 					</span>
 				</>
 			) : (

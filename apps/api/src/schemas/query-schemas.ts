@@ -5,6 +5,24 @@ const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
 >;
 
+export const DatePresets = {
+	today: "today",
+	yesterday: "yesterday",
+	last_7d: "last_7d",
+	last_14d: "last_14d",
+	last_30d: "last_30d",
+	last_90d: "last_90d",
+	this_week: "this_week",
+	last_week: "last_week",
+	this_month: "this_month",
+	last_month: "last_month",
+	this_year: "this_year",
+} as const;
+
+export type DatePreset = keyof typeof DatePresets;
+
+export const DatePresetSchema = t.Enum(DatePresets);
+
 export const FilterSchema = t.Object({
 	field: t.String(),
 	op: t.Enum({
@@ -55,6 +73,7 @@ export const DynamicQueryRequestSchema = t.Object({
 	groupBy: t.Optional(t.Union([t.String(), t.Array(t.String())])),
 	startDate: t.Optional(t.String()),
 	endDate: t.Optional(t.String()),
+	preset: t.Optional(DatePresetSchema),
 	timeZone: t.Optional(t.String()),
 });
 
@@ -82,15 +101,15 @@ export const CompileRequestSchema = t.Object({
 export interface FilterType {
 	field: string;
 	op:
-	| "eq"
-	| "ne"
-	| "contains"
-	| "not_contains"
-	| "starts_with"
-	| "in"
-	| "not_in";
+		| "eq"
+		| "ne"
+		| "contains"
+		| "not_contains"
+		| "starts_with"
+		| "in"
+		| "not_in";
 	value: string | number | Array<string | number>;
-};
+}
 
 export interface ParameterWithDatesType {
 	name: string;
@@ -98,7 +117,7 @@ export interface ParameterWithDatesType {
 	end_date?: string;
 	granularity?: "hourly" | "daily" | "hour" | "day";
 	id?: string;
-};
+}
 
 export interface DynamicQueryRequestType {
 	id?: string;
@@ -110,8 +129,9 @@ export interface DynamicQueryRequestType {
 	groupBy?: string | string[];
 	startDate?: string;
 	endDate?: string;
+	preset?: DatePreset;
 	timeZone?: string;
-};
+}
 
 export interface CompileRequestType {
 	projectId: string;
@@ -124,4 +144,4 @@ export interface CompileRequestType {
 	orderBy?: string;
 	limit?: number;
 	offset?: number;
-};
+}

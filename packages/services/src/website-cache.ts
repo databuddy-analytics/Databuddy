@@ -28,12 +28,6 @@ function fromRecord(record: WebsiteCacheRecord): Website {
 	};
 }
 
-type WebsiteScope = { userId: string } | { organizationId: string };
-
-function isUserScope(scope: WebsiteScope): scope is { userId: string } {
-	return "userId" in scope;
-}
-
 export class WebsiteCache {
 	private readonly namespace = "services:websites";
 	private readonly pingIntervalMs = 30_000;
@@ -120,23 +114,12 @@ export class WebsiteCache {
 		return `${this.namespace}:website:${id}`;
 	}
 
-	private keyListByUser(userId: string): string {
-		return `${this.namespace}:list:user:${userId}:org:null`;
-	}
-
 	private keyListByOrg(organizationId: string): string {
 		return `${this.namespace}:list:org:${organizationId}`;
 	}
 
-	private keyListByUserAndOrg(userId: string, organizationId: string): string {
-		return `${this.namespace}:list:user:${userId}:org:${organizationId}`;
-	}
-
-	private keyByDomain(domain: string, scope: WebsiteScope): string {
-		if (isUserScope(scope)) {
-			return `${this.namespace}:domain:user:${scope.userId}:${domain}`;
-		}
-		return `${this.namespace}:domain:org:${scope.organizationId}:${domain}`;
+	private keyByDomain(domain: string, organizationId: string): string {
+		return `${this.namespace}:domain:org:${organizationId}:${domain}`;
 	}
 
 	async getWebsiteById(id: string): Promise<Website | null> {
@@ -207,7 +190,7 @@ export class WebsiteCache {
 
 	async getWebsiteByDomain(
 		domain: string,
-		scope: WebsiteScope
+		organizationId: string
 	): Promise<Website | null> {
 		if (!(await this.shouldUseCache())) {
 			return null;
@@ -218,7 +201,7 @@ export class WebsiteCache {
 			if (!redis) {
 				return null;
 			}
-			const cached = await redis.get(this.keyByDomain(domain, scope));
+			const cached = await redis.get(this.keyByDomain(domain, organizationId));
 			if (!cached) {
 				return null;
 			}
@@ -235,7 +218,7 @@ export class WebsiteCache {
 
 	async setWebsiteByDomain(
 		domain: string,
-		scope: WebsiteScope,
+		organizationId: string,
 		website: Website
 	): Promise<void> {
 		if (!(await this.shouldUseCache())) {
@@ -248,7 +231,7 @@ export class WebsiteCache {
 				return;
 			}
 			await redis.set(
-				this.keyByDomain(domain, scope),
+				this.keyByDomain(domain, organizationId),
 				JSON.stringify(toRecord(website))
 			);
 		} catch (error) {
@@ -261,7 +244,7 @@ export class WebsiteCache {
 
 	async deleteWebsiteByDomain(
 		domain: string,
-		scope: WebsiteScope
+		organizationId: string
 	): Promise<void> {
 		if (!(await this.shouldUseCache())) {
 			return;
@@ -272,7 +255,7 @@ export class WebsiteCache {
 			if (!redis) {
 				return;
 			}
-			await redis.unlink(this.keyByDomain(domain, scope));
+			await redis.unlink(this.keyByDomain(domain, organizationId));
 		} catch (error) {
 			this.isHealthyCached = false;
 			console.error("WebsiteCache.deleteWebsiteByDomain failed:", {
@@ -281,28 +264,8 @@ export class WebsiteCache {
 		}
 	}
 
-	async getList(filter: {
-		userId?: string;
-		organizationId?: string;
-	}): Promise<Website[] | null> {
+	async getList(organizationId: string): Promise<Website[] | null> {
 		if (!(await this.shouldUseCache())) {
-			return null;
-		}
-
-		const key = (() => {
-			if (filter.userId && filter.organizationId) {
-				return this.keyListByUserAndOrg(filter.userId, filter.organizationId);
-			}
-			if (filter.organizationId) {
-				return this.keyListByOrg(filter.organizationId);
-			}
-			if (filter.userId) {
-				return this.keyListByUser(filter.userId);
-			}
-			return null;
-		})();
-
-		if (!key) {
 			return null;
 		}
 
@@ -311,7 +274,7 @@ export class WebsiteCache {
 			if (!redis) {
 				return null;
 			}
-			const cached = await redis.get(key);
+			const cached = await redis.get(this.keyListByOrg(organizationId));
 			if (!cached) {
 				return null;
 			}
@@ -324,28 +287,8 @@ export class WebsiteCache {
 		}
 	}
 
-	async setList(
-		filter: { userId?: string; organizationId?: string },
-		websites: Website[]
-	): Promise<void> {
+	async setList(organizationId: string, websites: Website[]): Promise<void> {
 		if (!(await this.shouldUseCache())) {
-			return;
-		}
-
-		const key = (() => {
-			if (filter.userId && filter.organizationId) {
-				return this.keyListByUserAndOrg(filter.userId, filter.organizationId);
-			}
-			if (filter.organizationId) {
-				return this.keyListByOrg(filter.organizationId);
-			}
-			if (filter.userId) {
-				return this.keyListByUser(filter.userId);
-			}
-			return null;
-		})();
-
-		if (!key) {
 			return;
 		}
 
@@ -354,36 +297,26 @@ export class WebsiteCache {
 			if (!redis) {
 				return;
 			}
-			await redis.set(key, JSON.stringify(websites.map(toRecord)));
+			await redis.set(
+				this.keyListByOrg(organizationId),
+				JSON.stringify(websites.map(toRecord))
+			);
 		} catch (error) {
 			this.isHealthyCached = false;
 			console.error("WebsiteCache.setList failed:", { error: String(error) });
 		}
 	}
 
-	async invalidateLists(scopes: {
-		userIds: string[];
-		organizationIds: string[];
-		userOrgPairs: Array<{ userId: string; organizationId: string }>;
-	}): Promise<void> {
+	async invalidateLists(organizationIds: string[]): Promise<void> {
 		if (!(await this.shouldUseCache())) {
 			return;
 		}
 
-		const keys: string[] = [];
-		for (const userId of scopes.userIds) {
-			keys.push(this.keyListByUser(userId));
-		}
-		for (const organizationId of scopes.organizationIds) {
-			keys.push(this.keyListByOrg(organizationId));
-		}
-		for (const pair of scopes.userOrgPairs) {
-			keys.push(this.keyListByUserAndOrg(pair.userId, pair.organizationId));
-		}
-
-		if (keys.length === 0) {
+		if (organizationIds.length === 0) {
 			return;
 		}
+
+		const keys = organizationIds.map((id) => this.keyListByOrg(id));
 
 		try {
 			const redis = this.getRedisClient();

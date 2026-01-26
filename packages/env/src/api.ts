@@ -21,6 +21,7 @@ const apiEnvSchema = z.object({
 	S3_ACCESS_KEY_ID: z.string().optional(),
 	S3_SECRET_ACCESS_KEY: z.string().optional(),
 	S3_ENDPOINT: z.string().optional(),
+	AUTUMN_WEBHOOK_SECRET: z.string().optional(),
 });
 
 /**

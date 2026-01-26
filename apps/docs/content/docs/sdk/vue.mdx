@@ -1,0 +1,234 @@
+---
+title: Vue
+description: Vue component and composables for tracking analytics in Vue applications
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy Vue SDK provides a component for script injection and composables for feature flags. Works with Vue 3 and Nuxt 3.
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/vue`
+</Callout>
+
+## Installation
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk`}
+</CodeBlock>
+
+## Quick Start
+
+Add the `Databuddy` component to your App.vue:
+
+<CodeBlock language="html" filename="App.vue">
+  {`<script setup>
+import { Databuddy } from "@databuddy/sdk/vue";
+
+const clientId = import.meta.env.VITE_DATABUDDY_CLIENT_ID;
+</script>
+
+<template>
+  <Databuddy
+    :client-id="clientId"
+    track-web-vitals
+    track-errors
+  />
+  <RouterView />
+</template>`}
+</CodeBlock>
+
+## Databuddy Component
+
+The `Databuddy` component injects the tracking script and configures analytics.
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `client-id` | `string` | Required | Your client ID |
+| `disabled` | `boolean` | `false` | Disable all tracking |
+| `debug` | `boolean` | `false` | Enable debug logging |
+
+### Tracking Features
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `track-performance` | `true` | Page load times and navigation timing |
+| `track-web-vitals` | `false` | Core Web Vitals (LCP, FID, CLS, TTFB) |
+| `track-errors` | `false` | JavaScript errors and unhandled rejections |
+| `track-outgoing-links` | `false` | Clicks on external links |
+| `track-scroll-depth` | `false` | Scroll depth milestones |
+| `track-interactions` | `false` | Button clicks and form submissions |
+| `track-attributes` | `false` | Elements with `data-track` attributes |
+
+### Batching & Performance
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `enable-batching` | `false` | Group events into batches |
+| `batch-size` | `10` | Events per batch (1-50) |
+| `batch-timeout` | `2000` | Batch timeout in ms |
+| `sampling-rate` | `1.0` | Event sampling rate (0.0-1.0) |
+
+### Full Example
+
+<CodeBlock language="html" filename="App.vue">
+  {`<script setup>
+import { Databuddy } from "@databuddy/sdk/vue";
+
+const clientId = import.meta.env.VITE_DATABUDDY_CLIENT_ID;
+const isDevelopment = import.meta.env.DEV;
+</script>
+
+<template>
+  <Databuddy
+    :client-id="clientId"
+    :track-web-vitals="true"
+    :track-errors="true"
+    :track-outgoing-links="true"
+    :enable-batching="true"
+    :batch-size="20"
+    :disabled="isDevelopment"
+  />
+  <RouterView />
+</template>`}
+</CodeBlock>
+
+## Tracking Events
+
+Use the global tracker or import helpers:
+
+<CodeBlock language="html">
+  {`<script setup>
+import { track } from "@databuddy/sdk";
+
+function handleSignup() {
+  track("signup_clicked", {
+    source: "header",
+    plan: "pro"
+  });
+}
+</script>
+
+<template>
+  <button @click="handleSignup">Sign Up</button>
+</template>`}
+</CodeBlock>
+
+### Using window.databuddy
+
+You can also use the global tracker directly:
+
+<CodeBlock language="html">
+  {`<script setup>
+function handleClick() {
+  window.databuddy?.track("button_clicked", {
+    button_id: "cta"
+  });
+}
+</script>`}
+</CodeBlock>
+
+## Environment Setup
+
+<CodeBlock language="bash" filename=".env">
+  {`VITE_DATABUDDY_CLIENT_ID=your-client-id-here`}
+</CodeBlock>
+
+## Nuxt 3
+
+For Nuxt 3, create a plugin:
+
+<CodeBlock language="tsx" filename="plugins/databuddy.client.ts">
+  {`import { Databuddy } from "@databuddy/sdk/vue";
+
+export default defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.component("Databuddy", Databuddy);
+});`}
+</CodeBlock>
+
+Then use in your app.vue:
+
+<CodeBlock language="html" filename="app.vue">
+  {`<template>
+  <Databuddy
+    :client-id="runtimeConfig.public.databuddyClientId"
+    track-web-vitals
+  />
+  <NuxtPage />
+</template>
+
+<script setup>
+const runtimeConfig = useRuntimeConfig();
+</script>`}
+</CodeBlock>
+
+<CodeBlock language="tsx" filename="nuxt.config.ts">
+  {`export default defineNuxtConfig({
+  runtimeConfig: {
+    public: {
+      databuddyClientId: process.env.DATABUDDY_CLIENT_ID
+    }
+  }
+});`}
+</CodeBlock>
+
+## Feature Flags
+
+Vue has built-in feature flag support:
+
+<CodeBlock language="html">
+  {`<script setup>
+import { useFlag } from "@databuddy/sdk/vue";
+
+const darkMode = useFlag("dark-mode");
+</script>
+
+<template>
+  <div :class="{ dark: darkMode.on }">
+    <template v-if="darkMode.loading">
+      <Skeleton />
+    </template>
+    <template v-else>
+      <MainContent />
+    </template>
+  </div>
+</template>`}
+</CodeBlock>
+
+See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation.
+
+## Privacy Patterns
+
+### Skip Patterns
+
+<CodeBlock language="html">
+  {`<Databuddy
+  :client-id="clientId"
+  :skip-patterns="['/admin/**', '/internal/*']"
+/>`}
+</CodeBlock>
+
+### Mask Patterns
+
+<CodeBlock language="html">
+  {`<Databuddy
+  :client-id="clientId"
+  :mask-patterns="['/users/*', '/orders/**']"
+/>`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+    track, flush, getAnonymousId, and more helper functions
+  </Card>
+  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+    Feature flag composables for Vue
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    Complete configuration reference
+  </Card>
+</Cards>

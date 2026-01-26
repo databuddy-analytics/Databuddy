@@ -75,19 +75,19 @@ export async function authorizeWebsiteAccess(
 		return website;
 	}
 
-	if (website.organizationId) {
-		const { success } = await websitesApi.hasPermission({
-			headers: ctx.headers,
-			body: { permissions: { website: [permission] } },
-		});
-		if (!success) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You do not have permission to perform this action",
-			});
-		}
-	} else if (website.userId !== ctx.user.id) {
+	if (!website.organizationId) {
 		throw new ORPCError("FORBIDDEN", {
-			message: "You are not the owner of this website",
+			message: "Website must belong to a workspace",
+		});
+	}
+
+	const { success } = await websitesApi.hasPermission({
+		headers: ctx.headers,
+		body: { permissions: { website: [permission] } },
+	});
+	if (!success) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "You do not have permission to perform this action",
 		});
 	}
 
@@ -119,17 +119,17 @@ export async function isFullyAuthorized(
 			return true;
 		}
 
-		// Check organization permissions
-		if (website.organizationId) {
-			const { success } = await websitesApi.hasPermission({
-				headers: ctx.headers,
-				body: { permissions: { website: ["read"] } },
-			});
-			return success;
+		// Website must belong to a workspace
+		if (!website.organizationId) {
+			return false;
 		}
 
-		// Check direct ownership
-		return website.userId === ctx.user.id;
+		// Check organization permissions
+		const { success } = await websitesApi.hasPermission({
+			headers: ctx.headers,
+			body: { permissions: { website: ["read"] } },
+		});
+		return success;
 	} catch {
 		return false;
 	}
@@ -137,15 +137,14 @@ export async function isFullyAuthorized(
 
 /**
  * A utility to authorize uptime schedule access.
- * If schedule has websiteId, checks website access.
- * Otherwise, checks that user owns the schedule.
+ * Checks workspace membership via better-auth permissions.
  *
  * @throws {ORPCError} UNAUTHORIZED if user is not authenticated
  * @throws {ORPCError} FORBIDDEN if user lacks permission
  */
 export async function authorizeUptimeScheduleAccess(
 	ctx: Context,
-	schedule: { websiteId: string | null; userId: string }
+	_schedule: { organizationId: string }
 ) {
 	if (!ctx.user) {
 		throw new ORPCError("UNAUTHORIZED", {
@@ -157,9 +156,12 @@ export async function authorizeUptimeScheduleAccess(
 		return;
 	}
 
-	if (schedule.websiteId) {
-		await authorizeWebsiteAccess(ctx, schedule.websiteId, "update");
-	} else if (schedule.userId !== ctx.user.id) {
+	const { success } = await websitesApi.hasPermission({
+		headers: ctx.headers,
+		body: { permissions: { website: ["update"] } },
+	});
+
+	if (!success) {
 		throw new ORPCError("FORBIDDEN", {
 			message: "You do not have permission to access this monitor",
 		});

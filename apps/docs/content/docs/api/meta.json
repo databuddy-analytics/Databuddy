@@ -1,0 +1,15 @@
+{
+  "title": "API Reference",
+  "description": "Complete REST API documentation for Databuddy",
+  "icon": "Code",
+  "pages": [
+    "index",
+    "authentication",
+    "query",
+    "events",
+    "links",
+    "custom-queries",
+    "errors",
+    "rate-limits"
+  ]
+}

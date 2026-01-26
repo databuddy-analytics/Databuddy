@@ -12,8 +12,6 @@ import {
 	CaretDownIcon,
 	CaretRightIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import React, { useCallback } from "react";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
@@ -22,11 +20,10 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { fromNow } from "@/lib/time";
 import { getDeviceIcon } from "@/lib/utils";
 import { generateSessionName } from "./generate-session-name";
 import { SessionEventTimeline } from "./session-event-timeline";
-
-dayjs.extend(relativeTime);
 
 function getEventSortPriority(eventName: string): number {
 	if (eventName === "page_exit") return 0;
@@ -170,7 +167,7 @@ function SessionRowInternal({
 
 					{/* Last seen */}
 					<span className="text-right text-muted-foreground">
-						{session.first_visit ? dayjs(session.first_visit).fromNow() : "—"}
+						{session.first_visit ? fromNow(session.first_visit) : "—"}
 					</span>
 				</div>
 			</CollapsibleTrigger>

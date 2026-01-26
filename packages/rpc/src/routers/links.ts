@@ -1,61 +1,29 @@
-import { websitesApi } from "@databuddy/auth";
 import { and, desc, eq, isNull, links } from "@databuddy/db";
-import { invalidateLinkCache } from "@databuddy/redis";
+import {
+	type CachedLink,
+	invalidateLinkCache,
+	setCachedLink,
+} from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
-import type { Context } from "../orpc";
 import { protectedProcedure } from "../orpc";
+import {
+	withWorkspace,
+	workspaceInputSchema,
+} from "../procedures/with-workspace";
 
 const generateSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 	8
 );
 
-async function authorizeOrganizationAccess(
-	context: Context,
-	_organizationId: string,
-	permission: "read" | "create" | "update" | "delete" = "read"
-): Promise<void> {
-	if (!context.user) {
-		throw new ORPCError("UNAUTHORIZED", {
-			message: "Authentication is required",
-		});
-	}
-
-	if (context.user.role === "ADMIN") {
-		return;
-	}
-
-	const headersObj: Record<string, string> = {};
-	context.headers.forEach((value, key) => {
-		headersObj[key] = value;
-	});
-
-	const perm =
-		permission === "read"
-			? "read"
-			: permission === "delete"
-				? "delete"
-				: "create";
-	const { success } = await websitesApi.hasPermission({
-		headers: headersObj,
-		body: { permissions: { website: [perm] } },
-	});
-
-	if (!success) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "You do not have permission to access this organization",
-		});
-	}
-}
-
-const listLinksSchema = z.object({
+const listLinksSchema = workspaceInputSchema.extend({
 	organizationId: z.string(),
 });
 
-const getLinkSchema = z.object({
+const getLinkSchema = workspaceInputSchema.extend({
 	id: z.string(),
 	organizationId: z.string(),
 });
@@ -112,11 +80,44 @@ const deleteLinkSchema = z.object({
 	id: z.string(),
 });
 
+interface LinkRecord {
+	id: string;
+	slug: string;
+	targetUrl: string;
+	expiresAt: Date | null;
+	expiredRedirectUrl: string | null;
+	ogTitle: string | null;
+	ogDescription: string | null;
+	ogImageUrl: string | null;
+	ogVideoUrl: string | null;
+	iosUrl: string | null;
+	androidUrl: string | null;
+}
+
+function toCachedLink(link: LinkRecord): CachedLink {
+	return {
+		id: link.id,
+		targetUrl: link.targetUrl,
+		expiresAt: link.expiresAt?.toISOString() ?? null,
+		expiredRedirectUrl: link.expiredRedirectUrl,
+		ogTitle: link.ogTitle,
+		ogDescription: link.ogDescription,
+		ogImageUrl: link.ogImageUrl,
+		ogVideoUrl: link.ogVideoUrl,
+		iosUrl: link.iosUrl,
+		androidUrl: link.androidUrl,
+	};
+}
+
 export const linksRouter = {
 	list: protectedProcedure
 		.input(listLinksSchema)
 		.handler(async ({ context, input }) => {
-			await authorizeOrganizationAccess(context, input.organizationId, "read");
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "link",
+				permissions: ["read"],
+			});
 
 			return context.db
 				.select()
@@ -133,7 +134,11 @@ export const linksRouter = {
 	get: protectedProcedure
 		.input(getLinkSchema)
 		.handler(async ({ context, input }) => {
-			await authorizeOrganizationAccess(context, input.organizationId, "read");
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "link",
+				permissions: ["read"],
+			});
 
 			const result = await context.db
 				.select()
@@ -159,11 +164,19 @@ export const linksRouter = {
 	create: protectedProcedure
 		.input(createLinkSchema)
 		.handler(async ({ context, input }) => {
-			await authorizeOrganizationAccess(
-				context,
-				input.organizationId,
-				"create"
-			);
+			const workspace = await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "link",
+				permissions: ["create"],
+			});
+
+			// User is guaranteed to exist after withWorkspace with permissions
+			const userId = workspace.user?.id ?? context.user?.id;
+			if (!userId) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Authentication is required",
+				});
+			}
 
 			const url = new URL(input.targetUrl);
 			if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -174,7 +187,7 @@ export const linksRouter = {
 
 			const linkValues = {
 				organizationId: input.organizationId,
-				createdBy: context.user.id,
+				createdBy: userId,
 				name: input.name,
 				targetUrl: input.targetUrl,
 				expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
@@ -199,7 +212,9 @@ export const linksRouter = {
 						})
 						.returning();
 
-					await invalidateLinkCache(input.slug).catch(() => { });
+					await setCachedLink(input.slug, toCachedLink(newLink)).catch(
+						() => { }
+					);
 
 					return newLink;
 				} catch (error) {
@@ -234,7 +249,7 @@ export const linksRouter = {
 						})
 						.returning();
 
-					await invalidateLinkCache(slug).catch(() => { });
+					await setCachedLink(slug, toCachedLink(newLink)).catch(() => { });
 
 					return newLink;
 				} catch (error) {
@@ -271,7 +286,11 @@ export const linksRouter = {
 			}
 
 			const link = existingLink[0];
-			await authorizeOrganizationAccess(context, link.organizationId, "update");
+			await withWorkspace(context, {
+				organizationId: link.organizationId,
+				resource: "link",
+				permissions: ["update"],
+			});
 
 			if (input.targetUrl) {
 				const url = new URL(input.targetUrl);
@@ -290,19 +309,23 @@ export const linksRouter = {
 					.update(links)
 					.set({
 						...updates,
-						expiresAt: expiresAt !== undefined ? (expiresAt ? new Date(expiresAt) : null) : undefined,
+						expiresAt:
+							expiresAt !== undefined
+								? expiresAt
+									? new Date(expiresAt)
+									: null
+								: undefined,
 						updatedAt: new Date(),
 					})
 					.where(eq(links.id, id))
 					.returning();
 
-				// Invalidate old slug cache
-				await invalidateLinkCache(oldSlug).catch(() => { });
+				const newSlug = updatedLink.slug;
 
-				// If slug changed, also invalidate new slug (in case of negative cache)
-				if (input.slug && input.slug !== oldSlug) {
-					await invalidateLinkCache(input.slug).catch(() => { });
-				}
+				await Promise.all([
+					invalidateLinkCache(oldSlug),
+					oldSlug !== newSlug ? invalidateLinkCache(newSlug) : Promise.resolve(),
+				]).catch(() => { });
 
 				return updatedLink;
 			} catch (error) {
@@ -339,11 +362,11 @@ export const linksRouter = {
 
 			const link = existingLink[0];
 
-			await authorizeOrganizationAccess(
-				context,
-				link.organizationId,
-				"delete"
-			);
+			await withWorkspace(context, {
+				organizationId: link.organizationId,
+				resource: "link",
+				permissions: ["delete"],
+			});
 
 			await context.db
 				.update(links)

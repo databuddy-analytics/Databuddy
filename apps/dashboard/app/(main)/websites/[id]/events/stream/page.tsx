@@ -18,8 +18,6 @@ import {
 	getCoreRowModel,
 	useReactTable,
 } from "@tanstack/react-table";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { useAtom } from "jotai";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
@@ -45,6 +43,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { formatTime, fromNow } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import {
 	addDynamicFilterAtom,
@@ -52,8 +51,6 @@ import {
 } from "@/stores/jotai/filterAtoms";
 import type { RecentCustomEvent } from "../_components/types";
 import { useEventsStream } from "./use-events-stream";
-
-dayjs.extend(relativeTime);
 
 type HasPropertiesFilter = "all" | "with" | "without";
 
@@ -489,10 +486,10 @@ export default function EventsStreamPage() {
 				cell: ({ row }) => (
 					<div className="flex flex-col">
 						<span className="text-foreground text-sm">
-							{dayjs(row.original.timestamp).fromNow()}
+							{fromNow(row.original.timestamp)}
 						</span>
 						<span className="text-muted-foreground text-xs">
-							{dayjs(row.original.timestamp).format("HH:mm:ss")}
+							{formatTime(row.original.timestamp)}
 						</span>
 					</div>
 				),

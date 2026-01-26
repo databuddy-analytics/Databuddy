@@ -105,7 +105,7 @@ export function DangerZoneSettings({
 					<div className="mb-6">
 						<h3 className="font-semibold">Transfer Assets</h3>
 						<p className="text-muted-foreground text-sm">
-							Move websites between your personal account and this organization
+							Move websites from this workspace to another workspace
 						</p>
 					</div>
 					<NoticeBanner

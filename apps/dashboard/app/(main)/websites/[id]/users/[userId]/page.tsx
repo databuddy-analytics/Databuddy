@@ -13,13 +13,13 @@ import {
 	SpinnerIcon,
 	UserIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { formatDateOnly, formatLocalTime } from "@/lib/time";
 import { getDeviceIcon } from "@/lib/utils";
 import { generateProfileName } from "./_components/generate-profile-name";
 import { SessionRow } from "./_components/session-row";
@@ -451,26 +451,26 @@ export default function UserDetailPage() {
 							<TimelineItem
 								date={
 									userProfile.first_visit
-										? dayjs(userProfile.first_visit).format("MMM D, YYYY")
+										? formatDateOnly(userProfile.first_visit)
 										: "Unknown"
 								}
 								label="First Visit"
 								time={
 									userProfile.first_visit
-										? dayjs(userProfile.first_visit).format("h:mm A")
+										? formatLocalTime(userProfile.first_visit, "h:mm A")
 										: undefined
 								}
 							/>
 							<TimelineItem
 								date={
 									userProfile.last_visit
-										? dayjs(userProfile.last_visit).format("MMM D, YYYY")
+										? formatDateOnly(userProfile.last_visit)
 										: "Unknown"
 								}
 								label="Last Visit"
 								time={
 									userProfile.last_visit
-										? dayjs(userProfile.last_visit).format("h:mm A")
+										? formatLocalTime(userProfile.last_visit, "h:mm A")
 										: undefined
 								}
 							/>

@@ -1,9 +1,9 @@
 import { HttpClient } from "./client";
 import type {
 	BaseEvent,
-	CustomEventSpan,
 	ErrorSpan,
 	EventContext,
+	TrackEventPayload,
 	TrackerOptions,
 	WebVitalEvent,
 } from "./types";
@@ -48,9 +48,9 @@ export class BaseTracker {
 	errorsTimer: Timer | null = null;
 	private isFlushingErrors = false;
 
-	customEventsQueue: CustomEventSpan[] = [];
-	customEventsTimer: Timer | null = null;
-	private isFlushingCustomEvents = false;
+	trackQueue: TrackEventPayload[] = [];
+	trackTimer: Timer | null = null;
+	private isFlushingTrack = false;
 
 	private readonly routeChangeCallbacks: Array<(path: string) => void> = [];
 
@@ -488,51 +488,65 @@ export class BaseTracker {
 		}
 	}
 
-	sendCustomEvent(event: CustomEventSpan): Promise<void> {
+	trackEvent(
+		name: string,
+		properties?: Record<string, unknown>
+	): Promise<void> {
 		if (this.shouldSkipTracking()) {
 			return Promise.resolve();
 		}
-		return this.addToCustomEventsQueue(event);
-	}
 
-	addToCustomEventsQueue(event: CustomEventSpan): Promise<void> {
-		this.customEventsQueue.push(event);
-		if (this.customEventsTimer === null) {
-			this.customEventsTimer = setTimeout(
-				() => this.flushCustomEvents(),
+		const event: TrackEventPayload = {
+			name,
+			timestamp: Date.now(),
+			properties,
+			anonymousId: this.anonymousId,
+			sessionId: this.sessionId,
+			websiteId: this.options.clientId,
+			source: "browser",
+		};
+
+		this.trackQueue.push(event);
+
+		if (this.trackTimer === null) {
+			this.trackTimer = setTimeout(
+				() => this.flushTrack(),
 				this.options.batchTimeout
 			);
 		}
-		if (this.customEventsQueue.length >= 10) {
-			this.flushCustomEvents();
+
+		if (this.trackQueue.length >= 10) {
+			this.flushTrack();
 		}
+
 		return Promise.resolve();
 	}
 
-	async flushCustomEvents() {
-		if (this.customEventsTimer) {
-			clearTimeout(this.customEventsTimer);
-			this.customEventsTimer = null;
+	async flushTrack() {
+		if (this.trackTimer) {
+			clearTimeout(this.trackTimer);
+			this.trackTimer = null;
 		}
-		if (this.customEventsQueue.length === 0 || this.isFlushingCustomEvents) {
+
+		if (this.trackQueue.length === 0 || this.isFlushingTrack) {
 			return;
 		}
 
-		this.isFlushingCustomEvents = true;
-		const events = [...this.customEventsQueue];
-		this.customEventsQueue = [];
+		this.isFlushingTrack = true;
+		const events = [...this.trackQueue];
+		this.trackQueue = [];
 
 		try {
 			return await this.api.fetch(
-				"/events",
+				"/track",
 				events,
 				{ keepalive: true },
-				{ client_id: this.options.clientId }
+				{ website_id: this.options.clientId }
 			);
 		} catch {
 			return null;
 		} finally {
-			this.isFlushingCustomEvents = false;
+			this.isFlushingTrack = false;
 		}
 	}
 

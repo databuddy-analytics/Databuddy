@@ -1,14 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-	and,
-	chQuery,
-	db,
-	eq,
-	inArray,
-	member,
-	or,
-	websites,
-} from "@databuddy/db";
+import { and, chQuery, db, eq, inArray, member, websites } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 import { z } from "zod";
@@ -22,11 +13,11 @@ const DEFAULT_DAYS = 7;
 const MIN_DAYS = 3;
 const MAX_DAYS = 30;
 
-type MiniChartRow = {
+interface MiniChartRow {
 	websiteId: string;
 	date: string;
 	value: number;
-};
+}
 
 const normalizeWebsiteIds = (ids: string[]): string[] => {
 	// Deduplicate, copy, and sort for stable cache keys and efficient queries
@@ -55,17 +46,15 @@ const getAuthorizedWebsiteIds = (
 
 			const orgIds = userOrgs.map((m) => m.organizationId);
 
-			const orgFilter =
-				orgIds.length > 0
-					? inArray(websites.organizationId, orgIds)
-					: undefined;
+			// Only show websites from user's workspaces
+			if (orgIds.length === 0) {
+				return [];
+			}
 
 			const accessibleWebsites = await db.query.websites.findMany({
 				where: and(
 					inArray(websites.id, requestedIds),
-					orgFilter
-						? or(eq(websites.userId, userId), orgFilter)
-						: eq(websites.userId, userId)
+					inArray(websites.organizationId, orgIds)
 				),
 				columns: {
 					id: true,
@@ -173,9 +162,11 @@ const getBatchedMiniChartData = async (
 	for (const websiteId of uniqueIds) {
 		const data = rawData[websiteId] || [];
 		const totalViews = data.reduce((sum, point) => sum + point.value, 0);
+		const hasAnyData = data.some((point) => point.value > 0);
 		const trend = calculateTrend(data);
 
 		result[websiteId] = {
+			hasAnyData,
 			data,
 			totalViews,
 			trend,

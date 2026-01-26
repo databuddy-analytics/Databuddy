@@ -13,9 +13,19 @@ const HEADER = `# Databuddy Documentation
 
 `;
 
-const SECTION_ORDER = ["root", "Integrations", "hooks", "features", "performance", "privacy", "compliance"];
+const SECTION_ORDER = [
+	"root",
+	"api",
+	"Integrations",
+	"hooks",
+	"features",
+	"performance",
+	"privacy",
+	"compliance",
+];
 const SECTION_LABELS: Record<string, string> = {
 	root: "Core",
+	api: "API Reference",
 	Integrations: "Integrations",
 	hooks: "React Hooks",
 	features: "Features",
@@ -31,7 +41,9 @@ export async function GET() {
 		files.map(async (file) => {
 			const content = await fs.readFile(file);
 			const { data } = matter(content.toString());
-			const relativePath = file.replace("./content/docs/", "").replace(".mdx", "");
+			const relativePath = file
+				.replace("./content/docs/", "")
+				.replace(".mdx", "");
 			const section = path.dirname(relativePath);
 
 			return {
@@ -40,14 +52,17 @@ export async function GET() {
 				description: data.description || "",
 				url: `${BASE_URL}/${relativePath}.md`,
 			};
-		}),
+		})
 	);
 
-	const grouped = entries.reduce<Record<string, typeof entries>>((acc, entry) => {
-		acc[entry.section] = acc[entry.section] || [];
-		acc[entry.section].push(entry);
-		return acc;
-	}, {});
+	const grouped = entries.reduce<Record<string, typeof entries>>(
+		(acc, entry) => {
+			acc[entry.section] = acc[entry.section] || [];
+			acc[entry.section].push(entry);
+			return acc;
+		},
+		{}
+	);
 
 	const sections = SECTION_ORDER.filter((s) => grouped[s])
 		.map((section) => {

@@ -9,6 +9,26 @@ export {
 	setupUncaughtErrorHandlers,
 } from "./lib/otel";
 export { type Context, createRPCContext } from "./orpc";
+export {
+	type PermissionFor,
+	type PlanId,
+	type ResourceType,
+	type Website,
+	type WebsiteWorkspaceContext,
+	type WithWebsiteConfig,
+	type WithWorkspaceConfig,
+	type Workspace,
+	type WorkspaceContext,
+	websiteInputSchema,
+	withAnalyticsWebsite,
+	withConfigureWebsite,
+	withDeleteWebsite,
+	withReadWebsite,
+	withUpdateWebsite,
+	withWebsite,
+	withWorkspace,
+	workspaceInputSchema,
+} from "./procedures/with-workspace";
 export { type AppRouter, appRouter } from "./root";
 export {
 	type ExportFormat,

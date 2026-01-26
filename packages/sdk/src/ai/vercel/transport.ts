@@ -6,7 +6,7 @@ import type { AICall, Transport } from "./types";
  */
 export const createDefaultTransport = (
 	apiUrl: string,
-	apiKey?: string,
+	apiKey?: string
 ): Transport => {
 	return async (call) => {
 		const headers: HeadersInit = {
@@ -25,7 +25,7 @@ export const createDefaultTransport = (
 
 		if (!response.ok) {
 			throw new Error(
-				`Failed to send AI log: ${response.status} ${response.statusText}`,
+				`Failed to send AI log: ${response.status} ${response.statusText}`
 			);
 		}
 	};
@@ -43,10 +43,7 @@ export const createDefaultTransport = (
  * });
  * ```
  */
-export const httpTransport = (
-	url: string,
-	apiKey?: string,
-): Transport => {
+export const httpTransport = (url: string, apiKey?: string): Transport => {
 	return async (call: AICall) => {
 		const headers: HeadersInit = {
 			"Content-Type": "application/json",
@@ -64,7 +61,7 @@ export const httpTransport = (
 
 		if (!response.ok) {
 			throw new Error(
-				`Failed to send AI log: ${response.status} ${response.statusText}`,
+				`Failed to send AI log: ${response.status} ${response.statusText}`
 			);
 		}
 	};

@@ -7,6 +7,7 @@ import {
 	BuildingsIcon,
 	CaretDownIcon,
 	ClockIcon,
+	CodeIcon,
 	FlagIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
@@ -16,9 +17,13 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import {
 	Form,
@@ -54,6 +59,7 @@ type ExpandedSection =
 	| "groups"
 	| "dependencies"
 	| "scheduling"
+	| "implementation"
 	| null;
 
 function CollapsibleSection({
@@ -111,6 +117,91 @@ function CollapsibleSection({
 					</motion.div>
 				)}
 			</AnimatePresence>
+		</div>
+	);
+}
+
+function ImplementationExamples({
+	flagKey,
+	flagType,
+}: {
+	flagKey: string;
+	flagType: "boolean" | "rollout" | "multivariant";
+}) {
+	const codeExamples = useMemo(() => {
+		const safeKey = flagKey || "my-feature";
+
+		const basicExample = `import { useFeature } from '@databuddy/sdk/react';
+
+function MyComponent() {
+  const { on, loading } = useFeature('${safeKey}');
+
+  if (loading) return <Skeleton />;
+  return on ? <NewFeature /> : <OldFeature />;
+}`;
+
+		const ssrExample = `import { useFeatureOn } from '@databuddy/sdk/react';
+
+function MyComponent() {
+  // Returns false while loading, then the actual value
+  const isEnabled = useFeatureOn('${safeKey}', false);
+
+  return isEnabled ? <NewFeature /> : <OldFeature />;
+}`;
+
+		const variantExample = `import { useVariant } from '@databuddy/sdk/react';
+
+function MyComponent() {
+  const variant = useVariant('${safeKey}');
+
+  switch (variant) {
+    case 'control':
+      return <ControlVersion />;
+    case 'variant-a':
+      return <VariantA />;
+    case 'variant-b':
+      return <VariantB />;
+    default:
+      return <DefaultVersion />;
+  }
+}`;
+
+		if (flagType === "multivariant") {
+			return [
+				{ title: "A/B Test Variants", code: variantExample },
+				{ title: "Simple Boolean Check", code: basicExample },
+			];
+		}
+
+		return [
+			{ title: "Basic Usage", code: basicExample },
+			{ title: "SSR-Safe with Default", code: ssrExample },
+		];
+	}, [flagKey, flagType]);
+
+	return (
+		<div className="space-y-4">
+			<p className="text-muted-foreground text-xs">
+				Use the Databuddy SDK to check this flag in your React/Next.js app.
+			</p>
+			{codeExamples.map((example) => (
+				<div className="space-y-2" key={example.title}>
+					<p className="font-medium text-foreground text-xs">{example.title}</p>
+					<CodeBlock
+						className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+						code={example.code}
+						language="tsx"
+					>
+						<CodeBlockCopyButton />
+					</CodeBlock>
+				</div>
+			))}
+			<p className="text-muted-foreground text-xs">
+				Install:{" "}
+				<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+					bun add @databuddy/sdk
+				</code>
+			</p>
 		</div>
 	);
 }
@@ -885,6 +976,18 @@ export function FlagSheet({
 											Schedule flag changes and rollouts for future dates
 										</p>
 									</div>
+								</CollapsibleSection>
+
+								<CollapsibleSection
+									icon={CodeIcon}
+									isExpanded={expandedSection === "implementation"}
+									onToggleAction={() => toggleSection("implementation")}
+									title="How to Implement"
+								>
+									<ImplementationExamples
+										flagKey={form.watch("flag.key") || "my-feature"}
+										flagType={watchedType}
+									/>
 								</CollapsibleSection>
 							</div>
 						</SheetBody>

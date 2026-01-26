@@ -138,10 +138,10 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 			const latestPostDate =
 				blogEntries.length > 0
 					? blogEntries.reduce(
-						(latest, entry) =>
-							entry.lastModified > latest ? entry.lastModified : latest,
-						blogEntries[0].lastModified
-					)
+							(latest, entry) =>
+								entry.lastModified > latest ? entry.lastModified : latest,
+							blogEntries[0].lastModified
+						)
 					: lastModified;
 
 			entries.push({

@@ -1,5 +1,5 @@
 import { websitesApi } from "@databuddy/auth";
-import { and, chQuery, db, eq, isNull, websites } from "@databuddy/db";
+import { chQuery, db, eq, inArray, member, websites } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -75,7 +75,6 @@ const WEB_VITAL_THRESHOLDS: Record<
 	INP: { good: 200, poor: 500, unit: "ms", label: "Interaction to Next Paint" },
 	TTFB: { good: 800, poor: 1800, unit: "ms", label: "Time to First Byte" },
 };
-
 
 const fetchErrorInsights = (
 	websiteIds: string[]
@@ -417,12 +416,12 @@ export const insightsRouter = {
 						});
 						if (!success) {
 							throw new ORPCError("FORBIDDEN", {
-								message: "Missing organization permissions.",
+								message: "Missing workspace permissions.",
 							});
 						}
 
-						// Get websites for this organization only
-						const orgWebsites = await db.query.websites.findMany({
+						// Get websites for this workspace only
+						websitesList = await db.query.websites.findMany({
 							where: eq(websites.organizationId, input.organizationId),
 							columns: {
 								id: true,
@@ -430,23 +429,26 @@ export const insightsRouter = {
 								domain: true,
 							},
 						});
-
-						websitesList = orgWebsites;
 					} else {
-						// Personal websites only
-						const personalWebsites = await db.query.websites.findMany({
-							where: and(
-								eq(websites.userId, userId),
-								isNull(websites.organizationId)
-							),
+						// Get all websites from user's workspaces
+						const userMemberships = await db.query.member.findMany({
+							where: eq(member.userId, userId),
+							columns: { organizationId: true },
+						});
+						const orgIds = userMemberships.map((m) => m.organizationId);
+
+						if (orgIds.length === 0) {
+							return { insights: [] as Insight[] };
+						}
+
+						websitesList = await db.query.websites.findMany({
+							where: inArray(websites.organizationId, orgIds),
 							columns: {
 								id: true,
 								name: true,
 								domain: true,
 							},
 						});
-
-						websitesList = personalWebsites;
 					}
 
 					const websiteIds = websitesList.map((w) => w.id);

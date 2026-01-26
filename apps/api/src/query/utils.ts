@@ -16,7 +16,7 @@ interface DataRow {
 	country_code?: string;
 	country_name?: string;
 	[key: string]: unknown;
-};
+}
 
 const toNumber = (v: unknown): number => (typeof v === "number" ? v : 0);
 const toStringFn = (v: unknown): string => (typeof v === "string" ? v : "");

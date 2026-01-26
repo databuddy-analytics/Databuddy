@@ -17,7 +17,7 @@ interface DateFormatOptions {
 	timeFormat?: string;
 	showTime?: boolean;
 	customFormat?: string;
-};
+}
 
 type DateInput = Date | string | number | null;
 

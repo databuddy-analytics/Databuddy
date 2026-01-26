@@ -14,6 +14,7 @@ import {
 	team,
 	twoFactor,
 	uptimeSchedules,
+	usageAlertLog,
 	user,
 	userPreferences,
 	websites,
@@ -29,6 +30,14 @@ export const userRelations = relations(user, ({ many }) => ({
 	websites: many(websites),
 	funnelDefinitions: many(funnelDefinitions),
 	apikeys: many(apikey),
+	usageAlertLogs: many(usageAlertLog),
+}));
+
+export const usageAlertLogRelations = relations(usageAlertLog, ({ one }) => ({
+	user: one(user, {
+		fields: [usageAlertLog.userId],
+		references: [user.id],
+	}),
 }));
 
 export const organizationRelations = relations(organization, ({ many }) => ({
@@ -94,10 +103,6 @@ export const userPreferencesRelations = relations(
 );
 
 export const websitesRelations = relations(websites, ({ one, many }) => ({
-	user: one(user, {
-		fields: [websites.userId],
-		references: [user.id],
-	}),
 	organization_organizationId: one(organization, {
 		fields: [websites.organizationId],
 		references: [organization.id],
@@ -178,9 +183,9 @@ export const uptimeSchedulesRelations = relations(
 			fields: [uptimeSchedules.websiteId],
 			references: [websites.id],
 		}),
-		user: one(user, {
-			fields: [uptimeSchedules.userId],
-			references: [user.id],
+		organization: one(organization, {
+			fields: [uptimeSchedules.organizationId],
+			references: [organization.id],
 		}),
 	})
 );

@@ -1,0 +1,192 @@
+name: Health Check
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  api-health-check:
+    name: API Health Check
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Mount Docker build cache
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-docker-build-cache
+          path: /tmp/docker-build-cache
+
+      - name: Set up Docker Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build API Docker image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ./api.Dockerfile
+          push: false
+          load: true
+          tags: api:test
+
+      - name: Run API health check
+        run: |
+          docker run -d \
+            --name api-health-check \
+            --network host \
+            -e NODE_ENV=test \
+            -e PORT=3001 \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e REDIS_HOST=localhost \
+            -e REDIS_PORT=6379 \
+            -e CLICKHOUSE_URL=http://localhost:8123 \
+            -e CLICKHOUSE_HOST=localhost \
+            -e CLICKHOUSE_PORT=8123 \
+            -e CLICKHOUSE_DATABASE=databuddy_test \
+            -e BETTER_AUTH_SECRET=test-auth-secret-for-ci \
+            -e BETTER_AUTH_URL=http://localhost:3000 \
+            -e GITHUB_CLIENT_ID=test-github-client-id \
+            -e GITHUB_CLIENT_SECRET=test-github-client-secret \
+            -e GOOGLE_CLIENT_ID=test-google-client-id \
+            -e GOOGLE_CLIENT_SECRET=test-google-client-secret \
+            -e RESEND_API_KEY=test-resend-api-key \
+            -e AUTUMN_SECRET_KEY=test-autumn-secret-key \
+            -e EMAIL_API_KEY=test-email-api-key \
+            -e IP_HASH_SALT=test-ip-hash-salt \
+            -e UPSTASH_QSTASH_TOKEN=test-upstash-qstash-token \
+            api:test
+          
+          echo "Waiting for API to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
+              echo "API is responding!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "API failed to start within 30 seconds"
+              docker logs api-health-check
+              docker rm -f api-health-check
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          # Check health endpoint response structure
+          RESPONSE=$(curl -sf http://localhost:3001/health || echo '{}')
+          echo "API Health Response: $RESPONSE"
+          
+          # Verify response has expected fields
+          if echo "$RESPONSE" | grep -q '"status"'; then
+            echo "API health endpoint structure is valid"
+          else
+            echo "API health endpoint response missing expected fields"
+            docker logs api-health-check
+            docker rm -f api-health-check
+            exit 1
+          fi
+          
+          docker rm -f api-health-check
+          echo "API health check passed!"
+
+  basket-health-check:
+    name: Basket Health Check
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Mount Docker build cache
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-docker-build-cache
+          path: /tmp/docker-build-cache
+
+      - name: Set up Docker Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build Basket Docker image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ./basket.Dockerfile
+          push: false
+          load: true
+          tags: basket:test
+
+      - name: Run Basket health check
+        run: |
+          docker run -d \
+            --name basket-health-check \
+            --network host \
+            -e NODE_ENV=test \
+            -e PORT=4000 \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e REDIS_HOST=localhost \
+            -e REDIS_PORT=6379 \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
+            -e CLICKHOUSE_URL=http://localhost:8123 \
+            -e CLICKHOUSE_HOST=localhost \
+            -e CLICKHOUSE_PORT=8123 \
+            -e IP_HASH_SALT=test-ip-hash-salt \
+            -e KAFKA_ENABLED=false \
+            basket:test
+          
+          echo "Waiting for Basket to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:4000/health > /dev/null 2>&1; then
+              echo "Basket is responding!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Basket failed to start within 30 seconds"
+              docker logs basket-health-check
+              docker rm -f basket-health-check
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          # Check health endpoint response structure
+          RESPONSE=$(curl -sf http://localhost:4000/health || echo '{}')
+          echo "Basket Health Response: $RESPONSE"
+          
+          # Verify response has expected fields
+          if echo "$RESPONSE" | grep -q '"status"'; then
+            echo "Basket health endpoint structure is valid"
+          else
+            echo "Basket health endpoint response missing expected fields"
+            docker logs basket-health-check
+            docker rm -f basket-health-check
+            exit 1
+          fi
+          
+          docker rm -f basket-health-check
+          echo "Basket health check passed!"

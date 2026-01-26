@@ -2,7 +2,7 @@
  * Application context passed to all agents.
  * Contains website and user information needed for queries.
  */
-export type AppContext = {
+export interface AppContext {
 	userId: string;
 	websiteId: string;
 	websiteDomain: string;
@@ -13,7 +13,7 @@ export type AppContext = {
 	/** Available query builder types */
 	availableQueryTypes?: string[];
 	[key: string]: unknown;
-};
+}
 
 /**
  * Builds the application context for agent execution.

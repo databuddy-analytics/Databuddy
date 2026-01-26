@@ -2,7 +2,10 @@ import { getRedisCache } from "./redis";
 
 const TTL_SECONDS = 3600;
 
-export async function shouldRecordClick(linkId: string, ipHash: string): Promise<boolean> {
+export async function shouldRecordClick(
+	linkId: string,
+	ipHash: string
+): Promise<boolean> {
 	const redis = getRedisCache();
 	const key = `click:dedup:${linkId}:${ipHash}`;
 
@@ -14,7 +17,10 @@ export async function shouldRecordClick(linkId: string, ipHash: string): Promise
 	}
 }
 
-export async function isClickRecorded(linkId: string, ipHash: string): Promise<boolean> {
+export async function isClickRecorded(
+	linkId: string,
+	ipHash: string
+): Promise<boolean> {
 	const redis = getRedisCache();
 	const key = `click:dedup:${linkId}:${ipHash}`;
 

@@ -121,10 +121,7 @@ function extractManualFields(
 	return result;
 }
 
-function getNestedValue(
-	obj: Record<string, unknown>,
-	path: string
-): unknown {
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 	const keys = path.split(".");
 	let current: unknown = obj;
 

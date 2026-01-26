@@ -319,15 +319,7 @@ export class Databuddy extends BaseTracker {
 		if (this.shouldSkipTracking()) {
 			return;
 		}
-
-		this.sendCustomEvent({
-			timestamp: Date.now(),
-			path: this.isServer() ? "" : window.location.pathname,
-			eventName: name,
-			anonymousId: this.anonymousId,
-			sessionId: this.sessionId,
-			properties: props,
-		});
+		this.trackEvent(name, props);
 	}
 
 	setGlobalProperties(props: Record<string, unknown>) {

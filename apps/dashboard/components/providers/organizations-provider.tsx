@@ -1,9 +1,9 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import {
 	activeOrganizationAtom,
 	getOrganizationBySlugAtom,
@@ -26,31 +26,35 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
 	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
 
-	const [
-		{ data: organizationsData, isPending: isLoadingOrgs },
-		{ data: activeOrganization, isPending: isLoadingActive },
-	] = useQueries({
-		queries: [
-			{
-				queryKey: AUTH_QUERY_KEYS.organizations,
-				queryFn: async () => {
-					const result = await authClient.organization.list();
-					return result.data ?? [];
-				},
-				staleTime: 5 * 60 * 1000, // 5 minutes - org list changes rarely
-				gcTime: 10 * 60 * 1000, // 10 minutes
-			},
-			{
-				queryKey: AUTH_QUERY_KEYS.activeOrganization,
-				queryFn: async () => {
-					const result = await authClient.organization.getFullOrganization();
-					return result.data ?? null;
-				},
-				staleTime: 5 * 60 * 1000, // 5 minutes
-				gcTime: 10 * 60 * 1000, // 10 minutes
-			},
-		],
+	const { data: session, isPending: isLoadingSession } = useQuery({
+		queryKey: AUTH_QUERY_KEYS.session,
+		queryFn: async () => {
+			const result = await authClient.getSession();
+			return result.data;
+		},
+		staleTime: 2 * 60 * 1000,
+		gcTime: 5 * 60 * 1000,
 	});
+
+	const { data: organizationsData, isPending: isLoadingOrgs } = useQuery({
+		queryKey: AUTH_QUERY_KEYS.organizations,
+		queryFn: async () => {
+			const result = await authClient.organization.list();
+			return result.data ?? [];
+		},
+		staleTime: 5 * 60 * 1000,
+		gcTime: 10 * 60 * 1000,
+	});
+
+	const activeOrganization = useMemo(() => {
+		const activeId = (
+			session?.session as { activeOrganizationId?: string | null } | undefined
+		)?.activeOrganizationId;
+		if (!activeId) {
+			return null;
+		}
+		return organizationsData?.find((org) => org.id === activeId) ?? null;
+	}, [session, organizationsData]);
 
 	useEffect(() => {
 		if (organizationsData) {
@@ -59,12 +63,12 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	}, [organizationsData, setOrganizations]);
 
 	useEffect(() => {
-		setActiveOrganization(activeOrganization ?? null);
+		setActiveOrganization(activeOrganization);
 	}, [activeOrganization, setActiveOrganization]);
 
 	useEffect(() => {
-		setIsLoading(isLoadingOrgs || isLoadingActive);
-	}, [isLoadingOrgs, isLoadingActive, setIsLoading]);
+		setIsLoading(isLoadingSession || isLoadingOrgs);
+	}, [isLoadingSession, isLoadingOrgs, setIsLoading]);
 
 	return <>{children}</>;
 }

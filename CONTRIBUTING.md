@@ -2,6 +2,11 @@
 
 Thank you for your interest in contributing!
 
+## AI Usage
+
+The Databuddy project has strict rules for AI usage. Please see
+the [AI Usage Policy](AI_POLICY.md). **This is very important.**
+
 ## 🚀 Getting Started
 
 ### Installation
@@ -47,7 +52,7 @@ bun run sdk:build
 7. Start development servers:
 
 ```bash
-bun run dev
+bun run dev:dashboard
 ```
 
 8. Seed the database with sample data (optional):

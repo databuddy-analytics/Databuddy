@@ -133,6 +133,84 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
 - **Origin Validation** - Requests validated against registered domains
 - **HTTPS Required** - All communications encrypted in transit
 
+### Access Control Settings
+
+Configure allowed origins and IP addresses to control who can send analytics data to your website.
+
+#### Allowed Origins
+
+By default, Databuddy only accepts requests from your website's registered domain. To track analytics from third-party services (like [Cal.com](/docs/Integrations/cal), embedded widgets, or other integrations), you need to add those domains to your allowed origins.
+
+**Access**: [Website Settings → Security](https://app.databuddy.cc/websites/[id]/settings/security)
+
+**Default Behavior:**
+
+- Only requests from your registered domain are accepted
+- Requests from other origins are blocked with a 403 error
+
+**Supported Formats:**
+
+- **Exact domains**: `cal.com`, `example.com`
+- **Wildcard subdomains**: `*.cal.com` (matches `app.cal.com`, `api.cal.com`, etc.)
+- **Localhost**: `localhost` (for development)
+- **Allow all**: `*` (allows any origin - use with caution)
+
+**How It Works:**
+
+1. By default, only your registered domain can send analytics data
+2. Add additional origins to allow third-party integrations
+3. Requests from unauthorized origins are blocked with a 403 error
+
+**Example Configuration:**
+
+```
+Allowed Origins:
+- cal.com
+- *.cal.com
+- localhost
+```
+
+#### Allowed IP Addresses
+
+Restrict analytics requests to specific IP addresses or IP ranges using CIDR notation.
+
+**Supported Formats:**
+
+- **Single IPv4**: `192.168.1.1`
+- **Single IPv6**: `2001:0db8:85a3:0000:0000:8a2e:0370:7334`
+- **CIDR ranges**: `192.168.1.0/24`, `10.0.0.0/8`
+
+**How It Works:**
+
+1. When `allowedIps` is configured, only requests from those IPs/ranges are accepted
+2. If not configured, all IPs are allowed (standard behavior)
+3. IP addresses are extracted from request headers (`cf-connecting-ip`, `x-forwarded-for`, `x-real-ip`)
+4. Requests from unauthorized IPs are blocked with a 403 error
+
+**Example Configuration:**
+
+```
+Allowed IPs:
+- 192.168.1.1
+- 10.0.0.0/8
+- 172.16.0.0/12
+```
+
+**Use Cases:**
+
+- **Internal Tools**: Restrict analytics to your office IP range
+- **API Integrations**: Allow only specific server IPs
+- **Development**: Limit to your development environment IPs
+- **Security**: Block suspicious IP ranges
+
+<Callout type="warning">
+  **Important**: If you configure allowed IPs, make sure to include your production servers and any legitimate sources. Blocking legitimate traffic will prevent analytics collection.
+</Callout>
+
+<Callout type="info">
+  **Third-Party Integrations**: If you use services like Cal.com, embedded widgets, or other integrations that need to send analytics from their domains, add those domains to your allowed origins.
+</Callout>
+
 ### Data Validation
 
 - **Input Sanitization** - All user data cleaned and validated

@@ -17,7 +17,7 @@ export const NoticeBanner = ({
 }) => (
 	<div
 		className={cn(
-			"notice-banner-angled-rectangle-gradient flex flex-1 items-center gap-2 rounded-lg border border-accent-foreground bg-accent-foreground/80 px-3 py-2 font-medium text-accent-brighter text-sm",
+			"notice-banner-angled-rectangle-gradient flex flex-1 items-center gap-2 rounded-sm border border-accent-foreground bg-accent-foreground/80 px-3 py-2 font-medium text-accent-brighter text-sm",
 			className
 		)}
 	>

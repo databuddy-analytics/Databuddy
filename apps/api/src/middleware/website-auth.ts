@@ -116,26 +116,27 @@ async function checkWebsiteAuth(
 	if (sessionUser && typeof sessionUser === "object" && "id" in sessionUser) {
 		const userId = (sessionUser as { id: string }).id;
 
-		// Check if user owns the website directly (personal website)
-		if (website.userId === userId && !website.organizationId) {
-			return null;
+		if (!website.organizationId) {
+			return json(403, {
+				success: false,
+				error: "Website must belong to a workspace",
+				code: "FORBIDDEN",
+			});
 		}
 
-		// Check if user has access through organization membership
-		if (website.organizationId) {
-			const membership = await db.query.member.findFirst({
-				where: and(
-					eq(member.userId, userId),
-					eq(member.organizationId, website.organizationId)
-				),
-				columns: {
-					id: true,
-				},
-			});
+		// Check if user has access through workspace membership
+		const membership = await db.query.member.findFirst({
+			where: and(
+				eq(member.userId, userId),
+				eq(member.organizationId, website.organizationId)
+			),
+			columns: {
+				id: true,
+			},
+		});
 
-			if (membership) {
-				return null;
-			}
+		if (membership) {
+			return null;
 		}
 
 		// User is authenticated but doesn't have access to this website

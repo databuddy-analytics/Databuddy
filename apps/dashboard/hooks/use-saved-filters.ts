@@ -15,10 +15,10 @@ export interface SavedFilter {
 
 export interface SavedFilterError {
 	type:
-	| "storage_quota"
-	| "invalid_data"
-	| "duplicate_name"
-	| "validation_error";
+		| "storage_quota"
+		| "invalid_data"
+		| "duplicate_name"
+		| "validation_error";
 	message: string;
 }
 

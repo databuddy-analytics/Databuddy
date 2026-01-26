@@ -3,7 +3,7 @@ title: Cal.com
 description: Track and analyze user behavior from your website to your Cal.com scheduling pages with Databuddy.
 ---
 
-import { Card, Cards } from "@/components/docs";
+import { Card, Cards, Callout } from "@/components/docs";
 
 Integrate **Databuddy** with your **Cal.com** scheduling pages to gain insights into user behavior and improve your booking performance.
 
@@ -20,13 +20,34 @@ Integrate **Databuddy** with your **Cal.com** scheduling pages to gain insights 
 5. Activate it on each event page you want to track by adding your **Client ID**.
    > For self-hosted setups, you can also provide your **API URL** and **Script URL** [see details](/docs/Integrations/cal#for-self-hosted-databuddy-users).
 
-That’s it! Your Cal.com pages are now connected to Databuddy.
+That's it! Your Cal.com pages are now connected to Databuddy.
+
+---
+
+## Security settings
+
+By default, Databuddy only accepts requests from your website's registered domain. To track analytics from Cal.com booking pages, you need to add Cal.com to your allowed origins.
+
+**Go to:** [Website Settings → Security](https://app.databuddy.cc/websites/[id]/settings/security)
+
+**Add these origins:**
+
+```
+cal.com
+*.cal.com
+```
+
+<Callout type="info">
+  The wildcard `*.cal.com` covers all Cal.com subdomains including `app.cal.com` and any custom subdomains.
+</Callout>
+
+Learn more about [security settings](/docs/security#access-control-settings).
 
 ---
 
 ## For self-hosted Databuddy users
 
-If you’re using a self-hosted version of Databuddy:
+If you're using a self-hosted version of Databuddy:
 
 1. Enter your **Client ID**, **API URL**, and **Script URL** during setup.
 2. Save and complete the installation.
@@ -39,7 +60,7 @@ You can use the **same Client ID** across your **main website** and **Cal.com bo
 
 Example:
 
-- A visitor lands on `yourwebsite.com/pricing` → clicks “Book a demo” → schedules via your Cal.com page.
+- A visitor lands on `yourwebsite.com/pricing` → clicks "Book a demo" → schedules via your Cal.com page.
 - In Databuddy, you can setup with page view your [**funnel**](/docs/dashboard#funnel-analysis), allowing you to measure drop-off, setup goals and optimize conversions.
 
 ---

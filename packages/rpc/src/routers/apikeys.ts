@@ -31,10 +31,7 @@ interface Metadata {
 	lastUsedAt?: string;
 }
 
-export const API_SCOPES = [
-	"read:data",
-	"write:llm",
-] as const;
+export const API_SCOPES = ["read:data", "write:llm", "track:events"] as const;
 
 const scopeEnum = z.enum(API_SCOPES);
 const resourcesSchema = z.record(z.string(), z.array(scopeEnum));
@@ -129,9 +126,9 @@ export const apikeysRouter = {
 					input.organizationId
 						? eq(apikey.organizationId, input.organizationId)
 						: and(
-							eq(apikey.userId, context.user.id),
-							isNull(apikey.organizationId)
-						)
+								eq(apikey.userId, context.user.id),
+								isNull(apikey.organizationId)
+							)
 				)
 				.orderBy(desc(apikey.createdAt));
 			return rows.map((r) => mapKey(r));

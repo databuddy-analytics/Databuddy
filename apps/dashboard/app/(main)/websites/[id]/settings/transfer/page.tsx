@@ -5,7 +5,6 @@ import {
 	ArrowSquareOutIcon,
 	BuildingsIcon,
 	InfoIcon,
-	UserIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
@@ -107,21 +106,21 @@ function TransferPageContent() {
 		);
 	}
 
-	const currentOrg = websiteData.organizationId
-		? organizations?.find(
-				(org: Organization) => org.id === websiteData.organizationId
-			) || {
-				id: websiteData.organizationId,
-				name: "Organization",
-				slug: "",
-				createdAt: new Date(),
-			}
-		: null;
+	const websiteOrgId =
+		"organizationId" in websiteData ? websiteData.organizationId : null;
+
+	const currentOrg = organizations?.find(
+		(org: Organization) => org.id === websiteOrgId
+	) || {
+		id: websiteOrgId ?? "",
+		name: "Current Workspace",
+		slug: "",
+		logo: null as string | null,
+		createdAt: new Date(),
+	};
 
 	const availableOrgs =
-		organizations?.filter(
-			(org: Organization) => org.id !== websiteData.organizationId
-		) || [];
+		organizations?.filter((org: Organization) => org.id !== websiteOrgId) || [];
 
 	const selectedOrg = selectedOrgId
 		? organizations?.find((org: Organization) => org.id === selectedOrgId) ||
@@ -142,13 +141,13 @@ function TransferPageContent() {
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-4">
 						<div className="flex items-center gap-3">
-							{/* Current Organization */}
+							{/* Current Workspace */}
 							<div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-secondary p-3">
 								<BuildingsIcon className="size-5 shrink-0 text-muted-foreground" />
 								<div className="min-w-0 flex-1">
 									<p className="mb-0.5 text-muted-foreground text-xs">From</p>
 									<p className="truncate font-medium text-sm">
-										{currentOrg?.name || "Personal"}
+										{currentOrg.name}
 									</p>
 								</div>
 							</div>
@@ -289,22 +288,22 @@ function TransferPageContent() {
 						<div className="space-y-2">
 							<div className="flex items-center gap-2.5 rounded border p-2.5">
 								<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
-									{currentOrg?.logo ? (
+									{currentOrg.logo ? (
 										<img
 											alt={currentOrg.name}
 											className="size-full rounded object-cover"
+											height={32}
 											src={currentOrg.logo}
+											width={32}
 										/>
-									) : currentOrg ? (
-										<BuildingsIcon className="size-4 text-muted-foreground" />
 									) : (
-										<UserIcon className="size-4 text-muted-foreground" />
+										<BuildingsIcon className="size-4 text-muted-foreground" />
 									)}
 								</div>
 								<div className="min-w-0 flex-1">
 									<p className="text-muted-foreground text-xs">From</p>
 									<p className="truncate font-medium text-sm">
-										{currentOrg?.name || "Personal"}
+										{currentOrg.name}
 									</p>
 								</div>
 							</div>
@@ -322,7 +321,9 @@ function TransferPageContent() {
 										<img
 											alt={selectedOrg.name}
 											className="size-full rounded object-cover"
+											height={32}
 											src={selectedOrg.logo}
+											width={32}
 										/>
 									) : (
 										<BuildingsIcon className="size-4 text-primary" />

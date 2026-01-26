@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-const countriesGeoUrl = "/geojson/countries.geojson";
-const subdivisionsGeoUrl = "/geojson/subdivisions.json";
+const countriesGeoUrl = "/api/geo-proxy?path=/geojson/countries.geojson";
+const subdivisionsGeoUrl = "/api/geo-proxy?path=/geojson/subdivisions.json";
 
-export type Subdivisions = {
+export interface Subdivisions {
 	type: string;
 	features: Array<{
 		type: string;
@@ -18,9 +18,9 @@ export type Subdivisions = {
 			coordinates: number[][][];
 		};
 	}>;
-};
+}
 
-export type Country = {
+export interface Country {
 	type: string;
 	features: Array<{
 		type: string;
@@ -35,7 +35,7 @@ export type Country = {
 			coordinates: number[][][];
 		};
 	}>;
-};
+}
 
 export const useSubdivisions = () =>
 	useQuery<Subdivisions>({

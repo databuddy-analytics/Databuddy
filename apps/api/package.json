@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/api",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -19,10 +19,12 @@
     "@ai-sdk-tools/agents": "^1.2.0",
     "@ai-sdk-tools/artifacts": "^1.2.0",
     "@ai-sdk-tools/memory": "^1.2.0",
+    "@ai-sdk/groq": "^3.0.15",
     "@ai-sdk/openai": "^2.0.89",
     "@ai-sdk/provider": "^3.0.2",
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/email": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/sdk": "workspace:*",
@@ -46,6 +48,8 @@
     "elysia": "^1.4.22",
     "jszip": "^3.10.1",
     "keypal": "^0.1.11",
+    "resend": "^4.0.1",
+    "svix": "^1.84.1",
     "zod": "catalog:"
   }
 }

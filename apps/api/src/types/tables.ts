@@ -2,6 +2,7 @@ import type {
 	AICallSpan,
 	AnalyticsEvent,
 	BlockedTraffic,
+	CustomEvent,
 	CustomEventSpan,
 	CustomEventsHourlyAggregate,
 	CustomOutgoingLink,
@@ -19,9 +20,11 @@ export const Analytics = {
 	web_vitals_spans: "analytics.web_vitals_spans",
 	web_vitals_hourly: "analytics.web_vitals_hourly",
 	custom_event_spans: "analytics.custom_event_spans",
+	custom_events: "analytics.custom_events",
 	custom_events_hourly: "analytics.custom_events_hourly",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
+	link_visits: "analytics.link_visits",
 	uptime_monitor: "uptime.uptime_monitor",
 } as const;
 
@@ -38,6 +41,7 @@ export interface TableFieldsMap {
 	"analytics.web_vitals_spans": keyof WebVitalsSpan;
 	"analytics.web_vitals_hourly": keyof WebVitalsHourlyAggregate;
 	"analytics.custom_event_spans": keyof CustomEventSpan;
+	"analytics.custom_events": keyof CustomEvent;
 	"analytics.custom_events_hourly": keyof CustomEventsHourlyAggregate;
 	"analytics.blocked_traffic": keyof BlockedTraffic;
 	"analytics.outgoing_links": keyof CustomOutgoingLink;

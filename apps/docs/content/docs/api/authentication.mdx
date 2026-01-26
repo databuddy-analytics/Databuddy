@@ -1,0 +1,125 @@
+---
+title: Authentication
+description: API keys, scopes, and authentication methods for the Databuddy API
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+All API requests require authentication. Databuddy supports two authentication methods: API keys for server-side integrations and session cookies for browser-based apps.
+
+## API Key Authentication
+
+Use your API key in the `x-api-key` header:
+
+<CodeBlock 
+  language="bash"
+  code={`curl -H "x-api-key: dbdy_your_api_key_here" \\
+  https://api.databuddy.cc/v1/query/websites`}
+/>
+
+Alternatively, use Bearer token format:
+
+<CodeBlock 
+  language="bash"
+  code={`curl -H "Authorization: Bearer dbdy_your_api_key_here" \\
+  https://api.databuddy.cc/v1/query/websites`}
+/>
+
+## Getting an API Key
+
+1. Go to **[Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)**
+2. Click **Create API Key**
+3. Enter a descriptive name (e.g., "Production Server", "CI Pipeline")
+4. Select the required scopes
+5. Optionally restrict access to specific websites
+6. Copy and securely store your key — it won't be shown again
+
+<Callout type="warning">
+  **Security Note**: Store API keys securely. Never commit them to version control or expose them in client-side code.
+</Callout>
+
+## API Key Scopes
+
+Scopes control what actions an API key can perform:
+
+| Scope | Permission |
+|-------|------------|
+| `read:data` | Query analytics data (required for all query endpoints) |
+| `write:data` | Send custom events |
+| `read:websites` | List accessible websites |
+| `manage:websites` | Create and update websites |
+
+<Callout type="info">
+  Most integrations only need `read:data` scope. Add additional scopes only if required.
+</Callout>
+
+## Access Levels
+
+API keys can have two access levels:
+
+### Global Access
+
+Access all websites in your account or organization. Best for:
+- Internal dashboards
+- Automated reporting
+- Organization-wide analytics
+
+### Website-Specific Access
+
+Access only specified websites. Best for:
+- Third-party integrations
+- Client-specific keys
+- Least-privilege security
+
+## Session Cookie Authentication
+
+Browser-based applications using the Databuddy dashboard session can authenticate automatically via cookies. This works when:
+
+- Users are logged into the Databuddy dashboard
+- Requests include `credentials: 'include'`
+- Requests originate from `*.databuddy.cc` domains
+
+<CodeBlock 
+  language="typescript"
+  code={`fetch('https://api.databuddy.cc/v1/query/websites', {
+  credentials: 'include'
+})`}
+/>
+
+## Choosing an Authentication Method
+
+| Use Case | Recommended Method |
+|----------|-------------------|
+| Server-to-server integration | API Key (`x-api-key`) |
+| CI/CD pipelines | API Key (`x-api-key`) |
+| Custom dashboards (server-side) | API Key (`x-api-key`) |
+| Browser apps on your domain | Session Cookie |
+| Third-party applications | API Key with limited scope |
+
+## Authentication Errors
+
+| Error Code | Meaning |
+|------------|---------|
+| `AUTH_REQUIRED` | No API key or session provided |
+| `ACCESS_DENIED` | Valid auth but no access to requested resource |
+| `INVALID_API_KEY` | API key is invalid, expired, or revoked |
+| `INSUFFICIENT_SCOPE` | API key lacks required scope |
+
+Example error response:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": false,
+  "error": "Authentication required",
+  "code": "AUTH_REQUIRED"
+}`}
+/>
+
+## Best Practices
+
+1. **Use environment variables** for API keys in code
+2. **Rotate keys regularly** — especially if team members leave
+3. **Use minimal scopes** — only request permissions you need
+4. **Set expiration dates** for temporary integrations
+5. **Monitor usage** — check API key activity in the dashboard

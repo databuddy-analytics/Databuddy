@@ -187,6 +187,26 @@ export const ANALYTICS_TABLES: TableDefinition[] = [
 	OUTGOING_LINKS_TABLE,
 ];
 
+function containsSqlInjectionChars(str: string): boolean {
+	for (let i = 0; i < str.length; i += 1) {
+		const code = str.charCodeAt(i);
+		if (
+			code === 0x3b || // ;
+			code === 0x27 || // '
+			code === 0x22 || // "
+			code === 0x5c || // \
+			code === 0x60 || // `
+			(code >= 0x00 && code <= 0x1f) || // control chars
+			(code >= 0x7f && code <= 0x9f) // extended control chars
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/u;
+
 /**
  * Get a table definition by name
  */
@@ -208,16 +228,44 @@ export function getColumnDefinition(
 }
 
 /**
+ * Validate that a string is a safe identifier (no SQL injection patterns)
+ */
+function isValidIdentifier(value: unknown): value is string {
+	if (typeof value !== "string") {
+		return false;
+	}
+	if (value.length === 0 || value.length > 128) {
+		return false;
+	}
+	if (containsSqlInjectionChars(value)) {
+		return false;
+	}
+	return IDENTIFIER_PATTERN.test(value);
+}
+
+/**
  * Validate that a table name is allowed
  */
-export function isValidTable(tableName: string): boolean {
+export function isValidTable(tableName: unknown): boolean {
+	if (!isValidIdentifier(tableName)) {
+		return false;
+	}
 	return ANALYTICS_TABLES.some((t) => t.name === tableName);
 }
 
 /**
  * Validate that a column exists in a table
  */
-export function isValidColumn(tableName: string, columnName: string): boolean {
+export function isValidColumn(
+	tableName: unknown,
+	columnName: unknown
+): boolean {
+	if (!isValidIdentifier(tableName)) {
+		return false;
+	}
+	if (!isValidIdentifier(columnName)) {
+		return false;
+	}
 	const table = getTableDefinition(tableName);
 	return table?.columns.some((c) => c.name === columnName) ?? false;
 }

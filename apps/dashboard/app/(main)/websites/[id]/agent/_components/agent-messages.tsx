@@ -2,6 +2,7 @@
 
 import type { UIMessage } from "ai";
 import { useRef } from "react";
+import { AIComponent } from "@/components/ai-elements/ai-component";
 import {
 	ChainOfThought,
 	ChainOfThoughtContent,
@@ -19,17 +20,22 @@ import {
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import { useChat } from "@/contexts/chat-context";
+import { parseContentSegments } from "@/lib/ai-components";
+import { formatToolLabel, formatToolOutput } from "@/lib/tool-display";
 import { cn } from "@/lib/utils";
 import { useChatStatus } from "./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
 
 type ToolMessagePart = MessagePart & {
+	type: string;
+	input?: Record<string, unknown>;
 	output?: unknown;
+	state?: string;
 };
 
 function isToolPart(part: MessagePart): part is ToolMessagePart {
-	return part.type?.includes("tool") ?? false;
+	return part.type?.startsWith("tool-") ?? false;
 }
 
 function getToolOutput(part: MessagePart): unknown {
@@ -37,6 +43,13 @@ function getToolOutput(part: MessagePart): unknown {
 		return part.output;
 	}
 	return undefined;
+}
+
+const TOOL_PREFIX_REGEX = /^tool-/;
+
+function getToolName(part: ToolMessagePart): string {
+	// Type is like "tool-execute_query_builder", extract the tool name
+	return part.type.replace(TOOL_PREFIX_REGEX, "");
 }
 
 function getReasoningText(part: MessagePart): string {
@@ -51,59 +64,6 @@ function getReasoningText(part: MessagePart): string {
 		JSON.stringify(part, null, 2) ||
 		"Thinking through the request."
 	);
-}
-
-function getResultCount(obj: Record<string, unknown>): number | null {
-	if ("data" in obj && Array.isArray(obj.data)) {
-		return obj.data.length;
-	}
-	if ("pages" in obj && Array.isArray(obj.pages)) {
-		return obj.pages.length;
-	}
-	return null;
-}
-
-function getErrorText(obj: Record<string, unknown>): string | null {
-	if ("errorText" in obj && typeof obj.errorText === "string") {
-		return obj.errorText;
-	}
-	return null;
-}
-
-function formatToolOutput(output: unknown) {
-	if (output === undefined) {
-		return null;
-	}
-
-	if (typeof output === "object" && output !== null) {
-		const obj = output as Record<string, unknown>;
-		const errorText = getErrorText(obj);
-		if (errorText) {
-			return <p>Error: {errorText}</p>;
-		}
-		const count = getResultCount(obj);
-		if (count !== null) {
-			return <p>Found {count} results.</p>;
-		}
-	}
-
-	if (typeof output === "string") {
-		try {
-			const obj = JSON.parse(output) as Record<string, unknown>;
-			const errorText = getErrorText(obj);
-			if (errorText) {
-				return <p>Error: {errorText}</p>;
-			}
-			const count = getResultCount(obj);
-			if (count !== null) {
-				return <p>Found {count} results.</p>;
-			}
-		} catch {
-			return <p>Found 0 results.</p>;
-		}
-	}
-
-	return <p>Found 0 results.</p>;
 }
 
 function ReasoningMessage({
@@ -173,18 +133,24 @@ function renderMessagePart(
 	// Handle grouped tool calls
 	if (Array.isArray(part)) {
 		return (
-			<ChainOfThought className="my-4" defaultOpen key={key}>
-				<ChainOfThoughtHeader>Running {part.length} tools</ChainOfThoughtHeader>
+			<ChainOfThought className="my-3" defaultOpen key={key}>
+				<ChainOfThoughtHeader>
+					{part.length} {part.length === 1 ? "action" : "actions"}
+				</ChainOfThoughtHeader>
 				<ChainOfThoughtContent>
-					{part.map((toolPart, idx) => (
-						<ChainOfThoughtStep
-							key={`${key}-tool-${idx}`}
-							label={`Running ${toolPart.type}`}
-							status="complete"
-						>
-							{formatToolOutput(getToolOutput(toolPart))}
-						</ChainOfThoughtStep>
-					))}
+					{part.map((toolPart, idx) => {
+						const toolName = getToolName(toolPart as ToolMessagePart);
+						const toolInput = (toolPart as ToolMessagePart).input ?? {};
+						return (
+							<ChainOfThoughtStep
+								key={`${key}-tool-${idx}`}
+								label={formatToolLabel(toolName, toolInput)}
+								status="complete"
+							>
+								{formatToolOutput(toolName, getToolOutput(toolPart))}
+							</ChainOfThoughtStep>
+						);
+					})}
 				</ChainOfThoughtContent>
 			</ChainOfThought>
 		);
@@ -206,22 +172,51 @@ function renderMessagePart(
 			return null;
 		}
 
+		// Parse content into ordered segments
+		const { segments } = parseContentSegments(textPart.text);
+
+		if (segments.length === 0) {
+			return null;
+		}
+
 		return (
-			<MessageResponse isAnimating={isCurrentlyStreaming} key={key} mode={mode}>
-				{textPart.text}
-			</MessageResponse>
+			<div className="space-y-4" key={key}>
+				{segments.map((segment, idx) => {
+					if (segment.type === "text") {
+						return (
+							<MessageResponse
+								isAnimating={isCurrentlyStreaming}
+								key={`${key}-text-${idx}`}
+								mode={mode}
+							>
+								{segment.content}
+							</MessageResponse>
+						);
+					}
+					return (
+						<AIComponent
+							input={segment.content}
+							key={`${key}-component-${idx}`}
+						/>
+					);
+				})}
+			</div>
 		);
 	}
 
 	if (part.type?.includes("tool")) {
+		const toolName = getToolName(part as ToolMessagePart);
+		const toolInput = (part as ToolMessagePart).input ?? {};
 		return (
-			<ChainOfThought defaultOpen key={key}>
-				<ChainOfThoughtHeader />
+			<ChainOfThought className="my-3" defaultOpen key={key}>
+				<ChainOfThoughtHeader>1 action</ChainOfThoughtHeader>
 				<ChainOfThoughtContent>
 					<ChainOfThoughtStep
-						label={`Running ${part.type}`}
+						label={formatToolLabel(toolName, toolInput)}
 						status="complete"
-					/>
+					>
+						{formatToolOutput(toolName, getToolOutput(part))}
+					</ChainOfThoughtStep>
 				</ChainOfThoughtContent>
 			</ChainOfThought>
 		);

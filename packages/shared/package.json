@@ -8,7 +8,7 @@
     ".": "./src/index.ts",
     "./country-codes": "./src/country-codes.ts",
     "./crypto-utils": "./src/crypto-utils.ts",
-    "./lists/bots": "./src/lists/bots.ts",
+
     "./lists/filters": "./src/lists/filters.ts",
     "./lists/referrers": "./src/lists/referrers.ts",
     "./lists/timezones": "./src/lists/timezones.ts",
@@ -36,7 +36,8 @@
     "./utils/date-utils": "./src/utils/date-utils.ts",
     "./utils/ids": "./src/utils/ids.ts",
     "./utils/openrouter": "./src/utils/openrouter.ts",
-    "./logger": "./src/utils/logger.ts"
+    "./logger": "./src/utils/logger.ts",
+    "./bot-detection": "./src/utils/bot-detection/index.ts"
   },
   "dependencies": {
     "@databuddy/redis": "workspace:*",
@@ -49,6 +50,7 @@
     "nanoid": "catalog:",
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
+    "ua-parser-js": "catalog:",
     "zod": "catalog:"
   }
 }

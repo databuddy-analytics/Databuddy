@@ -3,6 +3,7 @@ import type {
 	Website,
 } from "@databuddy/shared/types/website";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr/ArrowSquareOut";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowsLeftRight";
 import { CodeIcon } from "@phosphor-icons/react/dist/ssr/Code";
 import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
 import { EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
@@ -37,6 +38,7 @@ import { WebsiteDialog } from "@/components/website-dialog";
 import { useDeleteWebsite } from "@/hooks/use-websites";
 import { TOAST_MESSAGES } from "../[id]/_components/shared/tracking-constants";
 import MiniChart from "./mini-chart";
+import { TransferWebsiteDialog } from "./transfer-website-dialog";
 
 interface WebsiteCardProps {
 	website: Website;
@@ -99,6 +101,7 @@ export const WebsiteCard = memo(
 		const router = useRouter();
 		const [showEditDialog, setShowEditDialog] = useState(false);
 		const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+		const [showTransferDialog, setShowTransferDialog] = useState(false);
 		const deleteWebsiteMutation = useDeleteWebsite();
 
 		const handleOpen = useCallback(() => {
@@ -129,6 +132,10 @@ export const WebsiteCard = memo(
 
 		const handleDelete = useCallback(() => {
 			setShowDeleteDialog(true);
+		}, []);
+
+		const handleTransfer = useCallback(() => {
+			setShowTransferDialog(true);
 		}, []);
 
 		const handleDeleteConfirm = useCallback(async () => {
@@ -287,6 +294,13 @@ export const WebsiteCard = memo(
 							<GearIcon className="size-4" weight="duotone" />
 							Settings
 						</ContextMenuItem>
+						<ContextMenuItem
+							className="w-full rounded-none px-3 py-2"
+							onSelect={handleTransfer}
+						>
+							<ArrowsLeftRightIcon className="size-4" weight="duotone" />
+							Transfer…
+						</ContextMenuItem>
 						<ContextMenuSeparator className="my-0" />
 						<ContextMenuItem
 							className="w-full rounded-none px-3 py-2"
@@ -314,6 +328,11 @@ export const WebsiteCard = memo(
 					onClose={() => setShowDeleteDialog(false)}
 					onConfirm={handleDeleteConfirm}
 					title="Delete Website"
+				/>
+				<TransferWebsiteDialog
+					onOpenChange={setShowTransferDialog}
+					open={showTransferDialog}
+					website={website}
 				/>
 			</>
 		);

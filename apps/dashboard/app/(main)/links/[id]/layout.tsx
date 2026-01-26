@@ -10,8 +10,14 @@ import type { DateRange as DayPickerRange } from "react-day-picker";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 import { DateRangePicker } from "@/components/date-range-picker";
+import { PageNavigation } from "@/components/layout/page-navigation";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { useLink } from "@/hooks/use-links";
+
+const MAX_HOURLY_DAYS = 7;
 
 interface QuickRange {
 	label: string;
@@ -45,8 +51,27 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const linkId = id as string;
 	const queryClient = useQueryClient();
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const { activeOrganization } = useOrganizationsContext();
 
-	const { currentDateRange, setDateRangeAction } = useDateFilters();
+	const { data: link, isLoading: isLoadingLink } = useLink(
+		linkId,
+		activeOrganization?.id ?? ""
+	);
+
+	const {
+		currentDateRange,
+		currentGranularity,
+		setCurrentGranularityAtomState,
+		setDateRangeAction,
+	} = useDateFilters();
+
+	const dateRangeDays = useMemo(
+		() =>
+			dayjs(currentDateRange.endDate).diff(currentDateRange.startDate, "day"),
+		[currentDateRange]
+	);
+
+	const isHourlyDisabled = dateRangeDays > MAX_HOURLY_DAYS;
 
 	const selectedRange: DayPickerRange | undefined = useMemo(
 		() => ({
@@ -63,6 +88,16 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		},
 		[setDateRangeAction]
 	);
+
+	const getGranularityButtonClass = (type: "daily" | "hourly") => {
+		const isActive = currentGranularity === type;
+		const baseClass =
+			"h-full w-16 cursor-pointer touch-manipulation rounded-none px-0 text-xs";
+		const activeClass = isActive
+			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
+			: "text-muted-foreground";
+		return `${baseClass} ${activeClass}`.trim();
+	};
 
 	const isQuickRangeActive = useCallback(
 		(range: QuickRange) => {
@@ -112,16 +147,52 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
-			{/* Toolbar */}
+			{isLoadingLink ? (
+				<div className="box-border flex h-12 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3">
+					<Skeleton className="h-4 w-12" />
+					<span className="text-muted-foreground/40">/</span>
+					<Skeleton className="h-4 w-32" />
+				</div>
+			) : (
+				<PageNavigation
+					breadcrumb={{ label: "Links", href: "/links" }}
+					className="h-12"
+					currentPage={link?.name ?? "Link Stats"}
+					variant="breadcrumb"
+				/>
+			)}
+
 			<div className="sticky top-0 right-0 left-0 z-50 shrink-0 overscroll-contain bg-background md:top-0 md:left-84">
-				<div className="flex h-12 items-center justify-between border-b pr-4">
+				<div className="flex h-10 items-center justify-between border-b pr-4">
 					<div className="flex h-full items-center">
+						<Button
+							className={clsx(getGranularityButtonClass("daily"), "border-r")}
+							onClick={() => setCurrentGranularityAtomState("daily")}
+							title="View daily aggregated data"
+							variant="ghost"
+						>
+							Daily
+						</Button>
+						<Button
+							className={clsx(getGranularityButtonClass("hourly"), "border-r")}
+							disabled={isHourlyDisabled}
+							onClick={() => setCurrentGranularityAtomState("hourly")}
+							title={
+								isHourlyDisabled
+									? `Hourly view is only available for ${MAX_HOURLY_DAYS} days or less`
+									: `View hourly data (up to ${MAX_HOURLY_DAYS} days)`
+							}
+							variant="ghost"
+						>
+							Hourly
+						</Button>
+
 						{QUICK_RANGES.map((range) => {
 							const isActive = isQuickRangeActive(range);
 							return (
 								<Button
 									className={clsx(
-										"h-full w-14 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
+										"h-full w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
 										isActive
 											? "bg-accent text-accent-foreground hover:bg-accent"
 											: "hover:bg-accent!"
@@ -171,8 +242,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 				</div>
 			</div>
 
-			{/* Content */}
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 				{children}
 			</div>
 		</div>

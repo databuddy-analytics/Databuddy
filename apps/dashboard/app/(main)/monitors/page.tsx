@@ -18,7 +18,7 @@ import { type Monitor, MonitorsList } from "./_components/monitors-list";
 import { PageHeader } from "./_components/page-header";
 
 const MonitorsListSkeleton = () => (
-	<div className="border-border border-t">
+	<div>
 		{[...new Array(5)].map((_, i) => (
 			<div
 				className="flex animate-pulse items-center border-border border-b px-4 py-3 sm:px-6 sm:py-4"

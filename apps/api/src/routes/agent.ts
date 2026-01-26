@@ -1,7 +1,7 @@
 import { auth, websitesApi } from "@databuddy/auth";
 import { smoothStream } from "ai";
 import { Elysia, t } from "elysia";
-import { createReflectionAgent, createTriageAgent } from "../ai/agents";
+import { type AgentType, createAgent, getStreamConfig } from "../ai/agents";
 import { buildAppContext } from "../ai/config/context";
 import { captureError, record, setAttributes } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
@@ -21,7 +21,7 @@ const AgentRequestSchema = t.Object({
 				})
 			)
 		),
-		text: t.Optional(t.String()), // SDK sometimes sends text directly
+		text: t.Optional(t.String()),
 	}),
 	id: t.Optional(t.String()),
 	timezone: t.Optional(t.String()),
@@ -53,14 +53,18 @@ function toUIMessage(msg: IncomingMessage): UIMessage {
 		};
 	}
 
-	const text = msg.content ?? msg.text ?? "";
-
 	return {
 		id: msg.id ?? crypto.randomUUID(),
 		role: msg.role,
-		parts: [{ type: "text", text }],
+		parts: [{ type: "text", text: msg.content ?? msg.text ?? "" }],
 	};
 }
+
+const MODEL_TO_AGENT: Record<string, AgentType> = {
+	basic: "triage",
+	agent: "analytics",
+	"agent-max": "reflection-max",
+};
 
 export const agent = new Elysia({ prefix: "/v1/agent" })
 	.derive(async ({ request }) => {
@@ -94,7 +98,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!(websiteValidation.success && websiteValidation.website)) {
 						return new Response(
 							JSON.stringify({
+								success: false,
 								error: websiteValidation.error ?? "Website not found",
+								code: "WEBSITE_NOT_FOUND",
 							}),
 							{ status: 404, headers: { "Content-Type": "application/json" } }
 						);
@@ -103,95 +109,74 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const { website } = websiteValidation;
 
 					let authorized = website.isPublic;
-					if (!authorized) {
-						if (website.organizationId) {
-							const { success } = await websitesApi.hasPermission({
-								headers: request.headers,
-								body: { permissions: { website: ["read"] } },
-							});
-							authorized = success;
-						} else {
-							authorized = website.userId === user?.id;
-						}
+					if (!authorized && website.organizationId) {
+						const { success } = await websitesApi.hasPermission({
+							headers: request.headers,
+							body: { permissions: { website: ["read"] } },
+						});
+						authorized = success;
 					}
 
 					if (!authorized) {
-						return new Response(JSON.stringify({ error: "Unauthorized" }), {
-							status: 403,
-							headers: { "Content-Type": "application/json" },
-						});
+						return new Response(
+							JSON.stringify({
+								success: false,
+								error: "Access denied to this website",
+								code: "ACCESS_DENIED",
+							}),
+							{ status: 403, headers: { "Content-Type": "application/json" } }
+						);
 					}
+
+					if (!user?.id) {
+						return new Response(
+							JSON.stringify({
+								success: false,
+								error: "User ID required",
+								code: "AUTH_REQUIRED",
+							}),
+							{ status: 401, headers: { "Content-Type": "application/json" } }
+						);
+					}
+
+					const agentType: AgentType =
+						MODEL_TO_AGENT[body.model ?? "agent"] ?? "reflection";
+					const streamConfig = getStreamConfig(agentType);
+
+					console.log("[Agent] Creating agent", {
+						type: agentType,
+						model: body.model,
+						websiteId: body.websiteId,
+						message: body.message.content ?? body.message.text,
+					});
+
+					const agentInstance = createAgent(agentType, {
+						userId: user.id,
+						websiteId: body.websiteId,
+						websiteDomain: website.domain ?? "unknown",
+						timezone: body.timezone ?? "UTC",
+						requestHeaders: request.headers,
+					});
 
 					const appContext = buildAppContext(
-						user?.id ?? "anonymous",
+						user.id,
 						body.websiteId,
 						website.domain ?? "unknown",
 						body.timezone ?? "UTC"
 					);
 
-					const message = toUIMessage(body.message);
-
-					const contextWithChatId = {
-						...appContext,
-						chatId,
-						requestHeaders: request.headers,
-						availableQueryTypes: Object.keys(QueryBuilders),
-					};
-
-					const agentContext = {
-						websiteId: body.websiteId,
-						websiteDomain: website.domain ?? "unknown",
-						timezone: body.timezone ?? "UTC",
-						requestHeaders: request.headers,
-					};
-
-					// Select agent based on model preference
-					// basic: triageAgent (simple routing)
-					// agent: reflectionAgent with haiku model
-					// agent-max: reflectionAgent with max capabilities
-					const modelType = body.model ?? "agent";
-					let agent:
-						| ReturnType<typeof createTriageAgent>
-						| ReturnType<typeof createReflectionAgent>;
-					let maxRounds = 5;
-					let maxSteps = 20;
-
-					if (!user?.id) {
-						return new Response(JSON.stringify({ error: "User ID required" }), {
-							status: 401,
-							headers: { "Content-Type": "application/json" },
-						});
-					}
-
-					switch (modelType) {
-						case "basic":
-							agent = createTriageAgent(user.id, agentContext);
-							maxRounds = 1;
-							maxSteps = 5;
-							break;
-						case "agent":
-							agent = createReflectionAgent(user.id, agentContext, "haiku");
-							maxRounds = 5;
-							maxSteps = 20;
-							break;
-						case "agent-max":
-							agent = createReflectionAgent(user.id, agentContext, "max");
-							maxRounds = 10;
-							maxSteps = 40;
-							break;
-						default:
-							agent = createReflectionAgent(user.id, agentContext, "haiku");
-					}
-
-					return agent.toUIMessageStream({
-						message,
+					return agentInstance.toUIMessageStream({
+						message: toUIMessage(body.message),
 						strategy: "auto",
-						maxRounds,
-						maxSteps,
-						context: contextWithChatId,
-						experimental_transform: smoothStream({
-							chunking: "word",
-						}),
+						maxRounds: streamConfig.maxRounds,
+						maxSteps: streamConfig.maxSteps,
+						context: {
+							...appContext,
+							chatId,
+							requestHeaders: request.headers,
+							availableQueryTypes: Object.keys(QueryBuilders),
+						},
+						experimental_transform: smoothStream({ chunking: "word" }),
 						sendSources: true,
 					});
 				} catch (error) {
@@ -205,7 +190,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					});
 					return new Response(
 						JSON.stringify({
+							success: false,
 							error: error instanceof Error ? error.message : "Unknown error",
+							code: "INTERNAL_ERROR",
 						}),
 						{ status: 500, headers: { "Content-Type": "application/json" } }
 					);

@@ -26,7 +26,12 @@ export async function rateLimit(
 
 		const results = await pipeline.exec();
 		if (!results) {
-			return { success: true, limit, remaining: limit - 1, reset: now + windowMs };
+			return {
+				success: true,
+				limit,
+				remaining: limit - 1,
+				reset: now + windowMs,
+			};
 		}
 
 		const count = (results[1]?.[1] as number) || 0;
@@ -37,11 +42,18 @@ export async function rateLimit(
 			reset: now + windowMs,
 		};
 	} catch {
-		return { success: true, limit, remaining: limit - 1, reset: now + windowMs };
+		return {
+			success: true,
+			limit,
+			remaining: limit - 1,
+			reset: now + windowMs,
+		};
 	}
 }
 
-export function getRateLimitHeaders(result: RateLimitResult): Record<string, string> {
+export function getRateLimitHeaders(
+	result: RateLimitResult
+): Record<string, string> {
 	const headers: Record<string, string> = {
 		"X-RateLimit-Limit": result.limit.toString(),
 		"X-RateLimit-Remaining": result.remaining.toString(),
@@ -49,7 +61,9 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
 	};
 
 	if (!result.success) {
-		headers["Retry-After"] = Math.ceil((result.reset - Date.now()) / 1000).toString();
+		headers["Retry-After"] = Math.ceil(
+			(result.reset - Date.now()) / 1000
+		).toString();
 	}
 
 	return headers;

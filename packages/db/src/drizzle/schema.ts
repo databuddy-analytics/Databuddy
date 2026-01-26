@@ -1,4 +1,4 @@
-import { isNotNull, isNull } from "drizzle-orm";
+import { isNotNull } from "drizzle-orm";
 import {
 	boolean,
 	foreignKey,
@@ -314,28 +314,19 @@ export const websites = pgTable(
 		domain: text().notNull(),
 		name: text(),
 		status: websiteStatus().default("ACTIVE").notNull(),
-		userId: text(),
 		isPublic: boolean().default(false).notNull(),
 		createdAt: timestamp({ precision: 3 }).defaultNow().notNull(),
 		updatedAt: timestamp({ precision: 3 }).defaultNow().notNull(),
 		deletedAt: timestamp({ precision: 3 }),
-		organizationId: text("organization_id"),
+		organizationId: text("organization_id").notNull(),
 		integrations: jsonb(),
+		settings: jsonb(),
 	},
 	(table) => [
-		uniqueIndex("websites_user_domain_unique")
-			.on(table.userId, table.domain)
-			.where(isNull(table.organizationId)),
-		uniqueIndex("websites_org_domain_unique")
-			.on(table.organizationId, table.domain)
-			.where(isNotNull(table.organizationId)),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "websites_userId_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("set null"),
+		uniqueIndex("websites_org_domain_unique").on(
+			table.organizationId,
+			table.domain
+		),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -464,7 +455,24 @@ export const team = pgTable(
 );
 
 export const apiKeyType = pgEnum("api_key_type", ["user", "sdk", "automation"]);
-export const apiScope = pgEnum("api_scope", ["read:data", "write:llm", "write:data", "read:analytics", "write:custom-sql", "read:export", "write:otel", "admin:apikeys", "admin:users", "admin:organizations", "admin:websites", "rate:standard", "rate:premium", "rate:enterprise", "read:experiments", "track:events"]);
+export const apiScope = pgEnum("api_scope", [
+	"read:data",
+	"write:llm",
+	"write:data",
+	"read:analytics",
+	"write:custom-sql",
+	"read:export",
+	"write:otel",
+	"admin:apikeys",
+	"admin:users",
+	"admin:organizations",
+	"admin:websites",
+	"rate:standard",
+	"rate:premium",
+	"rate:enterprise",
+	"read:experiments",
+	"track:events",
+]);
 
 // Resource type for flexible, future-proof per-resource access control
 export const apiResourceType = pgEnum("api_resource_type", [
@@ -818,12 +826,14 @@ export const uptimeSchedules = pgTable(
 	{
 		id: text().primaryKey().notNull(),
 		websiteId: text("website_id"),
-		userId: text("user_id").notNull(),
+		organizationId: text("organization_id").notNull(),
 		url: text().notNull(),
 		name: text(),
 		granularity: text("granularity").notNull(),
 		cron: text().notNull(),
 		isPaused: boolean("is_paused").default(false).notNull(),
+		timeout: integer(),
+		cacheBust: boolean("cache_bust").default(false).notNull(),
 		jsonParsingConfig: jsonb("json_parsing_config"),
 		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
 		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
@@ -833,9 +843,9 @@ export const uptimeSchedules = pgTable(
 			"btree",
 			table.websiteId.asc().nullsLast().op("text_ops")
 		),
-		index("uptime_schedules_user_id_idx").using(
+		index("uptime_schedules_organization_id_idx").using(
 			"btree",
-			table.userId.asc().nullsLast().op("text_ops")
+			table.organizationId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
@@ -845,12 +855,10 @@ export const uptimeSchedules = pgTable(
 			.onUpdate("cascade")
 			.onDelete("cascade"),
 		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "uptime_schedules_user_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "uptime_schedules_organization_id_organization_id_fk",
+		}).onDelete("cascade"),
 	]
 );
 
@@ -901,6 +909,40 @@ export const links = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "links_created_by_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
+export const usageAlertLog = pgTable(
+	"usage_alert_log",
+	{
+		id: text().primaryKey().notNull(),
+		userId: text("user_id").notNull(),
+		featureId: text("feature_id").notNull(),
+		alertType: text("alert_type").notNull(),
+		emailSentTo: text("email_sent_to").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("usage_alert_log_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		index("usage_alert_log_user_feature_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops"),
+			table.featureId.asc().nullsLast().op("text_ops")
+		),
+		index("usage_alert_log_created_at_idx").using(
+			"btree",
+			table.createdAt.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "usage_alert_log_user_id_fkey",
 		}).onDelete("cascade"),
 	]
 );

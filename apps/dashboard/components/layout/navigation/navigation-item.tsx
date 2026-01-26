@@ -57,7 +57,7 @@ export function NavigationItem({
 		<>
 			{domain ? (
 				<FaviconImage
-					className="rounded"
+					className="shrink-0 rounded"
 					domain={domain}
 					fallbackIcon={
 						<Icon aria-hidden className="size-5 shrink-0" weight="duotone" />
@@ -67,7 +67,7 @@ export function NavigationItem({
 			) : (
 				<Icon aria-hidden className="size-4 shrink-0" weight="duotone" />
 			)}
-			<span className="flex-1">{name}</span>
+			<span className="min-w-0 flex-1 truncate">{name}</span>
 		</>
 	);
 
@@ -75,11 +75,11 @@ export function NavigationItem({
 		return (
 			<div
 				aria-disabled
-				className="group flex cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/40 text-sm"
+				className="group flex min-w-0 cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/40 text-sm"
 				title={lockedPlanName ? `Requires ${lockedPlanName} plan` : undefined}
 			>
 				{content}
-				<div className="flex items-center gap-1.5">
+				<div className="flex shrink-0 items-center gap-1.5">
 					<LockSimpleIcon aria-hidden className="size-3" />
 					{lockedPlanName && (
 						<span className="rounded bg-sidebar-accent px-1.5 py-0.5 font-medium text-[10px] text-sidebar-foreground/50 uppercase">
@@ -95,11 +95,11 @@ export function NavigationItem({
 		return (
 			<div
 				aria-disabled
-				className="group flex cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/30 text-sm"
+				className="group flex min-w-0 cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sidebar-foreground/30 text-sm"
 			>
 				{content}
 				{tag && (
-					<span className="font-mono text-sidebar-foreground/30 text-xs uppercase">
+					<span className="shrink-0 font-mono text-sidebar-foreground/30 text-xs uppercase">
 						{tag}
 					</span>
 				)}
@@ -118,7 +118,7 @@ export function NavigationItem({
 			aria-current={isActive ? "page" : undefined}
 			aria-label={`${name}${isExternal ? " (opens in new tab)" : ""}`}
 			className={cn(
-				"group flex items-center gap-3 border-transparent border-r-2 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
+				"group flex min-w-0 items-center gap-3 border-transparent border-r-2 px-4 py-2.5 text-sm hover:text-sidebar-accent-foreground",
 				isActive
 					? "border-sidebar-ring bg-sidebar-accent font-medium text-sidebar-accent-foreground"
 					: "text-sidebar-foreground/70 hover:bg-sidebar-accent"
@@ -130,7 +130,7 @@ export function NavigationItem({
 			role="menuitem"
 		>
 			{content}
-			<div className="flex items-center gap-1.5">
+			<div className="flex shrink-0 items-center gap-1.5">
 				{alpha && (
 					<span className="font-mono text-sidebar-foreground/50 text-xs">
 						ALPHA

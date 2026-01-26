@@ -21,7 +21,7 @@ import type {
 	ErrorSummary,
 	ErrorType,
 	ProcessedChartData,
-	RecentError,	
+	RecentError,
 } from "./types";
 
 interface ErrorsPageContentProps {

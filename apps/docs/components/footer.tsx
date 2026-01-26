@@ -130,14 +130,6 @@ export function Footer() {
 									Sponsors
 								</Link>
 							</li>
-							<li>
-								<Link
-									className="text-muted-foreground hover:text-foreground"
-									href="/sol"
-								>
-									Sol
-								</Link>
-							</li>
 						</ul>
 					</div>
 

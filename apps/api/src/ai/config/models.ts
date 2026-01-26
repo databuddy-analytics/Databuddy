@@ -13,9 +13,7 @@ export const openrouter = createOpenRouter({
 	headers,
 });
 
-
 export const { track } = databuddyLLM({
-	apiUrl: process.env.DATABUDDY_API_URL ?? "https://basket.databuddy.cc/llm",
 	apiKey: process.env.DATABUDDY_API_KEY,
 	computeCosts: true,
 });
@@ -23,8 +21,8 @@ export const { track } = databuddyLLM({
 const overrideModel: string | null = null;
 
 const modelNames = {
-	triage: overrideModel ?? "anthropic/claude-haiku-4.5",
-	analytics: overrideModel ?? "anthropic/claude-haiku-4.5",
+	triage: overrideModel ?? "openai/gpt-oss-safeguard-20b",
+	analytics: overrideModel ?? "anthropic/claude-sonnet-4.5",
 	advanced: overrideModel ?? "anthropic/claude-sonnet-4.5",
 	perplexity: "perplexity/sonar-pro",
 } as const;

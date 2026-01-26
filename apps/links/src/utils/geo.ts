@@ -5,6 +5,7 @@ import {
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
+import { captureError, record, setAttributes } from "../lib/tracing";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
@@ -17,20 +18,24 @@ let isLoading = false;
 let loadPromise: Promise<void> | null = null;
 let dbBuffer: Buffer | null = null;
 
-async function loadDatabaseFromCdn(): Promise<Buffer> {
-	const response = await fetch(CDN_URL);
-	if (!response.ok) {
-		throw new Error(`Failed to fetch GeoIP database: ${response.status}`);
-	}
+function loadDatabaseFromCdn(): Promise<Buffer> {
+	return record("links-geo_load_database", async () => {
+		const response = await fetch(CDN_URL);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch GeoIP database: ${response.status}`);
+		}
 
-	const arrayBuffer = await response.arrayBuffer();
-	const buffer = Buffer.from(arrayBuffer);
+		const arrayBuffer = await response.arrayBuffer();
+		const buffer = Buffer.from(arrayBuffer);
 
-	if (buffer.length < 1_000_000) {
-		throw new Error(`Database file too small: ${buffer.length} bytes`);
-	}
+		setAttributes({ geo_db_size_bytes: buffer.length });
 
-	return buffer;
+		if (buffer.length < 1_000_000) {
+			throw new Error(`Database file too small: ${buffer.length} bytes`);
+		}
+
+		return buffer;
+	});
 }
 
 function loadDatabase() {
@@ -47,8 +52,9 @@ function loadDatabase() {
 		try {
 			dbBuffer = await loadDatabaseFromCdn();
 			reader = Reader.openBuffer(dbBuffer) as GeoIPReader;
+			setAttributes({ geo_db_loaded: true });
 		} catch (err) {
-			console.error("Failed to load GeoIP database:", err);
+			captureError(err, { operation: "geo_load_database" });
 			reader = null;
 			dbBuffer = null;
 		} finally {

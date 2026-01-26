@@ -27,6 +27,7 @@ import {
 	KeyIcon,
 	LightningIcon,
 	LinkIcon,
+	LockIcon,
 	MapPinIcon,
 	PlayIcon,
 	PlugIcon,
@@ -323,6 +324,9 @@ export const websiteSettingsNavigation: NavigationSection[] = [
 			rootLevel: false,
 		}),
 		createNavItem("Privacy", ShieldCheckIcon, "/settings/privacy", {
+			rootLevel: false,
+		}),
+		createNavItem("Security", LockIcon, "/settings/security", {
 			rootLevel: false,
 		}),
 		createNavItem(

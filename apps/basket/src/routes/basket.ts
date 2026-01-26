@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { AnalyticsEvent, CustomOutgoingLink } from "@databuddy/db";
 import {
 	batchedCustomEventSpansSchema,
@@ -6,7 +5,7 @@ import {
 	batchedVitalsSchema,
 } from "@databuddy/validation";
 import {
-	insertCustomEventSpans,
+	insertCustomEvents,
 	insertErrorSpans,
 	insertIndividualVitals,
 	insertOutgoingLink,
@@ -35,6 +34,7 @@ import {
 	validatePerformanceMetric,
 	validateSessionId,
 } from "@utils/validation";
+import { randomUUIDv7 } from "bun";
 import { Elysia } from "elysia";
 
 function processTrackEventData(
@@ -44,7 +44,7 @@ function processTrackEventData(
 	ip: string
 ): Promise<AnalyticsEvent> {
 	return record("processTrackEventData", async () => {
-		const eventId = parseEventId(trackData.eventId, randomUUID);
+		const eventId = parseEventId(trackData.eventId, () => randomUUIDv7());
 
 		const [geoData, uaData, salt] = await Promise.all([
 			getGeo(ip),
@@ -74,7 +74,7 @@ function processTrackEventData(
 		anonymousId = saltAnonymousId(anonymousId, salt);
 
 		return {
-			id: randomUUID(),
+			id: randomUUIDv7(),
 			client_id: clientId,
 			event_name: sanitizeString(
 				trackData.name,
@@ -148,7 +148,7 @@ function processOutgoingLinkData(
 	const timestamp = parseTimestamp(linkData.timestamp);
 
 	return {
-		id: randomUUID(),
+		id: randomUUIDv7(),
 		client_id: clientId,
 		anonymous_id: sanitizeString(
 			linkData.anonymousId,
@@ -325,7 +325,20 @@ const app = new Elysia()
 				return validation.error;
 			}
 
-			const { clientId, userAgent } = validation;
+			const { clientId, userAgent, ownerId } = validation;
+
+			if (!ownerId) {
+				return new Response(
+					JSON.stringify({
+						status: "error",
+						message: "Website missing organization",
+					}),
+					{
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			}
 
 			const parseResult = batchedCustomEventSpansSchema.safeParse(body);
 
@@ -344,7 +357,18 @@ const app = new Elysia()
 				return botError.error;
 			}
 
-			await insertCustomEventSpans(parseResult.data, clientId);
+			const events = parseResult.data.map((event) => ({
+				owner_id: ownerId,
+				website_id: clientId,
+				timestamp: event.timestamp,
+				event_name: event.eventName,
+				path: event.path,
+				properties: event.properties as Record<string, unknown> | undefined,
+				anonymous_id: event.anonymousId ?? undefined,
+				session_id: event.sessionId ?? undefined,
+			}));
+
+			await insertCustomEvents(events);
 
 			return new Response(
 				JSON.stringify({

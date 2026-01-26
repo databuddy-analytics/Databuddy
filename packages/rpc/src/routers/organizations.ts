@@ -59,9 +59,7 @@ async function getBillingOwnerId(
 }
 
 /**
- * Gets the billing owner ID for a specific website.
- * If website belongs to an organization, returns the org owner's ID.
- * Otherwise, returns the website owner's ID.
+ * Gets the billing owner ID for a specific website (workspace owner).
  */
 async function getBillingOwnerFromWebsite(websiteId: string): Promise<{
 	customerId: string | null;
@@ -69,40 +67,30 @@ async function getBillingOwnerFromWebsite(websiteId: string): Promise<{
 }> {
 	const [website] = await db
 		.select({
-			userId: websites.userId,
 			organizationId: websites.organizationId,
 		})
 		.from(websites)
 		.where(eq(websites.id, websiteId))
 		.limit(1);
 
-	if (!website) {
+	if (!website?.organizationId) {
 		return { customerId: null, isOrganization: false };
 	}
 
-	// If website belongs to an organization, get the org owner
-	if (website.organizationId) {
-		const [orgOwner] = await db
-			.select({ ownerId: member.userId })
-			.from(member)
-			.where(
-				and(
-					eq(member.organizationId, website.organizationId),
-					eq(member.role, "owner")
-				)
+	const [orgOwner] = await db
+		.select({ ownerId: member.userId })
+		.from(member)
+		.where(
+			and(
+				eq(member.organizationId, website.organizationId),
+				eq(member.role, "owner")
 			)
-			.limit(1);
+		)
+		.limit(1);
 
-		return {
-			customerId: orgOwner?.ownerId ?? null,
-			isOrganization: true,
-		};
-	}
-
-	// Otherwise, use the website owner
 	return {
-		customerId: website.userId,
-		isOrganization: false,
+		customerId: orgOwner?.ownerId ?? null,
+		isOrganization: true,
 	};
 }
 
@@ -281,12 +269,12 @@ export const organizationsRouter = {
 	}),
 
 	/**
-	 * Get billing context for the current user/organization/website.
-	 * Returns the correct plan based on ownership.
+	 * Get billing context for the current user/workspace/website.
+	 * Returns the correct plan based on workspace ownership.
 	 *
 	 * Priority:
-	 * 1. If websiteId is provided, use the website/org owner's plan
-	 * 2. If user is authenticated, use their org/personal plan
+	 * 1. If websiteId is provided, use the workspace owner's plan
+	 * 2. If user is authenticated, use their workspace plan
 	 * 3. Otherwise, return free tier defaults
 	 */
 	getBillingContext: publicProcedure

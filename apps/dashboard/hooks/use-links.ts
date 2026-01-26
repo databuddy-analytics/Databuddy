@@ -58,10 +58,7 @@ export const getLinksListKey = (organizationId?: string): QueryKey =>
 export const getLinkByIdKey = (id: string, organizationId: string): QueryKey =>
 	orpc.links.get.queryKey({ input: { id, organizationId } });
 
-const addLinkToList = (
-	old: Link[] | undefined,
-	newLink: Link
-): Link[] => {
+const addLinkToList = (old: Link[] | undefined, newLink: Link): Link[] => {
 	if (!old) {
 		return [newLink];
 	}
@@ -78,9 +75,7 @@ const updateLinkInList = (
 	if (!old) {
 		return old;
 	}
-	return old.map((link) =>
-		link.id === updatedLink.id ? updatedLink : link
-	);
+	return old.map((link) => (link.id === updatedLink.id ? updatedLink : link));
 };
 
 const removeLinkFromList = (
@@ -101,7 +96,10 @@ export function useLinks(options?: { enabled?: boolean }) {
 		...orpc.links.list.queryOptions({
 			input: { organizationId: activeOrganization?.id ?? "" },
 		}),
-		enabled: options?.enabled !== false && !isLoadingOrganization && !!activeOrganization?.id,
+		enabled:
+			options?.enabled !== false &&
+			!isLoadingOrganization &&
+			!!activeOrganization?.id,
 	});
 
 	return {
@@ -122,9 +120,11 @@ export function useLink(id: string, organizationId: string) {
 	});
 }
 
-function addPercentages<T extends { clicks: number }>(data: T[]): (T & { percentage: number })[] {
+function addPercentages<T extends { clicks: number }>(
+	data: T[]
+): (T & { percentage: number })[] {
 	const total = data.reduce((sum, item) => sum + item.clicks, 0);
-	return data.map(item => ({
+	return data.map((item) => ({
 		...item,
 		percentage: total > 0 ? (item.clicks / total) * 100 : 0,
 	}));
@@ -163,13 +163,49 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 	const stats = useMemo<LinkStats>(() => {
 		const totalClicksData = getDataForQuery("link-stats", "link_total_clicks");
 		const clicksByDayData = getDataForQuery("link-stats", "link_clicks_by_day");
-		const referrersByDayData = getDataForQuery("link-stats", "link_referrers_by_day") as TimeSeriesEntry[];
-		const countriesByDayData = getDataForQuery("link-stats", "link_countries_by_day") as TimeSeriesEntry[];
-		const topReferrersData = getDataForQuery("link-stats", "link_top_referrers") as Array<{ name: string; referrer: string; clicks: number }>;
-		const topCountriesData = getDataForQuery("link-stats", "link_top_countries") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topRegionsData = getDataForQuery("link-stats", "link_top_regions") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topCitiesData = getDataForQuery("link-stats", "link_top_cities") as Array<{ name: string; country_code: string; country_name: string; clicks: number }>;
-		const topDevicesData = getDataForQuery("link-stats", "link_top_devices") as Array<{ name: string; clicks: number }>;
+		const referrersByDayData = getDataForQuery(
+			"link-stats",
+			"link_referrers_by_day"
+		) as TimeSeriesEntry[];
+		const countriesByDayData = getDataForQuery(
+			"link-stats",
+			"link_countries_by_day"
+		) as TimeSeriesEntry[];
+		const topReferrersData = getDataForQuery(
+			"link-stats",
+			"link_top_referrers"
+		) as Array<{ name: string; referrer: string; clicks: number }>;
+		const topCountriesData = getDataForQuery(
+			"link-stats",
+			"link_top_countries"
+		) as Array<{
+			name: string;
+			country_code: string;
+			country_name: string;
+			clicks: number;
+		}>;
+		const topRegionsData = getDataForQuery(
+			"link-stats",
+			"link_top_regions"
+		) as Array<{
+			name: string;
+			country_code: string;
+			country_name: string;
+			clicks: number;
+		}>;
+		const topCitiesData = getDataForQuery(
+			"link-stats",
+			"link_top_cities"
+		) as Array<{
+			name: string;
+			country_code: string;
+			country_name: string;
+			clicks: number;
+		}>;
+		const topDevicesData = getDataForQuery(
+			"link-stats",
+			"link_top_devices"
+		) as Array<{ name: string; clicks: number }>;
 
 		return {
 			totalClicks: (totalClicksData[0] as { total?: number })?.total ?? 0,
@@ -220,7 +256,10 @@ export function useUpdateLink() {
 			);
 
 			if (activeOrganization?.id) {
-				const getByIdKey = getLinkByIdKey(updatedLink.id, activeOrganization.id);
+				const getByIdKey = getLinkByIdKey(
+					updatedLink.id,
+					activeOrganization.id
+				);
 				queryClient.setQueryData(getByIdKey, updatedLink);
 			}
 		},

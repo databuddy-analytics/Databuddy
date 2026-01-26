@@ -1,0 +1,234 @@
+---
+title: React / Next.js
+description: React component and hooks for tracking analytics in React and Next.js applications
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy React SDK provides a component for script injection and hooks for custom event tracking. Works with React 18+, Next.js 13+, and other React-based frameworks.
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/react`
+</Callout>
+
+## Installation
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk`}
+</CodeBlock>
+
+## Quick Start
+
+Add the `Databuddy` component to your root layout:
+
+<CodeBlock language="tsx" filename="app/layout.tsx">
+  {`import { Databuddy } from "@databuddy/sdk/react";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Databuddy
+          clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+          trackWebVitals
+          trackErrors
+        />
+        {children}
+      </body>
+    </html>
+  );
+}`}
+</CodeBlock>
+
+## Databuddy Component
+
+The `Databuddy` component injects the tracking script and configures analytics. It renders nothing to the DOM.
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `clientId` | `string` | Auto-detected | Your client ID (auto-detects from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`) |
+| `disabled` | `boolean` | `false` | Disable all tracking |
+| `debug` | `boolean` | `false` | Enable debug logging |
+
+### Tracking Features
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `trackPerformance` | `true` | Page load times and navigation timing |
+| `trackWebVitals` | `false` | Core Web Vitals (LCP, FID, CLS, TTFB) |
+| `trackErrors` | `false` | JavaScript errors and unhandled rejections |
+| `trackOutgoingLinks` | `false` | Clicks on external links |
+| `trackScrollDepth` | `false` | Scroll depth milestones (25%, 50%, 75%, 100%) |
+| `trackInteractions` | `false` | Button clicks and form submissions |
+| `trackAttributes` | `false` | Elements with `data-track` attributes |
+| `trackHashChanges` | `false` | Hash changes in the URL |
+
+### Batching & Performance
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `enableBatching` | `false` | Group events into batches |
+| `batchSize` | `10` | Events per batch (1-50) |
+| `batchTimeout` | `2000` | Batch timeout in ms |
+| `samplingRate` | `1.0` | Event sampling rate (0.0-1.0) |
+
+### Privacy
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `skipPatterns` | `string[]` | Skip tracking on matching paths |
+| `maskPatterns` | `string[]` | Mask sensitive URL segments |
+
+### Full Example
+
+<CodeBlock language="tsx" filename="app/layout.tsx">
+  {`import { Databuddy } from "@databuddy/sdk/react";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Databuddy
+          clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+          trackWebVitals
+          trackErrors
+          trackOutgoingLinks
+          trackScrollDepth
+          enableBatching
+          batchSize={20}
+          disabled={process.env.NODE_ENV === "development"}
+          skipPatterns={["/admin/**", "/internal/*"]}
+          maskPatterns={["/users/*", "/orders/**"]}
+        />
+        {children}
+      </body>
+    </html>
+  );
+}`}
+</CodeBlock>
+
+## Tracking Events
+
+Import tracker helpers to track custom events:
+
+<CodeBlock language="tsx">
+  {`import { track } from "@databuddy/sdk";
+
+function SignupButton() {
+  const handleClick = () => {
+    track("signup_clicked", {
+      source: "header",
+      plan: "pro"
+    });
+  };
+
+  return <button onClick={handleClick}>Sign Up</button>;
+}`}
+</CodeBlock>
+
+### Common Patterns
+
+<CodeBlock language="tsx">
+  {`import { track, trackError } from "@databuddy/sdk";
+
+// E-commerce
+track("product_viewed", {
+  product_id: "P12345",
+  category: "Electronics",
+  price: 299.99
+});
+
+track("purchase_completed", {
+  order_id: "ORD-789",
+  revenue: 299.99,
+  currency: "USD"
+});
+
+// Feature usage
+track("feature_used", {
+  feature: "export_data",
+  user_tier: "premium"
+});
+
+// Error tracking
+try {
+  await riskyOperation();
+} catch (error) {
+  trackError(error.message, {
+    stack: error.stack,
+    context: "checkout_flow"
+  });
+}`}
+</CodeBlock>
+
+## Environment Setup
+
+<CodeBlock language="bash" filename=".env.local">
+  {`NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id-here`}
+</CodeBlock>
+
+The component auto-detects the client ID from this environment variable.
+
+## Pages Router
+
+For Next.js Pages Router, add to `_app.tsx`:
+
+<CodeBlock language="tsx" filename="pages/_app.tsx">
+  {`import { Databuddy } from "@databuddy/sdk/react";
+import type { AppProps } from "next/app";
+
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <>
+      <Databuddy
+        clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+        trackWebVitals
+      />
+      <Component {...pageProps} />
+    </>
+  );
+}`}
+</CodeBlock>
+
+## Development Mode
+
+Disable tracking during development:
+
+<CodeBlock language="tsx">
+  {`<Databuddy
+  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+  disabled={process.env.NODE_ENV === "development"}
+/>`}
+</CodeBlock>
+
+## Data Attributes
+
+Enable automatic tracking of elements with `data-track` attributes:
+
+<CodeBlock language="tsx">
+  {`<Databuddy
+  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+  trackAttributes
+/>
+
+{/* Automatically tracks button_click event */}
+<button data-track="signup_clicked" data-plan="premium">
+  Sign Up
+</button>`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+    track, flush, getAnonymousId, and more helper functions
+  </Card>
+  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+    Control feature rollouts with FlagsProvider and hooks
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    Complete configuration reference
+  </Card>
+</Cards>

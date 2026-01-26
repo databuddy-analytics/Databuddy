@@ -1,6 +1,5 @@
 "use client";
 
-import { LinkIcon } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,10 +144,9 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 
 	return (
 		<div className="space-y-4">
-			<div className="flex items-center gap-2">
-				<LinkIcon size={16} weight="duotone" />
-				<span className="font-medium text-sm">UTM Parameters</span>
-			</div>
+			<p className="text-muted-foreground text-xs">
+				Add campaign tracking parameters to your destination URL
+			</p>
 
 			<div className="grid gap-3">
 				{UTM_FIELDS.map((field) => (
@@ -158,7 +156,7 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 							<span className="ml-1 text-muted-foreground">({field.key})</span>
 						</Label>
 						<Input
-							className="h-8 text-sm"
+							className="h-9"
 							id={field.key}
 							onChange={(e) => handleFieldChange(field.key, e.target.value)}
 							placeholder={field.placeholder}
@@ -171,7 +169,7 @@ export function UtmBuilder({ value, onChange, baseUrl }: UtmBuilderProps) {
 			{previewUrl && previewUrl !== baseUrl && (
 				<div className="space-y-1.5">
 					<Label className="text-muted-foreground text-xs">Preview URL</Label>
-					<div className="break-all rounded border bg-muted/50 p-2 font-mono text-xs">
+					<div className="break-all rounded border bg-muted/30 p-2.5 font-mono text-xs">
 						{previewUrl}
 					</div>
 				</div>

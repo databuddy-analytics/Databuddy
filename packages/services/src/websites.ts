@@ -5,7 +5,6 @@ import {
 	eq,
 	type InferInsertModel,
 	type InferSelectModel,
-	isNull,
 	websites,
 } from "@databuddy/db";
 import { WebsiteCache } from "./website-cache";
@@ -44,10 +43,8 @@ export class ValidationError extends Error {
 	}
 }
 
-export const buildWebsiteFilter = (userId: string, organizationId?: string) =>
-	organizationId
-		? eq(websites.organizationId, organizationId)
-		: and(eq(websites.userId, userId), isNull(websites.organizationId));
+export const buildWebsiteFilter = (organizationId: string) =>
+	eq(websites.organizationId, organizationId);
 
 export class WebsiteService {
 	private readonly database: typeof db;
@@ -87,20 +84,11 @@ export class WebsiteService {
 			});
 			if (website) {
 				await this.cache?.setWebsite(website);
-
-				if (website.organizationId) {
-					await this.cache?.setWebsiteByDomain(
-						website.domain,
-						{ organizationId: website.organizationId },
-						website
-					);
-				} else if (website.userId) {
-					await this.cache?.setWebsiteByDomain(
-						website.domain,
-						{ userId: website.userId },
-						website
-					);
-				}
+				await this.cache?.setWebsiteByDomain(
+					website.domain,
+					website.organizationId,
+					website
+				);
 			}
 
 			return website ?? null;
@@ -112,87 +100,34 @@ export class WebsiteService {
 
 	async getByDomain(
 		domain: string,
-		filter?: { userId?: string | null; organizationId?: string | null }
+		organizationId: string
 	): Promise<Website | null> {
 		try {
 			const normalizedDomain = domain.trim().toLowerCase();
 
-			if (filter?.organizationId) {
-				const cached = await this.cache?.getWebsiteByDomain(normalizedDomain, {
-					organizationId: filter.organizationId,
-				});
-				if (cached) {
-					return cached;
-				}
-			} else if (filter?.userId) {
-				const cached = await this.cache?.getWebsiteByDomain(normalizedDomain, {
-					userId: filter.userId,
-				});
-				if (cached) {
-					return cached;
-				}
-			}
-
-			const domainCondition = eq(websites.domain, normalizedDomain);
-
-			const userCondition =
-				filter?.userId === undefined
-					? undefined
-					: filter.userId === null
-						? isNull(websites.userId)
-						: eq(websites.userId, filter.userId);
-
-			const organizationCondition =
-				filter?.organizationId === undefined
-					? undefined
-					: filter.organizationId === null
-						? isNull(websites.organizationId)
-						: eq(websites.organizationId, filter.organizationId);
-
-			if (userCondition && organizationCondition) {
-				return (
-					(await this.database.query.websites.findFirst({
-						where: and(domainCondition, userCondition, organizationCondition),
-					})) ?? null
-				);
-			}
-
-			if (userCondition) {
-				return (
-					(await this.database.query.websites.findFirst({
-						where: and(domainCondition, userCondition),
-					})) ?? null
-				);
-			}
-
-			if (organizationCondition) {
-				return (
-					(await this.database.query.websites.findFirst({
-						where: and(domainCondition, organizationCondition),
-					})) ?? null
-				);
+			const cached = await this.cache?.getWebsiteByDomain(
+				normalizedDomain,
+				organizationId
+			);
+			if (cached) {
+				return cached;
 			}
 
 			const website =
 				(await this.database.query.websites.findFirst({
-					where: domainCondition,
+					where: and(
+						eq(websites.domain, normalizedDomain),
+						eq(websites.organizationId, organizationId)
+					),
 				})) ?? null;
 
 			if (website) {
 				await this.cache?.setWebsite(website);
-				if (website.organizationId) {
-					await this.cache?.setWebsiteByDomain(
-						website.domain,
-						{ organizationId: website.organizationId },
-						website
-					);
-				} else if (website.userId) {
-					await this.cache?.setWebsiteByDomain(
-						website.domain,
-						{ userId: website.userId },
-						website
-					);
-				}
+				await this.cache?.setWebsiteByDomain(
+					website.domain,
+					website.organizationId,
+					website
+				);
 			}
 
 			return website;
@@ -204,67 +139,17 @@ export class WebsiteService {
 		}
 	}
 
-	async list(filter?: {
-		userId?: string | null;
-		organizationId?: string | null;
-	}): Promise<Website[]> {
+	async list(organizationId: string): Promise<Website[]> {
 		try {
-			if (!filter) {
-				return await this.database.query.websites.findMany();
-			}
-
-			const cacheFilter = {
-				userId:
-					filter.userId && typeof filter.userId === "string"
-						? filter.userId
-						: undefined,
-				organizationId:
-					filter.organizationId && typeof filter.organizationId === "string"
-						? filter.organizationId
-						: undefined,
-			};
-
-			const cached = await this.cache?.getList(cacheFilter);
+			const cached = await this.cache?.getList(organizationId);
 			if (cached) {
 				return cached;
 			}
 
-			const userCondition =
-				filter.userId === undefined
-					? undefined
-					: filter.userId === null
-						? isNull(websites.userId)
-						: eq(websites.userId, filter.userId);
-
-			const organizationCondition =
-				filter.organizationId === undefined
-					? undefined
-					: filter.organizationId === null
-						? isNull(websites.organizationId)
-						: eq(websites.organizationId, filter.organizationId);
-
-			if (userCondition && organizationCondition) {
-				return await this.database.query.websites.findMany({
-					where: and(userCondition, organizationCondition),
-				});
-			}
-
-			if (userCondition) {
-				return await this.database.query.websites.findMany({
-					where: userCondition,
-				});
-			}
-
-			if (organizationCondition) {
-				const rows = await this.database.query.websites.findMany({
-					where: organizationCondition,
-				});
-				await this.cache?.setList(cacheFilter, rows);
-				return rows;
-			}
-
-			const rows = await this.database.query.websites.findMany();
-			await this.cache?.setList(cacheFilter, rows);
+			const rows = await this.database.query.websites.findMany({
+				where: eq(websites.organizationId, organizationId),
+			});
+			await this.cache?.setList(organizationId, rows);
 			return rows;
 		} catch (error) {
 			console.error("WebsiteService.list failed:", { error: String(error) });
@@ -275,10 +160,10 @@ export class WebsiteService {
 	async create(input: CreateWebsiteInput): Promise<Website> {
 		const normalizedDomain = input.domain.trim().toLowerCase();
 
-		const existing = await this.getByDomain(normalizedDomain, {
-			userId: input.userId ?? undefined,
-			organizationId: input.organizationId ?? undefined,
-		});
+		const existing = await this.getByDomain(
+			normalizedDomain,
+			input.organizationId
+		);
 
 		if (existing) {
 			throw new DuplicateDomainError(normalizedDomain);
@@ -300,34 +185,12 @@ export class WebsiteService {
 			}
 
 			await this.cache?.setWebsite(created);
-
-			if (created.organizationId) {
-				await this.cache?.setWebsiteByDomain(
-					created.domain,
-					{ organizationId: created.organizationId },
-					created
-				);
-			} else if (created.userId) {
-				await this.cache?.setWebsiteByDomain(
-					created.domain,
-					{ userId: created.userId },
-					created
-				);
-			}
-
-			await this.cache?.invalidateLists({
-				userIds: created.userId ? [created.userId] : [],
-				organizationIds: created.organizationId ? [created.organizationId] : [],
-				userOrgPairs:
-					created.userId && created.organizationId
-						? [
-								{
-									userId: created.userId,
-									organizationId: created.organizationId,
-								},
-							]
-						: [],
-			});
+			await this.cache?.setWebsiteByDomain(
+				created.domain,
+				created.organizationId,
+				created
+			);
+			await this.cache?.invalidateLists([created.organizationId]);
 
 			return created;
 		} catch (error) {
@@ -373,10 +236,10 @@ export class WebsiteService {
 			const normalizedDomain = updates.domain.trim().toLowerCase();
 
 			if (normalizedDomain !== before.domain.toLowerCase()) {
-				const existing = await this.getByDomain(normalizedDomain, {
-					userId: before.userId ?? undefined,
-					organizationId: before.organizationId ?? undefined,
-				});
+				const existing = await this.getByDomain(
+					normalizedDomain,
+					before.organizationId
+				);
 
 				if (existing && existing.id !== id) {
 					throw new DuplicateDomainError(normalizedDomain);
@@ -399,73 +262,28 @@ export class WebsiteService {
 
 			await this.cache?.setWebsite(updated);
 
-			if (before) {
-				const scopeChanged =
-					before.organizationId !== updated.organizationId ||
-					before.userId !== updated.userId;
-				const domainChanged =
-					before.domain.toLowerCase() !== updated.domain.toLowerCase();
+			const scopeChanged = before.organizationId !== updated.organizationId;
+			const domainChanged =
+				before.domain.toLowerCase() !== updated.domain.toLowerCase();
 
-				if (scopeChanged || domainChanged) {
-					if (before.organizationId) {
-						await this.cache?.deleteWebsiteByDomain(before.domain, {
-							organizationId: before.organizationId,
-						});
-					} else if (before.userId) {
-						await this.cache?.deleteWebsiteByDomain(before.domain, {
-							userId: before.userId,
-						});
-					}
-				}
-			}
-
-			if (updated.organizationId) {
-				await this.cache?.setWebsiteByDomain(
-					updated.domain,
-					{ organizationId: updated.organizationId },
-					updated
-				);
-			} else if (updated.userId) {
-				await this.cache?.setWebsiteByDomain(
-					updated.domain,
-					{ userId: updated.userId },
-					updated
+			if (scopeChanged || domainChanged) {
+				await this.cache?.deleteWebsiteByDomain(
+					before.domain,
+					before.organizationId
 				);
 			}
 
-			const userIds = Array.from(
-				new Set([before?.userId, updated.userId].filter(Boolean) as string[])
+			await this.cache?.setWebsiteByDomain(
+				updated.domain,
+				updated.organizationId,
+				updated
 			);
+
 			const organizationIds = Array.from(
-				new Set(
-					[before?.organizationId, updated.organizationId].filter(
-						Boolean
-					) as string[]
-				)
+				new Set([before.organizationId, updated.organizationId])
 			);
 
-			const userOrgPairs = (() => {
-				const pairs: Array<{ userId: string; organizationId: string }> = [];
-				if (before?.userId && before.organizationId) {
-					pairs.push({
-						userId: before.userId,
-						organizationId: before.organizationId,
-					});
-				}
-				if (updated.userId && updated.organizationId) {
-					pairs.push({
-						userId: updated.userId,
-						organizationId: updated.organizationId,
-					});
-				}
-				return pairs;
-			})();
-
-			await this.cache?.invalidateLists({
-				userIds,
-				organizationIds,
-				userOrgPairs,
-			});
+			await this.cache?.invalidateLists(organizationIds);
 
 			return updated;
 		} catch (error) {
@@ -502,30 +320,11 @@ export class WebsiteService {
 			}
 
 			await this.cache?.deleteWebsiteById(id);
-
-			if (deleted.organizationId) {
-				await this.cache?.deleteWebsiteByDomain(deleted.domain, {
-					organizationId: deleted.organizationId,
-				});
-			} else if (deleted.userId) {
-				await this.cache?.deleteWebsiteByDomain(deleted.domain, {
-					userId: deleted.userId,
-				});
-			}
-
-			await this.cache?.invalidateLists({
-				userIds: deleted.userId ? [deleted.userId] : [],
-				organizationIds: deleted.organizationId ? [deleted.organizationId] : [],
-				userOrgPairs:
-					deleted.userId && deleted.organizationId
-						? [
-								{
-									userId: deleted.userId,
-									organizationId: deleted.organizationId,
-								},
-							]
-						: [],
-			});
+			await this.cache?.deleteWebsiteByDomain(
+				deleted.domain,
+				deleted.organizationId
+			);
+			await this.cache?.invalidateLists([deleted.organizationId]);
 		} catch (error) {
 			if (
 				error instanceof DuplicateDomainError ||

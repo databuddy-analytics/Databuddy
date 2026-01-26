@@ -59,13 +59,14 @@ export class EmailProvider extends BaseProvider {
 		const metadataText =
 			payload.metadata && Object.keys(payload.metadata).length > 0
 				? `\n\nAdditional Information:\n${Object.entries(payload.metadata)
-					.map(([key, value]) => `${key}: ${String(value)}`)
-					.join("\n")}`
+						.map(([key, value]) => `${key}: ${String(value)}`)
+						.join("\n")}`
 				: "";
 
 		const text = `${payload.message}${metadataText}`;
-		const html = `<h1>${payload.title}</h1><p>${payload.message.replace(/\n/g, "<br>")}</p>${metadataText ? `<pre>${metadataText.replace(/\n/g, "<br>")}</pre>` : ""
-			}`;
+		const html = `<h1>${payload.title}</h1><p>${payload.message.replace(/\n/g, "<br>")}</p>${
+			metadataText ? `<pre>${metadataText.replace(/\n/g, "<br>")}</pre>` : ""
+		}`;
 
 		const to = payload.metadata?.to as string | string[] | undefined;
 		if (!to) {

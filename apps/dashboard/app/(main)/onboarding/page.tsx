@@ -2,7 +2,6 @@
 
 import {
 	ArrowRightIcon,
-	BuildingsIcon,
 	CheckIcon,
 	CodeIcon,
 	GlobeIcon,
@@ -13,12 +12,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { WebsiteDialog } from "@/components/website-dialog";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { useWebsites } from "@/hooks/use-websites";
+import { useWebsitesLight } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 
 interface OnboardingStep {
@@ -138,30 +135,13 @@ function OnboardingStepCard({
 
 export default function OnboardingPage() {
 	const router = useRouter();
-	const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
 	const [showCreateWebsiteDialog, setShowCreateWebsiteDialog] = useState(false);
 
-	const { organizations, activeOrganization } = useOrganizations();
-	const { websites } = useWebsites();
+	const { websites } = useWebsitesLight();
 
-	// Determine completion status
-	const hasOrganization = Boolean(
-		organizations?.length > 0 || !!activeOrganization
-	);
 	const hasWebsite = Boolean(websites && websites.length > 0);
 
 	const steps: OnboardingStep[] = [
-		{
-			id: "organization",
-			title: "Create Organization",
-			description: hasOrganization
-				? "Organization created successfully"
-				: "Set up your team workspace for collaboration",
-			icon: BuildingsIcon,
-			completed: hasOrganization,
-			action: hasOrganization ? undefined : () => setShowCreateOrgDialog(true),
-			actionLabel: "Create Organization",
-		},
 		{
 			id: "website",
 			title: "Add Your Website",
@@ -257,12 +237,6 @@ export default function OnboardingPage() {
 					)}
 				</div>
 			</div>
-
-			{/* Dialogs */}
-			<CreateOrganizationDialog
-				isOpen={showCreateOrgDialog}
-				onClose={() => setShowCreateOrgDialog(false)}
-			/>
 
 			<WebsiteDialog
 				onOpenChange={setShowCreateWebsiteDialog}

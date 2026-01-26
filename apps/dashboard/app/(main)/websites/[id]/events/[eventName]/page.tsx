@@ -9,8 +9,6 @@ import {
 	UserIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -19,9 +17,8 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { formatTime, fromNow } from "@/lib/time";
 import { useEventDetailData } from "./use-event-detail";
-
-dayjs.extend(relativeTime);
 
 const formatNumber = (value: number | null | undefined): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
@@ -220,10 +217,10 @@ export default function EventDetailPage() {
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2">
 												<span className="text-foreground text-sm">
-													{dayjs(event.timestamp).fromNow()}
+													{fromNow(event.timestamp)}
 												</span>
 												<span className="text-muted-foreground/40 text-xs">
-													{dayjs(event.timestamp).format("HH:mm:ss")}
+													{formatTime(event.timestamp)}
 												</span>
 											</div>
 											{event.path && (

@@ -90,7 +90,7 @@ export function initErrorTracking(tracker: BaseTracker) {
 			} else {
 				try {
 					message = JSON.stringify(reason);
-				} catch { }
+				} catch {}
 			}
 		}
 
@@ -98,7 +98,7 @@ export function initErrorTracking(tracker: BaseTracker) {
 			return;
 		}
 
-		trackError({	
+		trackError({
 			message,
 			stack: reason?.stack,
 			errorType: "UnhandledRejection",

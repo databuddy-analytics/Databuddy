@@ -1,0 +1,17 @@
+{
+  "title": "SDK Reference",
+  "description": "Complete SDK documentation for React, Vue, Node.js, and vanilla JavaScript",
+  "icon": "Code",
+  "pages": [
+    "index",
+    "react",
+    "vue",
+    "vanilla-js",
+    "node",
+    "tracker",
+    "ai",
+    "feature-flags",
+    "server-flags",
+    "configuration"
+  ]
+}

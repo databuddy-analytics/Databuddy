@@ -1,4 +1,4 @@
-export type ApiScope = "read:data" | "write:llm";
+export type ApiScope = "read:data" | "write:llm" | "track:events";
 
 export type ApiResourceType =
 	| "global"

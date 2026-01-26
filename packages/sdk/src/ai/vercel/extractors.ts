@@ -1,6 +1,6 @@
 /**
  * Token extraction utilities for Vercel AI SDK
- * 
+ *
  * Adapted from PostHog's AI SDK implementation:
  * https://github.com/PostHog/posthog-js/tree/main/packages/ai
  */

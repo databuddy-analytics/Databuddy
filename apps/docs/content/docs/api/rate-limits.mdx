@@ -1,0 +1,158 @@
+---
+title: Rate Limits
+description: API rate limiting by plan and endpoint type
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+API endpoints are rate-limited to ensure fair usage and system stability. Limits vary by subscription plan and endpoint type.
+
+## Plan-Based Rate Limits
+
+| Plan | Requests per 10 seconds | Requests per minute |
+|------|------------------------|---------------------|
+| Free | 50 | 300 |
+| Hobby | 100 | 600 |
+| Pro | 200 | 1,200 |
+| Scale | 500 | 3,000 |
+
+## Endpoint-Specific Limits
+
+Some endpoints have additional restrictions regardless of plan:
+
+| Endpoint Type | Limit | Notes |
+|---------------|-------|-------|
+| Public endpoints | 100/min | Unauthenticated requests |
+| Authentication | 30/min | Login, token refresh |
+| Custom SQL queries | 30/min | Higher computational cost |
+| Batch operations | Varies | Based on batch size |
+
+## Rate Limit Headers
+
+Every response includes rate limit information:
+
+<CodeBlock 
+  language="http"
+  code={`X-RateLimit-Limit: 200
+X-RateLimit-Remaining: 195
+X-RateLimit-Reset: 1704067210`}
+/>
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests allowed in the window |
+| `X-RateLimit-Remaining` | Requests remaining in current window |
+| `X-RateLimit-Reset` | Unix timestamp when the limit resets |
+
+## Rate Limit Exceeded Response
+
+When you exceed the rate limit, you'll receive a 429 response:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "success": false,
+  "error": "Rate limit exceeded. Please try again later.",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "limit": 200,
+  "remaining": 0,
+  "reset": "2024-01-01T12:00:10.000Z",
+  "retryAfter": 8
+}`}
+/>
+
+The `retryAfter` field indicates seconds until you can retry.
+
+## Best Practices
+
+### 1. Use Batch Queries
+
+Instead of multiple individual requests, combine queries:
+
+<CodeBlock 
+  language="json"
+  code={`// Instead of 3 separate requests:
+// POST /v1/query { parameters: ["summary"] }
+// POST /v1/query { parameters: ["pages"] }
+// POST /v1/query { parameters: ["traffic"] }
+
+// Use one batch request:
+POST /v1/query
+{
+  "parameters": ["summary", "pages", "traffic"],
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31"
+}`}
+/>
+
+### 2. Implement Exponential Backoff
+
+When rate limited, wait progressively longer:
+
+<CodeBlock 
+  language="typescript"
+  code={`async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('X-RateLimit-Reset');
+      const waitTime = retryAfter 
+        ? (parseInt(retryAfter) * 1000) - Date.now()
+        : Math.pow(2, attempt) * 1000;
+      
+      await new Promise(resolve => setTimeout(resolve, Math.max(waitTime, 1000)));
+      continue;
+    }
+    
+    return response;
+  }
+  throw new Error('Max retries exceeded');
+}`}
+/>
+
+### 3. Cache Responses
+
+Cache analytics data that doesn't change frequently:
+
+<CodeBlock 
+  language="typescript"
+  code={`// Cache daily summaries - they won't change after the day ends
+const cacheKey = \`summary-\${websiteId}-\${date}\`;
+const cached = await cache.get(cacheKey);
+
+if (cached) {
+  return cached;
+}
+
+const data = await fetchAnalytics(websiteId, date);
+
+// Cache for 1 hour for recent data, longer for historical
+const ttl = isToday(date) ? 3600 : 86400;
+await cache.set(cacheKey, data, ttl);
+
+return data;`}
+/>
+
+### 4. Monitor Rate Limit Headers
+
+Track remaining requests proactively:
+
+<CodeBlock 
+  language="typescript"
+  code={`const response = await fetch(url, options);
+const remaining = parseInt(response.headers.get('X-RateLimit-Remaining') || '0');
+
+if (remaining < 10) {
+  console.warn(\`Rate limit warning: \${remaining} requests remaining\`);
+  // Slow down or queue requests
+}`}
+/>
+
+## Increasing Your Limits
+
+<Callout type="info">
+  Need higher rate limits? [Upgrade your plan](https://app.databuddy.cc/billing/plans) or [contact us](mailto:help@databuddy.cc) for custom enterprise limits.
+</Callout>
+
+Enterprise customers can request custom rate limits based on their specific use case.

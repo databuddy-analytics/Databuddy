@@ -6,12 +6,6 @@ import { orpc } from "@/lib/orpc";
 export function useWebsiteTransfer(organizationId?: string) {
 	const queryClient = useQueryClient();
 
-	const { data: personalWebsites, isLoading: isLoadingPersonal } = useQuery({
-		...orpc.websites.list.queryOptions({
-			input: { organizationId: undefined },
-		}),
-	});
-
 	const { data: organizationWebsites, isLoading: isLoadingOrg } = useQuery({
 		...orpc.websites.list.queryOptions({
 			input: { organizationId },
@@ -37,12 +31,11 @@ export function useWebsiteTransfer(organizationId?: string) {
 	});
 
 	return {
-		personalWebsites: personalWebsites ?? [],
 		organizationWebsites: organizationWebsites ?? [],
-		isLoading: isLoadingPersonal || isLoadingOrg,
+		isLoading: isLoadingOrg,
 		isTransferring: transferMutation.isPending,
 		transferWebsite: (
-			args: { websiteId: string; organizationId?: string },
+			args: { websiteId: string; organizationId: string },
 			opts?: { onSuccess?: () => void; onError?: (error: unknown) => void }
 		) => {
 			transferMutation.mutate(args, {

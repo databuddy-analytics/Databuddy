@@ -1,24 +1,12 @@
 import { websitesApi } from "@databuddy/auth";
-import {
-	and,
-	db,
-	eq,
-	inArray,
-	isNull,
-	or,
-	uptimeSchedules,
-	websites,
-} from "@databuddy/db";
+import { and, db, eq, inArray, member, uptimeSchedules } from "@databuddy/db";
 import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
 import { Client } from "@upstash/qstash";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { protectedProcedure } from "../orpc";
-import {
-	authorizeUptimeScheduleAccess,
-	authorizeWebsiteAccess,
-} from "../utils/auth";
+import { authorizeUptimeScheduleAccess } from "../utils/auth";
 
 const client = new Client({ token: process.env.UPSTASH_QSTASH_TOKEN });
 
@@ -51,7 +39,6 @@ async function getScheduleAndAuthorize(
 	scheduleId: string,
 	context: Parameters<typeof authorizeUptimeScheduleAccess>[0]
 ) {
-
 	const schedule = await db.query.uptimeSchedules.findFirst({
 		where: eq(uptimeSchedules.id, scheduleId),
 	});
@@ -61,8 +48,7 @@ async function getScheduleAndAuthorize(
 	}
 
 	await authorizeUptimeScheduleAccess(context, {
-		websiteId: schedule.websiteId,
-		userId: schedule.userId,
+		organizationId: schedule.organizationId,
 	});
 
 	return schedule;
@@ -101,7 +87,16 @@ export const uptimeRouter = {
 	getScheduleByWebsiteId: protectedProcedure
 		.input(z.object({ websiteId: z.string() }))
 		.handler(async ({ context, input }) => {
-			await authorizeWebsiteAccess(context, input.websiteId, "read");
+			const { success } = await websitesApi.hasPermission({
+				headers: context.headers,
+				body: { permissions: { website: ["read"] } },
+			});
+			if (!success) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Missing workspace permissions.",
+				});
+			}
+
 			const schedule = await db.query.uptimeSchedules.findFirst({
 				where: eq(uptimeSchedules.websiteId, input.websiteId),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
@@ -113,21 +108,11 @@ export const uptimeRouter = {
 		.input(
 			z
 				.object({
-					websiteId: z.string().optional(),
 					organizationId: z.string().optional(),
 				})
 				.default({})
 		)
 		.handler(async ({ context, input }) => {
-			if (input.websiteId) {
-				await authorizeWebsiteAccess(context, input.websiteId, "read");
-				return await db.query.uptimeSchedules.findMany({
-					where: eq(uptimeSchedules.websiteId, input.websiteId),
-					orderBy: (table, { desc }) => [desc(table.createdAt)],
-					with: { website: true },
-				});
-			}
-
 			if (input.organizationId) {
 				const { success } = await websitesApi.hasPermission({
 					headers: context.headers,
@@ -135,61 +120,30 @@ export const uptimeRouter = {
 				});
 				if (!success) {
 					throw new ORPCError("FORBIDDEN", {
-						message: "Missing organization permissions.",
+						message: "Missing workspace permissions.",
 					});
 				}
 
-				// Get websites for this organization
-				const orgWebsites = await db.query.websites.findMany({
-					where: eq(websites.organizationId, input.organizationId),
-					columns: { id: true },
-				});
-
-				const orgWebsiteIds = orgWebsites.map((w) => w.id);
-
-				if (orgWebsiteIds.length === 0) {
-					return [];
-				}
-
 				return await db.query.uptimeSchedules.findMany({
-					where: inArray(uptimeSchedules.websiteId, orgWebsiteIds),
+					where: eq(uptimeSchedules.organizationId, input.organizationId),
 					orderBy: (table, { desc }) => [desc(table.createdAt)],
 					with: { website: true },
 				});
 			}
 
-			// Personal monitors only (no organizationId)
-			// Get personal websites
-			const personalWebsites = await db.query.websites.findMany({
-				where: and(
-					eq(websites.userId, context.user.id),
-					isNull(websites.organizationId)
-				),
-				columns: { id: true },
+			// No workspace specified - get monitors from all user's workspaces
+			const userMemberships = await db.query.member.findMany({
+				where: eq(member.userId, context.user.id),
+				columns: { organizationId: true },
 			});
+			const orgIds = userMemberships.map((m) => m.organizationId);
 
-			const personalWebsiteIds = personalWebsites.map((w) => w.id);
-
-			// Filter schedules:
-			// 1. Personal monitors (no websiteId) created by user
-			// 2. Monitors for personal websites
-			const scheduleConditions = [
-				and(
-					eq(uptimeSchedules.userId, context.user.id),
-					isNull(uptimeSchedules.websiteId)
-				),
-			];
-
-			if (personalWebsiteIds.length > 0) {
-				scheduleConditions.push(
-					inArray(uptimeSchedules.websiteId, personalWebsiteIds)
-				);
+			if (orgIds.length === 0) {
+				return [];
 			}
 
-			const conditions = [or(...scheduleConditions)];
-
 			return await db.query.uptimeSchedules.findMany({
-				where: and(...conditions),
+				where: inArray(uptimeSchedules.organizationId, orgIds),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
 				with: { website: true },
 			});
@@ -211,8 +165,7 @@ export const uptimeRouter = {
 			}
 
 			await authorizeUptimeScheduleAccess(context, {
-				websiteId: dbSchedule.websiteId,
-				userId: dbSchedule.userId,
+				organizationId: dbSchedule.organizationId,
 			});
 
 			return {
@@ -226,8 +179,11 @@ export const uptimeRouter = {
 			z.object({
 				url: z.string().url(),
 				name: z.string().optional(),
+				organizationId: z.string(),
 				websiteId: z.string().optional(),
 				granularity: granularityEnum,
+				timeout: z.number().int().min(1000).max(120_000).optional(),
+				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z
 					.object({
 						enabled: z.boolean(),
@@ -238,39 +194,42 @@ export const uptimeRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (input.websiteId) {
-				await authorizeWebsiteAccess(context, input.websiteId, "update");
+			const { success } = await websitesApi.hasPermission({
+				headers: context.headers,
+				body: { permissions: { website: ["update"] } },
+			});
+			if (!success) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Missing workspace permissions.",
+				});
 			}
 
 			const existing = await db.query.uptimeSchedules.findFirst({
 				where: and(
 					eq(uptimeSchedules.url, input.url),
-					eq(uptimeSchedules.userId, context.user.id),
-					...(input.websiteId
-						? [eq(uptimeSchedules.websiteId, input.websiteId)]
-						: [])
+					eq(uptimeSchedules.organizationId, input.organizationId)
 				),
 			});
 
 			if (existing) {
 				throw new ORPCError("CONFLICT", {
-					message: input.websiteId
-						? "Monitor already exists for this website"
-						: "Monitor already exists for this URL",
+					message: "Monitor already exists for this URL in this workspace",
 				});
 			}
 
-			const scheduleId = input.websiteId || randomUUIDv7();
+			const scheduleId = randomUUIDv7();
 
 			await db.insert(uptimeSchedules).values({
 				id: scheduleId,
+				organizationId: input.organizationId,
 				websiteId: input.websiteId ?? null,
-				userId: context.user.id,
 				url: input.url,
 				name: input.name ?? null,
 				granularity: input.granularity,
 				cron: CRON_GRANULARITIES[input.granularity],
 				isPaused: false,
+				timeout: input.timeout ?? null,
+				cacheBust: input.cacheBust ?? false,
 				jsonParsingConfig: input.jsonParsingConfig ?? null,
 			});
 
@@ -308,6 +267,8 @@ export const uptimeRouter = {
 			z.object({
 				scheduleId: z.string(),
 				granularity: granularityEnum.optional(),
+				timeout: z.number().int().min(1000).max(120_000).nullish(),
+				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z
 					.object({
 						enabled: z.boolean(),
@@ -323,6 +284,8 @@ export const uptimeRouter = {
 			const updateData: {
 				granularity?: string;
 				cron?: string;
+				timeout?: number | null;
+				cacheBust?: boolean;
 				jsonParsingConfig?: unknown;
 				updatedAt: Date;
 			} = {
@@ -334,6 +297,14 @@ export const uptimeRouter = {
 				await createQStashSchedule(input.scheduleId, input.granularity);
 				updateData.granularity = input.granularity;
 				updateData.cron = CRON_GRANULARITIES[input.granularity];
+			}
+
+			if (input.timeout !== undefined) {
+				updateData.timeout = input.timeout;
+			}
+
+			if (input.cacheBust !== undefined) {
+				updateData.cacheBust = input.cacheBust;
 			}
 
 			if (input.jsonParsingConfig !== undefined) {

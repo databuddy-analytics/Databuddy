@@ -3,13 +3,13 @@ import { formatCurrency, formatMetricNumber } from "@/lib/formatters";
 interface PivotRow {
 	date: string;
 	[key: string]: string | number | null | undefined;
-};
+}
 
 interface TimeSeriesPivotInput {
 	date: string;
 	seriesKey: string;
 	value: number;
-};
+}
 
 export const formatDurationMs = (value?: number) => {
 	if (value === undefined || value === null || Number.isNaN(value)) {
@@ -41,7 +41,10 @@ export const pivotTimeSeries = (
 	const seriesTotals = new Map<string, number>();
 
 	for (const row of rows) {
-		seriesTotals.set(row.seriesKey, (seriesTotals.get(row.seriesKey) ?? 0) + row.value);
+		seriesTotals.set(
+			row.seriesKey,
+			(seriesTotals.get(row.seriesKey) ?? 0) + row.value
+		);
 	}
 
 	const sortedSeries = Array.from(seriesTotals.entries())

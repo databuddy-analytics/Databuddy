@@ -7,8 +7,8 @@ import {
 	LightningIcon,
 	SparkleIcon,
 } from "@phosphor-icons/react";
-import dayjs from "dayjs";
 import { Badge } from "@/components/ui/badge";
+import { formatLocalTime } from "@/lib/time";
 import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
 
 interface SessionEventTimelineProps {
@@ -42,7 +42,7 @@ function EventItem({
 	const Icon = getEventIcon(event.event_name, hasProperties);
 	const displayPath = getDisplayPath(event.path || "");
 	const fullPath = cleanUrl(event.path || "");
-	const time = dayjs(event.time).format("h:mm:ss A");
+	const time = formatLocalTime(event.time, "h:mm:ss A");
 
 	return (
 		<div className="grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 px-2 py-1.5 text-sm">

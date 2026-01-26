@@ -6,31 +6,22 @@ import { captureError, record } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
+const DEFAULT_TIMEOUT = 30_000;
+const MAX_REDIRECTS = 10;
+const MAX_RETRIES = 3;
+
 const CONFIG = {
 	userAgent:
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-	timeout: 30_000,
-	maxRedirects: 10,
-	maxRetries: 3,
 	region:
 		process.env.PROBE_REGION || process.env.RAILWAY_REPLICA_REGION || "default",
 	env: process.env.NODE_ENV || "prod",
 } as const;
 
-const BROWSER_HEADERS = {
-	"User-Agent": CONFIG.userAgent,
-	Accept:
-		"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-	"Accept-Language": "en-US,en;q=0.9",
-	"Accept-Encoding": "gzip, deflate, br",
-	"Cache-Control": "no-cache",
-	DNT: "1",
-	"Sec-Fetch-Dest": "document",
-	"Sec-Fetch-Mode": "navigate",
-	"Sec-Fetch-Site": "none",
-	"Sec-Fetch-User": "?1",
-	"Upgrade-Insecure-Requests": "1",
-} as const;
+interface FetchOptions {
+	timeout?: number;
+	cacheBust?: boolean;
+}
 
 interface FetchSuccess {
 	ok: true;
@@ -52,14 +43,18 @@ interface FetchFailure {
 	error: string;
 }
 
-export function lookupSchedule(id: string): Promise<
-	ActionResult<{
-		id: string;
-		url: string;
-		websiteId: string | null;
-		jsonParsingConfig: unknown;
-	}>
-> {
+interface ScheduleData {
+	id: string;
+	url: string;
+	websiteId: string | null;
+	jsonParsingConfig: unknown;
+	timeout: number | null;
+	cacheBust: boolean;
+}
+
+export function lookupSchedule(
+	id: string
+): Promise<ActionResult<ScheduleData>> {
 	return record("uptime.lookup_schedule", async () => {
 		try {
 			const schedule = await db.query.uptimeSchedules.findFirst({
@@ -84,6 +79,8 @@ export function lookupSchedule(id: string): Promise<
 					url: schedule.url,
 					websiteId: schedule.websiteId,
 					jsonParsingConfig: schedule.jsonParsingConfig,
+					timeout: schedule.timeout,
+					cacheBust: schedule.cacheBust,
 				},
 			};
 		} catch (error) {
@@ -102,119 +99,182 @@ function normalizeUrl(url: string): string {
 	return `https://${url}`;
 }
 
-function pingWebsite(
-	originalUrl: string
+function buildHeaders(acceptEncoding: string): Record<string, string> {
+	return {
+		"User-Agent": CONFIG.userAgent,
+		Accept:
+			"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+		"Accept-Language": "en-US,en;q=0.9",
+		"Accept-Encoding": acceptEncoding,
+		"Cache-Control": "no-cache",
+		DNT: "1",
+		"Sec-Fetch-Dest": "document",
+		"Sec-Fetch-Mode": "navigate",
+		"Sec-Fetch-Site": "none",
+		"Sec-Fetch-User": "?1",
+		"Upgrade-Insecure-Requests": "1",
+	};
+}
+
+function applyCacheBust(url: string): string {
+	const parsed = new URL(url);
+	parsed.searchParams.set("_cb", Math.random().toString(36).substring(2, 10));
+	return parsed.toString();
+}
+
+async function fetchWithRedirects(
+	startUrl: string,
+	timeout: number,
+	acceptEncoding: string,
+	cacheBust: boolean
 ): Promise<FetchSuccess | FetchFailure> {
-	return record("uptime.ping_website", async () => {
-		const url = normalizeUrl(originalUrl);
-		const abort = new AbortController();
-		const timeout = setTimeout(() => abort.abort(), CONFIG.timeout);
-		const start = performance.now();
+	const abort = new AbortController();
+	const timer = setTimeout(() => abort.abort(), timeout);
+	const start = performance.now();
+	const headers = buildHeaders(acceptEncoding);
 
-		try {
-			let redirects = 0;
-			let current = url;
-			let useHead = true;
-			let headSucceeded = false;
+	try {
+		let redirects = 0;
+		let current = cacheBust ? applyCacheBust(startUrl) : startUrl;
+		let ttfb = 0;
 
-			while (redirects < CONFIG.maxRedirects) {
-				const method = useHead ? "HEAD" : "GET";
-				const res = await fetch(current, {
-					method,
-					signal: abort.signal,
-					redirect: "manual",
-					headers: BROWSER_HEADERS,
-				});
+		while (redirects < MAX_REDIRECTS) {
+			const res = await fetch(current, {
+				method: "GET",
+				signal: abort.signal,
+				redirect: "manual",
+				headers,
+			});
 
-				const ttfb = performance.now() - start;
+			if (ttfb === 0) {
+				ttfb = performance.now() - start;
+			}
 
-				if (res.status >= 300 && res.status < 400) {
-					const location = res.headers.get("location");
-					if (!location) {
-						break;
-					}
-
-					redirects += 1;
-					current = new URL(location, current).toString();
-					continue;
+			if (res.status >= 300 && res.status < 400) {
+				const location = res.headers.get("location");
+				if (!location) {
+					break;
 				}
+				redirects += 1;
+				current = new URL(location, current).toString();
+				continue;
+			}
 
-				if (useHead && res.status === 405) {
-					useHead = false;
-					continue;
-				}
+			const contentType = res.headers.get("content-type");
+			const isJson = contentType?.includes("application/json");
 
-				if (useHead && res.ok) {
-					headSucceeded = true;
-					useHead = false;
-					continue;
-				}
+			let content: string;
+			let parsedJson: unknown | undefined;
 
-				const contentType = res.headers.get("content-type");
-				const isJson = contentType?.includes("application/json");
+			if (isJson) {
+				parsedJson = await res.json();
+				content = JSON.stringify(parsedJson);
+			} else {
+				content = await res.text();
+			}
 
-				let content: string;
-				let parsedJson: unknown | undefined;
+			const total = performance.now() - start;
+			clearTimeout(timer);
 
-				if (isJson) {
-					parsedJson = await res.json();
-					content = JSON.stringify(parsedJson);
-				} else {
-					content = await res.text();
-				}
-
-				const total = performance.now() - start;
-
-				clearTimeout(timeout);
-
-				if (!res.ok) {
-					return {
-						ok: false,
-						statusCode: res.status,
-						ttfb: Math.round(ttfb),
-						total: Math.round(total),
-						error: `HTTP ${res.status}: ${res.statusText}`,
-					};
-				}
-
-				const contentLength = res.headers.get("content-length");
-				const bytes =
-					method === "HEAD" && contentLength && !headSucceeded
-						? Number.parseInt(contentLength, 10)
-						: new Blob([content]).size;
-
+			if (!res.ok) {
 				return {
-					ok: true,
+					ok: false,
 					statusCode: res.status,
 					ttfb: Math.round(ttfb),
 					total: Math.round(total),
-					redirects,
-					bytes,
-					content,
-					contentType,
-					parsedJson,
+					error: `HTTP ${res.status}: ${res.statusText}`,
 				};
 			}
 
-			throw new Error(`Too many redirects (max ${CONFIG.maxRedirects})`);
-		} catch (error) {
-			clearTimeout(timeout);
-			const total = performance.now() - start;
+			return {
+				ok: true,
+				statusCode: res.status,
+				ttfb: Math.round(ttfb),
+				total: Math.round(total),
+				redirects,
+				bytes: new Blob([content]).size,
+				content,
+				contentType,
+				parsedJson,
+			};
+		}
 
-			let message = "Unknown error";
-			if (error instanceof Error) {
-				message =
-					error.name === "AbortError"
-						? `Timeout after ${CONFIG.timeout}ms`
-						: error.message;
+		throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`);
+	} catch (error) {
+		clearTimeout(timer);
+		const total = performance.now() - start;
+
+		if (error instanceof Error && error.name === "AbortError") {
+			return {
+				ok: false,
+				statusCode: 0,
+				ttfb: 0,
+				total: Math.round(total),
+				error: `Timeout after ${timeout}ms`,
+			};
+		}
+
+		throw error;
+	}
+}
+
+function isEncodingFailure(message: string): boolean {
+	return (
+		message.includes("unexpected end") ||
+		message.includes("incorrect header check") ||
+		message.includes("invalid stored block") ||
+		message.includes("incomplete")
+	);
+}
+
+function pingWebsite(
+	originalUrl: string,
+	options: FetchOptions = {}
+): Promise<FetchSuccess | FetchFailure> {
+	return record("uptime.ping_website", async () => {
+		const url = normalizeUrl(originalUrl);
+		const timeout = options.timeout ?? DEFAULT_TIMEOUT;
+		const cacheBust = options.cacheBust ?? false;
+
+		try {
+			const result = await fetchWithRedirects(
+				url,
+				timeout,
+				"gzip, deflate, br",
+				cacheBust
+			);
+
+			if (!result.ok && isEncodingFailure(result.error)) {
+				return fetchWithRedirects(url, timeout, "gzip, deflate", cacheBust);
+			}
+
+			return result;
+		} catch (error) {
+			if (error instanceof Error && isEncodingFailure(error.message)) {
+				try {
+					return await fetchWithRedirects(
+						url,
+						timeout,
+						"gzip, deflate",
+						cacheBust
+					);
+				} catch {
+					return {
+						ok: false,
+						statusCode: 0,
+						ttfb: 0,
+						total: 0,
+						error: error.message,
+					};
+				}
 			}
 
 			return {
 				ok: false,
 				statusCode: 0,
 				ttfb: 0,
-				total: Math.round(total),
-				error: message,
+				total: 0,
+				error: error instanceof Error ? error.message : "Unknown error",
 			};
 		}
 	});
@@ -296,21 +356,18 @@ function getProbeMetadata(): Promise<{ ip: string; region: string }> {
 	});
 }
 
-function calculateStatus(isUp: boolean): {
-	status: number;
-	retries: number;
-	streak: number;
-} {
-	const { UP, DOWN } = MonitorStatus;
-	return { status: isUp ? UP : DOWN, retries: 0, streak: 0 };
+export interface CheckOptions {
+	timeout?: number;
+	cacheBust?: boolean;
+	jsonParsingConfig?: JsonParsingConfig | null;
 }
 
 export function checkUptime(
 	siteId: string,
 	url: string,
 	attempt = 1,
-	_maxRetries: number = CONFIG.maxRetries,
-	jsonParsingConfig?: JsonParsingConfig | null
+	_maxRetries: number = MAX_RETRIES,
+	options: CheckOptions = {}
 ): Promise<ActionResult<UptimeData>> {
 	return record("uptime.check_uptime", async () => {
 		try {
@@ -318,11 +375,14 @@ export function checkUptime(
 			const timestamp = Date.now();
 
 			const [pingResult, probe] = await Promise.all([
-				pingWebsite(normalizedUrl),
+				pingWebsite(normalizedUrl, {
+					timeout: options.timeout,
+					cacheBust: options.cacheBust,
+				}),
 				getProbeMetadata(),
 			]);
 
-			const { status, retries, streak } = calculateStatus(pingResult.ok);
+			const status = pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN;
 
 			if (!pingResult.ok) {
 				const cert = await checkCertificate(normalizedUrl);
@@ -338,8 +398,8 @@ export function checkUptime(
 						ttfb_ms: pingResult.ttfb,
 						total_ms: pingResult.total,
 						attempt,
-						retries,
-						failure_streak: streak,
+						retries: 0,
+						failure_streak: 0,
 						response_bytes: 0,
 						content_hash: "",
 						redirect_count: 0,
@@ -362,12 +422,12 @@ export function checkUptime(
 				),
 			]);
 
-			const jsonData = jsonParsingConfig
+			const jsonData = options.jsonParsingConfig
 				? parseJsonResponse(
-					pingResult.parsedJson ?? pingResult.content,
-					pingResult.contentType,
-					jsonParsingConfig
-				)
+						pingResult.parsedJson ?? pingResult.content,
+						pingResult.contentType,
+						options.jsonParsingConfig
+					)
 				: null;
 
 			return {
@@ -381,8 +441,8 @@ export function checkUptime(
 					ttfb_ms: pingResult.ttfb,
 					total_ms: pingResult.total,
 					attempt,
-					retries,
-					failure_streak: streak,
+					retries: 0,
+					failure_streak: 0,
 					response_bytes: pingResult.bytes,
 					content_hash: contentHash,
 					redirect_count: pingResult.redirects,

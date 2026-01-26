@@ -1,0 +1,164 @@
+---
+title: SDK Overview
+description: Complete SDK documentation for tracking analytics across all platforms
+---
+
+import { Card, Cards, Callout, CodeBlock } from "@/components/docs";
+
+The Databuddy SDK provides framework-specific components, helper functions, and a vanilla JavaScript library for tracking analytics events. Choose your preferred integration method.
+
+<Callout type="info">
+  **SDK Version**: 2.0.0+ | **Package**: `@databuddy/sdk` | **CDN**: cdn.databuddy.cc
+</Callout>
+
+## Installation
+
+<CodeBlock language="bash">
+  {`# Using bun (recommended)
+bun add @databuddy/sdk
+
+# Using npm
+npm install @databuddy/sdk`}
+</CodeBlock>
+
+For vanilla JavaScript, no installation needed - load directly from CDN.
+
+## Quick Start
+
+<Cards>
+  <Card title="React / Next.js" href="/docs/sdk/react">
+    Component and hooks for React applications
+  </Card>
+  <Card title="Vue" href="/docs/sdk/vue">
+    Component and composables for Vue applications
+  </Card>
+  <Card title="Vanilla JavaScript" href="/docs/sdk/vanilla-js">
+    CDN script for any website without dependencies
+  </Card>
+  <Card title="Node.js / Server" href="/docs/sdk/node">
+    Server-side tracking for APIs, webhooks, and background jobs
+  </Card>
+</Cards>
+
+## Core Features
+
+<Cards>
+  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+    Helper functions: track, flush, getAnonymousId, getTrackingParams
+  </Card>
+  <Card title="AI/LLM Analytics" href="/docs/sdk/ai">
+    Track LLM calls, costs, and token usage with Vercel AI SDK
+  </Card>
+  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+    Control feature rollouts and A/B testing in React and Vue
+  </Card>
+  <Card title="Server Flags" href="/docs/sdk/server-flags">
+    Server-side feature flag evaluation for Node.js
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    All configuration options across platforms
+  </Card>
+</Cards>
+
+## Import Paths
+
+The SDK is organized into submodules for tree-shaking:
+
+| Import | Description |
+|--------|-------------|
+| `@databuddy/sdk` | Core tracker helpers (track, flush, etc.) |
+| `@databuddy/sdk/react` | React component and hooks |
+| `@databuddy/sdk/vue` | Vue component and composables |
+| `@databuddy/sdk/node` | Node.js server-side SDK |
+| `@databuddy/sdk/ai` | AI/LLM analytics (Vercel AI SDK) |
+
+## Example: React/Next.js
+
+<CodeBlock language="tsx">
+  {`import { Databuddy } from "@databuddy/sdk/react";
+import { track } from "@databuddy/sdk";
+
+// In your root layout
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <Databuddy
+          clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+          trackWebVitals
+          trackErrors
+        />
+        {children}
+      </body>
+    </html>
+  );
+}
+
+// In any component
+function SignupButton() {
+  return (
+    <button onClick={() => track("signup_clicked", { source: "header" })}>
+      Sign Up
+    </button>
+  );
+}`}
+</CodeBlock>
+
+## Example: Node.js
+
+<CodeBlock language="tsx">
+  {`import { Databuddy } from "@databuddy/sdk/node";
+
+const client = new Databuddy({
+  clientId: process.env.DATABUDDY_CLIENT_ID!,
+  enableBatching: true
+});
+
+await client.track({
+  name: "api_call",
+  properties: { endpoint: "/api/users", method: "GET" }
+});
+
+await client.flush(); // Important in serverless!`}
+</CodeBlock>
+
+## Example: AI/LLM Tracking
+
+<CodeBlock language="tsx">
+  {`import { databuddyLLM } from "@databuddy/sdk/ai";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const { track } = databuddyLLM({
+  apiKey: process.env.DATABUDDY_API_KEY
+});
+
+const result = await generateText({
+  model: track(openai("gpt-4o")),
+  prompt: "Hello, world!"
+});`}
+</CodeBlock>
+
+## TypeScript Support
+
+The SDK is fully typed with excellent TypeScript support:
+
+<CodeBlock language="tsx">
+  {`import { track, type DatabuddyTracker } from "@databuddy/sdk";
+import type { DatabuddyConfig } from "@databuddy/sdk/react";
+import type { CustomEventInput } from "@databuddy/sdk/node";`}
+</CodeBlock>
+
+## Related Documentation
+
+<Cards>
+  <Card title="Getting Started" href="/docs/getting-started">
+    Quick setup guide and basic configuration
+  </Card>
+  <Card title="API Reference" href="/docs/api">
+    Direct HTTP API for custom implementations
+  </Card>
+  <Card title="Dashboard Guide" href="/docs/dashboard">
+    Navigate your analytics dashboard
+  </Card>
+</Cards>

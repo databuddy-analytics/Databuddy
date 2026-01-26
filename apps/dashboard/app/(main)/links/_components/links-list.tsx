@@ -3,7 +3,7 @@
 import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
 import { EmptyState } from "@/components/empty-state";
 import type { Link } from "@/hooks/use-links";
-import { LinkItem } from "./link-item";
+import { LinksList as LinksListComponent } from "./link-item";
 
 interface LinksListProps {
 	links: Link[];
@@ -46,17 +46,12 @@ export function LinksList({
 	}
 
 	return (
-		<div className="w-full overflow-x-auto">
-			{links.map((link) => (
-				<LinkItem
-					key={link.id}
-					link={link}
-					onClick={onLinkClick}
-					onDelete={onDeleteLink}
-					onEdit={onEditLink}
-					onShowQr={onShowQr}
-				/>
-			))}
-		</div>
+		<LinksListComponent
+			links={links}
+			onClick={onLinkClick}
+			onDelete={onDeleteLink}
+			onEdit={onEditLink}
+			onShowQr={onShowQr}
+		/>
 	);
 }

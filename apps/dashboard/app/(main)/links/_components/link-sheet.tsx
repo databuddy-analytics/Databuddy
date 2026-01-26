@@ -5,13 +5,16 @@ import {
 	AndroidLogoIcon,
 	AppleLogoIcon,
 	CalendarIcon,
+	CaretDownIcon,
 	CircleNotchIcon,
 	CopyIcon,
 	DeviceMobileIcon,
-	LinkIcon,
+	ImageIcon,
+	LinkSimpleIcon,
 	QrCodeIcon,
 } from "@phosphor-icons/react";
 import dayjs from "dayjs";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -40,7 +43,8 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Link, useCreateLink, useUpdateLink } from "@/hooks/use-links";
-import { AdvancedOptions } from "./advanced-options";
+import { cn } from "@/lib/utils";
+import { ExpirationPicker } from "./expiration-picker";
 import { LinkQrCode } from "./link-qr-code";
 import { type OgData, OgPreview } from "./og-preview";
 import {
@@ -54,6 +58,71 @@ import {
 const LINKS_BASE_URL = "dby.sh";
 
 const slugRegex = /^[a-zA-Z0-9_-]+$/;
+const domainRegex = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}/i;
+
+type ExpandedSection = "expiration" | "devices" | "utm" | "social" | null;
+
+function CollapsibleSection({
+	icon: Icon,
+	title,
+	badge,
+	isExpanded,
+	onToggleAction,
+	children,
+}: {
+	icon: React.ComponentType<{ size?: number; weight?: "duotone" | "fill" }>;
+	title: string;
+	badge?: number | boolean;
+	isExpanded: boolean;
+	onToggleAction: () => void;
+	children: React.ReactNode;
+}) {
+	const showBadge =
+		badge !== undefined && (typeof badge === "boolean" ? badge : badge > 0);
+
+	return (
+		<div className="space-y-2">
+			<div className="-mx-3">
+				<button
+					className="group flex w-full cursor-pointer items-center justify-between rounded px-3 py-3 text-left transition-colors hover:bg-accent/50"
+					onClick={onToggleAction}
+					type="button"
+				>
+					<div className="flex items-center gap-2.5">
+						<Icon size={16} weight="duotone" />
+						<span className="font-medium text-sm">{title}</span>
+						{showBadge && (
+							<span className="flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+								{typeof badge === "boolean" ? "✓" : badge}
+							</span>
+						)}
+					</div>
+					<CaretDownIcon
+						className={cn(
+							"size-4 text-muted-foreground transition-transform duration-200",
+							isExpanded && "rotate-180"
+						)}
+						weight="fill"
+					/>
+				</button>
+			</div>
+
+			<AnimatePresence initial={false}>
+				{isExpanded && (
+					<motion.div
+						animate={{ height: "auto", opacity: 1 }}
+						className="overflow-hidden"
+						exit={{ height: 0, opacity: 0 }}
+						initial={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.2, ease: "easeInOut" }}
+					>
+						<div className="pb-4">{children}</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</div>
+	);
+}
 
 const formSchema = z.object({
 	name: z
@@ -96,59 +165,23 @@ const formSchema = z.object({
 		.string()
 		.optional()
 		.or(z.literal(""))
-		.refine(
-			(val) => {
-				if (!val || val === "") {
-					return true;
-				}
-				try {
-					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
-					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
-				} catch {
-					return false;
-				}
-			},
-			{ message: "Please enter a valid URL" }
-		),
+		.refine((val) => !val || domainRegex.test(val.split("/").at(0) ?? ""), {
+			message: "Enter a valid URL",
+		}),
 	iosUrl: z
 		.string()
 		.optional()
 		.or(z.literal(""))
-		.refine(
-			(val) => {
-				if (!val || val === "") {
-					return true;
-				}
-				try {
-					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
-					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
-				} catch {
-					return false;
-				}
-			},
-			{ message: "Please enter a valid URL" }
-		),
+		.refine((val) => !val || domainRegex.test(val.split("/").at(0) ?? ""), {
+			message: "Enter a valid URL",
+		}),
 	androidUrl: z
 		.string()
 		.optional()
 		.or(z.literal(""))
-		.refine(
-			(val) => {
-				if (!val || val === "") {
-					return true;
-				}
-				try {
-					const urlToTest = val.startsWith("http") ? val : `https://${val}`;
-					const url = new URL(urlToTest);
-					return url.protocol === "http:" || url.protocol === "https:";
-				} catch {
-					return false;
-				}
-			},
-			{ message: "Please enter a valid URL" }
-		),
+		.refine((val) => !val || domainRegex.test(val.split("/").at(0) ?? ""), {
+			message: "Enter a valid URL",
+		}),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -187,12 +220,16 @@ export function LinkSheet({
 	const createLinkMutation = useCreateLink();
 	const updateLinkMutation = useUpdateLink();
 
-	// UTM parameters state (not part of form, handled separately)
 	const [utmParams, setUtmParams] = useState<UtmParams>(DEFAULT_UTM_PARAMS);
 
-	// OG data state
 	const [ogData, setOgData] = useState<OgData>(DEFAULT_OG_DATA);
 	const [useCustomOg, setUseCustomOg] = useState(false);
+
+	const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
+
+	const toggleSection = (section: ExpandedSection) => {
+		setExpandedSection((prev) => (prev === section ? null : section));
+	};
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
@@ -218,14 +255,11 @@ export function LinkSheet({
 					targetUrl = targetUrl.slice(7);
 				}
 
-				// Parse UTM params from the target URL
 				const parsedUtm = parseUtmFromUrl(targetUrl);
 				setUtmParams(parsedUtm);
 
-				// Strip UTM params for display in the form
 				const urlWithoutUtm = stripUtmFromUrl(targetUrl);
 
-				// Set OG data from link
 				const hasCustomOg =
 					linkData.ogTitle ?? linkData.ogDescription ?? linkData.ogImageUrl;
 				setUseCustomOg(!!hasCustomOg);
@@ -236,6 +270,19 @@ export function LinkSheet({
 					ogVideoUrl: linkData.ogVideoUrl ?? "",
 				});
 
+				const stripProtocol = (url: string | null) => {
+					if (!url) {
+						return "";
+					}
+					if (url.startsWith("https://")) {
+						return url.slice(8);
+					}
+					if (url.startsWith("http://")) {
+						return url.slice(7);
+					}
+					return url;
+				};
+
 				form.reset({
 					name: linkData.name,
 					targetUrl: urlWithoutUtm,
@@ -243,9 +290,9 @@ export function LinkSheet({
 					expiresAt: linkData.expiresAt
 						? dayjs(linkData.expiresAt).format("YYYY-MM-DDTHH:mm")
 						: "",
-					expiredRedirectUrl: linkData.expiredRedirectUrl ?? "",
-					iosUrl: linkData.iosUrl ?? "",
-					androidUrl: linkData.androidUrl ?? "",
+					expiredRedirectUrl: stripProtocol(linkData.expiredRedirectUrl),
+					iosUrl: stripProtocol(linkData.iosUrl),
+					androidUrl: stripProtocol(linkData.androidUrl),
 				});
 			} else {
 				form.reset({
@@ -261,6 +308,7 @@ export function LinkSheet({
 				setOgData(DEFAULT_OG_DATA);
 				setUseCustomOg(false);
 			}
+			setExpandedSection(null);
 		},
 		[form]
 	);
@@ -268,7 +316,6 @@ export function LinkSheet({
 	const prevOpenRef = useRef(open);
 	const prevLinkRef = useRef(link);
 
-	// Reset form when sheet opens or link changes
 	if (open && (!prevOpenRef.current || prevLinkRef.current !== link)) {
 		resetForm(link);
 	}
@@ -285,7 +332,6 @@ export function LinkSheet({
 	const slugValue = form.watch("slug");
 	const targetUrlValue = form.watch("targetUrl");
 
-	// Compute full target URL with protocol for OG preview
 	const fullTargetUrl = useMemo(() => {
 		if (!targetUrlValue) {
 			return "";
@@ -339,7 +385,6 @@ export function LinkSheet({
 			targetUrl = `https://${targetUrl}`;
 		}
 
-		// Append UTM params to target URL
 		targetUrl = appendUtmToUrl(targetUrl, utmParams);
 
 		const slug = formData.slug?.trim() || undefined;
@@ -447,22 +492,24 @@ export function LinkSheet({
 	const { isValid, isDirty } = form.formState;
 	const isSubmitDisabled = !(isValid && isDirty);
 
+	// Watch form values for badge counts
+	const expiresAtValue = form.watch("expiresAt");
+	const iosUrlValue = form.watch("iosUrl");
+	const androidUrlValue = form.watch("androidUrl");
+
+	// Computed badge values
+	const hasExpiration = !!expiresAtValue;
+	const deviceTargetingCount = [iosUrlValue, androidUrlValue].filter((v) =>
+		v?.trim()
+	).length;
+	const utmParamsCount = Object.values(utmParams).filter((v) =>
+		v?.trim()
+	).length;
+	const hasCustomSocial = useCustomOg;
+
 	const renderFormFields = (isEditMode: boolean) => (
 		<div className="space-y-4">
-			<FormField
-				control={form.control}
-				name="name"
-				render={({ field }) => (
-					<FormItem>
-						<FormLabel>Name</FormLabel>
-						<FormControl>
-							<Input placeholder="Marketing Campaign…" {...field} />
-						</FormControl>
-						<FormMessage />
-					</FormItem>
-				)}
-			/>
-
+			{/* Destination URL - Primary field */}
 			<FormField
 				control={form.control}
 				name="targetUrl"
@@ -470,7 +517,7 @@ export function LinkSheet({
 					<FormItem>
 						<FormLabel>
 							Destination URL
-							{!isEditMode && <span className="ml-1 text-destructive">*</span>}
+							<span className="ml-1 text-destructive">*</span>
 						</FormLabel>
 						<FormControl>
 							<Input
@@ -495,81 +542,29 @@ export function LinkSheet({
 								}}
 							/>
 						</FormControl>
-						{!isEditMode && (
-							<FormDescription>
-								Where users will be redirected when clicking your link
-							</FormDescription>
-						)}
-						<FormMessage />
-					</FormItem>
-				)}
-			/>
-
-			<FormField
-				control={form.control}
-				name="slug"
-				render={({ field }) => (
-					<FormItem>
-						<FormLabel>
-							Custom Slug
-							<span className="ml-1 text-muted-foreground">(optional)</span>
-						</FormLabel>
-						<FormControl>
-							<Input
-								placeholder="my-campaign"
-								prefix={`${LINKS_BASE_URL}/`}
-								{...field}
-								onChange={(e) => {
-									const value = e.target.value.replace(/\s/g, "-");
-									field.onChange(value);
-								}}
-							/>
-						</FormControl>
 						<FormDescription>
-							{slugValue && slugValue.length >= 3 ? (
-								<span className="font-mono">
-									{LINKS_BASE_URL}/{slugValue}
-								</span>
-							) : isEditMode ? (
-								"Leave empty to keep the current slug"
-							) : (
-								"Leave empty to generate a random short slug"
-							)}
+							Where users will be redirected when clicking your link
 						</FormDescription>
 						<FormMessage />
 					</FormItem>
 				)}
 			/>
 
+			{/* Separator */}
 			<div className="h-px bg-border" />
 
-			<AdvancedOptions>
-				{/* Link Expiration */}
-				<div className="space-y-3">
-					<div className="flex items-center gap-2">
-						<CalendarIcon size={16} weight="duotone" />
-						<span className="font-medium text-sm">Link Expiration</span>
-					</div>
-
+			{/* Name & Short Link */}
+			<div className="space-y-4">
+				<div className="grid place-items-start gap-4 sm:grid-cols-2">
 					<FormField
 						control={form.control}
-						name="expiresAt"
+						name="name"
 						render={({ field }) => (
 							<FormItem>
-								<Label className="text-xs" htmlFor="expires-at">
-									Expiration Date & Time
-								</Label>
+								<FormLabel>Name</FormLabel>
 								<FormControl>
-									<Input
-										className="h-8 text-sm"
-										id="expires-at"
-										type="datetime-local"
-										{...field}
-									/>
+									<Input placeholder="Marketing Campaign…" {...field} />
 								</FormControl>
-								<FormDescription className="text-xs">
-									Leave empty for no expiration
-								</FormDescription>
 								<FormMessage />
 							</FormItem>
 						)}
@@ -577,115 +572,228 @@ export function LinkSheet({
 
 					<FormField
 						control={form.control}
-						name="expiredRedirectUrl"
+						name="slug"
 						render={({ field }) => (
 							<FormItem>
-								<Label className="text-xs" htmlFor="expired-redirect">
-									Expired Redirect URL
-								</Label>
+								<FormLabel>
+									Short Link
+									{!isEditMode && (
+										<span className="ml-1 text-muted-foreground">
+											(optional)
+										</span>
+									)}
+								</FormLabel>
 								<FormControl>
 									<Input
-										className="h-8 text-sm"
-										id="expired-redirect"
-										placeholder="example.com/expired"
-										prefix="https://"
+										className={cn(isEditMode && "bg-muted")}
+										disabled={isEditMode}
+										placeholder={isEditMode ? "" : "my-campaign"}
+										prefix={`${LINKS_BASE_URL}/`}
 										{...field}
+										onChange={(e) => {
+											const value = e.target.value.replace(/\s/g, "-");
+											field.onChange(value);
+										}}
 									/>
 								</FormControl>
-								<FormDescription className="text-xs">
-									Where to redirect after expiration (optional)
-								</FormDescription>
 								<FormMessage />
 							</FormItem>
 						)}
 					/>
 				</div>
 
-				<div className="h-px bg-border" />
+				{!(isEditMode || slugValue) && (
+					<p className="text-muted-foreground text-xs">
+						Leave empty to auto-generate a random short slug
+					</p>
+				)}
+			</div>
+
+			{/* Separator */}
+			<div className="h-px bg-border" />
+
+			{/* Advanced Options as Collapsible Sections */}
+			<div className="space-y-1">
+				{/* Link Expiration */}
+				<CollapsibleSection
+					badge={hasExpiration}
+					icon={CalendarIcon}
+					isExpanded={expandedSection === "expiration"}
+					onToggleAction={() => toggleSection("expiration")}
+					title="Link Expiration"
+				>
+					<div className="space-y-4">
+						<FormField
+							control={form.control}
+							name="expiresAt"
+							render={({ field }) => (
+								<FormItem>
+									<FormControl>
+										<ExpirationPicker
+											onChange={field.onChange}
+											value={field.value}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+
+						<FormField
+							control={form.control}
+							name="expiredRedirectUrl"
+							render={({ field }) => (
+								<FormItem>
+									<Label className="text-xs" htmlFor="expired-redirect">
+										Redirect URL after expiration
+									</Label>
+									<FormControl>
+										<Input
+											className="h-9"
+											id="expired-redirect"
+											placeholder="example.com/link-expired"
+											prefix="https://"
+											{...field}
+											onChange={(e) => {
+												let url = e.target.value.trim();
+												if (url.startsWith("https://")) {
+													url = url.slice(8);
+												} else if (url.startsWith("http://")) {
+													url = url.slice(7);
+												}
+												field.onChange(url);
+											}}
+										/>
+									</FormControl>
+									<FormDescription className="text-xs">
+										Optional fallback page for expired links
+									</FormDescription>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+					</div>
+				</CollapsibleSection>
 
 				{/* Device Targeting */}
-				<div className="space-y-3">
-					<div className="flex items-center gap-2">
-						<DeviceMobileIcon size={16} weight="duotone" />
-						<span className="font-medium text-sm">Device Targeting</span>
+				<CollapsibleSection
+					badge={deviceTargetingCount}
+					icon={DeviceMobileIcon}
+					isExpanded={expandedSection === "devices"}
+					onToggleAction={() => toggleSection("devices")}
+					title="Device Targeting"
+				>
+					<div className="space-y-4">
+						<p className="text-muted-foreground text-xs">
+							Redirect mobile users to device-specific URLs like app stores
+						</p>
+
+						<div className="grid gap-4 sm:grid-cols-2">
+							<FormField
+								control={form.control}
+								name="iosUrl"
+								render={({ field }) => (
+									<FormItem>
+										<Label
+											className="flex items-center gap-1.5 text-xs"
+											htmlFor="ios-url"
+										>
+											<AppleLogoIcon size={14} weight="fill" />
+											iOS URL
+										</Label>
+										<FormControl>
+											<Input
+												className="h-9"
+												id="ios-url"
+												placeholder="apps.apple.com/app/..."
+												prefix="https://"
+												{...field}
+												onChange={(e) => {
+													let url = e.target.value.trim();
+													if (url.startsWith("https://")) {
+														url = url.slice(8);
+													} else if (url.startsWith("http://")) {
+														url = url.slice(7);
+													}
+													field.onChange(url);
+												}}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+
+							<FormField
+								control={form.control}
+								name="androidUrl"
+								render={({ field }) => (
+									<FormItem>
+										<Label
+											className="flex items-center gap-1.5 text-xs"
+											htmlFor="android-url"
+										>
+											<AndroidLogoIcon size={14} weight="fill" />
+											Android URL
+										</Label>
+										<FormControl>
+											<Input
+												className="h-9"
+												id="android-url"
+												placeholder="play.google.com/store/apps/..."
+												prefix="https://"
+												{...field}
+												onChange={(e) => {
+													let url = e.target.value.trim();
+													if (url.startsWith("https://")) {
+														url = url.slice(8);
+													} else if (url.startsWith("http://")) {
+														url = url.slice(7);
+													}
+													field.onChange(url);
+												}}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+						</div>
 					</div>
-					<p className="text-muted-foreground text-xs">
-						Redirect mobile users to device-specific URLs (e.g., app stores)
-					</p>
-
-					<FormField
-						control={form.control}
-						name="iosUrl"
-						render={({ field }) => (
-							<FormItem>
-								<Label
-									className="flex items-center gap-1.5 text-xs"
-									htmlFor="ios-url"
-								>
-									<AppleLogoIcon size={14} weight="fill" />
-									iOS URL
-								</Label>
-								<FormControl>
-									<Input
-										className="h-8 text-sm"
-										id="ios-url"
-										placeholder="apps.apple.com/app/..."
-										prefix="https://"
-										{...field}
-									/>
-								</FormControl>
-								<FormMessage />
-							</FormItem>
-						)}
-					/>
-
-					<FormField
-						control={form.control}
-						name="androidUrl"
-						render={({ field }) => (
-							<FormItem>
-								<Label
-									className="flex items-center gap-1.5 text-xs"
-									htmlFor="android-url"
-								>
-									<AndroidLogoIcon size={14} weight="fill" />
-									Android URL
-								</Label>
-								<FormControl>
-									<Input
-										className="h-8 text-sm"
-										id="android-url"
-										placeholder="play.google.com/store/apps/..."
-										prefix="https://"
-										{...field}
-									/>
-								</FormControl>
-								<FormMessage />
-							</FormItem>
-						)}
-					/>
-				</div>
-
-				<div className="h-px bg-border" />
+				</CollapsibleSection>
 
 				{/* UTM Parameters */}
-				<UtmBuilder
-					baseUrl={fullTargetUrl}
-					onChange={setUtmParams}
-					value={utmParams}
-				/>
+				<CollapsibleSection
+					badge={utmParamsCount}
+					icon={LinkSimpleIcon}
+					isExpanded={expandedSection === "utm"}
+					onToggleAction={() => toggleSection("utm")}
+					title="UTM Parameters"
+				>
+					<UtmBuilder
+						baseUrl={fullTargetUrl}
+						onChange={setUtmParams}
+						value={utmParams}
+					/>
+				</CollapsibleSection>
 
-				<div className="h-px bg-border" />
-
-				{/* OG Preview */}
-				<OgPreview
-					onChange={setOgData}
-					onUseCustomOgChange={setUseCustomOg}
-					targetUrl={fullTargetUrl}
-					useCustomOg={useCustomOg}
-					value={ogData}
-				/>
-			</AdvancedOptions>
+				{/* Social Preview */}
+				<CollapsibleSection
+					badge={hasCustomSocial}
+					icon={ImageIcon}
+					isExpanded={expandedSection === "social"}
+					onToggleAction={() => toggleSection("social")}
+					title="Social Preview"
+				>
+					<OgPreview
+						onChange={setOgData}
+						onUseCustomOgChange={setUseCustomOg}
+						targetUrl={fullTargetUrl}
+						useCustomOg={useCustomOg}
+						value={ogData}
+					/>
+				</CollapsibleSection>
+			</div>
 		</div>
 	);
 
@@ -695,7 +803,11 @@ export function LinkSheet({
 				<SheetHeader>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<LinkIcon className="text-primary" size={20} weight="duotone" />
+							<LinkSimpleIcon
+								className="text-primary"
+								size={20}
+								weight="duotone"
+							/>
 						</div>
 						<div>
 							<SheetTitle className="text-lg">
@@ -726,7 +838,7 @@ export function LinkSheet({
 										className="focus-visible:ring-0 focus-visible:ring-offset-0"
 										value="details"
 									>
-										<LinkIcon size={16} weight="duotone" />
+										<LinkSimpleIcon size={16} weight="duotone" />
 										Details
 									</TabsTrigger>
 									<TabsTrigger
@@ -743,28 +855,27 @@ export function LinkSheet({
 									value="details"
 								>
 									<SheetBody className="space-y-6">
-										{/* Short URL Preview */}
-										<div className="space-y-2">
-											<span className="font-medium text-foreground text-sm">
-												Short URL
-											</span>
-											<div className="flex items-center gap-2 rounded border bg-muted/50 px-3 py-2.5">
-												<span className="flex-1 truncate font-mono text-sm">
-													{LINKS_BASE_URL}/{link.slug}
-												</span>
-												<Button
-													onClick={handleCopyLink}
-													size="sm"
-													type="button"
-													variant="ghost"
-												>
-													<CopyIcon size={16} />
-													Copy
-												</Button>
+										{/* Short URL Preview - compact and actionable */}
+										<div className="flex items-center justify-between gap-3 rounded border border-primary/20 bg-primary/5 px-3 py-2.5">
+											<div className="min-w-0 flex-1">
+												<p className="text-muted-foreground text-xs">
+													Short URL
+												</p>
+												<p className="truncate font-mono text-sm">
+													https://{LINKS_BASE_URL}/{link.slug}
+												</p>
 											</div>
+											<Button
+												className="shrink-0"
+												onClick={handleCopyLink}
+												size="sm"
+												type="button"
+												variant="secondary"
+											>
+												<CopyIcon size={16} />
+												Copy
+											</Button>
 										</div>
-
-										<div className="h-px bg-border" />
 
 										{renderFormFields(true)}
 									</SheetBody>

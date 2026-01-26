@@ -1,16 +1,20 @@
-export type Website = {
+export interface Website {
 	id: string;
 	domain: string;
 	name: string | null;
 	status: "ACTIVE" | "HEALTHY" | "UNHEALTHY" | "INACTIVE" | "PENDING";
-	userId: string | null;
 	isPublic: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 	deletedAt: Date | null;
-	organizationId: string | null;
+	organizationId: string;
 	integrations: unknown | null;
-};
+	settings: {
+		allowedOrigins?: string[];
+		allowedIps?: string[];
+		[key: string]: unknown;
+	} | null;
+}
 
 export interface MiniChartDataPoint {
 	date: string;

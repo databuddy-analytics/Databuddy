@@ -112,7 +112,7 @@ export function FunnelItem({
 	const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
 		const target = e.target as HTMLElement;
 		if (
-			target.closest("button") ||
+			target.closest("[data-dropdown-trigger]") ||
 			target.closest("[data-radix-popper-content-wrapper]")
 		) {
 			return;
@@ -133,7 +133,7 @@ export function FunnelItem({
 			)}
 		>
 			<button
-				className="group flex cursor-pointer select-none items-center hover:bg-accent/50"
+				className="group flex w-full cursor-pointer select-none items-center hover:bg-accent/50"
 				onClick={handleClick}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
@@ -221,6 +221,7 @@ export function FunnelItem({
 							<Button
 								aria-label="Funnel actions"
 								className="size-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+								data-dropdown-trigger
 								size="icon"
 								variant="ghost"
 							>

@@ -27,15 +27,25 @@ const getCachedApiKeyByHash = cacheable(
 	}
 );
 
+function validateApiKeyFormat(token: string): boolean {
+	if (!token || token.length < 10 || token.length > 200) {
+		return false;
+	}
+	return token.startsWith("dbdy_");
+}
+
 export function extractSecret(headers: Headers): string | null {
 	const xApiKey = headers.get("x-api-key")?.trim();
-	if (xApiKey) {
-		return xApiKey || null;
+	if (xApiKey && validateApiKeyFormat(xApiKey)) {
+		return xApiKey;
 	}
 
 	const auth = headers.get("authorization");
 	if (auth?.toLowerCase().startsWith("bearer ")) {
-		return auth.slice(7).trim() || null;
+		const token = auth.slice(7).trim();
+		if (token && validateApiKeyFormat(token)) {
+			return token;
+		}
 	}
 
 	return null;

@@ -51,3 +51,4 @@ yarn-error.log*
 
 *.tsbuildinfo
 *.buildinfo
+tmp

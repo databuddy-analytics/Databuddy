@@ -40,6 +40,7 @@ interface ApiKeyDetailDialogProps {
 const SCOPES: { value: ApiScope; label: string }[] = [
 	{ value: "read:data", label: "Read Data" },
 	{ value: "write:llm", label: "LLM Tracking" },
+	{ value: "track:events", label: "Event Tracking" },
 ];
 
 const formSchema = z.object({

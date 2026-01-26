@@ -2,9 +2,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+export async function GET(
+	_request: Request,
+	{ params }: { params: Promise<{ slug: string[] }> }
+) {
 	const { slug } = await params;
-	const filePath = path.join(process.cwd(), "content/docs", `${slug.join("/")}.mdx`);
+	const filePath = path.join(
+		process.cwd(),
+		"content/docs",
+		`${slug.join("/")}.mdx`
+	);
 
 	try {
 		const content = await fs.readFile(filePath, "utf-8");
