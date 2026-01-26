@@ -28,11 +28,5 @@ export function BillingHeader() {
 	const pathname = usePathname();
 	const { title, description } = PAGE_TITLES[pathname] ?? DEFAULT_TITLE;
 
-	return (
-		<PageHeader
-			description={description}
-			icon={<CreditCardIcon weight="duotone" />}
-			title={title}
-		/>
-	);
+	return <PageHeader title={title} />;
 }

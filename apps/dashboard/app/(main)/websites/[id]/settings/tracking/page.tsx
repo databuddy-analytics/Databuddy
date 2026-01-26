@@ -11,11 +11,7 @@ export default function TrackingSetupPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				description="Installation code, setup instructions, and troubleshooting"
-				icon={<CodeIcon />}
-				title="Tracking Setup"
-			/>
+			<PageHeader title="Tracking Setup" />
 
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6">
 				<WebsiteTrackingSetupTab websiteId={websiteId} />

@@ -128,7 +128,7 @@ export function OrganizationProvider({
 						</div>
 					</div>
 				</div>
-				<main className="flex-1 overflow-y-auto p-4 sm:p-6">
+				<main className="flex-1 overflow-y-auto p-3 sm:p-4">
 					<Skeleton className="h-32 w-full sm:h-48" />
 					<Skeleton className="h-24 w-full sm:h-32" />
 					<Skeleton className="h-20 w-full sm:h-24" />
@@ -141,8 +141,6 @@ export function OrganizationProvider({
 		return (
 			<div className="flex h-full flex-col">
 				<PageHeader
-					description={description}
-					icon={<Icon />}
 					right={
 						actionButton && (
 							<Button
@@ -181,8 +179,6 @@ export function OrganizationProvider({
 	return (
 		<div className="flex h-full flex-col">
 			<PageHeader
-				description={description}
-				icon={<Icon />}
 				right={
 					actionButton && (
 						<Button

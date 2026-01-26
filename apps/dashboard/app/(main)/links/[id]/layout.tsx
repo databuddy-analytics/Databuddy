@@ -222,7 +222,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 			</div>
 
 			{/* Content */}
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
 				{children}
 			</div>
 		</div>

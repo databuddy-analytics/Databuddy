@@ -129,11 +129,7 @@ function TransferPageContent() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				description="Move this website to a different organization"
-				icon={<ArrowSquareOutIcon />}
-				title="Transfer Website"
-			/>
+			<PageHeader title="Transfer Website" />
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col">

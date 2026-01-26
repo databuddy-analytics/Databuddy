@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
 	experimental: {
 		optimizePackageImports: ["@phosphor-icons/react"],
 	},
+	serverExternalPackages: ["pg"],
 	typescript: {
 		ignoreBuildErrors: true,
 	},
@@ -65,13 +66,18 @@ const nextConfig: NextConfig = {
 			},
 		];
 
+		const isDev = process.env.NODE_ENV === "development";
+		const localhostConnectSrc = isDev
+			? "http://localhost:3000 http://localhost:3001 http://127.0.0.1:3000 http://127.0.0.1:3001 ws://localhost:3000 ws://localhost:3001"
+			: "";
+
 		const cspDirectives = [
 			"default-src 'self'",
 			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://icons.duckduckgo.com https://flagcdn.com https://api.dicebear.com",
-			"connect-src 'self' https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io",
+			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io`.trim(),
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",
@@ -83,7 +89,7 @@ const nextConfig: NextConfig = {
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://icons.duckduckgo.com https://flagcdn.com https://api.dicebear.com",
-			"connect-src 'self' https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc",
+			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc`.trim(),
 			"frame-ancestors 'self' https://*.databuddy.cc https://databuddy.cc",
 			"base-uri 'self'",
 			"form-action 'self'",

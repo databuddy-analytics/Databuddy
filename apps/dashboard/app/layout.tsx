@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import { Databuddy } from "@databuddy/sdk/react";
+import { Agentation } from "agentation";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
@@ -133,6 +134,7 @@ export default function RootLayout({
 					<main className="flex-1">{children}</main>
 				</Providers>
 				<Toaster />
+				{process.env.NODE_ENV === "development" && <Agentation />}
 			</body>
 		</html>
 	);

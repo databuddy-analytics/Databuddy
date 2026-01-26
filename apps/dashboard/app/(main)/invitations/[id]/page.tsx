@@ -345,11 +345,7 @@ export default function AcceptInvitationPage() {
 	if (isLoading) {
 		return (
 			<div className="flex h-full flex-col">
-				<PageHeader
-					description="Loading invitation…"
-					icon={<UserPlusIcon />}
-					title="Invitation"
-				/>
+				<PageHeader title="Invitation" />
 				<ContentSkeleton />
 			</div>
 		);
@@ -361,11 +357,7 @@ export default function AcceptInvitationPage() {
 			error.message?.includes("not found");
 		return (
 			<div className="flex h-full flex-col">
-				<PageHeader
-					description="Unable to process invitation"
-					icon={<UserPlusIcon />}
-					title="Invitation"
-				/>
+				<PageHeader title="Invitation" />
 				{isExpired ? <ExpiredState /> : <ErrorState message={error.message} />}
 			</div>
 		);
@@ -374,11 +366,7 @@ export default function AcceptInvitationPage() {
 	if (!invitation) {
 		return (
 			<div className="flex h-full flex-col">
-				<PageHeader
-					description="Invitation not found"
-					icon={<UserPlusIcon />}
-					title="Invitation"
-				/>
+				<PageHeader title="Invitation" />
 				<ErrorState message="Invitation not found" />
 			</div>
 		);
@@ -406,11 +394,7 @@ export default function AcceptInvitationPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				description={getDescription()}
-				icon={<UserPlusIcon />}
-				title="Invitation"
-			/>
+			<PageHeader title="Invitation" />
 
 			{actionStatus === "success" ? (
 				<SuccessState organizationName={invitation.organizationName} />

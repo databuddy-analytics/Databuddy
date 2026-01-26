@@ -135,8 +135,8 @@ const MiniChart = memo(({ data, id, days = 7 }: MiniChartProps) => {
 
 	// Default: area chart
 	return (
-		<div className="chart-container rounded">
-			<ResponsiveContainer height={112} width="100%">
+		<div className="chart-container h-full rounded">
+			<ResponsiveContainer height="100%" width="100%">
 				<AreaChart {...chartProps}>
 					<title>{`Views over time (last ${days} days)`}</title>
 					{gradientDef}

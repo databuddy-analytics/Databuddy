@@ -182,13 +182,9 @@ export default function OnboardingPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				description="Follow these steps to set up your analytics dashboard"
-				icon={<SparkleIcon />}
-				title="Get Started"
-			/>
+			<PageHeader title="Get Started" />
 
-			<div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
+			<div className="flex-1 overflow-y-auto p-3 sm:p-4">
 				<div className="mx-auto max-w-2xl space-y-6">
 					{!allCompleted && (
 						<>

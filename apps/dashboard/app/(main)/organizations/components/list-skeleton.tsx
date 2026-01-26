@@ -14,7 +14,7 @@ export function ListSkeleton({
 	showActions = true,
 }: ListSkeletonProps) {
 	return (
-		<div className="h-full p-4 sm:p-6">
+		<div className="h-full p-3 sm:p-4">
 			<div className="space-y-3 sm:space-y-4">
 				{Array.from({ length: count }).map((_, i) => (
 					<div

@@ -94,8 +94,6 @@ export default function MonitorsPage() {
 			<div className="h-full overflow-y-auto">
 				<PageHeader
 					count={schedules?.length}
-					description="View and manage all your uptime monitors"
-					icon={<HeartbeatIcon />}
 					right={
 						<>
 							<Button
