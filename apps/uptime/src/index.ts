@@ -3,6 +3,11 @@ import { Elysia } from "elysia";
 import { z } from "zod";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
+import {
+	evaluateUptimeAlarms,
+	autoResolveAlarms,
+	consecutiveFailures,
+} from "./lib/alarm-trigger";
 import { sendUptimeEvent } from "./lib/producer";
 import {
 	captureError,
@@ -11,6 +16,7 @@ import {
 	shutdownTracing,
 	startRequestSpan,
 } from "./lib/tracing";
+import { MonitorStatus } from "./types";
 
 initTracing();
 
@@ -46,6 +52,9 @@ const receiver = new Receiver({
 	currentSigningKey: CURRENT_SIGNING_KEY,
 	nextSigningKey: NEXT_SIGNING_KEY,
 });
+
+// Track previous status for alarm evaluation
+const previousStatusMap = new Map<string, MonitorStatus>();
 
 const app = new Elysia()
 	.state("tracing", {
@@ -191,6 +200,45 @@ const app = new Elysia()
 					error instanceof Error ? error.message : String(error)
 				);
 			}
+
+			// ========== ALARM INTEGRATION ==========
+			// Evaluate alarms after uptime check (non-blocking)
+			try {
+				const currentStatus = result.data.status;
+				const previousStatus = previousStatusMap.get(scheduleId);
+
+				// Track consecutive failures
+				let consecutiveFailureCount = 0;
+				if (currentStatus === MonitorStatus.DOWN) {
+					consecutiveFailureCount = consecutiveFailures.increment(scheduleId);
+				} else {
+					consecutiveFailures.reset(scheduleId);
+				}
+
+				// Evaluate alarms
+				await evaluateUptimeAlarms({
+					uptimeScheduleId: scheduleId,
+					uptimeData: result.data,
+					previousStatus,
+					consecutiveFailureCount,
+				});
+
+				// Auto-resolve alarms if website is back up
+				if (currentStatus === MonitorStatus.UP && previousStatus === MonitorStatus.DOWN) {
+					await autoResolveAlarms(scheduleId, result.data);
+				}
+
+				// Update previous status
+				previousStatusMap.set(scheduleId, currentStatus);
+			} catch (error) {
+				// Log but don't fail the uptime check
+				console.error("[uptime] Alarm evaluation error:", error);
+				captureError(error, {
+					type: "alarm_evaluation_error",
+					scheduleId,
+				});
+			}
+			// ========== END ALARM INTEGRATION ==========
 
 			return new Response("Uptime check complete", { status: 200 });
 		} catch (error) {
