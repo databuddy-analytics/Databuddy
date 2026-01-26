@@ -3,10 +3,10 @@
 import { authClient } from "@databuddy/auth/client";
 import { PLAN_IDS, type PlanId } from "@databuddy/shared/types/features";
 import {
-	CaretDownIcon,
-	CheckIcon,
-	PlusIcon,
-	SpinnerGapIcon,
+  CaretDownIcon,
+  CheckIcon,
+  PlusIcon,
+  SpinnerGapIcon,
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
@@ -15,307 +15,307 @@ import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import {
-	AUTH_QUERY_KEYS,
-	useOrganizationsContext,
+  AUTH_QUERY_KEYS,
+  useOrganizationsContext,
 } from "@/components/providers/organizations-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const getDicebearUrl = (seed: string | undefined) =>
-	`https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed || "")}`;
+  `https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed || "")}`;
 
 const getPlanDisplayInfo = (planId: PlanId | null) => {
-	if (!planId || planId === PLAN_IDS.FREE) {
-		return { name: "Free", variant: "gray" as const };
-	}
-	if (planId === PLAN_IDS.HOBBY) {
-		return { name: "Hobby", variant: "blue" as const };
-	}
-	if (planId === PLAN_IDS.PRO) {
-		return { name: "Pro", variant: "green" as const };
-	}
-	if (planId === PLAN_IDS.SCALE) {
-		return { name: "Scale", variant: "amber" as const };
-	}
+  if (!planId || planId === PLAN_IDS.FREE) {
+    return { name: "Free", variant: "gray" as const };
+  }
+  if (planId === PLAN_IDS.HOBBY) {
+    return { name: "Hobby", variant: "blue" as const };
+  }
+  if (planId === PLAN_IDS.PRO) {
+    return { name: "Pro", variant: "green" as const };
+  }
+  if (planId === PLAN_IDS.SCALE) {
+    return { name: "Scale", variant: "amber" as const };
+  }
 
-	return null;
+  return null;
 };
 
 const MENU_ITEM_BASE_CLASSES =
-	"flex h-10 cursor-pointer items-center gap-3 px-4 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground";
+  "flex h-10 cursor-pointer items-center gap-3 px-4 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground";
 const MENU_ITEM_ACTIVE_CLASSES =
-	"bg-sidebar-accent font-medium text-sidebar-accent-foreground";
+  "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
 
 function filterOrganizations<T extends { name: string; slug?: string | null }>(
-	orgs: T[] | undefined,
-	query: string
+  orgs: T[] | undefined,
+  query: string,
 ): T[] {
-	if (!orgs?.length) {
-		return [];
-	}
-	if (!query) {
-		return orgs;
-	}
-	const q = query.toLowerCase();
-	return orgs.filter(
-		(org) =>
-			org.name.toLowerCase().includes(q) || org.slug?.toLowerCase().includes(q)
-	);
+  if (!orgs?.length) {
+    return [];
+  }
+  if (!query) {
+    return orgs;
+  }
+  const q = query.toLowerCase();
+  return orgs.filter(
+    (org) =>
+      org.name.toLowerCase().includes(q) || org.slug?.toLowerCase().includes(q),
+  );
 }
 
 interface OrganizationSelectorTriggerProps {
-	activeOrganization: {
-		id?: string;
-		name: string;
-		slug?: string | null;
-		logo?: string | null;
-	} | null;
-	isOpen: boolean;
-	isSettingActiveOrganization: boolean;
-	currentPlanId: PlanId | null;
+  activeOrganization: {
+    id?: string;
+    name: string;
+    slug?: string | null;
+    logo?: string | null;
+  } | null;
+  isOpen: boolean;
+  isSettingActiveOrganization: boolean;
+  currentPlanId: PlanId | null;
 }
 
 function OrganizationSelectorTrigger({
-	activeOrganization,
-	isOpen,
-	isSettingActiveOrganization,
-	currentPlanId,
+  activeOrganization,
+  isOpen,
+  isSettingActiveOrganization,
+  currentPlanId,
 }: OrganizationSelectorTriggerProps) {
-	const planInfo = getPlanDisplayInfo(currentPlanId);
+  const planInfo = getPlanDisplayInfo(currentPlanId);
 
-	return (
-		<div
-			className={cn(
-				"flex h-12 w-full items-center border-b bg-sidebar-accent px-3 py-3",
-				"hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
-				isSettingActiveOrganization ? "cursor-not-allowed opacity-70" : "",
-				isOpen ? "bg-sidebar-accent/60" : ""
-			)}
-		>
-			<div className="flex w-full min-w-0 items-center justify-between">
-				<div className="flex min-w-0 items-center gap-3">
-					<div className="shrink-0 rounded">
-						<Avatar className="size-7">
-							<AvatarImage
-								alt={activeOrganization?.name ?? "Workspace"}
-								className="rounded"
-								src={getDicebearUrl(
-									activeOrganization?.logo || activeOrganization?.id
-								)}
-							/>
-							<AvatarFallback className="bg-secondary">
-								<Image
-									alt={activeOrganization?.name ?? "Workspace"}
-									className="rounded"
-									height={28}
-									src={getDicebearUrl(
-										activeOrganization?.logo || activeOrganization?.id
-									)}
-									unoptimized
-									width={28}
-								/>
-							</AvatarFallback>
-						</Avatar>
-					</div>
-					<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-						<div className="flex min-w-0 items-center gap-2">
-							<span className="min-w-0 truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
-								{activeOrganization?.name ?? "Select workspace"}
-							</span>
-							<Badge
-								className="shrink-0 py-1 text-xs leading-none"
-								variant={planInfo?.variant || "gray"}
-							>
-								{planInfo?.name || "Free"}
-							</Badge>
-						</div>
-						<p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
-							{activeOrganization?.slug ?? "No workspace selected"}
-						</p>
-					</div>
-				</div>
-				{isSettingActiveOrganization ? (
-					<SpinnerGapIcon
-						aria-label="Switching workspace"
-						className="size-4 shrink-0 animate-spin text-sidebar-accent-foreground/60"
-						weight="duotone"
-					/>
-				) : (
-					<CaretDownIcon
-						className={cn(
-							"size-4 shrink-0 text-sidebar-accent-foreground/60 transition-transform duration-200",
-							isOpen ? "rotate-180" : ""
-						)}
-					/>
-				)}
-			</div>
-		</div>
-	);
+  return (
+    <div
+      className={cn(
+        "flex h-12 w-full items-center border-b px-3",
+        "hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+        isSettingActiveOrganization ? "cursor-not-allowed opacity-70" : "",
+        isOpen ? "bg-sidebar-accent/60" : "",
+      )}
+    >
+      <div className="flex w-full min-w-0 items-center justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded">
+            <Avatar className="size-7">
+              <AvatarImage
+                alt={activeOrganization?.name ?? "Workspace"}
+                className="rounded"
+                src={getDicebearUrl(
+                  activeOrganization?.logo || activeOrganization?.id,
+                )}
+              />
+              <AvatarFallback className="bg-secondary">
+                <Image
+                  alt={activeOrganization?.name ?? "Workspace"}
+                  className="rounded"
+                  height={28}
+                  src={getDicebearUrl(
+                    activeOrganization?.logo || activeOrganization?.id,
+                  )}
+                  unoptimized
+                  width={28}
+                />
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
+                {activeOrganization?.name ?? "Select workspace"}
+              </span>
+              <Badge
+                className="shrink-0 py-1 px-1 text-xs leading-none"
+                variant={planInfo?.variant || "gray"}
+              >
+                {planInfo?.name || "Free"}
+              </Badge>
+            </div>
+            <p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
+              {activeOrganization?.slug ?? "No workspace selected"}
+            </p>
+          </div>
+        </div>
+        {isSettingActiveOrganization ? (
+          <SpinnerGapIcon
+            aria-label="Switching workspace"
+            className="size-4 shrink-0 animate-spin text-sidebar-accent-foreground/60"
+            weight="duotone"
+          />
+        ) : (
+          <CaretDownIcon
+            className={cn(
+              "size-4 shrink-0 text-sidebar-accent-foreground/60 transition-transform duration-200",
+              isOpen ? "rotate-180" : "",
+            )}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function OrganizationSelector() {
-	const queryClient = useQueryClient();
-	const { organizations, activeOrganization, isLoading } =
-		useOrganizationsContext();
-	const { currentPlanId } = useBillingContext();
-	const [isOpen, setIsOpen] = useState(false);
-	const [showCreateDialog, setShowCreateDialog] = useState(false);
-	const [query, setQuery] = useState("");
-	const [isSwitching, setIsSwitching] = useState(false);
+  const queryClient = useQueryClient();
+  const { organizations, activeOrganization, isLoading } =
+    useOrganizationsContext();
+  const { currentPlanId } = useBillingContext();
+  const [isOpen, setIsOpen] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [query, setQuery] = useState("");
+  const [isSwitching, setIsSwitching] = useState(false);
 
-	const handleSelectOrganization = async (organizationId: string) => {
-		if (organizationId === activeOrganization?.id) {
-			return;
-		}
+  const handleSelectOrganization = async (organizationId: string) => {
+    if (organizationId === activeOrganization?.id) {
+      return;
+    }
 
-		setIsSwitching(true);
-		setIsOpen(false);
+    setIsSwitching(true);
+    setIsOpen(false);
 
-		const { error } = await authClient.organization.setActive({
-			organizationId,
-		});
+    const { error } = await authClient.organization.setActive({
+      organizationId,
+    });
 
-		if (error) {
-			toast.error(error.message || "Failed to switch workspace");
-			setIsSwitching(false);
-			return;
-		}
+    if (error) {
+      toast.error(error.message || "Failed to switch workspace");
+      setIsSwitching(false);
+      return;
+    }
 
-		await queryClient.invalidateQueries({
-			queryKey: AUTH_QUERY_KEYS.activeOrganization,
-		});
-		queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({
+      queryKey: AUTH_QUERY_KEYS.activeOrganization,
+    });
+    queryClient.invalidateQueries();
 
-		setIsSwitching(false);
-		toast.success("Workspace updated");
-	};
+    setIsSwitching(false);
+    toast.success("Workspace updated");
+  };
 
-	const filteredOrganizations = filterOrganizations(organizations, query);
+  const filteredOrganizations = filterOrganizations(organizations, query);
 
-	if (isLoading) {
-		return (
-			<div className="flex h-12 w-full items-center bg-sidebar-accent px-3 py-3">
-				<div className="flex w-full min-w-0 items-center justify-between">
-					<div className="flex min-w-0 items-center gap-3">
-						<div className="shrink-0 rounded-lg border bg-sidebar/80 p-1.5">
-							<Skeleton className="size-5 rounded" />
-						</div>
-						<div className="flex min-w-0 flex-1 flex-col items-start">
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="mt-1 h-3 w-16 rounded" />
-						</div>
-					</div>
-					<Skeleton className="size-4 shrink-0 rounded" />
-				</div>
-			</div>
-		);
-	}
+  if (isLoading) {
+    return (
+      <div className="flex h-12 w-full items-center bg-sidebar-accent px-3">
+        <div className="flex w-full min-w-0 items-center justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 rounded-lg border bg-sidebar/80 p-1.5">
+              <Skeleton className="size-5 rounded" />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col items-start">
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="mt-1 h-3 w-16 rounded" />
+            </div>
+          </div>
+          <Skeleton className="size-4 shrink-0 rounded" />
+        </div>
+      </div>
+    );
+  }
 
-	return (
-		<>
-			<DropdownMenu
-				onOpenChange={(open) => {
-					setIsOpen(open);
-					if (!open) {
-						setQuery("");
-					}
-				}}
-				open={isOpen}
-			>
-				<DropdownMenuTrigger asChild>
-					<Button
-						aria-expanded={isOpen}
-						aria-haspopup="listbox"
-						className="h-auto w-full rounded-none p-0 hover:bg-transparent"
-						disabled={isSwitching}
-						type="button"
-						variant="ghost"
-					>
-						<OrganizationSelectorTrigger
-							activeOrganization={activeOrganization}
-							currentPlanId={currentPlanId}
-							isOpen={isOpen}
-							isSettingActiveOrganization={isSwitching}
-						/>
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent
-					align="start"
-					className="w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
-					sideOffset={0}
-				>
-					{filteredOrganizations.length > 0 && (
-						<div className="flex flex-col">
-							{filteredOrganizations.map((org) => (
-								<DropdownMenuItem
-									className={cn(
-										MENU_ITEM_BASE_CLASSES,
-										activeOrganization?.id === org.id &&
-											MENU_ITEM_ACTIVE_CLASSES
-									)}
-									key={org.id}
-									onClick={() => handleSelectOrganization(org.id)}
-								>
-									<Avatar className="size-5">
-										<AvatarImage
-											alt={org.name}
-											src={getDicebearUrl(org.logo || org.id)}
-										/>
-										<AvatarFallback className="bg-sidebar-primary/30">
-											<Image
-												alt={org.name}
-												className="rounded"
-												height={20}
-												src={getDicebearUrl(org.logo || org.id)}
-												unoptimized
-												width={20}
-											/>
-										</AvatarFallback>
-									</Avatar>
-									<div className="flex min-w-0 flex-1 flex-col items-start text-left">
-										<span className="truncate text-left font-medium text-sm">
-											{org.name}
-										</span>
-										<span className="truncate text-left text-sidebar-foreground/70 text-xs">
-											{org.slug}
-										</span>
-									</div>
-									{activeOrganization?.id === org.id && (
-										<CheckIcon className="size-4 text-accent-foreground" />
-									)}
-								</DropdownMenuItem>
-							))}
-						</div>
-					)}
+  return (
+    <>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setQuery("");
+          }
+        }}
+        open={isOpen}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
+            className="h-auto w-full rounded-none p-0 hover:bg-transparent"
+            disabled={isSwitching}
+            type="button"
+            variant="ghost"
+          >
+            <OrganizationSelectorTrigger
+              activeOrganization={activeOrganization}
+              currentPlanId={currentPlanId}
+              isOpen={isOpen}
+              isSettingActiveOrganization={isSwitching}
+            />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-72 rounded-none border-t-0 border-r border-l-0 bg-sidebar p-0"
+          sideOffset={0}
+        >
+          {filteredOrganizations.length > 0 && (
+            <div className="flex flex-col">
+              {filteredOrganizations.map((org) => (
+                <DropdownMenuItem
+                  className={cn(
+                    MENU_ITEM_BASE_CLASSES,
+                    activeOrganization?.id === org.id &&
+                      MENU_ITEM_ACTIVE_CLASSES,
+                  )}
+                  key={org.id}
+                  onClick={() => handleSelectOrganization(org.id)}
+                >
+                  <Avatar className="size-5">
+                    <AvatarImage
+                      alt={org.name}
+                      src={getDicebearUrl(org.logo || org.id)}
+                    />
+                    <AvatarFallback className="bg-sidebar-primary/30">
+                      <Image
+                        alt={org.name}
+                        className="rounded"
+                        height={20}
+                        src={getDicebearUrl(org.logo || org.id)}
+                        unoptimized
+                        width={20}
+                      />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex min-w-0 flex-1 flex-col items-start text-left">
+                    <span className="truncate text-left font-medium text-sm">
+                      {org.name}
+                    </span>
+                    <span className="truncate text-left text-sidebar-foreground/70 text-xs">
+                      {org.slug}
+                    </span>
+                  </div>
+                  {activeOrganization?.id === org.id && (
+                    <CheckIcon className="size-4 text-accent-foreground" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </div>
+          )}
 
-					<DropdownMenuSeparator className="m-0 p-0" />
-					<DropdownMenuItem
-						className={MENU_ITEM_BASE_CLASSES}
-						onClick={() => {
-							setShowCreateDialog(true);
-							setIsOpen(false);
-						}}
-					>
-						<PlusIcon className="size-5 text-accent-foreground" />
-						<span className="font-medium text-sm">Create Organization</span>
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+          <DropdownMenuSeparator className="m-0 p-0" />
+          <DropdownMenuItem
+            className={MENU_ITEM_BASE_CLASSES}
+            onClick={() => {
+              setShowCreateDialog(true);
+              setIsOpen(false);
+            }}
+          >
+            <PlusIcon className="size-5 text-accent-foreground" />
+            <span className="font-medium text-sm">Create Organization</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-			<CreateOrganizationDialog
-				isOpen={showCreateDialog}
-				onClose={() => setShowCreateDialog(false)}
-			/>
-		</>
-	);
+      <CreateOrganizationDialog
+        isOpen={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+      />
+    </>
+  );
 }

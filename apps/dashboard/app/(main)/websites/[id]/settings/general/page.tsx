@@ -75,11 +75,7 @@ export default function GeneralSettingsPage() {
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header */}
-			<PageHeader
-				description="Manage name, domain, and basic settings"
-				icon={<GearIcon />}
-				title="General"
-			/>
+			<PageHeader title="General" />
 			{/* Right-side actions (optional) */}
 
 			{/* Content */}

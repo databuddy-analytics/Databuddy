@@ -38,6 +38,14 @@ const nextConfig: NextConfig = {
 	},
 	transpilePackages: [],
 	output: "standalone",
+	async rewrites() {
+		return [
+			{
+				source: "/geojson/:path*",
+				destination: "https://cdn.databuddy.cc/geojson/:path*",
+			},
+		];
+	},
 	async headers() {
 		const securityHeaders = [
 			{
@@ -60,7 +68,7 @@ const nextConfig: NextConfig = {
 
 		const isDev = process.env.NODE_ENV === "development";
 		const localhostConnectSrc = isDev
-			? "http://localhost:* http://127.0.0.1:*"
+			? "http://localhost:3000 http://localhost:3001 http://127.0.0.1:3000 http://127.0.0.1:3001 ws://localhost:3000 ws://localhost:3001"
 			: "";
 
 		const cspDirectives = [

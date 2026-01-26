@@ -76,8 +76,6 @@ export default function PrivacyPage() {
 			<PageHeader
 				badgeContent={isPublic ? "Public" : "Private"}
 				badgeVariant={isPublic ? "blue" : "secondary"}
-				description="Control public access to your website's analytics dashboard"
-				icon={<ShareIcon />}
 				title="Privacy"
 			/>
 			<div className="flex min-h-0 flex-1 flex-col">

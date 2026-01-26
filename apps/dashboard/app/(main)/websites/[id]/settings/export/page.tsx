@@ -130,12 +130,7 @@ export default function ExportPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				badgeContent="Tools"
-				description="Download your analytics data for backup and analysis"
-				icon={<DownloadIcon />}
-				title="Data Export"
-			/>
+			<PageHeader badgeContent="Tools" title="Data Export" />
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col">

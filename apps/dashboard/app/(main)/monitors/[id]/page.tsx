@@ -280,8 +280,6 @@ export default function MonitorDetailsPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<PageHeader
-				description={schedule.url}
-				icon={<HeartbeatIcon />}
 				right={
 					<>
 						<Button

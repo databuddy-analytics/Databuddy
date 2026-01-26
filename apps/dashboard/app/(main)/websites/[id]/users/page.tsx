@@ -339,11 +339,7 @@ export default function UsersPage() {
 	if (isLoading && isInitialLoad) {
 		return (
 			<div className="flex h-full flex-col">
-				<PageHeader
-					description="View detailed visitor profiles and activity"
-					icon={<UsersThreeIcon />}
-					title="Users"
-				/>
+				<PageHeader title="Users" />
 
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="overflow-auto">
@@ -377,11 +373,7 @@ export default function UsersPage() {
 		return (
 			<div className="flex h-full flex-col">
 				{/* Header */}
-				<PageHeader
-					description="View detailed visitor profiles and activity"
-					icon={<UsersThreeIcon />}
-					title="Users"
-				/>
+				<PageHeader title="Users" />
 
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center py-24 text-center text-muted-foreground">
 					<UsersIcon className="mb-4 size-12 opacity-50" />
@@ -398,11 +390,7 @@ export default function UsersPage() {
 		return (
 			<div className="flex h-full flex-col">
 				{/* Header */}
-				<PageHeader
-					description="View detailed visitor profiles and activity"
-					icon={<UsersThreeIcon />}
-					title="Users"
-				/>
+				<PageHeader title="Users" />
 
 				<EmptyState
 					description="Users will appear here once visitors browse your website"
@@ -417,12 +405,7 @@ export default function UsersPage() {
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header */}
-			<PageHeader
-				count={allUsers.length}
-				description="View detailed visitor profiles and activity"
-				icon={<UsersThreeIcon />}
-				title="Users"
-			/>
+			<PageHeader count={allUsers.length} title="Users" />
 
 			{/* Content */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
