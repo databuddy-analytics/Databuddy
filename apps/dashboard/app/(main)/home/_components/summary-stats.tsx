@@ -37,7 +37,7 @@ function formatNumber(num: number) {
 
 function StatCardSkeleton() {
   return (
-    <Card className="gap-0 overflow-hidden border bg-card py-0">
+    <Card className="gap-0 overflow-hidden border bg-card/50 py-0">
       <CardHeader className="gap-0! border-b bg-muted/50 px-3 pt-4 pb-0!">
         <Skeleton className="mx-auto h-16 w-full rounded" />
       </CardHeader>
@@ -97,7 +97,7 @@ export function SummaryStats({
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Active Users */}
-      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
+      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0 transition-colors hover:border-primary/60">
         <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
           <span className="text-center font-semibold text-7xl text-foreground leading-none">
             {totalActiveUsers}
@@ -105,7 +105,7 @@ export function SummaryStats({
         </CardHeader>
         <CardContent className="px-3 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-accent">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
               <UsersIcon className="size-5 text-foreground" weight="duotone" />
             </div>
             <div className="min-w-0 flex-1">
@@ -127,15 +127,15 @@ export function SummaryStats({
       </Card>
 
       {/* Total Views */}
-      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
+      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0 transition-colors hover:border-primary/60">
         <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
           <span className="text-center font-semibold text-7xl text-foreground leading-none">
             {formatNumber(totalViews)}
           </span>
         </CardHeader>
-        <CardContent className="px-4 py-3">
+        <CardContent className="px-3 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-accent">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
               <EyeIcon className="size-5 text-foreground" weight="duotone" />
             </div>
             <div className="min-w-0 flex-1">
@@ -170,15 +170,15 @@ export function SummaryStats({
 
       {/* Websites */}
       <Link className="group block" href="/websites">
-        <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">
+        <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0 transition-colors group-hover:border-primary/60">
           <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
             <span className="text-center font-semibold text-7xl text-foreground leading-none">
               {websiteCount}
             </span>
           </CardHeader>
-          <CardContent className="px-4 py-3">
+          <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded bg-accent">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
                 <svg
                   className="size-5 text-foreground"
                   fill="none"
@@ -207,7 +207,7 @@ export function SummaryStats({
       </Link>
 
       {/* Pulse Status */}
-      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
+      <Card className="group flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0 transition-colors hover:border-primary/60">
         <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
           {totalMonitors > 0 ? (
             <span className="text-center font-semibold text-7xl text-foreground leading-none">
@@ -217,9 +217,9 @@ export function SummaryStats({
             <span className="text-muted-foreground text-sm">No monitors</span>
           )}
         </CardHeader>
-        <CardContent className="px-4 py-3">
+        <CardContent className="px-3 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-accent">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
               <HeartbeatIcon
                 className="size-5 text-foreground"
                 weight="duotone"

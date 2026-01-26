@@ -26,7 +26,7 @@ import { SummaryStats } from "./_components/summary-stats";
 
 function WebsiteCardSkeleton() {
   return (
-    <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0">
+    <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0">
       <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
         <Skeleton className="h-28 w-full rounded" />
       </CardHeader>

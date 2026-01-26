@@ -171,7 +171,7 @@ export const WebsiteCard = memo(
               data-website-name={website.name}
               href={`/websites/${website.id}`}
             >
-              <Card className="flex h-full min-h-[15rem] select-none flex-col gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">
+              <Card className="flex h-full min-h-[15rem] select-none flex-col gap-0 overflow-hidden border bg-card/50 py-0 transition-colors group-hover:border-primary/60">
                 <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
                   {activeUsers !== undefined && activeUsers > 0 && (
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 font-medium text-success text-xs tabular-nums backdrop-blur-sm">
@@ -223,7 +223,7 @@ export const WebsiteCard = memo(
                 </CardHeader>
                 <CardContent className="space-y-1 px-3 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded bg-accent">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
                       <FaviconImage
                         altText={`${website.name} favicon`}
                         domain={website.domain}
@@ -344,7 +344,7 @@ WebsiteCard.displayName = "WebsiteCard";
 
 export function WebsiteCardSkeleton() {
   return (
-    <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card py-0">
+    <Card className="flex h-56 flex-col gap-0 overflow-hidden border bg-card/50 py-0">
       <CardHeader className="relative flex flex-1 items-center justify-center gap-0! border-b bg-muted/50 px-0 pb-0!">
         <Skeleton className="h-28 w-full" />
       </CardHeader>

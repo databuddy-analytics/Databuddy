@@ -158,9 +158,9 @@ export function SmartInsightsSection({
 }: SmartInsightsSectionProps) {
   if (isLoading) {
     return (
-      <div className="divide-y rounded border bg-card">
+      <div className="divide-y rounded-lg border bg-card/50">
         <div className="flex items-center gap-2 border-b px-3 py-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
             <SparkleIcon className="size-5 text-primary" weight="duotone" />
           </div>
         </div>
@@ -171,10 +171,10 @@ export function SmartInsightsSection({
   }
 
   return (
-    <div className="divide-y rounded border bg-card">
+    <div className="divide-y rounded-lg border bg-card/50">
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
             <SparkleIcon className="size-5 text-primary" weight="duotone" />
           </div>
           <div className="min-w-0 flex-1">

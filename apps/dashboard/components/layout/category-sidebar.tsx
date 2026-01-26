@@ -91,7 +91,7 @@ export function CategorySidebar({
   const activeCategory = selectedCategory || defaultCategory;
 
   return (
-    <div className="fixed inset-y-0 left-0 z-40 w-12 bg-transparent">
+    <div className="fixed inset-y-0 left-0 z-40 w-12 bg-sidebar">
       <div className="flex h-full flex-col">
         <div className="flex h-12 items-center justify-center border-b">
           <Link
@@ -115,9 +115,7 @@ export function CategorySidebar({
           const isLast = idx === categories.length - 1;
           const borderClass = isActive && !isLast ? "border-accent" : "";
           const hoverClass = isActive ? "" : "hover:bg-sidebar-accent-brighter";
-          const boxClass = isLast
-            ? "box-content border-border border-b"
-            : "box-content border-transparent";
+          const boxClass = isLast ? "border-border border-b" : "";
 
           return (
             <Tooltip delayDuration={500} key={category.id}>

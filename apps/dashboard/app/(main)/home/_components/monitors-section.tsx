@@ -265,9 +265,9 @@ export function MonitorsSection({
 
   if (isLoading) {
     return (
-      <div className="divide-y rounded border bg-card">
+      <div className="divide-y rounded-lg border bg-card/50">
         <div className="flex items-center gap-2 border-b px-3 py-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
             <HeartbeatIcon className="size-5 text-primary" weight="duotone" />
           </div>
           <Skeleton className="h-4 w-20" />
@@ -283,14 +283,14 @@ export function MonitorsSection({
   return (
     <div
       className={cn(
-        "divide-y rounded border bg-card",
+        "divide-y rounded-lg border bg-card/50",
         hasIssues && "border-amber-500/30",
       )}
     >
       {/* Header - matches SmartInsightsSection */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted/50">
             <HeartbeatIcon className="size-5 text-primary" weight="duotone" />
           </div>
           <div className="min-w-0 flex-1">
