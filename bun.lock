@@ -491,11 +491,7 @@
     },
     "packages/sdk": {
       "name": "@databuddy/sdk",
-<<<<<<< Updated upstream
       "version": "2.3.29",
-=======
-      "version": "2.3.28",
->>>>>>> Stashed changes
       "devDependencies": {
         "@ai-sdk/provider": "^3.0.2",
         "@types/node": "^20.0.0",
