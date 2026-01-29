@@ -58,6 +58,32 @@ export const websiteStatus = pgEnum("WebsiteStatus", [
 	"INACTIVE",
 	"PENDING",
 ]);
+export const alarmTriggerType = pgEnum("AlarmTriggerType", [
+	"uptime",
+	"traffic_spike",
+	"error_rate",
+	"goal",
+	"custom",
+]);
+export const alarmTriggerStatus = pgEnum("AlarmTriggerStatus", ["down", "up"]);
+
+export type AlarmTriggerConditions = {
+	failureThreshold?: number;
+	responseTimeMs?: number;
+};
+
+export type AlarmWebhookHeaders = Record<string, string>;
+
+export type AlarmTriggerDetails = {
+	url?: string;
+	status?: "down" | "up";
+	detectedAt?: string;
+	httpStatus?: number;
+	responseTimeMs?: number;
+	consecutiveFailures?: number;
+	downtimeDurationMs?: number;
+	dashboardUrl?: string;
+};
 
 export const account = pgTable(
 	"account",
@@ -861,6 +887,138 @@ export const uptimeSchedules = pgTable(
 			foreignColumns: [organization.id],
 			name: "uptime_schedules_organization_id_organization_id_fk",
 		}).onDelete("cascade"),
+	]
+);
+
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		userId: text("user_id").notNull(),
+		organizationId: text("organization_id").notNull(),
+		websiteId: text("website_id"),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean("enabled").default(true).notNull(),
+		notificationChannels: text("notification_channels")
+			.array()
+			.notNull()
+			.default([]),
+		slackWebhookUrl: text("slack_webhook_url"),
+		discordWebhookUrl: text("discord_webhook_url"),
+		emailAddresses: text("email_addresses").array().notNull().default([]),
+		webhookUrl: text("webhook_url"),
+		webhookHeaders: jsonb("webhook_headers")
+			.$type<AlarmWebhookHeaders>()
+			.default({}),
+		triggerType: alarmTriggerType("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions")
+			.$type<AlarmTriggerConditions>()
+			.default({}),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("alarms_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_user_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_organization_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_website_id_fk",
+		})
+			.onUpdate("cascade")
+			.onDelete("set null"),
+	]
+);
+
+export const alarmState = pgTable(
+	"alarm_state",
+	{
+		alarmId: text("alarm_id").notNull(),
+		websiteId: text("website_id").notNull(),
+		status: alarmTriggerStatus("status").default("up").notNull(),
+		consecutiveFailures: integer("consecutive_failures").default(0).notNull(),
+		downStartedAt: timestamp("down_started_at", { precision: 3 }),
+		lastCheckedAt: timestamp("last_checked_at", { precision: 3 })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.alarmId] }),
+		index("alarm_state_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
+			name: "alarm_state_alarm_id_alarms_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarm_state_website_id_websites_id_fk",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	]
+);
+
+export const alarmTriggerHistory = pgTable(
+	"alarm_trigger_history",
+	{
+		id: text().primaryKey().notNull(),
+		alarmId: text("alarm_id").notNull(),
+		websiteId: text("website_id").notNull(),
+		status: alarmTriggerStatus("status").notNull(),
+		details: jsonb("details").$type<AlarmTriggerDetails>().default({}),
+		triggeredAt: timestamp("triggered_at", { precision: 3 })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("alarm_trigger_history_alarm_id_idx").using(
+			"btree",
+			table.alarmId.asc().nullsLast().op("text_ops")
+		),
+		index("alarm_trigger_history_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
+			name: "alarm_trigger_history_alarm_id_alarms_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarm_trigger_history_website_id_websites_id_fk",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
 	]
 );
 

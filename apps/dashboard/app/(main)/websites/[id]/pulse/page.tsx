@@ -31,6 +31,7 @@ import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { fromNow, localDayjs } from "@/lib/time";
 import { WebsitePageHeader } from "../_components/website-page-header";
+import { AlarmAssignments } from "./_components/alarm-assignments";
 import { RecentActivity } from "./_components/recent-activity";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
 
@@ -358,6 +359,10 @@ export default function PulsePage() {
 								checks={recentChecks}
 								isLoading={isLoadingUptime}
 							/>
+						</div>
+
+						<div className="bg-sidebar px-4 py-6">
+							<AlarmAssignments websiteId={websiteId as string} />
 						</div>
 					</>
 				) : (

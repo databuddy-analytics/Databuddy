@@ -34,6 +34,7 @@ packages/db/src/drizzle/meta/0000_snapshot.json
 packages/db/src/drizzle/meta/_journal.json
 packages/db/src/drizzle/meta
 packages/db/src/drizzle/*.sql
+!packages/db/src/drizzle/0001_alarms.sql
 dist
 
 

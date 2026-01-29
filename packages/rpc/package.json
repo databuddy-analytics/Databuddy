@@ -9,6 +9,7 @@
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/notifications": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
@@ -28,6 +29,7 @@
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
     "redis": "^5.10.0",
+    "resend": "^4.2.0",
     "superjson": "^2.2.6",
     "zod": "catalog:"
   },
