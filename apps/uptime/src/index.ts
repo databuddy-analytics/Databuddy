@@ -1,6 +1,7 @@
 import { Receiver } from "@upstash/qstash";
 import { Elysia } from "elysia";
 import { z } from "zod";
+import { processUptimeAlarms } from "./alarms-runtime";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
 import { sendUptimeEvent } from "./lib/producer";
@@ -187,6 +188,21 @@ const app = new Elysia()
 				});
 				console.error(
 					"[uptime] Failed to send uptime event:",
+					monitorId,
+					error instanceof Error ? error.message : String(error)
+				);
+			}
+
+			try {
+				await processUptimeAlarms(result.data, schedule.data.websiteId);
+			} catch (error) {
+				captureError(error, {
+					type: "uptime_alarm_processing_failed",
+					monitorId,
+					websiteId: schedule.data.websiteId ?? undefined,
+				});
+				console.error(
+					"[uptime] Failed to process alarm notifications:",
 					monitorId,
 					error instanceof Error ? error.message : String(error)
 				);
