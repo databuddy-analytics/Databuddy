@@ -322,7 +322,10 @@ export async function sendNotifications(
 
 type AlarmProcessorDeps = {
 	fetchAlarms: (websiteId: string) => Promise<AlarmRecord[]>;
-	fetchStates: (alarmIds: string[]) => Promise<AlarmStateRecord[]>;
+	fetchStates: (
+		alarmIds: string[],
+		websiteId: string
+	) => Promise<AlarmStateRecord[]>;
 	upsertState: (state: AlarmStateUpsert) => Promise<void>;
 	logHistory: (entry: AlarmTriggerHistoryEntry) => Promise<void>;
 	senders: AlarmNotificationSenders;
@@ -344,7 +347,7 @@ export async function processUptimeAlarmsWithDeps(
 	}
 
 	const alarmIds = activeAlarms.map((alarm) => alarm.id);
-	const existingStates = await deps.fetchStates(alarmIds);
+	const existingStates = await deps.fetchStates(alarmIds, websiteId);
 	const stateByAlarmId = new Map(
 		existingStates.map((state) => [state.alarmId, state])
 	);

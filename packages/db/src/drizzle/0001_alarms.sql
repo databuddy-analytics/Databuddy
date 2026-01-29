@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS "alarm_state" (
 	"updated_at" timestamp(3) DEFAULT now() NOT NULL,
 	CONSTRAINT "alarm_state_alarm_id_alarms_id_fk" FOREIGN KEY ("alarm_id") REFERENCES "alarms"("id") ON DELETE cascade,
 	CONSTRAINT "alarm_state_website_id_websites_id_fk" FOREIGN KEY ("website_id") REFERENCES "websites"("id") ON DELETE cascade,
-	CONSTRAINT "alarm_state_alarm_id_pk" PRIMARY KEY ("alarm_id")
+	CONSTRAINT "alarm_state_alarm_id_website_id_pk" PRIMARY KEY ("alarm_id", "website_id")
 );
 
 CREATE INDEX IF NOT EXISTS "alarm_state_website_id_idx" ON "alarm_state" USING btree ("website_id");

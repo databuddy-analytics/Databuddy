@@ -210,16 +210,18 @@ export function AlarmDialog({
 		};
 	}, [alarm, defaultWebsiteId]);
 
-const form = useForm<AlarmFormValues>({
-	resolver: zodResolver(alarmFormSchema),
-	defaultValues: initialValues,
-});
+	const form = useForm<AlarmFormValues>({
+		resolver: zodResolver(alarmFormSchema),
+		defaultValues: initialValues,
+	});
 
-useEffect(() => {
-	if (open) {
-		form.reset(initialValues);
-	}
-}, [form, initialValues, open]);
+	const { reset } = form;
+
+	useEffect(() => {
+		if (open) {
+			reset(initialValues);
+		}
+	}, [initialValues, open, reset]);
 
 	const { fields, append, remove } = useFieldArray({
 		control: form.control,

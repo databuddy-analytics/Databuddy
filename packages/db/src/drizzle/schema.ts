@@ -964,7 +964,7 @@ export const alarmState = pgTable(
 		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
 	},
 	(table) => [
-		primaryKey({ columns: [table.alarmId] }),
+		primaryKey({ columns: [table.alarmId, table.websiteId] }),
 		index("alarm_state_website_id_idx").using(
 			"btree",
 			table.websiteId.asc().nullsLast().op("text_ops")

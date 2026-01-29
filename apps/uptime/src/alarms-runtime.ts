@@ -28,16 +28,19 @@ export async function processUptimeAlarms(
 					eq(alarms.triggerType, "uptime")
 				),
 			}) as Promise<AlarmRecord[]>,
-		fetchStates: async (alarmIds: string[]) =>
+		fetchStates: async (alarmIds: string[], targetWebsiteId: string) =>
 			db.query.alarmState.findMany({
-				where: inArray(alarmState.alarmId, alarmIds),
+				where: and(
+					inArray(alarmState.alarmId, alarmIds),
+					eq(alarmState.websiteId, targetWebsiteId)
+				),
 			}) as Promise<AlarmStateRecord[]>,
 		upsertState: async (state) => {
 			await db
 				.insert(alarmState)
 				.values(state)
 				.onConflictDoUpdate({
-					target: alarmState.alarmId,
+					target: [alarmState.alarmId, alarmState.websiteId],
 					set: {
 						status: state.status,
 						consecutiveFailures: state.consecutiveFailures,
