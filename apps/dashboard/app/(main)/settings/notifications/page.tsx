@@ -9,7 +9,8 @@ import {
 	TrashIcon,
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AlarmDialog } from "@/components/alarms/alarm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -40,6 +41,7 @@ export default function NotificationsSettingsPage() {
 	const [editingAlarmId, setEditingAlarmId] = useState<string | null>(null);
 	const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 	const [testingId, setTestingId] = useState<string | null>(null);
+	const searchParams = useSearchParams();
 
 	const editingAlarm = alarms.find((alarm) => alarm.id === editingAlarmId) ?? null;
 	const deleteTarget = alarms.find((alarm) => alarm.id === deleteTargetId) ?? null;
@@ -47,6 +49,14 @@ export default function NotificationsSettingsPage() {
 	const websiteLookup = new Map(
 		websites.map((site) => [site.id, site.name || site.domain])
 	);
+
+	const isDialogForcedOpen = searchParams.get("alarmDialog") === "open";
+
+	useEffect(() => {
+		if (isDialogForcedOpen) {
+			setDialogOpen(true);
+		}
+	}, [isDialogForcedOpen]);
 
 	const handleToggle = async (alarmId: string, enabled: boolean) => {
 		try {
