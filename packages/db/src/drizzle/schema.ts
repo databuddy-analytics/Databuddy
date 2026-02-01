@@ -667,6 +667,7 @@ export const flags = pgTable(
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),
 		environment: text("environment"),
+		folder: text("folder"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
