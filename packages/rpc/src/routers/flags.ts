@@ -82,6 +82,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -116,6 +117,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
+		folder: z.string().optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
@@ -140,6 +142,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().optional().nullable(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -278,6 +281,14 @@ export const flagsRouter = {
 
 				if (input.status) {
 					conditions.push(eq(flags.status, input.status));
+				}
+
+				// Filter by folder if provided
+				if (input.folder) {
+					conditions.push(eq(flags.folder, input.folder));
+				} else if (input.folder === "") {
+					// If folder is empty string, show flags without a folder (root level)
+					conditions.push(isNull(flags.folder));
 				}
 
 				const flagsList = await context.db.query.flags.findMany({
@@ -556,6 +567,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder ?? existingFlag[0].folder,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -615,6 +627,7 @@ export const flagsRouter = {
 						environment: input.environment || existingFlag?.[0]?.environment,
 						userId: input.websiteId ? null : context.user.id,
 						createdBy: context.user.id,
+						folder: input.folder || null,
 					})
 					.returning();
 
