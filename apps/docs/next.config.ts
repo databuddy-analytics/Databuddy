@@ -1,9 +1,9 @@
 import { createMDX } from "fumadocs-mdx/next";
+import type { NextConfig } from "next";
 
 const withMDX = createMDX();
 
-/** @type {import('next').NextConfig} */
-const config = {
+const config: NextConfig = {
 	reactStrictMode: true,
 	async headers() {
 		return await [
@@ -50,6 +50,17 @@ const config = {
 			{
 				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",
+			},
+			{
+				source: "/docs/:path*",
+				destination: "/api/docs/raw/:path*",
+				has: [
+					{
+						type: "header",
+						key: "Accept",
+						value: ".*text/markdown.*",
+					},
+				],
 			},
 		];
 	},
