@@ -434,18 +434,43 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	const groupedFlags = useMemo(() => {
+		const bucket = new Map<string, Flag[]>();
+		for (const flag of flags) {
+			const folderName = flag.folder?.trim() || "Ungrouped";
+			const existing = bucket.get(folderName) || [];
+			existing.push(flag);
+			bucket.set(folderName, existing);
+		}
+
+		return Array.from(bucket.entries()).sort(([a], [b]) => {
+			if (a === "Ungrouped") return 1;
+			if (b === "Ungrouped") return -1;
+			return a.localeCompare(b);
+		});
+	}, [flags]);
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
-					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
+			{groupedFlags.map(([folderName, folderFlags]) => (
+				<div key={folderName}>
+					<div className="border-b bg-muted/30 px-4 py-2">
+						<span className="font-medium text-muted-foreground text-xs">
+							{folderName}
+						</span>
+					</div>
+					{folderFlags.map((flag) => (
+						<FlagRow
+							dependents={dependentsMap.get(flag.key) ?? []}
+							flag={flag}
+							flagMap={flagMap}
+							groups={groups.get(flag.id) ?? []}
+							key={flag.id}
+							onDelete={onDelete}
+							onEdit={onEdit}
+						/>
+					))}
+				</div>
 			))}
 		</div>
 	);
