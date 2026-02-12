@@ -326,7 +326,14 @@ function FlagRow({
 							flagMap={flagMap}
 						/>
 					</div>
-					<FlagKey className="-ms-1.5" flag={flag} />
+					<div className="flex items-center gap-1.5">
+						<FlagKey className="-ms-1.5" flag={flag} />
+						{flag.folder && (
+							<Badge className="font-normal text-[10px]" variant="outline">
+								{flag.folder}
+							</Badge>
+						)}
+					</div>
 				</div>
 			</div>
 

@@ -247,6 +247,7 @@ export function FlagSheet({
 				variants: [],
 				dependencies: [],
 				environment: undefined,
+				folder: undefined,
 				targetGroupIds: [],
 			},
 			schedule: undefined,
@@ -289,6 +290,7 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
+					folder: flag.folder || undefined,
 					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
@@ -310,6 +312,7 @@ export function FlagSheet({
 					rules: template.rules ?? [],
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -331,6 +334,7 @@ export function FlagSheet({
 					rules: [],
 					variants: [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -396,6 +400,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || undefined,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -414,6 +419,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || undefined,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -551,7 +557,27 @@ export function FlagSheet({
 								/>
 							</div>
 
-							{/* Separator */}
+								<FormField
+								control={form.control}
+								name="flag.folder"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel className="text-muted-foreground">
+											Folder (optional)
+										</FormLabel>
+										<FormControl>
+											<Input
+												placeholder="e.g. auth/login"
+												{...field}
+												value={field.value ?? ""}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+								/>
+
+						{/* Separator */}
 							<div className="h-px bg-border" />
 
 							{/* Type & Value */}
