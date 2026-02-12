@@ -141,6 +141,12 @@ const updateFlagSchema = z
 		variants: z.array(variantSchema).optional(),
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
+		folder: z
+			.string()
+			.max(200)
+			.regex(/^[a-zA-Z0-9_\-/]*$/)
+			.nullable()
+			.optional(),
 		targetGroupIds: z.array(z.string()).optional(),
 	})
 	.superRefine((data, ctx) => {
@@ -628,6 +634,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder || null,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -685,6 +692,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder || null,
 						userId: null,
 						createdBy,
 					})

@@ -61,6 +61,12 @@ export const flagFormSchema = z
 			.array(z.string().min(1, "Invalid dependency value"))
 			.optional(),
 		environment: z.string().nullable().optional(),
+		folder: z
+			.string()
+			.max(200, "Folder path too long")
+			.regex(/^[a-zA-Z0-9_\-/]*$/, "Folder path contains invalid characters")
+			.nullable()
+			.optional(),
 		targetGroupIds: z.array(z.string()).optional(),
 	})
 	.superRefine((data, ctx) => {
