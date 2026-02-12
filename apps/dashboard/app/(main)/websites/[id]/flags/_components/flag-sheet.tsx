@@ -50,6 +50,7 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { GroupSelector } from "../groups/_components/group-selector";
 import { DependencySelector } from "./dependency-selector";
+import { FolderSelector } from "./folder-selector";
 import type { Flag, FlagSheetProps, TargetGroup } from "./types";
 import { UserRulesBuilder } from "./user-rules-builder";
 import { VariantEditor } from "./variant-editor";
@@ -212,6 +213,7 @@ export function FlagSheet({
 	websiteId,
 	flag,
 	template,
+	folders,
 }: FlagSheetProps) {
 	const [keyManuallyEdited, setKeyManuallyEdited] = useState(false);
 	const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
@@ -248,6 +250,7 @@ export function FlagSheet({
 				dependencies: [],
 				environment: undefined,
 				targetGroupIds: [],
+				folder: "",
 			},
 			schedule: undefined,
 		},
@@ -290,6 +293,7 @@ export function FlagSheet({
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
 					targetGroupIds: extractTargetGroupIds(),
+					folder: flag.folder || "",
 				},
 				schedule: undefined,
 			});
@@ -311,6 +315,7 @@ export function FlagSheet({
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: "",
 				},
 				schedule: undefined,
 			});
@@ -332,6 +337,7 @@ export function FlagSheet({
 					variants: [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: "",
 				},
 				schedule: undefined,
 			});
@@ -543,6 +549,27 @@ export function FlagSheet({
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
 													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												Folder (optional)
+											</FormLabel>
+											<FormControl>
+												<FolderSelector
+													folders={folders || []}
+													onChange={field.onChange}
+													placeholder="Select a folder..."
+													value={field.value || ""}
 												/>
 											</FormControl>
 											<FormMessage />

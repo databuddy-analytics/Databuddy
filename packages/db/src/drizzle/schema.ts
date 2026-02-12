@@ -665,6 +665,7 @@ export const flags = pgTable(
 		organizationId: text("organization_id"),
 		userId: text("user_id"),
 		createdBy: text("created_by").notNull(),
+		folder: text("folder"),
 		variants: jsonb("variants").default([]),
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),

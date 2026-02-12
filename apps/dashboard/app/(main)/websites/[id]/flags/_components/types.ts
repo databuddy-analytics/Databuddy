@@ -23,6 +23,7 @@ export interface Flag {
 	dependencies?: string[];
 	environment?: string;
 	persistAcrossAuth?: boolean;
+	folder?: string | null;
 	websiteId?: string | null;
 	organizationId?: string | null;
 	userId?: string | null;
@@ -72,6 +73,7 @@ export interface FlagSheetProps {
 	websiteId: string;
 	flag?: Flag | null;
 	template?: FlagTemplate | null;
+	folders?: import('./folder-utils').FolderNode[];
 }
 
 export interface VariantEditorProps {
