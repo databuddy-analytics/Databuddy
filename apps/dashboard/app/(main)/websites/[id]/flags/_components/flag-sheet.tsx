@@ -373,6 +373,17 @@ export function FlagSheet({
 	const watchedType = form.watch("flag.type");
 	const watchedRules = form.watch("flag.rules") || [];
 	const watchedDependencies = form.watch("flag.dependencies") || [];
+	const availableFolders = useMemo(() => {
+		if (!flagsList) return [];
+		const folderSet = new Set<string>();
+		for (const item of flagsList) {
+			const folder = (item as { folder?: string | null }).folder?.trim();
+			if (folder) folderSet.add(folder);
+		}
+		return Array.from(folderSet).sort((a, b) =>
+			a.localeCompare(b, undefined, { sensitivity: "base" })
+		);
+	}, [flagsList]);
 	// const watchedScheduleEnabled = form.watch("schedule.isEnabled");
 
 	const handleNameChange = (value: string) => {
@@ -577,11 +588,17 @@ export function FlagSheet({
 										</FormLabel>
 										<FormControl>
 											<Input
+												list="flag-folder-suggestions"
 												placeholder="e.g. auth/login"
 												{...field}
 												value={field.value ?? ""}
 											/>
 										</FormControl>
+										<datalist id="flag-folder-suggestions">
+											{availableFolders.map((folder) => (
+												<option key={folder} value={folder} />
+											))}
+										</datalist>
 										<p className="text-muted-foreground text-xs">
 											Use / to create nested folders (e.g. auth/login)
 										</p>
