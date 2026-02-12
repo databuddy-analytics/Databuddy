@@ -62,6 +62,16 @@ type ExpandedSection =
 	| "implementation"
 	| null;
 
+const normalizeFolderPath = (value?: string) => {
+	if (!value) return undefined;
+	const normalized = value
+		.trim()
+		.replace(/\\+/g, "/")
+		.replace(/\/+/g, "/")
+		.replace(/^\/+|\/+$/g, "");
+	return normalized || undefined;
+};
+
 function CollapsibleSection({
 	icon: Icon,
 	title,
@@ -400,7 +410,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
-					folder: data.folder?.trim() || undefined,
+					folder: normalizeFolderPath(data.folder),
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -419,7 +429,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
-					folder: data.folder?.trim() || undefined,
+					folder: normalizeFolderPath(data.folder),
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -572,6 +582,9 @@ export function FlagSheet({
 												value={field.value ?? ""}
 											/>
 										</FormControl>
+										<p className="text-muted-foreground text-xs">
+											Use / to create nested folders (e.g. auth/login)
+										</p>
 										<FormMessage />
 									</FormItem>
 								)}
