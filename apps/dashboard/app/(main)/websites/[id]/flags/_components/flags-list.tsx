@@ -2,6 +2,7 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
@@ -12,7 +13,7 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -446,32 +447,66 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return Array.from(bucket.entries()).sort(([a], [b]) => {
 			if (a === "Ungrouped") return 1;
 			if (b === "Ungrouped") return -1;
-			return a.localeCompare(b);
+			return a.localeCompare(b, undefined, { sensitivity: "base" });
 		});
 	}, [flags]);
 
+	const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+
+	const toggleFolder = (folderName: string) => {
+		setCollapsedFolders((prev) => {
+			const next = new Set(prev);
+			if (next.has(folderName)) {
+				next.delete(folderName);
+			} else {
+				next.add(folderName);
+			}
+			return next;
+		});
+	};
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{groupedFlags.map(([folderName, folderFlags]) => (
-				<div key={folderName}>
-					<div className="border-b bg-muted/30 px-4 py-2">
-						<span className="font-medium text-muted-foreground text-xs">
-							{folderName}
-						</span>
+			{groupedFlags.map(([folderName, folderFlags]) => {
+				const isCollapsed = collapsedFolders.has(folderName);
+				return (
+					<div key={folderName}>
+						<button
+							className="flex w-full items-center justify-between border-b bg-muted/30 px-4 py-2 text-left"
+							onClick={() => toggleFolder(folderName)}
+							type="button"
+						>
+							<div className="flex items-center gap-2">
+								<CaretDownIcon
+									className={cn(
+										"size-3 text-muted-foreground transition-transform",
+										isCollapsed && "-rotate-90"
+									)}
+									weight="bold"
+								/>
+								<span className="font-medium text-muted-foreground text-xs">
+									{folderName}
+								</span>
+							</div>
+							<span className="text-muted-foreground text-xs">
+								{folderFlags.length}
+							</span>
+						</button>
+						{!isCollapsed &&
+							folderFlags.map((flag) => (
+								<FlagRow
+									dependents={dependentsMap.get(flag.key) ?? []}
+									flag={flag}
+									flagMap={flagMap}
+									groups={groups.get(flag.id) ?? []}
+									key={flag.id}
+									onDelete={onDelete}
+									onEdit={onEdit}
+								/>
+							))}
 					</div>
-					{folderFlags.map((flag) => (
-						<FlagRow
-							dependents={dependentsMap.get(flag.key) ?? []}
-							flag={flag}
-							flagMap={flagMap}
-							groups={groups.get(flag.id) ?? []}
-							key={flag.id}
-							onDelete={onDelete}
-							onEdit={onEdit}
-						/>
-					))}
-				</div>
-			))}
+				);
+			})}
 		</div>
 	);
 }
