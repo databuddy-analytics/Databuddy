@@ -9,6 +9,7 @@
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/notifications": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
