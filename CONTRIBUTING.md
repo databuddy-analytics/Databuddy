@@ -39,7 +39,7 @@ docker-compose up -d
 5. Set up the database:
 
 ```bash
-bun run db:push        # Apply database schema
+bun run src:push        # Apply database schema
 bun run clickhouse:init # Initialize ClickHouse basket
 ```
 

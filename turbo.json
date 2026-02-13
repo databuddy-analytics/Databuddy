@@ -34,7 +34,7 @@
       "cache": false,
       "outputs": ["dist/**"]
     },
-    "db:push": {
+    "src:push": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "persistent": false

@@ -36,7 +36,7 @@
     "lint": "bunx ultracite@latest check",
     "format": "bunx ultracite@latest fix",
     "check-types": "tsgo --noEmit --project .",
-    "generate-db": "turbo run generate --filter=@databuddy/db",
+    "generate-src": "turbo run generate --filter=@databuddy/db",
     "db:studio": "dotenv -- turbo run db:studio",
     "clickhouse:init": "dotenv -- turbo run clickhouse:init",
     "db:push": "dotenv -- turbo run db:push",

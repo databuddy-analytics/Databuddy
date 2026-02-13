@@ -255,7 +255,7 @@ async function main() {
 	// Step 6: Set up database schema
 	currentStep += 1;
 	logStep(currentStep, steps.length, steps[5] ?? "");
-	log(chalk.blue("Running: bun run db:push"));
+	log(chalk.blue("Running: bun run src:push"));
 
 	try {
 		await $`bun run db:push`;
