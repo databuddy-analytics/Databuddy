@@ -41,6 +41,7 @@ interface FlagsListProps {
 	groups: Map<string, TargetGroup[]>;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
+	groupByFolder?: boolean;
 }
 
 const TYPE_CONFIG = {
@@ -52,6 +53,16 @@ const TYPE_CONFIG = {
 		color: "text-pink-500",
 	},
 } as const;
+
+const UNASSIGNED_FOLDER = "__unassigned__";
+
+const normalizeFolderKey = (folder?: string | null) => {
+	const trimmed = (folder || "").trim();
+	return trimmed.length > 0 ? trimmed : UNASSIGNED_FOLDER;
+};
+
+const formatFolderLabel = (key: string) =>
+	key === UNASSIGNED_FOLDER ? "Unassigned" : key;
 
 function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 	if (groups.length === 0) {
@@ -404,7 +415,13 @@ function FlagRow({
 	);
 }
 
-export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
+export function FlagsList({
+	flags,
+	groups,
+	onEdit,
+	onDelete,
+	groupByFolder = false,
+}: FlagsListProps) {
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
 		for (const f of flags) {
@@ -427,19 +444,66 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	const groupedFlags = useMemo(() => {
+		const map = new Map<string, Flag[]>();
+		for (const flag of flags) {
+			const key = normalizeFolderKey(flag.folder);
+			const existing = map.get(key) || [];
+			existing.push(flag);
+			map.set(key, existing);
+		}
+		const keys = Array.from(map.keys()).sort((a, b) => {
+			if (a === UNASSIGNED_FOLDER) return 1;
+			if (b === UNASSIGNED_FOLDER) return -1;
+			return a.localeCompare(b);
+		});
+		return { map, keys };
+	}, [flags]);
+
+	if (!groupByFolder) {
+		return (
+			<div className="w-full overflow-x-auto">
+				{flags.map((flag) => (
+					<FlagRow
+						dependents={dependentsMap.get(flag.key) ?? []}
+						flag={flag}
+						flagMap={flagMap}
+						groups={groups.get(flag.id) ?? []}
+						key={flag.id}
+						onDelete={onDelete}
+						onEdit={onEdit}
+					/>
+				))}
+			</div>
+		);
+	}
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
-					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
-			))}
+			{groupedFlags.keys.map((key) => {
+				const group = groupedFlags.map.get(key) ?? [];
+				return (
+					<div key={key}>
+						<div className="flex items-center justify-between border-b bg-background px-4 py-2 text-muted-foreground text-xs uppercase tracking-wide">
+							<span>{formatFolderLabel(key)}</span>
+							<span className="rounded bg-muted px-2 py-0.5 text-[10px]">
+								{group.length} flag{group.length === 1 ? "" : "s"}
+							</span>
+						</div>
+						{group.map((flag) => (
+							<FlagRow
+								dependents={dependentsMap.get(flag.key) ?? []}
+								flag={flag}
+								flagMap={flagMap}
+								groups={groups.get(flag.id) ?? []}
+								key={flag.id}
+								onDelete={onDelete}
+								onEdit={onEdit}
+							/>
+						))}
+					</div>
+				);
+			})}
 		</div>
 	);
 }

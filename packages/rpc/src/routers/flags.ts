@@ -84,6 +84,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().max(200).nullable().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -141,6 +142,7 @@ const updateFlagSchema = z
 		variants: z.array(variantSchema).optional(),
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
+		folder: z.string().max(200).nullable().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
 	})
 	.superRefine((data, ctx) => {
@@ -271,7 +273,9 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
+			const folderKey =
+				input.folder === null ? "unassigned" : input.folder || "all";
+			const cacheKey = `list:${scope}:${input.status || "all"}:${folderKey}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -292,6 +296,15 @@ export const flagsRouter = {
 
 					if (input.status) {
 						conditions.push(eq(flags.status, input.status));
+					}
+
+					const folderFilter =
+						typeof input.folder === "string" ? input.folder.trim() : input.folder;
+
+					if (folderFilter === null) {
+						conditions.push(isNull(flags.folder));
+					} else if (folderFilter) {
+						conditions.push(eq(flags.folder, folderFilter));
 					}
 
 					const flagsList = await context.db.query.flags.findMany({
@@ -619,6 +632,7 @@ export const flagsRouter = {
 							status: finalStatus,
 							defaultValue: input.defaultValue,
 							rules: input.rules,
+							folder: input.folder?.trim() || null,
 							persistAcrossAuth:
 								input.persistAcrossAuth ??
 								existingFlag[0].persistAcrossAuth ??
@@ -662,6 +676,7 @@ export const flagsRouter = {
 			}
 
 			const flagId = randomUUIDv7();
+			const normalizedFolder = input.folder?.trim() || null;
 
 			// Use transaction to ensure flag + target group associations are atomic
 			const newFlag = await withTransaction(async (tx) => {
@@ -677,6 +692,7 @@ export const flagsRouter = {
 						defaultValue: input.defaultValue,
 						payload: input.payload || null,
 						rules: input.rules || [],
+						folder: normalizedFolder,
 						persistAcrossAuth: input.persistAcrossAuth ?? false,
 						rolloutPercentage: input.rolloutPercentage || 0,
 						rolloutBy: input.rolloutBy || null,
@@ -831,6 +847,9 @@ export const flagsRouter = {
 			}
 
 			const { id, targetGroupIds, ...updates } = input;
+			if (updates.folder !== undefined) {
+				updates.folder = updates.folder?.trim() || null;
+			}
 
 			// Use transaction to ensure flag update + target group associations are atomic
 			const updatedFlag = await withTransaction(async (tx) => {

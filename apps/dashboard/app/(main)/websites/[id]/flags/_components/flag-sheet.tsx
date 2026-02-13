@@ -247,6 +247,7 @@ export function FlagSheet({
 				variants: [],
 				dependencies: [],
 				environment: undefined,
+				folder: "",
 				targetGroupIds: [],
 			},
 			schedule: undefined,
@@ -289,6 +290,7 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
+					folder: flag.folder || "",
 					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
@@ -310,6 +312,7 @@ export function FlagSheet({
 					rules: template.rules ?? [],
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
+					folder: "",
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -331,6 +334,7 @@ export function FlagSheet({
 					rules: [],
 					variants: [],
 					dependencies: [],
+					folder: "",
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -396,6 +400,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || null,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -414,6 +419,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || null,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -542,6 +548,25 @@ export function FlagSheet({
 												<Textarea
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
+													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												Folder (optional)
+											</FormLabel>
+											<FormControl>
+												<Input
+													placeholder="e.g. Growth/Checkout"
 													{...field}
 												/>
 											</FormControl>
