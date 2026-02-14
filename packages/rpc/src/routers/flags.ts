@@ -9,6 +9,7 @@ import {
 	isNull,
 	member,
 	ne,
+	or,
 	notDeleted,
 	targetGroups,
 	websites,
@@ -84,6 +85,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -142,6 +144,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -293,6 +296,19 @@ export const flagsRouter = {
 					if (input.status) {
 						conditions.push(eq(flags.status, input.status));
 					}
+
+					if (input.folder !== undefined) {
+						if (input.folder === "") {
+							// Filter for flags with no folder
+							conditions.push(
+								or(isNull(flags.folder), eq(flags.folder, ""))
+							);
+						} else {
+							// Filter for specific folder
+							conditions.push(eq(flags.folder, input.folder));
+						}
+					}
+
 
 					const flagsList = await context.db.query.flags.findMany({
 						where: and(...conditions),
