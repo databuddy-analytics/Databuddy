@@ -551,6 +551,25 @@ export function FlagSheet({
 								/>
 							</div>
 
+				<FormField
+					control={form.control}
+					name="flag.folder"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel className="text-muted-foreground">
+								Folder (optional)
+							</FormLabel>
+							<FormControl>
+								<Input
+									placeholder="e.g., Marketing, Product, Experiments…"
+									{...field}
+								/>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+
 							{/* Separator */}
 							<div className="h-px bg-border" />
 

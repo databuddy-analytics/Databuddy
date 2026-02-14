@@ -320,6 +320,12 @@ function FlagRow({
 						<p className="truncate font-medium text-foreground text-sm">
 							{flag.name ?? flag.key}
 						</p>
+						{flag.folder && (
+							<Badge variant="outline" className="gap-1 text-xs">
+								<span className="text-muted-foreground">📁</span>
+								{flag.folder}
+							</Badge>
+						)}
 						<DependencyBadges
 							dependencies={dependencies}
 							dependents={dependents}
