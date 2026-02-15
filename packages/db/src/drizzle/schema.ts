@@ -993,3 +993,47 @@ export const revenueConfig = pgTable(
 		}).onDelete("cascade"),
 	]
 );
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().$defaultFn(() => randomUUIDv7()),
+		userId: text("user_id"),
+		organizationId: text("organization_id"),
+		websiteId: text("website_id"),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean().default(true).notNull(),
+		notificationChannels: text("notification_channels").array().notNull().default("{}"),
+		slackWebhookUrl: text("slack_webhook_url"),
+		discordWebhookUrl: text("discord_webhook_url"),
+		emailAddresses: text("email_addresses").array(),
+		webhookUrl: text("webhook_url"),
+		webhookHeaders: jsonb("webhook_headers"),
+		triggerType: text("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions"),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
+	},
+	(table) => [
+		index("alarms_user_id_idx").on(table.userId),
+		index("alarms_organization_id_idx").on(table.organizationId),
+		index("alarms_website_id_idx").on(table.websiteId),
+		index("alarms_enabled_idx").on(table.enabled),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
