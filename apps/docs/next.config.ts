@@ -45,8 +45,8 @@ const config: NextConfig = {
 		];
 	},
 
-	async rewrites() {
-		return [
+	rewrites: async () => ({
+		beforeFiles: [
 			{
 				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",
@@ -62,8 +62,10 @@ const config: NextConfig = {
 					},
 				],
 			},
-		];
-	},
+		],
+		afterFiles: [],
+		fallback: [],
+	}),
 
 	async redirects() {
 		return await [
