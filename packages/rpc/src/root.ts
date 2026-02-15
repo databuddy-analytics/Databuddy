@@ -1,4 +1,4 @@
-import { agentRouter } from "./routers/agent";
+\talarms: alarmsRouter,\nimport { alarmsRouter } from "./routers/alarms";\nimport { agentRouter } from "./routers/agent";
 import { annotationsRouter } from "./routers/annotations";
 import { apikeysRouter } from "./routers/apikeys";
 import { autocompleteRouter } from "./routers/autocomplete";
