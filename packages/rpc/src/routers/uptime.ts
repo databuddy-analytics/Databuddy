@@ -1,4 +1,4 @@
-import { and, db, eq, inArray, member, uptimeSchedules } from "@databuddy/db";
+import { and, db, eq, inArray, member, uptimeSchedules, alarms, uptimeAlarmHistory, desc } from "@databuddy/db";
 import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
 import { Client } from "@upstash/qstash";
@@ -521,5 +521,50 @@ export const uptimeRouter = {
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule resumed");
 			return { success: true, isPaused: false };
+			}),
+				assignAlarms: protectedProcedure
+					.input(
+						z.object({
+							uptimeMonitorId: z.string(),
+							alarmIds: z.array(z.string()),
+						})
+					)
+					.handler(async ({ input, context }) => {
+						await context.db
+							.update(uptimeSchedules)
+							.set({ alarmIds: input.alarmIds })
+							.where(eq(uptimeSchedules.id, input.uptimeMonitorId));
+
+						return { success: true };
+					}),
+				getAssignedAlarms: protectedProcedure
+					.input(z.object({ uptimeMonitorId: z.string() }))
+					.handler(async ({ input, context }) => {
+						const schedule = await context.db.query.uptimeSchedules.findFirst({
+							where: eq(uptimeSchedules.id, input.uptimeMonitorId),
+						});
+
+						if (!schedule || !schedule.alarmIds) {
+							return [];
+						}
+
+						return await context.db.query.alarms.findMany({
+							where: member(alarms.id, schedule.alarmIds),
+						});
+					}),
+				getAlarmHistory: protectedProcedure
+					.input(
+						z.object({
+							uptimeMonitorId: z.string(),
+							limit: z.number().default(50),
+						})
+					)
+					.handler(async ({ input, context }) => {
+						return await context.db.query.uptimeAlarmHistory.findMany({
+							where: eq(uptimeAlarmHistory.uptimeMonitorId, input.uptimeMonitorId),
+							orderBy: desc(uptimeAlarmHistory.triggeredAt),
+							limit: input.limit,
+						});
+					}),
 		}),
 };

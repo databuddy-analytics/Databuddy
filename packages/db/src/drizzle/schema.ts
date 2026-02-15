@@ -837,6 +837,9 @@ export const uptimeSchedules = pgTable(
 		timeout: integer(),
 		cacheBust: boolean("cache_bust").default(false).notNull(),
 		jsonParsingConfig: jsonb("json_parsing_config"),
+				alarmIds: text("alarm_ids").array().default("{}"),
+				lastAlarmStatus: text("last_alarm_status"),
+				lastAlarmTriggeredAt: timestamp("last_alarm_triggered_at"),
 		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
 		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
 	},
@@ -988,6 +991,32 @@ export const revenueConfig = pgTable(
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
 			name: "revenue_config_website_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
+export const uptimeAlarmHistory = pgTable(
+	"uptime_alarm_history",
+	{
+		id: text().primaryKey().$defaultFn(() => randomUUIDv7()),
+		uptimeMonitorId: text("uptime_monitor_id").notNull(),
+		alarmId: text("alarm_id").notNull(),
+		triggeredAt: timestamp("triggered_at").defaultNow().notNull(),
+		type: text("type").notNull(),
+		websiteUrl: text("website_url").notNull(),
+		statusCode: integer("status_code"),
+		responseTime: integer("response_time"),
+		downtimeDuration: integer("downtime_duration"),
+		consecutiveFailures: integer("consecutive_failures"),
+		notificationStatus: text("notification_status").notNull(),
+		errorMessage: text("error_message"),
+	},
+	(table) => [
+		index("uptime_alarm_history_monitor_idx").on(table.uptimeMonitorId),
+		index("uptime_alarm_history_alarm_idx").on(table.alarmId),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
 		}).onDelete("cascade"),
 	]
 );

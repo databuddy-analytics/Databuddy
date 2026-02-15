@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
 import { sendUptimeEvent } from "./lib/producer";
+import { db, eq, member, uptimeSchedules, alarms, uptimeAlarmHistory } from "@databuddy/db";
 import {
 	captureError,
 	endRequestSpan,
@@ -192,6 +193,21 @@ const app = new Elysia()
 				);
 			}
 
+			// Trigger alarms if needed
+			try {
+				await triggerAlarmsIfNeeded(monitorId, result.data);
+			} catch (error) {
+				captureError(error, {
+					type: "alarm_trigger_error",
+					monitorId,
+				});
+				console.error(
+					"[uptime] Failed to trigger alarms:",
+					monitorId,
+					error instanceof Error ? error.message : String(error)
+				);
+			}
+
 			return new Response("Uptime check complete", { status: 200 });
 		} catch (error) {
 			captureError(error, { type: "unexpected_error" });
@@ -204,3 +220,89 @@ export default {
 	port: 4000,
 	fetch: app.fetch,
 };
+
+// Alarm trigger logic
+async function triggerAlarmsIfNeeded(
+	monitorId: string,
+	uptimeData: any
+): Promise<void> {
+	try {
+		const schedule = await db.query.uptimeSchedules.findFirst({
+			where: eq(uptimeSchedules.id, monitorId),
+		});
+
+		if (!schedule || !schedule.alarmIds || schedule.alarmIds.length === 0) {
+			return;
+		}
+
+		const isDown = uptimeData.status === 0;
+		const isUp = uptimeData.status === 1;
+
+		// Trigger DOWN alarm: consecutive failures >= 3
+		if (isDown && uptimeData.failure_streak >= 3) {
+			// Prevent duplicate: if last status was down and within 5 minutes, skip
+			if (schedule.lastAlarmStatus === "down" && schedule.lastAlarmTriggeredAt) {
+				const lastTrigger = new Date(schedule.lastAlarmTriggeredAt).getTime();
+				const now = Date.now();
+				if (now - lastTrigger < 5 * 60 * 1000) {
+					return;
+				}
+			}
+
+			await sendAlarmNotifications(schedule.alarmIds, "down", uptimeData, monitorId);
+			await db
+				.update(uptimeSchedules)
+				.set({
+					lastAlarmStatus: "down",
+					lastAlarmTriggeredAt: new Date(),
+				})
+				.where(eq(uptimeSchedules.id, monitorId));
+		}
+
+		// Trigger UP alarm: website recovered
+		if (isUp && schedule.lastAlarmStatus === "down") {
+			await sendAlarmNotifications(schedule.alarmIds, "up", uptimeData, monitorId);
+			await db
+				.update(uptimeSchedules)
+				.set({
+					lastAlarmStatus: "up",
+					lastAlarmTriggeredAt: new Date(),
+				})
+				.where(eq(uptimeSchedules.id, monitorId));
+		}
+	} catch (error) {
+		captureError(error, { type: "alarm_trigger_failed", monitorId });
+	}
+}
+
+async function sendAlarmNotifications(
+	alarmIds: string[],
+	type: "down" | "up",
+	uptimeData: any,
+	monitorId: string
+): Promise<void> {
+	const alarmsToNotify = await db.query.alarms.findMany({
+		where: member(alarms.id, alarmIds),
+	});
+
+	for (const alarm of alarmsToNotify) {
+		try {
+			// TODO: Integrate with @databuddy/notifications package
+			// await sendNotification(alarm, ...)
+
+			// Record history
+			await db.insert(uptimeAlarmHistory).values({
+				uptimeMonitorId: monitorId,
+				alarmId: alarm.id,
+				type,
+				websiteUrl: uptimeData.url,
+				statusCode: uptimeData.http_code,
+				responseTime: uptimeData.total_ms,
+				consecutiveFailures: uptimeData.failure_streak,
+				notificationStatus: "sent",
+			});
+		} catch (error) {
+			captureError(error, { type: "alarm_notification_failed", alarmId: alarm.id });
+		}
+	}
+}
