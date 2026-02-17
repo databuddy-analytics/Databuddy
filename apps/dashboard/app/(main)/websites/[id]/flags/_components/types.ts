@@ -21,6 +21,7 @@ export interface Flag {
 	targetGroupIds?: string[];
 	variants?: Variant[];
 	dependencies?: string[];
+	folder?: string | null;
 	environment?: string;
 	persistAcrossAuth?: boolean;
 	websiteId?: string | null;

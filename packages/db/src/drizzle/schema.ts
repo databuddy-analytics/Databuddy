@@ -668,6 +668,7 @@ export const flags = pgTable(
 		variants: jsonb("variants").default([]),
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),
+		folder: text("folder"),
 		environment: text("environment"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -686,6 +687,11 @@ export const flags = pgTable(
 		index("idx_flags_created_by").using(
 			"btree",
 			table.createdBy.asc().nullsLast().op("text_ops")
+		),
+		index("idx_flags_website_folder").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops"),
+			table.folder.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
