@@ -79,12 +79,18 @@ const authorizeScope = async (
 	}
 };
 
+const folderPathSchema = z
+	.string()
+	.max(120)
+	.regex(/^[a-zA-Z0-9._\-/ ]+$/, "Folder path contains invalid characters")
+	.transform((value) => value.trim());
+
 const listFlagsSchema = z
 	.object({
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
-		folder: z.string().max(120).optional(),
+		folder: folderPathSchema.optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -119,7 +125,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
-		folder: z.string().max(120).optional(),
+		folder: folderPathSchema.optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
@@ -144,7 +150,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
-		folder: z.string().max(120).optional(),
+		folder: folderPathSchema.optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
