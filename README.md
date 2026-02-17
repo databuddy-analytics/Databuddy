@@ -48,8 +48,7 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 
 ## 📚 Table of Contents
 
-1. **How do I get started?**
-   Follow the [Getting Started](https://www.databuddy.cc/docs/getting-started) guide.
+- [Getting Started](https://www.databuddy.cc/docs/getting-started)
 - [Contributing](#-contributing)
 - [Security](#-security)
 - [FAQ](#-faq)
