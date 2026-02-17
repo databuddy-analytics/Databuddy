@@ -40,7 +40,7 @@ docker-compose up -d
 
 ```bash
 bun run db:push        # Apply database schema
-bun run clickhouse:init # Initialize ClickHouse basket
+bun run clickhouse:init # Initialize ClickHouse database
 ```
 
 6. Build the SDK:
@@ -130,9 +130,9 @@ git commit -m "feat: your feature"
 git push origin feature/your-feature
 ```
 
-Note: Open a pull request to the STAGING branch
-
 7. Create a Pull Request
+
+   > Open pull requests against the `main` branch unless maintainers request otherwise.
 
 
 ## Code Style
