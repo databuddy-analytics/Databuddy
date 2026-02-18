@@ -9,6 +9,7 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
 	UserIcon,
@@ -248,6 +249,7 @@ export function FlagSheet({
 				dependencies: [],
 				environment: undefined,
 				targetGroupIds: [],
+				folder: undefined,
 			},
 			schedule: undefined,
 		},
@@ -290,6 +292,7 @@ export function FlagSheet({
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
 					targetGroupIds: extractTargetGroupIds(),
+					folder: flag.folder || undefined,
 				},
 				schedule: undefined,
 			});
@@ -311,6 +314,7 @@ export function FlagSheet({
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -332,6 +336,7 @@ export function FlagSheet({
 					variants: [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -400,6 +405,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -418,6 +424,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await createMutation.mutateAsync(createData);
 			}
@@ -437,6 +444,17 @@ export function FlagSheet({
 	const isLoading = createMutation.isPending || updateMutation.isPending;
 	const isRollout = watchedType === "rollout";
 	const isMultivariant = watchedType === "multivariant";
+
+	const existingFolders = useMemo(() => {
+		const folders = new Set<string>();
+		for (const f of flagsList ?? []) {
+			const folder = (f as Flag).folder;
+			if (folder?.trim()) {
+				folders.add(folder.trim());
+			}
+		}
+		return [...folders].sort();
+	}, [flagsList]);
 
 	return (
 		<Sheet onOpenChange={handleOpenChange} open={isOpen}>
@@ -544,6 +562,59 @@ export function FlagSheet({
 													placeholder="What does this flag control?…"
 													{...field}
 												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												<div className="flex items-center gap-1.5">
+													<FolderIcon className="size-3.5" weight="duotone" />
+													Folder (optional)
+												</div>
+											</FormLabel>
+											<FormControl>
+												<div className="space-y-1.5">
+													<Input
+														placeholder="e.g., auth, billing/payments"
+														{...field}
+														onChange={(e) =>
+															field.onChange(e.target.value || undefined)
+														}
+														value={field.value ?? ""}
+													/>
+													{existingFolders.length > 0 && (
+														<div className="flex flex-wrap gap-1">
+															{existingFolders.map((folder) => (
+																<button
+																	className={cn(
+																		"rounded border px-2 py-0.5 text-xs transition-colors",
+																		field.value === folder
+																			? "border-primary bg-primary/10 text-primary"
+																			: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
+																	)}
+																	key={folder}
+																	onClick={() =>
+																		field.onChange(
+																			field.value === folder
+																				? undefined
+																				: folder
+																		)
+																	}
+																	type="button"
+																>
+																	{folder}
+																</button>
+															))}
+														</div>
+													)}
+												</div>
 											</FormControl>
 											<FormMessage />
 										</FormItem>

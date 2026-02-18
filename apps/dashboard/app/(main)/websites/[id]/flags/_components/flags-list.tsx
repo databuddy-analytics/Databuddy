@@ -2,9 +2,12 @@
 
 import {
 	ArchiveIcon,
+	CaretRightIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
+	FolderOpenIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -12,7 +15,9 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useAtom } from "jotai";
+import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +36,7 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+import { collapsedFoldersAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagKey } from "./flag-key";
 import { FlagVariants } from "./flag-variants";
 import { RolloutProgress } from "./rollout-progress";
@@ -404,6 +410,116 @@ function FlagRow({
 	);
 }
 
+interface FolderGroup {
+	folder: string;
+	flags: Flag[];
+}
+
+function FolderSection({
+	folder,
+	flags,
+	groups,
+	flagMap,
+	dependentsMap,
+	onEdit,
+	onDelete,
+}: {
+	folder: string;
+	flags: Flag[];
+	groups: Map<string, TargetGroup[]>;
+	flagMap: Map<string, Flag>;
+	dependentsMap: Map<string, Flag[]>;
+	onEdit: (flag: Flag) => void;
+	onDelete: (flagId: string) => void;
+}) {
+	const [collapsedFolders, setCollapsedFolders] = useAtom(collapsedFoldersAtom);
+	const listKey = `list:${folder}`;
+	const isCollapsed = collapsedFolders.has(listKey);
+
+	const handleToggle = useCallback(() => {
+		setCollapsedFolders((prev: Set<string>) => {
+			const next = new Set(prev);
+			if (next.has(listKey)) {
+				next.delete(listKey);
+			} else {
+				next.add(listKey);
+			}
+			return next;
+		});
+	}, [listKey, setCollapsedFolders]);
+
+	const displayName = folder || "Uncategorized";
+
+	return (
+		<div>
+			<button
+				className="flex w-full cursor-pointer items-center gap-2 border-b bg-accent/30 px-4 py-2 text-left transition-colors hover:bg-accent/50"
+				onClick={handleToggle}
+				type="button"
+			>
+				<CaretRightIcon
+					className={cn(
+						"size-3.5 text-muted-foreground transition-transform duration-150",
+						!isCollapsed && "rotate-90"
+					)}
+					weight="fill"
+				/>
+				{folder ? (
+					isCollapsed ? (
+						<FolderIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
+					) : (
+						<FolderOpenIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
+					)
+				) : (
+					<FlagIcon className="size-4 text-muted-foreground" weight="duotone" />
+				)}
+				<span className="font-medium text-foreground text-sm">
+					{displayName}
+				</span>
+				<Badge className="ml-1 font-normal" variant="secondary">
+					{flags.length}
+				</Badge>
+			</button>
+
+			<AnimatePresence initial={false}>
+				{!isCollapsed && (
+					<motion.div
+						animate={{ height: "auto", opacity: 1 }}
+						className="overflow-hidden"
+						exit={{ height: 0, opacity: 0 }}
+						initial={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.15, ease: "easeOut" }}
+					>
+						{flags.length === 0 ? (
+							<div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
+								No flags in this folder
+							</div>
+						) : (
+							flags.map((flag) => (
+								<FlagRow
+									dependents={dependentsMap.get(flag.key) ?? []}
+									flag={flag}
+									flagMap={flagMap}
+									groups={groups.get(flag.id) ?? []}
+									key={flag.id}
+									onDelete={onDelete}
+									onEdit={onEdit}
+								/>
+							))
+						)}
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</div>
+	);
+}
+
 export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
@@ -426,6 +542,62 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		}
 		return map;
 	}, [flags]);
+
+	const hasFolders = useMemo(
+		() => flags.some((f) => f.folder?.trim()),
+		[flags]
+	);
+
+	const folderGroups = useMemo<FolderGroup[]>(() => {
+		if (!hasFolders) {
+			return [];
+		}
+
+		const groupMap = new Map<string, Flag[]>();
+
+		for (const flag of flags) {
+			const folder = flag.folder?.trim() || "";
+			const existing = groupMap.get(folder) || [];
+			existing.push(flag);
+			groupMap.set(folder, existing);
+		}
+
+		const sorted: FolderGroup[] = [];
+		const folders = [...groupMap.keys()].sort((a, b) => {
+			if (a === "") {
+				return 1;
+			}
+			if (b === "") {
+				return -1;
+			}
+			return a.localeCompare(b);
+		});
+
+		for (const folder of folders) {
+			sorted.push({ folder, flags: groupMap.get(folder) ?? [] });
+		}
+
+		return sorted;
+	}, [flags, hasFolders]);
+
+	if (hasFolders) {
+		return (
+			<div className="w-full overflow-x-auto">
+				{folderGroups.map((group) => (
+					<FolderSection
+						dependentsMap={dependentsMap}
+						flagMap={flagMap}
+						flags={group.flags}
+						folder={group.folder}
+						groups={groups}
+						key={group.folder}
+						onDelete={onDelete}
+						onEdit={onEdit}
+					/>
+				))}
+			</div>
+		);
+	}
 
 	return (
 		<div className="w-full overflow-x-auto">
