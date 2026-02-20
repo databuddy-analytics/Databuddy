@@ -661,6 +661,7 @@ export const flags = pgTable(
 		persistAcrossAuth: boolean("persist_across_auth").default(false).notNull(),
 		rolloutPercentage: integer("rollout_percentage").default(0),
 		rolloutBy: text("rollout_by"),
+		folder: text("folder"),
 		websiteId: text("website_id"),
 		organizationId: text("organization_id"),
 		userId: text("user_id"),
@@ -686,6 +687,15 @@ export const flags = pgTable(
 		index("idx_flags_created_by").using(
 			"btree",
 			table.createdBy.asc().nullsLast().op("text_ops")
+		),
+		index("idx_flags_folder").using(
+			"btree",
+			table.folder.asc().nullsLast().op("text_ops")
+		),
+		index("idx_flags_website_folder").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops"),
+			table.folder.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
 			columns: [table.websiteId],
