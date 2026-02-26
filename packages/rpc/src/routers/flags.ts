@@ -274,7 +274,8 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}:${input.folder || "all"}`;
+			const folderKey = input.folder === undefined ? "all" : (input.folder || "none");
+			const cacheKey = `list:${scope}:${input.status || "all"}:${folderKey}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -840,6 +841,11 @@ export const flagsRouter = {
 			}
 
 			const { id, targetGroupIds, ...updates } = input;
+
+			// Normalize empty string folder to null for consistency with create endpoint
+			if (updates.folder !== undefined) {
+				updates.folder = updates.folder || null;
+			}
 
 			// Use transaction to ensure flag update + target group associations are atomic
 			const updatedFlag = await withTransaction(async (tx) => {
