@@ -2,9 +2,12 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
+	FolderOpenIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -12,7 +15,8 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -404,7 +408,86 @@ function FlagRow({
 	);
 }
 
+interface FolderSectionProps {
+	folderName: string | null;
+	flags: Flag[];
+	groups: Map<string, TargetGroup[]>;
+	flagMap: Map<string, Flag>;
+	dependentsMap: Map<string, Flag[]>;
+	onEdit: (flag: Flag) => void;
+	onDelete: (flagId: string) => void;
+	isExpanded: boolean;
+	onToggle: () => void;
+}
+
+function FolderSection({
+	folderName,
+	flags,
+	groups,
+	flagMap,
+	dependentsMap,
+	onEdit,
+	onDelete,
+	isExpanded,
+	onToggle,
+}: FolderSectionProps) {
+	const displayName = folderName || "Uncategorized";
+
+	return (
+		<div className="border-b last:border-b-0">
+			<button
+				className="flex w-full items-center gap-2 bg-muted/30 px-4 py-2 text-left transition-colors hover:bg-muted/50"
+				onClick={onToggle}
+				type="button"
+			>
+				{isExpanded ? (
+					<FolderOpenIcon className="size-4 text-muted-foreground" weight="duotone" />
+				) : (
+					<FolderIcon className="size-4 text-muted-foreground" weight="duotone" />
+				)}
+				<span className="font-medium text-sm">{displayName}</span>
+				<Badge variant="secondary" className="ml-1 font-normal">
+					{flags.length}
+				</Badge>
+				<CaretDownIcon
+					className={cn(
+						"ml-auto size-4 text-muted-foreground transition-transform",
+						isExpanded && "rotate-180"
+					)}
+					weight="bold"
+				/>
+			</button>
+			<AnimatePresence initial={false}>
+				{isExpanded && (
+					<motion.div
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: "auto", opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.2 }}
+					>
+						{flags.map((flag) => (
+							<FlagRow
+								dependents={dependentsMap.get(flag.key) ?? []}
+								flag={flag}
+								flagMap={flagMap}
+								groups={groups.get(flag.id) ?? []}
+								key={flag.id}
+								onDelete={onDelete}
+								onEdit={onEdit}
+							/>
+						))}
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</div>
+	);
+}
+
 export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
+	const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+		new Set(["__uncategorized__"])
+	);
+
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
 		for (const f of flags) {
@@ -427,17 +510,75 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	// Group flags by folder
+	const groupedFlags = useMemo(() => {
+		const grouped = new Map<string, Flag[]>();
+		
+		for (const flag of flags) {
+			const folder = flag.folder || "";
+			const existing = grouped.get(folder) || [];
+			existing.push(flag);
+			grouped.set(folder, existing);
+		}
+
+		// Sort folders alphabetically, with uncategorized first
+		const sortedEntries = Array.from(grouped.entries()).sort(([a], [b]) => {
+			if (a === "") return -1;
+			if (b === "") return 1;
+			return a.localeCompare(b);
+		});
+
+		return sortedEntries;
+	}, [flags]);
+
+	const toggleFolder = (folder: string) => {
+		const key = folder || "__uncategorized__";
+		setExpandedFolders((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	};
+
+	// If no folders exist, show flat list
+	const hasMultipleFolders = groupedFlags.length > 1 || (groupedFlags.length === 1 && groupedFlags[0][0] !== "");
+
+	if (!hasMultipleFolders) {
+		return (
+			<div className="w-full overflow-x-auto">
+				{flags.map((flag) => (
+					<FlagRow
+						dependents={dependentsMap.get(flag.key) ?? []}
+						flag={flag}
+						flagMap={flagMap}
+						groups={groups.get(flag.id) ?? []}
+						key={flag.id}
+						onDelete={onDelete}
+						onEdit={onEdit}
+					/>
+				))}
+			</div>
+		);
+	}
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
+			{groupedFlags.map(([folder, folderFlags]) => (
+				<FolderSection
+					key={folder || "__uncategorized__"}
+					folderName={folder || null}
+					flags={folderFlags}
+					groups={groups}
 					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
+					dependentsMap={dependentsMap}
 					onEdit={onEdit}
+					onDelete={onDelete}
+					isExpanded={expandedFolders.has(folder || "__uncategorized__")}
+					onToggle={() => toggleFolder(folder)}
 				/>
 			))}
 		</div>

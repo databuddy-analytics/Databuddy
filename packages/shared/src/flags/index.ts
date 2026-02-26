@@ -62,6 +62,7 @@ export const flagFormSchema = z
 			.optional(),
 		environment: z.string().nullable().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().max(100, "Folder name too long").optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
