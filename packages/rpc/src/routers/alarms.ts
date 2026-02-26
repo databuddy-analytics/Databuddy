@@ -1,4 +1,4 @@
-import { alarms, db, eq, isNull, or } from "@databuddy/db";
+import { alarms, db, eq, and, member } from "@databuddy/db";
 import { NotificationClient } from "@databuddy/notifications";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
@@ -73,17 +73,35 @@ async function authorizeAlarmAccess(
 	}
 
 	const userId = context.user?.id;
-	const hasAccess =
-		(alarm.userId && alarm.userId === userId) ||
-		(alarm.organizationId && context.user?.id);
-
-	if (!hasAccess) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "You do not have access to this alarm",
+	if (!userId) {
+		throw new ORPCError("UNAUTHORIZED", {
+			message: "Authentication required",
 		});
 	}
 
-	return alarm;
+	// Check if user owns the alarm directly
+	if (alarm.userId && alarm.userId === userId) {
+		return alarm;
+	}
+
+	// Check if user is a member of the organization
+	if (alarm.organizationId) {
+		const membership = await db.query.member.findFirst({
+			where: and(
+				eq(member.organizationId, alarm.organizationId),
+				eq(member.userId, userId)
+			),
+		});
+
+		if (membership) {
+			return alarm;
+		}
+	}
+
+	// No access
+	throw new ORPCError("FORBIDDEN", {
+		message: "You do not have access to this alarm",
+	});
 }
 
 export const alarmsRouter = {
@@ -109,9 +127,25 @@ export const alarmsRouter = {
 				});
 			}
 
-			const whereCondition = input.organizationId
-				? eq(alarms.organizationId, input.organizationId)
-				: or(eq(alarms.userId, userId), isNull(alarms.organizationId));
+			let whereCondition;
+			if (input.organizationId) {
+				// Verify user is a member of the organization
+				const membership = await db.query.member.findFirst({
+					where: and(
+						eq(member.organizationId, input.organizationId),
+						eq(member.userId, userId)
+					),
+				});
+
+				if (!membership) {
+					throw new ORPCError("FORBIDDEN", {
+						message: "You are not a member of this organization",
+					});
+				}
+				whereCondition = eq(alarms.organizationId, input.organizationId);
+			} else {
+				whereCondition = eq(alarms.userId, userId);
+			}
 
 			const result = await db.select().from(alarms).where(whereCondition);
 			return result;
@@ -161,6 +195,22 @@ export const alarmsRouter = {
 				throw new ORPCError("UNAUTHORIZED", {
 					message: "Authentication required",
 				});
+			}
+
+			// If creating for an organization, verify membership
+			if (input.organizationId) {
+				const membership = await db.query.member.findFirst({
+					where: and(
+						eq(member.organizationId, input.organizationId),
+						eq(member.userId, userId)
+					),
+				});
+
+				if (!membership) {
+					throw new ORPCError("FORBIDDEN", {
+						message: "You are not a member of this organization",
+					});
+				}
 			}
 
 			const alarmId = randomUUIDv7();
