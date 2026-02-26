@@ -36,6 +36,9 @@ interface AlarmRecord {
 	} | null;
 }
 
+// Track which alarms have already fired for consecutive failures
+const consecutiveFailureAlerts = new Map<string, number>();
+
 /**
  * Get alarms assigned to a website
  */
@@ -70,6 +73,8 @@ function shouldTriggerAlarm(
 
 	// Status change: down → up or up → down
 	if (context.previousStatus && context.status !== context.previousStatus) {
+		// Clear consecutive failure alert tracking on status change
+		consecutiveFailureAlerts.delete(alarm.id);
 		// Always trigger on status change
 		return true;
 	}
@@ -80,7 +85,12 @@ function shouldTriggerAlarm(
 		context.consecutiveFailures
 	) {
 		if (context.consecutiveFailures >= conditions.consecutiveFailuresThreshold) {
-			return true;
+			// Only trigger once when threshold is first reached
+			const lastAlertedAt = consecutiveFailureAlerts.get(alarm.id);
+			if (lastAlertedAt !== context.consecutiveFailures) {
+				consecutiveFailureAlerts.set(alarm.id, context.consecutiveFailures);
+				return true;
+			}
 		}
 	}
 
@@ -152,7 +162,7 @@ async function sendNotification(
 	payload: NotificationPayload
 ): Promise<void> {
 	const channels = alarm.notificationChannels;
-	const promises: Promise<unknown>[] = [];
+	const promises: Promise<void>[] = [];
 
 	// Slack
 	if (channels.includes("slack") && alarm.slackWebhookUrl) {

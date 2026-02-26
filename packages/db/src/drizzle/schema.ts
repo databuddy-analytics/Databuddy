@@ -1073,5 +1073,10 @@ export const alarmTriggerHistory = pgTable(
 			foreignColumns: [alarms.id],
 			name: "alarm_trigger_history_alarm_id_fkey",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarm_trigger_history_website_id_fkey",
+		}).onDelete("cascade"),
 	]
 );

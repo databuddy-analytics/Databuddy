@@ -50,6 +50,12 @@ class StateTracker {
 		let consecutiveFailures = existing.consecutiveFailures;
 		let lastStatusChange = existing.lastStatusChange;
 
+		// Calculate downtime duration BEFORE updating lastStatusChange
+		const downtimeDuration =
+			statusChanged && currentStatus === MonitorStatus.UP
+				? timestamp - existing.lastStatusChange
+				: undefined;
+
 		if (statusChanged) {
 			// Status changed
 			consecutiveFailures = currentStatus === MonitorStatus.DOWN ? 1 : 0;
@@ -61,11 +67,6 @@ class StateTracker {
 			// Still up, reset failures
 			consecutiveFailures = 0;
 		}
-
-		const downtimeDuration =
-			statusChanged && currentStatus === MonitorStatus.UP
-				? timestamp - lastStatusChange
-				: undefined;
 
 		this.states.set(monitorId, {
 			status: currentStatus,
