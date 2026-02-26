@@ -11,6 +11,8 @@ import {
 	shutdownTracing,
 	startRequestSpan,
 } from "./lib/tracing";
+import { processUptimeAlarms } from "./alarms";
+import { stateTracker } from "./state-tracker";
 
 initTracing();
 
@@ -190,6 +192,39 @@ const app = new Elysia()
 					monitorId,
 					error instanceof Error ? error.message : String(error)
 				);
+			}
+
+			// Process alarms if websiteId is available
+			if (schedule.data.websiteId) {
+				try {
+					const { previousStatus, consecutiveFailures, downtimeDuration } =
+						stateTracker.updateState(
+							monitorId,
+							result.data.status,
+							result.data.timestamp
+						);
+
+					await processUptimeAlarms({
+						websiteId: schedule.data.websiteId,
+						url: schedule.data.url,
+						status: result.data.status,
+						previousStatus,
+						uptimeData: result.data,
+						consecutiveFailures,
+						downtimeDuration,
+					});
+				} catch (error) {
+					captureError(error, {
+						type: "alarm_processing_error",
+						monitorId,
+						websiteId: schedule.data.websiteId,
+					});
+					console.error(
+						"[uptime] Failed to process alarms:",
+						monitorId,
+						error instanceof Error ? error.message : String(error)
+					);
+				}
 			}
 
 			return new Response("Uptime check complete", { status: 200 });
