@@ -31,6 +31,7 @@
     "./types/sessions": "./src/types/sessions.ts",
     "./types/vercel": "./src/types/vercel.ts",
     "./types/website": "./src/types/website.ts",
+    "./alarms": "./src/alarms/index.ts",
     "./flags": "./src/flags/index.ts",
     "./flags/utils": "./src/flags/utils.ts",
     "./utils/date-utils": "./src/utils/date-utils.ts",

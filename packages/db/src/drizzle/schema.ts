@@ -954,6 +954,78 @@ export const usageAlertLog = pgTable(
 	]
 );
 
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean().default(true).notNull(),
+		notificationChannels: jsonb("notification_channels").default([]),
+		slackWebhookUrl: text("slack_webhook_url"),
+		discordWebhookUrl: text("discord_webhook_url"),
+		emailAddresses: jsonb("email_addresses").default([]),
+		webhookUrl: text("webhook_url"),
+		webhookHeaders: jsonb("webhook_headers").default({}),
+		triggerType: text("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions").default({}),
+		websiteId: text("website_id"),
+		organizationId: text("organization_id"),
+		userId: text("user_id"),
+		createdBy: text("created_by").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		deletedAt: timestamp("deleted_at"),
+	},
+	(table) => [
+		index("alarms_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
+		index("alarms_created_by_idx").using(
+			"btree",
+			table.createdBy.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "alarms_created_by_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("restrict"),
+	]
+);
+
 export const revenueConfig = pgTable(
 	"revenue_config",
 	{
