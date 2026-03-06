@@ -113,52 +113,52 @@ export default function FlagsPage() {
 						selectedFolder={selectedFolder}
 					/>
 					<div className="min-w-0 flex-1 overflow-y-auto">
-					<Suspense fallback={<FlagsListSkeleton />}>
-						{flagsLoading ? (
-							<FlagsListSkeleton />
-						) : activeFlags.length === 0 ? (
-							<div className="flex flex-1 items-center justify-center py-16">
-								<EmptyState
-									action={{
-										label: "Create Your First Flag",
-										onClick: handleCreateFlag,
-									}}
-									description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
-									icon={<FlagIcon weight="duotone" />}
-									title="No feature flags yet"
-									variant="minimal"
+						<Suspense fallback={<FlagsListSkeleton />}>
+							{flagsLoading ? (
+								<FlagsListSkeleton />
+							) : activeFlags.length === 0 ? (
+								<div className="flex flex-1 items-center justify-center py-16">
+									<EmptyState
+										action={{
+											label: "Create Your First Flag",
+											onClick: handleCreateFlag,
+										}}
+										description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+										icon={<FlagIcon weight="duotone" />}
+										title="No feature flags yet"
+										variant="minimal"
+									/>
+								</div>
+							) : (
+								<FlagsList
+									flags={filteredFlags as Flag[]}
+									groups={groupsMap}
+									onDelete={handleDeleteFlagRequest}
+									onEdit={handleEditFlag}
 								/>
-							</div>
-						) : (
-							<FlagsList
-								flags={filteredFlags as Flag[]}
-								groups={groupsMap}
-								onDelete={handleDeleteFlagRequest}
-								onEdit={handleEditFlag}
-							/>
-						)}
-					</Suspense>
-
-					{isFlagSheetOpen && (
-						<Suspense fallback={null}>
-							<FlagSheet
-								flag={editingFlag}
-								isOpen={isFlagSheetOpen}
-								onCloseAction={handleFlagSheetClose}
-								websiteId={websiteId}
-							/>
+							)}
 						</Suspense>
-					)}
 
-					<DeleteDialog
-						isDeleting={deleteFlagMutation.isPending}
-						isOpen={flagToDelete !== null}
-						itemName={flagToDelete?.name || flagToDelete?.key}
-						onClose={() => setFlagToDelete(null)}
-						onConfirm={handleConfirmDelete}
-						title="Delete Feature Flag"
-					/>
-				</div>
+						{isFlagSheetOpen && (
+							<Suspense fallback={null}>
+								<FlagSheet
+									flag={editingFlag}
+									isOpen={isFlagSheetOpen}
+									onCloseAction={handleFlagSheetClose}
+									websiteId={websiteId}
+								/>
+							</Suspense>
+						)}
+
+						<DeleteDialog
+							isDeleting={deleteFlagMutation.isPending}
+							isOpen={flagToDelete !== null}
+							itemName={flagToDelete?.name || flagToDelete?.key}
+							onClose={() => setFlagToDelete(null)}
+							onConfirm={handleConfirmDelete}
+							title="Delete Feature Flag"
+						/>
+					</div>
 				</div>
 			</ErrorBoundary>
 		</FeatureGate>

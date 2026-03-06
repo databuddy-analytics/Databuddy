@@ -1,10 +1,6 @@
 "use client";
 
-import {
-	FolderIcon,
-	FolderOpenIcon,
-	FlagIcon,
-} from "@phosphor-icons/react";
+import { FlagIcon, FolderIcon, FolderOpenIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Flag } from "./types";
@@ -52,7 +48,11 @@ function buildFolderTree(flags: Flag[]): FolderNode {
 				});
 			}
 
-			current = current.children.get(part)!;
+			const next = current.children.get(part);
+			if (!next) {
+				break;
+			}
+			current = next;
 		}
 
 		current.count++;
@@ -196,9 +196,7 @@ export function FolderSidebar({
 							? "bg-primary/10 text-primary"
 							: "text-muted-foreground hover:bg-accent/50"
 					)}
-					onClick={() =>
-						onSelectFolder(selectedFolder === "" ? null : "")
-					}
+					onClick={() => onSelectFolder(selectedFolder === "" ? null : "")}
 					type="button"
 				>
 					<FlagIcon className="size-4 shrink-0" weight="duotone" />

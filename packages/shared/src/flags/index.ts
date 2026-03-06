@@ -64,7 +64,7 @@ export const flagFormSchema = z
 		folder: z
 			.string()
 			.max(100)
-			.regex(/^[a-zA-Z0-9_\-\/]*$/)
+			.regex(/^[a-zA-Z0-9_\-/]*$/)
 			.nullable()
 			.optional(),
 		targetGroupIds: z.array(z.string()).optional(),

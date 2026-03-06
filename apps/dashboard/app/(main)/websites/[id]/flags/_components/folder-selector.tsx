@@ -12,6 +12,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { Flag } from "./types";
 
+const FOLDER_PATH_REGEX = /^[a-zA-Z0-9_\-/]*$/;
+
 interface FolderSelectorProps {
 	value: string | null | undefined;
 	onChange: (folder: string | null) => void;
@@ -48,7 +50,7 @@ export function FolderSelector({
 
 	const handleCreateFolder = () => {
 		const trimmed = newFolderInput.trim().replace(/^\/+|\/+$/g, "");
-		if (trimmed && /^[a-zA-Z0-9_\-\/]*$/.test(trimmed)) {
+		if (trimmed && FOLDER_PATH_REGEX.test(trimmed)) {
 			onChange(trimmed);
 			setNewFolderInput("");
 			setOpen(false);
@@ -125,8 +127,10 @@ export function FolderSelector({
 						<Button
 							className="size-8 shrink-0"
 							disabled={
-								!newFolderInput.trim() ||
-								!/^[a-zA-Z0-9_\-\/]*$/.test(newFolderInput.trim())
+								!(
+									newFolderInput.trim() &&
+									FOLDER_PATH_REGEX.test(newFolderInput.trim())
+								)
 							}
 							onClick={handleCreateFolder}
 							size="icon"
