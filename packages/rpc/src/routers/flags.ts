@@ -7,9 +7,11 @@ import {
 	flagsToTargetGroups,
 	inArray,
 	isNull,
+	like,
 	member,
 	ne,
 	notDeleted,
+	or,
 	targetGroups,
 	websites,
 	withTransaction,
@@ -306,7 +308,13 @@ export const flagsRouter = {
 						if (input.folder === "") {
 							conditions.push(isNull(flags.folder));
 						} else {
-							conditions.push(eq(flags.folder, input.folder));
+							// Match exact folder and all sub-folders (e.g. "billing" matches "billing" and "billing/plans")
+							conditions.push(
+								or(
+									eq(flags.folder, input.folder),
+									like(flags.folder, `${input.folder}/%`)
+								)!
+							);
 						}
 					}
 
