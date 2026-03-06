@@ -129,6 +129,23 @@ export default function FlagsPage() {
 										variant="minimal"
 									/>
 								</div>
+							) : filteredFlags.length === 0 ? (
+								<div className="flex flex-1 items-center justify-center py-16">
+									<EmptyState
+										action={{
+											label: "Create Flag",
+											onClick: handleCreateFlag,
+										}}
+										description={
+											selectedFolder
+												? `No flags in folder "${selectedFolder}". Create a new flag or move existing ones here.`
+												: "No uncategorized flags. All flags are organized in folders."
+										}
+										icon={<FlagIcon weight="duotone" />}
+										title="No flags in this folder"
+										variant="minimal"
+									/>
+								</div>
 							) : (
 								<FlagsList
 									flags={filteredFlags as Flag[]}

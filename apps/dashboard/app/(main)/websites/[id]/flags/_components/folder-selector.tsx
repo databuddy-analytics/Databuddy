@@ -126,12 +126,10 @@ export function FolderSelector({
 						/>
 						<Button
 							className="size-8 shrink-0"
-							disabled={
-								!(
-									newFolderInput.trim() &&
-									FOLDER_PATH_REGEX.test(newFolderInput.trim())
-								)
-							}
+							disabled={(() => {
+								const trimmed = newFolderInput.trim().replace(/^\/+|\/+$/g, "");
+								return !trimmed || !FOLDER_PATH_REGEX.test(trimmed);
+							})()}
 							onClick={handleCreateFolder}
 							size="icon"
 							type="button"

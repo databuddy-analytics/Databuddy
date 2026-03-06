@@ -63,8 +63,9 @@ export const flagFormSchema = z
 		environment: z.string().nullable().optional(),
 		folder: z
 			.string()
+			.min(1, "Folder path cannot be empty")
 			.max(100)
-			.regex(/^[a-zA-Z0-9_\-/]*$/)
+			.regex(/^[a-zA-Z0-9_\-/]+$/, "Invalid folder path characters")
 			.nullable()
 			.optional(),
 		targetGroupIds: z.array(z.string()).optional(),
