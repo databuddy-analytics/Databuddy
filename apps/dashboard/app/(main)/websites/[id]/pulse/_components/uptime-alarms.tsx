@@ -30,18 +30,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	Sheet,
 	SheetBody,
 	SheetContent,
@@ -179,7 +167,9 @@ function QuickCreateSheet({
 	return (
 		<Sheet
 			onOpenChange={(open) => {
-				if (!open) onCloseAction();
+				if (!open) {
+					onCloseAction();
+				}
 			}}
 			open={isOpen}
 		>
@@ -187,16 +177,10 @@ function QuickCreateSheet({
 				<SheetHeader>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<SirenIcon
-								className="text-primary"
-								size={20}
-								weight="fill"
-							/>
+							<SirenIcon className="text-primary" size={20} weight="fill" />
 						</div>
 						<div>
-							<SheetTitle className="text-lg">
-								New Uptime Alarm
-							</SheetTitle>
+							<SheetTitle className="text-lg">New Uptime Alarm</SheetTitle>
 							<SheetDescription>
 								Get notified when this site goes down
 							</SheetDescription>
@@ -307,9 +291,7 @@ function QuickCreateSheet({
 										name="webhookUrl"
 										render={({ field }) => (
 											<FormItem>
-												<FormLabel className="text-xs">
-													Webhook URL
-												</FormLabel>
+												<FormLabel className="text-xs">Webhook URL</FormLabel>
 												<FormControl>
 													<Input
 														placeholder="https://api.example.com/webhooks/..."
@@ -346,11 +328,7 @@ function QuickCreateSheet({
 						</SheetBody>
 
 						<SheetFooter>
-							<Button
-								onClick={onCloseAction}
-								type="button"
-								variant="ghost"
-							>
+							<Button onClick={onCloseAction} type="button" variant="ghost">
 								Cancel
 							</Button>
 							<Button
@@ -360,10 +338,7 @@ function QuickCreateSheet({
 							>
 								{createMutation.isPending ? (
 									<>
-										<SpinnerGapIcon
-											className="animate-spin"
-											size={16}
-										/>
+										<SpinnerGapIcon className="animate-spin" size={16} />
 										Creating...
 									</>
 								) : (
@@ -459,11 +434,7 @@ function AlarmItem({
 	);
 }
 
-function TriggerHistory({
-	websiteId,
-}: {
-	websiteId: string;
-}) {
+function TriggerHistory({ websiteId }: { websiteId: string }) {
 	const { data: triggers, isLoading } = useQuery({
 		...orpc.alarms.listTriggers.queryOptions({
 			input: { websiteId, limit: 5 },
@@ -508,10 +479,12 @@ function TriggerHistory({
 						/>
 					)}
 					<span className="min-w-0 flex-1 truncate text-xs">
-						{trigger.triggerEvent === "down" ? "Site went down" : "Site recovered"}
+						{trigger.triggerEvent === "down"
+							? "Site went down"
+							: "Site recovered"}
 						{trigger.httpCode ? ` (HTTP ${trigger.httpCode})` : ""}
 					</span>
-					<span className="shrink-0 text-muted-foreground text-[10px]">
+					<span className="shrink-0 text-[10px] text-muted-foreground">
 						{fromNow(trigger.createdAt as string)}
 					</span>
 				</div>
@@ -606,12 +579,9 @@ export function UptimeAlarms({ websiteId }: UptimeAlarmsProps) {
 						className="size-8 text-muted-foreground/50"
 						weight="duotone"
 					/>
-					<p className="text-muted-foreground text-sm">
-						No alarms configured
-					</p>
+					<p className="text-muted-foreground text-sm">No alarms configured</p>
 					<p className="max-w-xs text-muted-foreground/80 text-xs">
-						Add an alarm to get notified when this site goes down or
-						recovers
+						Add an alarm to get notified when this site goes down or recovers
 					</p>
 					<Button
 						className="mt-1"

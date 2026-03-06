@@ -510,8 +510,7 @@ export const alarmsRouter = {
 
 	listByWebsite: protectedProcedure
 		.route({
-			description:
-				"Returns all uptime alarms assigned to a specific website.",
+			description: "Returns all uptime alarms assigned to a specific website.",
 			method: "POST",
 			path: "/alarms/listByWebsite",
 			summary: "List alarms by website",
@@ -526,10 +525,7 @@ export const alarmsRouter = {
 				.select()
 				.from(alarms)
 				.where(
-					and(
-						eq(alarms.websiteId, input.websiteId),
-						isNull(alarms.deletedAt)
-					)
+					and(eq(alarms.websiteId, input.websiteId), isNull(alarms.deletedAt))
 				)
 				.orderBy(desc(alarms.createdAt));
 

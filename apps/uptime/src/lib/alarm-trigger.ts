@@ -7,12 +7,12 @@ import {
 	eq,
 	isNull,
 } from "@databuddy/db";
+import type { NotificationPayload } from "@databuddy/notifications";
 import {
 	sendDiscordWebhook,
 	sendSlackWebhook,
 	sendWebhook,
 } from "@databuddy/notifications";
-import type { NotificationPayload } from "@databuddy/notifications";
 import { randomUUIDv7 } from "bun";
 import { captureError } from "./tracing";
 
