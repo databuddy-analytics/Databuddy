@@ -4,14 +4,15 @@ import type {
 	CountryData,
 	LocationData,
 } from "@databuddy/shared/types/website";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { scalePow } from "d3-scale";
-import type { Feature, GeoJsonObject } from "geojson";
+import type { Feature, FeatureCollection, GeoJsonObject } from "geojson";
 import type { Layer, Map as LeafletMap } from "leaflet";
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CountryFlag } from "@/components/icon";
-import { type Country, useCountries } from "@/lib/geo";
+import { type Country, useCountries, useSubdivisions } from "@/lib/geo";
 import "leaflet/dist/leaflet.css";
 
 const MapContainer = dynamic(
@@ -80,11 +81,37 @@ export function MapComponent({
 		};
 	}, [locationsData?.countries]);
 
+	const regionData = useMemo(() => {
+		if (!locationsData?.regions) {
+			return null;
+		}
+
+		const validRegions = locationsData.regions.filter(
+			(r) => r.country && r.country.trim() !== ""
+		);
+
+		const totalVisitors =
+			validRegions.reduce((sum, r) => sum + r.visitors, 0) || 1;
+
+		return {
+			data: validRegions.map((region) => ({
+				value: region.country,
+				count: region.visitors,
+				percentage: (region.visitors / totalVisitors) * 100,
+			})),
+		};
+	}, [locationsData?.regions]);
+
 	const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(
 		null
 	);
-	const [mapView] = useState<"countries" | "subdivisions">("countries");
+	const [drillDownCountry, setDrillDownCountry] = useState<{
+		code: string;
+		name: string;
+	} | null>(null);
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+	const mapView = drillDownCountry ? "subdivisions" : "countries";
 
 	// Theme colors from globals.css (Leaflet needs actual values, not CSS vars)
 	const themeColors = useMemo(() => {
@@ -104,13 +131,14 @@ export function MapComponent({
 	}, [resolvedTheme]);
 
 	const colorScale = useMemo(() => {
-		if (!countryData?.data) {
+		const dataSource =
+			mapView === "subdivisions" ? regionData?.data : countryData?.data;
+
+		if (!dataSource) {
 			return () => `${themeColors.secondary} / 0.6)`;
 		}
 
-		const values = countryData.data?.map((d: { count: number }) => d.count) || [
-			0,
-		];
+		const values = dataSource.map((d: { count: number }) => d.count) || [0];
 		const maxValue = Math.max(...values);
 		const nonZeroValues = values.filter((v: number) => v > 0);
 		const minValue = nonZeroValues.length > 0 ? Math.min(...nonZeroValues) : 0;
@@ -135,9 +163,28 @@ export function MapComponent({
 			}
 			return `${themeColors.chart3} / ${(0.8 + intensity * 0.2).toFixed(2)})`;
 		};
-	}, [countryData?.data, themeColors]);
+	}, [countryData?.data, regionData?.data, mapView, themeColors]);
 
 	const { data: countriesGeoData } = useCountries();
+	const { data: subdivisionsGeoData } = useSubdivisions();
+
+	// Filter subdivisions for the drilled-down country
+	const filteredSubdivisions = useMemo(() => {
+		if (!drillDownCountry || !subdivisionsGeoData) {
+			return null;
+		}
+
+		const filtered = subdivisionsGeoData.features.filter(
+			(f) =>
+				f.properties.admin === drillDownCountry.name ||
+				f.properties.iso_3166_2?.startsWith(`${drillDownCountry.code}-`)
+		);
+
+		return {
+			type: "FeatureCollection" as const,
+			features: filtered,
+		} as FeatureCollection;
+	}, [drillDownCountry, subdivisionsGeoData]);
 
 	const getBorderColor = useCallback(
 		(hasData: boolean, isHovered: boolean) => {
@@ -171,6 +218,35 @@ export function MapComponent({
 			return { dataKey, foundData, metricValue, isHovered, hasData };
 		},
 		[countryData?.data, hoveredId]
+	);
+
+	const getSubdivisionFeatureData = useCallback(
+		(feature?: Feature) => {
+			if (!feature) {
+				return null;
+			}
+
+			const regionCode = feature.properties?.iso_3166_2;
+			const regionName = feature.properties?.name;
+			// Region data uses the region name as the lookup key
+			const foundData = regionData?.data?.find(
+				({ value }: { value: string }) =>
+					value === regionCode || value === regionName
+			);
+
+			const metricValue = foundData?.count || 0;
+			const isHovered = hoveredId === regionCode;
+			const hasData = metricValue > 0;
+
+			return {
+				dataKey: regionCode,
+				foundData,
+				metricValue,
+				isHovered,
+				hasData,
+			};
+		},
+		[regionData?.data, hoveredId]
 	);
 
 	const getStyleWeights = useCallback(
@@ -224,6 +300,55 @@ export function MapComponent({
 		[colorScale, resolvedTheme, getBorderColor, getStyleWeights, getFeatureData]
 	);
 
+	const handleSubdivisionStyle = useCallback(
+		(feature?: Feature) => {
+			if (!feature) {
+				return {};
+			}
+
+			const featureData = getSubdivisionFeatureData(feature);
+			if (!featureData) {
+				return {};
+			}
+
+			const { metricValue, isHovered, hasData } = featureData;
+			const fillColor = colorScale(metricValue);
+			const borderColor = getBorderColor(hasData, isHovered);
+			const weights = getStyleWeights(hasData, isHovered);
+
+			const baseStyle = {
+				color: borderColor,
+				weight: weights.borderWeight,
+				fill: true,
+				fillColor,
+				fillOpacity: weights.fillOpacity,
+				opacity: 1,
+				transition: "all 0.2s ease-in-out",
+			};
+
+			if (isHovered && hasData) {
+				return {
+					...baseStyle,
+					filter:
+						resolvedTheme === "dark"
+							? "drop-shadow(0 2px 4px oklch(0 0 0 / 0.3))"
+							: "drop-shadow(0 2px 4px oklch(0 0 0 / 0.1))",
+					transform: "scale(1.02)",
+					transformOrigin: "center",
+				};
+			}
+
+			return baseStyle;
+		},
+		[
+			colorScale,
+			resolvedTheme,
+			getBorderColor,
+			getStyleWeights,
+			getSubdivisionFeatureData,
+		]
+	);
+
 	const handleEachFeature = useCallback(
 		(feature: Feature, layer: Layer) => {
 			layer.on({
@@ -251,6 +376,45 @@ export function MapComponent({
 					setHoveredId(null);
 					setTooltipContent(null);
 				},
+				click: (_e) => {
+					const code = feature.properties?.ISO_A2;
+					const name = feature.properties?.ADMIN;
+					if (code && name) {
+						setDrillDownCountry({ code, name });
+						setTooltipContent(null);
+						setHoveredId(null);
+					}
+				},
+			});
+		},
+		[countryData?.data]
+	);
+
+	const handleEachSubdivisionFeature = useCallback(
+		(feature: Feature, layer: Layer) => {
+			layer.on({
+				mouseover: () => {
+					const code = feature.properties?.iso_3166_2;
+					setHoveredId(code);
+
+					const name = feature.properties?.name;
+					const foundData = regionData?.data?.find(
+						({ value }) => value === code || value === name
+					);
+					const count = foundData?.count || 0;
+					const percentage = foundData?.percentage || 0;
+
+					setTooltipContent({
+						name: name || code || "",
+						code: drillDownCountry?.code || "",
+						count,
+						percentage,
+					});
+				},
+				mouseout: () => {
+					setHoveredId(null);
+					setTooltipContent(null);
+				},
 				click: (e) => {
 					if (mapRef.current) {
 						mapRef.current.setView(
@@ -261,8 +425,17 @@ export function MapComponent({
 				},
 			});
 		},
-		[countryData?.data]
+		[regionData?.data, drillDownCountry?.code]
 	);
+
+	const handleBackToCountries = useCallback(() => {
+		setDrillDownCountry(null);
+		setTooltipContent(null);
+		setHoveredId(null);
+		if (mapRef.current) {
+			mapRef.current.setView([20, 10], 1.8);
+		}
+	}, []);
 
 	const zoom = 1.8;
 
@@ -318,6 +491,27 @@ export function MapComponent({
 		},
 		[]
 	);
+
+	// Zoom to country when drilling down into subdivisions
+	useEffect(() => {
+		if (!drillDownCountry || !mapRef.current || !countriesGeoData) {
+			return;
+		}
+
+		const geoJsonCode = mapApiToGeoJson(drillDownCountry.code);
+		const countryFeature = countriesGeoData.features?.find(
+			(feature) => feature.properties?.ISO_A2 === geoJsonCode
+		);
+
+		if (!countryFeature?.geometry) {
+			return;
+		}
+
+		const centroid = calculateCountryCentroid(countryFeature.geometry);
+		if (centroid) {
+			mapRef.current.setView([centroid.lat, centroid.lng], 5);
+		}
+	}, [drillDownCountry, countriesGeoData, calculateCountryCentroid]);
 
 	useEffect(() => {
 		if (!(selectedCountry && mapRef.current && countriesGeoData)) {
@@ -390,7 +584,28 @@ export function MapComponent({
 							style={handleStyle}
 						/>
 					)}
+					{mapView === "subdivisions" && filteredSubdivisions && (
+						<GeoJSON
+							data={filteredSubdivisions as GeoJsonObject}
+							key={`subdivisions-${drillDownCountry?.code}-${locationData?.regions?.length || 0}`}
+							onEachFeature={handleEachSubdivisionFeature}
+							style={handleSubdivisionStyle}
+						/>
+					)}
 				</MapContainer>
+			)}
+
+			{/* Back button when viewing subdivisions */}
+			{drillDownCountry && (
+				<button
+					className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded border bg-card/95 px-2.5 py-1.5 font-medium text-foreground text-xs shadow-lg backdrop-blur-sm transition-colors hover:bg-accent"
+					onClick={handleBackToCountries}
+					type="button"
+				>
+					<ArrowLeftIcon className="size-3.5" />
+					<CountryFlag country={drillDownCountry.code} size={14} />
+					<span>{drillDownCountry.name}</span>
+				</button>
 			)}
 
 			{!passedIsLoading &&
