@@ -9,6 +9,7 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
 	UserIcon,
@@ -50,6 +51,7 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { GroupSelector } from "../groups/_components/group-selector";
 import { DependencySelector } from "./dependency-selector";
+import { FolderSelector } from "./folder-selector";
 import type { Flag, FlagSheetProps, TargetGroup } from "./types";
 import { UserRulesBuilder } from "./user-rules-builder";
 import { VariantEditor } from "./variant-editor";
@@ -247,6 +249,7 @@ export function FlagSheet({
 				variants: [],
 				dependencies: [],
 				environment: undefined,
+				folder: undefined,
 				targetGroupIds: [],
 			},
 			schedule: undefined,
@@ -289,6 +292,7 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
+					folder: flag.folder || undefined,
 					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
@@ -310,6 +314,7 @@ export function FlagSheet({
 					rules: template.rules ?? [],
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -331,6 +336,7 @@ export function FlagSheet({
 					rules: [],
 					variants: [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -396,6 +402,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || null,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -414,6 +421,7 @@ export function FlagSheet({
 					variants: data.variants || [],
 					dependencies: data.dependencies || [],
 					environment: data.environment?.trim() || undefined,
+					folder: data.folder?.trim() || null,
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
@@ -543,6 +551,29 @@ export function FlagSheet({
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
 													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												<div className="flex items-center gap-1.5">
+													<FolderIcon className="size-3.5" weight="duotone" />
+													Folder (optional)
+												</div>
+											</FormLabel>
+											<FormControl>
+												<FolderSelector
+													existingFlags={(flagsList as Flag[]) ?? []}
+													onChange={(val) => field.onChange(val)}
+													value={field.value}
 												/>
 											</FormControl>
 											<FormMessage />

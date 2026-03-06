@@ -14,6 +14,7 @@ import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagSheet } from "./_components/flag-sheet";
 import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
+import { FolderSidebar } from "./_components/folder-sidebar";
 import type { Flag, TargetGroup } from "./_components/types";
 
 export default function FlagsPage() {
@@ -23,6 +24,7 @@ export default function FlagsPage() {
 	const [isFlagSheetOpen, setIsFlagSheetOpen] = useAtom(isFlagSheetOpenAtom);
 	const [editingFlag, setEditingFlag] = useState<Flag | null>(null);
 	const [flagToDelete, setFlagToDelete] = useState<Flag | null>(null);
+	const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
 	const { data: flags, isLoading: flagsLoading } = useQuery({
 		...orpc.flags.list.queryOptions({ input: { websiteId } }),
@@ -32,6 +34,20 @@ export default function FlagsPage() {
 		() => flags?.filter((f) => f.status !== "archived") ?? [],
 		[flags]
 	);
+
+	const filteredFlags = useMemo(() => {
+		if (selectedFolder === null) {
+			return activeFlags;
+		}
+		if (selectedFolder === "") {
+			return activeFlags.filter((f) => !f.folder);
+		}
+		return activeFlags.filter(
+			(f) =>
+				f.folder === selectedFolder ||
+				f.folder?.startsWith(`${selectedFolder}/`)
+		);
+	}, [activeFlags, selectedFolder]);
 
 	const groupsMap = useMemo(() => {
 		const map = new Map<string, TargetGroup[]>();
@@ -90,7 +106,13 @@ export default function FlagsPage() {
 	return (
 		<FeatureGate feature={GATED_FEATURES.FEATURE_FLAGS}>
 			<ErrorBoundary>
-				<div className="h-full overflow-y-auto">
+				<div className="flex h-full">
+					<FolderSidebar
+						flags={activeFlags as Flag[]}
+						onSelectFolder={setSelectedFolder}
+						selectedFolder={selectedFolder}
+					/>
+					<div className="min-w-0 flex-1 overflow-y-auto">
 					<Suspense fallback={<FlagsListSkeleton />}>
 						{flagsLoading ? (
 							<FlagsListSkeleton />
@@ -109,7 +131,7 @@ export default function FlagsPage() {
 							</div>
 						) : (
 							<FlagsList
-								flags={activeFlags as Flag[]}
+								flags={filteredFlags as Flag[]}
 								groups={groupsMap}
 								onDelete={handleDeleteFlagRequest}
 								onEdit={handleEditFlag}
@@ -136,6 +158,7 @@ export default function FlagsPage() {
 						onConfirm={handleConfirmDelete}
 						title="Delete Feature Flag"
 					/>
+				</div>
 				</div>
 			</ErrorBoundary>
 		</FeatureGate>

@@ -5,6 +5,7 @@ import {
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -327,6 +328,12 @@ function FlagRow({
 						/>
 					</div>
 					<FlagKey className="-ms-1.5" flag={flag} />
+					{flag.folder && (
+						<div className="flex items-center gap-1 text-muted-foreground">
+							<FolderIcon className="size-3" weight="duotone" />
+							<span className="text-xs">{flag.folder}</span>
+						</div>
+					)}
 				</div>
 			</div>
 
