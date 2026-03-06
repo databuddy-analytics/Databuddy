@@ -1,4 +1,4 @@
 Contact: mailto:security@databuddy.cc
 Policy: https://github.com/databuddy-analytics/Databuddy/blob/main/SECURITY.md
 Preferred-Languages: en
-Expires: 2027-03-06T00:00:00.000Z
+Expires: 2027-03-06T00:00:00Z
