@@ -342,6 +342,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@databuddy/db": "workspace:*",
+        "@databuddy/notifications": "workspace:*",
         "@databuddy/services": "workspace:*",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.208.0",

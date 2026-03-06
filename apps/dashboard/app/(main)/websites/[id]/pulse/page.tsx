@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	BellIcon,
 	HeartbeatIcon,
 	PauseIcon,
 	PencilIcon,
@@ -32,6 +33,7 @@ import { orpc } from "@/lib/orpc";
 import { fromNow, localDayjs } from "@/lib/time";
 import { WebsitePageHeader } from "../_components/website-page-header";
 import { RecentActivity } from "./_components/recent-activity";
+import { UptimeAlarms } from "./_components/uptime-alarms";
 import { UptimeHeatmap } from "./_components/uptime-heatmap";
 
 const granularityLabels: Record<string, string> = {
@@ -226,6 +228,19 @@ export default function PulsePage() {
 		}
 	};
 
+	// Fetch alarm count for header badge
+	const { data: websiteAlarms } = useQuery({
+		...orpc.alarms.listByWebsite.queryOptions({
+			input: { websiteId: websiteId as string },
+		}),
+		enabled: hasMonitor,
+	});
+
+	const activeAlarmCount = Array.isArray(websiteAlarms)
+		? (websiteAlarms as Array<{ enabled: boolean }>).filter((a) => a.enabled)
+				.length
+		: 0;
+
 	// Determine current status based on the most recent check
 	const latestCheck = recentChecks[0];
 	const currentStatus = latestCheck
@@ -274,6 +289,15 @@ export default function PulsePage() {
 				</>
 			) : (
 				<span className="text-muted-foreground text-sm">No checks yet</span>
+			)}
+			{activeAlarmCount > 0 && (
+				<>
+					<span className="text-muted-foreground">•</span>
+					<Badge className="gap-1 font-normal" variant="outline">
+						<BellIcon className="size-3" weight="fill" />
+						{activeAlarmCount} alarm{activeAlarmCount !== 1 ? "s" : ""}
+					</Badge>
+				</>
 			)}
 		</div>
 	) : undefined;
@@ -358,6 +382,10 @@ export default function PulsePage() {
 								checks={recentChecks}
 								isLoading={isLoadingUptime}
 							/>
+						</div>
+
+						<div className="bg-sidebar">
+							<UptimeAlarms websiteId={websiteId as string} />
 						</div>
 					</>
 				) : (

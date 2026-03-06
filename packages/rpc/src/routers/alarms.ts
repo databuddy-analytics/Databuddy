@@ -1,5 +1,14 @@
 import { websitesApi } from "@databuddy/auth";
-import { alarms, and, desc, eq, isNull, member, websites } from "@databuddy/db";
+import {
+	alarms,
+	alarmTriggers,
+	and,
+	desc,
+	eq,
+	isNull,
+	member,
+	websites,
+} from "@databuddy/db";
 import {
 	sendDiscordWebhook,
 	sendSlackWebhook,
@@ -497,5 +506,61 @@ export const alarmsRouter = {
 				success: results.some((r) => r.success),
 				results,
 			};
+		}),
+
+	listByWebsite: protectedProcedure
+		.route({
+			description:
+				"Returns all uptime alarms assigned to a specific website.",
+			method: "POST",
+			path: "/alarms/listByWebsite",
+			summary: "List alarms by website",
+			tags: ["Alarms"],
+		})
+		.input(z.object({ websiteId: z.string() }))
+		.output(z.array(alarmOutputSchema))
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
+			const alarmsList = await context.db
+				.select()
+				.from(alarms)
+				.where(
+					and(
+						eq(alarms.websiteId, input.websiteId),
+						isNull(alarms.deletedAt)
+					)
+				)
+				.orderBy(desc(alarms.createdAt));
+
+			return alarmsList;
+		}),
+
+	listTriggers: protectedProcedure
+		.route({
+			description: "Returns alarm trigger history for a website.",
+			method: "POST",
+			path: "/alarms/listTriggers",
+			summary: "List alarm triggers",
+			tags: ["Alarms"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				limit: z.number().int().min(1).max(100).default(20),
+			})
+		)
+		.output(z.array(z.record(z.string(), z.unknown())))
+		.handler(async ({ context, input }) => {
+			await authorizeWebsiteAccess(context, input.websiteId, "read");
+
+			const triggers = await context.db
+				.select()
+				.from(alarmTriggers)
+				.where(eq(alarmTriggers.websiteId, input.websiteId))
+				.orderBy(desc(alarmTriggers.createdAt))
+				.limit(input.limit);
+
+			return triggers;
 		}),
 };

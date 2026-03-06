@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { z } from "zod";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
+import { evaluateUptimeAlarms } from "./lib/alarm-trigger";
 import { sendUptimeEvent } from "./lib/producer";
 import {
 	captureError,
@@ -190,6 +191,24 @@ const app = new Elysia()
 					monitorId,
 					error instanceof Error ? error.message : String(error)
 				);
+			}
+
+			// Evaluate uptime alarms (non-blocking)
+			if (schedule.data.websiteId) {
+				const isDown = result.data.status === 0;
+				evaluateUptimeAlarms(
+					schedule.data.websiteId,
+					schedule.data.url,
+					isDown,
+					result.data.http_code,
+					result.data.error || ""
+				).catch((error) => {
+					captureError(error, {
+						type: "alarm_trigger_error",
+						monitorId,
+						websiteId: schedule.data.websiteId ?? "",
+					});
+				});
 			}
 
 			return new Response("Uptime check complete", { status: 200 });

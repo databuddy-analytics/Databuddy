@@ -1063,3 +1063,46 @@ export const revenueConfig = pgTable(
 		}).onDelete("cascade"),
 	]
 );
+
+export const alarmTriggers = pgTable(
+	"alarm_triggers",
+	{
+		id: text().primaryKey().notNull(),
+		alarmId: text("alarm_id").notNull(),
+		websiteId: text("website_id"),
+		triggerEvent: text("trigger_event").notNull(), // 'down' | 'recovery'
+		status: text().notNull(), // 'fired' | 'resolved'
+		httpCode: integer("http_code"),
+		errorMessage: text("error_message"),
+		notificationResults: jsonb("notification_results").default([]),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("alarm_triggers_alarm_id_idx").using(
+			"btree",
+			table.alarmId.asc().nullsLast().op("text_ops")
+		),
+		index("alarm_triggers_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarm_triggers_created_at_idx").using(
+			"btree",
+			table.createdAt.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
+			name: "alarm_triggers_alarm_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarm_triggers_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	]
+);
