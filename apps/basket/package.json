@@ -25,7 +25,7 @@
     "@opentelemetry/semantic-conventions": "^1.38.0",
     "@types/ua-parser-js": "^0.7.39",
     "async-mutex": "^0.5.0",
-    "autumn-js": "^0.0.101",
+    "autumn-js": "catalog:",
     "elysia": "^1.4.19",
     "kafkajs": "^2.2.4",
     "keypal": "^0.1.11",

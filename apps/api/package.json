@@ -43,7 +43,7 @@
     "@orpc/server": "^1.13.4",
     "@orpc/zod": "^1.13.4",
     "ai": "^6.0.78",
-    "autumn-js": "^0.1.69",
+    "autumn-js": "catalog:",
     "bullmq": "^5.66.5",
     "dayjs": "^1.11.19",
     "elysia": "^1.4.22",
