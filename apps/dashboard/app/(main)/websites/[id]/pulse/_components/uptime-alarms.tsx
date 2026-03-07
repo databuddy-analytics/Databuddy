@@ -48,27 +48,7 @@ interface UptimeAlarmsProps {
 	websiteId: string;
 }
 
-interface Alarm {
-	id: string;
-	name: string;
-	description: string | null;
-	enabled: boolean;
-	notificationChannels: unknown;
-	slackWebhookUrl: string | null;
-	discordWebhookUrl: string | null;
-	webhookUrl: string | null;
-	webhookHeaders: unknown;
-	emailAddresses: unknown;
-	triggerType: string;
-	triggerConditions: unknown;
-	websiteId: string | null;
-	organizationId: string | null;
-	userId: string | null;
-	createdBy: string;
-	createdAt: Date | string;
-	updatedAt: Date | string;
-	deletedAt: Date | string | null;
-}
+import type { Alarm } from "@/app/(main)/settings/notifications/_components/types";
 
 interface AlarmTrigger {
 	id: string;
@@ -85,7 +65,6 @@ interface AlarmTrigger {
 const CHANNELS = [
 	{ value: "slack", label: "Slack" },
 	{ value: "discord", label: "Discord" },
-	{ value: "email", label: "Email" },
 	{ value: "webhook", label: "Webhook" },
 ] as const;
 

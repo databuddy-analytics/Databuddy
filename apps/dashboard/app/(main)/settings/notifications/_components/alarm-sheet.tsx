@@ -67,7 +67,6 @@ const TRIGGER_TYPES = [
 const CHANNELS = [
 	{ value: "slack", label: "Slack" },
 	{ value: "discord", label: "Discord" },
-	{ value: "email", label: "Email" },
 	{ value: "webhook", label: "Webhook" },
 ] as const;
 

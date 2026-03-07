@@ -42,7 +42,12 @@ const authorizeScope = async (
 		context.headers.forEach((value, key) => {
 			headersObj[key] = value;
 		});
-		const perm = permission === "read" ? "read" : "create";
+		const perm =
+			permission === "read"
+				? "read"
+				: permission === "delete"
+					? "delete"
+					: "create";
 		try {
 			const { success } = await websitesApi.hasPermission({
 				headers: headersObj,

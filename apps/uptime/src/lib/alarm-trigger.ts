@@ -204,11 +204,17 @@ async function sendAlarmNotifications(
 					break;
 				}
 				case "email": {
-					// Email requires server-side provider; skip in uptime worker
+					// Email requires a transactional email provider (e.g. Resend, SES)
+					// configured at the dashboard app level. The uptime worker cannot
+					// send emails directly. Log a warning so operators can diagnose.
+					console.warn(
+						`[alarm ${alarm.id}] Email channel selected but not available in uptime worker`
+					);
 					results.push({
 						channel: "email",
 						success: false,
-						error: "Email not available in uptime worker",
+						error:
+							"Email notifications are not yet supported. Please use Slack, Discord, or Webhook channels instead.",
 					});
 					break;
 				}
