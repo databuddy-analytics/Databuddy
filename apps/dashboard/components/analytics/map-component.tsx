@@ -102,6 +102,42 @@ export function MapComponent({
 		};
 	}, [locationsData?.regions]);
 
+	// Region data filtered to only the drilled-down country's subdivisions
+	const countryRegionData = useMemo(() => {
+		if (!drillDownCountry || !regionData?.data) {
+			return null;
+		}
+
+		const countryPrefix = `${drillDownCountry.code}-`;
+		const filtered = regionData.data.filter(
+			({ value }: { value: string }) =>
+				value.startsWith(countryPrefix) ||
+				// Also match by subdivision name lookup
+				(subdivisionsGeoData?.features.some(
+					(f) =>
+						(f.properties.admin === drillDownCountry.name ||
+							f.properties.iso_3166_2?.startsWith(countryPrefix)) &&
+						(f.properties.iso_3166_2 === value ||
+							f.properties.name === value)
+				) ??
+					false)
+		);
+
+		const totalVisitors =
+			filtered.reduce(
+				(sum: number, r: { count: number }) => sum + r.count,
+				0
+			) || 1;
+
+		return {
+			data: filtered.map((region: { value: string; count: number }) => ({
+				value: region.value,
+				count: region.count,
+				percentage: (region.count / totalVisitors) * 100,
+			})),
+		};
+	}, [drillDownCountry, regionData?.data, subdivisionsGeoData?.features]);
+
 	const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(
 		null
 	);
@@ -132,9 +168,11 @@ export function MapComponent({
 
 	const colorScale = useMemo(() => {
 		const dataSource =
-			mapView === "subdivisions" ? regionData?.data : countryData?.data;
+			mapView === "subdivisions"
+				? countryRegionData?.data
+				: countryData?.data;
 
-		if (!dataSource) {
+		if (!dataSource || dataSource.length === 0) {
 			return () => `${themeColors.secondary} / 0.6)`;
 		}
 
@@ -163,7 +201,7 @@ export function MapComponent({
 			}
 			return `${themeColors.chart3} / ${(0.8 + intensity * 0.2).toFixed(2)})`;
 		};
-	}, [countryData?.data, regionData?.data, mapView, themeColors]);
+	}, [countryData?.data, countryRegionData?.data, mapView, themeColors]);
 
 	const { data: countriesGeoData } = useCountries();
 	const { data: subdivisionsGeoData } = useSubdivisions();
@@ -228,8 +266,8 @@ export function MapComponent({
 
 			const regionCode = feature.properties?.iso_3166_2;
 			const regionName = feature.properties?.name;
-			// Region data uses the region name as the lookup key
-			const foundData = regionData?.data?.find(
+			// Use country-scoped region data for correct color scaling
+			const foundData = countryRegionData?.data?.find(
 				({ value }: { value: string }) =>
 					value === regionCode || value === regionName
 			);
@@ -246,7 +284,7 @@ export function MapComponent({
 				hasData,
 			};
 		},
-		[regionData?.data, hoveredId]
+		[countryRegionData?.data, hoveredId]
 	);
 
 	const getStyleWeights = useCallback(
@@ -395,11 +433,13 @@ export function MapComponent({
 			layer.on({
 				mouseover: () => {
 					const code = feature.properties?.iso_3166_2;
-					setHoveredId(code);
+					setHoveredId(code ?? null);
 
 					const name = feature.properties?.name;
-					const foundData = regionData?.data?.find(
-						({ value }) => value === code || value === name
+					// Use country-scoped data for correct percentages
+					const foundData = countryRegionData?.data?.find(
+						({ value }: { value: string }) =>
+							value === code || value === name
 					);
 					const count = foundData?.count || 0;
 					const percentage = foundData?.percentage || 0;
@@ -425,7 +465,7 @@ export function MapComponent({
 				},
 			});
 		},
-		[regionData?.data, drillDownCountry?.code]
+		[countryRegionData?.data, drillDownCountry?.code]
 	);
 
 	const handleBackToCountries = useCallback(() => {
@@ -594,6 +634,23 @@ export function MapComponent({
 					)}
 				</MapContainer>
 			)}
+
+			{/* Empty state when no subdivisions found */}
+			{drillDownCountry &&
+				filteredSubdivisions &&
+				filteredSubdivisions.features.length === 0 && (
+					<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-center text-muted-foreground text-sm">
+						<div>
+							<p className="font-semibold text-foreground">
+								No subdivision data available
+							</p>
+							<p>
+								Subdivision boundaries are not available for{" "}
+								{drillDownCountry.name}.
+							</p>
+						</div>
+					</div>
+				)}
 
 			{/* Back button when viewing subdivisions */}
 			{drillDownCountry && (
