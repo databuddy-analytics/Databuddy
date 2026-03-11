@@ -9,15 +9,17 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
 	UserIcon,
 	UsersIcon,
 	UsersThreeIcon,
+	XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -215,6 +217,9 @@ export function FlagSheet({
 }: FlagSheetProps) {
 	const [keyManuallyEdited, setKeyManuallyEdited] = useState(false);
 	const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
+	const [folder, setFolder] = useState<string>("");
+	const [showFolderSuggestions, setShowFolderSuggestions] = useState(false);
+	const folderInputRef = useRef<HTMLInputElement>(null);
 	const queryClient = useQueryClient();
 
 	const { data: flagsList } = useQuery({
@@ -228,6 +233,28 @@ export function FlagSheet({
 			input: { websiteId },
 		}),
 	});
+
+	const existingFolders = useMemo(() => {
+		const folders = new Set<string>();
+		for (const f of flagsList ?? []) {
+			if (f.folder) {
+				folders.add(f.folder as string);
+				// Also add parent paths
+				const parts = (f.folder as string).split("/").filter(Boolean);
+				for (let i = 1; i < parts.length; i++) {
+					folders.add(parts.slice(0, i).join("/"));
+				}
+			}
+		}
+		return Array.from(folders).sort();
+	}, [flagsList]);
+
+	const folderSuggestions = useMemo(() => {
+		if (!folder) return existingFolders;
+		return existingFolders.filter((f) =>
+			f.toLowerCase().includes(folder.toLowerCase())
+		);
+	}, [folder, existingFolders]);
 
 	const isEditing = Boolean(flag);
 
@@ -293,6 +320,7 @@ export function FlagSheet({
 				},
 				schedule: undefined,
 			});
+			setFolder(flag.folder ?? "");
 		} else if (template) {
 			form.reset({
 				flag: {
@@ -317,6 +345,7 @@ export function FlagSheet({
 			if (template.rules && template.rules.length > 0) {
 				setExpandedSection("targeting");
 			}
+			setFolder("");
 		} else {
 			form.reset({
 				flag: {
@@ -335,6 +364,7 @@ export function FlagSheet({
 				},
 				schedule: undefined,
 			});
+			setFolder("");
 		}
 		setKeyManuallyEdited(false);
 		if (!template) {
@@ -400,6 +430,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: folder.trim() || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -418,6 +449,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: folder.trim() || null,
 				};
 				await createMutation.mutateAsync(createData);
 			}
@@ -549,6 +581,80 @@ export function FlagSheet({
 										</FormItem>
 									)}
 								/>
+
+								<div className="space-y-2">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<FormLabel className="text-muted-foreground">
+												Folder (optional)
+											</FormLabel>
+											<p className="text-muted-foreground text-xs text-pretty">
+												Use paths like auth/login or experiments/paywall.
+											</p>
+										</div>
+										{folder && (
+											<Button
+												className="h-7 px-2 text-xs"
+												onClick={() => setFolder("")}
+												type="button"
+												variant="ghost"
+											>
+												<XIcon className="size-3.5" weight="duotone" />
+												No folder
+											</Button>
+										)}
+									</div>
+
+									<div className="relative">
+										<Input
+											ref={folderInputRef}
+											className="pr-10"
+											onBlur={() => {
+												window.setTimeout(() => setShowFolderSuggestions(false), 120);
+											}}
+											onChange={(e) => {
+												setFolder(e.target.value);
+												setShowFolderSuggestions(true);
+											}}
+											onFocus={() => setShowFolderSuggestions(true)}
+											placeholder="auth/login"
+											prefix={<FolderIcon className="size-3.5" weight="duotone" />}
+											value={folder}
+										/>
+										{folder && (
+											<button
+												className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+												onClick={() => {
+													setFolder("");
+													setShowFolderSuggestions(false);
+													folderInputRef.current?.focus();
+												}}
+												type="button"
+											>
+												<XIcon className="size-3.5" weight="bold" />
+											</button>
+										)}
+
+										{showFolderSuggestions && folderSuggestions.length > 0 && (
+											<div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border bg-background p-1 shadow-sm">
+												{folderSuggestions.map((suggestion) => (
+													<button
+														className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent"
+														key={suggestion}
+														onClick={() => {
+															setFolder(suggestion);
+															setShowFolderSuggestions(false);
+														}}
+														type="button"
+													>
+														<FolderIcon className="size-3.5 text-muted-foreground" weight="duotone" />
+														<span className="truncate font-mono">{suggestion}</span>
+													</button>
+												))}
+											</div>
+										)}
+									</div>
+								</div>
 							</div>
 
 							{/* Separator */}
