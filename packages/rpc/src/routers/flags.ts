@@ -298,7 +298,7 @@ export const flagsRouter = {
 					}
 
 					if (input.folder !== undefined) {
-						if (input.folder === null || input.folder === "") {
+						if (input.folder === "") {
 							conditions.push(isNull(flags.folder));
 						} else {
 							conditions.push(eq(flags.folder, input.folder));

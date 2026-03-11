@@ -446,12 +446,7 @@ function FolderSection({
 }) {
 	const [isOpen, setIsOpen] = useState(true);
 
-	const label =
-		folderPath === null
-			? "Uncategorized"
-			: folderPath.includes("/")
-				? folderPath
-				: folderPath;
+	const label = folderPath ?? "Uncategorized";
 
 	return (
 		<div>

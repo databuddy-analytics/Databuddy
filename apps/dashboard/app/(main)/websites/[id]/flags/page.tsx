@@ -45,7 +45,11 @@ export default function FlagsPage() {
 			return activeFlags.filter((flag) => !flag.folder);
 		}
 
-		return activeFlags.filter((flag) => flag.folder === selectedFolder);
+		return activeFlags.filter(
+			(flag) =>
+				flag.folder === selectedFolder ||
+				flag.folder?.startsWith(`${selectedFolder}/`),
+		);
 	}, [activeFlags, selectedFolder]);
 
 	const groupsMap = useMemo(() => {
@@ -208,7 +212,6 @@ export default function FlagsPage() {
 							onRenameFolderAction={handleRenameFolder}
 							onSelectFolderAction={setSelectedFolder}
 							selectedFolder={selectedFolder}
-							websiteId={websiteId}
 						/>
 					)}
 

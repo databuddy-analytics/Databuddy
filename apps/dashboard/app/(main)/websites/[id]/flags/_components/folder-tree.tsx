@@ -24,7 +24,6 @@ export interface FolderTreeProps {
 	onSelectFolderAction: (folder: string | null) => void;
 	onRenameFolderAction: (oldPath: string, newPath: string) => void;
 	onDeleteFolderAction: (folderPath: string) => void;
-	websiteId: string;
 }
 
 interface TreeNode {
@@ -299,7 +298,7 @@ function FolderTreeContent({
 	onSelectFolderAction,
 	onRenameFolderAction,
 	onDeleteFolderAction,
-}: Omit<FolderTreeProps, "websiteId">) {
+}: FolderTreeProps) {
 	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 	const [isCreating, setIsCreating] = useState(false);
 	const [newFolderName, setNewFolderName] = useState("");
@@ -471,7 +470,6 @@ export function FolderTree({
 	onSelectFolderAction,
 	onRenameFolderAction,
 	onDeleteFolderAction,
-	websiteId: _websiteId,
 }: FolderTreeProps) {
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -488,7 +486,6 @@ export function FolderTree({
 			onRenameFolderAction={onRenameFolderAction}
 			onSelectFolderAction={onSelectFolderAction}
 			selectedFolder={selectedFolder}
-			websiteId={websiteId}
 		/>
 	);
 
