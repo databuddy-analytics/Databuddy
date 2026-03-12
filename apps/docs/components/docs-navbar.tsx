@@ -301,6 +301,10 @@ export const navMenu = [
 		path: "/blog",
 	},
 	{
+		name: "Changelog",
+		path: "/changelog",
+	},
+	{
 		name: "Pricing",
 		path: "/pricing",
 	},
