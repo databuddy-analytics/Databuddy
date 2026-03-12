@@ -7,10 +7,15 @@ export function formatChangelogDate(date: string) {
 }
 
 export function externalizeLinks(html: string): string {
-	return html.replace(
-		/<a\s+(href="[^"]*")/g,
-		'<a target="_blank" rel="noopener noreferrer" $1'
-	);
+	return html.replace(/<a\s+([^>]*)>/g, (_, attrs) => {
+		if (!attrs.includes("href=")) {
+			return `<a ${attrs}>`;
+		}
+		if (attrs.includes("target=")) {
+			return `<a ${attrs}>`;
+		}
+		return `<a target="_blank" rel="noopener noreferrer" ${attrs}>`;
+	});
 }
 
 export function splitChangelogContent(html: string): {
