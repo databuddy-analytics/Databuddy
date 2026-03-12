@@ -1,7 +1,6 @@
-import {
-	RocketLaunchIcon,
-} from "@phosphor-icons/react/ssr";
+import { RocketLaunchIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
@@ -25,6 +24,13 @@ export const metadata: Metadata = {
 		description:
 			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		url: "https://www.databuddy.cc/changelog",
+		images: ["/og-image.png"],
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "Changelog | Databuddy",
+		description:
+			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		images: ["/og-image.png"],
 	},
 };
@@ -134,7 +140,7 @@ export default async function ChangelogPage() {
 							</h1>
 							<p className="mx-auto max-w-2xl text-balance font-medium text-muted-foreground text-xs leading-relaxed tracking-tight sm:text-sm lg:text-base">
 								All the latest features, improvements, and fixes shipped
-								to Databuddy — straight from the team.
+								to Databuddy, straight from the team.
 							</p>
 						</div>
 					</div>
@@ -184,29 +190,14 @@ export default async function ChangelogPage() {
 						className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border/40 bg-card/30 px-4 py-2 text-muted-foreground/50 transition-colors hover:border-border/60 hover:text-muted-foreground/70"
 					>
 						<span className="text-xs tracking-wide">Powered by</span>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 800 800"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
+						<Image
+							src="/notra.svg"
+							alt=""
+							width={16}
+							height={16}
 							className="shrink-0"
-							aria-hidden="true"
-						>
-							<path
-								d="M572.881 462.223c-12.712 43.22-290.678 105.932-394.068 83.898l-48.305-10.169 48.305-78.814 68.644-104.237 73.729-106.78 251.695-127.119 78.814-22.881 17.796 17.796h10.17c17.796 35.593 3.945 147.458-12.712 195.763-25.424 73.729-124.576 96.61-177.966 114.407-4.064 1.355 96.61-5.085 83.898 38.136Z"
-								fill="#c8b2ee"
-								stroke="currentColor"
-								strokeWidth="35"
-								strokeLinecap="round"
-							/>
-							<path
-								d="M700 96.111c-162.712-4.237-510.508 111.356-600 607.627"
-								stroke="currentColor"
-								strokeWidth="75"
-								strokeLinecap="round"
-							/>
-						</svg>
+							aria-hidden
+						/>
 						<span className="font-medium text-xs tracking-wide">Notra</span>
 					</Link>
 				</div>
