@@ -9,6 +9,11 @@ import { Prose } from "@/components/prose";
 import { StructuredData } from "@/components/structured-data";
 import type { NotraPost } from "@/lib/changelog-query";
 import { getChangelogs } from "@/lib/changelog-query";
+import {
+	externalizeLinks,
+	formatChangelogDate,
+	splitChangelogContent,
+} from "@/lib/changelog-utils";
 
 export const revalidate = 3600;
 
@@ -35,56 +40,35 @@ export const metadata: Metadata = {
 	},
 };
 
-function formatDate(date: string) {
-	return new Date(date).toLocaleDateString("en-US", {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
-}
-
-function externalizeLinks(html: string): string {
-	return html.replace(
-		/<a\s+(href="[^"]*")/g,
-		'<a target="_blank" rel="noopener" $1'
-	);
-}
-
-function splitContent(html: string): { description: string; body: string } {
-	const h2Index = html.indexOf("<h2>");
-	if (h2Index === -1) {
-		return { description: html, body: "" };
-	}
-	return {
-		description: html.slice(0, h2Index).trim(),
-		body: html.slice(h2Index).trim(),
-	};
-}
-
 function ChangelogEntry({
 	post,
 	isLast,
-}: { post: NotraPost; isLast: boolean }) {
-	const { description, body } = splitContent(externalizeLinks(post.content));
+}: {
+	post: NotraPost;
+	isLast: boolean;
+}) {
+	const { description, body } = splitChangelogContent(
+		externalizeLinks(post.content)
+	);
 
 	return (
 		<div
 			className={`flex flex-col gap-4 lg:flex-row lg:gap-0 ${
-				!isLast ? "border-border/40 border-b border-dashed" : ""
+				isLast ? "" : "border-border/40 border-b border-dashed"
 			}`}
 		>
 			<div className="w-full shrink-0 px-5 pt-6 sm:px-6 lg:w-[32%] lg:px-8">
-				<div className="lg:sticky lg:top-[5rem] lg:pb-6">
+				<div className="lg:sticky lg:top-20 lg:pb-6">
 					<time className="mb-2 block font-mono text-[0.6875rem] text-muted-foreground/50 uppercase tracking-wider">
-						{formatDate(post.createdAt)}
+						{formatChangelogDate(post.createdAt)}
 					</time>
-					<h2 className="font-semibold text-foreground text-base leading-snug tracking-tight lg:text-lg">
+					<h2 className="font-semibold text-base text-foreground leading-snug tracking-tight lg:text-lg">
 						{post.title}
 					</h2>
 					{description && (
 						<Prose
+							className="prose-sm mt-3 prose-p:text-muted-foreground/60 prose-p:text-xs prose-p:leading-relaxed"
 							html={description}
-							className="mt-3 prose-sm prose-p:text-muted-foreground/60 prose-p:text-xs prose-p:leading-relaxed"
 						/>
 					)}
 				</div>
@@ -93,8 +77,8 @@ function ChangelogEntry({
 			<div className="w-full px-5 pb-8 sm:px-6 lg:w-[68%] lg:px-8 lg:py-6">
 				{body ? (
 					<Prose
+						className="prose-sm prose-ul:my-1 prose-h2:mt-4 prose-h3:mt-3 prose-h2:mb-2 prose-h3:mb-1.5 prose-ul:space-y-0.5 prose-h3:border-border/40 prose-h3:border-b prose-h3:border-dashed prose-h3:pb-1 prose-h1:font-medium prose-h2:font-medium prose-h3:font-medium prose-h4:font-medium prose-h1:text-base prose-h2:text-sm prose-h3:text-xs prose-h4:text-xs prose-li:text-muted-foreground/70 prose-li:text-xs prose-p:text-muted-foreground/70 prose-p:text-xs prose-p:leading-relaxed prose-h1:tracking-tight prose-h2:tracking-tight sm:prose-h1:text-base sm:prose-h2:text-sm sm:prose-h3:text-xs"
 						html={body}
-						className="prose-sm prose-p:text-muted-foreground/70 prose-p:text-xs prose-p:leading-relaxed prose-h1:text-base sm:prose-h1:text-base prose-h1:font-medium prose-h1:tracking-tight prose-h2:text-sm sm:prose-h2:text-sm prose-h2:font-medium prose-h2:tracking-tight prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-xs sm:prose-h3:text-xs prose-h3:font-medium prose-h3:mt-3 prose-h3:mb-1.5 prose-h3:pb-1 prose-h3:border-b prose-h3:border-dashed prose-h3:border-border/40 prose-h4:text-xs prose-h4:font-medium prose-li:text-xs prose-li:text-muted-foreground/70 prose-ul:space-y-0.5 prose-ul:my-1"
 					/>
 				) : (
 					<p className="text-muted-foreground/50 text-xs italic">
@@ -139,8 +123,8 @@ export default async function ChangelogPage() {
 								What&apos;s new in Databuddy
 							</h1>
 							<p className="mx-auto max-w-2xl text-balance font-medium text-muted-foreground text-xs leading-relaxed tracking-tight sm:text-sm lg:text-base">
-								All the latest features, improvements, and fixes shipped
-								to Databuddy, straight from the team.
+								All the latest features, improvements, and fixes shipped to
+								Databuddy, straight from the team.
 							</p>
 						</div>
 					</div>
@@ -158,9 +142,9 @@ export default async function ChangelogPage() {
 						<div className="flex flex-col">
 							{posts.map((post, i) => (
 								<ChangelogEntry
+									isLast={i === posts.length - 1}
 									key={post.id}
 									post={post}
-									isLast={i === posts.length - 1}
 								/>
 							))}
 						</div>
@@ -175,8 +159,8 @@ export default async function ChangelogPage() {
 									No releases yet
 								</h3>
 								<p className="max-w-xs text-muted-foreground/60 text-sm leading-relaxed">
-									We&apos;re working hard on new features. Check back
-									soon for the latest updates.
+									We&apos;re working hard on new features. Check back soon for
+									the latest updates.
 								</p>
 							</div>
 						</div>
@@ -184,19 +168,19 @@ export default async function ChangelogPage() {
 				</div>
 				<div className="py-6">
 					<Link
-						href="https://www.usenotra.com"
-						target="_blank"
-						rel="noopener"
 						className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border/40 bg-card/30 px-4 py-2 text-muted-foreground/50 transition-colors hover:border-border/60 hover:text-muted-foreground/70"
+						href="https://www.usenotra.com"
+						rel="noopener"
+						target="_blank"
 					>
 						<span className="text-xs tracking-wide">Powered by</span>
 						<Image
-							src="/notra.svg"
 							alt=""
-							width={16}
-							height={16}
-							className="shrink-0"
 							aria-hidden
+							className="shrink-0"
+							height={16}
+							src="/notra.svg"
+							width={16}
 						/>
 						<span className="font-medium text-xs tracking-wide">Notra</span>
 					</Link>
