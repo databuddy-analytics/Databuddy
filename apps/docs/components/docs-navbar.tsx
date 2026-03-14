@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "./logo";
 import { NavLink } from "./nav-link";
+import { navMenu } from "./navbar";
 import { contents } from "./sidebar-content";
 
 export interface DocsNavbarProps {
@@ -26,18 +27,18 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 	};
 
 	return (
-		<div className="fixed top-0 right-0 left-0 z-30 flex flex-col border-border border-b bg-background/95 backdrop-blur-md">
+		<div className="sticky top-0 z-30 flex flex-col border-b bg-background/60 backdrop-blur-xl">
 			<nav>
 				<div className="mx-auto w-full px-2 sm:px-2 md:px-6 lg:px-8">
 					<div className="flex h-16 items-center justify-between">
 						{/* Logo Section */}
-						<div className="shrink-0">
+						<div className="shrink-0 transition-opacity hover:opacity-90">
 							<Logo />
 						</div>
 
 						{/* Desktop Navigation */}
 						<div className="hidden md:block">
-							<ul className="flex items-center">
+							<ul className="flex items-center gap-1">
 								{navMenu.map((menu) => (
 									<NavLink
 										external={menu.external}
@@ -54,9 +55,9 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 									<span className="inline-flex items-center gap-2">
 										<svg
 											className="transition-transform duration-200 hover:scale-110"
-											height="1.4em"
+											height="1.2em"
 											viewBox="0 0 496 512"
-											width="1.4em"
+											width="1.2em"
 											xmlns="http://www.w3.org/2000/svg"
 										>
 											<title>GitHub</title>
@@ -67,10 +68,10 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 										</svg>
 										{typeof stars === "number" && (
 											<span
-												className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
+												className="rounded-full border border-border/50 bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/90 text-xs"
 												title="GitHub stars"
 											>
-												★ {stars.toLocaleString()}
+												{stars.toLocaleString()} ★
 											</span>
 										)}
 									</span>
@@ -275,10 +276,10 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 									GitHub
 									{typeof stars === "number" && (
 										<span
-											className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-foreground/80 text-xs"
+											className="rounded-full border border-border/50 bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/90 text-xs"
 											title="GitHub stars"
 										>
-											★ {stars.toLocaleString()}
+											{stars.toLocaleString()} ★
 										</span>
 									)}
 								</span>
@@ -290,23 +291,3 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 		</div>
 	);
 };
-
-export const navMenu = [
-	{
-		name: "Docs",
-		path: "/docs",
-	},
-	{
-		name: "Blog",
-		path: "/blog",
-	},
-	{
-		name: "Pricing",
-		path: "/pricing",
-	},
-	{
-		name: "Dashboard",
-		path: "https://app.databuddy.cc/login",
-		external: true,
-	},
-];
