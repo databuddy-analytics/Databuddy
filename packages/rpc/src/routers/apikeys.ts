@@ -222,7 +222,7 @@ export const apikeysRouter = {
 				description: z.string().max(500).optional(),
 				organizationId: z.string(),
 				type: z.enum(["user", "sdk", "automation"]).default("user"),
-				scopes: z.array(scopeEnum).default([]),
+				scopes: z.array(scopeEnum).default(["read:data"]),
 				resources: resourcesSchema.optional(),
 				tags: z.array(z.string().max(50)).max(10).optional(),
 				expiresAt: z.string().optional(),

@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import type { Website } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -63,7 +64,7 @@ export function ApiKeyCreateDialog({
 	onSuccessAction,
 }: ApiKeyCreateDialogProps) {
 	const queryClient = useQueryClient();
-	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>([]);
+	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>(["read:data"]);
 	const [websiteAccess, setWebsiteAccess] = useState<ApiKeyAccessEntry[]>([]);
 	const [websiteToAdd, setWebsiteToAdd] = useState<string | undefined>();
 	const [created, setCreated] = useState<{
@@ -99,7 +100,7 @@ export function ApiKeyCreateDialog({
 		onOpenChangeAction(false);
 		setTimeout(() => {
 			form.reset();
-			setGlobalScopes([]);
+			setGlobalScopes(["read:data"]);
 			setWebsiteAccess([]);
 			setWebsiteToAdd(undefined);
 			setCreated(null);
@@ -279,12 +280,14 @@ export function ApiKeyCreateDialog({
 								</Badge>
 							</div>
 							<p className="text-muted-foreground text-xs">
-								These permissions apply to all websites
+								These permissions apply to all websites. Read Data is included
+								by default.
 							</p>
 							<div className="rounded border bg-card p-1">
 								<div className="grid grid-cols-2 gap-1">
 									{SCOPE_OPTIONS.map((scope) => {
 										const isSelected = globalScopes.includes(scope.value);
+										const isDefault = scope.value === "read:data";
 										return (
 											<button
 												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
@@ -308,6 +311,11 @@ export function ApiKeyCreateDialog({
 													)}
 												</div>
 												<span className="truncate">{scope.label}</span>
+												{isDefault && (
+													<span className="text-[10px] text-muted-foreground">
+														default
+													</span>
+												)}
 											</button>
 										);
 									})}
@@ -340,7 +348,7 @@ export function ApiKeyCreateDialog({
 													(w) =>
 														!websiteAccess.some((e) => e.resourceId === w.id)
 												)
-												.map((w) => (
+												.map((w: Website) => (
 													<SelectItem key={w.id} value={w.id}>
 														{w.name || w.domain}
 													</SelectItem>
@@ -372,8 +380,7 @@ export function ApiKeyCreateDialog({
 												>
 													<div className="mb-3 flex items-center justify-between">
 														<span className="font-medium text-sm">
-															{website?.name ||
-																website?.domain ||
+															{(website?.name || website?.domain) ??
 																entry.resourceId}
 														</span>
 														<Button

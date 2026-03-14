@@ -2,7 +2,8 @@
 
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 import { useMemo } from "react";
-import { useWebsites } from "./use-websites";
+import type { Website } from "@/hooks/use-websites";
+import { useWebsites } from "@/hooks/use-websites";
 
 export interface GlobalAnalytics {
 	totalActiveUsers: number;
@@ -27,9 +28,9 @@ export interface GlobalAnalytics {
 
 export function useGlobalAnalytics() {
 	const {
-		websites,
-		chartData,
-		activeUsers,
+		websites = [],
+		chartData = {},
+		activeUsers = {},
 		isLoading,
 		isFetching,
 		isError,
@@ -37,7 +38,11 @@ export function useGlobalAnalytics() {
 	} = useWebsites();
 
 	const analytics = useMemo<GlobalAnalytics>(() => {
-		if (!websites || websites.length === 0) {
+		const sites = websites as Website[];
+		const charts = chartData as Record<string, ProcessedMiniChartData>;
+		const users = activeUsers as Record<string, number>;
+
+		if (sites.length === 0) {
 			return {
 				totalActiveUsers: 0,
 				totalViews: 0,
@@ -57,9 +62,9 @@ export function useGlobalAnalytics() {
 		const websiteStats: GlobalAnalytics["topPerformers"] = [];
 		const needsSetup: GlobalAnalytics["needsSetup"] = [];
 
-		for (const website of websites) {
-			const chart = chartData?.[website.id];
-			const active = activeUsers?.[website.id] ?? 0;
+		for (const website of sites) {
+			const chart = charts[website.id];
+			const active = users[website.id] ?? 0;
 
 			totalActiveUsers += active;
 
@@ -113,7 +118,7 @@ export function useGlobalAnalytics() {
 			totalViews,
 			averageTrend: Math.abs(averageTrend),
 			trendDirection,
-			websiteCount: websites.length,
+			websiteCount: sites.length,
 			topPerformers,
 			needsSetup,
 		};

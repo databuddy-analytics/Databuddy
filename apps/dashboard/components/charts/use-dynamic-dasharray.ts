@@ -37,12 +37,12 @@ interface UseDynamicDasharrayProps {
 	defaultDashPattern?: number[];
 	curveAdjustment?: number;
 	chartType?:
-	| "linear"
-	| "monotone"
-	| "natural"
-	| "step"
-	| "stepBefore"
-	| "stepAfter";
+		| "linear"
+		| "monotone"
+		| "natural"
+		| "step"
+		| "stepBefore"
+		| "stepAfter";
 }
 
 export type LineDasharray = {
@@ -57,9 +57,9 @@ export function useDynamicDasharray({
 	curveAdjustment = 1,
 	chartType = "linear",
 }: UseDynamicDasharrayProps): [
-		(props: CustomizedChartProps) => null,
-		LineDasharray,
-	] {
+	(props: CustomizedChartProps) => null,
+	LineDasharray,
+] {
 	const [lineDasharrays, setLineDasharrays] = useState<LineDasharray>([]);
 
 	const DasharrayCalculator = useCallback(
@@ -95,7 +95,7 @@ export function useDynamicDasharray({
 
 					const lineName = line?.item?.props?.dataKey;
 					const lineConfig = lineConfigs?.find(
-						(config) => config?.name === lineName,
+						(config) => config?.name === lineName
 					);
 					const lineSplitIndex = lineConfig?.splitIndex ?? splitIndex;
 					const dashedSegment = points?.slice(lineSplitIndex);
@@ -121,11 +121,11 @@ export function useDynamicDasharray({
 					const repetitions = Math.ceil(dashedLength / patternSegmentLength);
 					const dashedPatternSegments = Array.from(
 						{ length: repetitions },
-						() => targetDashPattern.join(" "),
+						() => targetDashPattern.join(" ")
 					);
 
 					const finalDasharray = `${solidDasharrayPart} ${dashedPatternSegments.join(
-						" ",
+						" "
 					)}`;
 					newLineDasharrays.push({
 						name: lineName,
@@ -149,7 +149,7 @@ export function useDynamicDasharray({
 			dashPattern,
 			lineDasharrays,
 			chartType,
-		],
+		]
 	);
 
 	return [DasharrayCalculator, lineDasharrays];

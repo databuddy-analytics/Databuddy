@@ -34,9 +34,15 @@ interface PhoneInputProps {
 	value: string;
 	onChangeAction: (value: string) => void;
 	error?: boolean;
+	id?: string;
 }
 
-export function PhoneInput({ value, onChangeAction, error }: PhoneInputProps) {
+export function PhoneInput({
+	value,
+	onChangeAction,
+	error,
+	id,
+}: PhoneInputProps) {
 	const [country, setCountry] = useState<Country>("US");
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -143,6 +149,7 @@ export function PhoneInput({ value, onChangeAction, error }: PhoneInputProps) {
 				</PopoverContent>
 			</Popover>
 			<PhoneInputPrimitive
+				autoComplete="off"
 				className={cn(
 					"flex h-9 w-full min-w-0 rounded rounded-l-none border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground md:text-sm",
 					"focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
@@ -151,6 +158,7 @@ export function PhoneInput({ value, onChangeAction, error }: PhoneInputProps) {
 					"dark:bg-input/30"
 				)}
 				country={country}
+				id={id}
 				onChange={(val) => onChangeAction(val ?? "")}
 				placeholder="(555) 123-4567"
 				value={value || undefined}

@@ -317,7 +317,7 @@ export function ApiKeyDetailDialog({
 										</Label>
 										<p className="text-muted-foreground text-xs">
 											Changes take effect immediately and may affect
-											integrations
+											integrations. Read Data is required for analytics queries.
 										</p>
 										<div className="rounded border bg-card p-1">
 											<div className="grid grid-cols-2 gap-1">
@@ -326,6 +326,7 @@ export function ApiKeyDetailDialog({
 														"scopes"
 													) as ApiScope[];
 													const hasScope = selectedScopes.includes(scope.value);
+													const isDefault = scope.value === "read:data";
 													return (
 														<button
 															className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm hover:bg-muted/50"
@@ -349,6 +350,11 @@ export function ApiKeyDetailDialog({
 																)}
 															</div>
 															<span className="truncate">{scope.label}</span>
+															{isDefault && (
+																<span className="text-[10px] text-muted-foreground">
+																	default
+																</span>
+															)}
 														</button>
 													);
 												})}

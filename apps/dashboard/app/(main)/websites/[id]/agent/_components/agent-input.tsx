@@ -8,13 +8,13 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChat } from "@/contexts/chat-context";
-import { useEnterSubmit } from "@/hooks/use-enter-submit";
 import { cn } from "@/lib/utils";
 import { agentInputAtom } from "./agent-atoms";
 import { useAgentChatId, useSetAgentChatId } from "./agent-chat-context";
 import { AgentCommandMenu } from "./agent-command-menu";
 import { useAgentCommands } from "./hooks/use-agent-commands";
 import { useChatList } from "./hooks/use-chat-db";
+import { useEnterSubmit } from "./hooks/use-enter-submit";
 
 function getChatTitle(messages: UIMessage[], currentInput: string): string {
 	const firstUserMsg = messages.find((m) => m.role === "user");

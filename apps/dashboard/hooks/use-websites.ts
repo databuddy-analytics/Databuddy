@@ -1,13 +1,15 @@
 "use client";
 
-import type { InferSelectModel, websites } from "@databuddy/db";
+import type { Website } from "@databuddy/db";
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
+
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
-export type Website = InferSelectModel<typeof websites>;
+export type { Website } from "@databuddy/db";
+
 export interface WebsitesListData {
 	websites: Website[];
 	chartData: Record<string, ProcessedMiniChartData>;
@@ -51,7 +53,12 @@ const addWebsiteToList = (
 		websites: [...old.websites, newWebsite],
 		chartData: {
 			...old.chartData,
-			[newWebsite.id]: { data: [], totalViews: 0, trend: null },
+			[newWebsite.id]: {
+				data: [],
+				totalViews: 0,
+				hasAnyData: false,
+				trend: null,
+			},
 		},
 		activeUsers: {
 			...old.activeUsers,
@@ -136,7 +143,8 @@ export function useCreateWebsite() {
 
 	return useMutation({
 		...orpc.websites.create.mutationOptions(),
-		onSuccess: (newWebsite: Website, variables) => {
+		onSuccess: (data, variables) => {
+			const newWebsite = data as Website;
 			const listKey = getWebsitesListKey(variables.organizationId ?? undefined);
 			queryClient.setQueryData<WebsitesListData>(listKey, (old) =>
 				addWebsiteToList(old, newWebsite)
@@ -164,7 +172,8 @@ export function useUpdateWebsite() {
 	const queryClient = useQueryClient();
 	return useMutation({
 		...orpc.websites.update.mutationOptions(),
-		onSuccess: (updatedWebsite: Website) => {
+		onSuccess: (data) => {
+			const updatedWebsite = data as Website;
 			updateWebsiteCache(queryClient, updatedWebsite);
 		},
 	});

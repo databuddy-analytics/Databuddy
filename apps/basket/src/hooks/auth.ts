@@ -5,11 +5,9 @@
  * client IDs and origins against registered websites.
  */
 
-import { and, db, eq, member, websites } from "@databuddy/db";
+import { and, db, eq, member, type Website, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
 import { captureError, record, setAttributes } from "@lib/tracing";
-
-type Website = typeof websites.$inferSelect;
 
 type WebsiteWithOwner = Website & {
 	ownerId: string | null;

@@ -153,28 +153,19 @@ function getPhoneCountry(phone: string): string {
 	return "";
 }
 
-function buildSlackBlocks(
-	data: ContactFormData,
-	ip: string,
-	honeypotDetected: boolean
-): unknown[] {
+function buildSlackBlocks(data: ContactFormData, ip: string): unknown[] {
 	const lines = [
 		`*Name:* ${data.fullName}`,
 		`*Business:* ${data.businessName}`,
 		`*Website:* <${data.website}|${data.website}>`,
 		`*Email:* <mailto:${data.email}|${data.email}>`,
 		data.phone ? `*Phone:* ${data.phone}${getPhoneCountry(data.phone)}` : "",
-		honeypotDetected ? ":warning: *Honeypot detected — likely bot*" : "",
 	].filter(Boolean);
-
-	const title = honeypotDetected
-		? ":robot_face: Bot Contact Lead"
-		: "New Contact Lead";
 
 	return [
 		{
 			type: "header",
-			text: { type: "plain_text", text: title, emoji: true },
+			text: { type: "plain_text", text: "New Contact Lead", emoji: true },
 		},
 		{
 			type: "section",
@@ -192,16 +183,12 @@ function buildSlackBlocks(
 	];
 }
 
-async function sendToSlack(
-	data: ContactFormData,
-	ip: string,
-	honeypotDetected: boolean
-): Promise<void> {
+async function sendToSlack(data: ContactFormData, ip: string): Promise<void> {
 	if (!SLACK_WEBHOOK_URL) {
 		return;
 	}
 
-	const blocks = buildSlackBlocks(data, ip, honeypotDetected);
+	const blocks = buildSlackBlocks(data, ip);
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
 
@@ -236,9 +223,6 @@ export async function POST(request: NextRequest) {
 		}
 
 		const body = formData as Record<string, unknown>;
-		const honeypotDetected =
-			(typeof body.company === "string" && body.company.length > 0) ||
-			body.honeypot === true;
 
 		const validation = validateFormData(formData);
 
@@ -255,7 +239,7 @@ export async function POST(request: NextRequest) {
 			typeof body.sessionId === "string" ? body.sessionId : undefined;
 
 		await Promise.all([
-			sendToSlack(contactData, clientIP, honeypotDetected),
+			sendToSlack(contactData, clientIP),
 			databuddy
 				.track({
 					name: "contact_form_submitted",
@@ -268,7 +252,6 @@ export async function POST(request: NextRequest) {
 						email: contactData.email,
 						phone: contactData.phone,
 						ip: clientIP,
-						honeypotDetected,
 					},
 				})
 				.then(() => databuddy.flush()),

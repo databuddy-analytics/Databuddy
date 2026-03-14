@@ -3,7 +3,7 @@
 import { type RefObject, useRef } from "react";
 
 export interface UseEnterSubmitProps {
-	formRef: RefObject<HTMLFormElement>;
+	formRef: RefObject<HTMLFormElement | null>;
 	onKeyDown: (
 		event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
 	) => void;

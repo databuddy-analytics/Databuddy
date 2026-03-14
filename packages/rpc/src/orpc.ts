@@ -91,7 +91,6 @@ export const createRPCContext = async (opts: { headers: Headers }) => {
 		getApiKeyFromHeader(opts.headers),
 	]);
 
-	// Get billing information if user is authenticated
 	let billingContext:
 		| {
 				customerId: string;
@@ -108,7 +107,27 @@ export const createRPCContext = async (opts: { headers: Headers }) => {
 			)?.activeOrganizationId;
 			billingContext = await getBillingOwnerId(session.user.id, activeOrgId);
 		} catch {
-			// If billing context fails, continue without it
+			billingContext = undefined;
+		}
+	} else if (apiKey?.organizationId) {
+		try {
+			const [orgOwner] = await db
+				.select({ ownerId: member.userId })
+				.from(member)
+				.where(
+					and(
+						eq(member.organizationId, apiKey.organizationId),
+						eq(member.role, "owner")
+					)
+				)
+				.limit(1);
+			if (orgOwner) {
+				billingContext = await getBillingOwnerId(
+					orgOwner.ownerId,
+					apiKey.organizationId
+				);
+			}
+		} catch {
 			billingContext = undefined;
 		}
 	}

@@ -991,3 +991,22 @@ export const revenueConfig = pgTable(
 		}).onDelete("cascade"),
 	]
 );
+
+export type Website = typeof websites.$inferSelect;
+export type WebsiteInsert = typeof websites.$inferInsert;
+export type Organization = typeof organization.$inferSelect;
+export type OrganizationInsert = typeof organization.$inferInsert;
+export type User = typeof user.$inferSelect;
+export type UserInsert = typeof user.$inferInsert;
+export type Link = typeof links.$inferSelect;
+export type LinkInsert = typeof links.$inferInsert;
+export type UptimeSchedules = typeof uptimeSchedules.$inferSelect;
+export type UptimeSchedulesInsert = typeof uptimeSchedules.$inferInsert;
+export type RevenueConfig = typeof revenueConfig.$inferSelect;
+export type RevenueConfigInsert = typeof revenueConfig.$inferInsert;
+export type Flags = typeof flags.$inferSelect;
+export type FlagsInsert = typeof flags.$inferInsert;
+export type Annotations = typeof annotations.$inferSelect;
+export type AnnotationsInsert = typeof annotations.$inferInsert;
+export type TargetGroups = typeof targetGroups.$inferSelect;
+export type TargetGroupsInsert = typeof targetGroups.$inferInsert;

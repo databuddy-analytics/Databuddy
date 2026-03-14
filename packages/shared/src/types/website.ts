@@ -1,20 +1,6 @@
-export interface Website {
-	id: string;
-	domain: string;
-	name: string | null;
-	status: "ACTIVE" | "HEALTHY" | "UNHEALTHY" | "INACTIVE" | "PENDING";
-	isPublic: boolean;
-	createdAt: Date;
-	updatedAt: Date;
-	deletedAt: Date | null;
-	organizationId: string;
-	integrations: unknown | null;
-	settings: {
-		allowedOrigins?: string[];
-		allowedIps?: string[];
-		[key: string]: unknown;
-	} | null;
-}
+import type { Website as WebsiteSchema } from "@databuddy/db";
+
+export type Website = WebsiteSchema;
 
 export interface MiniChartDataPoint {
 	date: string;

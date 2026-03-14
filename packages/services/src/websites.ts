@@ -1,25 +1,19 @@
 import { randomUUID } from "node:crypto";
-import {
-	and,
-	db,
-	eq,
-	type InferInsertModel,
-	type InferSelectModel,
-	websites,
-} from "@databuddy/db";
+import type { Website } from "@databuddy/db";
+import { and, db, eq, type WebsiteInsert, websites } from "@databuddy/db";
 import { WebsiteCache } from "./website-cache";
 
-export type Website = InferSelectModel<typeof websites>;
+export type { Website } from "@databuddy/db";
 
 export type CreateWebsiteInput = Omit<
-	InferInsertModel<typeof websites>,
+	WebsiteInsert,
 	"id" | "createdAt" | "updatedAt"
 > & {
 	id?: string;
 };
 
 export type UpdateWebsiteInput = Partial<
-	Omit<InferInsertModel<typeof websites>, "id" | "createdAt">
+	Omit<WebsiteInsert, "id" | "createdAt">
 >;
 
 export class DuplicateDomainError extends Error {

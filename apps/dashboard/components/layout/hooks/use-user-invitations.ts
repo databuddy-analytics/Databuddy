@@ -1,8 +1,10 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 
 export function useUserInvitations(enabled = true) {
-	const query = useQuery({
+	const { data, isLoading, error, refetch } = useQuery({
 		...orpc.organizations.getUserPendingInvitations.queryOptions({
 			input: undefined,
 		}),
@@ -12,10 +14,10 @@ export function useUserInvitations(enabled = true) {
 	});
 
 	return {
-		invitations: query.data ?? [],
-		count: query.data?.length ?? 0,
-		isLoading: query.isLoading,
-		error: query.error,
-		refetch: query.refetch,
+		invitations: data ?? [],
+		count: data?.length ?? 0,
+		isLoading,
+		error,
+		refetch,
 	};
 }

@@ -13,9 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WebsiteDialog } from "@/components/website-dialog";
-import { useGlobalAnalytics } from "@/hooks/use-global-analytics";
-import { usePulseStatus } from "@/hooks/use-pulse-status";
-import { useSmartInsights } from "@/hooks/use-smart-insights";
 import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "../websites/_components/page-header";
@@ -23,6 +20,9 @@ import { WebsiteCard } from "../websites/_components/website-card";
 import { MonitorsSection } from "./_components/monitors-section";
 import { SmartInsightsSection } from "./_components/smart-insights-section";
 import { SummaryStats } from "./_components/summary-stats";
+import { useGlobalAnalytics } from "./hooks/use-global-analytics";
+import { usePulseStatus } from "./hooks/use-pulse-status";
+import { useSmartInsights } from "./hooks/use-smart-insights";
 
 function WebsiteCardSkeleton() {
 	return (
@@ -84,6 +84,7 @@ export default function HomePage() {
 		insights,
 		isLoading: isInsightsLoading,
 		isFetching: isInsightsFetching,
+		isError: isInsightsError,
 		refetch: refetchInsights,
 	} = useSmartInsights();
 
@@ -167,6 +168,7 @@ export default function HomePage() {
 				<div className="grid gap-6 lg:grid-cols-2">
 					<SmartInsightsSection
 						insights={insights}
+						isError={isInsightsError}
 						isFetching={isInsightsFetching}
 						isLoading={isLoading || isInsightsLoading}
 						onRefreshAction={refetchInsights}

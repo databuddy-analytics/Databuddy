@@ -19,9 +19,9 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { useWebsiteTransfer } from "@/hooks/use-website-transfer";
 import type { Website } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
+import { useWebsiteTransfer } from "./hooks/use-website-transfer";
 
 interface WebsiteItemProps {
 	website: Website;

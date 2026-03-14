@@ -1,6 +1,6 @@
 "use client";
 
-import type { InferSelectModel, links } from "@databuddy/db";
+import type { Link } from "@databuddy/db";
 import type { DateRange } from "@databuddy/shared/types/analytics";
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import { useOrganizationsContext } from "@/components/providers/organizations-pr
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { orpc } from "@/lib/orpc";
 
-export type Link = InferSelectModel<typeof links>;
+export type { Link } from "@databuddy/db";
 
 interface GeoEntry {
 	name: string;

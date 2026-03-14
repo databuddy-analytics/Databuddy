@@ -6,8 +6,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { cn } from "@/lib/utils";
+import { useCopyToClipboard } from "./hooks/use-copy-to-clipboard";
 import type { Flag } from "./types";
 
 export function FlagKey({

@@ -68,9 +68,9 @@ function listChats(websiteId: string): ChatRecord[] {
 		const parsed = JSON.parse(raw) as ChatRecord[];
 		return Array.isArray(parsed)
 			? parsed.sort(
-				(a, b) =>
-					new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-			)
+					(a, b) =>
+						new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+				)
 			: [];
 	} catch {
 		return [];

@@ -298,7 +298,7 @@ const TOOLS: Record<string, ToolConfig> = {
 			const queries = input.queries as { type: string }[] | undefined;
 			if (queries?.length) {
 				const types = queries
-					.map((q) => QUERY_LABELS[q.type] ?? q.type.replace(/_/g, " "))
+					.map((q) => QUERY_LABELS[q.type] ?? (q.type ?? "").replace(/_/g, " "))
 					.slice(0, 3)
 					.join(", ");
 				return `Querying ${types}`;

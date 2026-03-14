@@ -18,8 +18,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useUserInvitations } from "@/hooks/use-user-invitations";
 import { cn } from "@/lib/utils";
+import { useUserInvitations } from "./hooks/use-user-invitations";
 
 dayjs.extend(relativeTime);
 

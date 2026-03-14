@@ -30,6 +30,25 @@ export interface McpQueryItem {
 	orderBy?: string;
 }
 
+const QUERY_TYPE_ALIASES: Record<string, string> = {
+	countries: "country",
+	top_countries: "country",
+	top_browsers: "browsers",
+	top_os: "operating_systems",
+	top_devices: "device_types",
+	top_languages: "language",
+	top_timezones: "timezone",
+	browser: "browsers",
+	os: "operating_systems",
+	devices: "device_types",
+	referrers: "top_referrers",
+	pages: "top_pages",
+};
+
+function resolveQueryType(type: string): string {
+	return QUERY_TYPE_ALIASES[type] ?? type;
+}
+
 export function buildBatchQueryRequests(
 	items: McpQueryItem[],
 	websiteId: string,
@@ -37,9 +56,17 @@ export function buildBatchQueryRequests(
 ): { requests: QueryRequest[] } | { error: string } {
 	const requests: QueryRequest[] = [];
 	for (const q of items) {
-		if (!(q.type in QueryBuilders)) {
-			return { error: `Unknown type: ${q.type}` };
+		const resolvedType = resolveQueryType(q.type);
+		if (!(resolvedType in QueryBuilders)) {
+			const hint = Object.keys(QueryBuilders)
+				.filter((k) => k.includes(q.type.replace("top_", "")))
+				.slice(0, 3);
+			const message = hint.length
+				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
+				: `Unknown type: ${q.type}. Use the capabilities tool to see valid types.`;
+			return { error: message };
 		}
+		q.type = resolvedType;
 		let from = q.from;
 		let to = q.to;
 		const preset = q.preset ?? (from && to ? undefined : "last_7d");

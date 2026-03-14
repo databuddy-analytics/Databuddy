@@ -135,13 +135,20 @@ export async function deriveWebsiteContext({ request }: { request: Request }) {
 	return await deriveWithSession(request);
 }
 
+function jsonError(status: number, error: string, code: string): Response {
+	return new Response(JSON.stringify({ success: false, error, code }), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
 async function deriveWithApiKey(request: Request) {
 	const url = new URL(request.url);
 	const siteId = url.searchParams.get("website_id");
 
 	const key = await getApiKeyFromHeader(request.headers);
 	if (!key) {
-		throw new Error("Unauthorized");
+		throw jsonError(401, "Invalid or expired API key", "AUTH_REQUIRED");
 	}
 
 	if (!siteId) {
@@ -155,7 +162,7 @@ async function deriveWithApiKey(request: Request) {
 	]);
 
 	if (!site) {
-		throw new Error("Website not found");
+		throw jsonError(404, "Website not found", "NOT_FOUND");
 	}
 
 	if (site.isPublic) {
@@ -164,7 +171,11 @@ async function deriveWithApiKey(request: Request) {
 
 	const canRead = await hasWebsiteScope(key, siteId, "read:data");
 	if (!canRead) {
-		throw new Error("Forbidden");
+		throw jsonError(
+			403,
+			"API key missing read:data scope for this website",
+			"FORBIDDEN"
+		);
 	}
 
 	return { user: null, session: null, website: site, timezone } as const;
@@ -177,7 +188,7 @@ async function deriveWithSession(request: Request) {
 
 	if (!websiteId) {
 		if (!session?.user) {
-			throw new Error("Unauthorized");
+			throw jsonError(401, "Authentication required", "AUTH_REQUIRED");
 		}
 		const tz = await getTimezone(request, session);
 		return { user: session.user, session, timezone: tz } as const;
@@ -189,7 +200,7 @@ async function deriveWithSession(request: Request) {
 	const site = await getCachedWebsite(websiteId);
 
 	if (!site) {
-		throw new Error("Website not found");
+		throw jsonError(404, "Website not found", "NOT_FOUND");
 	}
 
 	if (site.isPublic) {
@@ -197,7 +208,7 @@ async function deriveWithSession(request: Request) {
 	}
 
 	if (!session?.user) {
-		throw new Error("Unauthorized");
+		throw jsonError(401, "Authentication required", "AUTH_REQUIRED");
 	}
 
 	return { user: session.user, session, website: site, timezone: tz } as const;

@@ -7,7 +7,6 @@ import { parseAsBoolean, useQueryState } from "nuqs";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { WebsiteErrorState } from "@/components/website-error-state";
-import { useTrackingSetup } from "@/hooks/use-tracking-setup";
 import { useWebsite } from "@/hooks/use-websites";
 import {
 	currentFilterWebsiteIdAtom,
@@ -15,6 +14,7 @@ import {
 } from "@/stores/jotai/filterAtoms";
 import { AnalyticsToolbar } from "./_components/analytics-toolbar";
 import { WebsiteTrackingSetupTab } from "./_components/tabs/tracking-setup-tab";
+import { useTrackingSetup } from "./hooks/use-tracking-setup";
 
 const NO_TOOLBAR_ROUTES = [
 	"/assistant",

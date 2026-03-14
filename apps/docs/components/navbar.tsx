@@ -199,6 +199,10 @@ export const navMenu = [
 		path: "/pricing",
 	},
 	{
+		name: "Changelog",
+		path: "/changelog",
+	},
+	{
 		name: "Contact",
 		path: "/contact",
 	},

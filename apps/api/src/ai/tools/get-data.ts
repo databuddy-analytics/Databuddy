@@ -3,9 +3,6 @@ import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeQuery, QueryBuilders } from "../../query";
 import type { QueryRequest } from "../../query/types";
-import { createToolLogger } from "./utils/logger";
-
-const logger = createToolLogger("Get Data (Batch)");
 
 const queryItemSchema = z.object({
 	type: z
@@ -157,12 +154,6 @@ export const getDataTool = tool({
 		);
 
 		const totalTime = Date.now() - batchStart;
-
-		logger.info("Batch query completed", {
-			queryCount: queries.length,
-			totalTime: `${totalTime}ms`,
-			types: queries.map((q) => q.type).join(", "),
-		});
 
 		const resultMap: Record<string, QueryItemResult> = {};
 		for (const r of results) {

@@ -31,8 +31,9 @@ export function usePulseStatus() {
 		enabled: !isLoadingOrganization,
 	});
 
+	type ScheduleRow = PulseStatus["monitors"][number];
 	const status = useMemo<PulseStatus>(() => {
-		const schedules = query.data ?? [];
+		const schedules = (query.data ?? []) as ScheduleRow[];
 
 		const activeMonitors = schedules.filter((s) => !s.isPaused).length;
 		const pausedMonitors = schedules.filter((s) => s.isPaused).length;

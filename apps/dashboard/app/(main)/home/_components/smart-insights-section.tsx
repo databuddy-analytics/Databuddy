@@ -18,12 +18,12 @@ import { generateId } from "ai";
 import Link from "next/link";
 import { type ReactNode, useMemo, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type {
 	Insight,
 	InsightSentiment,
 	InsightType,
-} from "@/hooks/use-smart-insights";
-import { cn } from "@/lib/utils";
+} from "../hooks/use-smart-insights";
 
 function buildDiagnosticPrompt(insight: Insight): string {
 	const parts = [
@@ -273,10 +273,38 @@ function EmptyState() {
 	);
 }
 
+function ErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
+	return (
+		<div className="flex items-center gap-3 px-4 py-4">
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+				<WarningCircleIcon className="size-5 text-red-500" weight="duotone" />
+			</div>
+			<div className="min-w-0 flex-1">
+				<p className="font-medium text-foreground text-sm">
+					Couldn't load insights
+				</p>
+				<p className="text-muted-foreground text-xs">
+					AI analysis timed out or failed
+				</p>
+			</div>
+			{onRetryAction && (
+				<button
+					className="shrink-0 rounded bg-accent px-3 py-1.5 font-medium text-foreground text-xs transition-colors hover:bg-accent/80"
+					onClick={onRetryAction}
+					type="button"
+				>
+					Retry
+				</button>
+			)}
+		</div>
+	);
+}
+
 interface InsightsSectionProps {
 	insights: Insight[];
 	isLoading?: boolean;
 	isFetching?: boolean;
+	isError?: boolean;
 	onRefreshAction?: () => void;
 }
 
@@ -284,6 +312,7 @@ export function SmartInsightsSection({
 	insights,
 	isLoading,
 	isFetching,
+	isError,
 	onRefreshAction,
 }: InsightsSectionProps) {
 	if (isLoading) {
@@ -300,6 +329,9 @@ export function SmartInsightsSection({
 		);
 	}
 
+	const showInsights = !isError && insights.length > 0;
+	const showEmpty = !isError && insights.length === 0;
+
 	return (
 		<div className="rounded border bg-card">
 			<div className="flex items-center justify-between border-b px-4 py-3">
@@ -310,7 +342,7 @@ export function SmartInsightsSection({
 					</h3>
 				</div>
 				<div className="flex items-center gap-2">
-					{insights.length > 0 && (
+					{showInsights && (
 						<span className="text-muted-foreground text-xs">
 							{insights.length} {insights.length === 1 ? "insight" : "insights"}
 						</span>
@@ -330,9 +362,9 @@ export function SmartInsightsSection({
 					)}
 				</div>
 			</div>
-			{insights.length === 0 ? (
-				<EmptyState />
-			) : (
+			{isError && <ErrorState onRetryAction={onRefreshAction} />}
+			{showEmpty && <EmptyState />}
+			{showInsights && (
 				<div className="max-h-[280px] divide-y overflow-y-auto">
 					{insights.map((insight) => (
 						<InsightRow insight={insight} key={insight.id} />

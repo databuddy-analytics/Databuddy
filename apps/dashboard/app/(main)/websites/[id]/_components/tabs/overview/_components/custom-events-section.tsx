@@ -26,8 +26,8 @@ const formatNumber = (value: number): string => {
 const PROTOCOL_REGEX = /^https?:\/\//;
 const JSON_QUOTE_REGEX = /^"(.*)"$/;
 
-const cleanPropertyValue = (value: string): string =>
-	value.replace(JSON_QUOTE_REGEX, "$1");
+const cleanPropertyValue = (value: string | null | undefined): string =>
+	(value ?? "").replace(JSON_QUOTE_REGEX, "$1");
 
 const createEventIndicator = () => (
 	<div className="size-2 shrink-0 rounded bg-primary" />
@@ -163,7 +163,10 @@ export function CustomEventsSection({
 				accessorKey: "href",
 				header: "URL",
 				cell: ({ getValue }: any) => {
-					const href = getValue();
+					const href = getValue() as string | undefined;
+					if (!href) {
+						return <span className="text-muted-foreground">—</span>;
+					}
 					const domain = href.replace(PROTOCOL_REGEX, "").split("/")[0];
 					return (
 						<div className="flex flex-col gap-1">

@@ -227,7 +227,22 @@ export const organizationsRouter = {
 			summary: "Get user pending invitations",
 			tags: ["Organizations"],
 		})
-		.output(z.array(orgOutputSchema))
+		.output(
+			z.array(
+				z.object({
+					id: z.string(),
+					email: z.string(),
+					role: z.string().nullable(),
+					status: z.string(),
+					expiresAt: z.coerce.date(),
+					createdAt: z.coerce.date(),
+					organizationId: z.string(),
+					organizationName: z.string().nullable(),
+					organizationLogo: z.string().nullable(),
+					inviterId: z.string(),
+				})
+			)
+		)
 		.handler(async ({ context }) => {
 			const pendingInvitations = await db
 				.select({
