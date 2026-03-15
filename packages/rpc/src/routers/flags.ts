@@ -942,4 +942,62 @@ export const flagsRouter = {
 
 			return { success: true };
 		}),
+	listFolders: protectedProcedure
+		.input(
+			z
+				.object({
+					websiteId: z.string().optional(),
+					organizationId: z.string().optional(),
+				})
+				.refine((data) => data.websiteId || data.organizationId, {
+					message: "Either websiteId or organizationId must be provided",
+					path: ["websiteId"],
+				})
+		)
+		.handler(async ({ input, context }) => {
+			await authorizeScope(context, input.websiteId, input.organizationId);
+			const scopeCondition = getScopeCondition(
+				input.websiteId,
+				input.organizationId
+			);
+			const result = await context.db
+				.selectDistinct({ folder: flags.folder })
+				.from(flags)
+				.where(and(notDeleted, scopeCondition));
+			return result
+				.map((r) => r.folder)
+				.filter((f): f is string => f !== null);
+		}),
+
+	moveToFolder: protectedProcedure
+		.input(
+			z.object({
+				flagIds: z.array(z.string()),
+				folder: z.string().nullable(),
+				websiteId: z.string().optional(),
+				organizationId: z.string().optional(),
+			})
+		)
+		.handler(async ({ input, context }) => {
+			await authorizeScope(
+				context,
+				input.websiteId,
+				input.organizationId,
+				"update"
+			);
+			const updated = [];
+			for (const flagId of input.flagIds) {
+				const [result] = await context.db
+					.update(flags)
+					.set({ folder: input.folder, updatedAt: new Date() })
+					.where(eq(flags.id, flagId))
+					.returning();
+				if (result) {
+					await invalidateFlagCache(result);
+					updated.push(result);
+				}
+			}
+			return updated;
+		}),
+
 };
