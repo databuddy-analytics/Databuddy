@@ -100,7 +100,7 @@ export default function Hero() {
 					<h1 className="fade-in slide-in-from-bottom-6 animate-in text-balance font-bold text-4xl leading-[1.1] tracking-tight delay-100 duration-700 sm:text-5xl md:text-6xl lg:text-7xl">
 						Analytics that{" "}
 						<span className="underline decoration-2 decoration-wavy underline-offset-8">
-							runs <span className="text-muted-foreground">itself</span>
+							run <span className="text-muted-foreground">itself</span>
 						</span>
 					</h1>
 
