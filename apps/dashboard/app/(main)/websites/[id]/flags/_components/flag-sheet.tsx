@@ -9,11 +9,14 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderSimpleIcon,
 	GitBranchIcon,
+	PlusIcon,
 	SpinnerGapIcon,
 	UserIcon,
 	UsersIcon,
 	UsersThreeIcon,
+	XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -212,9 +215,12 @@ export function FlagSheet({
 	websiteId,
 	flag,
 	template,
+	existingFolders = [],
 }: FlagSheetProps) {
 	const [keyManuallyEdited, setKeyManuallyEdited] = useState(false);
 	const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
+	const [folderInputValue, setFolderInputValue] = useState("");
+	const [showFolderSuggestions, setShowFolderSuggestions] = useState(false);
 	const queryClient = useQueryClient();
 
 	const { data: flagsList } = useQuery({
@@ -247,6 +253,7 @@ export function FlagSheet({
 				variants: [],
 				dependencies: [],
 				environment: undefined,
+				folder: undefined,
 				targetGroupIds: [],
 			},
 			schedule: undefined,
@@ -289,6 +296,7 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
+					folder: flag.folder || undefined,
 					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
@@ -310,6 +318,7 @@ export function FlagSheet({
 					rules: template.rules ?? [],
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -331,6 +340,7 @@ export function FlagSheet({
 					rules: [],
 					variants: [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -399,6 +409,7 @@ export function FlagSheet({
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
+					folder: data.folder?.trim() || null,
 					targetGroupIds: data.targetGroupIds || [],
 				};
 				await updateMutation.mutateAsync(updateData);
@@ -417,6 +428,7 @@ export function FlagSheet({
 					defaultValue: data.defaultValue,
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
+					folder: data.folder?.trim() || null,
 					targetGroupIds: data.targetGroupIds || [],
 				};
 				await createMutation.mutateAsync(createData);
@@ -548,6 +560,122 @@ export function FlagSheet({
 											<FormMessage />
 										</FormItem>
 									)}
+								/>
+
+								{/* Folder */}
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => {
+										const currentValue = field.value || "";
+										const filteredFolders = existingFolders.filter(
+											(f) =>
+												f.toLowerCase().includes(folderInputValue.toLowerCase()) &&
+												f !== currentValue
+										);
+										const showCreate =
+											folderInputValue.trim() &&
+											!existingFolders.some(
+												(f) => f.toLowerCase() === folderInputValue.trim().toLowerCase()
+											);
+
+										return (
+											<FormItem>
+												<FormLabel className="text-muted-foreground">
+													Folder (optional)
+												</FormLabel>
+												<div className="relative">
+													{currentValue ? (
+														<div className="flex items-center gap-2 rounded border bg-secondary px-3 py-2">
+															<FolderSimpleIcon
+																className="size-4 text-muted-foreground"
+																weight="duotone"
+															/>
+															<span className="flex-1 text-sm">
+																{currentValue}
+															</span>
+															<button
+																className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+																onClick={() => {
+																	field.onChange(null);
+																	setFolderInputValue("");
+																}}
+																type="button"
+															>
+																<XIcon className="size-3.5" />
+															</button>
+														</div>
+													) : (
+														<>
+															<div className="relative">
+																<FolderSimpleIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" weight="duotone" />
+																<Input
+																	className="pl-9"
+																	onBlur={() => {
+																		// Delay to allow click on suggestions
+																		setTimeout(
+																			() => setShowFolderSuggestions(false),
+																			200
+																		);
+																	}}
+																	onChange={(e) => {
+																		setFolderInputValue(e.target.value);
+																		setShowFolderSuggestions(true);
+																	}}
+																	onFocus={() => setShowFolderSuggestions(true)}
+																	placeholder="Type to search or create…"
+																	value={folderInputValue}
+																/>
+															</div>
+															{showFolderSuggestions &&
+																(filteredFolders.length > 0 || showCreate) && (
+																	<div className="absolute z-50 mt-1 w-full rounded border bg-popover shadow-md">
+																		<div className="max-h-40 overflow-y-auto p-1">
+																			{filteredFolders.map((folder) => (
+																				<button
+																					className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+																					key={folder}
+																					onClick={() => {
+																						field.onChange(folder);
+																						setFolderInputValue("");
+																						setShowFolderSuggestions(false);
+																					}}
+																					type="button"
+																				>
+																					<FolderSimpleIcon
+																						className="size-4 text-muted-foreground"
+																						weight="duotone"
+																					/>
+																					{folder}
+																				</button>
+																			))}
+																			{showCreate && (
+																				<button
+																					className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-primary transition-colors hover:bg-accent"
+																					onClick={() => {
+																						field.onChange(
+																							folderInputValue.trim()
+																						);
+																						setFolderInputValue("");
+																						setShowFolderSuggestions(false);
+																					}}
+																					type="button"
+																				>
+																					<PlusIcon className="size-4" />
+																					Create &ldquo;
+																					{folderInputValue.trim()}&rdquo;
+																				</button>
+																			)}
+																		</div>
+																	</div>
+																)}
+														</>
+													)}
+												</div>
+												<FormMessage />
+											</FormItem>
+										);
+									}}
 								/>
 							</div>
 

@@ -22,6 +22,7 @@ export interface Flag {
 	variants?: Variant[];
 	dependencies?: string[];
 	environment?: string;
+	folder?: string | null;
 	persistAcrossAuth?: boolean;
 	websiteId?: string | null;
 	organizationId?: string | null;
@@ -72,6 +73,7 @@ export interface FlagSheetProps {
 	websiteId: string;
 	flag?: Flag | null;
 	template?: FlagTemplate | null;
+	existingFolders?: string[];
 }
 
 export interface VariantEditorProps {

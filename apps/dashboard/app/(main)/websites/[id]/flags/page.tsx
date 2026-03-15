@@ -49,6 +49,16 @@ export default function FlagsPage() {
 		return map;
 	}, [activeFlags]);
 
+	const existingFolders = useMemo(() => {
+		const folders = new Set<string>();
+		for (const flag of activeFlags) {
+			if (flag.folder) {
+				folders.add(flag.folder);
+			}
+		}
+		return Array.from(folders).sort();
+	}, [activeFlags]);
+
 	const deleteFlagMutation = useMutation({
 		...orpc.flags.delete.mutationOptions(),
 		onSuccess: () => {
@@ -120,6 +130,7 @@ export default function FlagsPage() {
 					{isFlagSheetOpen && (
 						<Suspense fallback={null}>
 							<FlagSheet
+								existingFolders={existingFolders}
 								flag={editingFlag}
 								isOpen={isFlagSheetOpen}
 								onCloseAction={handleFlagSheetClose}

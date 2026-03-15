@@ -84,6 +84,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -141,6 +142,7 @@ const updateFlagSchema = z
 		variants: z.array(variantSchema).optional(),
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
+		folder: z.string().nullable().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
 	})
 	.superRefine((data, ctx) => {
@@ -271,7 +273,7 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
+			const cacheKey = `list:${scope}:${input.status || "all"}:${input.folder || "all"}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -292,6 +294,10 @@ export const flagsRouter = {
 
 					if (input.status) {
 						conditions.push(eq(flags.status, input.status));
+					}
+
+					if (input.folder) {
+						conditions.push(eq(flags.folder, input.folder));
 					}
 
 					const flagsList = await context.db.query.flags.findMany({
@@ -628,6 +634,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder || null,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -685,6 +692,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder || null,
 						userId: null,
 						createdBy,
 					})
