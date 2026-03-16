@@ -212,7 +212,7 @@ export function FolderSidebar({
 	onRenameFolder,
 	onDeleteFolder,
 }: FolderSidebarProps) {
-	const rootCount = folders.find((f) => !f.name)?.count || 0;
+	const totalCount = folders.reduce((sum, f) => sum + f.count, 0);
 	const tree = buildFolderTree(folders.filter((f) => f.name));
 
 	return (
@@ -234,8 +234,8 @@ export function FolderSidebar({
 					>
 						<FolderIcon className="size-4" weight="duotone" />
 						<span>All Flags</span>
-						{rootCount > 0 && (
-							<span className="text-muted-foreground text-xs">{rootCount}</span>
+						{totalCount > 0 && (
+							<span className="text-muted-foreground text-xs">{totalCount}</span>
 						)}
 					</button>
 				</div>

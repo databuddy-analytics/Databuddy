@@ -119,7 +119,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
-		folder: z.string().optional(),
+		folder: z.string().nullable().optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
