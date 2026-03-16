@@ -32,7 +32,6 @@ import {
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { FlagKey } from "./flag-key";
-import { FolderIcon } from "@phosphor-icons/react";
 import { FlagVariants } from "./flag-variants";
 import { RolloutProgress } from "./rollout-progress";
 import type { Flag, TargetGroup } from "./types";

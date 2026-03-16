@@ -963,7 +963,7 @@ export const flagsRouter = {
 			const result = await context.db
 				.selectDistinct({ folder: flags.folder })
 				.from(flags)
-				.where(and(notDeleted, scopeCondition));
+				.where(and(notDeleted(flags), scopeCondition));
 			return result
 				.map((r) => r.folder)
 				.filter((f): f is string => f !== null);
@@ -990,10 +990,10 @@ export const flagsRouter = {
 				const [result] = await context.db
 					.update(flags)
 					.set({ folder: input.folder, updatedAt: new Date() })
-					.where(eq(flags.id, flagId))
+					.where(and(eq(flags.id, flagId), getScopeCondition(input.websiteId, input.organizationId), notDeleted(flags)))
 					.returning();
 				if (result) {
-					await invalidateFlagCache(result);
+					await invalidateFlagCache(result.id, input.websiteId, input.organizationId);
 					updated.push(result);
 				}
 			}
