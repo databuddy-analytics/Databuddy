@@ -144,7 +144,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
-		folder: z.string().optional(),
+		folder: z.string().nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -274,7 +274,7 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
+			const cacheKey = `list:${scope}:${input.status || "all"}:${input.folder ?? "all"}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -639,7 +639,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
-							folder: input.folder ?? existingFlag[0].folder,
+							folder: input.folder !== undefined ? input.folder : existingFlag[0].folder,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})

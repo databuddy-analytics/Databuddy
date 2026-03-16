@@ -119,19 +119,27 @@ export default function FlagsPage() {
 	};
 
 	const handleRenameFolder = async (oldName: string, newName: string) => {
-		const flagsInFolder = activeFlags.filter((f) => f.folder === oldName);
+		const flagsInFolder = activeFlags.filter(
+			(f) => f.folder === oldName || f.folder?.startsWith(`${oldName}/`)
+		);
 		try {
 			await Promise.all(
-				flagsInFolder.map((flag) =>
-					updateFlagMutation.mutateAsync({
+				flagsInFolder.map((flag) => {
+					const updatedFolder =
+						flag.folder === oldName
+							? newName
+							: `${newName}${flag.folder!.slice(oldName.length)}`;
+					return updateFlagMutation.mutateAsync({
 						id: flag.id,
-						folder: newName,
-					})
-				)
+						folder: updatedFolder,
+					});
+				})
 			);
 			toast.success(`Renamed folder to "${newName}"`);
 			if (selectedFolder === oldName) {
 				setSelectedFolder(newName);
+			} else if (selectedFolder?.startsWith(`${oldName}/`)) {
+				setSelectedFolder(`${newName}${selectedFolder.slice(oldName.length)}`);
 			}
 		} catch (error) {
 			toast.error("Failed to rename folder");
@@ -139,13 +147,15 @@ export default function FlagsPage() {
 	};
 
 	const handleDeleteFolder = async (folder: string) => {
-		const flagsInFolder = activeFlags.filter((f) => f.folder === folder);
+		const flagsInFolder = activeFlags.filter(
+			(f) => f.folder === folder || f.folder?.startsWith(`${folder}/`)
+		);
 		try {
 			await Promise.all(
 				flagsInFolder.map((flag) =>
 					updateFlagMutation.mutateAsync({
 						id: flag.id,
-						folder: undefined,
+						folder: null,
 					})
 				)
 			);

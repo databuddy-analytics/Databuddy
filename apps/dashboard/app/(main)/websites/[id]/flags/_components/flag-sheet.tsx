@@ -405,6 +405,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -423,6 +424,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder || null,
 				};
 				await createMutation.mutateAsync(createData);
 			}
