@@ -143,7 +143,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
-		folder: z.string().max(100).nullable().optional(),
+		folder: z.string().min(1).max(100).nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -297,11 +297,7 @@ export const flagsRouter = {
 					}
 
 					if (input.folder !== undefined) {
-						if (input.folder === null || input.folder === "") {
-							conditions.push(isNull(flags.folder));
-						} else {
-							conditions.push(eq(flags.folder, input.folder));
-						}
+						conditions.push(eq(flags.folder, input.folder));
 					}
 
 					const flagsList = await context.db.query.flags.findMany({

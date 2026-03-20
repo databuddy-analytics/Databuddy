@@ -64,6 +64,7 @@ export const flagFormSchema = z
 		targetGroupIds: z.array(z.string()).optional(),
 		folder: z
 			.string()
+			.min(1, "Folder name cannot be empty")
 			.max(100, "Folder name too long")
 			.regex(
 				/^[a-zA-Z0-9_\-/ ]*$/,

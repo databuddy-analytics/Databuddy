@@ -226,37 +226,53 @@ function FolderRow({
 	const isRenaming = updateMutation.isPending;
 
 	const handleRename = async (newName: string) => {
-		try {
-			await Promise.all(
-				flagsInFolder.map((flag) =>
-					updateMutation.mutateAsync({ id: flag.id, folder: newName })
-				)
-			);
-			queryClient.invalidateQueries({
-				queryKey: orpc.flags.list.key({ input: { websiteId } }),
-			});
+		const results = await Promise.allSettled(
+			flagsInFolder.map((flag) =>
+				updateMutation.mutateAsync({ id: flag.id, folder: newName })
+			)
+		);
+		const failed = results.filter((r) => r.status === "rejected").length;
+		const succeeded = results.length - failed;
+		queryClient.invalidateQueries({
+			queryKey: orpc.flags.list.key({ input: { websiteId } }),
+		});
+		if (failed === 0) {
 			toast.success(`Folder renamed to "${newName}"`);
 			onRenamedAction(name, newName);
 			setShowRename(false);
-		} catch {
+		} else if (succeeded > 0) {
+			toast.error(
+				`Partially renamed: ${succeeded} flag(s) updated, ${failed} failed`
+			);
+			onRenamedAction(name, newName);
+			setShowRename(false);
+		} else {
 			toast.error("Failed to rename folder");
 		}
 	};
 
 	const handleDelete = async () => {
-		try {
-			await Promise.all(
-				flagsInFolder.map((flag) =>
-					updateMutation.mutateAsync({ id: flag.id, folder: null })
-				)
-			);
-			queryClient.invalidateQueries({
-				queryKey: orpc.flags.list.key({ input: { websiteId } }),
-			});
+		const results = await Promise.allSettled(
+			flagsInFolder.map((flag) =>
+				updateMutation.mutateAsync({ id: flag.id, folder: null })
+			)
+		);
+		const failed = results.filter((r) => r.status === "rejected").length;
+		const succeeded = results.length - failed;
+		queryClient.invalidateQueries({
+			queryKey: orpc.flags.list.key({ input: { websiteId } }),
+		});
+		if (failed === 0) {
 			toast.success(`Folder "${name}" deleted`);
 			onDeletedAction(name);
 			setShowDelete(false);
-		} catch {
+		} else if (succeeded > 0) {
+			toast.error(
+				`Partially deleted: ${succeeded} flag(s) removed from folder, ${failed} failed`
+			);
+			onDeletedAction(name);
+			setShowDelete(false);
+		} else {
 			toast.error("Failed to delete folder");
 		}
 	};
