@@ -99,6 +99,8 @@ export const alarmsRouter = {
 			z
 				.object({
 					organizationId: z.string().optional(),
+					websiteId: z.string().optional(),
+					triggerType: z.string().optional(),
 				})
 				.default({})
 		)
@@ -113,8 +115,28 @@ export const alarmsRouter = {
 					"Missing workspace permissions."
 				);
 
+				const conditions = [
+					eq(alarms.organizationId, input.organizationId),
+				];
+				if (input.websiteId) {
+					conditions.push(eq(alarms.websiteId, input.websiteId));
+				}
+				if (input.triggerType) {
+					conditions.push(
+						eq(
+							alarms.triggerType,
+							input.triggerType as
+								| "uptime"
+								| "traffic_spike"
+								| "error_rate"
+								| "goal"
+								| "custom"
+						)
+					);
+				}
+
 				return await db.query.alarms.findMany({
-					where: eq(alarms.organizationId, input.organizationId),
+					where: and(...conditions),
 					orderBy: (table, { desc }) => [desc(table.createdAt)],
 				});
 			}

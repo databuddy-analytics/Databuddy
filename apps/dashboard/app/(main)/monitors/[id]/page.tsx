@@ -3,6 +3,7 @@
 import {
 	ArrowClockwiseIcon,
 	ArrowLeftIcon,
+	BellIcon,
 	GlobeIcon,
 	HeartbeatIcon,
 	PauseIcon,
@@ -10,7 +11,7 @@ import {
 	PlayIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -35,7 +36,105 @@ import { orpc } from "@/lib/orpc";
 import { fromNow, localDayjs } from "@/lib/time";
 import { RecentActivity } from "../../websites/[id]/pulse/_components/recent-activity";
 import { UptimeHeatmap } from "../../websites/[id]/pulse/_components/uptime-heatmap";
+import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "../_components/page-header";
+
+interface AlarmSummary {
+	id: string;
+	name: string;
+	enabled: boolean;
+	notificationChannels: string[];
+	triggerType: string;
+}
+
+function MonitorAlarms({
+	organizationId,
+	websiteId,
+}: {
+	organizationId: string;
+	websiteId: string | null;
+}) {
+	const queryClient = useQueryClient();
+
+	const { data: alarmsList } = useQuery({
+		...orpc.alarms.list.queryOptions({
+			input: {
+				organizationId,
+				triggerType: "uptime",
+			},
+		}),
+	});
+
+	const updateMutation = useMutation({
+		...orpc.alarms.update.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.alarms.list.key({
+					input: { organizationId, triggerType: "uptime" },
+				}),
+			});
+		},
+	});
+
+	const alarms = (alarmsList ?? []) as AlarmSummary[];
+
+	if (alarms.length === 0) {
+		return (
+			<div className="border-b px-6 py-4">
+				<div className="flex items-center gap-2 text-muted-foreground text-sm">
+					<BellIcon size={16} weight="duotone" />
+					<span>
+						No uptime alarms configured.{" "}
+						<a className="text-primary hover:underline" href="/settings/notifications">
+							Create one in Settings
+						</a>
+					</span>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div className="border-b px-6 py-4">
+			<div className="mb-2 flex items-center gap-2">
+				<BellIcon size={16} weight="duotone" />
+				<span className="font-medium text-sm">Uptime Alarms</span>
+			</div>
+			<div className="space-y-2">
+				{alarms.map((alarm) => (
+					<div
+						className="flex items-center justify-between rounded border bg-card px-3 py-2"
+						key={alarm.id}
+					>
+						<div className="flex items-center gap-2">
+							<span className="text-sm">{alarm.name}</span>
+							<div className="flex gap-1">
+								{alarm.notificationChannels.map((ch) => (
+									<span
+										className="rounded bg-secondary px-1.5 py-0.5 text-muted-foreground text-xs"
+										key={ch}
+									>
+										{ch}
+									</span>
+								))}
+							</div>
+						</div>
+						<Switch
+							checked={alarm.enabled}
+							disabled={updateMutation.isPending}
+							onCheckedChange={(enabled) =>
+								updateMutation.mutate({
+									id: alarm.id,
+									enabled,
+								})
+							}
+						/>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
 
 const granularityLabels: Record<string, string> = {
 	minute: "Every minute",
@@ -397,6 +496,11 @@ export default function MonitorDetailsPage() {
 						)}
 					</div>
 				</div>
+
+				<MonitorAlarms
+					organizationId={schedule.organizationId}
+					websiteId={schedule.websiteId ?? null}
+				/>
 
 				<div className="border-b bg-sidebar">
 					<UptimeHeatmap

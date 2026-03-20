@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { z } from "zod";
 import { type CheckOptions, checkUptime, lookupSchedule } from "./actions";
 import type { JsonParsingConfig } from "./json-parser";
+import { checkAndTriggerAlarms } from "./lib/alarm-trigger";
 import { sendUptimeEvent } from "./lib/producer";
 import {
 	captureError,
@@ -191,6 +192,15 @@ const app = new Elysia()
 					error instanceof Error ? error.message : String(error)
 				);
 			}
+
+			// Trigger alarm notifications (non-blocking)
+			checkAndTriggerAlarms(scheduleId, result.data).catch((error) => {
+				captureError(error, {
+					type: "alarm_trigger_error",
+					scheduleId,
+					monitorId,
+				});
+			});
 
 			return new Response("Uptime check complete", { status: 200 });
 		} catch (error) {
