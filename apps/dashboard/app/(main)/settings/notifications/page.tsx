@@ -161,6 +161,9 @@ export default function NotificationsSettingsPage() {
 			});
 			toast.success("Alarm deleted");
 		},
+		onError: () => {
+			toast.error("Failed to delete alarm");
+		},
 	});
 
 	const updateMutation = useMutation({
@@ -231,8 +234,12 @@ export default function NotificationsSettingsPage() {
 
 	const handleConfirmDelete = async () => {
 		if (alarmToDelete) {
-			await deleteMutation.mutateAsync({ id: alarmToDelete.id });
-			setAlarmToDelete(null);
+			try {
+				await deleteMutation.mutateAsync({ id: alarmToDelete.id });
+				setAlarmToDelete(null);
+			} catch {
+				toast.error("Failed to delete alarm");
+			}
 		}
 	};
 

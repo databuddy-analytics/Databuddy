@@ -1,4 +1,4 @@
-import { alarms, and, db, eq, member } from "@databuddy/db";
+import { alarms, db, eq, inArray, member } from "@databuddy/db";
 import {
 	sendDiscordWebhook,
 	sendSlackWebhook,
@@ -8,7 +8,7 @@ import { logger } from "@databuddy/shared/logger";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
-import { protectedProcedure, requireUserId } from "../orpc";
+import { type Context, protectedProcedure, requireUserId } from "../orpc";
 import { checkOrgPermission } from "../utils/auth";
 
 const notificationChannelSchema = z.enum([
@@ -62,7 +62,7 @@ const updateAlarmSchema = z.object({
 
 async function getAlarmAndAuthorize(
 	alarmId: string,
-	context: { headers: Headers }
+	context: Context
 ) {
 	const alarm = await db.query.alarms.findFirst({
 		where: eq(alarms.id, alarmId),
@@ -80,6 +80,13 @@ async function getAlarmAndAuthorize(
 			"read",
 			"Missing workspace permissions."
 		);
+	} else {
+		const userId = requireUserId(context);
+		if (alarm.userId !== userId) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "You do not have permission to access this alarm.",
+			});
+		}
 	}
 
 	return alarm;
@@ -129,7 +136,6 @@ export const alarmsRouter = {
 				return [];
 			}
 
-			const { inArray } = await import("@databuddy/db");
 			const orgIds = userMemberships.map((m) => m.organizationId);
 
 			return await db.query.alarms.findMany({
@@ -226,7 +232,21 @@ export const alarmsRouter = {
 
 			const { id, ...updates } = input;
 
-			const updateData: Record<string, unknown> = {
+			const updateData: Partial<{
+				updatedAt: Date;
+				name: string;
+				description: string | null;
+				enabled: boolean;
+				websiteId: string | null;
+				notificationChannels: string[];
+				slackWebhookUrl: string | null;
+				discordWebhookUrl: string | null;
+				emailAddresses: string[] | null;
+				webhookUrl: string | null;
+				webhookHeaders: Record<string, string> | null;
+				triggerType: string;
+				triggerConditions: Record<string, unknown> | null;
+			}> = {
 				updatedAt: new Date(),
 			};
 
