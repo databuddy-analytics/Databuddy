@@ -1094,6 +1094,72 @@ export const feedbackRedemptions = pgTable(
 	]
 );
 
+export const alarmTriggerType = pgEnum("alarm_trigger_type", [
+	"uptime",
+	"traffic_spike",
+	"error_rate",
+	"goal",
+	"custom",
+]);
+
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		userId: text("user_id"),
+		organizationId: text("organization_id"),
+		websiteId: text("website_id"),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean().default(true).notNull(),
+		notificationChannels: text("notification_channels").array().notNull(),
+		slackWebhookUrl: text("slack_webhook_url"),
+		discordWebhookUrl: text("discord_webhook_url"),
+		emailAddresses: text("email_addresses").array(),
+		webhookUrl: text("webhook_url"),
+		webhookHeaders: jsonb("webhook_headers"),
+		triggerType: alarmTriggerType("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions"),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("alarms_user_id_idx").using(
+			"btree",
+			table.userId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using(
+			"btree",
+			table.enabled.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "alarms_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	]
+);
+
 export type Website = typeof websites.$inferSelect;
 export type WebsiteInsert = typeof websites.$inferInsert;
 export type Organization = typeof organization.$inferSelect;
@@ -1116,3 +1182,5 @@ export type Feedback = typeof feedback.$inferSelect;
 export type FeedbackInsert = typeof feedback.$inferInsert;
 export type FeedbackRedemption = typeof feedbackRedemptions.$inferSelect;
 export type FeedbackRedemptionInsert = typeof feedbackRedemptions.$inferInsert;
+export type Alarm = typeof alarms.$inferSelect;
+export type AlarmInsert = typeof alarms.$inferInsert;

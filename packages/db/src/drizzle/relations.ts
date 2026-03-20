@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm/relations";
 import {
 	account,
+	alarms,
 	apikey,
 	flags,
 	flagsToTargetGroups,
@@ -205,6 +206,21 @@ export const linksRelations = relations(links, ({ one }) => ({
 export const revenueConfigRelations = relations(revenueConfig, ({ one }) => ({
 	website: one(websites, {
 		fields: [revenueConfig.websiteId],
+		references: [websites.id],
+	}),
+}));
+
+export const alarmsRelations = relations(alarms, ({ one }) => ({
+	user: one(user, {
+		fields: [alarms.userId],
+		references: [user.id],
+	}),
+	organization: one(organization, {
+		fields: [alarms.organizationId],
+		references: [organization.id],
+	}),
+	website: one(websites, {
+		fields: [alarms.websiteId],
 		references: [websites.id],
 	}),
 }));
