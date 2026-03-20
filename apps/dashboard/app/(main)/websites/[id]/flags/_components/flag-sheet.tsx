@@ -9,6 +9,7 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
 	UserIcon,
@@ -247,6 +248,7 @@ export function FlagSheet({
 				variants: [],
 				dependencies: [],
 				environment: undefined,
+				folder: undefined,
 				targetGroupIds: [],
 			},
 			schedule: undefined,
@@ -289,7 +291,7 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
-					targetGroupIds: extractTargetGroupIds(),
+tttttfolder: flag.folder || undefined,					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
 			});
@@ -310,6 +312,7 @@ export function FlagSheet({
 					rules: template.rules ?? [],
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -331,6 +334,7 @@ export function FlagSheet({
 					rules: [],
 					variants: [],
 					dependencies: [],
+					folder: undefined,
 					targetGroupIds: [],
 				},
 				schedule: undefined,
@@ -400,6 +404,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -418,6 +423,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || undefined,
 				};
 				await createMutation.mutateAsync(createData);
 			}
@@ -543,6 +549,33 @@ export function FlagSheet({
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
 													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												<FolderIcon
+													className="mr-1 inline-block"
+													size={14}
+													weight="duotone"
+												/>
+												Folder (optional)
+											</FormLabel>
+											<FormControl>
+												<Input
+													placeholder="e.g. auth/login, checkout"
+													{...field}
+													value={field.value ?? ""}
+													onChange={(e) =>
+														field.onChange(e.target.value || undefined)
+													}
 												/>
 											</FormControl>
 											<FormMessage />

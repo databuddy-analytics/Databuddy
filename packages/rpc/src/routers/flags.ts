@@ -84,6 +84,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -118,6 +119,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
+		folder: z.string().max(200).optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
@@ -142,6 +144,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().max(200).nullish(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -271,7 +274,7 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
+			const cacheKey = `list:${scope}:${input.status || "all"}:${input.folder || "all"}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -292,6 +295,10 @@ export const flagsRouter = {
 
 					if (input.status) {
 						conditions.push(eq(flags.status, input.status));
+					}
+
+					if (input.folder) {
+						conditions.push(eq(flags.folder, input.folder));
 					}
 
 					const flagsList = await context.db.query.flags.findMany({
@@ -685,6 +692,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder || null,
 						userId: null,
 						createdBy,
 					})

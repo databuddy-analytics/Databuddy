@@ -2,9 +2,11 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -12,7 +14,7 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -326,7 +328,15 @@ function FlagRow({
 							flagMap={flagMap}
 						/>
 					</div>
-					<FlagKey className="-ms-1.5" flag={flag} />
+					<div className="flex items-center gap-1.5">
+						<FlagKey className="-ms-1.5" flag={flag} />
+						{flag.folder && (
+							<span className="flex items-center gap-0.5 rounded bg-accent px-1.5 py-0.5 text-muted-foreground text-xs">
+								<FolderIcon className="size-3" weight="duotone" />
+								{flag.folder}
+							</span>
+						)}
+					</div>
 				</div>
 			</div>
 
@@ -404,7 +414,44 @@ function FlagRow({
 	);
 }
 
+function FolderHeader({
+	folder,
+	count,
+	isExpanded,
+	onToggleAction,
+}: {
+	folder: string;
+	count: number;
+	isExpanded: boolean;
+	onToggleAction: () => void;
+}) {
+	return (
+		<button
+			className="flex w-full cursor-pointer items-center gap-2 border-b bg-secondary/50 px-4 py-2 text-left transition-colors hover:bg-secondary"
+			onClick={onToggleAction}
+			type="button"
+		>
+			<FolderIcon className="size-4 text-muted-foreground" weight="duotone" />
+			<span className="font-medium text-sm">{folder}</span>
+			<span className="rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground text-xs tabular-nums">
+				{count}
+			</span>
+			<CaretDownIcon
+				className={cn(
+					"ml-auto size-3.5 text-muted-foreground transition-transform",
+					isExpanded && "rotate-180"
+				)}
+				weight="fill"
+			/>
+		</button>
+	);
+}
+
 export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
+	const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(
+		new Set()
+	);
+
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
 		for (const f of flags) {
@@ -427,19 +474,92 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	const groupedFlags = useMemo(() => {
+		const folderMap = new Map<string, Flag[]>();
+		const uncategorized: Flag[] = [];
+
+		for (const flag of flags) {
+			const folder = flag.folder;
+			if (folder) {
+				const existing = folderMap.get(folder) || [];
+				existing.push(flag);
+				folderMap.set(folder, existing);
+			} else {
+				uncategorized.push(flag);
+			}
+		}
+
+		const sortedFolders = Array.from(folderMap.entries()).sort(([a], [b]) =>
+			a.localeCompare(b)
+		);
+
+		return { sortedFolders, uncategorized };
+	}, [flags]);
+
+	const hasFolders = groupedFlags.sortedFolders.length > 0;
+
+	const toggleFolder = (folder: string) => {
+		setCollapsedFolders((prev) => {
+			const next = new Set(prev);
+			if (next.has(folder)) {
+				next.delete(folder);
+			} else {
+				next.add(folder);
+			}
+			return next;
+		});
+	};
+
+	const renderFlags = (flagsToRender: Flag[]) =>
+		flagsToRender.map((flag) => (
+			<FlagRow
+				dependents={dependentsMap.get(flag.key) ?? []}
+				flag={flag}
+				flagMap={flagMap}
+				groups={groups.get(flag.id) ?? []}
+				key={flag.id}
+				onDelete={onDelete}
+				onEdit={onEdit}
+			/>
+		));
+
+	if (!hasFolders) {
+		return (
+			<div className="w-full overflow-x-auto">{renderFlags(flags)}</div>
+		);
+	}
+
 	return (
 		<div className="w-full overflow-x-auto">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
-					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
-			))}
+			{groupedFlags.sortedFolders.map(([folder, folderFlags]) => {
+				const isExpanded = !collapsedFolders.has(folder);
+				return (
+					<div key={folder}>
+						<FolderHeader
+							count={folderFlags.length}
+							folder={folder}
+							isExpanded={isExpanded}
+							onToggleAction={() => toggleFolder(folder)}
+						/>
+						{isExpanded && renderFlags(folderFlags)}
+					</div>
+				);
+			})}
+
+			{groupedFlags.uncategorized.length > 0 && (
+				<div>
+					{groupedFlags.sortedFolders.length > 0 && (
+						<FolderHeader
+							count={groupedFlags.uncategorized.length}
+							folder="Uncategorized"
+							isExpanded={!collapsedFolders.has("__uncategorized")}
+							onToggleAction={() => toggleFolder("__uncategorized")}
+						/>
+					)}
+					{!collapsedFolders.has("__uncategorized") &&
+						renderFlags(groupedFlags.uncategorized)}
+				</div>
+			)}
 		</div>
 	);
 }
