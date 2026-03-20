@@ -14,6 +14,10 @@ import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagSheet } from "./_components/flag-sheet";
 import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
+import {
+	FolderSidebar,
+	type FolderSelection,
+} from "./_components/folder-sidebar";
 import type { Flag, TargetGroup } from "./_components/types";
 
 export default function FlagsPage() {
@@ -23,6 +27,7 @@ export default function FlagsPage() {
 	const [isFlagSheetOpen, setIsFlagSheetOpen] = useAtom(isFlagSheetOpenAtom);
 	const [editingFlag, setEditingFlag] = useState<Flag | null>(null);
 	const [flagToDelete, setFlagToDelete] = useState<Flag | null>(null);
+	const [selectedFolder, setSelectedFolder] = useState<FolderSelection>("all");
 
 	const { data: flags, isLoading: flagsLoading } = useQuery({
 		...orpc.flags.list.queryOptions({ input: { websiteId } }),
@@ -48,6 +53,21 @@ export default function FlagsPage() {
 		}
 		return map;
 	}, [activeFlags]);
+
+	// Determine whether to group by folder or filter
+	const hasFolders = useMemo(
+		() => activeFlags.some((f) => f.folder),
+		[activeFlags]
+	);
+
+	const filteredFlags = useMemo(() => {
+		if (selectedFolder === "all") return activeFlags;
+		if (selectedFolder === "uncategorized")
+			return activeFlags.filter((f) => !f.folder);
+		return activeFlags.filter((f) => f.folder === selectedFolder);
+	}, [activeFlags, selectedFolder]);
+
+	const shouldGroupByFolder = selectedFolder === "all" && hasFolders;
 
 	const deleteFlagMutation = useMutation({
 		...orpc.flags.delete.mutationOptions(),
@@ -90,53 +110,80 @@ export default function FlagsPage() {
 	return (
 		<FeatureGate feature={GATED_FEATURES.FEATURE_FLAGS}>
 			<ErrorBoundary>
-				<div className="h-full overflow-y-auto">
-					<Suspense fallback={<FlagsListSkeleton />}>
-						{flagsLoading ? (
-							<FlagsListSkeleton />
-						) : activeFlags.length === 0 ? (
-							<div className="flex flex-1 items-center justify-center py-16">
-								<EmptyState
-									action={{
-										label: "Create Your First Flag",
-										onClick: handleCreateFlag,
-									}}
-									description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
-									icon={<FlagIcon weight="duotone" />}
-									title="No feature flags yet"
-									variant="minimal"
-								/>
-							</div>
-						) : (
-							<FlagsList
-								flags={activeFlags as Flag[]}
-								groups={groupsMap}
-								onDelete={handleDeleteFlagRequest}
-								onEdit={handleEditFlag}
-							/>
-						)}
-					</Suspense>
-
-					{isFlagSheetOpen && (
-						<Suspense fallback={null}>
-							<FlagSheet
-								flag={editingFlag}
-								isOpen={isFlagSheetOpen}
-								onCloseAction={handleFlagSheetClose}
-								websiteId={websiteId}
-							/>
-						</Suspense>
+				<div className="flex h-full min-h-0">
+					{/* Folder sidebar — shown when there are flags */}
+					{!flagsLoading && activeFlags.length > 0 && (
+						<FolderSidebar
+							flags={activeFlags as Flag[]}
+							onSelectFolder={setSelectedFolder}
+							selectedFolder={selectedFolder}
+							websiteId={websiteId}
+						/>
 					)}
 
-					<DeleteDialog
-						isDeleting={deleteFlagMutation.isPending}
-						isOpen={flagToDelete !== null}
-						itemName={flagToDelete?.name || flagToDelete?.key}
-						onClose={() => setFlagToDelete(null)}
-						onConfirm={handleConfirmDelete}
-						title="Delete Feature Flag"
-					/>
+					{/* Main content */}
+					<div className="min-w-0 flex-1 overflow-y-auto">
+						<Suspense fallback={<FlagsListSkeleton />}>
+							{flagsLoading ? (
+								<FlagsListSkeleton />
+							) : activeFlags.length === 0 ? (
+								<div className="flex flex-1 items-center justify-center py-16">
+									<EmptyState
+										action={{
+											label: "Create Your First Flag",
+											onClick: handleCreateFlag,
+										}}
+										description="Create your first feature flag to start controlling feature rollouts and A/B testing across your application."
+										icon={<FlagIcon weight="duotone" />}
+										title="No feature flags yet"
+										variant="minimal"
+									/>
+								</div>
+							) : filteredFlags.length === 0 ? (
+								<div className="flex flex-1 items-center justify-center py-16">
+									<EmptyState
+										action={{
+											label: "Create Flag",
+											onClick: handleCreateFlag,
+										}}
+										description="No flags in this folder yet. Create a flag and assign it to this folder."
+										icon={<FlagIcon weight="duotone" />}
+										title="No flags here"
+										variant="minimal"
+									/>
+								</div>
+							) : (
+								<FlagsList
+									flags={filteredFlags as Flag[]}
+									groupByFolder={shouldGroupByFolder}
+									groups={groupsMap}
+									onDelete={handleDeleteFlagRequest}
+									onEdit={handleEditFlag}
+								/>
+							)}
+						</Suspense>
+					</div>
 				</div>
+
+				{isFlagSheetOpen && (
+					<Suspense fallback={null}>
+						<FlagSheet
+							flag={editingFlag}
+							isOpen={isFlagSheetOpen}
+							onCloseAction={handleFlagSheetClose}
+							websiteId={websiteId}
+						/>
+					</Suspense>
+				)}
+
+				<DeleteDialog
+					isDeleting={deleteFlagMutation.isPending}
+					isOpen={flagToDelete !== null}
+					itemName={flagToDelete?.name || flagToDelete?.key}
+					onClose={() => setFlagToDelete(null)}
+					onConfirm={handleConfirmDelete}
+					title="Delete Feature Flag"
+				/>
 			</ErrorBoundary>
 		</FeatureGate>
 	);

@@ -9,11 +9,13 @@ import {
 	ClockIcon,
 	CodeIcon,
 	FlagIcon,
+	FolderIcon,
 	GitBranchIcon,
 	SpinnerGapIcon,
 	UserIcon,
 	UsersIcon,
 	UsersThreeIcon,
+	XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -26,6 +28,14 @@ import {
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
+import {
 	Form,
 	FormControl,
 	FormField,
@@ -35,6 +45,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LineSlider } from "@/components/ui/line-slider";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Sheet,
 	SheetBody,
@@ -206,6 +221,128 @@ function MyComponent() {
 	);
 }
 
+function FolderCombobox({
+	value,
+	onChange,
+	existingFolders,
+}: {
+	value?: string | null;
+	onChange: (folder: string | null) => void;
+	existingFolders: string[];
+}) {
+	const [open, setOpen] = useState(false);
+	const [inputValue, setInputValue] = useState(value ?? "");
+
+	// Sync input when value changes externally
+	useEffect(() => {
+		setInputValue(value ?? "");
+	}, [value]);
+
+	const filtered = existingFolders.filter(
+		(f) =>
+			f.toLowerCase().includes(inputValue.toLowerCase()) && f !== inputValue
+	);
+
+	const handleSelect = (folder: string) => {
+		onChange(folder);
+		setInputValue(folder);
+		setOpen(false);
+	};
+
+	const handleInputChange = (val: string) => {
+		setInputValue(val);
+		onChange(val || null);
+	};
+
+	const handleClear = () => {
+		setInputValue("");
+		onChange(null);
+	};
+
+	return (
+		<Popover onOpenChange={setOpen} open={open}>
+			<div className="flex items-center gap-1">
+				<PopoverTrigger asChild>
+					<button
+						className={cn(
+							"flex h-9 flex-1 items-center gap-2 rounded border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+							!value && "text-muted-foreground"
+						)}
+						onClick={() => setOpen(true)}
+						type="button"
+					>
+						<FolderIcon className="size-4 shrink-0 text-muted-foreground" weight="duotone" />
+						<span className="flex-1 truncate">{value || "No folder"}</span>
+					</button>
+				</PopoverTrigger>
+				{value && (
+					<button
+						aria-label="Clear folder"
+						className="flex size-9 shrink-0 items-center justify-center rounded border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onClick={handleClear}
+						type="button"
+					>
+						<XIcon className="size-3.5" />
+					</button>
+				)}
+			</div>
+			<PopoverContent
+				align="start"
+				className="w-64 p-0"
+				onOpenAutoFocus={(e) => e.preventDefault()}
+			>
+				<Command shouldFilter={false}>
+					<CommandInput
+						onValueChange={handleInputChange}
+						placeholder="Type folder name…"
+						value={inputValue}
+					/>
+					<CommandList>
+						{filtered.length === 0 && inputValue.trim() === "" ? (
+							<CommandEmpty>
+								{existingFolders.length === 0
+									? "No folders yet. Type to create one."
+									: "Type to search or create a folder."}
+							</CommandEmpty>
+						) : (
+							<>
+								{inputValue.trim() !== "" && !existingFolders.includes(inputValue.trim()) && (
+									<CommandGroup heading="Create new">
+										<CommandItem
+											onSelect={() => handleSelect(inputValue.trim())}
+											value={`__create__${inputValue.trim()}`}
+										>
+											<FolderIcon className="mr-2 size-4" weight="duotone" />
+											<span className="font-medium">{inputValue.trim()}</span>
+											<span className="ml-1 text-muted-foreground text-xs">
+												(new folder)
+											</span>
+										</CommandItem>
+									</CommandGroup>
+								)}
+								{filtered.length > 0 && (
+									<CommandGroup heading="Existing folders">
+										{filtered.map((folder) => (
+											<CommandItem
+												key={folder}
+												onSelect={() => handleSelect(folder)}
+												value={folder}
+											>
+												<FolderIcon className="mr-2 size-4" weight="duotone" />
+												{folder}
+											</CommandItem>
+										))}
+									</CommandGroup>
+								)}
+							</>
+						)}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 export function FlagSheet({
 	isOpen,
 	onCloseAction,
@@ -248,6 +385,7 @@ export function FlagSheet({
 				dependencies: [],
 				environment: undefined,
 				targetGroupIds: [],
+				folder: undefined,
 			},
 			schedule: undefined,
 		},
@@ -290,6 +428,7 @@ export function FlagSheet({
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
 					targetGroupIds: extractTargetGroupIds(),
+					folder: flag.folder ?? undefined,
 				},
 				schedule: undefined,
 			});
@@ -311,6 +450,7 @@ export function FlagSheet({
 					variants: template.type === "multivariant" ? template.variants : [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -332,6 +472,7 @@ export function FlagSheet({
 					variants: [],
 					dependencies: [],
 					targetGroupIds: [],
+					folder: undefined,
 				},
 				schedule: undefined,
 			});
@@ -400,6 +541,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -418,6 +560,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await createMutation.mutateAsync(createData);
 			}
@@ -437,6 +580,16 @@ export function FlagSheet({
 	const isLoading = createMutation.isPending || updateMutation.isPending;
 	const isRollout = watchedType === "rollout";
 	const isMultivariant = watchedType === "multivariant";
+
+	const existingFolders = useMemo(() => {
+		const folders = new Set<string>();
+		for (const f of flagsList ?? []) {
+			if (f.folder && typeof f.folder === "string") {
+				folders.add(f.folder);
+			}
+		}
+		return Array.from(folders).sort();
+	}, [flagsList]);
 
 	return (
 		<Sheet onOpenChange={handleOpenChange} open={isOpen}>
@@ -543,6 +696,26 @@ export function FlagSheet({
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
 													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												Folder (optional)
+											</FormLabel>
+											<FormControl>
+												<FolderCombobox
+													existingFolders={existingFolders}
+													onChange={(val) => field.onChange(val ?? undefined)}
+													value={field.value ?? null}
 												/>
 											</FormControl>
 											<FormMessage />
