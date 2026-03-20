@@ -344,6 +344,7 @@ export default function NotificationsSettingsPage() {
 				<AlarmDialog
 					alarm={editingAlarm}
 					isOpen={isDialogOpen}
+					key={editingAlarm?.id ?? "new"}
 					onCloseAction={handleDialogClose}
 				/>
 			)}

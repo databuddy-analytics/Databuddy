@@ -100,7 +100,7 @@ export const alarmsRouter = {
 				.object({
 					organizationId: z.string().optional(),
 					websiteId: z.string().optional(),
-					triggerType: z.string().optional(),
+					triggerType: triggerTypeSchema.optional(),
 				})
 				.default({})
 		)
@@ -123,15 +123,7 @@ export const alarmsRouter = {
 				}
 				if (input.triggerType) {
 					conditions.push(
-						eq(
-							alarms.triggerType,
-							input.triggerType as
-								| "uptime"
-								| "traffic_spike"
-								| "error_rate"
-								| "goal"
-								| "custom"
-						)
+						eq(alarms.triggerType, input.triggerType)
 					);
 				}
 

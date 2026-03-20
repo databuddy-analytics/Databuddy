@@ -60,6 +60,7 @@ function MonitorAlarms({
 		...orpc.alarms.list.queryOptions({
 			input: {
 				organizationId,
+				websiteId: websiteId ?? undefined,
 				triggerType: "uptime",
 			},
 		}),
@@ -70,7 +71,7 @@ function MonitorAlarms({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.alarms.list.key({
-					input: { organizationId, triggerType: "uptime" },
+					input: { organizationId, websiteId: websiteId ?? undefined, triggerType: "uptime" },
 				}),
 			});
 		},

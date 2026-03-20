@@ -1,28 +1,26 @@
 import { describe, expect, it } from "bun:test";
 import { MonitorStatus } from "../types";
+import { getConsecutiveFailureThreshold } from "./alarm-trigger";
 
 describe("alarm-trigger", () => {
 	describe("getConsecutiveFailureThreshold", () => {
-		// We test the threshold logic inline since the function is not exported
-		// but we verify the behavior through the module's contract
-
 		it("should default to 3 consecutive failures when no trigger conditions", () => {
 			const conditions = null;
-			const threshold = getThreshold(conditions);
+			const threshold = getConsecutiveFailureThreshold(conditions);
 			expect(threshold).toBe(3);
 		});
 
 		it("should use custom threshold from trigger conditions", () => {
 			const conditions = { consecutiveFailures: 5 };
-			const threshold = getThreshold(conditions);
+			const threshold = getConsecutiveFailureThreshold(conditions);
 			expect(threshold).toBe(5);
 		});
 
 		it("should default to 3 for invalid threshold values", () => {
-			expect(getThreshold({ consecutiveFailures: -1 })).toBe(3);
-			expect(getThreshold({ consecutiveFailures: 0 })).toBe(3);
-			expect(getThreshold({ consecutiveFailures: "invalid" })).toBe(3);
-			expect(getThreshold({})).toBe(3);
+			expect(getConsecutiveFailureThreshold({ consecutiveFailures: -1 })).toBe(3);
+			expect(getConsecutiveFailureThreshold({ consecutiveFailures: 0 })).toBe(3);
+			expect(getConsecutiveFailureThreshold({ consecutiveFailures: "invalid" })).toBe(3);
+			expect(getConsecutiveFailureThreshold({})).toBe(3);
 		});
 	});
 
@@ -125,19 +123,3 @@ describe("alarm-trigger", () => {
 		});
 	});
 });
-
-// Helper that mirrors the internal getConsecutiveFailureThreshold logic
-function getThreshold(triggerConditions: unknown): number {
-	if (
-		triggerConditions &&
-		typeof triggerConditions === "object" &&
-		"consecutiveFailures" in triggerConditions
-	) {
-		const threshold = (triggerConditions as { consecutiveFailures: number })
-			.consecutiveFailures;
-		if (typeof threshold === "number" && threshold > 0) {
-			return threshold;
-		}
-	}
-	return 3;
-}

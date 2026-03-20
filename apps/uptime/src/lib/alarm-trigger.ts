@@ -1,4 +1,4 @@
-import { alarms, and, db, eq, uptimeSchedules } from "@databuddy/db";
+import { alarms, and, db, eq, isNull, or, uptimeSchedules } from "@databuddy/db";
 import {
 	sendDiscordWebhook,
 	sendSlackWebhook,
@@ -31,7 +31,7 @@ const monitorState = new Map<
 	{ consecutiveFailures: number; lastNotifiedStatus: number }
 >();
 
-function getConsecutiveFailureThreshold(
+export function getConsecutiveFailureThreshold(
 	triggerConditions: unknown
 ): number {
 	if (
@@ -70,6 +70,12 @@ async function sendAlarmNotifications(
 					headers:
 						(alarm.webhookHeaders as Record<string, string>) ?? undefined,
 				});
+			} else {
+				captureError(new Error(`Unsupported notification channel: ${channel}`), {
+					type: "alarm_notification_error",
+					alarmId: alarm.id,
+					channel,
+				});
 			}
 		} catch (error) {
 			captureError(error, {
@@ -101,18 +107,20 @@ export async function checkAndTriggerAlarms(
 		const websiteId = schedule.websiteId;
 		const organizationId = schedule.organizationId;
 
-		const conditions = [
-			eq(alarms.enabled, true),
-			eq(alarms.triggerType, "uptime"),
-			eq(alarms.organizationId, organizationId),
-		];
-
-		if (websiteId) {
-			conditions.push(eq(alarms.websiteId, websiteId));
-		}
+		// Match alarms correctly:
+		// - If schedule has websiteId: match website-specific alarms OR org-level alarms (websiteId IS NULL)
+		// - If schedule has no websiteId: match only org-level alarms (websiteId IS NULL)
+		const websiteCondition = websiteId
+			? or(eq(alarms.websiteId, websiteId), isNull(alarms.websiteId))
+			: isNull(alarms.websiteId);
 
 		const matchingAlarms = await db.query.alarms.findMany({
-			where: and(...conditions),
+			where: and(
+				eq(alarms.enabled, true),
+				eq(alarms.triggerType, "uptime"),
+				eq(alarms.organizationId, organizationId),
+				websiteCondition,
+			),
 		});
 
 		if (matchingAlarms.length === 0) {
