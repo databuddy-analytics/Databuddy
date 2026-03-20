@@ -635,6 +635,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder || null,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})

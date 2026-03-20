@@ -291,7 +291,8 @@ export function FlagSheet({
 					variants: flag.variants ?? [],
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
-tttttfolder: flag.folder || undefined,					targetGroupIds: extractTargetGroupIds(),
+					folder: flag.folder || undefined,
+					targetGroupIds: extractTargetGroupIds(),
 				},
 				schedule: undefined,
 			});
