@@ -6,7 +6,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,6 +86,19 @@ export function AlarmDialog({ alarm, isOpen, onCloseAction }: AlarmDialogProps) 
 		alarm?.emailAddresses?.join(", ") ?? ""
 	);
 	const [webhookUrl, setWebhookUrl] = useState(alarm?.webhookUrl ?? "");
+
+	// Reset form state when alarm prop changes (fixes stale data when editing different alarms)
+	useEffect(() => {
+		setName(alarm?.name ?? "");
+		setDescription(alarm?.description ?? "");
+		setEnabled(alarm?.enabled ?? true);
+		setTriggerType((alarm?.triggerType as TriggerType) ?? "uptime");
+		setChannels((alarm?.notificationChannels as Channel[]) ?? []);
+		setSlackUrl(alarm?.slackWebhookUrl ?? "");
+		setDiscordUrl(alarm?.discordWebhookUrl ?? "");
+		setEmailAddresses(alarm?.emailAddresses?.join(", ") ?? "");
+		setWebhookUrl(alarm?.webhookUrl ?? "");
+	}, [alarm]);
 
 	const createMutation = useMutation({
 		...orpc.alarms.create.mutationOptions(),
