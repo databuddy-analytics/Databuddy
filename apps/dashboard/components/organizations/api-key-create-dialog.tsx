@@ -22,6 +22,7 @@ import {
 	Command,
 	CommandEmpty,
 	CommandGroup,
+	CommandInput,
 	CommandItem,
 	CommandList,
 } from "../ui/command";
@@ -147,7 +148,7 @@ export function ApiKeyCreateDialog({
 		}
 		setWebsiteAccess((prev) => [
 			...prev,
-			{ resourceType: "website", resourceId, scopes: globalScopes },
+			{ resourceType: "website", resourceId, scopes: [] },
 		]);
 	};
 
@@ -168,7 +169,7 @@ export function ApiKeyCreateDialog({
 
 		// Add website-specific scopes with proper prefix
 		for (const entry of websiteAccess) {
-			if (entry.resourceId && entry.scopes.length > 0) {
+			if (entry.resourceId) {
 				resources[`website:${entry.resourceId}`] = globalScopes;
 			}
 		}
@@ -355,7 +356,7 @@ export function ApiKeyCreateDialog({
 								<Popover onOpenChange={setPopoverOpen} open={popoverOpen}>
 									<PopoverTrigger asChild>
 										<Button
-											aria-expanded={open}
+											aria-expanded={popoverOpen}
 											className="w-full justify-between"
 											role="combobox"
 											variant="outline"
@@ -373,6 +374,7 @@ export function ApiKeyCreateDialog({
 										<Command>
 											<CommandList>
 												<CommandEmpty>No websites found.</CommandEmpty>
+												<CommandInput placeholder="Search websites..." />
 												<CommandGroup>
 													{(websites as Website[]).map((website) => (
 														<CommandItem
