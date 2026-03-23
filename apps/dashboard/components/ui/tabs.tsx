@@ -256,9 +256,10 @@ function TabsTrigger({
 			className={cn(
 				"z-1 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1",
 				"font-medium text-muted-foreground data-[state=active]:text-foreground text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px]",
-				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 _data-[state=active]:border-accent-foreground/10",
-				"_data-[state=active]:bg-secondary-brightest [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-				 // disable trigger active styling so TabList default `absolute` indicator animation is visible
+				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50",
+				" [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				// "data-[state=active]:bg-secondary-brightest data-[state=active]:border-accent-foreground/10",
+				 // disable trigger active styling so TabList default `absolute` indicator is visible 
 				className
 			)}
 			data-slot="tabs-trigger"

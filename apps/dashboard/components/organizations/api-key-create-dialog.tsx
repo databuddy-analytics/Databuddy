@@ -283,8 +283,8 @@ export function ApiKeyCreateDialog({
 								</Badge>
 							</div>
 							<p className="text-muted-foreground text-xs">
-								These permissions apply to all websites. Read Data is included
-								by default.
+								These permissions apply to all websites unless you restrict to
+								specific ones below.
 							</p>
 							<Tabs
 								defaultValue="all"
@@ -372,9 +372,9 @@ export function ApiKeyCreateDialog({
 										className="w-(--radix-popover-trigger-width) p-0"
 									>
 										<Command>
+											<CommandInput placeholder="Search websites..." />
 											<CommandList>
 												<CommandEmpty>No websites found.</CommandEmpty>
-												<CommandInput placeholder="Search websites..." />
 												<CommandGroup>
 													{(websites as Website[]).map((website) => (
 														<CommandItem
