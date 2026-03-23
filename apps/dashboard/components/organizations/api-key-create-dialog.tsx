@@ -162,12 +162,8 @@ export function ApiKeyCreateDialog({
 	const onSubmit = form.handleSubmit((values) => {
 		const resources: Record<string, ApiScope[]> = {};
 
-		if (globalScopes.length > 0) {
-			if (websiteAccess.length === 0) {
-				resources.global = globalScopes;
-			} else {
-				resources.global = DEFAULT_SCOPES;
-			}
+		if (globalScopes.length > 0 && websiteAccess.length === 0) {
+			resources.global = globalScopes;
 		}
 
 		// Add website-specific scopes with proper prefix
