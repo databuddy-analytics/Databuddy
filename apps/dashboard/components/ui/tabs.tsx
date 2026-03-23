@@ -75,7 +75,7 @@ function TabsList({
 
 	useLayoutEffect(() => {
 		if (
-			(variant !== "underline" && variant !== "navigation") ||
+			(!["navigation", "underline", "default"].includes(variant) ) ||
 			!listRef.current ||
 			!activeValue
 		)
@@ -149,6 +149,7 @@ function TabsList({
 
 	// Default variant
 	return (
+		<div className="relative">
 		<TabsPrimitive.List
 			className={cn(
 				"inline-flex h-9 w-fit items-center justify-center rounded bg-accent-brighter p-[3px] text-muted-foreground",
@@ -158,6 +159,11 @@ function TabsList({
 			ref={listRef}
 			{...props}
 		/>
+		<div
+					className="absolute inset-0 top-1 bottom-1 z-0 rounded-md bg-secondary-brightest border border-accent-foreground/10 w-full transition-all duration-200 ease-out"
+					style={indicatorStyle}
+				/>
+		</div>
 	);
 }
 
@@ -248,10 +254,11 @@ function TabsTrigger({
 	return (
 		<TabsPrimitive.Trigger
 			className={cn(
-				"inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1",
+				"z-5 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1",
 				"font-medium text-muted-foreground data-[state=active]:text-foreground text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px]",
-				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-accent-foreground/10",
-				"data-[state=active]:bg-secondary-brightest [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 _data-[state=active]:border-accent-foreground/10",
+				"_data-[state=active]:bg-secondary-brightest [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				 // disable trigger active styling so TabList default `absolute` indicator animation is visible
 				className
 			)}
 			data-slot="tabs-trigger"
