@@ -21,9 +21,14 @@ An API key authenticates server-to-server calls to Databuddy. It supports fine-g
 ### Create a key
 
 1. Open [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
-2. Click “Create API Key”
-3. Choose a name, optional organization, scopes, and resource access
-4. Copy the secret immediately (it’s only shown once)
+2. Click "Create API Key"
+3. Enter a key name
+4. Choose how broad the key should be:
+   - `All`: grants all available scopes across the organization
+   - `Restricted`: lets you customize the key's global scopes
+   - `Read data only`: quickly creates a read-only key
+5. Optionally select specific websites to limit the key to those websites only
+6. Copy the secret immediately (it's only shown once)
 
 We only display the `prefix` and first characters (`start`) later for identification. Never share the full secret.
 
@@ -59,12 +64,16 @@ Grant only what you need. Prefer resource-scoped access where possible.
 
 ### Resource access
 
+API keys are created from Organization Settings and default to organization-wide access.
+
 Access can be scoped to:
 
-- **global**: Applies to all websites in the organization
-- **website**: Applies to a specific website only
+- **global**: Applies the selected scopes to all websites in the organization
+- **website**: Applies the selected scopes only to the specific websites you choose
 
-Example: a key with `read:data` scoped to a single website can read analytics only for that website, not others in the organization.
+If you add website restrictions, the key no longer inherits global read access by default.
+
+Example: a key with `read:data` limited to a single website can read analytics only for that website, not others in the organization.
 
 ### Errors
 
@@ -115,6 +124,7 @@ Logs include IP addresses, user agents, and timestamps for security monitoring.
 - Treat API keys like passwords; don't commit them to source control
 - Use environment variables or secret managers
 - Share only the prefix and `start` snippet for identification
+- Start with `Read data only` or `Restricted` when full global access is not needed
 - Use least-privilege scopes and resource scoping
 - Rotate keys periodically and revoke unused keys
 - Monitor audit logs for suspicious activity

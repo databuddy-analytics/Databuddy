@@ -30,7 +30,10 @@ Alternatively, use Bearer token format:
 1. Go to **[Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)**
 2. Click **Create API Key**
 3. Enter a descriptive name (e.g., "Production Server", "CI Pipeline")
-4. Select the required scopes
+4. Choose a preset:
+   - **All** for full organization-wide access
+   - **Restricted** to customize global scopes
+   - **Read data only** for a quick read-only key
 5. Optionally restrict access to specific websites
 6. Copy and securely store your key — it won't be shown again
 
@@ -59,14 +62,14 @@ API keys can have two access levels:
 
 ### Global Access
 
-Access all websites in your account or organization. Best for:
+Access all websites in your account or organization with the selected global scopes. Best for:
 - Internal dashboards
 - Automated reporting
 - Organization-wide analytics
 
 ### Website-Specific Access
 
-Access only specified websites. Best for:
+Access only specified websites. Restricted keys do not inherit a default global `read:data` scope. Best for:
 - Third-party integrations
 - Client-specific keys
 - Least-privilege security
