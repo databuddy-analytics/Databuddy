@@ -11,7 +11,7 @@ import {
 	PlusIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import type { Website } from "@/hooks/use-websites";
@@ -69,8 +69,13 @@ export function ApiKeyCreateDialog({
 	onSuccessAction,
 }: ApiKeyCreateDialogProps) {
 	const queryClient = useQueryClient();
-	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>(ALL_SCOPES);
+	// const [globalScopes, setGlobalScopes] = useState<ApiScope[]>(ALL_SCOPES);
 	const [websiteAccess, setWebsiteAccess] = useState<ApiKeyAccessEntry[]>([]);
+
+	const [scopeMode, setScopeMode] = useState("all");
+	const [restrictedScopes, setRestrictedScopes] =
+		useState<ApiScope[]>(DEFAULT_SCOPES);
+
 	const [popoverOpen, setPopoverOpen] = useState(false);
 	const [created, setCreated] = useState<{
 		id: string;
@@ -98,21 +103,18 @@ export function ApiKeyCreateDialog({
 		},
 	});
 
-	const assignGlobalScopes = (value: string) => {
-		switch (value) {
+	const globalScopes = useMemo(() => {
+		switch (scopeMode) {
 			case "all":
-				setGlobalScopes(ALL_SCOPES);
-				break;
+				return ALL_SCOPES;
 			case "restricted":
-				setGlobalScopes(DEFAULT_SCOPES);
-				break;
+				return restrictedScopes;
 			case "read-data":
-				setGlobalScopes(DEFAULT_SCOPES);
-				break;
+				return DEFAULT_SCOPES;
 			default:
-				setGlobalScopes(DEFAULT_SCOPES);
+				return DEFAULT_SCOPES;
 		}
-	};
+	}, [scopeMode, restrictedScopes]);
 
 	const handleClose = () => {
 		if (created) {
@@ -121,7 +123,8 @@ export function ApiKeyCreateDialog({
 		onOpenChangeAction(false);
 		setTimeout(() => {
 			form.reset();
-			setGlobalScopes(ALL_SCOPES);
+			setScopeMode("all");
+			setRestrictedScopes(DEFAULT_SCOPES);
 			setWebsiteAccess([]);
 			setCreated(null);
 			setCopied(false);
@@ -136,12 +139,6 @@ export function ApiKeyCreateDialog({
 		}
 	};
 
-	const toggleGlobalScope = (scope: ApiScope) => {
-		setGlobalScopes((prev) =>
-			prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
-		);
-	};
-
 	const addWebsite = (resourceId: string) => {
 		if (websiteAccess.some((e) => e.resourceId === resourceId)) {
 			return;
@@ -149,6 +146,7 @@ export function ApiKeyCreateDialog({
 		setWebsiteAccess((prev) => [
 			...prev,
 			{ resourceType: "website", resourceId, scopes: [] },
+			// don't snapshot globalScopes here, as they are computed on submit to ensure they reflect the latest selection
 		]);
 	};
 
@@ -170,6 +168,7 @@ export function ApiKeyCreateDialog({
 		// Add website-specific scopes with proper prefix
 		for (const entry of websiteAccess) {
 			if (entry.resourceId) {
+				// snapshot globalScopes on submit to ensure it reflects latest selection
 				resources[`website:${entry.resourceId}`] = globalScopes;
 			}
 		}
@@ -288,7 +287,8 @@ export function ApiKeyCreateDialog({
 							</p>
 							<Tabs
 								defaultValue="all"
-								onValueChange={assignGlobalScopes}
+								onValueChange={setScopeMode}
+								value={scopeMode}
 								variant="default"
 							>
 								<TabsList className="w-full bg-background">
@@ -302,13 +302,20 @@ export function ApiKeyCreateDialog({
 								>
 									<div className="grid grid-cols-2 gap-1">
 										{SCOPE_OPTIONS.map((scope) => {
-											const isSelected = globalScopes.includes(scope.value);
+											const isSelected = restrictedScopes.includes(scope.value);
 											const isDefault = DEFAULT_SCOPES.includes(scope.value);
 											return (
 												<button
 													className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
 													key={scope.value}
-													onClick={() => toggleGlobalScope(scope.value)}
+													onClick={() =>
+														setRestrictedScopes((prev) => {
+															if (prev.includes(scope.value)) {
+																return prev.filter((s) => s !== scope.value);
+															}
+															return [...prev, scope.value];
+														})
+													}
 													type="button"
 												>
 													<div
