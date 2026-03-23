@@ -3,13 +3,12 @@
 import type { ApiScope } from "@databuddy/api-keys/scopes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+	CaretUpDownIcon,
 	CheckCircleIcon,
 	CheckIcon,
 	CopyIcon,
-	GlobeIcon,
 	KeyIcon,
 	PlusIcon,
-	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -19,15 +18,16 @@ import type { Website } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandItem,
+	CommandList,
+} from "../ui/command";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "../ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
 	Sheet,
 	SheetBody,
@@ -37,6 +37,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "../ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { type ApiKeyAccessEntry, SCOPE_OPTIONS } from "./api-key-types";
 
 interface ApiKeyCreateDialogProps {
@@ -57,6 +58,9 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+const DEFAULT_SCOPES: ApiScope[] = ["read:data"];
+const ALL_SCOPES: ApiScope[] = SCOPE_OPTIONS.map((opt) => opt.value);
+
 export function ApiKeyCreateDialog({
 	open,
 	onOpenChangeAction,
@@ -64,9 +68,9 @@ export function ApiKeyCreateDialog({
 	onSuccessAction,
 }: ApiKeyCreateDialogProps) {
 	const queryClient = useQueryClient();
-	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>(["read:data"]);
+	const [globalScopes, setGlobalScopes] = useState<ApiScope[]>(ALL_SCOPES);
 	const [websiteAccess, setWebsiteAccess] = useState<ApiKeyAccessEntry[]>([]);
-	const [websiteToAdd, setWebsiteToAdd] = useState<string | undefined>();
+	const [popoverOpen, setPopoverOpen] = useState(false);
 	const [created, setCreated] = useState<{
 		id: string;
 		secret: string;
@@ -93,6 +97,22 @@ export function ApiKeyCreateDialog({
 		},
 	});
 
+	const assignGlobalScopes = (value: string) => {
+		switch (value) {
+			case "all":
+				setGlobalScopes(ALL_SCOPES);
+				break;
+			case "restricted":
+				setGlobalScopes(DEFAULT_SCOPES);
+				break;
+			case "read-data":
+				setGlobalScopes(DEFAULT_SCOPES);
+				break;
+			default:
+				setGlobalScopes(DEFAULT_SCOPES);
+		}
+	};
+
 	const handleClose = () => {
 		if (created) {
 			onSuccessAction(created);
@@ -100,9 +120,8 @@ export function ApiKeyCreateDialog({
 		onOpenChangeAction(false);
 		setTimeout(() => {
 			form.reset();
-			setGlobalScopes(["read:data"]);
+			setGlobalScopes(ALL_SCOPES);
 			setWebsiteAccess([]);
-			setWebsiteToAdd(undefined);
 			setCreated(null);
 			setCopied(false);
 		}, 200);
@@ -122,49 +141,39 @@ export function ApiKeyCreateDialog({
 		);
 	};
 
-	const addWebsite = () => {
-		if (!websiteToAdd) {
-			return;
-		}
-		if (websiteAccess.some((e) => e.resourceId === websiteToAdd)) {
+	const addWebsite = (resourceId: string) => {
+		if (websiteAccess.some((e) => e.resourceId === resourceId)) {
 			return;
 		}
 		setWebsiteAccess((prev) => [
 			...prev,
-			{ resourceType: "website", resourceId: websiteToAdd, scopes: [] },
+			{ resourceType: "website", resourceId, scopes: globalScopes },
 		]);
-		setWebsiteToAdd(undefined);
 	};
 
 	const removeWebsite = (resourceId: string) => {
 		setWebsiteAccess((prev) => prev.filter((e) => e.resourceId !== resourceId));
 	};
 
-	const toggleWebsiteScope = (resourceId: string, scope: ApiScope) => {
-		setWebsiteAccess((prev) =>
-			prev.map((entry) => {
-				if (entry.resourceId !== resourceId) {
-					return entry;
-				}
-				const scopes = entry.scopes.includes(scope)
-					? entry.scopes.filter((s) => s !== scope)
-					: [...entry.scopes, scope];
-				return { ...entry, scopes };
-			})
-		);
+	const isWebsiteSelected = (resourceId: string) => {
+		return websiteAccess.some((e) => e.resourceId === resourceId);
 	};
 
 	const onSubmit = form.handleSubmit((values) => {
 		const resources: Record<string, ApiScope[]> = {};
 
 		if (globalScopes.length > 0) {
-			resources.global = globalScopes;
+			if (websiteAccess.length === 0) {
+				resources.global = globalScopes;
+			} else {
+				resources.global = DEFAULT_SCOPES;
+			}
 		}
 
 		// Add website-specific scopes with proper prefix
 		for (const entry of websiteAccess) {
 			if (entry.resourceId && entry.scopes.length > 0) {
-				resources[`website:${entry.resourceId}`] = entry.scopes;
+				resources[`website:${entry.resourceId}`] = globalScopes;
 			}
 		}
 
@@ -182,7 +191,7 @@ export function ApiKeyCreateDialog({
 			<Sheet onOpenChange={handleClose} open={open}>
 				<SheetContent className="sm:max-w-md" side="right">
 					<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-						<div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+						<div className="zoom-in-90 mb-5 flex h-16 w-16 animate-in items-center justify-center rounded-full bg-green-100 duration-200 ease-out dark:bg-green-900/30">
 							<CheckCircleIcon
 								className="text-green-600 dark:text-green-400"
 								size={32}
@@ -271,11 +280,8 @@ export function ApiKeyCreateDialog({
 						{/* Global Permissions */}
 						<section className="space-y-3">
 							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<GlobeIcon className="text-muted-foreground" size={16} />
-									<Label className="font-medium">Global Permissions</Label>
-								</div>
-								<Badge className="font-normal" variant="secondary">
+								<Label className="font-medium">Global Permissions</Label>
+								<Badge className="font-normal" variant="outline">
 									{globalScopes.length} selected
 								</Badge>
 							</div>
@@ -283,44 +289,58 @@ export function ApiKeyCreateDialog({
 								These permissions apply to all websites. Read Data is included
 								by default.
 							</p>
-							<div className="rounded border bg-card p-1">
-								<div className="grid grid-cols-2 gap-1">
-									{SCOPE_OPTIONS.map((scope) => {
-										const isSelected = globalScopes.includes(scope.value);
-										const isDefault = scope.value === "read:data";
-										return (
-											<button
-												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
-												key={scope.value}
-												onClick={() => toggleGlobalScope(scope.value)}
-												type="button"
-											>
-												<div
-													className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
-														isSelected
-															? "border-primary bg-primary text-primary"
-															: "border-muted-foreground/30"
-													}`}
+							<Tabs
+								defaultValue="all"
+								onValueChange={assignGlobalScopes}
+								variant="default"
+							>
+								<TabsList className="w-full bg-background">
+									<TabsTrigger value="all">All</TabsTrigger>
+									<TabsTrigger value="restricted">Restricted</TabsTrigger>
+									<TabsTrigger value="read-data">Read data only</TabsTrigger>
+								</TabsList>
+								<TabsContent
+									className="rounded border bg-card"
+									value="restricted"
+								>
+									<div className="grid grid-cols-2 gap-1">
+										{SCOPE_OPTIONS.map((scope) => {
+											const isSelected = globalScopes.includes(scope.value);
+											const isDefault = DEFAULT_SCOPES.includes(scope.value);
+											return (
+												<button
+													className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
+													key={scope.value}
+													onClick={() => toggleGlobalScope(scope.value)}
+													type="button"
 												>
-													{isSelected && (
-														<CheckIcon
-															className="text-white"
-															size={12}
-															weight="bold"
-														/>
+													<div
+														className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
+															isSelected
+																? "border-primary bg-primary text-primary"
+																: "border-muted-foreground/30"
+														}`}
+													>
+														{isSelected && (
+															<CheckIcon
+																className="text-white"
+																size={12}
+																weight="bold"
+															/>
+														)}
+													</div>
+													<span className="truncate">{scope.label}</span>
+													{isDefault && (
+														<span className="text-[10px] text-muted-foreground">
+															default
+														</span>
 													)}
-												</div>
-												<span className="truncate">{scope.label}</span>
-												{isDefault && (
-													<span className="text-[10px] text-muted-foreground">
-														default
-													</span>
-												)}
-											</button>
-										);
-									})}
-								</div>
-							</div>
+												</button>
+											);
+										})}
+									</div>
+								</TabsContent>
+							</Tabs>
 						</section>
 
 						{/* Website-Specific Permissions */}
@@ -333,112 +353,57 @@ export function ApiKeyCreateDialog({
 									</span>
 								</div>
 								<p className="text-muted-foreground text-xs">
-									Limit this key to specific websites with custom permissions
+									Limit this key to specific websites
 								</p>
 
-								{/* Add Website */}
-								<div className="flex gap-2">
-									<Select onValueChange={setWebsiteToAdd} value={websiteToAdd}>
-										<SelectTrigger className="h-10 flex-1">
-											<SelectValue placeholder="Select a website..." />
-										</SelectTrigger>
-										<SelectContent>
-											{websites
-												.filter(
-													(w) =>
-														!websiteAccess.some((e) => e.resourceId === w.id)
-												)
-												.map((w: Website) => (
-													<SelectItem key={w.id} value={w.id}>
-														{w.name || w.domain}
-													</SelectItem>
-												))}
-										</SelectContent>
-									</Select>
-									<Button
-										disabled={!websiteToAdd}
-										onClick={addWebsite}
-										size="icon"
-										type="button"
-										variant="outline"
+								<Popover onOpenChange={setPopoverOpen} open={popoverOpen}>
+									<PopoverTrigger asChild>
+										<Button
+											aria-expanded={open}
+											className="w-full justify-between"
+											role="combobox"
+											variant="outline"
+										>
+											{websiteAccess.length > 0
+												? `${websiteAccess.map((entry) => websites?.find((w) => w.id === entry.resourceId)?.name || entry.resourceId).join(", ")}`
+												: "Select websites..."}
+											<CaretUpDownIcon className="size-3.5 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										align="start"
+										className="w-(--radix-popover-trigger-width) p-0"
 									>
-										<PlusIcon size={16} />
-									</Button>
-								</div>
-
-								{/* Website Access List */}
-								{websiteAccess.length > 0 && (
-									<div className="space-y-3">
-										{websiteAccess.map((entry) => {
-											const website = websites.find(
-												(w) => w.id === entry.resourceId
-											);
-											return (
-												<div
-													className="rounded border bg-muted/20 p-3"
-													key={entry.resourceId}
-												>
-													<div className="mb-3 flex items-center justify-between">
-														<span className="font-medium text-sm">
-															{(website?.name || website?.domain) ??
-																entry.resourceId}
-														</span>
-														<Button
-															className="size-7"
-															onClick={() =>
-																removeWebsite(entry.resourceId ?? "")
-															}
-															size="icon"
-															type="button"
-															variant="ghost"
+										<Command>
+											<CommandList>
+												<CommandEmpty>No websites found.</CommandEmpty>
+												<CommandGroup>
+													{(websites as Website[]).map((website) => (
+														<CommandItem
+															key={website.id}
+															onSelect={(currentValue) => {
+																isWebsiteSelected(currentValue)
+																	? removeWebsite(currentValue)
+																	: addWebsite(currentValue);
+																setPopoverOpen(false);
+															}}
+															value={website.id}
 														>
-															<TrashIcon size={14} />
-														</Button>
-													</div>
-													<div className="grid grid-cols-2 gap-1">
-														{SCOPE_OPTIONS.slice(0, 6).map((scope) => {
-															const isSelected = entry.scopes.includes(
-																scope.value
-															);
-															return (
-																<button
-																	className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${
-																		isSelected
-																			? "bg-primary/20 text-foreground"
-																			: "hover:bg-muted"
-																	}`}
-																	key={scope.value}
-																	onClick={() =>
-																		toggleWebsiteScope(
-																			entry.resourceId ?? "",
-																			scope.value
-																		)
-																	}
-																	type="button"
-																>
-																	<div
-																		className={`flex size-3 shrink-0 items-center justify-center rounded-sm border ${
-																			isSelected
-																				? "border-primary bg-primary text-primary-foreground"
-																				: "border-muted-foreground/30"
-																		}`}
-																	>
-																		{isSelected && (
-																			<CheckIcon size={8} weight="bold" />
-																		)}
-																	</div>
-																	<span className="truncate">
-																		{scope.label}
-																	</span>
-																</button>
-															);
-														})}
-													</div>
-												</div>
-											);
-										})}
-									</div>
-								)}
+															{website.name || website.domain}
+															<CheckIcon
+																className={`ml-auto size-3.5 ${
+																	isWebsiteSelected(website.id)
+																		? "opacity-100"
+																		: "opacity-0"
+																}`}
+															/>
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
 							</section>
 						)}
 					</SheetBody>
