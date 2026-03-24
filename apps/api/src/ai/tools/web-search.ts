@@ -30,8 +30,11 @@ export const webSearchTool = tool({
 				? `You are a research assistant. The user is analyzing their website analytics and needs external context. Their specific situation: ${context}. Provide a concise, factual answer focused on actionable information. No fluff.`
 				: "You are a research assistant. Provide a concise, factual answer focused on actionable information. No fluff.";
 
-			const appContext = (options as { experimental_context?: AppContext })
-				.experimental_context;
+			const appContext =
+				"experimental_context" in (options as object)
+					? (options as { experimental_context?: AppContext })
+							.experimental_context
+					: undefined;
 
 			const webSearchMetadata: Record<string, string> = {
 				source: "agent_tool",
