@@ -15,19 +15,23 @@ let sdk: NodeSDK | null = null;
  * No-op when TCC_API_KEY is unset (local dev without observability).
  */
 export function initTccTracing(): void {
+export function initTccTracing(): void {
 	if (sdk || !process.env.TCC_API_KEY) {
 		return;
 	}
 
-	const next = new NodeSDK({
-		resource: resourceFromAttributes({
-			[ATTR_SERVICE_NAME]: "databuddy-api",
-			[ATTR_SERVICE_VERSION]: pkg.version,
-		}),
-		spanProcessors: [new TCCSpanProcessor()],
-	});
-	next.start();
-	sdk = next;
+	try {
+		sdk = new NodeSDK({
+			resource: resourceFromAttributes({
+				[ATTR_SERVICE_NAME]: "databuddy-api",
+				[ATTR_SERVICE_VERSION]: pkg.version,
+			}),
+			spanProcessors: [new TCCSpanProcessor()],
+		});
+		sdk.start();
+	} catch {
+		sdk = null;
+	}
 }
 
 export async function shutdownTccTracing(): Promise<void> {
